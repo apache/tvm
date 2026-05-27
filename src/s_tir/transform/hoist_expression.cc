@@ -568,7 +568,7 @@ Pass HoistExpression() {
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<HoistExpressionConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
     n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
     return f;
@@ -602,7 +602,7 @@ static Pass HoistIfThenElseImpl() {
       return f;
     }
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<HoistIfThenElseConfig>();
     }
     int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting
                                          ? HoistedConditionals::kUsingBlockVar

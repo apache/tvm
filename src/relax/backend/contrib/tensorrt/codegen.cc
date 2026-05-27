@@ -180,7 +180,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
+      cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
     ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],

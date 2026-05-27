@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in sort operator */
-struct SortAttrs : public BaseAttrsNode {
+struct SortAttrs : public AttrsNode {
   int axis;
   bool descending;
 
@@ -47,11 +47,11 @@ struct SortAttrs : public BaseAttrsNode {
                 "If it is not specified, it defaults to the ascending order.",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SortAttrs", SortAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SortAttrs", SortAttrs, AttrsNode);
 };  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
-struct ArgsortAttrs : public BaseAttrsNode {
+struct ArgsortAttrs : public AttrsNode {
   int axis;
   bool descending;
   DataType dtype;
@@ -70,11 +70,11 @@ struct ArgsortAttrs : public BaseAttrsNode {
         .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
                 refl::DefaultValue(DataType::Void()));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, AttrsNode);
 };  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
-struct TopKAttrs : public BaseAttrsNode {
+struct TopKAttrs : public AttrsNode {
   int k;
   int axis;
   bool largest;
@@ -100,7 +100,7 @@ struct TopKAttrs : public BaseAttrsNode {
         .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
                 refl::DefaultValue(DataType::Void()));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, AttrsNode);
 };  // struct TopKAttrs
 
 }  // namespace relax

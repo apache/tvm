@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in call_tir_with_grad */
-struct CallTIRWithGradAttrs : public BaseAttrsNode {
+struct CallTIRWithGradAttrs : public AttrsNode {
   ffi::String te_grad_name;
   ffi::Map<ffi::String, Any> te_grad_kwargs;
 
@@ -45,11 +45,11 @@ struct CallTIRWithGradAttrs : public BaseAttrsNode {
                 "The keyword arguments passed to the te gradient function.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRWithGradAttrs", CallTIRWithGradAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct CallTIRAttrs
 
 /*! \brief Attributes used in call_tir_inplace */
-struct CallTIRInplaceAttrs : public BaseAttrsNode {
+struct CallTIRInplaceAttrs : public AttrsNode {
   /*!
    * \brief Indices that describe which input corresponds to which output.
    *
@@ -65,11 +65,11 @@ struct CallTIRInplaceAttrs : public BaseAttrsNode {
                                                   &CallTIRInplaceAttrs::inplace_indices);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRInplaceAttrs", CallTIRInplaceAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct CallTIRInplaceAttrs
 
 /*! \brief Attributes used in call_inplace_packed */
-struct CallInplacePackedAttrs : public BaseAttrsNode {
+struct CallInplacePackedAttrs : public AttrsNode {
   /*!
    * \brief Indices that describe which input corresponds to which output.
    *
@@ -85,11 +85,11 @@ struct CallInplacePackedAttrs : public BaseAttrsNode {
                                                      &CallInplacePackedAttrs::inplace_indices);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallInplacePackedAttrs", CallInplacePackedAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct CallInplacePackedAttrs
 
 /*! \brief Attributes used in to_vdevice */
-struct ToVDeviceAttrs : public BaseAttrsNode {
+struct ToVDeviceAttrs : public AttrsNode {
   VDevice dst_vdevice;
 
   static void RegisterReflection() {
@@ -97,11 +97,11 @@ struct ToVDeviceAttrs : public BaseAttrsNode {
     refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
                                              "The destination device where the data is copied to.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs, AttrsNode);
 };  // struct ToVDeviceAttrs
 
 /*! \brief Attributes used in hint_on_device */
-struct HintOnDeviceAttrs : public BaseAttrsNode {
+struct HintOnDeviceAttrs : public AttrsNode {
   int32_t device_type;
   int32_t index;
   MemoryScope memory_scope;
@@ -114,8 +114,7 @@ struct HintOnDeviceAttrs : public BaseAttrsNode {
         .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
         .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs, AttrsNode);
 };  // struct HintOnDeviceAttrs
 
 }  // namespace relax

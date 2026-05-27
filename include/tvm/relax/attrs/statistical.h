@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for statistical operators */
-struct StatisticalAttrs : public BaseAttrsNode {
+struct StatisticalAttrs : public AttrsNode {
   ffi::Optional<ffi::Array<int64_t>> axis;
   bool keepdims;
 
@@ -44,12 +44,11 @@ struct StatisticalAttrs : public BaseAttrsNode {
                 "with size "
                 "one.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs, AttrsNode);
 };  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
-struct ScanopAttrs : public BaseAttrsNode {
+struct ScanopAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   DataType dtype;
   bool exclusive = false;
@@ -66,7 +65,7 @@ struct ScanopAttrs : public BaseAttrsNode {
         .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
                 refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, AttrsNode);
 };  // struct ScanopAttrs
 
 }  // namespace relax

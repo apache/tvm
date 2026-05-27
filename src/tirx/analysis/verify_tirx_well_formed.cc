@@ -251,8 +251,7 @@ bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode, bool device_fun
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto prim_func = base_func.as<PrimFunc>()) {
       // s_tir=True PrimFuncs use s_tir semantics — defer to VerifyWellFormed.
-      if (prim_func.value()->attrs.defined() &&
-          prim_func.value()->attrs->dict.count(tvm::attr::kSTir)) {
+      if (prim_func.value()->attrs->dict.count(tvm::attr::kSTir)) {
         if (!VerifyWellFormed(prim_func.value(), assert_mode)) return false;
         continue;
       }

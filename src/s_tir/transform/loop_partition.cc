@@ -817,7 +817,7 @@ Pass LoopPartition() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
     }
     n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
                                    cfg.value()->no_unroll_loop_with_extent_one,
