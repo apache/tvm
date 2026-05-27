@@ -4165,6 +4165,128 @@ def test_call_subgraph_multi_output():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def _build_tflite_nested_call_model():
+    """Build a TFLite model where main CALLs subgraph A, which CALLs subgraph B."""
+    builder = flatbuffers.Builder(1024)
+
+    main_call_options = _build_call_options(builder, 1)
+    nested_call_options = _build_call_options(builder, 2)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    main_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=main_call_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_call],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    caller_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    nested_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=nested_call_options,
+    )
+    caller_subgraph = _build_subgraph(
+        builder,
+        tensors=caller_tensors,
+        operators=[nested_call],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    callee_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    callee_add = _build_operator(builder, 1, [0, 1], [2])
+    callee_subgraph = _build_subgraph(
+        builder,
+        tensors=callee_tensors,
+        operators=[callee_add],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[caller_subgraph, callee_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_call_subgraph_nested_call():
+    """Test nested CALL subgraphs register all generated private functions."""
+    mod = _load_model_from_buffer(_build_tflite_nested_call_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_call_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_call_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_call_subgraph_2(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_call_subgraph_1(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_call_subgraph_invalid_index_unsupported():
     """Test CALL rejects invalid subgraph indices before lowering."""
     with pytest.raises(tvm.error.OpNotImplemented, match="CALL requires a valid subgraph index"):

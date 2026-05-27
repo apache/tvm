@@ -174,7 +174,10 @@ class OperatorConverter:
                 "lowered_if_functions": {},
                 "lowered_while_functions": {},
                 "lowering_stack": [],
+                "module_builder": ctx,
             }
+        else:
+            conversion_state.setdefault("module_builder", ctx)
         self.conversion_state = conversion_state
 
         # Add more operators
@@ -574,7 +577,7 @@ class OperatorConverter:
     def get_tensors(self, tensors_idx_list):
         """Get tensor wrapper list from given TFLite tensor index list"""
         return_list = list()
-        for tensor_idx in tensors_idx_list:
+        for tensor_idx in self._indices_or_empty(tensors_idx_list):
             if tensor_idx < 0:
                 return_list.append(TensorWrapper(tensor_idx, 0, 0))
                 continue
@@ -1932,6 +1935,10 @@ class OperatorConverter:
             return exprs[0]
         return relax.Tuple(exprs)
 
+    def _indices_or_empty(self, indices):
+        """Return a TFLite index vector, using an empty list for absent vectors."""
+        return indices if indices is not None else []
+
     def _check_subgraph_io(self, subgraph_index, op_name, input_count=None, output_count=None):
         """Validate a referenced subgraph's input and output counts."""
         subgraph = self._get_subgraph(subgraph_index, op_name)
@@ -1994,7 +2001,9 @@ class OperatorConverter:
         self, subgraph, op_name, tensor_role, subgraph_indices, expected_tensors
     ):
         """Validate referenced subgraph tensor metadata against caller tensors."""
-        for subgraph_index, expected_tensor in zip(subgraph_indices, expected_tensors):
+        for subgraph_index, expected_tensor in zip(
+            self._indices_or_empty(subgraph_indices), expected_tensors
+        ):
             self._check_tensor_metadata_match(
                 subgraph.Tensors(int(subgraph_index)),
                 expected_tensor,
@@ -2014,11 +2023,11 @@ class OperatorConverter:
         """Create Relax parameters for a TFLite subgraph."""
         params = []
         exp_tab = ExprTable()
-        for input_index in subgraph.InputsAsNumpy():
+        for input_index in self._indices_or_empty(subgraph.InputsAsNumpy()):
             tensor = subgraph.Tensors(int(input_index))
             input_name = get_tensor_name(subgraph, int(input_index))
             shape = tuple(tensor.ShapeAsNumpy()) if tensor.ShapeLength() > 0 else []
-            dtype = _decode_type(tensor.Type())
+            dtype = self.get_tensor_type_str(tensor.Type())
             param = relax.Var(input_name, relax.TensorStructInfo(shape=shape, dtype=dtype))
             exp_tab.set_expr(input_name, param)
             params.append(param)
@@ -2071,7 +2080,8 @@ class OperatorConverter:
                 subgraph_bb.emit_func_output(output)
 
             subgraph_mod = subgraph_bb.get()
-            gv = self.bb.add_func(subgraph_mod[function_name_hint], function_name_hint)
+            module_builder = self.conversion_state["module_builder"]
+            gv = module_builder.add_func(subgraph_mod[function_name_hint], function_name_hint)
             lowered_subgraphs[subgraph_index] = gv
             return gv
         finally:
@@ -2121,7 +2131,8 @@ class OperatorConverter:
             )
             if_bb.emit_func_output(result)
         if_func = if_bb.get()[if_name]
-        gv = self.bb.add_func(if_func, if_name)
+        module_builder = self.conversion_state["module_builder"]
+        gv = module_builder.add_func(if_func, if_name)
         lowered_if_functions[cache_key] = gv
         return gv
 
@@ -2143,7 +2154,8 @@ class OperatorConverter:
         loop_name = f"tflite_while_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
         params, _ = self._get_subgraph_params(body_subgraph)
         dummy_body = self._make_tuple_or_single(params)
-        loop_gv = self.bb.add_func(relax.Function(params, dummy_body), loop_name)
+        module_builder = self.conversion_state["module_builder"]
+        loop_gv = module_builder.add_func(relax.Function(params, dummy_body), loop_name)
         lowered_while_functions[cache_key] = loop_gv
 
         loop_bb = relax.BlockBuilder()
@@ -2156,7 +2168,7 @@ class OperatorConverter:
             result = relax.If(cond, true_branch, false_branch)
             loop_bb.emit_func_output(result)
         loop_func = loop_bb.get()[loop_name]
-        self.bb.update_func(loop_gv, loop_func)
+        module_builder.update_func(loop_gv, loop_func)
         return loop_gv
 
     def convert_call(self, op):
