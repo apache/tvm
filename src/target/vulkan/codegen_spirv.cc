@@ -160,7 +160,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   uint32_t vulkan_api_version = spirv_support_.vulkan_api_version;
 
   int64_t sync_scope;
-  int64_t memory_semantics = spv::MemorySemanticsSequentiallyConsistentMask;
+  int64_t memory_semantics = spv::MemorySemanticsAcquireReleaseMask;
   if ((sync == "warp") && (vulkan_api_version >= VK_API_VERSION_1_1)) {
     // Synchronize control at the Subgroup level, but memory at the
     // Workgroup level.  This is because different invocations in a
