@@ -195,33 +195,6 @@ class IRModule(Node, Scriptable):
         """
         return _ffi_api.Module_GetGlobalVars(self)
 
-    def replace_global_vars(
-        self,
-        replacements: dict[str | _expr.GlobalVar, str | _expr.GlobalVar],
-    ) -> "IRModule":
-        """Replace GlobalVar instances within the module
-
-        Replace GlobalVars within the IRModule.  Since the IRModule
-        may contain internal references to a GlobalVar, either in TIR
-        or in Relax, this method should be used whenever replacing or
-        renaming a GlobalVar.
-
-        Parameters
-        ----------
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
-
-            A dictionary where each key is a GlobalVar to be replaced,
-            and the corresponding value is the GlobalVar with which to
-            replace it.
-
-        Returns
-        -------
-        IRModule
-            The updated module
-
-        """
-        return _ffi_api.Module_ReplaceGlobalVars(self, replacements)
-
     @staticmethod
     def from_expr(expr, functions=None):
         """Construct a module from a standalone expression.
