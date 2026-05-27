@@ -86,7 +86,7 @@ runs:
       shell: bash -l {0}
       env:
         TVM_PYTHON: python
-        TVM_USE_LLVM: llvm-config
+        TVM_USE_LLVM: llvm-config --link-static
         TVM_USE_CUDA: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
         TVM_CUDA_ARCHITECTURES: ${{ inputs.cuda_architectures }}
         TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}

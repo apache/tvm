@@ -27,7 +27,7 @@ TVM_INJECTED_DIST="${TVM_INJECTED_DIST:-${REPO_ROOT}/dist/tvm-injected}"
 TVM_WHEELHOUSE="${TVM_WHEELHOUSE:-${REPO_ROOT}/wheelhouse}"
 TVM_CUDA_BUILD_DIR="${TVM_CUDA_BUILD_DIR:-${REPO_ROOT}/build-wheel-cuda}"
 TVM_BASE_BUILD_DIR="${TVM_BASE_BUILD_DIR:-${REPO_ROOT}/build-wheel-base}"
-TVM_USE_LLVM="${TVM_USE_LLVM:-ON}"
+TVM_USE_LLVM="${TVM_USE_LLVM:-llvm-config --link-static}"
 TVM_USE_CUDA="${TVM_USE_CUDA:-ON}"
 TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
 TVM_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
@@ -43,7 +43,7 @@ usage() {
 Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|wheel|inject|repair|validate|verify|upload|verify-pypi]
 
 Environment knobs:
-  TVM_USE_LLVM                 LLVM config for the base wheel, default ON
+  TVM_USE_LLVM                 LLVM config for the base wheel, default "llvm-config --link-static"
   TVM_USE_CUDA                 CUDA root or ON for the sidecar build, default ON
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
   TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
@@ -170,9 +170,15 @@ build_base_wheel() {
   fi
 
   echo "Building base TVM wheel with LLVM=${TVM_USE_LLVM}, CUDA=OFF"
+  local cmake_args
+  printf -v cmake_args '%q ' \
+    "-DUSE_LLVM=${TVM_USE_LLVM}" \
+    "-DUSE_CUDA=OFF" \
+    "-DBUILD_TESTING=OFF" \
+    "-DTVM_BUILD_PYTHON_MODULE=ON"
   (
     cd "$TVM_RAW_DIST"
-    CMAKE_ARGS="-DUSE_LLVM=${TVM_USE_LLVM} -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON ${TVM_EXTRA_CMAKE_ARGS:-}" \
+    CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
       "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
         "${build_flags[@]}" \
         -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
@@ -244,10 +250,15 @@ llvm_libdir() {
   if [[ "$TVM_USE_LLVM" == "OFF" || "$TVM_USE_LLVM" == "0" ]]; then
     return 0
   fi
-  if command -v "$TVM_USE_LLVM" >/dev/null 2>&1; then
-    "$TVM_USE_LLVM" --libdir
-  elif [[ -x "$TVM_USE_LLVM" ]]; then
-    "$TVM_USE_LLVM" --libdir
+  local -a llvm_config
+  read -r -a llvm_config <<<"$TVM_USE_LLVM"
+  if [[ "${#llvm_config[@]}" -eq 0 ]]; then
+    return 0
+  fi
+  if command -v "${llvm_config[0]}" >/dev/null 2>&1; then
+    "${llvm_config[@]}" --libdir
+  elif [[ -x "${llvm_config[0]}" ]]; then
+    "${llvm_config[@]}" --libdir
   fi
 }
 

@@ -77,7 +77,7 @@ python -m venv /tmp/tvm-wheel-tools
 /tmp/tvm-wheel-tools/bin/python -m pip install -U pip build auditwheel twine
 
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-TVM_USE_LLVM=/path/to/llvm-config \
+TVM_USE_LLVM="/path/to/llvm-config --link-static" \
 TVM_USE_CUDA=/usr/local/cuda-12.8 \
 TVM_WHEEL_DIST_NAME=tvm-tlopexh-test \
 ci/scripts/package/build_tvm_wheel.sh all
@@ -107,7 +107,8 @@ ci/scripts/package/build_tvm_wheel.sh upload
 
 Useful knobs:
 
-- `TVM_USE_LLVM`: LLVM config for the base wheel, default `ON`.
+- `TVM_USE_LLVM`: LLVM config for the base wheel, default
+  `llvm-config --link-static`.
 - `TVM_USE_CUDA`: CUDA root or `ON` for the sidecar build, default `ON`.
 - `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
 - `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
