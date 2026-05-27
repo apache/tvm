@@ -348,8 +348,8 @@ __asm__ __volatile__("cp.async.wait_group 0;");
 
 @pytest.fixture
 def postproc_if_missing_async_support():
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    arch = tvm.support.nvcc.get_target_compute_version()
+    major, _ = tvm.support.nvcc.parse_compute_version(arch)
     support_async = major >= 8
 
     func_name = "tvm_callback_cuda_postproc"

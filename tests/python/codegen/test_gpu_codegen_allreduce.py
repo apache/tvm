@@ -105,7 +105,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
         @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
-            from tvm.contrib.xcode import compile_metal  # pylint: disable=import-outside-toplevel
+            from tvm.support.xcode import compile_metal  # pylint: disable=import-outside-toplevel
 
             return compile_metal(src, sdk="macosx")
 

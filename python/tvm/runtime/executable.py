@@ -24,7 +24,7 @@ from typing import Any
 from tvm_ffi import Function
 
 import tvm
-from tvm.contrib import utils as _utils
+from tvm.support import utils as _utils
 
 from . import Module
 

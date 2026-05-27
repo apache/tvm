@@ -28,8 +28,8 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.contrib import nvcc
 from tvm.runtime import Module, const
+from tvm.support import nvcc
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods

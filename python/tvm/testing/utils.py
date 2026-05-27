@@ -89,11 +89,12 @@ import pytest
 import tvm
 import tvm.arith
 import tvm.contrib.hexagon._ci_env_check as hexagon
-import tvm.contrib.utils
+import tvm.support.utils
 import tvm.te
 import tvm.tirx
-from tvm.contrib import cudnn, nvcc, rocm
+from tvm.contrib import cudnn
 from tvm.error import TVMError
+from tvm.support import nvcc, rocm
 from tvm.target import codegen
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -1246,8 +1247,8 @@ def requires_cuda_compute_version(major_version, minor_version=0, exact=False):
     """
     min_version = (major_version, minor_version)
     try:
-        arch = tvm.contrib.nvcc.get_target_compute_version()
-        compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+        arch = tvm.support.nvcc.get_target_compute_version()
+        compute_version = tvm.support.nvcc.parse_compute_version(arch)
     except ValueError:
         # No GPU present.  This test will be skipped from the
         # requires_cuda() marks as well.
@@ -1857,8 +1858,8 @@ def terminate_self():
 
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    arch = tvm.support.nvcc.get_target_compute_version()
+    major, minor = tvm.support.nvcc.parse_compute_version(arch)
     return major >= 8 and minor != 9
 
 

@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import te, topi
-from tvm.contrib import utils
+from tvm.support import utils
 
 
 @tvm.testing.requires_llvm
