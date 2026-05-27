@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../runtime/opencl/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
 #include "opencl_fallback_module.h"
