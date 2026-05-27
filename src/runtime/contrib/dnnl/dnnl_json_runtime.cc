@@ -52,9 +52,9 @@ namespace {
 inline bool contains(const std::string& s, const std::string& sub) {
   return s.find(sub) != std::string::npos;
 }
-inline bool contains_any(const std::string& s, const std::string& a, const std::string& b,
-                         const std::string& c) {
-  return contains(s, a) || contains(s, b) || contains(s, c);
+template <typename... Args>
+inline bool contains_any(const std::string& s, const Args&... args) {
+  return (contains(s, args) || ...);
 }
 }  // namespace
 
@@ -253,8 +253,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         TVM_FFI_ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
-        if (contains_any(op_name, "deconv1d", "deconv2d", "deconv3d") ||
-            contains_any(op_name, "conv1d_transpose", "conv2d_transpose", "conv3d_transpose")) {
+        if (contains_any(op_name, "deconv1d", "deconv2d", "deconv3d", "conv1d_transpose",
+                         "conv2d_transpose", "conv3d_transpose")) {
           Deconvolution(nid);
         } else if (contains_any(op_name, "conv1d", "conv2d", "conv3d")) {
           Convolution(nid);
