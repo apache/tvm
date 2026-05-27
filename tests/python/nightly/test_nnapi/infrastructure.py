@@ -20,7 +20,7 @@ import numpy as np
 
 import tvm
 import tvm.script.relax as R
-from tvm.contrib import ndk, utils
+from tvm.support import ndk, utils
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 
 

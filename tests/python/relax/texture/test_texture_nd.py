@@ -30,7 +30,7 @@ from tvm import (
     relax,
     tirx,
 )
-from tvm.contrib import ndk
+from tvm.support import ndk
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
 from tvm.script import ir as I
