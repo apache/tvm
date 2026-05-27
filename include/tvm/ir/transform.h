@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
@@ -66,6 +67,7 @@
 #include <tvm/ir/with_context.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
@@ -299,6 +301,25 @@ class PassContext : public ffi::ObjectRef {
   friend class Internal;
   friend class With<PassContext>;
 };
+
+/*!
+ * \brief Create a pass-config object with all default values, using the
+ *        reflection defaults.
+ * \tparam TConfig the ObjectRef type to be created.
+ * \return An instance with all reflection-defined default values applied.
+ */
+template <typename TConfig>
+inline TConfig PassConfigWithDefaults() {
+  static_assert(std::is_base_of_v<ffi::ObjectRef, TConfig>,
+                "Can only create ObjectRef-derived types");
+  using ContainerType = typename TConfig::ContainerType;
+  static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+  ffi::AnyView packed_args[1];
+  packed_args[0] = ContainerType::RuntimeTypeIndex();
+  ffi::Any rv;
+  finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+  return rv.cast<TConfig>();
+}
 
 #define TVM_PASS_CTX_CONFIG_VAR_DEF [[maybe_unused]] static uint32_t __make_PassContext_tid
 

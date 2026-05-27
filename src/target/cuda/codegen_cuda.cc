@@ -211,7 +211,7 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   extractor(f->body);
   // Also check PrimFunc attrs for persistent kernel (decorator-level)
   bool is_persistent = extractor.is_persistent_kernel;
-  if (!is_persistent && f->attrs.defined() && f->attrs->dict.count(tirx::attr::kPersistentKernel)) {
+  if (!is_persistent && f->attrs->dict.count(tirx::attr::kPersistentKernel)) {
     is_persistent = true;
   }
   arith::Analyzer analyzer;
