@@ -30,6 +30,8 @@ The wheel build flow is:
 3. When requested, inject the CUDA runtime DSO into `tvm/lib/` during the
    `cibuildwheel` repair hook.
 4. Repair the wheel, excluding CUDA driver/runtime DSOs and `libtvm_ffi`.
+   On Windows, copy the small runtime DLLs required by LLVM support libraries
+   into `tvm/lib/` because there is no auditwheel-style repair tool.
 5. Validate ELF links so intra-wheel TVM DSOs resolve through relative rpaths.
    LLVM is expected to be linked statically; the final wheel must not bundle
    or dynamically depend on `libLLVM`.
@@ -63,12 +65,14 @@ Workflow structure:
   the runtime DSO path as an action output.
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
-  repair hook injects the CUDA runtime before `auditwheel`/`delocate`/copy repair.
+  repair hook injects the CUDA runtime before `auditwheel`/`delocate`/Windows
+  dependency-copy repair.
 - `ci/scripts/package/tvm_wheel_helper.sh`: implements reusable local and CI
   entrypoints around the `cibuildwheel` build, such as `cuda`,
   `manylinux-cuda`, `cibw-repair`, `verify`, `upload`, and `verify-pypi`.
 - `ci/scripts/package/inject_cuda_runtime.py`: rewrites wheel metadata and
-  injects the CUDA runtime library when CUDA is enabled.
+  injects extra runtime files, including the CUDA runtime library when CUDA is
+  enabled.
 - `ci/scripts/package/verify_tvm_install.py`: imports the installed wheel and
   checks that the platform runtime library is present.
 
