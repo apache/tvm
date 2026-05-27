@@ -27,8 +27,8 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <limits>
