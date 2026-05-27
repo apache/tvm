@@ -31,7 +31,6 @@
 #include <string>
 #include <vector>
 
-#include "../../../runtime/regex.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
@@ -48,6 +47,16 @@ namespace contrib {
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
+
+namespace {
+inline bool contains(const std::string& s, const std::string& sub) {
+  return s.find(sub) != std::string::npos;
+}
+template <typename... Args>
+inline bool contains_any(const std::string& s, const Args&... args) {
+  return (contains(s, args) || ...);
+}
+}  // namespace
 
 class DNNLJSONRuntime : public JSONRuntimeBase {
  public:
@@ -189,46 +198,35 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     if (o_scl_tr || activation[0] != "none" || sum_scl_tr || dst_zp_tr) return attr;
 
-    // Define RegExp.
-    std::string bias_add_pat(".*_bias.*");
-    std::string relu_pat(".*_relu.*");
-    std::string tanh_pat(".*_tanh.*");
-    std::string sigmoid_pat(".*_sigmoid.*");
-    std::string clip_pat(".*_clip.*");
-    std::string gelu_pat(".*_gelu.*");
-    std::string swish_pat(".*_swish.*");
-    std::string sum_pat(".*_sum.*");
-    std::string mish_pat(".*_mish.*");
-
     // parsing of name to extract attributes
     auto op_name = nodes_[nid].GetOpName();
 
     // Parsing post-ops.
     dnnl::post_ops ops;
-    if (tvm::runtime::regex_match(op_name, sum_pat)) {
+    if (contains(op_name, "_sum")) {
       ops.append_sum(1.f);
     }
-    if (tvm::runtime::regex_match(op_name, relu_pat)) {
+    if (contains(op_name, "_relu")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     }
-    if (tvm::runtime::regex_match(op_name, tanh_pat)) {
+    if (contains(op_name, "_tanh")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_tanh, 0.f, 0.f);
     }
-    if (tvm::runtime::regex_match(op_name, clip_pat)) {
+    if (contains(op_name, "_clip")) {
       float a_min = GetNodeAttr<float>(nodes_[nid], "a_min");
       float a_max = GetNodeAttr<float>(nodes_[nid], "a_max");
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_clip, a_min, a_max);
     }
-    if (tvm::runtime::regex_match(op_name, sigmoid_pat)) {
+    if (contains(op_name, "_sigmoid")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_logistic, 0.f, 0.f);
     }
-    if (tvm::runtime::regex_match(op_name, swish_pat)) {
+    if (contains(op_name, "_swish")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_swish, 1.f, 1.f);
     }
-    if (tvm::runtime::regex_match(op_name, gelu_pat)) {
+    if (contains(op_name, "_gelu")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
     }
-    if (tvm::runtime::regex_match(op_name, mish_pat)) {
+    if (contains(op_name, "_mish")) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_mish, 1.f, 0.f);
     }
     if (ops.len() != 0) {
@@ -236,8 +234,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Parsing bias_add.
-    *bias_tr =
-        tvm::runtime::regex_match(op_name, bias_add_pat) ? GetInput(nid, 2) : TensorRequisite{};
+    *bias_tr = contains(op_name, "_bias") ? GetInput(nid, 2) : TensorRequisite{};
 
     return attr;
   }
@@ -250,31 +247,24 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::set<uint32_t> io_eid_set(run_arg_eid_.begin(), run_arg_eid_.end());
     tensor_registry_ = TensorRegistry(engine_, io_eid_set);
 
-    std::string conv_pat(".*conv[1-3]d.*");
-    std::string deconv_pat(".*deconv[1-3]d.*");
-    std::string conv_transpose_pat(".*conv[1-3]d_transpose.*");
-    std::string dense_pat(".*dense.*");
-    std::string max_pool_pat(".*max_pool[1-3]d");
-    std::string avg_pool_pat(".*avg_pool[1-3]d");
-
     // Build subgraph engine.
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
         TVM_FFI_ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
-        if (tvm::runtime::regex_match(op_name, deconv_pat) ||
-            tvm::runtime::regex_match(op_name, conv_transpose_pat)) {
+        if (contains_any(op_name, "deconv1d", "deconv2d", "deconv3d", "conv1d_transpose",
+                         "conv2d_transpose", "conv3d_transpose")) {
           Deconvolution(nid);
-        } else if (tvm::runtime::regex_match(op_name, conv_pat)) {
+        } else if (contains_any(op_name, "conv1d", "conv2d", "conv3d")) {
           Convolution(nid);
-        } else if (tvm::runtime::regex_match(op_name, dense_pat)) {
+        } else if (contains(op_name, "dense")) {
           Dense(nid);
         } else if ("nn.batch_norm" == op_name) {
           BatchNorm(nid);
-        } else if (tvm::runtime::regex_match(op_name, max_pool_pat)) {
+        } else if (contains_any(op_name, "max_pool1d", "max_pool2d", "max_pool3d")) {
           Pooling(nid, dnnl::algorithm::pooling_max);
-        } else if (tvm::runtime::regex_match(op_name, avg_pool_pat)) {
+        } else if (contains_any(op_name, "avg_pool1d", "avg_pool2d", "avg_pool3d")) {
           Pooling(nid, dnnl::algorithm::pooling_avg);
         } else if (elt_name2algo.count(op_name)) {
           Eltwise(nid);
