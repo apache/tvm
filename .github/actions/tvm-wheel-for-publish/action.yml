@@ -188,11 +188,13 @@ runs:
           -e TVM_SKIP_CUDA="${TVM_SKIP_CUDA}" \
           -e TVM_AUDITWHEEL_PLAT="${TVM_MANYLINUX_IMAGE}_${TVM_ARCH}" \
           -e TVM_EXPECT_WHEEL_PLATFORM_TAG="${TVM_MANYLINUX_IMAGE}_${TVM_ARCH}" \
+          -e CMAKE_PREFIX_PATH=/opt/llvm \
           -e CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" \
           -e TVM_BUILD_PARALLEL_LEVEL="$(nproc)" \
           "${container}" bash -lc '
             set -eux
             export PATH=/opt/python/cp310-cp310/bin:/opt/llvm/bin:/usr/local/cuda/bin:$PATH
+            export CMAKE_PREFIX_PATH=/opt/llvm${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}
             python -m pip install -U pip build auditwheel twine scikit-build-core wheel cmake ninja
             python -m pip install -v ./3rdparty/tvm-ffi
             python --version
