@@ -44,7 +44,7 @@ import traceback
 
 import cloudpickle
 
-from tvm.contrib.popen_pool import StatusKind
+from tvm.support.popen_pool import StatusKind
 
 
 class TimeoutStatus:

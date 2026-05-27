@@ -212,10 +212,10 @@ class Module(_Module):
         # Extra dependencies during runtime.
         from pathlib import Path
 
-        from tvm.contrib import cc as _cc
-        from tvm.contrib import tar as _tar
         from tvm.contrib import tvmjs as _tvmjs
-        from tvm.contrib import utils as _utils
+        from tvm.support import cc as _cc
+        from tvm.support import tar as _tar
+        from tvm.support import utils as _utils
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -442,15 +442,15 @@ def load_module(path):
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
-        from tvm.contrib import cc as _cc
+        from tvm.support import cc as _cc
 
         _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
-        from tvm.contrib import cc as _cc
-        from tvm.contrib import tar as _tar
-        from tvm.contrib import utils as _utils
+        from tvm.support import cc as _cc
+        from tvm.support import tar as _tar
+        from tvm.support import utils as _utils
 
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)

@@ -20,7 +20,7 @@ import datetime
 import os
 import shutil
 
-from tvm.contrib import utils
+from tvm.support import utils
 
 
 def validate_debug_dir_path(temp_dir, expected_basename):

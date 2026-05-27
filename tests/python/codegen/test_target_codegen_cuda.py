@@ -21,11 +21,11 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.contrib.nvcc
+import tvm.support.nvcc
 import tvm.testing
-from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support.nvcc import have_bf16, have_fp16, have_int8
 
 
 @pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
@@ -37,13 +37,13 @@ def setup_cuda_compile_mode(request):
         except ImportError:
             pytest.skip("cuda-python not available, skipping nvrtc tests")
 
-    orig_func = tvm.contrib.nvcc.tvm_callback_cuda_compile
+    orig_func = tvm.support.nvcc.tvm_callback_cuda_compile
 
     def compile_mode_wrapper(code):
         if mode == "nvcc":
-            return tvm.contrib.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
+            return tvm.support.nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
         elif mode == "nvrtc":
-            return tvm.contrib.nvcc.compile_cuda(code, target_format="cubin", compiler="nvrtc")
+            return tvm.support.nvcc.compile_cuda(code, target_format="cubin", compiler="nvrtc")
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
