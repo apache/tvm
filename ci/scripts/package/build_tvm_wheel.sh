@@ -167,11 +167,6 @@ build_base_wheel() {
     rm -rf "$TVM_BASE_BUILD_DIR"
   fi
 
-  local build_flags=()
-  if [[ "$TVM_BUILD_NO_ISOLATION" == "1" ]]; then
-    build_flags+=(--no-isolation)
-  fi
-
   echo "Building base TVM wheel with LLVM=${TVM_USE_LLVM}, CUDA=OFF"
   local cmake_args
   printf -v cmake_args '%q ' \
@@ -181,11 +176,18 @@ build_base_wheel() {
     "-DTVM_BUILD_PYTHON_MODULE=ON"
   (
     cd "$TVM_RAW_DIST"
-    CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
-      "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
-        "${build_flags[@]}" \
-        -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
-        "$REPO_ROOT"
+    if [[ "$TVM_BUILD_NO_ISOLATION" == "1" ]]; then
+      CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
+        "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
+          --no-isolation \
+          -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
+          "$REPO_ROOT"
+    else
+      CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
+        "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
+          -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
+          "$REPO_ROOT"
+    fi
   )
 
   single_wheel "$TVM_RAW_DIST" >/dev/null
