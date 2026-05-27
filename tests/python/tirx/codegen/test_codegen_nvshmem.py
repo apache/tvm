@@ -24,10 +24,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.contrib.popen_pool import PopenWorker
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import tirx as Tx
+from tvm.support.popen_pool import PopenWorker
 
 NUM_WORKERS = 4
 

@@ -334,7 +334,7 @@ def gen_grouped_gemm_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
 
-    compute_version = "".join(tvm.contrib.nvcc.get_target_compute_version(target).split("."))
+    compute_version = "".join(tvm.support.nvcc.get_target_compute_version(target).split("."))
     if compute_version == "100":
         jit_spec = gen_gemm_sm100_module()
     else:

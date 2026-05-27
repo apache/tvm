@@ -23,7 +23,7 @@ import tempfile
 import pytest
 
 import tvm
-from tvm.contrib.cc import _is_linux_like, _is_windows_like, create_executable, create_shared
+from tvm.support.cc import _is_linux_like, _is_windows_like, create_executable, create_shared
 
 
 def _src_gen(text):

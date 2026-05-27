@@ -58,7 +58,7 @@ def _args_to_numpy(args):
 
 
 def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
-    from tvm.contrib import ndk, tar
+    from tvm.support import ndk, tar
 
     def export_with(func):
         return lambda mod, path: mod.export_library(path, fcompile=func)

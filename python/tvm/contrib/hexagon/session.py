@@ -26,7 +26,7 @@ import tvm
 import tvm.contrib.hexagon as hexagon
 from tvm import rpc as _rpc
 from tvm import runtime
-from tvm.contrib import utils
+from tvm.support import utils
 
 from .tools import HEXAGON_SIMULATOR_NAME, export_module
 

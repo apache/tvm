@@ -26,10 +26,10 @@ import pytest
 import tvm
 import tvm.testing
 import tvm.tirx as tirx
-from tvm.contrib.nvcc import have_fp16
 from tvm.ir.module import IRModule
 from tvm.runtime.executable import Executable
 from tvm.script import tirx as T
+from tvm.support.nvcc import have_fp16
 
 VECTOR_N_INPUTS = 8
 

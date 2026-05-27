@@ -24,7 +24,6 @@ import tvm_ffi
 
 import tvm
 from tvm.contrib import coreml_runtime
-from tvm.contrib.xcode import compile_coreml
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
@@ -39,6 +38,7 @@ from tvm.relax.expr import (
 )
 from tvm.relax.struct_info import PrimStructInfo, TensorStructInfo
 from tvm.relax.transform import PatternCheckContext
+from tvm.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor
 from ..pattern_registry import get_patterns_with_prefix, register_patterns

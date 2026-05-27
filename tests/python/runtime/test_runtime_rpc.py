@@ -31,11 +31,11 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm import rpc, te
-from tvm.contrib import cc, utils
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import cc, utils
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.

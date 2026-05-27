@@ -42,10 +42,10 @@ import time
 import tvm_ffi
 
 from tvm.base import py_str
-from tvm.contrib import utils
-from tvm.contrib.popen_pool import PopenWorker
 from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
+from tvm.support import utils
+from tvm.support.popen_pool import PopenWorker
 
 # pylint: disable=unused-import
 from . import _ffi_api, base, testing
@@ -91,14 +91,14 @@ def _server_env(load_library, work_path=None):
 
         if path.endswith(".o"):
             # Extra dependencies during runtime.
-            from tvm.contrib import cc as _cc
+            from tvm.support import cc as _cc
 
             _cc.create_shared(path + ".so", path)
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
-            from tvm.contrib import cc as _cc
-            from tvm.contrib import tar as _tar
+            from tvm.support import cc as _cc
+            from tvm.support import tar as _tar
 
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)

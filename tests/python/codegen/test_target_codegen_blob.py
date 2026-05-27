@@ -22,9 +22,9 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm.contrib import cc, popen_pool, tar, utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import cc, popen_pool, tar, utils
 
 
 @tvm.testing.uses_gpu

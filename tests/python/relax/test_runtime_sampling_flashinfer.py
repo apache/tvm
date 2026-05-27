@@ -25,7 +25,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.contrib import utils
+from tvm.support import utils
 
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")

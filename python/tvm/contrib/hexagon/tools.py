@@ -31,7 +31,7 @@ import numpy
 from tvm_ffi import register_global_func
 
 import tvm
-import tvm.contrib.cc as cc
+import tvm.support.cc as cc
 
 # Linking Hexagon shared libraries.
 #

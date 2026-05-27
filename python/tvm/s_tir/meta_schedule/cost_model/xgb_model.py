@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Optional
 
 import numpy as np  # type: ignore
 
-from ....contrib.tar import tar, untar
+from tvm.support.tar import tar, untar
+
 from ....runtime import Tensor
 from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor

@@ -32,8 +32,8 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 
 import tvm
+from tvm.support.tar import tar, untar
 
-from ....contrib.tar import tar, untar
 from ....runtime import Tensor
 from ....target import Target
 from ..cost_model import PyCostModel
