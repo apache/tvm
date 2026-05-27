@@ -202,6 +202,6 @@ runs:
     - name: Verify final wheel
       shell: bash -l {0}
       env:
-        TVM_PYTHON: python
+        TVM_PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
         TVM_EXPECT_WHEEL_PLATFORM_TAG: ${{ steps.wheel_inputs.outputs.wheel_platform_tag }}
       run: ci/scripts/package/tvm_wheel_helper.sh verify
