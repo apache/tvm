@@ -156,7 +156,7 @@ class IndexMapNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IndexMapNode>()
         .def_ro("initial_indices", &IndexMapNode::initial_indices,
-                refl::AttachFieldFlag::SEqHashDef())
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("final_indices", &IndexMapNode::final_indices)
         .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map,
                 refl::AttachFieldFlag::SEqHashIgnore());
