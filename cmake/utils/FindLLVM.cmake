@@ -122,6 +122,12 @@ macro(find_llvm use_llvm)
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libdir")
     endif()
     message(STATUS "LLVM libdir: ${__llvm_libdir}")
+    set(__llvm_lib_hints
+      "${__llvm_libdir}"
+      "${__llvm_prefix}/lib"
+      "${__llvm_prefix}/lib64"
+      "${__llvm_prefix}/Library/lib"
+    )
     execute_process(COMMAND ${LLVM_CONFIG} --cmakedir
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_cmakedir
@@ -193,18 +199,36 @@ macro(find_llvm use_llvm)
         message(STATUS "LLVM links against math")
         list(APPEND LLVM_LIBS "m")
       elseif(("${__flag}" STREQUAL "-lz") OR ("${__flag}" STREQUAL "z.lib"))
-        message(STATUS "LLVM links against zlib")
-        find_package(ZLIB REQUIRED)
-        list(APPEND LLVM_LIBS "ZLIB::ZLIB")
-      elseif("${__flag}" STREQUAL "-lzstd")
-        list(APPEND CMAKE_MODULE_PATH "${__llvm_cmakedir}")
-        find_package(zstd REQUIRED)
-        if (TARGET "zstd::libzstd_static")
-          message(STATUS "LLVM links against static zstd")
-          list(APPEND LLVM_LIBS "zstd::libzstd_static")
+        find_library(ZLIB_STATIC
+          NAMES libz.a zlibstatic z
+          HINTS ${__llvm_lib_hints}
+          NO_DEFAULT_PATH)
+        if (ZLIB_STATIC)
+          message(STATUS "LLVM links against static zlib: ${ZLIB_STATIC}")
+          list(APPEND LLVM_LIBS "${ZLIB_STATIC}")
         else()
-          message(STATUS "LLVM links against shared zstd")
-          list(APPEND LLVM_LIBS "zstd::libzstd_shared")
+          message(STATUS "LLVM links against zlib")
+          find_package(ZLIB REQUIRED)
+          list(APPEND LLVM_LIBS "ZLIB::ZLIB")
+        endif()
+      elseif("${__flag}" STREQUAL "-lzstd")
+        find_library(ZSTD_STATIC
+          NAMES libzstd.a zstd_static zstd
+          HINTS ${__llvm_lib_hints}
+          NO_DEFAULT_PATH)
+        if (ZSTD_STATIC)
+          message(STATUS "LLVM links against static zstd: ${ZSTD_STATIC}")
+          list(APPEND LLVM_LIBS "${ZSTD_STATIC}")
+        else()
+          list(APPEND CMAKE_MODULE_PATH "${__llvm_cmakedir}")
+          find_package(zstd REQUIRED)
+          if (TARGET "zstd::libzstd_static")
+            message(STATUS "LLVM links against static zstd")
+            list(APPEND LLVM_LIBS "zstd::libzstd_static")
+          else()
+            message(STATUS "LLVM links against shared zstd")
+            list(APPEND LLVM_LIBS "zstd::libzstd_shared")
+          endif()
         endif()
       elseif("${__flag}" STREQUAL "-lxml2")
         message(STATUS "LLVM links against xml2")
