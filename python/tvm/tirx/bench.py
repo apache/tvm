@@ -30,7 +30,7 @@ import triton.profiler as proton
 import tvm_ffi
 
 import tvm
-from tvm.contrib import nvcc
+from tvm.support import nvcc
 from tvm.script import tirx as Tx
 
 

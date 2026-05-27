@@ -28,7 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.contrib import nvcc
+from tvm.support import nvcc
 from tvm.runtime import Module, const
 
 

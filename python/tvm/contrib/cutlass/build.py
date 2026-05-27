@@ -30,7 +30,7 @@ from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax, runtime
-from tvm.contrib.nvcc import get_cuda_version
+from tvm.support.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 
 from .gen_conv2d import CutlassConv2DProfiler

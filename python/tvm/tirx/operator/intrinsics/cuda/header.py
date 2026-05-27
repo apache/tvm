@@ -74,7 +74,7 @@ def header_generator(tags):
 
     # NVRTC has no host C++ stdlib and no <cuda.h>. Branch on __CUDACC_RTC__ so
     # the same emitted source compiles under both nvcc (offline) and NVRTC
-    # (runtime) without any post-processing in tvm.contrib.nvcc.
+    # (runtime) without any post-processing in tvm.support.nvcc.
     header += """
 #ifdef __CUDACC_RTC__
   #include <cuda/std/cstdint>
