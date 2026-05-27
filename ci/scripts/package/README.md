@@ -24,32 +24,30 @@ and shell/Python helpers.
 
 The wheel build flow is:
 
-1. Build `libtvm_runtime_cuda.so` in a CUDA-enabled CMake build.
+1. Optionally build `libtvm_runtime_cuda.so` in a CUDA-enabled Linux CMake build.
 2. Build the main Python wheel with `cibuildwheel`, LLVM enabled, and CUDA
    disabled.
-3. Inject the CUDA runtime DSO into `tvm/lib/` during the `cibuildwheel`
-   repair hook.
+3. When requested, inject the CUDA runtime DSO into `tvm/lib/` during the
+   `cibuildwheel` repair hook.
 4. Repair the wheel, excluding CUDA driver/runtime DSOs and `libtvm_ffi`.
 5. Validate ELF links so intra-wheel TVM DSOs resolve through relative rpaths.
    LLVM is expected to be linked statically; the final wheel must not bundle
    or dynamically depend on `libLLVM`.
 6. Verify the wheel in a fresh virtualenv.
-7. Upload with `twine`.
+7. Optionally upload and verify the uploaded package.
 
 GitHub Actions flow:
 
-1. Create a tag that contains these packaging files.
-2. Open the `Publish TVM wheel` workflow in GitHub Actions.
-3. Fill `tag` with that tag.
-4. The workflow builds a platform wheel matrix:
-   - Linux x86_64 in a `manylinux_2_28` container, with CUDA enabled.
-   - Linux aarch64 in a `manylinux_2_28` container, with CUDA enabled.
+1. The `Publish TVM wheel` workflow builds a platform wheel matrix:
+   - Linux x86_64 in a pinned `manylinux_2_28` container, with the CUDA runtime.
+   - Linux aarch64 in a pinned `manylinux_2_28` container, with the CUDA runtime.
    - macOS arm64 CPU-only.
    - Windows AMD64 CPU-only.
-5. For a TestPyPI run, set `publish_repository=testpypi` and set
-   `distribution_name` to a temporary package name.
-6. After the workflow build, upload, and `verify_pypi` jobs pass, run it again
-   with the final tag/name and `publish_repository=pypi`.
+2. The Linux CUDA runtime action exposes the built DSO path as an action output.
+   The wheel action receives that path explicitly and mounts it into the
+   `cibuildwheel` container for the repair hook.
+3. The optional publishing jobs upload the artifacts and can verify the package
+   from the selected package index.
 
 Linux wheels are built inside manylinux images. This avoids accidentally
 publishing a wheel tagged for the GitHub runner's host glibc, such as
@@ -61,7 +59,8 @@ Workflow structure:
   artifact upload, optional publishing, and post-upload verification.
 - `.github/actions/detect-env-vars`: shared environment detection.
 - `.github/actions/build-cuda`: builds only the optional CUDA runtime library.
-  On Linux this action owns the manylinux Docker/CUDA setup.
+  On Linux this action owns the pinned manylinux Docker/CUDA setup and exposes
+  the runtime DSO path as an action output.
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
   repair hook injects the CUDA runtime before `auditwheel`/`delocate`/copy repair.
@@ -128,6 +127,7 @@ Useful knobs:
 - `TVM_USE_LLVM`: LLVM config for the CIBW build and repair helpers, default
   `llvm-config --link-static`.
 - `TVM_USE_CUDA`: CUDA root or `ON` for the CUDA build, default `ON`.
+- `TVM_CUDA_RUNTIME_PATH`: explicit path to `libtvm_runtime_cuda.so` for repair.
 - `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
 - `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
 - `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
@@ -135,6 +135,8 @@ Useful knobs:
 - `TVM_SKIP_CUDA=1`: build or repair a wheel without the CUDA runtime.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
 - `TVM_AUDITWHEEL_PLAT`: optional `auditwheel repair --plat` override.
+- `TVM_AUDITWHEEL_LIBRARY_PATH`: optional, explicit library search path for
+  `auditwheel repair`.
 - `TVM_EXPECT_WHEEL_PLATFORM_TAG`: require the final wheel filename to include
   a specific platform tag, such as `manylinux_2_28_x86_64`.
 - `TVM_TEST_INDEX_URL`: package index for `verify-pypi`, default TestPyPI.

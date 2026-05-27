@@ -231,17 +231,28 @@ macro(find_llvm use_llvm)
           endif()
         endif()
       elseif("${__flag}" STREQUAL "-lxml2")
-        find_library(LIBXML2_LIBRARY
-          NAMES xml2 libxml2
-          HINTS ${__llvm_lib_hints}
-          NO_DEFAULT_PATH)
-        if (LIBXML2_LIBRARY)
-          message(STATUS "LLVM links against xml2: ${LIBXML2_LIBRARY}")
-          list(APPEND LLVM_LIBS "${LIBXML2_LIBRARY}")
+        if (UNIX AND NOT APPLE)
+          find_library(LIBXML2_SYSTEM_LIBRARY
+            NAMES libxml2.so.2 xml2 libxml2
+            PATHS /usr/lib64 /usr/lib /lib64 /lib
+            NO_DEFAULT_PATH)
+        endif()
+        if (LIBXML2_SYSTEM_LIBRARY)
+          message(STATUS "LLVM links against system xml2: ${LIBXML2_SYSTEM_LIBRARY}")
+          list(APPEND LLVM_LIBS "${LIBXML2_SYSTEM_LIBRARY}")
         else()
-          message(STATUS "LLVM links against xml2")
-          find_package(LibXml2 REQUIRED)
-          list(APPEND LLVM_LIBS "LibXml2::LibXml2")
+          find_library(LIBXML2_LIBRARY
+            NAMES libxml2.a xml2 libxml2
+            HINTS ${__llvm_lib_hints}
+            NO_DEFAULT_PATH)
+          if (LIBXML2_LIBRARY)
+            message(STATUS "LLVM links against xml2: ${LIBXML2_LIBRARY}")
+            list(APPEND LLVM_LIBS "${LIBXML2_LIBRARY}")
+          else()
+            message(STATUS "LLVM links against xml2")
+            find_package(LibXml2 REQUIRED)
+            list(APPEND LLVM_LIBS "LibXml2::LibXml2")
+          endif()
         endif()
       elseif("${__flag}" STREQUAL "zstd.dll.lib")
         message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/zstd.lib")
