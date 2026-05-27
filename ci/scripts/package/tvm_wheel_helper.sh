@@ -316,14 +316,29 @@ repair_wheel_to_dir() {
       done < <(auditwheel_excludes "$cuda_lib")
       echo "Repairing Linux wheel with auditwheel"
       (
+        auditwheel_libdir=""
+        trap '[[ -z "${auditwheel_libdir:-}" ]] || rm -rf "$auditwheel_libdir"' EXIT
         auditwheel_plat_args=()
         if [[ -n "${TVM_AUDITWHEEL_PLAT:-}" ]]; then
           auditwheel_plat_args+=(--plat "$TVM_AUDITWHEEL_PLAT")
         fi
         llvm_dir="$(llvm_libdir || true)"
         if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
-          echo "Adding LLVM libdir to LD_LIBRARY_PATH for auditwheel: ${llvm_dir}"
-          export LD_LIBRARY_PATH="${llvm_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          auditwheel_libdir="$(mktemp -d)"
+          shopt -s nullglob
+          lib=""
+          for lib in "$llvm_dir"/*.so "$llvm_dir"/*.so.*; do
+            case "$(basename "$lib")" in
+              libstdc++*|libgcc*|libgomp*|libatomic*|libasan*|libtsan*|libubsan*)
+                ;;
+              *)
+                ln -sf "$lib" "$auditwheel_libdir/$(basename "$lib")"
+                ;;
+            esac
+          done
+          shopt -u nullglob
+          echo "Adding filtered LLVM libdir to LD_LIBRARY_PATH for auditwheel: ${auditwheel_libdir}"
+          export LD_LIBRARY_PATH="${auditwheel_libdir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         fi
         auditwheel repair "${auditwheel_plat_args[@]}" "${exclude_args[@]}" \
           -w "$output_dir" "$injected_wheel"
