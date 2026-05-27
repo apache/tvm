@@ -213,6 +213,21 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto it = device_info_map_.find(gvar.get());
     TVM_FFI_ICHECK(it != device_info_map_.end());
     current_target_ = it->second.target;
+    // Track whether the caller is a host function (i.e. its target
+    // still has a host attached) and capture its host target.  The
+    // same-target shortcut at the call site is only safe when caller
+    // and callee are both device-resident; a host caller must take
+    // the kernel-launch path even if Target::WithoutHost() makes the
+    // strings match.  Conversely, a host caller invoking another host
+    // helper (e.g. a same-target subroutine that SplitHostDevice
+    // emitted on the host side) should compare against the host
+    // target, not the device target stripped by WithoutHost().
+    auto full_target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (full_target->GetHost().defined()) {
+      current_caller_host_target_ = full_target->GetHost().value();
+    } else {
+      current_caller_host_target_ = std::nullopt;
+    }
 
     auto body = VisitStmt(func->body);
     if (!body.same_as(func->body)) {
@@ -220,6 +235,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     }
 
     current_target_ = std::nullopt;
+    current_caller_host_target_ = std::nullopt;
     return func;
   }
 
@@ -272,29 +288,59 @@ class DeviceKernelMutator : public StmtExprMutator {
         << gvar->name_hint << " did not appear within the IRModule";
     const KernelInfo& dev_info = it->second;
 
-    auto caller_target = current_target_.value();
     auto callee_target = dev_info.target;
 
-    bool same_target = caller_target->str() == callee_target->str();
-    if (same_target) {
-      // Calls within the same target may be handled at codegen time
-      // as internal subroutine calls.
-      return node;
-    }
+    // A callee with non-empty launch_params has thread_extent
+    // bindings in its body, i.e. it is a real device kernel that
+    // must be invoked via a kernel-launch ABI.  Conversely a callee
+    // with empty launch_params is a plain subroutine (host helper
+    // or intra-device helper) and is never invoked via kernel launch.
+    bool callee_is_kernel = dev_info.launch_params.size() > 0;
+    bool caller_is_host = current_caller_host_target_.has_value();
 
-    bool same_device_type =
-        caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
-    if (same_device_type) {
-      // Calls to another target using the same device (e.g. LLVM
-      // calling a custom TIRToRuntime target) do not require a kernel
-      // launch, but need to be replaced with call_extern.
-      extern_function_call_.insert(gvar);
-      ffi::Array<PrimExpr> args;
-      args.push_back(StringImm(gvar->name_hint));
-      for (const auto& arg : node->args) {
-        args.push_back(arg);
+    // For host callers, comparisons against the callee target must
+    // use the caller's *host* target, not the device target stripped
+    // by WithoutHost().  This handles two cases that the device-side
+    // comparison gets wrong:
+    //   1. A host caller invoking a real device kernel whose
+    //      WithoutHost() target happens to match (e.g. kernel target
+    //      "cuda" matches "cuda+host=c" after stripping host).  Must
+    //      go through kernel launch, not the same-target shortcut.
+    //   2. A host caller invoking another host helper with a
+    //      different host target (e.g. SplitHostDevice emits an
+    //      "add_host" with target "c" while the host body still
+    //      carries "cuda+host=c").  Must go through call_extern (or
+    //      same-target subroutine), not kernel launch.
+    auto caller_target =
+        caller_is_host ? current_caller_host_target_.value() : current_target_.value();
+
+    // A host caller invoking a real device kernel must always go
+    // through the kernel-launch ABI, regardless of any same-target /
+    // same-device-type coincidence.
+    bool force_kernel_launch = callee_is_kernel && caller_is_host;
+
+    if (!force_kernel_launch) {
+      bool same_target = caller_target->str() == callee_target->str();
+      if (same_target) {
+        // Calls within the same target may be handled at codegen time
+        // as internal subroutine calls.
+        return node;
       }
-      return Call(node->dtype, builtin::call_extern(), args);
+
+      bool same_device_type =
+          caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
+      if (same_device_type) {
+        // Calls to another target using the same device (e.g. LLVM
+        // calling a custom TIRToRuntime target) do not require a kernel
+        // launch, but need to be replaced with call_extern.
+        extern_function_call_.insert(gvar);
+        ffi::Array<PrimExpr> args;
+        args.push_back(StringImm(gvar->name_hint));
+        for (const auto& arg : node->args) {
+          args.push_back(arg);
+        }
+        return Call(node->dtype, builtin::call_extern(), args);
+      }
     }
 
     TVM_FFI_ICHECK(dev_info.launch_params.defined())
@@ -336,6 +382,13 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
   ffi::Optional<Target> current_target_;
+  // The host target of the caller currently being rewritten, if the
+  // caller is a host function (its kTarget has a host attached).
+  // Used both to detect that the caller is a host function and to
+  // compare against the callee target on the host side, so that
+  // host-to-host subroutine calls are not misrouted through the
+  // device kernel-launch ABI.
+  ffi::Optional<Target> current_caller_host_target_;
   std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map_;
   std::unordered_set<const GlobalVarNode*> device_kernel_launch_;
   std::unordered_set<const GlobalVarNode*> extern_function_call_;

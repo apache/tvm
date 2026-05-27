@@ -50,10 +50,10 @@ def default_tir_pipeline():
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
+                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
-                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)
@@ -91,10 +91,10 @@ def tirx_pipeline():
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
+                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
-                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)
@@ -124,8 +124,8 @@ def trn_pipeline():
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.AnnotateDeviceRegions(),
             tirx.transform.SplitHostDevice(),
-            tirx.transform.MakePackedAPI(),
             tirx.transform.LowerDeviceKernelLaunch(),
+            tirx.transform.MakePackedAPI(),
         ]
         return tvm.ir.transform.Sequential(passes)(mod)
 
