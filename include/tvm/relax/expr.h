@@ -618,7 +618,8 @@ class MatchCastNode : public BindingNode {
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDefRecursive());
+        .def_ro("struct_info", &MatchCastNode::struct_info,
+                refl::AttachFieldFlag::SEqHashDefRecursive());
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };

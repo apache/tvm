@@ -21,7 +21,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/repr.h>
 #include <tvm/script/printer/config.h>
 
 #include <algorithm>

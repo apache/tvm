@@ -136,7 +136,8 @@ class BufferNode : public ffi::Object {
         .def_ro("axis_separators", &BufferNode::axis_separators,
                 refl::AttachFieldFlag::SEqHashDefRecursive())
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("elem_offset", &BufferNode::elem_offset, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("elem_offset", &BufferNode::elem_offset,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
