@@ -23,6 +23,7 @@ from collections.abc import Callable
 import tvm
 from tvm.driver import build as tvm_build
 from tvm.ir.module import IRModule
+from tvm.ir.utils import derived_object
 from tvm.runtime import Module, Tensor
 from tvm.s_tir.meta_schedule.builder import LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
@@ -36,7 +37,7 @@ from tvm.s_tir.meta_schedule.runner.rpc_runner import (
     default_alloc_argument,
     default_run_evaluator,
 )
-from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
+from tvm.s_tir.meta_schedule.utils import cpu_count
 from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
 from tvm.support.popen_pool import PopenPoolExecutor
 from tvm.target import Target

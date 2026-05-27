@@ -28,10 +28,10 @@ import tvm.testing
 from tvm import te
 from tvm.error import TVMError
 from tvm.ir.module import IRModule
+from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
-from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tirx as T
 from tvm.target import Target

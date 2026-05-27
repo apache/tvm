@@ -20,10 +20,10 @@ import re
 import numpy as np
 
 import tvm.runtime
+from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.feature_extractor import PyFeatureExtractor
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
-from tvm.s_tir.meta_schedule.utils import derived_object
 
 
 def test_meta_schedule_feature_extractor():

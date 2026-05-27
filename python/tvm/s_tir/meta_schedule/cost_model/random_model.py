@@ -18,11 +18,12 @@
 Random cost model
 """
 
+from tvm.ir.utils import derived_object
+
 from ..cost_model import PyCostModel
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import derived_object  # type: ignore
 
 
 @derived_object

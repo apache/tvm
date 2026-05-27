@@ -28,6 +28,7 @@ from tvm_ffi import register_global_func
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
@@ -53,7 +54,6 @@ from tvm.s_tir.meta_schedule.runner.rpc_runner import (
 )
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.meta_schedule.utils import (
-    derived_object,
     get_global_func_with_default_on_worker,
 )
 from tvm.script import tirx as T
