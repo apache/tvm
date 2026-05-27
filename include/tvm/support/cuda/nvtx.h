@@ -47,17 +47,17 @@ class NVTXScopedRange {
  public:
   /*! \brief Enter an NVTX scoped range */
 #if TVM_NVTX_ENABLED
-  inline explicit NVTXScopedRange(const char* name) { nvtxRangePush(name); }
+  explicit NVTXScopedRange(const char* name) { nvtxRangePush(name); }
 #else
-  inline explicit NVTXScopedRange(const char* name) {}
+  explicit NVTXScopedRange(const char* name) {}
 #endif  // TVM_NVTX_ENABLED
   /*! \brief Enter an NVTX scoped range */
   explicit NVTXScopedRange(const std::string& name) : NVTXScopedRange(name.c_str()) {}
   /*! \brief Exit an NVTX scoped range */
 #if TVM_NVTX_ENABLED
-  inline ~NVTXScopedRange() { nvtxRangePop(); }
+  ~NVTXScopedRange() { nvtxRangePop(); }
 #else
-  inline ~NVTXScopedRange() {}
+  ~NVTXScopedRange() {}
 #endif  // TVM_NVTX_ENABLED
   NVTXScopedRange(const NVTXScopedRange& other) = delete;
   NVTXScopedRange(NVTXScopedRange&& other) = delete;
