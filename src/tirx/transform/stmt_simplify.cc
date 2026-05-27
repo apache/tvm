@@ -89,7 +89,7 @@ class StmtSimplifyConfig : public ffi::ObjectRef {
 };
 
 static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
-  return AttrsWithDefaultValues<StmtSimplifyConfig>();
+  return tvm::transform::PassConfigWithDefaults<StmtSimplifyConfig>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }

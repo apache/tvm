@@ -44,6 +44,41 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
+/*!
+ * \brief Information about an input field of an Op (name, type, description).
+ *
+ *  Populated via OpRegEntry::add_argument and consumed both by
+ *  internal sanity checks / error messages and by external tooling
+ *  that wants to introspect an Op's argument schema.
+ */
+class ArgumentInfoNode : public ffi::Object {
+ public:
+  /*! \brief name of the field */
+  ffi::String name;
+  /*! \brief type docstring information in str. */
+  ffi::String type_info;
+  /*! \brief detailed description of the type */
+  ffi::String description;
+
+  static void RegisterReflection() {
+    namespace rfl = ffi::reflection;
+    rfl::ObjectDef<ArgumentInfoNode>()
+        .def_ro("name", &ArgumentInfoNode::name)
+        .def_ro("type_info", &ArgumentInfoNode::type_info)
+        .def_ro("description", &ArgumentInfoNode::description);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoNode, ffi::Object);
+};
+
+/*! \brief Managed reference to ArgumentInfoNode. */
+class ArgumentInfo : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+};
+
 // TODO(tvm-team): migrate low-level intrinsics to use Op
 /*!
  * \brief Primitive Op(builtin intrinsics)
@@ -68,7 +103,7 @@ class OpNode : public RelaxExprNode {
    */
   ffi::String description;
   /* \brief Information of input arguments to the operator */
-  ffi::Array<AttrFieldInfo> arguments;
+  ffi::Array<ArgumentInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
@@ -330,11 +365,11 @@ inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*
 
 inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
                                             const std::string& description) {
-  auto n = ffi::make_object<AttrFieldInfoNode>();
+  auto n = ffi::make_object<ArgumentInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;
-  get()->arguments.push_back(AttrFieldInfo(n));
+  get()->arguments.push_back(ArgumentInfo(n));
   return *this;
 }
 

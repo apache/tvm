@@ -158,10 +158,6 @@ class IRConvertSSA final : public StmtExprMutator {
     }();
 
     auto attrs = [&]() -> DictAttrs {
-      if (!func->attrs.defined()) {
-        return DictAttrs();
-      }
-
       ffi::Map<ffi::String, ffi::Any> dict;
       bool made_change = false;
 

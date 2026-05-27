@@ -75,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->AddDispatchToken(d, "ir");
       IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
       (*f)->global_infos = &mod->global_infos;
-      if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+      if (!mod->attrs->dict.empty()) {
         (*f)->stmts.push_back(
             ExprStmtDoc(IR(d, "module_attrs")  //
                             ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));

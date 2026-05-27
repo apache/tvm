@@ -112,7 +112,7 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
-    if (cur_func_->attrs.defined() && cur_func_->attrs->dict.count(tvm::attr::kSTir)) {
+    if (cur_func_->attrs->dict.count(tvm::attr::kSTir)) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);

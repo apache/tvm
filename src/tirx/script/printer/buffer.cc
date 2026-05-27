@@ -193,7 +193,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   for (const auto& f : d->frames) {
     if (const auto* tir_f = f.as<TIRFrameNode>()) {
       if (auto func = tir_f->tirx.as<tirx::PrimFuncNode>()) {
-        if (func->attrs.defined() && func->attrs->dict.count(tvm::attr::kSTir)) {
+        if (func->attrs->dict.count(tvm::attr::kSTir)) {
           enclosing_s_tir = true;
         }
         break;
