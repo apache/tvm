@@ -344,6 +344,7 @@ elseif(USE_HEXAGON)
     target_compile_options(tvm_runtime_hexagon_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
   endif()
   add_library(tvm_runtime_hexagon SHARED $<TARGET_OBJECTS:tvm_runtime_hexagon_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_hexagon)
   target_link_libraries(tvm_runtime_hexagon PUBLIC tvm_runtime)
   set_target_properties(tvm_runtime_hexagon PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
