@@ -126,7 +126,7 @@ class ScopeIdDefNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ScopeIdDefNode>()
-        .def_ro("def_ids", &ScopeIdDefNode::def_ids, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("def_ids", &ScopeIdDefNode::def_ids, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("extents", &ScopeIdDefNode::extents)
         .def_ro("scope", &ScopeIdDefNode::scope)
         .def_ro("preferred_extents", &ScopeIdDefNode::preferred_extents);

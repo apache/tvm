@@ -86,7 +86,8 @@ class BindNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindNode>()
-        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("var", &BindNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("value", &BindNode::value);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Bind", BindNode, StmtNode);
@@ -273,7 +274,8 @@ class AllocBufferNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocBufferNode>()
-        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("annotations", &AllocBufferNode::annotations);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.AllocBuffer", AllocBufferNode, StmtNode);
@@ -619,7 +621,7 @@ class ForNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ForNode>()
-        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("min", &ForNode::min)
         .def_ro("extent", &ForNode::extent)
         .def_ro("kind", &ForNode::kind)
@@ -879,7 +881,7 @@ class SBlockNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SBlockNode>()
-        .def_ro("iter_vars", &SBlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("iter_vars", &SBlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("reads", &SBlockNode::reads)
         .def_ro("writes", &SBlockNode::writes)
         .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())

@@ -21,10 +21,10 @@
  * \file tirx/ir/transform.cc
  * \brief TIR specific transformation passes.
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/repr.h>
 #include <tvm/tirx/transform.h>
 
 namespace tvm {

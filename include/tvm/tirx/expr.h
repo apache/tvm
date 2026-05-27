@@ -698,7 +698,8 @@ class LetNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
@@ -823,8 +824,8 @@ class CommReducerNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CommReducerNode>()
-        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
         .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());

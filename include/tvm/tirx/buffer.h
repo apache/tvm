@@ -126,13 +126,18 @@ class BufferNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferNode>()
-        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("dtype", &BufferNode::dtype)
-        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("axis_separators", &BufferNode::axis_separators,
-                refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("elem_offset", &BufferNode::elem_offset, refl::AttachFieldFlag::SEqHashDef())
+                refl::AttachFieldFlag::SEqHashDefRecursive())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("elem_offset", &BufferNode::elem_offset,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)

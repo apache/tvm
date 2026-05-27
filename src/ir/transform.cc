@@ -21,11 +21,11 @@
  * \file src/ir/transform.cc
  * \brief Infrastructure for transformation passes.
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/repr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
