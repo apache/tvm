@@ -248,8 +248,7 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin_pow_)) {
     return pow(op->args[0], op->args[1]);
   } else if (op->op.same_as(builtin::if_then_else())) {
-    return Call(op->dtype, op->op, {op->args[0], op->args[1], op->args[2]}, op->annotations,
-                op->span);
+    return Call(op->dtype, op->op, {op->args[0], op->args[1], op->args[2]}, op->attrs, op->span);
   } else if (op->op.same_as(Op::Get("tirx.clz"))) {
     DataType before_dtype = before->args[0]->dtype;
     DataType after_dtype = op->args[0]->dtype;
@@ -566,7 +565,7 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
     PrimExpr cond = VisitExpr(op->args[0]);
     is_condition_ = is_condition;
     return Call(op->dtype, op->op, {cond, VisitExpr(op->args[1]), VisitExpr(op->args[2])},
-                op->annotations, op->span);
+                op->attrs, op->span);
   }
   return Parent::VisitExpr_(op);
 }

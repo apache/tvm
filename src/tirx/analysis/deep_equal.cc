@@ -21,6 +21,7 @@
  * \file tirx/analysis/deep_equal.cc
  * \brief Deep equality checking.
  */
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
@@ -124,7 +125,8 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
   bool VisitExpr_(const CallNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<CallNode>();
     return plhs->dtype == prhs->dtype && plhs->op.same_as(prhs->op) &&
-           ArrayDeepEqual(plhs->args, prhs->args);
+           ArrayDeepEqual(plhs->args, prhs->args) &&
+           ffi::StructuralEqual()(plhs->attrs, prhs->attrs);
   }
 
   bool VisitExpr_(const ReduceNode* plhs, const PrimExpr& rhs) final {
