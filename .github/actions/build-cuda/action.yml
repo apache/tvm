@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Build CUDA Sidecar
+name: Build CUDA Runtime
 description: Build libtvm_runtime_cuda for the TVM wheel packaging flow.
 
 inputs:
@@ -31,7 +31,7 @@ inputs:
     required: false
     default: "75"
   skip_cuda:
-    description: "Set to true to skip the CUDA sidecar"
+    description: "Set to true to skip the CUDA runtime build"
     required: false
     default: "false"
 
@@ -41,7 +41,7 @@ runs:
     - uses: ./.github/actions/detect-env-vars
       id: env_vars
 
-    - name: Build CUDA sidecar in manylinux
+    - name: Build CUDA runtime in manylinux
       if: runner.os == 'Linux' && inputs.skip_cuda != 'true'
       shell: bash -l {0}
       env:
@@ -58,7 +58,7 @@ runs:
       id: cuda-toolkit
       uses: Jimver/cuda-toolkit@6008063726ffe3309d1b22e413d9e88fed91a2f2
 
-    - name: Build CUDA sidecar on host
+    - name: Build CUDA runtime on host
       if: runner.os != 'Linux' && inputs.skip_cuda != 'true'
       shell: bash -l {0}
       env:

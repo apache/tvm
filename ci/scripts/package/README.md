@@ -17,7 +17,12 @@
 
 # TVM wheel packaging helper
 
-The GitHub Actions release-validation flow is:
+This directory contains the helper scripts used to build, repair, verify, and
+publish TVM Python wheels. The GitHub Actions workflow keeps orchestration in
+YAML and puts platform-specific packaging behavior in focused composite actions
+and shell/Python helpers.
+
+The wheel build flow is:
 
 1. Build `libtvm_runtime_cuda.so` in a CUDA-enabled CMake build.
 2. Build the main Python wheel with `cibuildwheel`, LLVM enabled, and CUDA
@@ -31,58 +36,55 @@ The GitHub Actions release-validation flow is:
 6. Verify the wheel in a fresh virtualenv.
 7. Upload with `twine`.
 
-It mirrors the TVM-FFI packaging patterns from
-`apache/tvm-ffi/.github`, especially:
-
-- `apache/tvm-ffi/.github/workflows/publish_wheel.yml`
-- `apache/tvm-ffi/.github/actions/build-wheel-for-publish/action.yml`
-- `apache/tvm-ffi/.github/actions/build-orcjit-wheel/action.yml`
-- `apache/tvm-ffi/addons/tvm_ffi_orcjit/pyproject.toml`
-
 GitHub Actions flow:
 
 1. Create a tag that contains these packaging files.
 2. Open the `Publish TVM wheel` workflow in GitHub Actions.
 3. Fill `tag` with that tag.
 4. The workflow builds a platform wheel matrix:
-   - Linux x86_64 in a `manylinux_2_28` container, with the CUDA sidecar.
-   - Linux aarch64 in a `manylinux_2_28` container, with the CUDA sidecar.
+   - Linux x86_64 in a `manylinux_2_28` container, with CUDA enabled.
+   - Linux aarch64 in a `manylinux_2_28` container, with CUDA enabled.
    - macOS arm64 CPU-only.
    - Windows AMD64 CPU-only.
 5. For a TestPyPI run, set `publish_repository=testpypi` and set
-   `distribution_name` to a temporary package name such as
-   `tvm-yourname-test`.
+   `distribution_name` to a temporary package name.
 6. After the workflow build, upload, and `verify_pypi` jobs pass, run it again
    with the final tag/name and `publish_repository=pypi`.
 
-Linux wheels are built inside a manylinux image, following the TVM-FFI
-packaging pattern. This avoids accidentally publishing a wheel tagged for the
-GitHub runner's host glibc, such as `manylinux_2_39`, which would not install
-on older supported Linux systems.
+Linux wheels are built inside manylinux images. This avoids accidentally
+publishing a wheel tagged for the GitHub runner's host glibc, such as
+`manylinux_2_39`, which would not install on older supported Linux systems.
 
-The workflow mirrors the TVM-FFI `.github` layout: a small matrix workflow
-directly calls focused composite actions under `.github/actions`.
+Workflow structure:
 
+- `.github/workflows/publish_wheel.yml`: defines the platform matrix,
+  artifact upload, optional publishing, and post-upload verification.
 - `.github/actions/detect-env-vars`: shared environment detection.
-- `.github/actions/build-cuda-sidecar`: builds only the optional CUDA sidecar.
+- `.github/actions/build-cuda`: builds only the optional CUDA runtime library.
   On Linux this action owns the manylinux Docker/CUDA setup.
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
-  repair hook injects the sidecar before `auditwheel`/`delocate`/copy repair.
+  repair hook injects the CUDA runtime before `auditwheel`/`delocate`/copy repair.
+- `ci/scripts/package/build_tvm_wheel.sh`: implements reusable local and CI
+  entrypoints such as `cuda`, `wheel`, `repair`, `verify`, and `upload`.
+- `ci/scripts/package/inject_cuda_runtime.py`: rewrites wheel metadata and
+  injects the CUDA runtime library when CUDA is enabled.
+- `ci/scripts/package/verify_tvm_install.py`: imports the installed wheel and
+  checks that the platform runtime library is present.
 
-To test this from the fork `tlopex/tvm` without publishing:
+To test the workflow from a fork without publishing:
 
 ```bash
-git push mine HEAD:pypi
+git push origin HEAD:<branch>
 git tag -a tvm-wheel-test0 -m "Test TVM wheel workflow"
-git push mine tvm-wheel-test0
+git push origin tvm-wheel-test0
 
 gh workflow run publish_wheel.yml \
-  --repo tlopex/tvm \
-  --ref pypi \
+  --repo <owner>/<repo> \
+  --ref <branch> \
   -f tag=tvm-wheel-test0 \
   -f publish_repository=none \
-  -f distribution_name=tvm-tlopexh-test \
+  -f distribution_name=<temporary-package-name> \
   -f cuda_architectures=75 \
   -f verify_from_repository=false
 ```
@@ -107,7 +109,7 @@ python -m venv /tmp/tvm-wheel-tools
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
 TVM_USE_LLVM="/path/to/llvm-config --link-static" \
 TVM_USE_CUDA=/usr/local/cuda-12.8 \
-TVM_WHEEL_DIST_NAME=tvm-tlopexh-test \
+TVM_WHEEL_DIST_NAME=tvm-temporary-test \
 ci/scripts/package/build_tvm_wheel.sh all
 
 TVM_UPLOAD_REPOSITORY_URL=https://test.pypi.org/legacy/ \
@@ -137,12 +139,12 @@ Useful knobs:
 
 - `TVM_USE_LLVM`: LLVM config for the base wheel, default
   `llvm-config --link-static`.
-- `TVM_USE_CUDA`: CUDA root or `ON` for the sidecar build, default `ON`.
+- `TVM_USE_CUDA`: CUDA root or `ON` for the CUDA build, default `ON`.
 - `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
 - `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
 - `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
 - `TVM_SKIP_REPAIR=1`: leave the injected wheel unrepaired.
-- `TVM_SKIP_CUDA=1`: build a base wheel without a CUDA sidecar.
+- `TVM_SKIP_CUDA=1`: build a base wheel without the CUDA runtime.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
 - `TVM_AUDITWHEEL_PLAT`: optional `auditwheel repair --plat` override.
 - `TVM_EXPECT_WHEEL_PLATFORM_TAG`: require the final wheel filename to include

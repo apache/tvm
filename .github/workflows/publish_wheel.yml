@@ -57,14 +57,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux x86_64 CUDA sidecar wheel (manylinux_2_28)
+          - name: Linux x86_64 CUDA wheel (manylinux_2_28)
             os: ubuntu-latest
             arch: x86_64
             build: cp310-manylinux_x86_64
             linux_image: manylinux_2_28
             skip_cuda: "false"
             artifact_suffix: linux-x86_64-manylinux_2_28
-          - name: Linux aarch64 CUDA sidecar wheel (manylinux_2_28)
+          - name: Linux aarch64 CUDA wheel (manylinux_2_28)
             os: ubuntu-24.04-arm
             arch: aarch64
             build: cp310-manylinux_aarch64
@@ -94,8 +94,8 @@ jobs:
           fetch-depth: 1
           fetch-tags: true
 
-      - name: Build CUDA sidecar
-        uses: ./.github/actions/build-cuda-sidecar
+      - name: Build CUDA runtime
+        uses: ./.github/actions/build-cuda
         with:
           arch: ${{ matrix.arch }}
           linux_image: ${{ matrix.linux_image }}
