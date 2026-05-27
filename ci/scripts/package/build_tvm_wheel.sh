@@ -22,11 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 TVM_PYTHON="${TVM_PYTHON:-python}"
-TVM_RAW_DIST="${TVM_RAW_DIST:-${REPO_ROOT}/dist/tvm-raw}"
-TVM_INJECTED_DIST="${TVM_INJECTED_DIST:-${REPO_ROOT}/dist/tvm-injected}"
 TVM_WHEELHOUSE="${TVM_WHEELHOUSE:-${REPO_ROOT}/wheelhouse}"
 TVM_CUDA_BUILD_DIR="${TVM_CUDA_BUILD_DIR:-${REPO_ROOT}/build-wheel-cuda}"
-TVM_BASE_BUILD_DIR="${TVM_BASE_BUILD_DIR:-${REPO_ROOT}/build-wheel-base}"
 TVM_USE_LLVM="${TVM_USE_LLVM:-llvm-config --link-static}"
 TVM_USE_CUDA="${TVM_USE_CUDA:-ON}"
 TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
@@ -35,15 +32,14 @@ TVM_WHEEL_DIST_NAME="${TVM_WHEEL_DIST_NAME:-}"
 TVM_WHEEL_DIST_VERSION="${TVM_WHEEL_DIST_VERSION:-}"
 TVM_SKIP_CUDA="${TVM_SKIP_CUDA:-0}"
 TVM_SKIP_REPAIR="${TVM_SKIP_REPAIR:-0}"
-TVM_BUILD_NO_ISOLATION="${TVM_BUILD_NO_ISOLATION:-0}"
 TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|manylinux-cuda|wheel|inject|repair|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
+Usage: ci/scripts/package/build_tvm_wheel.sh [cuda|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
 
 Environment knobs:
-  TVM_USE_LLVM                 LLVM config for the base wheel, default "llvm-config --link-static"
+  TVM_USE_LLVM                 LLVM config used by repair helpers, default "llvm-config --link-static"
   TVM_USE_CUDA                 CUDA root or ON for the CUDA build, default ON
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
   TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
@@ -51,7 +47,6 @@ Environment knobs:
   TVM_UPLOAD_REPOSITORY_URL    Twine repository URL, e.g. TestPyPI legacy URL
   TVM_SKIP_CUDA=1              Do not build/inject libtvm_runtime_cuda.so
   TVM_SKIP_REPAIR=1            Keep injected wheel as final wheel
-  TVM_BUILD_NO_ISOLATION=1     Pass --no-isolation to python -m build
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
   TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
   TVM_ARCH                     Target architecture for manylinux-cuda
@@ -68,17 +63,6 @@ require_cmd() {
     echo "error: required command not found: $1" >&2
     return 1
   fi
-}
-
-require_pypa_build() {
-  local check_dir
-  check_dir="$(mktemp -d)"
-  if ! (cd "$check_dir" && "$TVM_PYTHON" -m build --version >/dev/null 2>&1); then
-    rm -rf "$check_dir"
-    echo "error: PyPA build is missing; install it with: ${TVM_PYTHON} -m pip install build" >&2
-    return 1
-  fi
-  rm -rf "$check_dir"
 }
 
 single_wheel() {
@@ -155,7 +139,7 @@ run_manylinux_cuda_container() {
   docker exec "$container" bash -lc "
     rpm -i /${cuda_rpm} && \
     dnf clean all && \
-    dnf -y install cuda-toolkit-13-0 && \
+    dnf -y --disablerepo=epel install cuda-toolkit-13-0 && \
     rm /${cuda_rpm} && \
     dnf clean all"
 
@@ -223,36 +207,6 @@ build_cuda_runtime() {
   echo "CUDA runtime: ${cuda_lib}"
 }
 
-build_base_wheel() {
-  require_pypa_build
-  rm -rf "$TVM_RAW_DIST"
-  mkdir -p "$TVM_RAW_DIST"
-  if [[ "$TVM_KEEP_BUILD_DIRS" != "1" ]]; then
-    rm -rf "$TVM_BASE_BUILD_DIR"
-  fi
-
-  echo "Building base TVM wheel with LLVM=${TVM_USE_LLVM}, CUDA=OFF"
-  local cmake_args
-  cmake_args="$(base_cmake_args)"
-  (
-    cd "$TVM_RAW_DIST"
-    if [[ "$TVM_BUILD_NO_ISOLATION" == "1" ]]; then
-      CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
-        "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
-          --no-isolation \
-          -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
-          "$REPO_ROOT"
-    else
-      CMAKE_ARGS="${cmake_args}${TVM_EXTRA_CMAKE_ARGS:-}" \
-        "$TVM_PYTHON" -m build --wheel --outdir "$TVM_RAW_DIST" \
-          -Cbuild-dir="$TVM_BASE_BUILD_DIR" \
-          "$REPO_ROOT"
-    fi
-  )
-
-  single_wheel "$TVM_RAW_DIST" >/dev/null
-}
-
 inject_wheel_file() {
   local raw_wheel="$1"
   local output_dir="$2"
@@ -281,12 +235,6 @@ inject_wheel_file() {
 
   echo "Injecting CUDA runtime/metadata into ${raw_wheel}"
   "$TVM_PYTHON" "$SCRIPT_DIR/inject_cuda_runtime.py" "$raw_wheel" "${inject_args[@]}"
-}
-
-inject_cuda_runtime() {
-  local raw_wheel
-  raw_wheel="$(single_wheel "$TVM_RAW_DIST")"
-  inject_wheel_file "$raw_wheel" "$TVM_INJECTED_DIST"
 }
 
 auditwheel_excludes() {
@@ -346,23 +294,6 @@ llvm_prefix() {
   fi
 }
 
-base_cmake_args() {
-  local llvm_prefix_dir
-  llvm_prefix_dir="$(llvm_prefix || true)"
-  local args=(
-    "-DUSE_LLVM=${TVM_USE_LLVM}"
-    "-DUSE_CUDA=OFF"
-    "-DBUILD_TESTING=OFF"
-    "-DTVM_BUILD_PYTHON_MODULE=ON"
-  )
-  if [[ -n "$llvm_prefix_dir" && -d "$llvm_prefix_dir" ]]; then
-    # scikit-build-core writes its own CMAKE_PREFIX_PATH init cache, so pass
-    # the LLVM prefix as an explicit CMake argument.
-    args+=("-DCMAKE_PREFIX_PATH=${llvm_prefix_dir}")
-  fi
-  printf '%q ' "${args[@]}"
-}
-
 repair_wheel_to_dir() {
   local injected_wheel="$1"
   local output_dir="$2"
@@ -414,15 +345,6 @@ repair_wheel_to_dir() {
   esac
 
   single_wheel "$output_dir" >/dev/null
-}
-
-repair_wheel() {
-  rm -rf "$TVM_WHEELHOUSE"
-  mkdir -p "$TVM_WHEELHOUSE"
-
-  local injected_wheel
-  injected_wheel="$(single_wheel "$TVM_INJECTED_DIST")"
-  repair_wheel_to_dir "$injected_wheel" "$TVM_WHEELHOUSE"
 }
 
 cibw_repair_wheel() {
@@ -507,20 +429,10 @@ verify_pypi_wheel() {
 }
 
 main() {
-  local step="${1:-all}"
+  local step="${1:-help}"
   case "$step" in
-    all)
-      build_cuda_runtime
-      build_base_wheel
-      inject_cuda_runtime
-      repair_wheel
-      verify_wheel
-      ;;
     cuda) build_cuda_runtime ;;
     manylinux-cuda) run_manylinux_cuda_container ;;
-    wheel) build_base_wheel ;;
-    inject) inject_cuda_runtime ;;
-    repair) repair_wheel ;;
     cibw-repair)
       if [[ "$#" -ne 3 ]]; then
         echo "error: cibw-repair requires <wheel> <dest-dir>" >&2

@@ -66,7 +66,8 @@ Workflow structure:
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
   repair hook injects the CUDA runtime before `auditwheel`/`delocate`/copy repair.
 - `ci/scripts/package/build_tvm_wheel.sh`: implements reusable local and CI
-  entrypoints such as `cuda`, `wheel`, `repair`, `verify`, and `upload`.
+  entrypoints around the `cibuildwheel` build, such as `cuda`,
+  `manylinux-cuda`, `cibw-repair`, `verify`, `upload`, and `verify-pypi`.
 - `ci/scripts/package/inject_cuda_runtime.py`: rewrites wheel metadata and
   injects the CUDA runtime library when CUDA is enabled.
 - `ci/scripts/package/verify_tvm_install.py`: imports the installed wheel and
@@ -93,28 +94,20 @@ If the workflow is not visible in the GitHub UI yet, push or merge these files
 to the fork's default branch first. GitHub only lists manually dispatched
 workflows once the workflow file exists in the repository.
 
-Typical TestPyPI dry run:
+Local debugging:
 
-The local helper keeps the same CUDA injection, repair, and verification
-steps for debugging outside GitHub Actions. The GitHub workflow uses
-`cibuildwheel` for the main wheel build.
+The main wheel build is owned by `cibuildwheel`. The shell helper is used for
+the build pieces around `cibuildwheel`: CUDA runtime construction, the
+`CIBW_REPAIR_WHEEL_COMMAND` hook, final wheel verification, and optional
+publish verification.
+
+For the exact `cibuildwheel` environment, use
+`.github/actions/build-wheel-for-publish/action.yml` as the source of truth.
+For local checks after a wheel exists under `wheelhouse/`, run:
 
 ```bash
-python version.py --git-describe
-git tag -a v0.25.dev-test0 -m "Test TVM wheel v0.25.dev-test0"
-
-python -m venv /tmp/tvm-wheel-tools
-/tmp/tvm-wheel-tools/bin/python -m pip install -U pip build auditwheel twine
-
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-TVM_USE_LLVM="/path/to/llvm-config --link-static" \
-TVM_USE_CUDA=/usr/local/cuda-12.8 \
-TVM_WHEEL_DIST_NAME=tvm-temporary-test \
-ci/scripts/package/build_tvm_wheel.sh all
-
-TVM_UPLOAD_REPOSITORY_URL=https://test.pypi.org/legacy/ \
-TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/build_tvm_wheel.sh upload
+ci/scripts/package/build_tvm_wheel.sh verify
 
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
 ci/scripts/package/build_tvm_wheel.sh verify-pypi
@@ -127,24 +120,19 @@ Twine credentials:
 TWINE_USERNAME=__token__ \
 TWINE_PASSWORD="$PYPI_TOKEN" \
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/build_tvm_wheel.sh all
-
-TWINE_USERNAME=__token__ \
-TWINE_PASSWORD="$PYPI_TOKEN" \
-TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
 ci/scripts/package/build_tvm_wheel.sh upload
 ```
 
 Useful knobs:
 
-- `TVM_USE_LLVM`: LLVM config for the base wheel, default
+- `TVM_USE_LLVM`: LLVM config for the CIBW build and repair helpers, default
   `llvm-config --link-static`.
 - `TVM_USE_CUDA`: CUDA root or `ON` for the CUDA build, default `ON`.
 - `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
 - `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
 - `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
 - `TVM_SKIP_REPAIR=1`: leave the injected wheel unrepaired.
-- `TVM_SKIP_CUDA=1`: build a base wheel without the CUDA runtime.
+- `TVM_SKIP_CUDA=1`: build or repair a wheel without the CUDA runtime.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
 - `TVM_AUDITWHEEL_PLAT`: optional `auditwheel repair --plat` override.
 - `TVM_EXPECT_WHEEL_PLATFORM_TAG`: require the final wheel filename to include
