@@ -45,7 +45,7 @@ class PredicateNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PredicateNode>()
-        .def_ro("vars", &PredicateNode::vars, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("vars", &PredicateNode::vars, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("pred", &PredicateNode::pred);
   }
 
