@@ -51,5 +51,4 @@ except (ImportError, ValueError):
     # Make the disco module optional.
     disco = None  # type: ignore[assignment]
 
-from .support import _regex_match
 from tvm_ffi import Shape as ShapeTuple
