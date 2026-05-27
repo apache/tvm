@@ -29,13 +29,13 @@ def main() -> int:
     libdir = root / "lib"
     if sys.platform == "darwin":
         runtime_lib = libdir / "libtvm_runtime.dylib"
-        cuda_sidecar = libdir / "libtvm_runtime_cuda.dylib"
+        cuda_runtime = libdir / "libtvm_runtime_cuda.dylib"
     elif sys.platform == "win32":
         runtime_lib = libdir / "tvm_runtime.dll"
-        cuda_sidecar = libdir / "tvm_runtime_cuda.dll"
+        cuda_runtime = libdir / "tvm_runtime_cuda.dll"
     else:
         runtime_lib = libdir / "libtvm_runtime.so"
-        cuda_sidecar = libdir / "libtvm_runtime_cuda.so"
+        cuda_runtime = libdir / "libtvm_runtime_cuda.so"
 
     print("tvm version:", tvm.__version__)
     print("tvm package:", root)
@@ -44,7 +44,7 @@ def main() -> int:
     print("runtime library:", runtime_lib)
     if not runtime_lib.exists():
         raise RuntimeError(f"runtime library is missing: {runtime_lib}")
-    print("cuda sidecar present:", cuda_sidecar.exists())
+    print("cuda runtime present:", cuda_runtime.exists())
     return 0
 
 

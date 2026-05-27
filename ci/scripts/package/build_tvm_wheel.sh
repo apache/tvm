@@ -44,7 +44,7 @@ Usage: ci/scripts/package/build_tvm_wheel.sh [all|cuda|manylinux-cuda|wheel|inje
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config for the base wheel, default "llvm-config --link-static"
-  TVM_USE_CUDA                 CUDA root or ON for the sidecar build, default ON
+  TVM_USE_CUDA                 CUDA root or ON for the CUDA build, default ON
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
   TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
   TVM_WHEEL_DIST_VERSION       Optional distribution version rewrite
@@ -123,7 +123,7 @@ cuda_runtime_path() {
 
 run_manylinux_cuda_container() {
   if [[ "$TVM_SKIP_CUDA" == "1" ]]; then
-    echo "Skipping manylinux CUDA sidecar build because TVM_SKIP_CUDA=1"
+    echo "Skipping manylinux CUDA build because TVM_SKIP_CUDA=1"
     return 0
   fi
 
@@ -181,7 +181,7 @@ run_manylinux_cuda_container() {
 
 build_cuda_runtime() {
   if [[ "$TVM_SKIP_CUDA" == "1" ]]; then
-    echo "Skipping CUDA sidecar build because TVM_SKIP_CUDA=1"
+    echo "Skipping CUDA build because TVM_SKIP_CUDA=1"
     return 0
   fi
 
@@ -220,7 +220,7 @@ build_cuda_runtime() {
     require_cmd patchelf
     patchelf --set-rpath '$ORIGIN' "$cuda_lib"
   fi
-  echo "CUDA sidecar: ${cuda_lib}"
+  echo "CUDA runtime: ${cuda_lib}"
 }
 
 build_base_wheel() {
@@ -264,7 +264,7 @@ inject_wheel_file() {
     local cuda_lib
     cuda_lib="$(cuda_runtime_path)"
     if [[ -z "$cuda_lib" ]]; then
-      echo "error: CUDA sidecar missing; run the 'cuda' step first" >&2
+      echo "error: CUDA runtime missing; run the 'cuda' step first" >&2
       return 1
     fi
     inject_args+=(--cuda-runtime "$cuda_lib")
@@ -279,7 +279,7 @@ inject_wheel_file() {
     inject_args+=(--set-rpath '$ORIGIN')
   fi
 
-  echo "Injecting sidecar/metadata into ${raw_wheel}"
+  echo "Injecting CUDA runtime/metadata into ${raw_wheel}"
   "$TVM_PYTHON" "$SCRIPT_DIR/inject_cuda_runtime.py" "$raw_wheel" "${inject_args[@]}"
 }
 
