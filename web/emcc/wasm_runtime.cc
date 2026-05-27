@@ -32,7 +32,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "src/runtime/contrib/sort/sort.cc"
+#include "src/runtime/extra/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"

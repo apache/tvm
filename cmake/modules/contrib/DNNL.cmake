@@ -24,10 +24,10 @@ if(IS_DIRECTORY ${USE_DNNL})
     tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/relax/backend/contrib/dnnl/*.cc)
     list(APPEND COMPILER_SRCS ${DNNL_CONTRIB_SRC})
 
-    tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl_json_runtime.cc
-                                        src/runtime/contrib/dnnl/dnnl_utils.cc
-                                        src/runtime/contrib/dnnl/dnnl.cc
-                                        src/runtime/contrib/cblas/dnnl_blas.cc)
+    tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/extra/contrib/dnnl/dnnl_json_runtime.cc
+                                        src/runtime/extra/contrib/dnnl/dnnl_utils.cc
+                                        src/runtime/extra/contrib/dnnl/dnnl.cc
+                                        src/runtime/extra/contrib/cblas/dnnl_blas.cc)
     add_library(tvm_dnnl_objs OBJECT ${DNNL_CONTRIB_SRC})
     target_link_libraries(tvm_dnnl_objs PRIVATE tvm_runtime_extra_defs)
     target_link_libraries(tvm_runtime_extra PRIVATE tvm_dnnl_objs ${EXTERN_LIBRARY_DNNL})
@@ -39,19 +39,19 @@ elseif((USE_DNNL STREQUAL "ON") OR (USE_DNNL STREQUAL "JSON"))
   list(APPEND COMPILER_SRCS ${DNNL_CONTRIB_SRC})
 
   find_library(EXTERN_LIBRARY_DNNL dnnl)
-  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl_json_runtime.cc
-                                      src/runtime/contrib/dnnl/dnnl_utils.cc
-                                      src/runtime/contrib/dnnl/dnnl.cc
-                                      src/runtime/contrib/cblas/dnnl_blas.cc)
+  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/extra/contrib/dnnl/dnnl_json_runtime.cc
+                                      src/runtime/extra/contrib/dnnl/dnnl_utils.cc
+                                      src/runtime/extra/contrib/dnnl/dnnl.cc
+                                      src/runtime/extra/contrib/cblas/dnnl_blas.cc)
   add_library(tvm_dnnl_objs OBJECT ${DNNL_CONTRIB_SRC})
   target_link_libraries(tvm_dnnl_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_dnnl_objs ${EXTERN_LIBRARY_DNNL})
   message(STATUS "Build with DNNL JSON runtime: " ${EXTERN_LIBRARY_DNNL})
 elseif(USE_DNNL STREQUAL "C_SRC")
   find_library(EXTERN_LIBRARY_DNNL dnnl)
-  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl.cc
-                                      src/runtime/contrib/dnnl/dnnl_utils.cc
-                                      src/runtime/contrib/cblas/dnnl_blas.cc)
+  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/extra/contrib/dnnl/dnnl.cc
+                                      src/runtime/extra/contrib/dnnl/dnnl_utils.cc
+                                      src/runtime/extra/contrib/cblas/dnnl_blas.cc)
   add_library(tvm_dnnl_objs OBJECT ${DNNL_CONTRIB_SRC})
   target_link_libraries(tvm_dnnl_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_dnnl_objs ${EXTERN_LIBRARY_DNNL})

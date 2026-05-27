@@ -17,7 +17,7 @@
 
 if(USE_SORT)
   message(STATUS "Build with contrib.sort")
-  tvm_file_glob(GLOB SORT_CONTRIB_SRC src/runtime/contrib/sort/*.cc)
+  tvm_file_glob(GLOB SORT_CONTRIB_SRC src/runtime/extra/contrib/sort/*.cc)
   add_library(tvm_sort_objs OBJECT ${SORT_CONTRIB_SRC})
   target_link_libraries(tvm_sort_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_sort_objs)

@@ -17,7 +17,7 @@
 
 if(USE_CLML)
     file(GLOB CLML_RELAX_CONTRIB_SRC src/relax/backend/contrib/clml/*.cc)
-    file(GLOB CLML_RUNTIME_MODULE src/runtime/contrib/clml/clml_runtime.cc)
+    file(GLOB CLML_RUNTIME_MODULE src/runtime/extra/contrib/clml/clml_runtime.cc)
     include_directories(SYSTEM "3rdparty/OpenCL-Headers")
     list(APPEND COMPILER_SRCS ${CLML_RELAX_CONTRIB_SRC})
     if(NOT USE_CLML_GRAPH_EXECUTOR)
@@ -49,7 +49,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
         set(CLML_PATH ${USE_CLML_GRAPH_EXECUTOR})
     endif()
 
-    file(GLOB CLML_CONTRIB_SRC src/runtime/contrib/clml/*)
+    file(GLOB CLML_CONTRIB_SRC src/runtime/extra/contrib/clml/*)
 
     # CMake needs to find clml library, include and support directories
     # in the path specified by CLML_PATH.
