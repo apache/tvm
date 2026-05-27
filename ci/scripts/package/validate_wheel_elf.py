@@ -91,10 +91,24 @@ def validate(wheel: Path) -> None:
             raise RuntimeError("wheel does not contain tvm/lib/libtvm_runtime.so")
         if "libtvm_ffi.so" in libs:
             raise RuntimeError("TVM wheel must depend on tvm_ffi instead of bundling libtvm_ffi.so")
+        bundled_llvm = sorted(
+            str(path.relative_to(root)) for path in root.rglob("libLLVM*.so*") if path.is_file()
+        )
+        if bundled_llvm:
+            raise RuntimeError(
+                "TVM wheel must link LLVM statically instead of bundling libLLVM: "
+                + ", ".join(bundled_llvm)
+            )
 
         errors: list[str] = []
         for lib in libs.values():
             needed, rpaths = _dynamic_entries(lib)
+            llvm_needed = sorted(name for name in needed if name.startswith("libLLVM"))
+            if llvm_needed:
+                errors.append(
+                    f"{lib.relative_to(root)} links dynamic LLVM libraries: {llvm_needed}"
+                )
+
             internal_needed = sorted(name for name in needed if name in libs)
             if internal_needed and "$ORIGIN" not in rpaths:
                 errors.append(
