@@ -139,12 +139,6 @@ tvm.contrib.rocm
     :members:
 
 
-tvm.contrib.spirv
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.spirv
-    :members:
-
-
 tvm.contrib.tar
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.tar
