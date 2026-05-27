@@ -40,7 +40,7 @@ inputs:
     required: false
     default: "75"
   skip_cuda:
-    description: "Set to true to build a CPU-only wheel without the CUDA sidecar"
+    description: "Set to true to build a CPU-only wheel without the CUDA runtime"
     required: false
     default: "false"
 
