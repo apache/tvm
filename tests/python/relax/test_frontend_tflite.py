@@ -3695,8 +3695,11 @@ _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
 _tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWindowOptions")
 _tfl_stablehlo_scatter_opts = _get_tflite_schema_module("StablehloScatterOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
+_tfl_call_options = _get_tflite_schema_module("CallOptions")
+_tfl_call_once_options = _get_tflite_schema_module("CallOnceOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
 _tfl_fully_connected_options = _get_tflite_schema_module("FullyConnectedOptions")
+_tfl_if_options = _get_tflite_schema_module("IfOptions")
 _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
 _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
@@ -3705,6 +3708,7 @@ _tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
 _tfl_tensor = _get_tflite_schema_module("Tensor")
+_tfl_while_options = _get_tflite_schema_module("WhileOptions")
 
 _tfl_builtin_operator = _get_tflite_schema_enum("BuiltinOperator")
 _tfl_builtin_options = _get_tflite_schema_enum("BuiltinOptions")
@@ -3909,6 +3913,32 @@ def _finish_tflite_model(builder, *, subgraph, operator_codes, buffers, extra_su
     return bytes(builder.Output())
 
 
+def _build_call_options(builder, subgraph_index):
+    _tfl_call_options.CallOptionsStart(builder)
+    _tfl_call_options.CallOptionsAddSubgraph(builder, subgraph_index)
+    return _tfl_call_options.CallOptionsEnd(builder)
+
+
+def _build_if_options(builder, then_subgraph_index, else_subgraph_index):
+    _tfl_if_options.IfOptionsStart(builder)
+    _tfl_if_options.IfOptionsAddThenSubgraphIndex(builder, then_subgraph_index)
+    _tfl_if_options.IfOptionsAddElseSubgraphIndex(builder, else_subgraph_index)
+    return _tfl_if_options.IfOptionsEnd(builder)
+
+
+def _build_while_options(builder, cond_subgraph_index, body_subgraph_index):
+    _tfl_while_options.WhileOptionsStart(builder)
+    _tfl_while_options.WhileOptionsAddCondSubgraphIndex(builder, cond_subgraph_index)
+    _tfl_while_options.WhileOptionsAddBodySubgraphIndex(builder, body_subgraph_index)
+    return _tfl_while_options.WhileOptionsEnd(builder)
+
+
+def _build_call_once_options(builder, init_subgraph_index):
+    _tfl_call_once_options.CallOnceOptionsStart(builder)
+    _tfl_call_once_options.CallOnceOptionsAddInitSubgraphIndex(builder, init_subgraph_index)
+    return _tfl_call_once_options.CallOnceOptionsEnd(builder)
+
+
 def _load_model_from_buffer(model_bytes):
     if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
@@ -3917,6 +3947,1328 @@ def _load_model_from_buffer(model_bytes):
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
     return mod
+
+
+def _get_builtin_operator(builtin_name):
+    if not hasattr(_tfl_builtin_operator, builtin_name):
+        pytest.skip(f"TFLite schema does not provide BuiltinOperator.{builtin_name}")
+    return getattr(_tfl_builtin_operator, builtin_name)
+
+
+def _build_tflite_call_model(
+    call_subgraph_index=1,
+    callee_inputs=None,
+    callee_outputs=None,
+    callee_output_shape=None,
+    callee_output_type=None,
+):
+    """Build a TFLite model where main CALLs a subgraph computing x + 1."""
+    builder = flatbuffers.Builder(1024)
+
+    callee_inputs = [0] if callee_inputs is None else callee_inputs
+    callee_outputs = [2] if callee_outputs is None else callee_outputs
+    callee_output_shape = [2, 2] if callee_output_shape is None else callee_output_shape
+    callee_output_type = (
+        _tfl_tensor_type.FLOAT32 if callee_output_type is None else callee_output_type
+    )
+    call_options = _build_call_options(builder, call_subgraph_index)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 2, [2, 2]),
+    ]
+    main_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=call_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_call],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    callee_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 2, callee_output_shape, tensor_type=callee_output_type),
+    ]
+    callee_add = _build_operator(builder, 1, [0, 1], [2])
+    callee_subgraph = _build_subgraph(
+        builder,
+        tensors=callee_tensors,
+        operators=[callee_add],
+        inputs=callee_inputs,
+        outputs=callee_outputs,
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[callee_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_call_subgraph():
+    """Test TFLite CALL conversion to a private Relax function."""
+    mod = _load_model_from_buffer(_build_tflite_call_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_call_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_call_subgraph_1(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_tflite_multi_output_call_model():
+    """Build a TFLite model where CALL returns x + 1 and x - 1."""
+    builder = flatbuffers.Builder(1024)
+
+    call_options = _build_call_options(builder, 1)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 2, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    main_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1, 2],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=call_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_call],
+        inputs=[0],
+        outputs=[1, 2],
+    )
+
+    callee_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 2, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    callee_add = _build_operator(builder, 1, [0, 1], [2])
+    callee_sub = _build_operator(builder, 2, [0, 1], [3])
+    callee_subgraph = _build_subgraph(
+        builder,
+        tensors=callee_tensors,
+        operators=[callee_add, callee_sub],
+        inputs=[0],
+        outputs=[2, 3],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+        _build_operator_code(builder, _get_builtin_operator("SUB")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[callee_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_call_subgraph_multi_output():
+    """Test CALL tuple returns are split and rebound to TFLite output tensors."""
+    mod = _load_model_from_buffer(_build_tflite_multi_output_call_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_call_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv1: R.Tensor((2, 2), dtype="float32") = R.subtract(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv2: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = (gv, gv1)
+                R.output(gv2)
+            return gv2
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = cls.tflite_call_subgraph_1(tvmgen_tensor_0)
+                lv1: R.Tensor((2, 2), dtype="float32") = lv[0]
+                lv2: R.Tensor((2, 2), dtype="float32") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_tflite_nested_call_model():
+    """Build a TFLite model where main CALLs subgraph A, which CALLs subgraph B."""
+    builder = flatbuffers.Builder(1024)
+
+    main_call_options = _build_call_options(builder, 1)
+    nested_call_options = _build_call_options(builder, 2)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    main_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=main_call_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_call],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    caller_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    nested_call = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.CallOptions,
+        builtin_options=nested_call_options,
+    )
+    caller_subgraph = _build_subgraph(
+        builder,
+        tensors=caller_tensors,
+        operators=[nested_call],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    callee_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, []),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    callee_add = _build_operator(builder, 1, [0, 1], [2])
+    callee_subgraph = _build_subgraph(
+        builder,
+        tensors=callee_tensors,
+        operators=[callee_add],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[caller_subgraph, callee_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_call_subgraph_nested_call():
+    """Test nested CALL subgraphs register all generated private functions."""
+    mod = _load_model_from_buffer(_build_tflite_nested_call_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_call_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_call_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_call_subgraph_2(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_call_subgraph_1(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_call_subgraph_invalid_index_unsupported():
+    """Test CALL rejects invalid subgraph indices before lowering."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CALL requires a valid subgraph index"):
+        _load_model_from_buffer(_build_tflite_call_model(call_subgraph_index=2))
+
+
+def test_call_subgraph_io_mismatch_unsupported():
+    """Test CALL rejects callees whose input arity does not match the call site."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CALL subgraph input count mismatch"):
+        _load_model_from_buffer(_build_tflite_call_model(callee_inputs=[]))
+
+
+def test_call_subgraph_output_metadata_mismatch_unsupported():
+    """Test CALL rejects callees whose output metadata does not match the call site."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL subgraph output tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_call_model(callee_output_shape=[2]))
+
+
+def _build_tflite_if_model(
+    condition_type=_tfl_tensor_type.BOOL,
+    then_subgraph_index=1,
+    else_subgraph_index=2,
+    then_outputs=None,
+    else_outputs=None,
+    else_input_shape=None,
+    else_input_type=None,
+    else_output_shape=None,
+    else_output_type=None,
+):
+    """Build a TFLite model where IF selects x + 1 or x - 1."""
+    builder = flatbuffers.Builder(1024)
+
+    then_outputs = [2] if then_outputs is None else then_outputs
+    else_outputs = [2] if else_outputs is None else else_outputs
+    else_input_shape = [2, 2] if else_input_shape is None else else_input_shape
+    else_input_type = _tfl_tensor_type.FLOAT32 if else_input_type is None else else_input_type
+    else_output_shape = [2, 2] if else_output_shape is None else else_output_shape
+    else_output_type = _tfl_tensor_type.FLOAT32 if else_output_type is None else else_output_type
+    if_options = _build_if_options(builder, then_subgraph_index, else_subgraph_index)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=condition_type),
+        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    main_if = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options_type=_tfl_builtin_options.IfOptions,
+        builtin_options=if_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_if],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+
+    then_tensors = [
+        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 2, []),
+        _build_tensor(builder, 3, [2, 2]),
+    ]
+    then_add = _build_operator(builder, 1, [0, 1], [2])
+    then_subgraph = _build_subgraph(
+        builder,
+        tensors=then_tensors,
+        operators=[then_add],
+        inputs=[0],
+        outputs=then_outputs,
+    )
+
+    else_tensors = [
+        _build_tensor(builder, 1, else_input_shape, tensor_type=else_input_type),
+        _build_tensor(builder, 2, []),
+        _build_tensor(builder, 3, else_output_shape, tensor_type=else_output_type),
+    ]
+    else_sub = _build_operator(builder, 2, [0, 1], [2])
+    else_subgraph = _build_subgraph(
+        builder,
+        tensors=else_tensors,
+        operators=[else_sub],
+        inputs=[0],
+        outputs=else_outputs,
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("IF")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+        _build_operator_code(builder, _get_builtin_operator("SUB")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[then_subgraph, else_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_if_subgraphs():
+    """Test TFLite IF conversion to Relax If."""
+    mod = _load_model_from_buffer(_build_tflite_if_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_if_then_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_if_else_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.subtract(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_if_subgraph_1_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="bool"),
+            tvmgen_tensor_1: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            cls = Expected
+            if tvmgen_tensor_0:
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_if_then_subgraph_1(
+                    tvmgen_tensor_1
+                )
+                cond_result: R.Tensor((2, 2), dtype="float32") = gv
+            else:
+                gv1: R.Tensor((2, 2), dtype="float32") = cls.tflite_if_else_subgraph_2(
+                    tvmgen_tensor_1
+                )
+                cond_result: R.Tensor((2, 2), dtype="float32") = gv1
+            return cond_result
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((), dtype="bool"),
+            tvmgen_tensor_1: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.tflite_if_subgraph_1_2(
+                    tvmgen_tensor_0, tvmgen_tensor_1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def _build_tflite_multi_output_if_model():
+    """Build a TFLite model where IF returns two tensor outputs."""
+    builder = flatbuffers.Builder(1024)
+
+    if_options = _build_if_options(builder, 1, 2)
+    one = np.array(1.0, dtype=np.float32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.BOOL),
+        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 4, [2, 2]),
+        _build_tensor(builder, 5, [2, 2]),
+    ]
+    main_if = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2, 3],
+        builtin_options_type=_tfl_builtin_options.IfOptions,
+        builtin_options=if_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_if],
+        inputs=[0, 1],
+        outputs=[2, 3],
+    )
+
+    then_tensors = [
+        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 2, []),
+        _build_tensor(builder, 3, [2, 2]),
+        _build_tensor(builder, 4, [2, 2]),
+    ]
+    then_add = _build_operator(builder, 1, [0, 1], [2])
+    then_sub = _build_operator(builder, 2, [0, 1], [3])
+    then_subgraph = _build_subgraph(
+        builder,
+        tensors=then_tensors,
+        operators=[then_add, then_sub],
+        inputs=[0],
+        outputs=[2, 3],
+    )
+
+    else_tensors = [
+        _build_tensor(builder, 1, [2, 2]),
+        _build_tensor(builder, 2, []),
+        _build_tensor(builder, 3, [2, 2]),
+        _build_tensor(builder, 4, [2, 2]),
+    ]
+    else_sub = _build_operator(builder, 2, [0, 1], [2])
+    else_add = _build_operator(builder, 1, [0, 1], [3])
+    else_subgraph = _build_subgraph(
+        builder,
+        tensors=else_tensors,
+        operators=[else_sub, else_add],
+        inputs=[0],
+        outputs=[2, 3],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("IF")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+        _build_operator_code(builder, _get_builtin_operator("SUB")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[then_subgraph, else_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_if_subgraphs_multi_output():
+    """Test IF tuple returns are preserved through the private wrapper function."""
+    mod = _load_model_from_buffer(_build_tflite_multi_output_if_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_if_then_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv1: R.Tensor((2, 2), dtype="float32") = R.subtract(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv2: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = (gv, gv1)
+                R.output(gv2)
+            return gv2
+
+        @R.function(private=True)
+        def tflite_if_else_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.subtract(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv1: R.Tensor((2, 2), dtype="float32") = R.add(
+                    tvmgen_tensor_0, R.const(1.0, "float32")
+                )
+                gv2: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = (gv, gv1)
+                R.output(gv2)
+            return gv2
+
+        @R.function(private=True)
+        def tflite_if_subgraph_1_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="bool"),
+            tvmgen_tensor_1: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            cls = Expected
+            if tvmgen_tensor_0:
+                gv: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = cls.tflite_if_then_subgraph_1(tvmgen_tensor_1)
+                cond_result: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = gv
+            else:
+                gv1: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = cls.tflite_if_else_subgraph_2(tvmgen_tensor_1)
+                cond_result: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = gv1
+            return cond_result
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((), dtype="bool"),
+            tvmgen_tensor_1: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")):
+            R.func_attr({"num_input": 2})
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = cls.tflite_if_subgraph_1_2(tvmgen_tensor_0, tvmgen_tensor_1)
+                lv1: R.Tensor((2, 2), dtype="float32") = lv[0]
+                lv2: R.Tensor((2, 2), dtype="float32") = lv[1]
+                gv: R.Tuple(
+                    R.Tensor((2, 2), dtype="float32"), R.Tensor((2, 2), dtype="float32")
+                ) = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_if_subgraphs_non_bool_condition_unsupported():
+    """Test IF rejects non-bool condition tensors."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="IF requires a scalar bool condition"):
+        _load_model_from_buffer(_build_tflite_if_model(condition_type=_tfl_tensor_type.INT32))
+
+
+def test_if_subgraphs_invalid_index_unsupported():
+    """Test IF rejects invalid branch subgraph indices before lowering."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="IF requires a valid subgraph index"):
+        _load_model_from_buffer(_build_tflite_if_model(then_subgraph_index=3))
+
+
+def test_if_subgraphs_output_count_mismatch_unsupported():
+    """Test IF rejects branches whose output arity does not match the call site."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="IF subgraph output count mismatch"):
+        _load_model_from_buffer(_build_tflite_if_model(else_outputs=[]))
+
+
+def test_if_subgraphs_input_metadata_mismatch_unsupported():
+    """Test IF rejects branches whose input metadata does not match the call site."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="IF subgraph input tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_if_model(else_input_shape=[2]))
+
+
+def test_if_subgraphs_output_metadata_mismatch_unsupported():
+    """Test IF rejects branches whose output metadata does not match the call site."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="IF subgraph output tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_if_model(else_output_shape=[2]))
+
+
+def _build_tflite_while_model(
+    cond_subgraph_index=1,
+    body_subgraph_index=2,
+    cond_output_type=_tfl_tensor_type.BOOL,
+    cond_input_type=_tfl_tensor_type.INT32,
+    body_outputs=None,
+    body_input_type=_tfl_tensor_type.INT32,
+    body_output_type=_tfl_tensor_type.INT32,
+    main_output_type=_tfl_tensor_type.INT32,
+):
+    """Build a TFLite WHILE model incrementing an int32 scalar until i < 3 is false."""
+    builder = flatbuffers.Builder(1024)
+
+    body_outputs = [2] if body_outputs is None else body_outputs
+    while_options = _build_while_options(builder, cond_subgraph_index, body_subgraph_index)
+    one = np.array(1, dtype=np.int32)
+    three = np.array(3, dtype=np.int32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=main_output_type),
+    ]
+    main_while = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_while],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    cond_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=cond_input_type),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=cond_output_type),
+    ]
+    cond_less = _build_operator(builder, 1, [0, 1], [2])
+    cond_subgraph = _build_subgraph(
+        builder,
+        tensors=cond_tensors,
+        operators=[cond_less],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=body_input_type),
+        _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=body_output_type),
+    ]
+    body_add = _build_operator(builder, 2, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[body_add],
+        inputs=[0],
+        outputs=body_outputs,
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("WHILE")),
+        _build_operator_code(builder, _get_builtin_operator("LESS")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, three.tobytes()),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_repeated_while_model():
+    """Build a TFLite model where two WHILE ops share the same cond/body subgraphs."""
+    builder = flatbuffers.Builder(1024)
+
+    while_options = _build_while_options(builder, 1, 2)
+    one = np.array(1, dtype=np.int32)
+    three = np.array(3, dtype=np.int32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    main_while_0 = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_while_1 = _build_operator(
+        builder,
+        0,
+        [1],
+        [2],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_while_0, main_while_1],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    cond_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.BOOL),
+    ]
+    cond_less = _build_operator(builder, 1, [0, 1], [2])
+    cond_subgraph = _build_subgraph(
+        builder,
+        tensors=cond_tensors,
+        operators=[cond_less],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    body_add = _build_operator(builder, 2, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[body_add],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("WHILE")),
+        _build_operator_code(builder, _get_builtin_operator("LESS")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, three.tobytes()),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_zero_var_while_model():
+    """Build a TFLite WHILE model with no loop-carried tensors."""
+    builder = flatbuffers.Builder(1024)
+
+    while_options = _build_while_options(builder, 1, 2)
+    main_while = _build_operator(
+        builder,
+        0,
+        [],
+        [],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[],
+        operators=[main_while],
+        inputs=[],
+        outputs=[],
+    )
+    cond_subgraph = _build_subgraph(builder, tensors=[], operators=[], inputs=[], outputs=[])
+    body_subgraph = _build_subgraph(builder, tensors=[], operators=[], inputs=[], outputs=[])
+
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("WHILE"))]
+    buffers = [_build_buffer(builder)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_while_subgraphs():
+    """Test TFLite WHILE conversion to a recursive Relax private function."""
+    mod = _load_model_from_buffer(_build_tflite_while_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_while_cond_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="bool"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="bool") = R.less(tvmgen_tensor_0, R.const(3, "int32"))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_while_body_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.add(tvmgen_tensor_0, R.const(1, "int32"))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_while_subgraph_1_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            cls = Expected
+            while_cond: R.Tensor((), dtype="bool") = cls.tflite_while_cond_subgraph_1(
+                tvmgen_tensor_0
+            )
+            if while_cond:
+                gv: R.Tensor((), dtype="int32") = cls.tflite_while_body_subgraph_2(tvmgen_tensor_0)
+                gv1: R.Tensor((), dtype="int32") = cls.tflite_while_subgraph_1_2(gv)
+                cond_result: R.Tensor((), dtype="int32") = gv1
+            else:
+                cond_result: R.Tensor((), dtype="int32") = tvmgen_tensor_0
+            return cond_result
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = cls.tflite_while_subgraph_1_2(tvmgen_tensor_0)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_while_subgraphs_repeated_cond_body_pair():
+    """Test repeated WHILE ops reuse the same recursive private function."""
+    mod = _load_model_from_buffer(_build_tflite_repeated_while_model())
+    names = [gv.name_hint for gv in mod.get_global_vars()]
+    assert names.count("tflite_while_subgraph_1_2") == 1
+
+
+def _build_tflite_two_var_while_model():
+    """Build a TFLite WHILE model with two int32 loop-carried scalar tensors."""
+    builder = flatbuffers.Builder(1024)
+
+    while_options = _build_while_options(builder, 1, 2)
+    one = np.array(1, dtype=np.int32)
+    three = np.array(3, dtype=np.int32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 5, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    main_while = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2, 3],
+        builtin_options_type=_tfl_builtin_options.WhileOptions,
+        builtin_options=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_while],
+        inputs=[0, 1],
+        outputs=[2, 3],
+    )
+
+    cond_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.BOOL),
+    ]
+    cond_less = _build_operator(builder, 1, [0, 2], [3])
+    cond_subgraph = _build_subgraph(
+        builder,
+        tensors=cond_tensors,
+        operators=[cond_less],
+        inputs=[0, 1],
+        outputs=[3],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 4, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 5, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    body_add_i = _build_operator(builder, 2, [0, 2], [3])
+    body_add_acc = _build_operator(builder, 2, [1, 0], [4])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[body_add_i, body_add_acc],
+        inputs=[0, 1],
+        outputs=[3, 4],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("WHILE")),
+        _build_operator_code(builder, _get_builtin_operator("LESS")),
+        _build_operator_code(builder, _get_builtin_operator("ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder),
+        _build_buffer(builder, three.tobytes()),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_while_subgraphs_two_loop_vars():
+    """Test WHILE tuple loop state with two loop-carried variables."""
+    mod = _load_model_from_buffer(_build_tflite_two_var_while_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_while_cond_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+            tvmgen_tensor_1: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="bool"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="bool") = R.less(tvmgen_tensor_0, R.const(3, "int32"))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_while_body_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+            tvmgen_tensor_1: R.Tensor((), dtype="int32"),
+        ) -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.add(tvmgen_tensor_0, R.const(1, "int32"))
+                gv1: R.Tensor((), dtype="int32") = R.add(tvmgen_tensor_1, tvmgen_tensor_0)
+                gv2: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    gv,
+                    gv1,
+                )
+                R.output(gv2)
+            return gv2
+
+        @R.function(private=True)
+        def tflite_while_subgraph_1_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+            tvmgen_tensor_1: R.Tensor((), dtype="int32"),
+        ) -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")):
+            cls = Expected
+            while_cond: R.Tensor((), dtype="bool") = cls.tflite_while_cond_subgraph_1(
+                tvmgen_tensor_0, tvmgen_tensor_1
+            )
+            if while_cond:
+                gv: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    cls.tflite_while_body_subgraph_2(tvmgen_tensor_0, tvmgen_tensor_1)
+                )
+                gv1: R.Tensor((), dtype="int32") = gv[0]
+                gv2: R.Tensor((), dtype="int32") = gv[1]
+                gv3: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    cls.tflite_while_subgraph_1_2(gv1, gv2)
+                )
+                cond_result: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = gv3
+            else:
+                cond_result: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    tvmgen_tensor_0,
+                    tvmgen_tensor_1,
+                )
+            return cond_result
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+            tvmgen_tensor_1: R.Tensor((), dtype="int32"),
+        ) -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")):
+            R.func_attr({"num_input": 2})
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    cls.tflite_while_subgraph_1_2(tvmgen_tensor_0, tvmgen_tensor_1)
+                )
+                lv1: R.Tensor((), dtype="int32") = lv[0]
+                lv2: R.Tensor((), dtype="int32") = lv[1]
+                gv: R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((), dtype="int32")) = (
+                    lv1,
+                    lv2,
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_while_subgraphs_non_bool_condition_unsupported():
+    """Test WHILE rejects cond subgraphs that do not return scalar bool."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires a scalar bool condition"):
+        _load_model_from_buffer(_build_tflite_while_model(cond_output_type=_tfl_tensor_type.INT32))
+
+
+def test_while_subgraphs_invalid_index_unsupported():
+    """Test WHILE rejects invalid cond/body subgraph indices before lowering."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires a valid subgraph index"):
+        _load_model_from_buffer(_build_tflite_while_model(cond_subgraph_index=3))
+
+
+def test_while_subgraphs_zero_loop_vars_unsupported():
+    """Test WHILE rejects operators without loop-carried tensors."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires loop-carried inputs"):
+        _load_model_from_buffer(_build_tflite_zero_var_while_model())
+
+
+def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
+    """Test WHILE rejects loop outputs whose metadata does not match loop inputs."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="WHILE loop state tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(
+            _build_tflite_while_model(main_output_type=_tfl_tensor_type.FLOAT32)
+        )
+
+
+def test_while_subgraphs_output_count_mismatch_unsupported():
+    """Test WHILE rejects body subgraphs whose output arity does not match loop vars."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE subgraph output count mismatch"):
+        _load_model_from_buffer(_build_tflite_while_model(body_outputs=[]))
+
+
+def test_while_subgraphs_input_metadata_mismatch_unsupported():
+    """Test WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="WHILE subgraph input tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(_build_tflite_while_model(cond_input_type=_tfl_tensor_type.FLOAT32))
+
+
+def test_while_subgraphs_output_metadata_mismatch_unsupported():
+    """Test WHILE rejects body outputs whose metadata does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="WHILE subgraph output tensor metadata mismatch"
+    ):
+        _load_model_from_buffer(
+            _build_tflite_while_model(body_output_type=_tfl_tensor_type.FLOAT32)
+        )
+
+
+def _build_tflite_call_once_model(
+    init_has_op=False,
+    init_subgraph_index=1,
+    call_once_inputs=None,
+    call_once_outputs=None,
+    init_inputs=None,
+    init_outputs=None,
+):
+    """Build a TFLite model with CALL_ONCE and one pass-through output."""
+    builder = flatbuffers.Builder(1024)
+
+    call_once_inputs = [] if call_once_inputs is None else call_once_inputs
+    call_once_outputs = [] if call_once_outputs is None else call_once_outputs
+    init_inputs = [] if init_inputs is None else init_inputs
+    init_outputs = [] if init_outputs is None else init_outputs
+
+    call_once_options = _build_call_once_options(builder, init_subgraph_index)
+    main_tensors = [_build_tensor(builder, 0, [2, 2])]
+    main_call_once = _build_operator(
+        builder,
+        0,
+        call_once_inputs,
+        call_once_outputs,
+        builtin_options_type=_tfl_builtin_options.CallOnceOptions,
+        builtin_options=call_once_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_call_once],
+        inputs=[0],
+        outputs=[0],
+    )
+
+    if init_has_op:
+        one = np.array(1.0, dtype=np.float32)
+        init_tensors = [
+            _build_tensor(builder, 0, [2, 2]),
+            _build_tensor(builder, 1, []),
+            _build_tensor(builder, 2, [2, 2]),
+        ]
+        init_op = _build_operator(builder, 1, [0, 1], [2])
+        buffers = [
+            _build_buffer(builder),
+            _build_buffer(builder, one.tobytes()),
+            _build_buffer(builder),
+        ]
+    else:
+        init_tensors = (
+            [_build_tensor(builder, 0, [2, 2])]
+            if len(init_inputs) != 0 or len(init_outputs) != 0
+            else []
+        )
+        init_op = None
+        buffers = [_build_buffer(builder)]
+
+    init_subgraph = _build_subgraph(
+        builder,
+        tensors=init_tensors,
+        operators=[] if init_op is None else [init_op],
+        inputs=init_inputs,
+        outputs=init_outputs,
+    )
+
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("CALL_ONCE"))]
+    if init_has_op:
+        operator_codes.append(_build_operator_code(builder, _get_builtin_operator("ADD")))
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[init_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def test_call_once_empty_init_subgraph():
+    """Test the no-op CALL_ONCE subset."""
+    mod = _load_model_from_buffer(_build_tflite_call_once_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = tvmgen_tensor_0
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_call_once_non_empty_init_subgraph_unsupported():
+    """Test CALL_ONCE rejects init subgraphs with side-effect-like bodies."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE"):
+        _load_model_from_buffer(_build_tflite_call_once_model(init_has_op=True))
+
+
+def test_call_once_inputs_outputs_unsupported():
+    """Test CALL_ONCE rejects operator inputs and outputs."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE with inputs or outputs"):
+        _load_model_from_buffer(
+            _build_tflite_call_once_model(call_once_inputs=[0], call_once_outputs=[0])
+        )
+
+
+def test_call_once_init_subgraph_io_unsupported():
+    """Test CALL_ONCE rejects init subgraphs with inputs or outputs."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL_ONCE with non-empty init subgraph I/O"
+    ):
+        _load_model_from_buffer(_build_tflite_call_once_model(init_inputs=[0], init_outputs=[0]))
+
+
+def test_call_once_invalid_index_unsupported():
+    """Test CALL_ONCE rejects invalid init subgraph indices before lowering."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
+    ):
+        _load_model_from_buffer(_build_tflite_call_once_model(init_subgraph_index=2))
 
 
 def _get_stablehlo_builtin_operator(builtin_name):
