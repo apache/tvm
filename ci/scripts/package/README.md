@@ -17,7 +17,7 @@
 
 # TVM wheel packaging helper
 
-This helper follows the CUDA-sidecar packaging flow used for local release
+This helper follows the CUDA-sidecar packaging flow used for release
 validation:
 
 1. Build `libtvm_runtime_cuda.so` in a CUDA-enabled CMake build.
@@ -40,11 +40,21 @@ GitHub Actions flow:
 1. Create a tag that contains these packaging files.
 2. Open the `Publish TVM wheel` workflow in GitHub Actions.
 3. Fill `tag` with that tag.
-4. For a TestPyPI run, set `publish_repository=testpypi` and set
+4. The workflow builds a platform wheel matrix:
+   - Linux x86_64 in a `manylinux_2_28` container, with the CUDA sidecar.
+   - Linux aarch64 in a `manylinux_2_28` container, with the CUDA sidecar.
+   - macOS arm64 CPU-only.
+   - Windows AMD64 CPU-only.
+5. For a TestPyPI run, set `publish_repository=testpypi` and set
    `distribution_name` to a temporary package name such as
    `tvm-yourname-test`.
-5. After the workflow build, upload, and `verify_pypi` jobs pass, run it again
+6. After the workflow build, upload, and `verify_pypi` jobs pass, run it again
    with the final tag/name and `publish_repository=pypi`.
+
+Linux wheels are built inside a manylinux image, following the TVM-FFI
+packaging pattern. This avoids accidentally publishing a wheel tagged for the
+GitHub runner's host glibc, such as `manylinux_2_39`, which would not install
+on older supported Linux systems.
 
 To test this from the fork `tlopex/tvm` without publishing:
 
@@ -116,5 +126,8 @@ Useful knobs:
 - `TVM_SKIP_REPAIR=1`: leave the injected wheel unrepaired.
 - `TVM_SKIP_CUDA=1`: build a base wheel without a CUDA sidecar.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
+- `TVM_AUDITWHEEL_PLAT`: optional `auditwheel repair --plat` override.
+- `TVM_EXPECT_WHEEL_PLATFORM_TAG`: require the final wheel filename to include
+  a specific platform tag, such as `manylinux_2_28_x86_64`.
 - `TVM_TEST_INDEX_URL`: package index for `verify-pypi`, default TestPyPI.
 - `TVM_EXTRA_INDEX_URL`: extra package index for dependencies, default PyPI.

@@ -30,7 +30,7 @@ TVM_BASE_BUILD_DIR="${TVM_BASE_BUILD_DIR:-${REPO_ROOT}/build-wheel-base}"
 TVM_USE_LLVM="${TVM_USE_LLVM:-llvm-config --link-static}"
 TVM_USE_CUDA="${TVM_USE_CUDA:-ON}"
 TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
-TVM_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+TVM_BUILD_PARALLEL_LEVEL="${TVM_BUILD_PARALLEL_LEVEL:-${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}}"
 TVM_WHEEL_DIST_NAME="${TVM_WHEEL_DIST_NAME:-}"
 TVM_WHEEL_DIST_VERSION="${TVM_WHEEL_DIST_VERSION:-}"
 TVM_SKIP_CUDA="${TVM_SKIP_CUDA:-0}"
@@ -53,6 +53,9 @@ Environment knobs:
   TVM_SKIP_REPAIR=1            Keep injected wheel as final wheel
   TVM_BUILD_NO_ISOLATION=1     Pass --no-isolation to python -m build
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
+  TVM_AUDITWHEEL_PLAT          Optional auditwheel --plat value
+  TVM_EXPECT_WHEEL_PLATFORM_TAG
+                                Require the final wheel filename to include this tag
   TVM_TEST_INDEX_URL           Package index for verify-pypi, default TestPyPI
   TVM_EXTRA_INDEX_URL          Extra package index for dependencies, default PyPI
 EOF
@@ -283,12 +286,17 @@ repair_wheel() {
       mapfile -t exclude_args < <(auditwheel_excludes "$cuda_lib")
       echo "Repairing Linux wheel with auditwheel"
       (
+        auditwheel_plat_args=()
+        if [[ -n "${TVM_AUDITWHEEL_PLAT:-}" ]]; then
+          auditwheel_plat_args+=(--plat "$TVM_AUDITWHEEL_PLAT")
+        fi
         llvm_dir="$(llvm_libdir || true)"
         if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
           echo "Adding LLVM libdir to LD_LIBRARY_PATH for auditwheel: ${llvm_dir}"
           export LD_LIBRARY_PATH="${llvm_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         fi
-        auditwheel repair "${exclude_args[@]}" -w "$TVM_WHEELHOUSE" "$injected_wheel"
+        auditwheel repair "${auditwheel_plat_args[@]}" "${exclude_args[@]}" \
+          -w "$TVM_WHEELHOUSE" "$injected_wheel"
       )
       ;;
     Darwin)
@@ -320,6 +328,12 @@ validate_wheel_elf() {
 verify_wheel() {
   local final_wheel
   final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
+  if [[ -n "${TVM_EXPECT_WHEEL_PLATFORM_TAG:-}" ]]; then
+    if [[ "$(basename "$final_wheel")" != *"${TVM_EXPECT_WHEEL_PLATFORM_TAG}"* ]]; then
+      echo "error: expected final wheel tag ${TVM_EXPECT_WHEEL_PLATFORM_TAG}, got ${final_wheel}" >&2
+      return 1
+    fi
+  fi
   validate_wheel_elf
 
   local venv="${TVM_VERIFY_VENV:-${REPO_ROOT}/build-wheel-verify-venv}"
