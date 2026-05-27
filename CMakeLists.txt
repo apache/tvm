@@ -113,9 +113,11 @@ include_directories(SYSTEM ${COMPILER_RT_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
+set(TVM_RUNTIME_BACKEND_LIBS "")
 # Early target creation so contrib cmake files can call
 # target_link_libraries(tvm_runtime_extra PRIVATE <object_lib>) directly.
 add_library(tvm_runtime_extra SHARED)
+list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_extra)
 set_target_properties(tvm_runtime_extra PROPERTIES LINKER_LANGUAGE CXX)
 # INTERFACE target carrying compile definitions for OBJECT libs that build
 # into tvm_runtime_extra. On MSVC, TVM_RUNTIME_EXPORTS makes TVM_RUNTIME_DLL
