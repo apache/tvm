@@ -184,7 +184,7 @@ jobs:
           TVM_PYTHON: python
           TVM_TEST_INDEX_URL: https://test.pypi.org/simple/
           TVM_EXTRA_INDEX_URL: https://pypi.org/simple
-        run: ci/scripts/package/build_tvm_wheel.sh verify-pypi
+        run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi
 
       - name: Verify package from PyPI
         if: ${{ inputs.publish_repository == 'pypi' }}
@@ -192,4 +192,4 @@ jobs:
           TVM_PYTHON: python
           TVM_TEST_INDEX_URL: https://pypi.org/simple/
           TVM_EXTRA_INDEX_URL: https://pypi.org/simple
-        run: ci/scripts/package/build_tvm_wheel.sh verify-pypi
+        run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi

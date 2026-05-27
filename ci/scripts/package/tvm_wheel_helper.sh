@@ -36,7 +36,7 @@ TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/build_tvm_wheel.sh [cuda|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
+Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config used by repair helpers, default "llvm-config --link-static"
@@ -157,7 +157,7 @@ run_manylinux_cuda_container() {
       python --version
       cmake --version
       nvcc --version
-      ci/scripts/package/build_tvm_wheel.sh cuda'
+      ci/scripts/package/tvm_wheel_helper.sh cuda'
 
   docker exec "$container" bash -lc \
     "chown -R $(id -u):$(id -g) /workspace/build-wheel-cuda || true"
