@@ -1104,6 +1104,20 @@ class Cast(OnnxOpConverter):
             return relax.const(output, to_type)
         if isinstance(inputs[0], relax.PrimValue):
             return relax.PrimValue(inputs[0].value.astype(to_type))
+
+        try:
+            np_dst = _np.dtype(str(to_type))
+        except Exception:
+            return relax.op.astype(inputs[0], to_type)
+
+        if np_dst.kind in ("i", "u"):
+            src = inputs[0]
+            src_dtype = getattr(getattr(src, "struct_info", None), "dtype", None) or getattr(src, "dtype", None)
+            if src_dtype is not None and _relax_dtype_is_floating_point(src_dtype):
+                bad = relax.op.logical_or(relax.op.isnan(src), relax.op.isinf(src))
+                x = bb.emit(relax.op.where(bad, relax.const(0.0, src_dtype), src))
+                return relax.op.astype(x, to_type)
+
         return relax.op.astype(inputs[0], to_type)
 
 
