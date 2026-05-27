@@ -98,7 +98,7 @@ def _server_env(load_library, work_path=None):
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
             from tvm.support import cc as _cc
-            from tvm.contrib import tar as _tar
+            from tvm.support import tar as _tar
 
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
