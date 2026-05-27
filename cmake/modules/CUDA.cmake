@@ -79,19 +79,7 @@ if(USE_CUDA)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   )
-  if(TVM_BUILD_PYTHON_MODULE)
-    if(APPLE)
-      set_target_properties(tvm_runtime_cuda PROPERTIES
-        BUILD_RPATH "@loader_path"
-        INSTALL_RPATH "@loader_path"
-      )
-    elseif(LINUX)
-      set_target_properties(tvm_runtime_cuda PROPERTIES
-        BUILD_RPATH "\$ORIGIN"
-        INSTALL_RPATH "\$ORIGIN"
-      )
-    endif()
-  endif()
+  tvm_set_python_module_relative_rpath(tvm_runtime_cuda)
   install(TARGETS tvm_runtime_cuda DESTINATION lib${LIB_SUFFIX})
   if(TVM_BUILD_PYTHON_MODULE)
     install(TARGETS tvm_runtime_cuda DESTINATION "lib")
@@ -115,7 +103,7 @@ if(USE_CUDA AND USE_CUDNN)
   add_library(tvm_cudnn_objs OBJECT ${CONTRIB_CUDNN_SRCS})
   target_link_libraries(tvm_cudnn_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_cudnn_objs ${CUDA_CUDNN_LIBRARY})
-endif(USE_CUDNN)
+endif(USE_CUDA AND USE_CUDNN)
 
 if(USE_CUDA AND USE_CUDNN_FRONTEND)
   message(STATUS "Build with cuDNN Frontend support")
