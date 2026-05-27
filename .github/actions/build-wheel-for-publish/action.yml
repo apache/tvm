@@ -230,6 +230,13 @@ runs:
           python "{project}/ci/scripts/package/inject_cuda_runtime.py" "{wheel}"
           --output-dir "{dest_dir}"
           --distribution-name "${{ inputs.distribution_name }}"
+          --extra-library-dir "C:/opt/llvm/Library/bin"
+          --extra-library-pattern "libxml2*.dll"
+          --extra-library-pattern "zstd*.dll"
+          --extra-library-pattern "zlib*.dll"
+          --extra-library-pattern "*lzma*.dll"
+          --extra-library-pattern "*iconv*.dll"
+          --extra-library-pattern "*charset*.dll"
         CIBW_TEST_COMMAND: >-
           python "{project}/ci/scripts/package/verify_tvm_install.py"
 

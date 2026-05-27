@@ -111,6 +111,33 @@ def _retag_wheel_filename(
     return f"{_wheel_escape(dist_name)}-{_wheel_escape(version)}-{'-'.join(tags)}.whl"
 
 
+def _parse_extra_file(value: str) -> tuple[Path, str]:
+    if "=" not in value:
+        raise argparse.ArgumentTypeError("extra files must use SOURCE=TARGET format")
+    source, target = value.split("=", 1)
+    if not source or not target:
+        raise argparse.ArgumentTypeError("extra files must use SOURCE=TARGET format")
+    target = target.replace("\\", "/").lstrip("/")
+    return Path(source), target
+
+
+def _extra_library_files(
+    library_dirs: list[Path],
+    patterns: list[str],
+    target_dir: str,
+) -> list[tuple[Path, str]]:
+    target_dir = target_dir.replace("\\", "/").strip("/")
+    extra_files: dict[str, Path] = {}
+    for library_dir in library_dirs:
+        if not library_dir.is_dir():
+            continue
+        for pattern in patterns:
+            for source in sorted(library_dir.glob(pattern)):
+                if source.is_file():
+                    extra_files[f"{target_dir}/{source.name}"] = source
+    return [(source, target) for target, source in sorted(extra_files.items())]
+
+
 def rewrite_wheel(
     wheel: Path,
     output_dir: Path,
@@ -119,8 +146,10 @@ def rewrite_wheel(
     distribution_name: str | None,
     distribution_version: str | None,
     set_rpath: str | None,
+    extra_files: list[tuple[Path, str]],
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
+    extra_targets = {target for _, target in extra_files}
     with zipfile.ZipFile(wheel, "r") as zin:
         original_names = zin.namelist()
         original_dist_info = _find_dist_info(original_names)
@@ -142,7 +171,9 @@ def rewrite_wheel(
                 continue
             if mapped_name.startswith(f"{original_dist_info}/"):
                 mapped_name = f"{final_dist_info}/{mapped_name.split('/', 1)[1]}"
-            if cuda_runtime is not None and mapped_name == target_path:
+            if (
+                cuda_runtime is not None and mapped_name == target_path
+            ) or mapped_name in extra_targets:
                 continue
 
             data = zin.read(info.filename)
@@ -160,6 +191,13 @@ def rewrite_wheel(
             if set_rpath is not None and _is_elf_shared_lib(target_path, data):
                 data = _set_rpath(data, set_rpath, target_path)
             info = zipfile.ZipInfo(target_path)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            entries.append((info, data))
+
+        for source, target in extra_files:
+            data = source.read_bytes()
+            info = zipfile.ZipInfo(target)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             entries.append((info, data))
@@ -191,6 +229,31 @@ def main() -> int:
     parser.add_argument("--distribution-name")
     parser.add_argument("--distribution-version")
     parser.add_argument("--set-rpath")
+    parser.add_argument(
+        "--extra-file",
+        action="append",
+        default=[],
+        type=_parse_extra_file,
+        help="Additional file to place in the wheel, using SOURCE=TARGET format.",
+    )
+    parser.add_argument(
+        "--extra-library-dir",
+        action="append",
+        default=[],
+        type=Path,
+        help="Directory to scan for extra runtime libraries.",
+    )
+    parser.add_argument(
+        "--extra-library-pattern",
+        action="append",
+        default=[],
+        help="Glob pattern for files under --extra-library-dir.",
+    )
+    parser.add_argument(
+        "--extra-library-target-dir",
+        default="tvm/lib",
+        help="Wheel directory for files matched by --extra-library-pattern.",
+    )
     args = parser.parse_args()
 
     cuda_runtime = args.cuda_runtime
@@ -206,6 +269,18 @@ def main() -> int:
         else:
             target_path = f"tvm/lib/{cuda_runtime.name}"
 
+    extra_files = list(args.extra_file)
+    extra_files.extend(
+        _extra_library_files(
+            library_dirs=args.extra_library_dir,
+            patterns=args.extra_library_pattern,
+            target_dir=args.extra_library_target_dir,
+        )
+    )
+    missing_extra_files = [str(source) for source, _ in extra_files if not source.is_file()]
+    if missing_extra_files:
+        parser.error(f"extra files do not exist: {', '.join(missing_extra_files)}")
+
     output_path = rewrite_wheel(
         wheel=args.wheel,
         output_dir=args.output_dir,
@@ -214,6 +289,7 @@ def main() -> int:
         distribution_name=args.distribution_name or None,
         distribution_version=args.distribution_version or None,
         set_rpath=args.set_rpath,
+        extra_files=extra_files,
     )
     print(output_path)
     return 0
