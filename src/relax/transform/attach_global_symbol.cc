@@ -91,15 +91,9 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
         func.CopyOnWrite()->body = new_body;
       }
       // Update kGlobalSymbol if the function is externally exposed and being renamed.
-      if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
-        auto name = opt.value();
-        for (const auto& [before, after] : replacements) {
-          if (before->name_hint == name) {
-            if (after->name_hint != name) {
-              func = WithAttr(func, tvm::attr::kGlobalSymbol, after->name_hint);
-            }
-            break;
-          }
+      if (func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        if (new_gvar->name_hint != old_gvar->name_hint) {
+          func = WithAttr(func, tvm::attr::kGlobalSymbol, new_gvar->name_hint);
         }
       }
       new_func = func;
@@ -108,15 +102,9 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
       auto new_relax_func =
           Downcast<Function>(mutator(Downcast<Function>(ffi::GetRef<Function>(relax_func_node))));
       // Update kGlobalSymbol if the function is externally exposed and being renamed.
-      if (auto opt = new_relax_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
-        auto name = opt.value();
-        for (const auto& [before, after] : replacements) {
-          if (before->name_hint == name) {
-            if (after->name_hint != name) {
-              new_relax_func = WithAttr(new_relax_func, tvm::attr::kGlobalSymbol, after->name_hint);
-            }
-            break;
-          }
+      if (new_relax_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        if (new_gvar->name_hint != old_gvar->name_hint) {
+          new_relax_func = WithAttr(new_relax_func, tvm::attr::kGlobalSymbol, new_gvar->name_hint);
         }
       }
       new_func = new_relax_func;
