@@ -212,9 +212,9 @@ class Module(_Module):
         # Extra dependencies during runtime.
         from pathlib import Path
 
+        from tvm.contrib import tvmjs as _tvmjs
         from tvm.support import cc as _cc
         from tvm.support import tar as _tar
-        from tvm.contrib import tvmjs as _tvmjs
         from tvm.support import utils as _utils
 
         if isinstance(file_name, Path):

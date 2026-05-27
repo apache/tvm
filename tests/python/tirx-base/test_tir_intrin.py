@@ -24,8 +24,8 @@ import scipy
 import tvm
 import tvm.testing
 from tvm import te, tirx, topi
-from tvm.support import clang, utils
 from tvm.script import tirx as T
+from tvm.support import clang, utils
 
 
 def test_nearbyint():

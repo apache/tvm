@@ -20,8 +20,8 @@ import numpy as np
 
 import tvm
 import tvm.script.relax as R
-from tvm.support import ndk, utils
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
+from tvm.support import ndk, utils
 
 
 # pylint: disable=import-outside-toplevel,missing-function-docstring

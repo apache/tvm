@@ -30,8 +30,8 @@ import triton.profiler as proton
 import tvm_ffi
 
 import tvm
-from tvm.support import nvcc
 from tvm.script import tirx as Tx
+from tvm.support import nvcc
 
 
 def is_running_under_pytest():

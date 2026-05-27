@@ -30,7 +30,7 @@ import tvm
 
 tvm_ffi.init_ffi_api("support", __name__)
 
-from .libinfo import libinfo  # noqa: E402
+from .libinfo import libinfo
 
 
 def describe():

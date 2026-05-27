@@ -26,9 +26,9 @@ from tvm_ffi import register_global_func
 
 from tvm.ir import IRModule
 from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
+from tvm.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from tvm.target import Target
 
-from ....contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from ..logging import get_logger
 from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder

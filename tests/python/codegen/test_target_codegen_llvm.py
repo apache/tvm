@@ -23,9 +23,9 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.support import clang, utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import clang, utils
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 

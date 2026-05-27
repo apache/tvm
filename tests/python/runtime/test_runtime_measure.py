@@ -20,8 +20,8 @@ import time
 
 import tvm
 from tvm import te
-from tvm.support.utils import tempdir
 from tvm.runtime.module import BenchmarkResult
+from tvm.support.utils import tempdir
 
 
 def test_min_repeat_ms():

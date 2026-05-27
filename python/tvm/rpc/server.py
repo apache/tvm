@@ -42,10 +42,10 @@ import time
 import tvm_ffi
 
 from tvm.base import py_str
-from tvm.support import utils
-from tvm.support.popen_pool import PopenWorker
 from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
+from tvm.support import utils
+from tvm.support.popen_pool import PopenWorker
 
 # pylint: disable=unused-import
 from . import _ffi_api, base, testing

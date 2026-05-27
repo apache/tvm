@@ -93,8 +93,8 @@ import tvm.support.utils
 import tvm.te
 import tvm.tirx
 from tvm.contrib import cudnn
-from tvm.support import nvcc, rocm
 from tvm.error import TVMError
+from tvm.support import nvcc, rocm
 from tvm.target import codegen
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}

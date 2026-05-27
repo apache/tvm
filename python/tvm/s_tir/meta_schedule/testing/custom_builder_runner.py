@@ -37,8 +37,8 @@ def run_module_via_rpc(
     import os
     import tempfile
 
-    from tvm.support.tar import tar
     from tvm.runtime import ndarray
+    from tvm.support.tar import tar
 
     # pylint: enable=import-outside-toplevel
 

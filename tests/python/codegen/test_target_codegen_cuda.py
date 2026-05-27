@@ -23,9 +23,9 @@ import pytest
 import tvm
 import tvm.support.nvcc
 import tvm.testing
-from tvm.support.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support.nvcc import have_bf16, have_fp16, have_int8
 
 
 @pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])

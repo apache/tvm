@@ -39,7 +39,6 @@ except ImportError:
 import tvm
 from tvm.libinfo import find_lib_path
 from tvm.runtime import DataType
-
 from tvm.support.emcc import create_tvmjs_wasm
 
 
