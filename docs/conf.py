@@ -448,8 +448,7 @@ def force_gc(gallery_conf, fname):
     gc.collect()
 
 
-# Skips certain files to avoid dependency issues
-filename_pattern_default = "^(?!.*micro_mlperftiny.py).*$"
+filename_pattern_default = ".*"
 
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
