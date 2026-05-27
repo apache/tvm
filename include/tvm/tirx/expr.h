@@ -28,6 +28,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/node_functor.h>
@@ -731,20 +732,15 @@ class CallNode : public PrimExprNode {
   /*! \brief The arguments. */
   ffi::Array<PrimExpr> args;
 
-  /*!
-   * \brief Additional annotations about the call.
-   *
-   * These annotations can be used to carry target-specific metadata through
-   * TIRX transformations and codegen.
-   */
-  ffi::Map<ffi::String, ffi::Any> annotations;
+  /*! \brief The additional attributes. */
+  Attrs attrs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CallNode>()
         .def_ro("op", &CallNode::op)
         .def_ro("args", &CallNode::args)
-        .def_ro("annotations", &CallNode::annotations);
+        .def_ro("attrs", &CallNode::attrs);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Call", CallNode, PrimExprNode);
 };
@@ -755,9 +751,9 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
-               ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
                Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };

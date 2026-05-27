@@ -491,10 +491,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       t = BroadcastTo(t, lanes, is_scalable);
       f = BroadcastTo(f, lanes, is_scalable);
       if (is_scalable) {
-        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {cond, t, f},
-                    op->annotations, op->span);
+        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {cond, t, f}, op->attrs,
+                    op->span);
       } else {
-        return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f}, op->annotations, op->span);
+        return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f}, op->attrs, op->span);
       }
     }
   }
@@ -507,14 +507,14 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     } else {
       int lanes = value.dtype().get_lanes_or_vscale_factor();
       if (value.dtype().is_scalable_vector()) {
-        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value}, op->annotations,
+        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value}, op->attrs,
                     op->span);
       } else {
         int new_lanes = (op->dtype != DataType::Float4E2M1FN() &&
                          op->args[0].dtype() != DataType::Float4E2M1FN())
                             ? (value.dtype().bits() * value.dtype().lanes()) / op->dtype.bits()
                             : value.dtype().lanes();
-        return Call(op->dtype.with_lanes(new_lanes), op->op, {value}, op->annotations, op->span);
+        return Call(op->dtype.with_lanes(new_lanes), op->op, {value}, op->attrs, op->span);
       }
     }
   }
@@ -536,7 +536,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
-      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->annotations, op->span);
+      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
     } else if (op->op.same_as(builtin::texture2d_store())) {
       int lane = 0;
       // Vectorize the value to store
@@ -551,7 +551,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2],
                                     op->args[3], op->args[4], mutated_value[0]};
-      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->annotations, op->span);
+      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
     } else if (op->op.same_as(builtin::reinterpret())) {
       return MutateReinterpretExpr_(op);
     }
@@ -573,7 +573,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (op->args.same_as(new_args)) {
         return ffi::GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype, op->op, new_args, op->annotations, op->span);
+        return Call(op->dtype, op->op, new_args, op->attrs, op->span);
       }
     } else {
       int lane = 0;
@@ -599,7 +599,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (op->args.same_as(new_args)) {
         return ffi::GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype.with_lanes(lane), op->op, new_args, op->annotations, op->span);
+        return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
       }
     }
   }
