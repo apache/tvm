@@ -119,9 +119,7 @@ def validate(wheel: Path) -> None:
             unexpected_tvm_deps = sorted(
                 name
                 for name in needed
-                if name.startswith("libtvm_")
-                and name not in libs
-                and name not in TVM_EXTERNAL_LIBS
+                if name.startswith("libtvm_") and name not in libs and name not in TVM_EXTERNAL_LIBS
             )
             if unexpected_tvm_deps:
                 errors.append(
