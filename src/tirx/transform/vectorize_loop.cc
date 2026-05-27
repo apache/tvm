@@ -491,8 +491,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       t = BroadcastTo(t, lanes, is_scalable);
       f = BroadcastTo(f, lanes, is_scalable);
       if (is_scalable) {
-        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {cond, t, f},
-                    op->attrs, op->span);
+        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {cond, t, f}, op->attrs,
+                    op->span);
       } else {
         return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f}, op->attrs, op->span);
       }

@@ -1309,7 +1309,7 @@ class Call(PrimExprWithOp):
 
     op: Op
     args: list[PrimExpr]
-    attrs: ir.Attrs
+    attrs: ir.Attrs | None
 
     def __init__(
         self,

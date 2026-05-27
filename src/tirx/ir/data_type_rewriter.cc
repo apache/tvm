@@ -564,8 +564,8 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
     is_condition_ = true;
     PrimExpr cond = VisitExpr(op->args[0]);
     is_condition_ = is_condition;
-    return Call(op->dtype, op->op, {cond, VisitExpr(op->args[1]), VisitExpr(op->args[2])}, op->attrs,
-                op->span);
+    return Call(op->dtype, op->op, {cond, VisitExpr(op->args[1]), VisitExpr(op->args[2])},
+                op->attrs, op->span);
   }
   return Parent::VisitExpr_(op);
 }

@@ -643,7 +643,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("tirx.Call",
            [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span) {
-             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), Attrs(), span);
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), Attrs(),
+                         span);
            })
       .def("tirx.CallWithAttrs",
            [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args,
