@@ -22,11 +22,6 @@ tvm.support
    :imported-members:
    :autosummary:
 
-tvm.support.libinfo
-~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.support.libinfo
-    :members:
-
 tvm.support.cc
 ~~~~~~~~~~~~~~
 .. automodule:: tvm.support.cc
