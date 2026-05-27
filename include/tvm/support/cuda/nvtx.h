@@ -16,14 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_NVTX_H_
-#define TVM_RUNTIME_NVTX_H_
-
-#include <tvm/runtime/base.h>
+/*!
+ * \file tvm/support/cuda/nvtx.h
+ * \brief NVTX scoped range utility (header-only).
+ *
+ * Provides NVTXScopedRange: a lightweight RAII wrapper over
+ * nvtxRangePush/Pop.  When TVM_NVTX_ENABLED is not defined or is 0,
+ * all methods are no-ops compiled away by the optimizer.
+ */
+#ifndef TVM_SUPPORT_CUDA_NVTX_H_
+#define TVM_SUPPORT_CUDA_NVTX_H_
 
 #include <string>
+
+#ifndef TVM_NVTX_ENABLED
+#define TVM_NVTX_ENABLED 0
+#endif
+
+#if TVM_NVTX_ENABLED
+#include <nvtx3/nvToolsExt.h>
+#endif  // TVM_NVTX_ENABLED
+
 namespace tvm {
-namespace runtime {
+namespace support {
 
 /*!
  * \brief A class to create a NVTX range. No-op if TVM is not built against NVTX.
@@ -31,11 +46,19 @@ namespace runtime {
 class NVTXScopedRange {
  public:
   /*! \brief Enter an NVTX scoped range */
-  TVM_RUNTIME_DLL explicit NVTXScopedRange(const char* name);
+#if TVM_NVTX_ENABLED
+  explicit NVTXScopedRange(const char* name) { nvtxRangePush(name); }
+#else
+  explicit NVTXScopedRange(const char* name) {}
+#endif  // TVM_NVTX_ENABLED
   /*! \brief Enter an NVTX scoped range */
   explicit NVTXScopedRange(const std::string& name) : NVTXScopedRange(name.c_str()) {}
-  /*! \brief Exist an NVTX scoped range */
-  TVM_RUNTIME_DLL ~NVTXScopedRange();
+  /*! \brief Exit an NVTX scoped range */
+#if TVM_NVTX_ENABLED
+  ~NVTXScopedRange() { nvtxRangePop(); }
+#else
+  ~NVTXScopedRange() {}
+#endif  // TVM_NVTX_ENABLED
   NVTXScopedRange(const NVTXScopedRange& other) = delete;
   NVTXScopedRange(NVTXScopedRange&& other) = delete;
   NVTXScopedRange& operator=(const NVTXScopedRange& other) = delete;
@@ -43,12 +66,13 @@ class NVTXScopedRange {
 };
 
 #ifdef _MSC_VER
-#define TVM_NVTX_FUNC_SCOPE() NVTXScopedRange _nvtx_func_scope_(__FUNCSIG__);
+#define TVM_NVTX_FUNC_SCOPE() ::tvm::support::NVTXScopedRange _nvtx_func_scope_(__FUNCSIG__);
 #else
-#define TVM_NVTX_FUNC_SCOPE() NVTXScopedRange _nvtx_func_scope_(__PRETTY_FUNCTION__);
+#define TVM_NVTX_FUNC_SCOPE() \
+  ::tvm::support::NVTXScopedRange _nvtx_func_scope_(__PRETTY_FUNCTION__);
 #endif
 
-}  // namespace runtime
+}  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NVTX_H_
+#endif  // TVM_SUPPORT_CUDA_NVTX_H_
