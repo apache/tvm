@@ -258,7 +258,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Call>("", [](tirx::Call call, AccessPath call_p, IRDocsifier d) -> Doc {
-      if (!call->annotations.empty()) {
+      if (call->attrs.defined()) {
         ffi::Array<ExprDoc> call_args;
         int n_args = call->args.size();
         call_args.reserve(n_args);
@@ -270,7 +270,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                              : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
         return TIR(d, "Call")->Call(
             {LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")), op_doc, ListDoc(call_args)},
-            {"annotations"}, {d->AsDoc<DictDoc>(call->annotations, call_p->Attr("annotations"))});
+            {"attrs"}, {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs"))});
       }
       static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
           Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
