@@ -386,15 +386,27 @@ verify_wheel() {
   "$venv_python" -m pip install --extra-index-url "${TVM_EXTRA_INDEX_URL:-https://pypi.org/simple}" "$final_wheel"
   "$venv_python" - <<'PY'
 from pathlib import Path
+import sys
 import tvm
 
 root = Path(tvm.__file__).resolve().parent
+libdir = root / "lib"
+if sys.platform == "darwin":
+    runtime_lib = libdir / "libtvm_runtime.dylib"
+    cuda_sidecar = libdir / "libtvm_runtime_cuda.dylib"
+elif sys.platform == "win32":
+    runtime_lib = libdir / "tvm_runtime.dll"
+    cuda_sidecar = libdir / "tvm_runtime_cuda.dll"
+else:
+    runtime_lib = libdir / "libtvm_runtime.so"
+    cuda_sidecar = libdir / "libtvm_runtime_cuda.so"
+
 print("tvm version:", tvm.__version__)
 print("tvm package:", root)
 print("llvm enabled:", tvm.runtime.enabled("llvm"))
 print("cuda runtime enabled:", tvm.runtime.enabled("cuda"))
-assert (root / "lib" / "libtvm_runtime.so").exists()
-cuda_sidecar = root / "lib" / "libtvm_runtime_cuda.so"
+print("runtime library:", runtime_lib)
+assert runtime_lib.exists()
 print("cuda sidecar present:", cuda_sidecar.exists())
 PY
 }
@@ -434,15 +446,28 @@ verify_pypi_wheel() {
     "${package_name}==${package_version}"
   "$venv_python" - <<'PY'
 from pathlib import Path
+import sys
 import tvm
 
 root = Path(tvm.__file__).resolve().parent
+libdir = root / "lib"
+if sys.platform == "darwin":
+    runtime_lib = libdir / "libtvm_runtime.dylib"
+    cuda_sidecar = libdir / "libtvm_runtime_cuda.dylib"
+elif sys.platform == "win32":
+    runtime_lib = libdir / "tvm_runtime.dll"
+    cuda_sidecar = libdir / "tvm_runtime_cuda.dll"
+else:
+    runtime_lib = libdir / "libtvm_runtime.so"
+    cuda_sidecar = libdir / "libtvm_runtime_cuda.so"
+
 print("tvm version:", tvm.__version__)
 print("tvm package:", root)
 print("llvm enabled:", tvm.runtime.enabled("llvm"))
 print("cuda runtime enabled:", tvm.runtime.enabled("cuda"))
-assert (root / "lib" / "libtvm_runtime.so").exists()
-print("cuda sidecar present:", (root / "lib" / "libtvm_runtime_cuda.so").exists())
+print("runtime library:", runtime_lib)
+assert runtime_lib.exists()
+print("cuda sidecar present:", cuda_sidecar.exists())
 PY
 }
 
