@@ -150,6 +150,7 @@ runs:
         cmake --version
         if command -v llvm-config >/dev/null 2>&1; then
           llvm-config --version
+          llvm-config --link-static --system-libs
         fi
         if [[ "${{ inputs.skip_cuda }}" != "true" ]]; then
           "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc" --version
@@ -227,7 +228,7 @@ runs:
       shell: bash -l {0}
       env:
         TVM_PYTHON: python
-        TVM_USE_LLVM: ON
+        TVM_USE_LLVM: llvm-config --link-static
         TVM_USE_CUDA: ${{ steps.cuda-toolkit.outputs.CUDA_PATH || 'OFF' }}
         TVM_CUDA_ARCHITECTURES: ${{ inputs.cuda_architectures }}
         TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
