@@ -33,6 +33,7 @@ dependencies:
   - pip
   - git
   - bzip2
+  - zlib
   - pytest
   - numpy
   - scipy
