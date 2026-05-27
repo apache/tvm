@@ -24,7 +24,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.contrib.popen_pool import PopenWorker
+from tvm.support.popen_pool import PopenWorker
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import tirx as Tx

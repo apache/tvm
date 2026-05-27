@@ -43,7 +43,7 @@ import tvm_ffi
 
 from tvm.base import py_str
 from tvm.contrib import utils
-from tvm.contrib.popen_pool import PopenWorker
+from tvm.support.popen_pool import PopenWorker
 from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
 

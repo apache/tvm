@@ -21,7 +21,7 @@ import os.path as osp
 from collections.abc import Callable
 from contextlib import contextmanager
 
-from tvm.contrib.popen_pool import PopenPoolExecutor
+from tvm.support.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 
