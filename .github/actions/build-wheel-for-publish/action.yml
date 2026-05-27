@@ -65,9 +65,9 @@ runs:
         set -eux
         wheel_platform_tag=""
         manylinux_container_image=""
-        cibw_manylinux_x86_64_image="${{ inputs.linux_image }}"
-        cibw_manylinux_aarch64_image="${{ inputs.linux_image }}"
-        cibw_container_engine=""
+        cibw_manylinux_x86_64_image="${{ inputs.linux_image || 'manylinux_2_28' }}"
+        cibw_manylinux_aarch64_image="${{ inputs.linux_image || 'manylinux_2_28' }}"
+        cibw_container_engine="docker"
         if [[ "${RUNNER_OS}" == "Linux" ]]; then
           if [[ -z "${{ inputs.linux_image }}" ]]; then
             echo "linux_image is required on Linux runners" >&2

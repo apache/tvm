@@ -149,14 +149,15 @@ run_manylinux_cuda_container() {
   image="$(manylinux_image_name "$TVM_MANYLINUX_IMAGE" "$TVM_ARCH" "${TVM_MANYLINUX_IMAGE_TAG:-}")"
   local container="tvm_wheel_cuda_${GITHUB_RUN_ID:-local}_${GITHUB_RUN_ATTEMPT:-1}_${TVM_ARCH}"
   local host_cuda_build_dir="$TVM_CUDA_BUILD_DIR"
-  local container_cuda_build_dir="/workspace-cuda-build"
+  local container_cuda_root="/workspace-cuda-build"
+  local container_cuda_build_dir="${container_cuda_root}/build"
   mkdir -p "$host_cuda_build_dir"
   docker pull "$image"
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker run --name "$container" -d \
     --workdir /workspace \
     --volume "${REPO_ROOT}:/workspace" \
-    --volume "${host_cuda_build_dir}:${container_cuda_build_dir}" \
+    --volume "${host_cuda_build_dir}:${container_cuda_root}" \
     "$image" tail -f /dev/null
   trap "docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
 
@@ -189,7 +190,7 @@ run_manylinux_cuda_container() {
       ci/scripts/package/tvm_wheel_helper.sh cuda'
 
   docker exec "$container" bash -lc \
-    "chown -R $(id -u):$(id -g) ${container_cuda_build_dir} || true"
+    "chown -R $(id -u):$(id -g) ${container_cuda_root} || true"
 }
 
 build_cuda_runtime() {
