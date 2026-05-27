@@ -44,6 +44,7 @@ if(USE_OPENCL)
     target_compile_options(tvm_runtime_opencl_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
   endif()
   add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
   target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime ${_opencl_libs})
   set_target_properties(tvm_runtime_opencl PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
