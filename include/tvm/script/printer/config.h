@@ -48,20 +48,6 @@ class PrinterConfigNode : public ffi::Object {
   bool show_meta = false;
   /*! \brief The prefix of IR nodes */
   ffi::String ir_prefix = "I";
-  /*! \brief The prefix of TIR nodes */
-  ffi::String tir_prefix = "T";
-  /*!
-   * \brief The TIR module name used in the printed import (e.g. "tir" or "tirx").
-   * Used in the header comment: "from tvm.script import <tir_import_module> as <tir_prefix>".
-   * When tir_prefix is "Tx", set to "tirx" so the printed script uses "import tirx as Tx".
-   */
-  ffi::String tir_import_module = "tir";
-  /*! \brief The prefix of TIRX nodes */
-  ffi::String tirx_prefix = "Tx";
-  /*! \brief Default buffer dtype */
-  DataType buffer_dtype = DataType::Float(32);
-  /*! \brief The prefix of Relax nodes */
-  ffi::String relax_prefix = "R";
   /*!
    * \brief The alias of the current module at cross-function call
    * \note Directly use module name if it's empty.

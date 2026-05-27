@@ -67,15 +67,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<ffi::String>(v.value());
   }
-  if (auto v = config_dict.Get("tir_prefix")) {
-    n->tir_prefix = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("tir_import_module")) {
-    n->tir_import_module = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<ffi::String>(v.value());
-  }
   if (auto v = config_dict.Get("module_alias")) {
     n->module_alias = Downcast<ffi::String>(v.value());
   }

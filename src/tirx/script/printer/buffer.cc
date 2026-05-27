@@ -92,8 +92,12 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     kwargs.Set("shape", TupleDoc(results));
   }
   // Step 2. Handle `buffer.dtype`
-  if (buffer->dtype != d->cfg->buffer_dtype) {
-    kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
+  {
+    DataType default_buf_dtype =
+        d->cfg->GetExtraConfig<DataType>("tirx.buffer_dtype", DataType::Float(32));
+    if (buffer->dtype != default_buf_dtype) {
+      kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
+    }
   }
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
