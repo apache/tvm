@@ -125,6 +125,21 @@ runs:
           python -m pip install delocate
         fi
 
+    - name: Detect host CPU count
+      if: runner.os != 'Linux'
+      id: host-env
+      shell: bash -l {0}
+      run: |
+        set -eux
+        if command -v nproc >/dev/null 2>&1; then
+          cpu_count="$(nproc)"
+        elif [[ "$(uname -s)" == "Darwin" ]]; then
+          cpu_count="$(sysctl -n hw.ncpu)"
+        else
+          cpu_count="${NUMBER_OF_PROCESSORS:-4}"
+        fi
+        echo "cpu_count=${cpu_count}" >> "${GITHUB_OUTPUT}"
+
     - name: Print host build inputs
       if: runner.os != 'Linux'
       shell: bash -l {0}
@@ -217,6 +232,8 @@ runs:
         TVM_CUDA_ARCHITECTURES: ${{ inputs.cuda_architectures }}
         TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
         TVM_SKIP_CUDA: ${{ inputs.skip_cuda == 'true' && '1' || '0' }}
+        CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.host-env.outputs.cpu_count }}
+        TVM_BUILD_PARALLEL_LEVEL: ${{ steps.host-env.outputs.cpu_count }}
       run: |
         set -eux
         if [[ "${TVM_SKIP_CUDA}" != "1" ]]; then

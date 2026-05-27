@@ -81,7 +81,11 @@ require_pypa_build() {
 
 single_wheel() {
   local dir="$1"
-  mapfile -t wheels < <(find "$dir" -maxdepth 1 -type f -name '*.whl' | sort)
+  local wheels=()
+  local wheel
+  while IFS= read -r wheel; do
+    wheels+=("$wheel")
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.whl' | sort)
   if [[ "${#wheels[@]}" -ne 1 ]]; then
     echo "error: expected exactly one wheel under ${dir}, found ${#wheels[@]}" >&2
     printf '%s\n' "${wheels[@]}" >&2
@@ -169,11 +173,7 @@ build_base_wheel() {
 
   echo "Building base TVM wheel with LLVM=${TVM_USE_LLVM}, CUDA=OFF"
   local cmake_args
-  printf -v cmake_args '%q ' \
-    "-DUSE_LLVM=${TVM_USE_LLVM}" \
-    "-DUSE_CUDA=OFF" \
-    "-DBUILD_TESTING=OFF" \
-    "-DTVM_BUILD_PYTHON_MODULE=ON"
+  cmake_args="$(base_cmake_args)"
   (
     cd "$TVM_RAW_DIST"
     if [[ "$TVM_BUILD_NO_ISOLATION" == "1" ]]; then
@@ -267,6 +267,37 @@ llvm_libdir() {
   fi
 }
 
+llvm_prefix() {
+  if [[ "$TVM_USE_LLVM" == "OFF" || "$TVM_USE_LLVM" == "0" ]]; then
+    return 0
+  fi
+  local -a llvm_config
+  read -r -a llvm_config <<<"$TVM_USE_LLVM"
+  if [[ "${#llvm_config[@]}" -eq 0 ]]; then
+    return 0
+  fi
+  if command -v "${llvm_config[0]}" >/dev/null 2>&1 || [[ -x "${llvm_config[0]}" ]]; then
+    "${llvm_config[@]}" --prefix
+  fi
+}
+
+base_cmake_args() {
+  local llvm_prefix_dir
+  llvm_prefix_dir="$(llvm_prefix || true)"
+  local args=(
+    "-DUSE_LLVM=${TVM_USE_LLVM}"
+    "-DUSE_CUDA=OFF"
+    "-DBUILD_TESTING=OFF"
+    "-DTVM_BUILD_PYTHON_MODULE=ON"
+  )
+  if [[ -n "$llvm_prefix_dir" && -d "$llvm_prefix_dir" ]]; then
+    # scikit-build-core writes its own CMAKE_PREFIX_PATH init cache, so pass
+    # the LLVM prefix as an explicit CMake argument.
+    args+=("-DCMAKE_PREFIX_PATH=${llvm_prefix_dir}")
+  fi
+  printf '%q ' "${args[@]}"
+}
+
 repair_wheel() {
   rm -rf "$TVM_WHEELHOUSE"
   mkdir -p "$TVM_WHEELHOUSE"
@@ -285,7 +316,11 @@ repair_wheel() {
       require_cmd auditwheel
       local cuda_lib
       cuda_lib="$(cuda_runtime_path || true)"
-      mapfile -t exclude_args < <(auditwheel_excludes "$cuda_lib")
+      local exclude_args=()
+      local exclude_arg
+      while IFS= read -r exclude_arg; do
+        exclude_args+=("$exclude_arg")
+      done < <(auditwheel_excludes "$cuda_lib")
       echo "Repairing Linux wheel with auditwheel"
       (
         auditwheel_plat_args=()

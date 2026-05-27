@@ -25,15 +25,18 @@ validation:
 3. Inject the CUDA runtime DSO into `tvm/lib/` inside the wheel.
 4. Repair the wheel, excluding CUDA driver/runtime DSOs and `libtvm_ffi`.
 5. Validate ELF links so intra-wheel TVM DSOs resolve through relative rpaths.
+   LLVM is expected to be linked statically; the final wheel must not bundle
+   or dynamically depend on `libLLVM`.
 6. Verify the wheel in a fresh virtualenv.
 7. Upload with `twine`.
 
-It mirrors the TVM-FFI packaging patterns in:
+It mirrors the TVM-FFI packaging patterns from
+`apache/tvm-ffi/.github`, especially:
 
-- `tvm-ffi/.github/actions/build-wheel-for-publish/action.yml`
-- `tvm-ffi/.github/workflows/publish_wheel.yml`
-- `tvm-ffi/addons/tvm_ffi_orcjit/pyproject.toml`
-- `tvm-ffi/addons/torch_c_dlpack_ext/build_aot_wheels.sh`
+- `apache/tvm-ffi/.github/workflows/publish_wheel.yml`
+- `apache/tvm-ffi/.github/actions/build-wheel-for-publish/action.yml`
+- `apache/tvm-ffi/.github/actions/build-orcjit-wheel/action.yml`
+- `apache/tvm-ffi/addons/tvm_ffi_orcjit/pyproject.toml`
 
 GitHub Actions flow:
 
