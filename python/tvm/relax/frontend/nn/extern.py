@@ -25,7 +25,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from tvm import tirx
-from tvm.contrib import cc as _cc
+from tvm.support import cc as _cc
 from tvm.runtime import Module, load_static_library
 
 from ...op import call_dps_packed

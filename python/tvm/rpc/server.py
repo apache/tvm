@@ -91,13 +91,13 @@ def _server_env(load_library, work_path=None):
 
         if path.endswith(".o"):
             # Extra dependencies during runtime.
-            from tvm.contrib import cc as _cc
+            from tvm.support import cc as _cc
 
             _cc.create_shared(path + ".so", path)
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
-            from tvm.contrib import cc as _cc
+            from tvm.support import cc as _cc
             from tvm.contrib import tar as _tar
 
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))

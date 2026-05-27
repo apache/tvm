@@ -101,7 +101,7 @@ def sve_device_vector_length():
         o_path = f"{tmp_dir}/out.o"
         with open(c_path, "w") as f:
             f.write(c_code)
-        tvm.contrib.cc.create_executable(o_path, c_path, ["-march=native"])
+        tvm.support.cc.create_executable(o_path, c_path, ["-march=native"])
         out = subprocess.check_output(o_path, shell=True).strip().decode()
 
     return int(out)

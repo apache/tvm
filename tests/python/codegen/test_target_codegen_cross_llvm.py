@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import rpc
-from tvm.contrib import cc, utils
+from tvm.support import cc, utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
 

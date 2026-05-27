@@ -28,7 +28,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tirx, topi
-from tvm.contrib import cc, popen_pool, utils
+from tvm.support import cc, popen_pool, utils
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
