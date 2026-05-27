@@ -27,7 +27,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include "../../../arith/ir_mutator_with_analyzer.h"
-#include "../../../runtime/texture.h"
+#include "../../../runtime/opencl/texture.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
