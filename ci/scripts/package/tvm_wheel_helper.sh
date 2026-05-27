@@ -332,11 +332,18 @@ repair_wheel_to_dir() {
     Darwin)
       require_cmd delocate-wheel
       echo "Repairing macOS wheel with delocate"
-      delocate-wheel \
-        --ignore-missing-dependencies \
-        --exclude libtvm_ffi.dylib \
-        -w "$output_dir" \
-        -v "$injected_wheel"
+      (
+        llvm_dir="$(llvm_libdir || true)"
+        if [[ -n "${llvm_dir:-}" && -d "$llvm_dir" ]]; then
+          echo "Adding LLVM libdir to DYLD_LIBRARY_PATH for delocate: ${llvm_dir}"
+          export DYLD_LIBRARY_PATH="${llvm_dir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+        fi
+        delocate-wheel \
+          --ignore-missing-dependencies \
+          --exclude libtvm_ffi.dylib \
+          -w "$output_dir" \
+          -v "$injected_wheel"
+      )
       ;;
     *)
       cp "$injected_wheel" "$output_dir/"
