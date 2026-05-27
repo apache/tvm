@@ -65,7 +65,7 @@ Workflow structure:
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
   repair hook injects the CUDA runtime before `auditwheel`/`delocate`/copy repair.
-- `ci/scripts/package/build_tvm_wheel.sh`: implements reusable local and CI
+- `ci/scripts/package/tvm_wheel_helper.sh`: implements reusable local and CI
   entrypoints around the `cibuildwheel` build, such as `cuda`,
   `manylinux-cuda`, `cibw-repair`, `verify`, `upload`, and `verify-pypi`.
 - `ci/scripts/package/inject_cuda_runtime.py`: rewrites wheel metadata and
@@ -107,10 +107,10 @@ For local checks after a wheel exists under `wheelhouse/`, run:
 
 ```bash
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/build_tvm_wheel.sh verify
+ci/scripts/package/tvm_wheel_helper.sh verify
 
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/build_tvm_wheel.sh verify-pypi
+ci/scripts/package/tvm_wheel_helper.sh verify-pypi
 ```
 
 For a real PyPI upload, leave `TVM_WHEEL_DIST_NAME` unset and set the normal
@@ -120,7 +120,7 @@ Twine credentials:
 TWINE_USERNAME=__token__ \
 TWINE_PASSWORD="$PYPI_TOKEN" \
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/build_tvm_wheel.sh upload
+ci/scripts/package/tvm_wheel_helper.sh upload
 ```
 
 Useful knobs:

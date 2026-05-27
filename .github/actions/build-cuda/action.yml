@@ -51,7 +51,7 @@ runs:
         TVM_SKIP_CUDA: "0"
         TVM_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
-      run: ci/scripts/package/build_tvm_wheel.sh manylinux-cuda
+      run: ci/scripts/package/tvm_wheel_helper.sh manylinux-cuda
 
     - name: Install CUDA toolkit
       if: runner.os != 'Linux' && inputs.skip_cuda != 'true'
@@ -67,4 +67,4 @@ runs:
         TVM_SKIP_CUDA: "0"
         TVM_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
-      run: ci/scripts/package/build_tvm_wheel.sh cuda
+      run: ci/scripts/package/tvm_wheel_helper.sh cuda
