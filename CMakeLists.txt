@@ -344,7 +344,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
   src/runtime/memory/*.cc
-  src/runtime/minrpc/*.cc
+  src/runtime/rpc/minrpc/*.cc
 )
 # Note: src/runtime/disco/** moves to libtvm_runtime_extra.
 # Note: src/runtime/{cuda,vulkan,opencl,metal,rocm,hexagon}/* move to per-backend DSOs.

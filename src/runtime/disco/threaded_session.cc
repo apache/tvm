@@ -29,7 +29,7 @@
 #include <utility>
 
 #include "../../support/ring_buffer.h"
-#include "../minrpc/rpc_reference.h"
+#include "../rpc/minrpc/rpc_reference.h"
 #include "./bcast_session.h"
 #include "./disco_worker_thread.h"
 #include "./protocol.h"

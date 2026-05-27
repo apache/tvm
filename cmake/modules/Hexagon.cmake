@@ -289,8 +289,8 @@ if(USE_HEXAGON_RPC)
 
     # Include the generic RPC code into the TVM runtime.
     list(APPEND RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/minrpc/minrpc_server.h"
-      "${TVMRT_SOURCE_DIR}/minrpc/rpc_reference.h"
+      "${TVMRT_SOURCE_DIR}/rpc/minrpc/minrpc_server.h"
+      "${TVMRT_SOURCE_DIR}/rpc/minrpc/rpc_reference.h"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_endpoint.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"

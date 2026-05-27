@@ -33,7 +33,7 @@
 #include "../../support/arena.h"
 #include "../../support/base64.h"
 #include "../../support/bytes_io.h"
-#include "../minrpc/rpc_reference.h"
+#include "../rpc/minrpc/rpc_reference.h"
 
 namespace tvm {
 namespace runtime {
