@@ -25,7 +25,6 @@
 #define TVM_TIRX_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
@@ -54,8 +53,6 @@ class StmtNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span);
   }
-
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 

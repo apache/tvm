@@ -31,7 +31,6 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/script/printer/config.h>
 
 #include <algorithm>
 #include <functional>
@@ -112,8 +111,6 @@ class PrimExprNode : public BaseExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
   }
-
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const uint32_t _type_child_slots = 40;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
