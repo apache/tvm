@@ -77,8 +77,8 @@ Workflow structure:
   extra runtime files, including the CUDA runtime library when CUDA is enabled.
 - `ci/scripts/package/verify_tvm_install.py`: imports the installed wheel and
   checks that the runtime library was loaded from the wheel, expected runtime
-  DSOs are present, and dynamic LLVM libraries are not bundled when static LLVM
-  is required.
+  DSOs are present, dynamic LLVM libraries are not bundled when static LLVM is
+  required, and minimal TIRX/Relax programs compile and run through LLVM.
 
 To test the workflow from a fork without publishing:
 
