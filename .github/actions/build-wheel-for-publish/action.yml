@@ -276,7 +276,7 @@ runs:
           --extra-library-pattern "*iconv*.dll"
           --extra-library-pattern "*charset*.dll"
         CIBW_TEST_COMMAND: >-
-          python "{project}/ci/scripts/package/verify_tvm_install.py"
+          python -u -X faulthandler "{project}/ci/scripts/package/verify_tvm_install.py"
 
     - name: Verify final wheel
       shell: bash -l {0}
