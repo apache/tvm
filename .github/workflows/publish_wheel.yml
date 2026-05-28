@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Publish TVM wheel
+name: Publish TVM wheels
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag, branch, or SHA to publish"
+        description: "Tag, branch, or SHA to build; PyPI publishes require refs/tags/<tag>"
         required: true
         type: string
       publish_repository:
@@ -48,6 +48,9 @@ on:
         required: true
         default: true
         type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   build_wheels:
@@ -90,6 +93,32 @@ jobs:
             include_cuda_runtime: "false"
             artifact_suffix: windows-amd64
     steps:
+      - name: Validate publish inputs
+        shell: bash
+        env:
+          TVM_PUBLISH_REPOSITORY: ${{ inputs.publish_repository }}
+          TVM_PUBLISH_REF: ${{ inputs.tag }}
+          TVM_VERIFY_FROM_REPOSITORY: ${{ inputs.verify_from_repository }}
+          TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
+        run: |
+          set -eux
+          if [[ -n "${TVM_WHEEL_DIST_NAME}" && ! "${TVM_WHEEL_DIST_NAME}" =~ ^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$ ]]; then
+            echo "distribution_name must be a valid Python package name override" >&2
+            exit 1
+          fi
+          if [[ "${TVM_PUBLISH_REPOSITORY}" == "pypi" && -n "${TVM_WHEEL_DIST_NAME}" ]]; then
+            echo "distribution_name must be empty when publishing to PyPI" >&2
+            exit 1
+          fi
+          if [[ "${TVM_PUBLISH_REPOSITORY}" == "pypi" && "${TVM_PUBLISH_REF}" != refs/tags/* ]]; then
+            echo "PyPI publishes must use an immutable refs/tags/<tag> ref" >&2
+            exit 1
+          fi
+          if [[ "${TVM_PUBLISH_REPOSITORY}" == "pypi" && "${TVM_VERIFY_FROM_REPOSITORY}" != "true" ]]; then
+            echo "verify_from_repository must be enabled when publishing to PyPI" >&2
+            exit 1
+          fi
+
       - name: Checkout source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -125,6 +154,7 @@ jobs:
         with:
           name: tvm-wheel-${{ matrix.artifact_suffix }}
           path: wheelhouse/*.whl
+          if-no-files-found: error
 
   upload_pypi:
     name: Upload package distributions
@@ -133,6 +163,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.publish_repository }}
     permissions:
+      actions: read
+      contents: read
       id-token: write
       attestations: write
     steps:
@@ -141,6 +173,33 @@ jobs:
           pattern: tvm-wheel-*
           path: dist
           merge-multiple: true
+
+      - name: Check wheel sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+          limit_bytes=100000000
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          if [[ "${#wheels[@]}" -eq 0 ]]; then
+            echo "No wheel artifacts found under dist/" >&2
+            exit 1
+          fi
+          if [[ "${#wheels[@]}" -ne 4 ]]; then
+            echo "Expected 4 wheel artifacts, found ${#wheels[@]}" >&2
+            printf '%s\n' "${wheels[@]}" >&2
+            exit 1
+          fi
+          failed=0
+          for wheel in "${wheels[@]}"; do
+            size="$(stat -c '%s' "$wheel")"
+            printf '%s %s bytes\n' "$wheel" "$size"
+            if (( size > limit_bytes )); then
+              echo "Wheel exceeds 100 MB PyPI/TestPyPI upload limit: ${wheel}" >&2
+              failed=1
+            fi
+          done
+          exit "$failed"
 
       - name: Generate artifact attestation for wheels
         uses: actions/attest-build-provenance@v1
@@ -167,6 +226,9 @@ jobs:
     needs: [upload_pypi]
     if: ${{ inputs.publish_repository != 'none' && inputs.verify_from_repository }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -192,6 +254,9 @@ jobs:
           TVM_PYTHON: python
           TVM_TEST_INDEX_URL: https://test.pypi.org/simple/
           TVM_EXTRA_INDEX_URL: https://pypi.org/simple
+          TVM_EXPECT_LLVM_ENABLED: "1"
+          TVM_EXPECT_STATIC_LLVM: "1"
+          TVM_EXPECT_CUDA_RUNTIME: "1"
         run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi
 
       - name: Verify package from PyPI
@@ -200,4 +265,7 @@ jobs:
           TVM_PYTHON: python
           TVM_TEST_INDEX_URL: https://pypi.org/simple/
           TVM_EXTRA_INDEX_URL: https://pypi.org/simple
+          TVM_EXPECT_LLVM_ENABLED: "1"
+          TVM_EXPECT_STATIC_LLVM: "1"
+          TVM_EXPECT_CUDA_RUNTIME: "1"
         run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi
