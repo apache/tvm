@@ -1599,7 +1599,12 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MinNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_float()) {
-    return builder_->CreateMinimum(a, b);
+    llvm::Value* nan_a = builder_->CreateFCmpUNO(a, a);
+    llvm::Value* nan_b = builder_->CreateFCmpUNO(b, b);
+    return builder_->CreateSelect(
+        nan_a, a,
+        builder_->CreateSelect(nan_b, b,
+                               builder_->CreateSelect(CreateLT(op->a.dtype(), a, b), a, b)));
   } else {
     return builder_->CreateSelect(CreateLT(op->a.dtype(), a, b), a, b);
   }
@@ -1609,7 +1614,12 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MaxNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_float()) {
-    return builder_->CreateMaximum(a, b);
+    llvm::Value* nan_a = builder_->CreateFCmpUNO(a, a);
+    llvm::Value* nan_b = builder_->CreateFCmpUNO(b, b);
+    return builder_->CreateSelect(
+        nan_a, a,
+        builder_->CreateSelect(nan_b, b,
+                               builder_->CreateSelect(CreateGT(op->a.dtype(), a, b), a, b)));
   } else {
     return builder_->CreateSelect(CreateGT(op->a.dtype(), a, b), a, b);
   }
