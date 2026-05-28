@@ -45,7 +45,7 @@ classifiers = [
 ]
 # Core dependencies - these are the minimum required for basic TVM functionality
 dependencies = [
-  "apache-tvm-ffi",
+  "apache-tvm-ffi>=0.1.11",
   "cloudpickle",
   "ml_dtypes",
   "numpy",
