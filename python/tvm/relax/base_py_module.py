@@ -501,10 +501,7 @@ class BasePyModule:
         name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -514,6 +511,7 @@ class BasePyModule:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
+        extra_config: dict | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format with Python function support.
 
@@ -525,10 +523,7 @@ class BasePyModule:
             name=name,
             show_meta=show_meta,
             ir_prefix=ir_prefix,
-            tir_prefix=tir_prefix,
-            relax_prefix=relax_prefix,
             module_alias=module_alias,
-            buffer_dtype=buffer_dtype,
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             verbose_expr=verbose_expr,
@@ -538,6 +533,7 @@ class BasePyModule:
             syntax_sugar=syntax_sugar,
             show_object_address=show_object_address,
             show_all_struct_info=show_all_struct_info,
+            extra_config=extra_config,
         )
 
         # If there are no Python functions, return the base script

@@ -953,7 +953,7 @@ def test_lower_exec_context_keeps_plain_predicate_condition():
     with tvm.target.Target("cuda"):
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
 
-    script = lowered.script(tir_prefix="Tx", tir_import_module="tirx")
+    script = lowered.script(extra_config={"tirx.prefix": "Tx"})
     assert "if wg_id == 0:" in script
     assert "0 <= wg_id" not in script
     assert "wg_id < 1" not in script
@@ -977,7 +977,7 @@ def test_lower_exec_context_keeps_plain_scope_predicate_condition():
     with tvm.target.Target("cuda"):
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
 
-    script = lowered.script(tir_prefix="Tx", tir_import_module="tirx")
+    script = lowered.script(extra_config={"tirx.prefix": "Tx"})
     assert "if wg_id == 0:" in script
     assert "0 <= wg_id" not in script
     assert "wg_id < 1" not in script
@@ -1002,7 +1002,7 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
         simplified = Simplify()(lowered)
 
-    script = simplified.script(tir_prefix="Tx", tir_import_module="tirx")
+    script = simplified.script(extra_config={"tirx.prefix": "Tx"})
     assert "if warp_id_in_cta // 4 == 0:" in script
     assert "if 0 <= warp_id_in_cta" not in script
     assert "A_1[warp_id_in_cta] = Tx.Cast" in script
@@ -1018,7 +1018,7 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
 
     @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
     def _probe(op_call, sctx):
-        seen.append(sctx.inter["laneid"][1].script(tir_prefix="Tx", tir_import_module="tirx"))
+        seen.append(sctx.inter["laneid"][1].script(extra_config={"tirx.prefix": "Tx"}))
 
         @Tx.prim_func(private=True)
         def impl():
@@ -1088,7 +1088,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     assert _int_pair(seen[0]["inter"], "warpid") == (1, 0)
     assert int(seen[0]["inter"]["laneid"][0]) == 1
     assert (
-        seen[0]["inter"]["laneid"][1].script(tir_prefix="Tx", tir_import_module="tirx")
+        seen[0]["inter"]["laneid"][1].script(extra_config={"tirx.prefix": "Tx"})
         == "Tx.selector(lane_id, Tx.ptx.elect_sync())"
     )
     assert len(seen[0]["intra"]) == 0
