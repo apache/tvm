@@ -22,6 +22,8 @@ import os
 from pathlib import Path
 import sys
 
+import numpy as np
+
 
 def expect_bool(name: str) -> bool | None:
     value = os.environ.get(name)
@@ -76,6 +78,51 @@ def _dynamic_llvm_libs(libdir: Path) -> list[Path]:
     return sorted(found)
 
 
+def _verify_llvm_tirx_compile() -> None:
+    import tvm  # pylint: disable=import-outside-toplevel
+    from tvm import te  # pylint: disable=import-outside-toplevel
+
+    extent = 8
+    lhs_np = np.arange(extent, dtype="float32")
+    rhs_np = np.arange(extent, dtype="float32") * np.float32(2)
+    out_np = np.zeros(extent, dtype="float32")
+
+    lhs = te.placeholder((extent,), name="lhs", dtype="float32")
+    rhs = te.placeholder((extent,), name="rhs", dtype="float32")
+    out = te.compute((extent,), lambda i: lhs[i] + rhs[i], name="out")
+    executable = tvm.compile(te.create_prim_func([lhs, rhs, out]), target="llvm")
+
+    dev = tvm.cpu()
+    lhs_t = tvm.runtime.tensor(lhs_np, dev)
+    rhs_t = tvm.runtime.tensor(rhs_np, dev)
+    out_t = tvm.runtime.tensor(out_np, dev)
+    executable(lhs_t, rhs_t, out_t)
+    np.testing.assert_allclose(out_t.numpy(), lhs_np + rhs_np, rtol=1e-6)
+    print("llvm tirx compile smoke: passed")
+
+
+def _verify_relax_compile() -> None:
+    import tvm  # pylint: disable=import-outside-toplevel
+    from tvm import relax  # pylint: disable=import-outside-toplevel
+
+    lhs_np = np.arange(8, dtype="float32")
+    rhs_np = np.arange(8, dtype="float32") * np.float32(3)
+    dev = tvm.cpu()
+
+    lhs = relax.Var("lhs", relax.TensorStructInfo((8,), "float32"))
+    rhs = relax.Var("rhs", relax.TensorStructInfo((8,), "float32"))
+    builder = relax.BlockBuilder()
+    with builder.function("main", [lhs, rhs]):
+        out = builder.emit(relax.op.add(lhs, rhs))
+        builder.emit_func_output(out)
+
+    executable = tvm.compile(builder.get(), target="llvm")
+    vm = relax.VirtualMachine(executable, dev)
+    out = vm["main"](tvm.runtime.tensor(lhs_np, dev), tvm.runtime.tensor(rhs_np, dev))
+    np.testing.assert_allclose(out.numpy(), lhs_np + rhs_np, rtol=1e-6)
+    print("llvm relax compile smoke: passed")
+
+
 def main() -> int:
     _clear_external_library_overrides()
 
@@ -123,6 +170,9 @@ def main() -> int:
     expected_llvm = expect_bool("TVM_EXPECT_LLVM_ENABLED")
     if expected_llvm is not None and llvm_enabled != expected_llvm:
         raise RuntimeError(f"llvm enabled: expected {expected_llvm}, got {llvm_enabled}")
+    if llvm_enabled:
+        _verify_llvm_tirx_compile()
+        _verify_relax_compile()
     expected_static_llvm = expect_bool("TVM_EXPECT_STATIC_LLVM")
     if expected_static_llvm and dynamic_llvm_libs:
         raise RuntimeError(

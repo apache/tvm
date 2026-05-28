@@ -59,6 +59,10 @@ macro(find_llvm use_llvm)
       message(STATUS "Fall back to using llvm-config")
       set(LLVM_CONFIG "${LLVM_TOOLS_BINARY_DIR}/llvm-config")
     endif()
+    set(TVM_LLVM_HAS_RTTI 0)
+    if(LLVM_ENABLE_RTTI)
+      set(TVM_LLVM_HAS_RTTI 1)
+    endif()
   endif()
 
   if(LLVM_LIBS) # check if defined, not if it is true
@@ -142,6 +146,13 @@ macro(find_llvm use_llvm)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --targets-built")
     endif()
+    execute_process(COMMAND ${LLVM_CONFIG} --has-rtti
+      RESULT_VARIABLE __llvm_exit_code
+      OUTPUT_VARIABLE __llvm_has_rtti
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --has-rtti")
+    endif()
     cmake_path(SET "__llvm_cmakedir" "${__llvm_cmakedir}")
     message(STATUS "LLVM cmakedir: ${__llvm_cmakedir}")
     # map prefix => $
@@ -180,6 +191,13 @@ macro(find_llvm use_llvm)
     separate_arguments(BUILT_TARGET_LIST NATIVE_COMMAND ${__llvm_targets_built})
     if("AArch64" IN_LIST BUILT_TARGET_LIST)
       set(TVM_LLVM_HAS_AARCH64_TARGET 1)
+    endif()
+    string(TOUPPER "${__llvm_has_rtti}" __llvm_has_rtti_upper)
+    set(TVM_LLVM_HAS_RTTI 0)
+    if("${__llvm_has_rtti_upper}" STREQUAL "YES"
+       OR "${__llvm_has_rtti_upper}" STREQUAL "ON"
+       OR "${__llvm_has_rtti_upper}" STREQUAL "1")
+      set(TVM_LLVM_HAS_RTTI 1)
     endif()
     if (${USE_MLIR})
       if (EXISTS "${__llvm_libdir}/libMLIRPresburger.a")
@@ -279,6 +297,7 @@ macro(find_llvm use_llvm)
     message(FATAL_ERROR "TVM requires LLVM 15.0 or higher.")
   endif()
   message(STATUS "Found TVM_LLVM_HAS_AARCH64_TARGET=" ${TVM_LLVM_HAS_AARCH64_TARGET})
+  message(STATUS "Found TVM_LLVM_HAS_RTTI=" ${TVM_LLVM_HAS_RTTI})
 
   # Detect whether DIBuilder insertion APIs (insertDeclare,
   # insertDbgValueIntrinsic) accept BasicBlock::iterator as the insertion point
