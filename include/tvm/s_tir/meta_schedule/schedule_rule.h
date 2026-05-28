@@ -231,7 +231,7 @@ class ScheduleRule : public ffi::ObjectRef {
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
-      ffi::String structure, Integer vector_length_in_bits,
+      ffi::String structure, int64_t vector_length_in_bits,
       ffi::Optional<int64_t> max_innermost_factor,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write);

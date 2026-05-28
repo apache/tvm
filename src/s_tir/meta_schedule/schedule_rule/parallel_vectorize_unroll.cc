@@ -64,11 +64,11 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     // Parallelization
     if (max_jobs_per_core != -1) {
       sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
-                    Integer(this->max_parallel_extent_));
+                    IntImm(DataType::Int(32), this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize, Integer(max_vectorize_extent));
+      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize, IntImm(DataType::Int(32), max_vectorize_extent));
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {

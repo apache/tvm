@@ -150,8 +150,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                SBlockRV output = sch->GetConsumers(inverse)[0];
                ffi::Array<LoopRV> nchw = sch->GetLoops(output);
                TVM_FFI_ICHECK_EQ(nchw.size(), 4);
-               ffi::Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, Integer(tile_size)});
-               ffi::Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, Integer(tile_size)});
+               ffi::Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, IntImm(DataType::Int(32), tile_size)});
+               ffi::Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, IntImm(DataType::Int(32), tile_size)});
                sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
                outer = ws[0];
              }

@@ -54,7 +54,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
 Instruction ReplaceAnnValue(Instruction inst, int64_t ann_val) {
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   return Instruction(/*kind=*/inst->kind,                             //
-                     /*inputs=*/{inst->inputs[0], Integer(ann_val)},  //
+                     /*inputs=*/{inst->inputs[0], IntImm(DataType::Int(32), ann_val)},  //
                      /*attrs=*/inst->attrs,
                      /*outputs=*/inst->outputs);
 }

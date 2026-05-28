@@ -129,8 +129,8 @@ class VerifyGPUCodeNode : public PostprocNode {
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
-        {"max_vthread", Integer(8)},
-        {"max_vector_bytes", Integer(16)},
+        {"max_vthread", IntImm(DataType::Int(32), 8)},
+        {"max_vector_bytes", IntImm(DataType::Int(32), 16)},
     };
     thread_warp_size_ = Extract(this->target_, "thread_warp_size").IntValue();
   }

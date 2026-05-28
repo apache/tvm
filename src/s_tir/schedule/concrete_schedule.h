@@ -268,7 +268,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
     }
     const ffi::ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return Integer(int_imm->value);
+    return IntImm(DataType::Int(32), int_imm->value);
   });
   return this->analyzer_->Simplify(transformed);
 }
@@ -370,7 +370,7 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
-  this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
+  this->symbol_table_.Set(rv, IntImm(DataType::Int(32), static_cast<int32_t>(value)));
   return rv;
 }
 
