@@ -288,6 +288,14 @@ runs:
           --extra-library-pattern "*charset*.dll"
         CIBW_TEST_COMMAND: >-
           python -u -X faulthandler "{project}/ci/scripts/package/verify_tvm_install.py"
+        CIBW_TEST_COMMAND_LINUX: >-
+          bash -lc 'if command -v gdb >/dev/null 2>&1; then
+          exec gdb -q -batch -return-child-result
+          -ex "set pagination off" -ex run -ex "thread apply all bt"
+          --args python -u -X faulthandler "{project}/ci/scripts/package/verify_tvm_install.py";
+          else
+          exec python -u -X faulthandler "{project}/ci/scripts/package/verify_tvm_install.py";
+          fi'
 
     - name: Verify final wheel
       shell: bash -l {0}
