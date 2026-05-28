@@ -225,8 +225,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_
 
     for (size_t j = 0; j < axes.size(); ++j) {
       if (i != j) {
-        TVM_FFI_ICHECK(new_axis != static_cast<int>(axes[j]))
-            << "repeated axis in transpose";
+        TVM_FFI_ICHECK(new_axis != static_cast<int>(axes[j])) << "repeated axis in transpose";
       }
     }
     new_shape.push_back(x->shape[new_axis]);

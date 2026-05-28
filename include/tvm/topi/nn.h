@@ -555,7 +555,8 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   // append remaining shape
   for (size_t i = num_block_dims + 1; i < input_shape.size(); i++) {
     r_shape.push_back(input_shape[i]);
-    axis.push_back(static_cast<int64_t>(r_shape.size() - 1));  // index of remaining shape in r_shape
+    axis.push_back(
+        static_cast<int64_t>(r_shape.size() - 1));  // index of remaining shape in r_shape
     o_shape.push_back(input_shape[i]);
   }
 
@@ -604,7 +605,8 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   for (size_t i = 1; i < num_input_dims; i++) {
     axis.push_back(static_cast<int64_t>(r_shape.size()));  // axis of in_shape[i]
     if (axis.size() < (num_block_dims + num_input_dims)) {
-      axis.push_back(static_cast<int64_t>(r_shape.size() - (num_block_dims + 1)));  // axis of block_shape[i]
+      axis.push_back(
+          static_cast<int64_t>(r_shape.size() - (num_block_dims + 1)));  // axis of block_shape[i]
     }
     r_shape.push_back(in_shape[i]);
   }

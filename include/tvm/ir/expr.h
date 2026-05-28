@@ -557,108 +557,6 @@ class FloatImm : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
-/*!
- * \brief Boolean constant.
- *
- *  This reference type is useful to add additional compile-time
- *  type checks and helper functions for Integer equal comparisons.
- */
-class Bool : public IntImm {
- public:
-  explicit Bool(bool value, Span span = Span()) : IntImm(DataType::Bool(), value, span) {}
-  Bool operator!() const { return Bool((*this)->value == 0); }
-  operator bool() const { return (*this)->value != 0; }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bool, IntImm, IntImmNode);
-};
-
-// Overload operators to make sure we have the most fine grained types.
-inline Bool operator||(const Bool& a, bool b) { return Bool(a.operator bool() || b); }
-inline Bool operator||(bool a, const Bool& b) { return Bool(a || b.operator bool()); }
-inline Bool operator||(const Bool& a, const Bool& b) {
-  return Bool(a.operator bool() || b.operator bool());
-}
-inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() && b); }
-inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
-inline Bool operator&&(const Bool& a, const Bool& b) {
-  return Bool(a.operator bool() && b.operator bool());
-}
-
-inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
-inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
-inline bool operator==(const Bool& a, const Bool& b) {
-  return a.operator bool() == b.operator bool();
-}
-
-/*!
- * \brief Container of constant int that adds more constructors.
- *
- * This is used to store and automate type check
- * attributes that must be constant integer.
- *
- * \sa IntImm
- */
-class Integer : public IntImm {
- public:
-  Integer() {}
-  /*!
-   * \brief constructor from node.
-   */
-  explicit Integer(ffi::ObjectPtr<IntImmNode> node) : IntImm(node) {}
-  /*!
-   * \brief constructor with UnsafeInit
-   */
-  explicit Integer(ffi::UnsafeInit tag) : IntImm(tag) {}
-  /*!
-   * \brief Construct integer from int value.
-   */
-  Integer(int value, Span span = Span()) : IntImm(DataType::Int(32), value, span) {}  // NOLINT(*)
-  /*!
-   * \brief Construct integer from int imm.
-   * \param other The other value.
-   */
-  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
-  /*!
-   * \brief Constructor from enum
-   * \tparam Enum The enum type.
-   * \param value The enum value.
-   */
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  explicit Integer(Enum value) : Integer(static_cast<int>(value)) {
-    static_assert(std::is_same<int, typename std::underlying_type<Enum>::type>::value,
-                  "declare enum to be enum int to use visitor");
-  }
-  /*!
-   * \brief Assign an expression to integer.
-   * \param other another expression.
-   */
-  Integer& operator=(const IntImm& other) {
-    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(other);
-    return *this;
-  }
-  /*!
-   * \brief convert to int64_t
-   */
-  int64_t IntValue() const {
-    TVM_FFI_ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
-    return (*this)->value;
-  }
-  // comparators
-  Bool operator==(int other) const {
-    if (data_ == nullptr) return Bool(false);
-    return Bool((*this)->value == other);
-  }
-  Bool operator!=(int other) const { return !(*this == other); }
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  Bool operator==(Enum other) const {
-    return *this == static_cast<int>(other);
-  }
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  Bool operator!=(Enum other) const {
-    return *this != static_cast<int>(other);
-  }
-};
-
 /*! \brief range over one dimension */
 class RangeNode : public ffi::Object {
  public:
@@ -730,16 +628,6 @@ struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64
 };
 
 template <>
-inline constexpr bool use_default_type_traits_v<Integer> = false;
-
-template <>
-struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) {
-    return Integer(TypeTraits<IntImm>::ConvertFallbackValue(value));
-  }
-};
-
-template <>
 inline constexpr bool use_default_type_traits_v<FloatImm> = false;
 
 template <>
@@ -747,14 +635,6 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
   TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(runtime::DataType::Float(32), value);
   }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<Bool> = false;
-
-template <>
-struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
-  TVM_FFI_INLINE static Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
