@@ -4933,10 +4933,16 @@ class OperatorConverter:
         # Resolve the input expression.
         in_expr = self.get_tensor_expr(input_tensor)
 
-        # Zero-initialised hidden state [batch, num_units].
-        h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
+        # Initial hidden state: use the model's tensor value when available (non-zero init or
+        # graph input), otherwise fall back to zeros for the common variable-tensor case.
         h_dtype = self.get_tensor_type_str(hidden_state_tensor.tensor.Type())
-        h = relax.op.zeros(h_shape, dtype=h_dtype)
+        if self.has_expr(hidden_state_tensor.tensor_idx) or (
+            hidden_state_tensor.buffer is not None and hidden_state_tensor.buffer.DataLength() > 0
+        ):
+            h = self.get_tensor_expr(hidden_state_tensor)
+        else:
+            h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
+            h = relax.op.zeros(h_shape, dtype=h_dtype)
 
         gates = relax.op.add(
             relax.op.add(relax.op.matmul(in_expr, w_t), relax.op.matmul(h, wr_t)),
