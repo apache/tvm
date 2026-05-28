@@ -864,7 +864,7 @@ def test_cast(from_type, to_type):
 
 
 def test_cast_nan_inf_to_int8():
-    vals = np.array([300.0, np.nan, np.PINF, np.NINF, 50.0, -50.0], dtype=np.float32)
+    vals = np.array([300.0, np.nan, np.inf, -np.inf, 50.0, -50.0], dtype=np.float32)
     node = helper.make_node("Cast", inputs=["a"], outputs=["b"], to=TensorProto.INT8)
     graph = helper.make_graph(
         [node],
