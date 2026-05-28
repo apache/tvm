@@ -108,7 +108,9 @@ def test_simplify_vscale_comparison_with_sve_target(expression):
         assert ana.can_prove(expression)
 
 
-@pytest.mark.xfail(reason="arith no longer emits a LOG(WARNING) for vscale proofs on non-VLA targets")
+@pytest.mark.xfail(
+    reason="arith no longer emits a LOG(WARNING) for vscale proofs on non-VLA targets"
+)
 def test_simplify_vscale_comparison_without_sve_target(capfd):
     ana = tvm.arith.Analyzer()
     vs = tvm.tirx.vscale()
