@@ -21,6 +21,7 @@ from __future__ import annotations
 import faulthandler
 import os
 from pathlib import Path
+import signal
 import sys
 
 faulthandler.enable(all_threads=True)
@@ -32,6 +33,15 @@ import numpy as np
 
 def log(*args: object) -> None:
     print(*args, flush=True)
+
+
+def _enable_python_fault_handler() -> None:
+    """Install Python's signal handler after native libraries may install theirs."""
+    faulthandler.enable(all_threads=True)
+    try:
+        faulthandler.register(signal.SIGUSR1, all_threads=True)
+    except (AttributeError, RuntimeError, ValueError):
+        pass
 
 
 def expect_bool(name: str) -> bool | None:
@@ -87,26 +97,73 @@ def _dynamic_llvm_libs(libdir: Path) -> list[Path]:
     return sorted(found)
 
 
+def _log_tvm_ffi_details() -> None:
+    import tvm_ffi  # pylint: disable=import-outside-toplevel
+
+    ffi_lib = getattr(tvm_ffi, "LIB", None)
+    ffi_lib_path = getattr(ffi_lib, "_name", None)
+    log("tvm_ffi version:", getattr(tvm_ffi, "__version__", "<unknown>"))
+    log("tvm_ffi package:", Path(tvm_ffi.__file__).resolve().parent)
+    if ffi_lib_path:
+        log("tvm_ffi library:", Path(ffi_lib_path).resolve())
+
+
+def _log_loaded_native_libraries() -> None:
+    if sys.platform != "linux":
+        return
+    maps_path = Path("/proc/self/maps")
+    if not maps_path.exists():
+        return
+    interesting_names = (
+        "libtvm",
+        "libLLVM",
+        "libstdc++",
+        "libgcc_s",
+        "libxml2",
+        "libzstd",
+        "liblzma",
+    )
+    loaded: set[str] = set()
+    for line in maps_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        path = line.rsplit(maxsplit=1)[-1]
+        if "/" not in path:
+            continue
+        if any(name in path for name in interesting_names):
+            loaded.add(path)
+    log("loaded native libraries:")
+    for path in sorted(loaded):
+        log("  ", path)
+
+
 def _verify_llvm_tirx_compile() -> None:
     import tvm  # pylint: disable=import-outside-toplevel
     from tvm import te  # pylint: disable=import-outside-toplevel
 
     log("llvm tirx compile smoke: starting")
     extent = 8
+    log("llvm tirx compile smoke: create numpy inputs")
     lhs_np = np.arange(extent, dtype="float32")
     rhs_np = np.arange(extent, dtype="float32") * np.float32(2)
     out_np = np.zeros(extent, dtype="float32")
 
+    log("llvm tirx compile smoke: create placeholders")
     lhs = te.placeholder((extent,), name="lhs", dtype="float32")
     rhs = te.placeholder((extent,), name="rhs", dtype="float32")
+    log("llvm tirx compile smoke: create compute")
     out = te.compute((extent,), lambda i: lhs[i] + rhs[i], name="out")
-    executable = tvm.compile(te.create_prim_func([lhs, rhs, out]), target="llvm")
+    log("llvm tirx compile smoke: create prim func")
+    prim_func = te.create_prim_func([lhs, rhs, out])
+    log("llvm tirx compile smoke: compile")
+    executable = tvm.compile(prim_func, target="llvm")
 
+    log("llvm tirx compile smoke: create tensors")
     dev = tvm.cpu()
     lhs_t = tvm.runtime.tensor(lhs_np, dev)
     rhs_t = tvm.runtime.tensor(rhs_np, dev)
     out_t = tvm.runtime.tensor(out_np, dev)
+    log("llvm tirx compile smoke: execute")
     executable(lhs_t, rhs_t, out_t)
+    log("llvm tirx compile smoke: check output")
     np.testing.assert_allclose(out_t.numpy(), lhs_np + rhs_np, rtol=1e-6)
     log("llvm tirx compile smoke: passed")
 
@@ -116,20 +173,27 @@ def _verify_relax_compile() -> None:
     from tvm import relax  # pylint: disable=import-outside-toplevel
 
     log("llvm relax compile smoke: starting")
+    log("llvm relax compile smoke: create numpy inputs")
     lhs_np = np.arange(8, dtype="float32")
     rhs_np = np.arange(8, dtype="float32") * np.float32(3)
     dev = tvm.cpu()
 
+    log("llvm relax compile smoke: create vars")
     lhs = relax.Var("lhs", relax.TensorStructInfo((8,), "float32"))
     rhs = relax.Var("rhs", relax.TensorStructInfo((8,), "float32"))
+    log("llvm relax compile smoke: create module")
     builder = relax.BlockBuilder()
     with builder.function("main", [lhs, rhs]):
         out = builder.emit(relax.op.add(lhs, rhs))
         builder.emit_func_output(out)
 
+    log("llvm relax compile smoke: compile")
     executable = tvm.compile(builder.get(), target="llvm")
+    log("llvm relax compile smoke: create vm")
     vm = relax.VirtualMachine(executable, dev)
+    log("llvm relax compile smoke: execute")
     out = vm["main"](tvm.runtime.tensor(lhs_np, dev), tvm.runtime.tensor(rhs_np, dev))
+    log("llvm relax compile smoke: check output")
     np.testing.assert_allclose(out.numpy(), lhs_np + rhs_np, rtol=1e-6)
     log("llvm relax compile smoke: passed")
 
@@ -140,6 +204,8 @@ def main() -> int:
     log("import tvm: starting")
     import tvm  # pylint: disable=import-outside-toplevel
     log("import tvm: passed")
+    _enable_python_fault_handler()
+    _log_tvm_ffi_details()
 
     root = Path(tvm.__file__).resolve().parent
     libdir = root / "lib"
@@ -179,6 +245,7 @@ def main() -> int:
     if cuda_runtime_present:
         log("cuda runtime library:", cuda_runtime)
     log("dynamic LLVM libraries:", [str(path) for path in dynamic_llvm_libs])
+    _log_loaded_native_libraries()
 
     expected_llvm = expect_bool("TVM_EXPECT_LLVM_ENABLED")
     if expected_llvm is not None and llvm_enabled != expected_llvm:
