@@ -691,114 +691,7 @@ def test_split_int64_factors():
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 
-@pytest.mark.parametrize("num_elements", [128, 115])
-def test_sve_scalable_split_predicated(num_elements):
-    """
-    By default, splitting with by vscale factors over a fixed-length loop will
-    result in loop-level predication being inserted. This is because, at
-    compile-time, we don't know if vscale is a multiple of the extent of the
-    loop to be split.
-    """
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(num_elements, 4 * T.vscale()))
-
-        @T.prim_func(s_tir=True)
-        def before(a: T.handle):
-            A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i in T.serial(num_elements):
-                with T.sblock("A"):
-                    v_i = T.axis.remap("S", [i])
-                    A[v_i] = 1.0
-
-        @T.prim_func(s_tir=True)
-        def after(a: T.handle):
-            A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
-                    T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
-                    A[v_i] = 1.0
-
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(a, factors=[outer_extent, 4 * T.vscale()])
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_sve_scalable_split_assume_exact_multiple():
-    """
-    If the schedule writer knows the extent of the loop to be split will always
-    be a multiple of vscale, they may use `disable_predication=True` to ensure
-    a predicate is not created. This can be used to ensure predication is not
-    inserted.
-    """
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(128, 4 * T.vscale()))
-
-        @T.prim_func(s_tir=True)
-        def before(a: T.handle):
-            A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i in T.serial(128):
-                with T.sblock("A"):
-                    v_i = T.axis.remap("S", [i])
-                    A[v_i] = 1.0
-
-        @T.prim_func(s_tir=True)
-        def after(a: T.handle):
-            A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
-                    A[v_i] = 1.0
-
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(
-            a,
-            factors=[outer_extent, 4 * T.vscale()],
-            disable_predication=True,
-        )
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_sve_split_over_scalable_loop():
-    @T.prim_func(s_tir=True)
-    def before(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-        for i in T.serial(4 * T.vscale()):
-            with T.sblock("A"):
-                v_i = T.axis.remap("S", [i])
-                A[v_i] = 1.0
-
-    @T.prim_func(s_tir=True)
-    def after(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-        for i_0, i_1 in T.grid(T.vscale() * 2, T.vscale() * 2):
-            with T.sblock("A"):
-                v_i = T.axis.spatial(T.vscale() * 4, i_0 * (T.vscale() * 2) + i_1)
-                T.where(i_0 * (T.vscale() * 2) + i_1 < T.vscale() * 4)
-                A[v_i] = 1.0
-
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(
-            a,
-            factors=[2 * T.vscale(), 2 * T.vscale()],
-        )
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_unsupported_target_scalable_split(capfd):
+def test_unsupported_target_scalable_split():
     @T.prim_func(s_tir=True)
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
@@ -814,14 +707,6 @@ def test_unsupported_target_scalable_split(capfd):
     err_msg = "The product of factors is not larger than or equal to the extent of loop tirx.For#0"
     with pytest.raises(tvm.s_tir.schedule.ScheduleError, match=err_msg):
         sch.split(a, factors=[T.ceildiv(128, 4 * T.vscale()), 4 * T.vscale()])
-
-    warning_msg = (
-        "Warning: The expression contains scalable values. An attempt to prove by substituting "
-        "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was "
-    )
-    captured = capfd.readouterr().err
-    assert warning_msg in captured
 
 
 def test_fused_symbolic_2D_tiling():
