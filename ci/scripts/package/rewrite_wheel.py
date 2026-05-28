@@ -35,10 +35,16 @@ from email.parser import Parser
 from pathlib import Path
 
 
-def _wheel_escape(value: str) -> str:
+def _wheel_escape_distribution(value: str) -> str:
     """Escape a distribution component for wheel filenames and dist-info dirs."""
 
     return re.sub(r"[^\w\d.]+", "_", value).lower()
+
+
+def _wheel_escape_version(value: str) -> str:
+    """Escape a version component while preserving PEP 440 local version markers."""
+
+    return re.sub(r"[^\w\d.!+]+", "_", value).lower()
 
 
 def _hash_record(data: bytes) -> tuple[str, str]:
@@ -115,7 +121,11 @@ def _retag_wheel_filename(
     if len(parts) not in (5, 6):
         raise ValueError(f"Unsupported wheel filename: {wheel.name}")
     tags = parts[2:]
-    return f"{_wheel_escape(dist_name)}-{_wheel_escape(version)}-{'-'.join(tags)}.whl"
+    return (
+        f"{_wheel_escape_distribution(dist_name)}-"
+        f"{_wheel_escape_version(version)}-"
+        f"{'-'.join(tags)}.whl"
+    )
 
 
 def _normalize_wheel_path(value: str, label: str) -> str:
@@ -215,7 +225,10 @@ def rewrite_wheel(
 
         final_name = distribution_name or original_name
         final_version = distribution_version or original_version
-        final_dist_info = f"{_wheel_escape(final_name)}-{_wheel_escape(final_version)}.dist-info"
+        final_dist_info = (
+            f"{_wheel_escape_distribution(final_name)}-"
+            f"{_wheel_escape_version(final_version)}.dist-info"
+        )
         record_path = f"{final_dist_info}/RECORD"
         target_paths = [target for _, target in extra_files]
         if cuda_runtime is not None:
