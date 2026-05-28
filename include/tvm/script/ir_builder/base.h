@@ -23,6 +23,7 @@
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/node_functor.h>
 
 #include <vector>
 

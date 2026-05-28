@@ -28,7 +28,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/var.h>
 
@@ -166,7 +165,6 @@ class BufferNode : public ffi::Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Buffer", BufferNode, ffi::Object);
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
 /*!

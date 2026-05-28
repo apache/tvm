@@ -21,7 +21,7 @@ from tvm import tirx as tir
 
 def _assert_print(obj, expected):
     # Use Tx prefix so standalone TIR nodes (non-PrimFunc) print as Tx to match tirx namespace
-    out = obj.script(verbose_expr=True, tir_prefix="Tx", tir_import_module="tirx").strip()
+    out = obj.script(verbose_expr=True, extra_config={"tirx.prefix": "Tx"}).strip()
     assert out == expected.strip()
 
 

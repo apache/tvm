@@ -21,7 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
-#include <tvm/script/printer/config.h>
+#include <tvm/script/printer/printer.h>
 
 #include <algorithm>
 
@@ -34,8 +34,7 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   return inst;
 }
 
-std::string TVMScriptPrinter::Script(const ffi::ObjectRef& node,
-                                     const ffi::Optional<PrinterConfig>& cfg) {
+std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
     return std::string(ffi::ReprPrint(ffi::Any(node)));
@@ -68,17 +67,11 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<ffi::String>(v.value());
   }
-  if (auto v = config_dict.Get("tir_prefix")) {
-    n->tir_prefix = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("tir_import_module")) {
-    n->tir_import_module = Downcast<ffi::String>(v.value());
-  }
-  if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<ffi::String>(v.value());
-  }
   if (auto v = config_dict.Get("module_alias")) {
     n->module_alias = Downcast<ffi::String>(v.value());
+  }
+  if (auto v = config_dict.Get("buffer_dtype")) {
+    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
     n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
@@ -129,11 +122,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
       n->extra_config.Set(ffi::String(key), v.value());
     }
   }
-  // "tirx.buffer_dtype" is passed as a DLDataType string from Python; convert to DataType.
-  if (auto v = config_dict.Get("tirx.buffer_dtype")) {
-    DataType dt(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
-    n->extra_config.Set(ffi::String("tirx.buffer_dtype"), ffi::Any(dt));
-  }
   // Boolean dialect keys.
   if (auto v = config_dict.Get("relax.show_all_struct_info")) {
     n->extra_config.Set(ffi::String("relax.show_all_struct_info"), v.value());
@@ -174,7 +162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("node.PrinterConfig",
            [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
-      .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
+      .def("node.TVMScriptPrinterScript", tvm::Script);
 }
 
 }  // namespace tvm
