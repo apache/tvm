@@ -1303,20 +1303,20 @@ class Call(PrimExprWithOp):
     span : Optional[Span]
         The location of this expression in the source code.
 
-    annotations : Optional[dict]
-        Additional metadata attached to the call.
+    attrs : Optional[tvm.ir.Attrs or dict]
+        Attributes attached to the call.
     """
 
     op: Op
     args: list[PrimExpr]
-    annotations: dict
+    attrs: ir.Attrs | None
 
     def __init__(
         self,
         dtype: str,
         op: Op | str,
         args: list[PrimExpr],
-        annotations: dict | None = None,
+        attrs: ir.Attrs | dict | None = None,
         span: Span | None = None,
     ) -> None:
         if isinstance(op, str):
@@ -1330,9 +1330,11 @@ class Call(PrimExprWithOp):
                     % op
                 )
             op = Op.get(op)
-        if annotations:
+        if isinstance(attrs, dict):
+            attrs = ir.make_node("ir.DictAttrs", **attrs)
+        if attrs:
             self.__init_handle_by_constructor__(  # type: ignore
-                _ffi_api.CallWithAnnotations, dtype, op, args, annotations, span
+                _ffi_api.CallWithAttrs, dtype, op, args, attrs, span
             )
         else:
             self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)  # type: ignore

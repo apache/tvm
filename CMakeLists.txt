@@ -344,9 +344,9 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
   src/runtime/memory/*.cc
-  src/runtime/minrpc/*.cc
+  src/runtime/rpc/minrpc/*.cc
 )
-# Note: src/runtime/disco/** moves to libtvm_runtime_extra.
+# Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
 # Note: src/runtime/{cuda,vulkan,opencl,metal,rocm,hexagon}/* move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
 
@@ -455,14 +455,14 @@ include(cmake/modules/Git.cmake)
 
 # ---- libtvm_runtime_extra assembly ----
 # Disco core sources.
-tvm_file_glob(GLOB _disco_core_srcs src/runtime/disco/*.cc)
+tvm_file_glob(GLOB _disco_core_srcs src/runtime/extra/disco/*.cc)
 add_library(tvm_disco_objs OBJECT ${_disco_core_srcs})
 target_link_libraries(tvm_disco_objs PRIVATE tvm_runtime_extra_defs)
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_objs)
 
 # Distributed disco (disabled for Hexagon cross-compile).
 if(NOT BUILD_FOR_HEXAGON)
-  tvm_file_glob(GLOB _disco_dist_srcs src/runtime/disco/distributed/*.cc)
+  tvm_file_glob(GLOB _disco_dist_srcs src/runtime/extra/disco/distributed/*.cc)
   add_library(tvm_disco_distributed_objs OBJECT ${_disco_dist_srcs})
   target_link_libraries(tvm_disco_distributed_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_distributed_objs)
@@ -472,8 +472,8 @@ endif()
 if(USE_CUDA AND USE_NCCL)
   find_nccl(${USE_NCCL})
   include_directories(SYSTEM ${NCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB _nccl_srcs src/runtime/disco/nccl/*.cc src/runtime/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
-  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
+  tvm_file_glob(GLOB _nccl_srcs src/runtime/extra/disco/nccl/*.cc src/runtime/extra/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
+  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
   add_library(tvm_nccl_objs OBJECT ${_nccl_srcs})
   target_link_libraries(tvm_nccl_objs PRIVATE tvm_runtime_extra_defs)
   find_library(LIBRT rt)
@@ -488,7 +488,7 @@ if(USE_CUDA AND USE_NVSHMEM)
   endif()
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  tvm_file_glob(GLOB _nvshmem_srcs src/runtime/contrib/nvshmem/*.cc src/runtime/contrib/nvshmem/*.cu)
+  tvm_file_glob(GLOB _nvshmem_srcs src/runtime/extra/contrib/nvshmem/*.cc src/runtime/extra/contrib/nvshmem/*.cu)
   add_library(tvm_nvshmem_objs OBJECT ${_nvshmem_srcs})
   target_link_libraries(tvm_nvshmem_objs PRIVATE tvm_runtime_extra_defs)
   target_include_directories(tvm_nvshmem_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
@@ -502,8 +502,8 @@ endif()
 if(USE_ROCM AND USE_RCCL)
   find_rccl(${USE_RCCL})
   include_directories(SYSTEM ${RCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB _rccl_srcs src/runtime/disco/nccl/*.cc)
-  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
+  tvm_file_glob(GLOB _rccl_srcs src/runtime/extra/disco/nccl/*.cc)
+  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
   add_library(tvm_rccl_objs OBJECT ${_rccl_srcs})
   target_link_libraries(tvm_rccl_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_rccl_objs rccl)
@@ -834,7 +834,7 @@ if(USE_CUDA AND USE_CUTLASS)
 endif()
 
 if(USE_CUDA AND USE_NVTX)
-  set_source_files_properties(src/runtime/nvtx.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NVTX_ENABLED=1")
+  add_compile_definitions(TVM_NVTX_ENABLED=1)
 endif()
 
 # Note: NCCL, NVSHMEM, RCCL target_link_libraries are handled in the inline

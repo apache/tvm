@@ -26,7 +26,7 @@ import numpy as np
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import utils, xcode
+from tvm.support import utils, xcode
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"

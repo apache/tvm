@@ -19,6 +19,7 @@ import pytest
 
 import tvm
 from tvm import te, topi
+from tvm.tirx.analysis import expr_deep_equal
 from tvm.tirx.expr_functor import ExprMutator
 
 
@@ -133,32 +134,39 @@ def test_expr_constructor():
     assert x.dtype == "float32"
     assert x.op.name == "tirx.call_extern"
     assert x.args[1] == a
-    assert len(x.annotations) == 0
+    assert x.attrs is None
 
-    annotated_arg = tvm.tirx.Var("annotated_arg", "float32")
-    x_with_annotations = tvm.tirx.Call(
+    attr_arg = tvm.tirx.Var("attr_arg", "float32")
+    x_with_attrs = tvm.tirx.Call(
         "float32",
         "tirx.call_extern",
-        [tvm.tirx.StringImm("xyz"), annotated_arg],
-        annotations={"disable_tma": True},
+        [tvm.tirx.StringImm("xyz"), attr_arg],
+        attrs={"disable_tma": True},
     )
-    assert bool(x_with_annotations.annotations["disable_tma"])
-    assert not tvm.ir.structural_equal(x, x_with_annotations)
-    script = tvm.tirx.Evaluate(x_with_annotations).script()
-    assert "annotations" in script
+    assert x_with_attrs.attrs["disable_tma"] is True
+    assert not tvm.ir.structural_equal(x, x_with_attrs)
+    script = tvm.tirx.Evaluate(x_with_attrs).script()
+    assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_annotations))
+    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_attrs))
     assert tvm.script.from_source(func.script()).script() == func.script()
 
     y = tvm.tirx.Var("y", "float32")
-    mutated = ReplaceVar(annotated_arg, y)(x_with_annotations)
-    assert bool(mutated.annotations["disable_tma"])
+    mutated = ReplaceVar(attr_arg, y)(x_with_attrs)
+    assert mutated.attrs["disable_tma"] is True
     assert mutated.args[1].same_as(y)
 
     x_from_intrin = tvm.tirx.call_intrin(
-        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), annotations={"disable_tma": True}
+        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), attrs={"disable_tma": True}
     )
-    assert int(x_from_intrin.annotations["disable_tma"]) == 1
+    assert x_from_intrin.attrs["disable_tma"] is True
+    x_with_other_attrs = tvm.tirx.Call(
+        "float32",
+        "tirx.call_extern",
+        [tvm.tirx.StringImm("xyz"), attr_arg],
+        attrs={"disable_tma": False},
+    )
+    assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
@@ -171,12 +179,12 @@ def test_expr_constructor():
         "int32",
         "tirx.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
-        annotations={"keep": True},
+        attrs={"keep": True},
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
         tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
     )["main"].body.value
-    assert bool(simplified.annotations["keep"])
+    assert simplified.attrs["keep"] is True
 
     v = tvm.tirx.Var("aa", "int32")
     x = tvm.tirx.Let(v, 1, v)

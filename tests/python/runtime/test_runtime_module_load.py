@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.contrib import cc, popen_pool, utils
+from tvm.support import cc, popen_pool, utils
 
 runtime_py = """
 import os

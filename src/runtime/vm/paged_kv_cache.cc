@@ -27,8 +27,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <numeric>
@@ -2306,7 +2306,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * invoked before running attention computation on device.
    */
   void SyncAuxArrayToDevice() {
-    NVTXScopedRange range("SyncAuxArrayToDevice");
+    support::NVTXScopedRange range("SyncAuxArrayToDevice");
     TVM_FFI_ICHECK(dtype_aux_.bits == 32 && dtype_aux_.code == kDLInt);
     int64_t total_append_length = 0;
     int num_sequences = cur_append_lengths_.size();

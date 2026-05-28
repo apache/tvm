@@ -23,7 +23,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.contrib import ndk
+from tvm.support import ndk
 
 # Test Infra
 

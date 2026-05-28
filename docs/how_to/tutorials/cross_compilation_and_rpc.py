@@ -100,7 +100,7 @@ import tvm_ffi
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import utils
+from tvm.support import utils
 
 n = tvm.runtime.convert(1024)
 A = te.placeholder((n,), name="A")

@@ -21,7 +21,6 @@ import tempfile
 from collections.abc import Callable
 
 import tvm
-from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build as tvm_build
 from tvm.ir.module import IRModule
 from tvm.runtime import Module, Tensor
@@ -39,6 +38,7 @@ from tvm.s_tir.meta_schedule.runner.rpc_runner import (
 )
 from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
 from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
+from tvm.support.popen_pool import PopenPoolExecutor
 from tvm.target import Target
 
 from .build import HexagonLauncherRPC

@@ -73,8 +73,8 @@
 #include "../file_utils.h"
 #include "../metadata.h"
 #include "../pack_args.h"
-#include "../texture.h"
 #include "../thread_storage_scope.h"
+#include "texture.h"
 
 namespace tvm {
 namespace runtime {

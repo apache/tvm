@@ -291,7 +291,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         new_args.Set(i + 1, local_index);
       }
     }
-    return Call(op->dtype, op->op, new_args, op->annotations, op->span);
+    return Call(op->dtype, op->op, new_args, op->attrs, op->span);
   }
 
   PrimExpr VisitExpr_(const CallNode* op) override {

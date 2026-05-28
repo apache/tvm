@@ -21,10 +21,10 @@
  * \file src/ir/instrument.cc
  * \brief Infrastructure for instrumentation.
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/instrument.h>
-#include <tvm/ir/repr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 

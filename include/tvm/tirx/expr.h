@@ -28,6 +28,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/node_functor.h>
@@ -697,7 +698,8 @@ class LetNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
@@ -731,20 +733,15 @@ class CallNode : public PrimExprNode {
   /*! \brief The arguments. */
   ffi::Array<PrimExpr> args;
 
-  /*!
-   * \brief Additional annotations about the call.
-   *
-   * These annotations can be used to carry target-specific metadata through
-   * TIRX transformations and codegen.
-   */
-  ffi::Map<ffi::String, ffi::Any> annotations;
+  /*! \brief The additional attributes. */
+  Attrs attrs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CallNode>()
         .def_ro("op", &CallNode::op)
         .def_ro("args", &CallNode::args)
-        .def_ro("annotations", &CallNode::annotations);
+        .def_ro("attrs", &CallNode::attrs);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Call", CallNode, PrimExprNode);
 };
@@ -755,9 +752,9 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
-               ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
                Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
@@ -827,8 +824,8 @@ class CommReducerNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CommReducerNode>()
-        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
         .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());

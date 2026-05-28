@@ -78,7 +78,7 @@
 #include <set>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../runtime/opencl/texture.h"
 #include "utils.h"
 
 namespace tvm {

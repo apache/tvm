@@ -21,7 +21,7 @@ import os
 import tvm_ffi
 
 from tvm import libinfo
-from tvm.contrib import cc
+from tvm.support import cc
 
 
 def find_minrpc_server_libpath(server="posix_popen_server"):
@@ -39,7 +39,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     """
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
-    minrpc_dir = os.path.join(source_dir, "src", "runtime", "minrpc")
+    minrpc_dir = os.path.join(source_dir, "src", "runtime", "rpc", "minrpc")
     path = os.path.join(minrpc_dir, server, f"{server}.cc")
 
     candidates = [path]

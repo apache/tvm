@@ -22,8 +22,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 
 import tvm
+from tvm.support.popen_pool import PopenPoolExecutor
 
-from ....contrib.popen_pool import PopenPoolExecutor
 from ....runtime import Device, Module
 from ..logging import get_logger
 from ..profiler import Profiler

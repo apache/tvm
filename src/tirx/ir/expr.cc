@@ -621,8 +621,7 @@ static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
   return prim_expr_args;
 }
 
-Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
-           ffi::Map<ffi::String, ffi::Any> annotations, Span span) {
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -631,24 +630,27 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args,
   node->dtype = dtype;
   node->op = std::move(op);
   node->args = std::move(args);
-  node->annotations = std::move(annotations);
+  node->attrs = std::move(attrs);
   node->span = std::move(span);
   data_ = std::move(node);
 }
+
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span)
+    : Call(dtype, std::move(op), std::move(args), Attrs(), std::move(span)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.Call",
            [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span) {
-             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args),
-                         ffi::Map<ffi::String, ffi::Any>(), span);
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), Attrs(),
+                         span);
            })
-      .def("tirx.CallWithAnnotations",
+      .def("tirx.CallWithAttrs",
            [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args,
-              ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations, Span span) {
+              ffi::Optional<Attrs> attrs, Span span) {
              return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args),
-                         annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), span);
+                         attrs.value_or(Attrs()), span);
            });
 }
 

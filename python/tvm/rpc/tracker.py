@@ -51,7 +51,7 @@ import struct
 import sys
 import threading
 
-from tvm.contrib.popen_pool import PopenWorker
+from tvm.support.popen_pool import PopenWorker
 
 try:
     from tornado import ioloop

@@ -41,8 +41,8 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
 @tvm.testing.requires_cuda
 def test_inject_ptx_intrin():
     f = vector_add
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    arch = tvm.support.nvcc.get_target_compute_version()
+    major, _ = tvm.support.nvcc.parse_compute_version(arch)
     if major < 8:
         # Require at least SM80
         return

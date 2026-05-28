@@ -155,7 +155,7 @@ PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   if (args.same_as(op->args)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return Call(op->dtype, op->op, args, op->annotations, op->span);
+    return Call(op->dtype, op->op, args, op->attrs, op->span);
   }
 }
 
