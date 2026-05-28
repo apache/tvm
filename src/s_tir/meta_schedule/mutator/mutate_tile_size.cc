@@ -214,7 +214,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     if (y != n_splits - 1) {
       divide_factor = factors[s_tir::SampleInt(rand_state, 1, factors.size())];
     } else {
-      int64_t limit = Downcast<Integer>(inst->attrs[1])->value;
+      int64_t limit = Downcast<IntImm>(inst->attrs[1])->value;
       int max_factor_index = static_cast<int>(factors.size()) - 1;
       for (; max_factor_index >= 1; max_factor_index--) {
         if (factors[max_factor_index] * tiles[y] <= limit) {

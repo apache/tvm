@@ -73,8 +73,8 @@ using namespace topi::detail;
  *
  * \return A Tensor whose op member is the sliding_window operation
  */
-inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<Integer> window_shape,
-                             ffi::Array<Integer> strides, std::string name = "T_sliding_window",
+inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<int64_t> window_shape,
+                             ffi::Array<int64_t> strides, std::string name = "T_sliding_window",
                              std::string tag = "") {
   TVM_FFI_ICHECK_GE(axis, 0);
   auto _axis = size_t(axis);
@@ -98,16 +98,16 @@ inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<Integer> wind
     // Length of the shape along this dimension.
     auto dim_len = x->shape[_axis + i];
     // Length of the window along this dimension.
-    auto window_len = window_shape[i];
+    PrimExpr window_len = IntImm(DataType::Int(64), window_shape[i]);
     // Strides along this dimension.
-    auto stride = strides[i];
+    PrimExpr stride = IntImm(DataType::Int(64), strides[i]);
 
     new_shape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
   }
 
   // Dimensions comprising the window.
   for (size_t i = 0; i < window_shape.size(); ++i) {
-    new_shape.push_back(window_shape[i]);
+    new_shape.push_back(IntImm(DataType::Int(64), window_shape[i]));
   }
 
   TVM_FFI_ICHECK(new_shape.size() == _axis + 2 * window_shape.size());
@@ -129,7 +129,7 @@ inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<Integer> wind
           // Which index within the window we are indexing.
           auto idx_within_window = indices[_axis + window_shape.size() + i];
           // Stride value for this dimension.
-          auto stride = strides[i];
+          PrimExpr stride = IntImm(DataType::Int(64), strides[i]);
 
           idx.push_back(window_idx * stride + idx_within_window);
         }
@@ -202,9 +202,9 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
  *
  * \return A Tensor whose op member is the transpose operation
  */
-inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_axes,
+inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_axes,
                         std::string name = "T_transpose", std::string tag = kInjective) {
-  ffi::Array<Integer> axes = opt_axes.value_or({});
+  ffi::Array<int64_t> axes = opt_axes.value_or({});
   if (axes.size() == 0) {
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
@@ -213,7 +213,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_
 
   ffi::Array<PrimExpr> new_shape;
   for (size_t i = 0; i < axes.size(); ++i) {
-    int axis = static_cast<int>(axes[i]->value);
+    int axis = static_cast<int>(axes[i]);
     int new_axis = axis;
     if (axis < 0) {
       new_axis = static_cast<int>(x->shape.size()) + axis;
@@ -225,7 +225,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_
 
     for (size_t j = 0; j < axes.size(); ++j) {
       if (i != j) {
-        TVM_FFI_ICHECK(new_axis != static_cast<int>(axes[j]->value))
+        TVM_FFI_ICHECK(new_axis != static_cast<int>(axes[j]))
             << "repeated axis in transpose";
       }
     }
@@ -240,7 +240,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_
           idx.push_back(1);
         }
         for (size_t i = 0; i < axes.size(); ++i) {
-          int axis = static_cast<int>(axes[i]->value);
+          int axis = static_cast<int>(axes[i]);
           idx[axis] = indices[i];
         }
         return x(idx);
@@ -412,7 +412,7 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  *
  * \return A Tensor whose op member is the squeeze operation
  */
-inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_axes,
+inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_axes,
                       bool atleast1d = false, std::string name = "T_squeeze",
                       std::string tag = kInjective) {
   auto ndim = x->shape.size();
@@ -424,9 +424,9 @@ inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<Integer>> opt_ax
       }
     }
   } else {
-    ffi::Array<Integer> axis = *std::move(opt_axes);
+    ffi::Array<int64_t> axis = *std::move(opt_axes);
     for (size_t i = 0; i < axis.size(); ++i) {
-      int64_t val = axis[i]->value;
+      int64_t val = axis[i];
       if (val < 0) {
         val += static_cast<int>(x->shape.size());
       }
@@ -715,7 +715,7 @@ inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExp
  */
 inline te::Tensor dynamic_strided_slice_with_axes(
     const te::Tensor& x, const ffi::Array<PrimExpr>& begin, const ffi::Array<PrimExpr>& end,
-    const ffi::Array<PrimExpr>& strides, const ffi::Array<Integer>& axes,
+    const ffi::Array<PrimExpr>& strides, const ffi::Array<int64_t>& axes,
     bool assume_inbound = true, std::string name = "T_dynamic_strided_slice_with_axes",
     std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
@@ -725,7 +725,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
   TVM_FFI_ICHECK_LE(begin.size(), src_tensor_dim);
 
   for (const auto& axis_imm : axes) {
-    int axis = axis_imm->value;
+    int axis = static_cast<int>(axis_imm);
     TVM_FFI_ICHECK_LT(axis, src_tensor_dim);
   }
 
@@ -733,7 +733,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
 
   ffi::Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
-    int axis = axes[i]->value;
+    int axis = static_cast<int>(axes[i]);
     PrimExpr new_shape =
         analyzer.Simplify(GetLength(begin[i], end[i], strides[i], out_shape[axis], assume_inbound));
     out_shape.Set(axis, new_shape);
@@ -746,7 +746,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
             indices.Map([](const auto& var) -> PrimExpr { return var; });
 
         for (size_t i = 0; i < begin.size(); i++) {
-          int axis = axes[i]->value;
+          int axis = static_cast<int>(axes[i]);
           PrimExpr new_index = indices[axis] * strides[i] + begin[i];
           real_indices.Set(axis, new_index);
         }
@@ -866,17 +866,17 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  * \return The output shape of strided_slice using the arguments above
  */
 inline ffi::Array<PrimExpr> StridedSliceOutputShape(const ffi::Array<PrimExpr>& ishape,
-                                                    const ffi::Array<Integer>& begin,
-                                                    const ffi::Array<Integer>& end,
-                                                    const ffi::Array<Integer>& strides,
-                                                    const ffi::Array<Integer>& axes,
+                                                    const ffi::Array<int64_t>& begin,
+                                                    const ffi::Array<int64_t>& end,
+                                                    const ffi::Array<int64_t>& strides,
+                                                    const ffi::Array<int64_t>& axes,
                                                     const std::string& slice_mode) {
   TVM_FFI_ICHECK(axes.size() == begin.size() && axes.size() == end.size() &&
                  axes.size() == strides.size());
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
   auto begin_canonicalized = StridedSliceCanonicalizeBegin(ishape, begin_vec, strides_vec, axes,
-                                                           begin[0]->dtype, slice_mode);
+                                                           DataType::Int(64), slice_mode);
   return StridedSliceOutputShape(ishape, begin_vec, end_vec, strides_vec, axes, slice_mode,
                                  begin_canonicalized, true);
 }
@@ -897,10 +897,10 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(const ffi::Array<PrimExpr>& 
  *
  * \return A Tensor whose op member is the sstrided_slice operation
  */
-inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>& begin,
-                                      const ffi::Array<Integer>& end,
-                                      const ffi::Array<Integer>& strides,
-                                      const ffi::Array<Integer>& axes,
+inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<int64_t>& begin,
+                                      const ffi::Array<int64_t>& end,
+                                      const ffi::Array<int64_t>& strides,
+                                      const ffi::Array<int64_t>& axes,
                                       std::string slice_mode = "end",
                                       std::string name = "T_strided_slice_with_axes",
                                       std::string tag = kInjective) {
@@ -910,23 +910,24 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>
                  axes.size() == strides.size());
 
   // Normalize negative axes
-  ffi::Array<Integer> normalized_axes;
+  ffi::Array<int64_t> normalized_axes;
   for (size_t i = 0; i < axes.size(); ++i) {
-    int64_t axis = axes[i].IntValue();
+    int64_t axis = axes[i];
     if (axis < 0) {
       axis += src_tensor_dim;
     }
     TVM_FFI_ICHECK(axis >= 0 && axis < src_tensor_dim)
-        << "Axis " << axes[i].IntValue() << " is out of bounds for tensor with " << src_tensor_dim
+        << "Axis " << axes[i] << " is out of bounds for tensor with " << src_tensor_dim
         << " dimensions";
-    normalized_axes.push_back(IntImm(DataType::Int(32), axis));
+    normalized_axes.push_back(axis);
   }
 
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
 
+  DataType index_dtype = begin.size() > 0 ? DataType::Int(64) : DataType::Int(64);
   auto begin_expr = StridedSliceCanonicalizeBegin(x->shape, begin_vec, strides_vec, normalized_axes,
-                                                  begin[0]->dtype, slice_mode);
+                                                  index_dtype, slice_mode);
   auto out_shape = StridedSliceOutputShape(x->shape, begin_vec, end_vec, strides_vec,
                                            normalized_axes, slice_mode, begin_expr);
 
@@ -936,9 +937,10 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
-          auto stride = make_const(strides[i].dtype(), strides_vec[i]);
-          PrimExpr ind = indices[normalized_axes[i].IntValue()] * stride + begin_expr[i];
-          real_indices.Set(normalized_axes[i].IntValue(), ind);
+          int64_t ax = normalized_axes[i];
+          auto stride = make_const(DataType::Int(64), strides_vec[i]);
+          PrimExpr ind = indices[ax] * stride + begin_expr[i];
+          real_indices.Set(ax, ind);
         }
         return x(real_indices);
       },
@@ -959,30 +961,29 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>
  *
  * \return A Tensor whose op member is the strided_slice operation
  */
-inline Tensor strided_slice(const Tensor& x, const ffi::Array<Integer>& begin,
-                            const ffi::Array<Integer>& end, const ffi::Array<Integer>& strides,
+inline Tensor strided_slice(const Tensor& x, const ffi::Array<int64_t>& begin,
+                            const ffi::Array<int64_t>& end, const ffi::Array<int64_t>& strides,
                             std::string slice_mode = "end", std::string name = "T_strided_slice",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   for (size_t i = 0; i < src_tensor_dim; ++i) axes.push_back(i);
-  ffi::Array<Integer> begin_full(begin);
-  ffi::Array<Integer> end_full(end);
-  ffi::Array<Integer> strides_full(strides);
+  ffi::Array<int64_t> begin_full(begin);
+  ffi::Array<int64_t> end_full(end);
+  ffi::Array<int64_t> strides_full(strides);
 
-  DataType index_dtype = begin.size() > 0 ? begin[0]->dtype : DataType::Int(64);
-  const IntImm one = IntImm(index_dtype, 1);
-  const IntImm zero = IntImm(index_dtype, 0);
-  const IntImm max_range = Downcast<IntImm>(max_value(index_dtype));
+  constexpr int64_t one = 1;
+  constexpr int64_t zero = 0;
+  const int64_t max_range = std::numeric_limits<int64_t>::max();
 
   for (size_t i = strides.size(); i < src_tensor_dim; ++i) {
     strides_full.push_back(one);
   }
   for (size_t i = begin.size(); i < src_tensor_dim; ++i) {
-    begin_full.push_back(GetConstInt(strides_full[i]) > 0 ? zero : max_range);
+    begin_full.push_back(strides_full[i] > 0 ? zero : max_range);
   }
   for (size_t i = end.size(); i < src_tensor_dim; ++i) {
-    end_full.push_back(GetConstInt(strides_full[i]) < 0 ? zero : max_range);
+    end_full.push_back(strides_full[i] < 0 ? zero : max_range);
   }
 
   return strided_slice_with_axes(x, begin_full, end_full, strides_full, axes, slice_mode, name,
@@ -1414,7 +1415,7 @@ inline Tensor repeat(const Tensor& x, int repeats, int axis, std::string name = 
  *
  * \return A Tensor whose op member is the tile operation
  */
-inline Tensor tile(const Tensor& x, ffi::Array<Integer> reps, std::string name = "T_tile",
+inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name = "T_tile",
                    std::string tag = kBroadcast) {
   size_t ndim = x->shape.size();
   size_t rdim = reps.size();
@@ -1425,16 +1426,16 @@ inline Tensor tile(const Tensor& x, ffi::Array<Integer> reps, std::string name =
   if (ndim == rdim) {
     for (size_t i = 0; i < ndim; ++i) {
       data_shape.push_back(x->shape[i]);
-      reps_shape.push_back(reps[i]);
+      reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
     }
   } else if (ndim > rdim) {
     for (size_t i = 0; i < ndim; ++i) data_shape.push_back(x->shape[i]);
     for (size_t i = 0; i < (ndim - rdim); ++i) reps_shape.push_back(1);
-    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(reps[i]);
+    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
   } else {
     for (size_t i = 0; i < (rdim - ndim); ++i) data_shape.push_back(1);
     for (size_t i = 0; i < ndim; ++i) data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(reps[i]);
+    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
   }
   for (size_t i = 0; i < tdim; ++i) new_shape.push_back(data_shape[i] * reps_shape[i]);
 

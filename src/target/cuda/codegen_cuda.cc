@@ -1051,7 +1051,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = Downcast<Bool>(op->args[12])->value;
+    bool saturate = Downcast<IntImm>(op->args[12])->value;
     std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
     std::string asm_code =
         PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_bias, b_ref,
@@ -1091,14 +1091,14 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string metadata = this->PrintExpr(op->args[12]);
     std::string metadata_offset = this->PrintExpr(op->args[13]);
     std::string sparse_selector = this->PrintExpr(op->args[14]);
-    bool saturate = Downcast<Bool>(op->args[15])->value;
+    bool saturate = Downcast<IntImm>(op->args[15])->value;
     std::string asm_code = PrintMMAAssembly(
         shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
         c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
   } else if (op->op.same_as(builtin::mma_store())) {
-    int m = Downcast<Integer>(op->args[0])->value;
-    int n = Downcast<Integer>(op->args[1])->value;
+    int m = Downcast<IntImm>(op->args[0])->value;
+    int n = Downcast<IntImm>(op->args[1])->value;
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1172,7 +1172,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = Downcast<Bool>(op->args[12])->value;
+    bool saturate = Downcast<IntImm>(op->args[12])->value;
     std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
                                      a_bias, b_ref, b_bias, c_ref, c_bias, "", "", "", bit_op,
@@ -1209,8 +1209,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
     // (dst_ptr is typically an access_ptr Call that already encodes
     // dst.elem_offset and the global pointer cast.)
-    int m = Downcast<Integer>(op->args[0])->value;
-    int n = Downcast<Integer>(op->args[1])->value;
+    int m = Downcast<IntImm>(op->args[0])->value;
+    int n = Downcast<IntImm>(op->args[1])->value;
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);

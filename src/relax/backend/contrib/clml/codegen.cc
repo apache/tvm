@@ -42,7 +42,7 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
 struct OpenCLMLCompilerConfigNode : public ffi::Object {
-  Integer clml_version;
+  IntImm clml_version;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -269,7 +269,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!cfg.defined()) {
       cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
     }
-    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version.IntValue()));
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version->value));
   }
 
  private:
@@ -332,7 +332,7 @@ inline constexpr bool IsOpenCLMLRuntimeEnabled() {
  * \brief Get OpenCLML version that TVM is built against.
  * \return The OpenCLML SDK version.
  */
-Integer GetOpenCLMLVersion() {
+IntImm GetOpenCLMLVersion() {
 #if TVM_GRAPH_EXECUTOR_CLML
   return IntImm(DataType::Int(32), TVM_CLML_VERSION);
 #else

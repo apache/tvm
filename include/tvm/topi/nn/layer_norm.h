@@ -49,7 +49,7 @@ using namespace tvm::te;
  * \return The normalized tensor, with the same shape as data.
  */
 inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
-                         const ffi::Array<Integer>& axis, double epsilon,
+                         const ffi::Array<int64_t>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;

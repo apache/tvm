@@ -371,12 +371,12 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                   int buffer_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          Integer read_buffer_index, ffi::String storage_scope) {
+                                          IntImm read_buffer_index, ffi::String storage_scope) {
     return sch->ReadAt(loop, block, read_buffer_index->value, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, Integer read_buffer_index,
+                                      ffi::String block, IntImm read_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
@@ -401,12 +401,12 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          Integer write_buffer_index, ffi::String storage_scope) {
+                                          IntImm write_buffer_index, ffi::String storage_scope) {
     return sch->WriteAt(loop, block, write_buffer_index->value, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, Integer write_buffer_index,
+                                      ffi::String block, IntImm write_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);

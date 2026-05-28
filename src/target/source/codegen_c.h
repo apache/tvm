@@ -232,7 +232,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
-  virtual void SetConstantsByteAlignment(Integer constants_byte_alignment) {
+  virtual void SetConstantsByteAlignment(int64_t constants_byte_alignment) {
     constants_byte_alignment_ = constants_byte_alignment;
   }
 
@@ -323,7 +323,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // cache commonly used ops
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
-  Integer constants_byte_alignment_ = 16;
+  int64_t constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
   /*! \brief whether the module has a main function declared */

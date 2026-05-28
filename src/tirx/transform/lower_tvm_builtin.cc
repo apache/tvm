@@ -241,7 +241,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
+      if (Downcast<IntImm>(op->annotations[transform::kDisableLowerTVMBuiltin])->value) {
         return stmt;
       }
     }

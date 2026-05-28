@@ -45,8 +45,8 @@ TEST(Simplify, Mul) {
 
 TEST(Simplify, Mod) {
   tvm::arith::Analyzer ana;
-  auto x = tvm::Integer(10);
-  auto y = tvm::Integer(12);
+  auto x = tvm::IntImm(DataType::Int(32), 10);
+  auto y = tvm::IntImm(DataType::Int(32), 12);
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify

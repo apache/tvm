@@ -106,7 +106,7 @@ class InferLayoutOutputNode : public ffi::Object {
   ffi::Array<NLayout> input_layouts;
   ffi::Array<NLayout> output_layouts;
   Attrs new_attrs;
-  ffi::Map<Integer, Expr> new_args;
+  ffi::Map<IntImm, Expr> new_args;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -124,7 +124,7 @@ class InferLayoutOutputNode : public ffi::Object {
 class InferLayoutOutput : public ffi::ObjectRef {
  public:
   explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
-                             Attrs new_attrs, ffi::Map<Integer, Expr> new_args = {}) {
+                             Attrs new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
     auto n = ffi::make_object<InferLayoutOutputNode>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);

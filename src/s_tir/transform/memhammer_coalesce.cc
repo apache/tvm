@@ -67,7 +67,7 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = Downcast<Integer>(loop->extent)->value;
+  int loop_extent = Downcast<IntImm>(loop->extent)->value;
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);

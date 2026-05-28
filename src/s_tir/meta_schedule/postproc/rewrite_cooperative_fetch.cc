@@ -66,7 +66,7 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
-  *vector_lane = Downcast<Integer>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
+  *vector_lane = Downcast<IntImm>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
   return Downcast<SBlockRV>(inst->inputs[0]);
 }
 

@@ -493,14 +493,14 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                                    Integer max_innermost_factor,
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
+                                                    IntImm max_innermost_factor,
                                                     ffi::Optional<ffi::Array<int64_t>> decision) {
     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      Integer n, Integer max_innermost_factor,
+                                      IntImm n, IntImm max_innermost_factor,
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_perfect_tile");
     py.Input("loop", loop_rv);
@@ -524,15 +524,15 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
   static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                                    Integer partition_pos, Integer innerpart_factor,
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
+                                                    IntImm partition_pos, IntImm innerpart_factor,
                                                     ffi::Optional<ffi::Array<int64_t>> decision) {
     return sch->SamplePartitionedTile(loop_rv, n->value, partition_pos->value,
                                       innerpart_factor->value, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      Integer n, Integer partition_pos, Integer innerpart_factor,
+                                      IntImm n, IntImm partition_pos, IntImm innerpart_factor,
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_partitioned_tile");
     py.Input("loop", loop_rv);

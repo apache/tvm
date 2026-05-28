@@ -581,7 +581,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = Downcast<ffi::String>(codegen_result[0]);
-  int num_matched_ops = Downcast<Integer>(codegen_result[1])->value;
+  int num_matched_ops = Downcast<IntImm>(codegen_result[1])->value;
   ffi::Array<Buffer> func1_args = Downcast<ffi::Array<Buffer>>(codegen_result[2]);
   if (num_matched_ops == 0) {
     return {func, std::nullopt};

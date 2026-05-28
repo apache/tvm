@@ -150,7 +150,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   }
   std::vector<int64_t> s;
   std::transform(shape.begin(), shape.end(), std::back_inserter(s),
-                 [](Integer i) { return i.IntValue(); });
+                 [](int64_t i) { return i; });
   return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
 }
 

@@ -126,9 +126,9 @@ ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
       func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
 
   ffi::Array<Buffer> layout_free_buffers;
-  for (const Integer& index : layout_free_buffer_index) {
-    TVM_FFI_ICHECK(static_cast<size_t>(index->value) < func->params.size());
-    const Var& param = func->params[index->value];
+  for (int64_t index : layout_free_buffer_index) {
+    TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
+    const Var& param = func->params[index];
     layout_free_buffers.push_back(func->buffer_map.at(param));
   }
 

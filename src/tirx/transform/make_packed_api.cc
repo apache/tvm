@@ -228,7 +228,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // The device context
   Var device_id("dev_id");
-  Integer device_type(target_device_type);
+  IntImm device_type(DataType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
