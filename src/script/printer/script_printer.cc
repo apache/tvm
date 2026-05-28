@@ -80,6 +80,9 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("module_alias")) {
     n->module_alias = Downcast<ffi::String>(v.value());
   }
+  if (auto v = config_dict.Get("buffer_dtype")) {
+    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+  }
   if (auto v = config_dict.Get("int_dtype")) {
     n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
   }
@@ -128,11 +131,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     if (auto v = config_dict.Get(key)) {
       n->extra_config.Set(ffi::String(key), v.value());
     }
-  }
-  // "tirx.buffer_dtype" is passed as a DLDataType string from Python; convert to DataType.
-  if (auto v = config_dict.Get("tirx.buffer_dtype")) {
-    DataType dt(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
-    n->extra_config.Set(ffi::String("tirx.buffer_dtype"), ffi::Any(dt));
   }
   // Boolean dialect keys.
   if (auto v = config_dict.Get("relax.show_all_struct_info")) {

@@ -38,6 +38,7 @@ class PrinterConfig(Object):
     tir_import_module: str
     relax_prefix: str
     module_alias: str
+    buffer_dtype: str
     int_dtype: str
     float_dtype: str
     verbose_expr: bool
@@ -86,6 +87,7 @@ class PrinterConfig(Object):
             "tir_import_module": tir_import_module,
             "relax_prefix": relax_prefix,
             "module_alias": module_alias,
+            "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
             "float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
@@ -100,7 +102,6 @@ class PrinterConfig(Object):
             "obj_to_annotate": obj_to_annotate,
             # Dialect-specific config via dotted keys in extra_config
             "tirx.prefix": tir_prefix,
-            "tirx.buffer_dtype": buffer_dtype,
             "relax.prefix": relax_prefix,
             "relax.show_all_struct_info": show_all_struct_info,
         }
