@@ -335,8 +335,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<Stmt> inits;
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
-      inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm(DataType::Int(32), 0)}));
+      inits.push_back(BufferStore(it_buffers.value()[i], reducer->identity_element[i],
+                                  {IntImm(DataType::Int(32), 0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/const_true(),
@@ -464,8 +464,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       wb_indices.push_back(Substitute(old_wb_indices[d], var_map));
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm(DataType::Int(32), 0)}), wb_indices));
+      wb_updates.push_back(BufferStore(
+          wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm(DataType::Int(32), 0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 

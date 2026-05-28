@@ -27,8 +27,8 @@
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
 #include <set>
@@ -545,7 +545,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
     seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                     /*predicate=*/IntImm(DataType::Bool(), 1),
+                                     /*predicate=*/const_true(),
                                      /*block=*/
                                      SBlock(/*iter_vars=*/leaf.block_iters,
                                             /*reads=*/{},

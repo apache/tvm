@@ -224,9 +224,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             bool assume_inbound = args[6].cast<bool>();
             if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
                 IsConstIntArray(x->shape)) {
-              ffi::Array<int64_t> begin_static = args[1].cast<ffi::Array<int64_t>>();
-              ffi::Array<int64_t> end_static = args[2].cast<ffi::Array<int64_t>>();
-              ffi::Array<int64_t> strides_static = args[3].cast<ffi::Array<int64_t>>();
+              ffi::Array<ffi::Optional<IntImm>> begin_static =
+                  args[1].cast<ffi::Array<ffi::Optional<IntImm>>>();
+              ffi::Array<ffi::Optional<IntImm>> end_static =
+                  args[2].cast<ffi::Array<ffi::Optional<IntImm>>>();
+              ffi::Array<IntImm> strides_static = args[3].cast<ffi::Array<IntImm>>();
               auto slice_mode = args[5].cast<std::string>();
               if (axes.size()) {
                 *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes,

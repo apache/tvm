@@ -743,13 +743,14 @@ class LoopReconstructor : private StmtMutator {
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], IntImm(DataType::Int(32), 0), new_loop_extents[0], ForKind::kSerial,
-                        SeqStmt(std::move(new_stmts)));
+    auto new_loop = For(new_loop_vars[0], IntImm(DataType::Int(32), 0), new_loop_extents[0],
+                        ForKind::kSerial, SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop = For(loop_var, IntImm(DataType::Int(32), 0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop =
+          For(loop_var, IntImm(DataType::Int(32), 0), loop_extent, ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }
@@ -1313,7 +1314,8 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
-                                      ffi::Array<ffi::String> loop_rvs, IntImm preserve_unit_iters) {
+                                      ffi::Array<ffi::String> loop_rvs,
+                                      IntImm preserve_unit_iters) {
     PythonAPICall py("fuse");
     for (const ffi::String& loop_rv : loop_rvs) {
       py.Input("", loop_rv);

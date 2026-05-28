@@ -486,7 +486,8 @@ class AutoPadder {
       } else {
         int64_t extent =
             warp_thread_extent_.Get(op->thread_binding.value()->thread_tag).value_or(1);
-        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm(DataType::Int(64), extent)));
+        var_range_.Set(op->loop_var,
+                       Range::FromMinExtent(op->min, IntImm(DataType::Int(64), extent)));
       }
       if (op->kind == ForKind::kVectorized) {
         vector_var = op->loop_var;

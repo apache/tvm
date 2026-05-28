@@ -25,8 +25,8 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {

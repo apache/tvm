@@ -633,7 +633,7 @@ class StructInfoBasePreconditionCollector
   PrimExpr VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
     if (lhs.same_as(other)) {
       // Early bail-out if the StructInfo has reference equality.
-      return IntImm(DataType::Bool(), 1);
+      return tirx::const_true();
     } else {
       return StructInfoFunctor::VisitStructInfo(lhs, other);
     }

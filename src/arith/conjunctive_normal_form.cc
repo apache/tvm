@@ -147,7 +147,8 @@ class AndOfOrs {
 };
 
 AndOfOrs::AndOfOrs(const PrimExpr& expr)
-    : key_true_(GetKey(IntImm(DataType::Bool(), 1))), key_false_(GetKey(IntImm(DataType::Bool(), 0))) {
+    : key_true_(GetKey(IntImm(DataType::Bool(), 1))),
+      key_false_(GetKey(IntImm(DataType::Bool(), 0))) {
   VisitAndExpressions(expr, [&](const PrimExpr& outer_expr) {
     std::vector<Key> or_components;
     VisitOrExpressions(outer_expr, [&](const PrimExpr& inner_expr) {

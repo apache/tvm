@@ -195,7 +195,8 @@ void SBlockFrameNode::ExitWithScope() {
         << "`T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
-    AddToParent(tvm::tirx::SBlockRealize(iter_values, predicate.value_or(IntImm(DataType::Bool(), 1)), block));
+    AddToParent(tvm::tirx::SBlockRealize(iter_values,
+                                         predicate.value_or(IntImm(DataType::Bool(), 1)), block));
   }
 }
 

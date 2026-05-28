@@ -627,9 +627,11 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  ffi::Array<int64_t> begin_idx, end_idx, strides;
+  ffi::Array<ffi::Optional<IntImm>> begin_idx, end_idx;
+  ffi::Array<IntImm> strides;
+  DataType index_dtype = DataType::Int(64);
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
-    strides.push_back(int64_t(1));
+    strides.push_back(IntImm(index_dtype, 1));
     if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
       int64_t begin_i = GetConstInt(crop_begin_list[i - 1]);
@@ -638,12 +640,12 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
       TVM_FFI_ICHECK_GT(out_i, (begin_i + end_i))
           << "Incorrect crop sizes for (" << i << ")th dim, can not crop more than"
           << " output size" << out_i << " vs " << (begin_i + end_i);
-      begin_idx.push_back(begin_i);
-      end_idx.push_back(out_i - end_i);
+      begin_idx.push_back(IntImm(index_dtype, begin_i));
+      end_idx.push_back(IntImm(index_dtype, out_i - end_i));
     } else {
       // ignore the batch and remaining dimension
-      begin_idx.push_back(int64_t(0));
-      end_idx.push_back(GetConstInt(r_p_shape[i]));
+      begin_idx.push_back(IntImm(index_dtype, 0));
+      end_idx.push_back(IntImm(index_dtype, GetConstInt(r_p_shape[i])));
     }
   }
 

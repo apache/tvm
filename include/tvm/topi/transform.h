@@ -865,17 +865,19 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  * \return The output shape of strided_slice using the arguments above
  */
 inline ffi::Array<PrimExpr> StridedSliceOutputShape(const ffi::Array<PrimExpr>& ishape,
-                                                    const ffi::Array<int64_t>& begin,
-                                                    const ffi::Array<int64_t>& end,
-                                                    const ffi::Array<int64_t>& strides,
+                                                    const ffi::Array<ffi::Optional<IntImm>>& begin,
+                                                    const ffi::Array<ffi::Optional<IntImm>>& end,
+                                                    const ffi::Array<IntImm>& strides,
                                                     const ffi::Array<int64_t>& axes,
                                                     const std::string& slice_mode) {
   TVM_FFI_ICHECK(axes.size() == begin.size() && axes.size() == end.size() &&
                  axes.size() == strides.size());
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
-  auto begin_canonicalized = StridedSliceCanonicalizeBegin(ishape, begin_vec, strides_vec, axes,
-                                                           DataType::Int(64), slice_mode);
+  DataType index_dtype =
+      (begin.size() > 0 && begin[0].defined()) ? begin[0].value()->dtype : DataType::Int(64);
+  auto begin_canonicalized =
+      StridedSliceCanonicalizeBegin(ishape, begin_vec, strides_vec, axes, index_dtype, slice_mode);
   return StridedSliceOutputShape(ishape, begin_vec, end_vec, strides_vec, axes, slice_mode,
                                  begin_canonicalized, true);
 }
@@ -896,13 +898,11 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(const ffi::Array<PrimExpr>& 
  *
  * \return A Tensor whose op member is the sstrided_slice operation
  */
-inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<int64_t>& begin,
-                                      const ffi::Array<int64_t>& end,
-                                      const ffi::Array<int64_t>& strides,
-                                      const ffi::Array<int64_t>& axes,
-                                      std::string slice_mode = "end",
-                                      std::string name = "T_strided_slice_with_axes",
-                                      std::string tag = kInjective) {
+inline Tensor strided_slice_with_axes(
+    const Tensor& x, const ffi::Array<ffi::Optional<IntImm>>& begin,
+    const ffi::Array<ffi::Optional<IntImm>>& end, const ffi::Array<IntImm>& strides,
+    const ffi::Array<int64_t>& axes, std::string slice_mode = "end",
+    std::string name = "T_strided_slice_with_axes", std::string tag = kInjective) {
   const int64_t src_tensor_dim = static_cast<int64_t>(x->shape.size());
   TVM_FFI_ICHECK(static_cast<int64_t>(axes.size()) <= src_tensor_dim);
   TVM_FFI_ICHECK(axes.size() == begin.size() && axes.size() == end.size() &&
@@ -924,7 +924,8 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<int64_t>
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
 
-  DataType index_dtype = begin.size() > 0 ? DataType::Int(64) : DataType::Int(64);
+  DataType index_dtype =
+      (begin.size() > 0 && begin[0].defined()) ? begin[0].value()->dtype : DataType::Int(64);
   auto begin_expr = StridedSliceCanonicalizeBegin(x->shape, begin_vec, strides_vec, normalized_axes,
                                                   index_dtype, slice_mode);
   auto out_shape = StridedSliceOutputShape(x->shape, begin_vec, end_vec, strides_vec,
@@ -937,7 +938,7 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<int64_t>
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
           int64_t ax = normalized_axes[i];
-          auto stride = make_const(DataType::Int(64), strides_vec[i]);
+          auto stride = make_const(strides[i]->dtype, strides_vec[i]);
           PrimExpr ind = indices[ax] * stride + begin_expr[i];
           real_indices.Set(ax, ind);
         }
@@ -960,29 +961,31 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<int64_t>
  *
  * \return A Tensor whose op member is the strided_slice operation
  */
-inline Tensor strided_slice(const Tensor& x, const ffi::Array<int64_t>& begin,
-                            const ffi::Array<int64_t>& end, const ffi::Array<int64_t>& strides,
-                            std::string slice_mode = "end", std::string name = "T_strided_slice",
-                            std::string tag = kInjective) {
+inline Tensor strided_slice(const Tensor& x, const ffi::Array<ffi::Optional<IntImm>>& begin,
+                            const ffi::Array<ffi::Optional<IntImm>>& end,
+                            const ffi::Array<IntImm>& strides, std::string slice_mode = "end",
+                            std::string name = "T_strided_slice", std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   ffi::Array<int64_t> axes;
   for (size_t i = 0; i < src_tensor_dim; ++i) axes.push_back(i);
-  ffi::Array<int64_t> begin_full(begin);
-  ffi::Array<int64_t> end_full(end);
-  ffi::Array<int64_t> strides_full(strides);
+  ffi::Array<ffi::Optional<IntImm>> begin_full(begin);
+  ffi::Array<ffi::Optional<IntImm>> end_full(end);
+  ffi::Array<IntImm> strides_full(strides);
 
-  constexpr int64_t one = 1;
-  constexpr int64_t zero = 0;
-  const int64_t max_range = std::numeric_limits<int64_t>::max();
+  DataType index_dtype =
+      (begin.size() > 0 && begin[0].defined()) ? begin[0].value()->dtype : DataType::Int(64);
+  const IntImm one = IntImm(index_dtype, 1);
+  const IntImm zero = IntImm(index_dtype, 0);
+  const IntImm max_range = Downcast<IntImm>(max_value(index_dtype));
 
   for (size_t i = strides.size(); i < src_tensor_dim; ++i) {
     strides_full.push_back(one);
   }
   for (size_t i = begin.size(); i < src_tensor_dim; ++i) {
-    begin_full.push_back(strides_full[i] > 0 ? zero : max_range);
+    begin_full.push_back(strides_full[i]->value > 0 ? zero : max_range);
   }
   for (size_t i = end.size(); i < src_tensor_dim; ++i) {
-    end_full.push_back(strides_full[i] < 0 ? zero : max_range);
+    end_full.push_back(strides_full[i]->value < 0 ? zero : max_range);
   }
 
   return strided_slice_with_axes(x, begin_full, end_full, strides_full, axes, slice_mode, name,

@@ -100,7 +100,8 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = IntImm(DataType::Int(32), attrs->pool_size[0]);
-  PrimExpr padding_w = IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[1]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[1]);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCW_shape;
@@ -108,14 +109,15 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = data_NCW_shape[1];
 
-  PrimExpr numerator_w = input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_w += IntImm(DataType::Int(32), attrs->strides[0]) - 1;
   }
   PrimExpr raw_out_w = floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[0])) + 1;
   if (attrs->ceil_mode) {
-    PrimExpr invalid_last_w =
-        (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >= input_w + IntImm(DataType::Int(32), attrs->padding[0]);
+    PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >=
+                              input_w + IntImm(DataType::Int(32), attrs->padding[0]);
     out_NCW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
   } else {
     out_NCW_shape[2] = analyzer->Simplify(raw_out_w);
@@ -225,8 +227,10 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = IntImm(DataType::Int(32), attrs->pool_size[0]);
   PrimExpr kernel_w = IntImm(DataType::Int(32), attrs->pool_size[1]);
-  PrimExpr padding_h = IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[2]);
-  PrimExpr padding_w = IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[3]);
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[2]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[3]);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCHW_shape;
@@ -234,8 +238,10 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = data_NCHW_shape[1];
 
-  PrimExpr numerator_h = input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_h =
+      input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_h += IntImm(DataType::Int(32), attrs->strides[0]) - 1;
     numerator_w += IntImm(DataType::Int(32), attrs->strides[1]) - 1;
@@ -243,10 +249,10 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr raw_out_h = floordiv(numerator_h, IntImm(DataType::Int(32), attrs->strides[0])) + 1;
   PrimExpr raw_out_w = floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[1])) + 1;
   if (attrs->ceil_mode) {
-    PrimExpr invalid_last_h =
-        (raw_out_h - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >= input_h + IntImm(DataType::Int(32), attrs->padding[0]);
-    PrimExpr invalid_last_w =
-        (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[1]) >= input_w + IntImm(DataType::Int(32), attrs->padding[1]);
+    PrimExpr invalid_last_h = (raw_out_h - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >=
+                              input_h + IntImm(DataType::Int(32), attrs->padding[0]);
+    PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[1]) >=
+                              input_w + IntImm(DataType::Int(32), attrs->padding[1]);
     out_NCHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
     out_NCHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
   } else {
@@ -381,9 +387,12 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_d = IntImm(DataType::Int(32), attrs->pool_size[0]);
   PrimExpr kernel_h = IntImm(DataType::Int(32), attrs->pool_size[1]);
   PrimExpr kernel_w = IntImm(DataType::Int(32), attrs->pool_size[2]);
-  PrimExpr padding_d = IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[3]);
-  PrimExpr padding_h = IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[4]);
-  PrimExpr padding_w = IntImm(DataType::Int(32), attrs->padding[2]) + IntImm(DataType::Int(32), attrs->padding[5]);
+  PrimExpr padding_d =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[3]);
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[4]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[2]) + IntImm(DataType::Int(32), attrs->padding[5]);
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCDHW_shape;
@@ -391,9 +400,12 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape[0] = data_NCDHW_shape[0];
   out_NCDHW_shape[1] = data_NCDHW_shape[1];
 
-  PrimExpr numerator_d = input_d + padding_d - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_d - 1) - 1;
-  PrimExpr numerator_h = input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[2]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_d =
+      input_d + padding_d - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_d - 1) - 1;
+  PrimExpr numerator_h =
+      input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[2]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_d += IntImm(DataType::Int(32), attrs->strides[0]) - 1;
     numerator_h += IntImm(DataType::Int(32), attrs->strides[1]) - 1;
@@ -403,12 +415,12 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr raw_out_h = floordiv(numerator_h, IntImm(DataType::Int(32), attrs->strides[1])) + 1;
   PrimExpr raw_out_w = floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[2])) + 1;
   if (attrs->ceil_mode) {
-    PrimExpr invalid_last_d =
-        (raw_out_d - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >= input_d + IntImm(DataType::Int(32), attrs->padding[0]);
-    PrimExpr invalid_last_h =
-        (raw_out_h - 1) * IntImm(DataType::Int(32), attrs->strides[1]) >= input_h + IntImm(DataType::Int(32), attrs->padding[1]);
-    PrimExpr invalid_last_w =
-        (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[2]) >= input_w + IntImm(DataType::Int(32), attrs->padding[2]);
+    PrimExpr invalid_last_d = (raw_out_d - 1) * IntImm(DataType::Int(32), attrs->strides[0]) >=
+                              input_d + IntImm(DataType::Int(32), attrs->padding[0]);
+    PrimExpr invalid_last_h = (raw_out_h - 1) * IntImm(DataType::Int(32), attrs->strides[1]) >=
+                              input_h + IntImm(DataType::Int(32), attrs->padding[1]);
+    PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm(DataType::Int(32), attrs->strides[2]) >=
+                              input_w + IntImm(DataType::Int(32), attrs->padding[2]);
     out_NCDHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d));
     out_NCDHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
     out_NCDHW_shape[4] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));

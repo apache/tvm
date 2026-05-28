@@ -675,7 +675,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
       }
     } else {
       // Add local stage and double buffering
-      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, IntImm(DataType::Int(32), 1));
+      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage,
+                    IntImm(DataType::Int(32), 1));
       sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
     }
   }

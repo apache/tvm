@@ -149,8 +149,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
                               << "\nThe error is: " << e.what();
   }
   std::vector<int64_t> s;
-  std::transform(shape.begin(), shape.end(), std::back_inserter(s),
-                 [](int64_t i) { return i; });
+  std::transform(shape.begin(), shape.end(), std::back_inserter(s), [](int64_t i) { return i; });
   return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
 }
 

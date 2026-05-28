@@ -68,7 +68,8 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize, IntImm(DataType::Int(32), max_vectorize_extent));
+      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize,
+                    IntImm(DataType::Int(32), max_vectorize_extent));
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {

@@ -50,30 +50,38 @@ inline int64_t CanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) 
 }
 
 inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>> ConvertToVec(
-    const ffi::Array<int64_t>& begin, const ffi::Array<int64_t>& end,
-    const ffi::Array<int64_t>& strides, std::string slice_mode) {
+    const ffi::Array<ffi::Optional<IntImm>>& begin, const ffi::Array<ffi::Optional<IntImm>>& end,
+    const ffi::Array<IntImm>& strides, std::string slice_mode) {
   std::vector<int64_t> stride_vec(strides.size(), 1);
   if (slice_mode == "end") {
     for (size_t i = 0; i < strides.size(); ++i) {
-      stride_vec[i] = strides[i];
+      stride_vec[i] = strides[i]->value;
     }
   }
   const int64_t max_range = std::numeric_limits<int64_t>::max();
   std::vector<int64_t> begin_vec;
   for (size_t i = 0; i < begin.size(); ++i) {
-    begin_vec.push_back(begin[i]);
+    if (!begin[i].defined()) {
+      // value=None
+      begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
+    } else {
+      begin_vec.push_back(begin[i].value()->value);
+    }
   }
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
-    if (slice_mode == "size") {
-      int64_t end_val = end[i];
+    // allow end to be None
+    if (!end[i].defined()) {
+      end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+    } else if (slice_mode == "size") {
+      int64_t end_val = end[i].value()->value;
       if (end_val < 0) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {
         end_vec.push_back(begin_vec[i] + end_val);
       }
     } else {
-      end_vec.push_back(end[i]);
+      end_vec.push_back(end[i].value()->value);
     }
   }
   return std::make_tuple(begin_vec, end_vec, stride_vec);

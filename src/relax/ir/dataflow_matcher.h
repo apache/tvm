@@ -28,11 +28,11 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
+#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace relax {

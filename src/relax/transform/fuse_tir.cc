@@ -24,8 +24,8 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -155,7 +155,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
   arith::Analyzer* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
-  PrimExpr must_prove_ = IntImm(DataType::Bool(), 1);
+  PrimExpr must_prove_ = const_true();
 };
 
 /*!

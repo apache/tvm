@@ -471,7 +471,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
       constraints.begin(), constraints.end(),
       [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
 
-  PrimExpr sorted_condition = IntImm(DataType::Bool(), 1);
+  PrimExpr sorted_condition = tirx::const_true();
   for (const PrimExpr& constraint : constraints) {
     sorted_condition = sorted_condition && constraint;
   }

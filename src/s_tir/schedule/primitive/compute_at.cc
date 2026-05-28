@@ -820,7 +820,8 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops, IntImm index) {
+                                      ffi::String loop_rv, IntImm preserve_unit_loops,
+                                      IntImm index) {
     PythonAPICall py("compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
@@ -844,12 +845,12 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
                                       IntImm preserve_unit_loops, IntImm index) {
-    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0,
-                                 index->value);
+    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops->value != 0, index->value);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      ffi::String loop_rv, IntImm preserve_unit_loops, IntImm index) {
+                                      ffi::String loop_rv, IntImm preserve_unit_loops,
+                                      IntImm index) {
     PythonAPICall py("reverse_compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);

@@ -1072,7 +1072,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       PrimExpr y_div = CanProveEqual(floordiv(yval, c2val), 0) ? 0 : floordiv(yval, c2val);
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
-        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + IntImm(DataType::Int(32), bound->max_value));
+        return x.Eval() * floordiv(c1val, c2.Eval()) +
+               (y_div + IntImm(DataType::Int(32), bound->max_value));
       }
 
       // try simplify divisor

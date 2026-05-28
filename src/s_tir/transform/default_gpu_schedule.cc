@@ -70,15 +70,17 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
-    ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused,
-        /*factors=*/{std::nullopt, IntImm(DataType::Int(32), max_threadblocks), IntImm(DataType::Int(32), max_thread_per_block)});
+    ffi::Array<s_tir::LoopRV> splits =
+        sch->Split(fused,
+                   /*factors=*/{std::nullopt, IntImm(DataType::Int(32), max_threadblocks),
+                                IntImm(DataType::Int(32), max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
     ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused, /*factors=*/{std::nullopt, IntImm(DataType::Int(32), std::min(product, max_thread_per_block))});
+        fused, /*factors=*/{std::nullopt,
+                            IntImm(DataType::Int(32), std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
   }
