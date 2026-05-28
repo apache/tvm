@@ -34,6 +34,7 @@
 #include <utility>
 
 #include "../target/datatype/registry.h"
+#include "../tirx/analysis/check_contains.h"
 #include "conjunctive_normal_form.h"
 #include "const_fold.h"
 #include "constraint_extract.h"
@@ -43,6 +44,19 @@ namespace tvm {
 namespace arith {
 
 namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<tirx::CallNode>()) {
+    return call->op.same_as(tirx::builtin::vscale());
+  }
+  return false;
+}
+
+// File-local helper: true if `expr` contains a call to tirx::builtin::vscale().
+bool ContainsVscaleCall(const PrimExpr& expr) {
+  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+}
+
 // File-local helper: returns the vscale multiplier if `lanes` is of the form
 // `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
