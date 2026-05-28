@@ -26,8 +26,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/script/printer/printer.h>
 
 #include <sstream>
 #include <string>
@@ -46,17 +46,6 @@ namespace printer {
 // definition here would force the dialect headers to depend on this shared
 // header, which the per-dialect restructure aims to avoid for cross-directory
 // references. See each `<dialect>/script/printer/utils.h` for the macro.
-inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
-  try {
-    return TVMScriptPrinter::Script(obj, std::nullopt);
-  } catch (const tvm::ffi::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                 << e.what();
-    std::ostringstream os;
-    os << obj->GetTypeKey() << '(' << obj.get() << ')';
-    return os.str();
-  }
-}
 
 inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
