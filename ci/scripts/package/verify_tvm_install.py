@@ -18,11 +18,20 @@
 
 from __future__ import annotations
 
+import faulthandler
 import os
 from pathlib import Path
 import sys
 
+faulthandler.enable(all_threads=True)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+
 import numpy as np
+
+
+def log(*args: object) -> None:
+    print(*args, flush=True)
 
 
 def expect_bool(name: str) -> bool | None:
@@ -40,7 +49,7 @@ def expect_bool(name: str) -> bool | None:
 def _clear_external_library_overrides() -> None:
     for name in ("TVM_LIBRARY_PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
         if name in os.environ:
-            print(f"clearing {name} before importing tvm")
+            log(f"clearing {name} before importing tvm")
             os.environ.pop(name, None)
 
 
@@ -56,7 +65,7 @@ def _assert_loaded_runtime_from_wheel(libdir: Path, runtime_candidates: list[Pat
 
     loaded_runtime = Path(tvm_base._LIB_RUNTIME._name).resolve()  # pylint: disable=protected-access
     expected_runtime_paths = {candidate.resolve() for candidate in runtime_candidates}
-    print("loaded runtime library:", loaded_runtime)
+    log("loaded runtime library:", loaded_runtime)
     if loaded_runtime not in expected_runtime_paths:
         expected = ", ".join(str(path) for path in sorted(expected_runtime_paths))
         raise RuntimeError(
@@ -82,6 +91,7 @@ def _verify_llvm_tirx_compile() -> None:
     import tvm  # pylint: disable=import-outside-toplevel
     from tvm import te  # pylint: disable=import-outside-toplevel
 
+    log("llvm tirx compile smoke: starting")
     extent = 8
     lhs_np = np.arange(extent, dtype="float32")
     rhs_np = np.arange(extent, dtype="float32") * np.float32(2)
@@ -98,13 +108,14 @@ def _verify_llvm_tirx_compile() -> None:
     out_t = tvm.runtime.tensor(out_np, dev)
     executable(lhs_t, rhs_t, out_t)
     np.testing.assert_allclose(out_t.numpy(), lhs_np + rhs_np, rtol=1e-6)
-    print("llvm tirx compile smoke: passed")
+    log("llvm tirx compile smoke: passed")
 
 
 def _verify_relax_compile() -> None:
     import tvm  # pylint: disable=import-outside-toplevel
     from tvm import relax  # pylint: disable=import-outside-toplevel
 
+    log("llvm relax compile smoke: starting")
     lhs_np = np.arange(8, dtype="float32")
     rhs_np = np.arange(8, dtype="float32") * np.float32(3)
     dev = tvm.cpu()
@@ -120,13 +131,15 @@ def _verify_relax_compile() -> None:
     vm = relax.VirtualMachine(executable, dev)
     out = vm["main"](tvm.runtime.tensor(lhs_np, dev), tvm.runtime.tensor(rhs_np, dev))
     np.testing.assert_allclose(out.numpy(), lhs_np + rhs_np, rtol=1e-6)
-    print("llvm relax compile smoke: passed")
+    log("llvm relax compile smoke: passed")
 
 
 def main() -> int:
     _clear_external_library_overrides()
 
+    log("import tvm: starting")
     import tvm  # pylint: disable=import-outside-toplevel
+    log("import tvm: passed")
 
     root = Path(tvm.__file__).resolve().parent
     libdir = root / "lib"
@@ -143,8 +156,8 @@ def main() -> int:
         runtime_candidates = [libdir / "libtvm_runtime.so"]
         cuda_runtime_candidates = [libdir / "libtvm_runtime_cuda.so"]
 
-    print("tvm version:", tvm.__version__)
-    print("tvm package:", root)
+    log("tvm version:", tvm.__version__)
+    log("tvm package:", root)
     llvm_enabled = bool(tvm.runtime.enabled("llvm"))
     cuda_enabled = bool(tvm.runtime.enabled("cuda"))
     runtime_lib = _first_existing(runtime_candidates)
@@ -153,19 +166,19 @@ def main() -> int:
     cuda_runtime_present = any(candidate.exists() for candidate in cuda_runtime_candidates)
     dynamic_llvm_libs = _dynamic_llvm_libs(libdir)
 
-    print("llvm enabled:", llvm_enabled)
-    print("cuda runtime enabled:", cuda_enabled)
-    print("runtime library:", runtime_lib)
+    log("llvm enabled:", llvm_enabled)
+    log("cuda runtime enabled:", cuda_enabled)
+    log("runtime library:", runtime_lib)
     if not runtime_present:
         raise RuntimeError(
             "runtime library is missing; checked "
             + ", ".join(str(candidate) for candidate in runtime_candidates)
         )
     _assert_loaded_runtime_from_wheel(libdir, runtime_candidates)
-    print("cuda runtime present:", cuda_runtime_present)
+    log("cuda runtime present:", cuda_runtime_present)
     if cuda_runtime_present:
-        print("cuda runtime library:", cuda_runtime)
-    print("dynamic LLVM libraries:", [str(path) for path in dynamic_llvm_libs])
+        log("cuda runtime library:", cuda_runtime)
+    log("dynamic LLVM libraries:", [str(path) for path in dynamic_llvm_libs])
 
     expected_llvm = expect_bool("TVM_EXPECT_LLVM_ENABLED")
     if expected_llvm is not None and llvm_enabled != expected_llvm:
@@ -187,6 +200,7 @@ def main() -> int:
     expected_cuda = expect_bool("TVM_EXPECT_CUDA_ENABLED")
     if expected_cuda is not None and cuda_enabled != expected_cuda:
         raise RuntimeError(f"cuda runtime enabled: expected {expected_cuda}, got {cuda_enabled}")
+    log("verify tvm install: passed")
     return 0
 
 
