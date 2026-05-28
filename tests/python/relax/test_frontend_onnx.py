@@ -863,6 +863,23 @@ def test_cast(from_type, to_type):
     check_correctness(model, opset=13)
 
 
+def test_cast_nan_inf_to_int8():
+    vals = np.array([300.0, np.nan, np.PINF, np.NINF, 50.0, -50.0], dtype=np.float32)
+    node = helper.make_node("Cast", inputs=["a"], outputs=["b"], to=TensorProto.INT8)
+    graph = helper.make_graph(
+        [node],
+        "cast_nan_inf_test",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, list(vals.shape))],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.INT8, list(vals.shape))],
+    )
+    model = helper.make_model(graph, producer_name="cast_nan_inf_test")
+    tvm_output = run_in_tvm(model, inputs={"a": vals}, opset=13)
+    out_np = tvm_output.numpy()
+    expected = np.array([44, 0, 0, 0, 50, -50], dtype=np.int8)
+    assert out_np.dtype == np.int8
+    np.testing.assert_array_equal(out_np, expected)
+
+
 def test_gather():
     def _verify_gather(data_shape, indices, out_shape, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
