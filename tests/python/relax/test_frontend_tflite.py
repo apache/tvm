@@ -3941,6 +3941,40 @@ def _build_call_once_options(builder, init_subgraph_index):
     return _tfl_call_once_options.CallOnceOptionsEnd(builder)
 
 
+def _get_builtin_options_type(options_name):
+    if not hasattr(_tfl_builtin_options, options_name):
+        pytest.skip(f"TFLite schema does not provide BuiltinOptions.{options_name}")
+    return getattr(_tfl_builtin_options, options_name)
+
+
+def _get_resource_tensor_type():
+    if not hasattr(_tfl_tensor_type, "RESOURCE"):
+        pytest.skip("TFLite schema does not provide TensorType.RESOURCE")
+    return getattr(_tfl_tensor_type, "RESOURCE")
+
+
+def _build_var_handle_options(builder, shared_name="resource_var", container=""):
+    try:
+        var_handle_options = _get_tflite_schema_module("VarHandleOptions")
+    except ModuleNotFoundError:
+        pytest.skip("TFLite schema does not provide VarHandleOptions")
+    container_offset = builder.CreateString(container)
+    shared_name_offset = builder.CreateString(shared_name)
+    var_handle_options.VarHandleOptionsStart(builder)
+    var_handle_options.VarHandleOptionsAddContainer(builder, container_offset)
+    var_handle_options.VarHandleOptionsAddSharedName(builder, shared_name_offset)
+    return var_handle_options.VarHandleOptionsEnd(builder)
+
+
+def _build_empty_builtin_options(builder, options_name):
+    try:
+        options_module = _get_tflite_schema_module(options_name)
+    except ModuleNotFoundError:
+        pytest.skip(f"TFLite schema does not provide {options_name}")
+    getattr(options_module, f"{options_name}Start")(builder)
+    return getattr(options_module, f"{options_name}End")(builder)
+
+
 def _load_model_from_buffer(model_bytes):
     if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
@@ -5271,6 +5305,213 @@ def test_call_once_invalid_index_unsupported():
         tvm.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
     ):
         _load_model_from_buffer(_build_tflite_call_once_model(init_subgraph_index=2))
+
+
+def _build_tflite_resource_variable_model():
+    """Build a model that initializes a resource variable in CALL_ONCE and reads it."""
+    builder = flatbuffers.Builder(1024)
+    resource_type = _get_resource_tensor_type()
+    initial_value = np.array([1.0, 2.0], dtype=np.float32)
+
+    call_once_options = _build_call_once_options(builder, 1)
+    main_var_handle_options = _build_var_handle_options(builder)
+    main_read_options = _build_empty_builtin_options(builder, "ReadVariableOptions")
+    init_var_handle_options = _build_var_handle_options(builder)
+    init_assign_options = _build_empty_builtin_options(builder, "AssignVariableOptions")
+
+    resource_tensor = _build_tensor(builder, 0, [], tensor_type=resource_type)
+    main_output_tensor = _build_tensor(builder, 0, [2])
+    main_call_once = _build_operator(
+        builder,
+        0,
+        [],
+        [],
+        builtin_options_type=_get_builtin_options_type("CallOnceOptions"),
+        builtin_options=call_once_options,
+    )
+    main_var_handle = _build_operator(
+        builder,
+        1,
+        [],
+        [0],
+        builtin_options_type=_get_builtin_options_type("VarHandleOptions"),
+        builtin_options=main_var_handle_options,
+    )
+    main_read = _build_operator(
+        builder,
+        2,
+        [0],
+        [1],
+        builtin_options_type=_get_builtin_options_type("ReadVariableOptions"),
+        builtin_options=main_read_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[resource_tensor, main_output_tensor],
+        operators=[main_call_once, main_var_handle, main_read],
+        inputs=[],
+        outputs=[1],
+    )
+
+    init_resource_tensor = _build_tensor(builder, 0, [], tensor_type=resource_type)
+    init_value_tensor = _build_tensor(builder, 1, [2])
+    init_var_handle = _build_operator(
+        builder,
+        1,
+        [],
+        [0],
+        builtin_options_type=_get_builtin_options_type("VarHandleOptions"),
+        builtin_options=init_var_handle_options,
+    )
+    init_assign = _build_operator(
+        builder,
+        3,
+        [0, 1],
+        [],
+        builtin_options_type=_get_builtin_options_type("AssignVariableOptions"),
+        builtin_options=init_assign_options,
+    )
+    init_subgraph = _build_subgraph(
+        builder,
+        tensors=[init_resource_tensor, init_value_tensor],
+        operators=[init_var_handle, init_assign],
+        inputs=[],
+        outputs=[],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL_ONCE")),
+        _build_operator_code(builder, _get_builtin_operator("VAR_HANDLE")),
+        _build_operator_code(builder, _get_builtin_operator("READ_VARIABLE")),
+        _build_operator_code(builder, _get_builtin_operator("ASSIGN_VARIABLE")),
+    ]
+    buffers = [_build_buffer(builder), _build_buffer(builder, initial_value.tobytes())]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[init_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_resource_assign_in_main_model():
+    """Build a model that attempts to assign a resource variable in the main subgraph."""
+    builder = flatbuffers.Builder(1024)
+    resource_type = _get_resource_tensor_type()
+    value = np.array([1.0, 2.0], dtype=np.float32)
+
+    var_handle_options = _build_var_handle_options(builder)
+    assign_options = _build_empty_builtin_options(builder, "AssignVariableOptions")
+    resource_tensor = _build_tensor(builder, 0, [], tensor_type=resource_type)
+    value_tensor = _build_tensor(builder, 1, [2])
+    var_handle = _build_operator(
+        builder,
+        0,
+        [],
+        [0],
+        builtin_options_type=_get_builtin_options_type("VarHandleOptions"),
+        builtin_options=var_handle_options,
+    )
+    assign = _build_operator(
+        builder,
+        1,
+        [0, 1],
+        [],
+        builtin_options_type=_get_builtin_options_type("AssignVariableOptions"),
+        builtin_options=assign_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[resource_tensor, value_tensor],
+        operators=[var_handle, assign],
+        inputs=[],
+        outputs=[1],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("VAR_HANDLE")),
+        _build_operator_code(builder, _get_builtin_operator("ASSIGN_VARIABLE")),
+    ]
+    buffers = [_build_buffer(builder), _build_buffer(builder, value.tobytes())]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_resource_read_uninitialized_model():
+    """Build a model that reads a resource variable without CALL_ONCE initialization."""
+    builder = flatbuffers.Builder(1024)
+    resource_type = _get_resource_tensor_type()
+
+    var_handle_options = _build_var_handle_options(builder)
+    read_options = _build_empty_builtin_options(builder, "ReadVariableOptions")
+    resource_tensor = _build_tensor(builder, 0, [], tensor_type=resource_type)
+    output_tensor = _build_tensor(builder, 0, [2])
+    var_handle = _build_operator(
+        builder,
+        0,
+        [],
+        [0],
+        builtin_options_type=_get_builtin_options_type("VarHandleOptions"),
+        builtin_options=var_handle_options,
+    )
+    read = _build_operator(
+        builder,
+        1,
+        [0],
+        [1],
+        builtin_options_type=_get_builtin_options_type("ReadVariableOptions"),
+        builtin_options=read_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[resource_tensor, output_tensor],
+        operators=[var_handle, read],
+        inputs=[],
+        outputs=[1],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("VAR_HANDLE")),
+        _build_operator_code(builder, _get_builtin_operator("READ_VARIABLE")),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder)],
+    )
+
+
+def test_resource_variable_call_once_init_read():
+    """Test reading a resource variable initialized by a supported CALL_ONCE subgraph."""
+    mod = _load_model_from_buffer(_build_tflite_resource_variable_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="float32") = R.const([1.0, 2.0], "float32")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_assign_variable_main_subgraph_unsupported():
+    """Test ASSIGN_VARIABLE remains unsupported outside CALL_ONCE initialization."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="ASSIGN_VARIABLE outside CALL_ONCE"):
+        _load_model_from_buffer(_build_tflite_resource_assign_in_main_model())
+
+
+def test_read_variable_uninitialized_unsupported():
+    """Test READ_VARIABLE rejects resource handles without supported initialization."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="READ_VARIABLE requires a resource"):
+        _load_model_from_buffer(_build_tflite_resource_read_uninitialized_model())
 
 
 def _get_stablehlo_builtin_operator(builtin_name):

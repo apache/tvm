@@ -175,10 +175,15 @@ class OperatorConverter:
                 "lowered_while_functions": {},
                 "lowering_stack": [],
                 "module_builder": ctx,
+                "resource_values": {},
+                "in_call_once_init": False,
             }
         else:
             conversion_state.setdefault("module_builder", ctx)
+            conversion_state.setdefault("resource_values", {})
+            conversion_state.setdefault("in_call_once_init", False)
         self.conversion_state = conversion_state
+        self.resource_handles = {}
 
         # Add more operators
         self.convert_map = {
@@ -187,6 +192,7 @@ class OperatorConverter:
             "ADD_N": self.convert_add_n,
             "ARG_MAX": functools.partial(self._convert_arg_min_max, relax_op=_op.argmax),
             "ARG_MIN": functools.partial(self._convert_arg_min_max, relax_op=_op.argmin),
+            "ASSIGN_VARIABLE": self.convert_assign_variable,
             "ATAN2": functools.partial(self._convert_elemwise, relax_op=_op.atan2),
             "AVERAGE_POOL_2D": functools.partial(self.convert_pool2d, pool_type="average"),
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
@@ -276,6 +282,7 @@ class OperatorConverter:
             "QUANTIZE": self.convert_quantize,
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
+            "READ_VARIABLE": self.convert_read_variable,
             "REDUCE_ALL": functools.partial(self._convert_reduce_bool, relax_op=_op.min),
             "REDUCE_ANY": functools.partial(self._convert_reduce_bool, relax_op=_op.max),
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
@@ -389,6 +396,7 @@ class OperatorConverter:
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_PROD", reduction="mul"
             ),
             # "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
+            "VAR_HANDLE": self.convert_var_handle,
             "WHERE": self.convert_select,
             "WHILE": self.convert_while,
             "ZEROS_LIKE": self.convert_zeros_like,
@@ -515,6 +523,93 @@ class OperatorConverter:
                     self.exp_tab.set_expr(
                         get_tensor_name(self.subgraph, output_tensor.tensor_idx), ret[idx]
                     )
+
+    @staticmethod
+    def _decode_tflite_string(value):
+        """Decode a TFLite string field."""
+        if value is None:
+            return ""
+        if isinstance(value, bytes | bytearray):
+            return value.decode("utf-8")
+        return str(value)
+
+    def _get_var_handle_resource_key(self, op, fallback_tensor=None):
+        """Return a stable resource key for a VAR_HANDLE op."""
+        container = ""
+        shared_name = ""
+        if op.BuiltinOptions() is not None:
+            try:
+                from tflite.VarHandleOptions import VarHandleOptions
+
+                opts = self._get_builtin_options(op, VarHandleOptions)
+                if hasattr(opts, "Container"):
+                    container = self._decode_tflite_string(opts.Container())
+                if hasattr(opts, "SharedName"):
+                    shared_name = self._decode_tflite_string(opts.SharedName())
+            except (ImportError, ModuleNotFoundError):
+                pass
+
+        if container or shared_name:
+            return (container, shared_name)
+        if fallback_tensor is not None:
+            return ("", get_tensor_name(self.subgraph, fallback_tensor.tensor_idx))
+        raise tvm.error.OpNotImplemented("VAR_HANDLE requires VarHandleOptions")
+
+    def _get_resource_key_for_handle(self, tensor, op_name):
+        tensor_name = get_tensor_name(self.subgraph, tensor.tensor_idx)
+        if tensor_name not in self.resource_handles:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} requires a VAR_HANDLE in the same TFLite subgraph"
+            )
+        return self.resource_handles[tensor_name]
+
+    def convert_var_handle(self, op):
+        """Convert a TFLite VAR_HANDLE into an importer-local resource handle."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 0 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("VAR_HANDLE expects no inputs and one output")
+
+        resource_key = self._get_var_handle_resource_key(op, output_tensors[0])
+        resource_tensor_name = get_tensor_name(self.subgraph, output_tensors[0].tensor_idx)
+        self.resource_handles[resource_tensor_name] = resource_key
+        return None
+
+    def convert_assign_variable(self, op):
+        """Convert the CALL_ONCE initialization subset of ASSIGN_VARIABLE."""
+        if not self.conversion_state["in_call_once_init"]:
+            raise tvm.error.OpNotImplemented(
+                "ASSIGN_VARIABLE outside CALL_ONCE initialization is not supported by the "
+                "Relax TFLite frontend yet because it requires mutable resource state modeling."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 2 or len(output_tensors) != 0:
+            raise tvm.error.OpNotImplemented(
+                "ASSIGN_VARIABLE expects a resource handle and value input with no outputs"
+            )
+
+        resource_key = self._get_resource_key_for_handle(input_tensors[0], "ASSIGN_VARIABLE")
+        self.conversion_state["resource_values"][resource_key] = self.get_tensor_expr(
+            input_tensors[1]
+        )
+        return None
+
+    def convert_read_variable(self, op):
+        """Convert READ_VARIABLE for resources initialized by CALL_ONCE."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("READ_VARIABLE expects one input and one output")
+
+        resource_key = self._get_resource_key_for_handle(input_tensors[0], "READ_VARIABLE")
+        resource_values = self.conversion_state["resource_values"]
+        if resource_key not in resource_values:
+            raise tvm.error.OpNotImplemented(
+                "READ_VARIABLE requires a resource initialized by a supported CALL_ONCE subgraph"
+            )
+        return resource_values[resource_key]
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
@@ -2288,13 +2383,7 @@ class OperatorConverter:
         return relax.Call(loop_gv, args)
 
     def convert_call_once(self, op):
-        """Convert the no-op subset of TFLite CALL_ONCE.
-
-        Non-empty CALL_ONCE init subgraphs are used for resource initialization
-        side effects in TFLite.  The Relax TFLite frontend does not yet support
-        TFLite resource variable operators, so only the empty no-op form is safe
-        to import.
-        """
+        """Convert TFLite CALL_ONCE for no-op and resource-variable initialization subsets."""
         from tflite.CallOnceOptions import CallOnceOptions
 
         opts = self._get_builtin_options(op, CallOnceOptions)
@@ -2310,10 +2399,33 @@ class OperatorConverter:
                 "CALL_ONCE with non-empty init subgraph I/O is not supported"
             )
         if init_subgraph.OperatorsLength() != 0:
-            raise tvm.error.OpNotImplemented(
-                "CALL_ONCE with non-empty init subgraphs is not supported"
-            )
+            self._convert_call_once_init_subgraph(init_subgraph)
         return None
+
+    def _convert_call_once_init_subgraph(self, init_subgraph):
+        """Convert the resource-variable initialization subset of a CALL_ONCE subgraph."""
+        supported_init_ops = {"VAR_HANDLE", "ASSIGN_VARIABLE"}
+        for op_idx in range(init_subgraph.OperatorsLength()):
+            op_name = self.get_op_code_str(init_subgraph.Operators(op_idx))
+            if op_name not in supported_init_ops:
+                raise tvm.error.OpNotImplemented(
+                    f"CALL_ONCE init subgraph operator {op_name} is not supported"
+                )
+
+        old_in_call_once_init = self.conversion_state["in_call_once_init"]
+        self.conversion_state["in_call_once_init"] = True
+        try:
+            subgraph_converter = type(self)(
+                self.model,
+                init_subgraph,
+                ExprTable(),
+                self.bb,
+                self.conversion_state,
+            )
+            subgraph_converter.check_unsupported_ops()
+            subgraph_converter.convert_op_to_relax()
+        finally:
+            self.conversion_state["in_call_once_init"] = old_in_call_once_init
 
     def _convert_stablehlo_convert(self, op):
         """Convert STABLEHLO_CONVERT to Relax (astype).
