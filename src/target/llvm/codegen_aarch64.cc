@@ -29,7 +29,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../arith/scalable_expression.h"
 #include "codegen_cpu.h"
 #include "llvm_instance.h"
 
@@ -58,9 +57,18 @@ void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
-    auto kVScaleValues = arith::GetVScaleValues(Target::Current());
-    if (!kVScaleValues.empty()) {
-      unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
+    // Compute max_val = largest power-of-two <= vector_width/8.
+    static auto llvm_get_vector_width_fn =
+        tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+    unsigned int vector_width =
+        static_cast<unsigned int>(llvm_get_vector_width_fn(Target::Current()).cast<int>());
+    unsigned int max_val = 0;
+    for (unsigned int i = 0;; ++i) {
+      unsigned int power = 1u << i;
+      if (power > (vector_width / 8)) break;
+      max_val = power;
+    }
+    if (max_val > 0) {
       func->addFnAttr(
           llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
     }
