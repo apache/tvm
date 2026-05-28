@@ -39,6 +39,10 @@ inputs:
     description: "Optional wheel distribution name override, useful for TestPyPI"
     required: false
     default: ""
+  distribution_version:
+    description: "Optional wheel distribution version override, useful for TestPyPI"
+    required: false
+    default: ""
   cuda_architectures:
     description: "CMake CUDA architectures for libtvm_runtime_cuda.so"
     required: false
@@ -243,6 +247,7 @@ runs:
           CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
+          TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_INCLUDE_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_CUDA_RUNTIME_PATH="${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && inputs.cuda_runtime_path || '' }}"
           TVM_AUDITWHEEL_PLAT="${{ steps.wheel_inputs.outputs.wheel_platform_tag }}"
@@ -257,6 +262,7 @@ runs:
           CMAKE_ARGS="-DUSE_LLVM=C:/opt/llvm/Library/bin/llvm-config-static.bat -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
+          TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_INCLUDE_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_CUDA_RUNTIME_PATH="${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && inputs.cuda_runtime_path || '' }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
