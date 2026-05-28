@@ -1,13 +1,13 @@
 runs:
  using: "composite"
  steps:
-  - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+  - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
     env:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
       key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('tests/conda/build-environment.yaml') }}
-  - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
+  - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
     continue-on-error: true
     id: conda1
     with:
@@ -18,7 +18,8 @@ runs:
       miniforge-version: latest
       python-version: "3.10"
       condarc-file: tests/conda/condarc
-  - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
+      conda-remove-defaults: true
+  - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
     if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
@@ -29,6 +30,7 @@ runs:
       use-only-tar-bz2: true
       python-version: "3.10"
       condarc-file: tests/conda/condarc
+      conda-remove-defaults: true
   - name: Conda info
     shell: pwsh
     run: |

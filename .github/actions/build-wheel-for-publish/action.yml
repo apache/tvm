@@ -125,34 +125,39 @@ runs:
         echo "cibw_container_engine=${cibw_container_engine}" >> "${GITHUB_OUTPUT}"
         echo "include_cuda_runtime=${include_cuda_runtime}" >> "${GITHUB_OUTPUT}"
 
+    - name: Prepare LLVM cache path (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -eux
+        sudo mkdir -p /opt/llvm
+        sudo chown -R "$(whoami)" /opt/llvm
+
     # ---- Cache LLVM prefix ----
     - name: Cache LLVM
-      uses: actions/cache@v4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       id: llvm-cache
       with:
         path: ${{ runner.os == 'Windows' && 'C:/opt/llvm' || '/opt/llvm' }}
-        key: tvm-wheel-llvm-22.1.0-${{ runner.os }}-${{ inputs.arch }}-v3
+        key: tvm-wheel-llvm-22.1.0-${{ runner.os }}-${{ inputs.arch }}-v4
 
     # ---- Install LLVM via conda (cache miss only) ----
     - name: Setup conda
       if: steps.llvm-cache.outputs.cache-hit != 'true'
-      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
+      uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
       continue-on-error: true
       id: conda1
       with:
         miniforge-version: latest
+        conda-remove-defaults: true
 
     - name: Setup conda (retry with tar.bz2)
       if: steps.llvm-cache.outputs.cache-hit != 'true' && steps.conda1.outcome == 'failure'
-      uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
+      uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
       with:
         miniforge-version: latest
         use-only-tar-bz2: true
-
-    - name: Create /opt/llvm (macOS)
-      if: steps.llvm-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
-      shell: bash
-      run: sudo mkdir -p /opt/llvm && sudo chown -R "$(whoami)" /opt/llvm
+        conda-remove-defaults: true
 
     - name: Install LLVM (Unix)
       if: steps.llvm-cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
