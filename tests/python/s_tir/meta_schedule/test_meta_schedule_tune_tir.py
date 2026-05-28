@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
@@ -147,7 +148,7 @@ def test_tune_run_module_via_rpc():
 
 @pytest.mark.skip("Integration test")
 def test_tune_block_cpu():
-    @ms.derived_object
+    @derived_object
     class RemoveBlock(ms.schedule_rule.PyScheduleRule):
         def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
             pass

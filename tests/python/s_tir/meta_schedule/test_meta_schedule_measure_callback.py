@@ -21,6 +21,7 @@ import tempfile
 import pytest
 
 import tvm
+from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
 from tvm.script import tirx as T
@@ -48,7 +49,7 @@ class Matmul:
 
 
 def test_meta_schedule_measure_callback():
-    @ms.derived_object
+    @derived_object
     class FancyMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
@@ -82,7 +83,7 @@ def test_meta_schedule_measure_callback():
 
 
 def test_meta_schedule_measure_callback_fail():
-    @ms.derived_object
+    @derived_object
     class FailingMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
@@ -106,7 +107,7 @@ def test_meta_schedule_measure_callback_fail():
 
 
 def test_meta_schedule_measure_callback_as_string():
-    @ms.derived_object
+    @derived_object
     class NotSoFancyMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
@@ -125,7 +126,7 @@ def test_meta_schedule_measure_callback_as_string():
 
 @pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_measure_callback_update_cost_model_with_zero():
-    @ms.derived_object
+    @derived_object
     class AllZeroRunnerFuture(ms.runner.PyRunnerFuture):
         def done(self) -> bool:
             return True
@@ -133,7 +134,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_zero():
         def result(self) -> ms.runner.RunnerResult:
             return ms.runner.RunnerResult([0.0, 0.0], None)
 
-    @ms.derived_object
+    @derived_object
     class AllZeroRunner(ms.runner.PyRunner):
         def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [AllZeroRunnerFuture() for _ in runner_inputs]
@@ -151,7 +152,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_zero():
 
 @pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
-    @ms.derived_object
+    @derived_object
     class EmptyRunnerFuture(ms.runner.PyRunnerFuture):
         def done(self) -> bool:
             return True
@@ -159,7 +160,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
         def result(self) -> ms.runner.RunnerResult:
             return ms.runner.RunnerResult(None, "error")
 
-    @ms.derived_object
+    @derived_object
     class EmptyRunner(ms.runner.PyRunner):
         def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [EmptyRunnerFuture() for _ in runner_inputs]

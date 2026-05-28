@@ -24,13 +24,13 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.base import TVMError
+from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule.space_generator import (
     PySpaceGenerator,
     ScheduleFn,
     SpaceGeneratorUnion,
 )
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
-from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule import Schedule
 from tvm.script import tirx as T
 

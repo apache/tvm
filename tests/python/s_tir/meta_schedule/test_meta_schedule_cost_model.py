@@ -27,13 +27,13 @@ import numpy as np
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.s_tir.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.s_tir.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
-from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule.schedule import Schedule
 from tvm.script import tirx as T
 

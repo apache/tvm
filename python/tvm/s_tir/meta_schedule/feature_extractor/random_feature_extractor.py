@@ -19,11 +19,11 @@
 import numpy as np  # type: ignore
 
 import tvm.runtime
+from tvm.ir.utils import derived_object
 
 from ..feature_extractor import PyFeatureExtractor
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import derived_object
 
 
 @derived_object

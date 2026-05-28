@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Optional
 
 import numpy as np  # type: ignore
 
+from tvm.ir.utils import derived_object
 from tvm.support.tar import tar, untar
 
 from ....runtime import Tensor
@@ -33,7 +34,7 @@ from ..feature_extractor import FeatureExtractor
 from ..logging import get_logger
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import cpu_count, derived_object, shash2hex
+from ..utils import cpu_count, shash2hex
 from .metric import max_curve
 
 if TYPE_CHECKING:
