@@ -20,7 +20,7 @@ description: Build libtvm_runtime_cuda for the TVM wheel packaging flow.
 
 inputs:
   arch:
-    description: "Target architecture (e.g., x86_64, aarch64, arm64, AMD64)"
+    description: "Target Linux architecture for CUDA builds (x86_64 or aarch64)"
     required: true
   linux_image:
     description: "Manylinux image tag to use on Linux runners"
@@ -50,8 +50,26 @@ runs:
     - uses: ./.github/actions/detect-env-vars
       id: env_vars
 
+    - name: Detect CUDA inputs
+      id: cuda_inputs
+      shell: bash -l {0}
+      env:
+        INPUT_INCLUDE_CUDA_RUNTIME: ${{ inputs.include_cuda_runtime }}
+      run: |
+        set -eux
+        include_cuda_runtime="$(printf '%s' "${INPUT_INCLUDE_CUDA_RUNTIME}" | tr '[:upper:]' '[:lower:]')"
+        case "${include_cuda_runtime}" in
+          1|true|yes|on) include_cuda_runtime=1 ;;
+          0|false|no|off) include_cuda_runtime=0 ;;
+          *)
+            echo "include_cuda_runtime must be a boolean value" >&2
+            exit 1
+            ;;
+        esac
+        echo "include_cuda_runtime=${include_cuda_runtime}" >> "${GITHUB_OUTPUT}"
+
     - name: Build CUDA runtime in manylinux
-      if: runner.os == 'Linux' && inputs.include_cuda_runtime == 'true'
+      if: runner.os == 'Linux' && steps.cuda_inputs.outputs.include_cuda_runtime == '1'
       shell: bash -l {0}
       env:
         TVM_MANYLINUX_IMAGE: ${{ inputs.linux_image }}
@@ -59,13 +77,13 @@ runs:
         TVM_ARCH: ${{ inputs.arch }}
         TVM_CUDA_ARCHITECTURES: ${{ inputs.cuda_architectures }}
         TVM_CUDA_BUILD_DIR: ${{ runner.temp }}/tvm-wheel-cuda
-        TVM_SKIP_CUDA: "0"
+        TVM_INCLUDE_CUDA_RUNTIME: "1"
         TVM_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
       run: ci/scripts/package/tvm_wheel_helper.sh manylinux-cuda
 
     - name: Reject non-Linux CUDA runtime builds
-      if: runner.os != 'Linux' && inputs.include_cuda_runtime == 'true'
+      if: runner.os != 'Linux' && steps.cuda_inputs.outputs.include_cuda_runtime == '1'
       shell: bash -l {0}
       run: |
         echo "CUDA runtime wheels are only enabled on Linux in this workflow" >&2
@@ -75,10 +93,12 @@ runs:
       id: cuda_runtime
       shell: bash -l {0}
       env:
+        INCLUDE_CUDA_RUNTIME: ${{ steps.cuda_inputs.outputs.include_cuda_runtime }}
         TVM_CUDA_BUILD_DIR: ${{ runner.temp }}/tvm-wheel-cuda
+        TVM_CUDA_RUNTIME_PATH: ""
       run: |
         set -eux
-        if [[ "${{ inputs.include_cuda_runtime }}" != "true" ]]; then
+        if [[ "${INCLUDE_CUDA_RUNTIME}" != "1" ]]; then
           echo "path=" >> "${GITHUB_OUTPUT}"
           exit 0
         fi
@@ -87,4 +107,11 @@ runs:
           echo "CUDA runtime build did not produce libtvm_runtime_cuda.so" >&2
           exit 1
         fi
+        case "${cuda_runtime}" in
+          "${TVM_CUDA_BUILD_DIR}"/*) ;;
+          *)
+            echo "CUDA runtime path is outside the expected build directory: ${cuda_runtime}" >&2
+            exit 1
+            ;;
+        esac
         echo "path=${cuda_runtime}" >> "${GITHUB_OUTPUT}"

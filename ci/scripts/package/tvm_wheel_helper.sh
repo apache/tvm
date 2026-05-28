@@ -31,9 +31,45 @@ TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
 TVM_BUILD_PARALLEL_LEVEL="${TVM_BUILD_PARALLEL_LEVEL:-${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}}"
 TVM_WHEEL_DIST_NAME="${TVM_WHEEL_DIST_NAME:-}"
 TVM_WHEEL_DIST_VERSION="${TVM_WHEEL_DIST_VERSION:-}"
-TVM_SKIP_CUDA="${TVM_SKIP_CUDA:-0}"
+TVM_INCLUDE_CUDA_RUNTIME="${TVM_INCLUDE_CUDA_RUNTIME:-}"
+
+normalize_bool() {
+  local name="$1"
+  local value="$2"
+  local normalized
+  normalized="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized" in
+    1|true|yes|on) echo 1 ;;
+    0|false|no|off) echo 0 ;;
+    *)
+      echo "error: ${name} must be a boolean value" >&2
+      return 1
+      ;;
+  esac
+}
+
+if [[ -n "$TVM_INCLUDE_CUDA_RUNTIME" ]]; then
+  tvm_include_cuda_runtime_normalized="$(normalize_bool TVM_INCLUDE_CUDA_RUNTIME "$TVM_INCLUDE_CUDA_RUNTIME")"
+  if [[ -n "${TVM_SKIP_CUDA+x}" ]]; then
+    tvm_skip_cuda_normalized="$(normalize_bool TVM_SKIP_CUDA "$TVM_SKIP_CUDA")"
+    if [[ "$tvm_include_cuda_runtime_normalized" == "$tvm_skip_cuda_normalized" ]]; then
+      echo "error: TVM_INCLUDE_CUDA_RUNTIME conflicts with TVM_SKIP_CUDA" >&2
+      exit 1
+    fi
+  fi
+  if [[ "$tvm_include_cuda_runtime_normalized" == "1" ]]; then
+    TVM_SKIP_CUDA=0
+  else
+    TVM_SKIP_CUDA=1
+  fi
+else
+  TVM_SKIP_CUDA="${TVM_SKIP_CUDA:-0}"
+fi
+TVM_SKIP_CUDA="$(normalize_bool TVM_SKIP_CUDA "$TVM_SKIP_CUDA")"
 TVM_SKIP_REPAIR="${TVM_SKIP_REPAIR:-0}"
 TVM_KEEP_BUILD_DIRS="${TVM_KEEP_BUILD_DIRS:-0}"
+TVM_SKIP_REPAIR="$(normalize_bool TVM_SKIP_REPAIR "$TVM_SKIP_REPAIR")"
+TVM_KEEP_BUILD_DIRS="$(normalize_bool TVM_KEEP_BUILD_DIRS "$TVM_KEEP_BUILD_DIRS")"
 
 usage() {
   cat <<'EOF'
@@ -47,16 +83,20 @@ Environment knobs:
   TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
   TVM_WHEEL_DIST_VERSION       Optional distribution version rewrite
   TVM_UPLOAD_REPOSITORY_URL    Twine repository URL, e.g. TestPyPI legacy URL
+  TVM_INCLUDE_CUDA_RUNTIME=1   Build/inject libtvm_runtime_cuda.so
   TVM_SKIP_CUDA=1              Do not build/inject libtvm_runtime_cuda.so
   TVM_SKIP_REPAIR=1            Keep injected wheel as final wheel
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
   TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
-  TVM_MANYLINUX_IMAGE_TAG      optional pinned image tag for manylinux-cuda
+  TVM_MANYLINUX_IMAGE_TAG      pinned image tag for manylinux-cuda
   TVM_ARCH                     Target architecture for manylinux-cuda
   TVM_AUDITWHEEL_PLAT          Optional auditwheel --plat value
   TVM_AUDITWHEEL_LIBRARY_PATH  Optional library search path for auditwheel repair
   TVM_EXPECT_WHEEL_PLATFORM_TAG
                                 Require the final wheel filename to include this tag
+  TVM_EXPECT_CUDA_RUNTIME      Verify whether the installed wheel ships a CUDA runtime DSO
+  TVM_EXPECT_STATIC_LLVM       Verify that the installed wheel does not ship libLLVM
+  TVM_DELOCATE_ARCHS           Optional delocate --require-archs value for macOS repair
   TVM_TEST_INDEX_URL           Package index for verify-pypi, default TestPyPI
   TVM_EXTRA_INDEX_URL          Extra package index for dependencies, default PyPI
 EOF
@@ -106,6 +146,9 @@ cuda_runtime_path() {
   if [[ -n "$TVM_CUDA_RUNTIME_PATH" ]]; then
     if [[ -f "$TVM_CUDA_RUNTIME_PATH" ]]; then
       echo "$TVM_CUDA_RUNTIME_PATH"
+    else
+      echo "error: TVM_CUDA_RUNTIME_PATH does not exist: ${TVM_CUDA_RUNTIME_PATH}" >&2
+      return 1
     fi
     return 0
   fi
@@ -120,11 +163,25 @@ manylinux_image_name() {
   local arch="$2"
   local tag="${3:-}"
   if [[ "$base" == *"/"* || "$base" == *":"* ]]; then
+    if [[ "$base" != *@sha256:* && "${base##*/}" != *":"* ]]; then
+      echo "error: fully qualified TVM_MANYLINUX_IMAGE must include a tag or digest" >&2
+      return 1
+    fi
     echo "$base"
   elif [[ -n "$tag" ]]; then
     echo "quay.io/pypa/${base}_${arch}:${tag}"
   else
-    echo "quay.io/pypa/${base}_${arch}:latest"
+    echo "error: TVM_MANYLINUX_IMAGE_TAG is required when TVM_MANYLINUX_IMAGE is not fully qualified" >&2
+    return 1
+  fi
+}
+
+validate_manylinux_cuda_image() {
+  local image="$1"
+  local image_name="${image##*/}"
+  if [[ "$image_name" != manylinux_2_28_*:* && "$image_name" != manylinux_2_28_*@sha256:* ]]; then
+    echo "error: manylinux-cuda currently supports only pinned manylinux_2_28 images" >&2
+    return 1
   fi
 }
 
@@ -147,11 +204,14 @@ run_manylinux_cuda_container() {
 
   local image
   image="$(manylinux_image_name "$TVM_MANYLINUX_IMAGE" "$TVM_ARCH" "${TVM_MANYLINUX_IMAGE_TAG:-}")"
+  validate_manylinux_cuda_image "$image"
   local container="tvm_wheel_cuda_${GITHUB_RUN_ID:-local}_${GITHUB_RUN_ATTEMPT:-1}_${TVM_ARCH}"
   local host_cuda_build_dir="$TVM_CUDA_BUILD_DIR"
   local container_cuda_root="/workspace-cuda-build"
   local container_cuda_build_dir="${container_cuda_root}/build"
   mkdir -p "$host_cuda_build_dir"
+  local cuda_rpm="/tmp/cuda-repo-rhel8-13-0-local-13.0.2_580.95.05-1.${TVM_ARCH}.rpm"
+  trap "rm -f '${cuda_rpm}'; docker exec '${container}' bash -lc 'chown -R $(id -u):$(id -g) ${container_cuda_root} || true' >/dev/null 2>&1 || true; docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
   docker pull "$image"
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker run --name "$container" -d \
@@ -159,17 +219,17 @@ run_manylinux_cuda_container() {
     --volume "${REPO_ROOT}:/workspace" \
     --volume "${host_cuda_build_dir}:${container_cuda_root}" \
     "$image" tail -f /dev/null
-  trap "docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
 
-  local cuda_rpm="cuda-repo-rhel8-13-0-local-13.0.2_580.95.05-1.${TVM_ARCH}.rpm"
-  curl -fsSLo "$cuda_rpm" "https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/${cuda_rpm}"
-  docker cp "$cuda_rpm" "${container}:/${cuda_rpm}"
+  local cuda_rpm_name
+  cuda_rpm_name="$(basename "$cuda_rpm")"
+  curl -fsSLo "$cuda_rpm" "https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/${cuda_rpm_name}"
+  docker cp "$cuda_rpm" "${container}:/${cuda_rpm_name}"
   rm "$cuda_rpm"
   docker exec "$container" bash -lc "
-    rpm -i /${cuda_rpm} && \
+    rpm -i /${cuda_rpm_name} && \
     dnf clean all && \
     dnf -y --disablerepo=epel install cuda-toolkit-13-0 && \
-    rm /${cuda_rpm} && \
+    rm /${cuda_rpm_name} && \
     dnf clean all"
 
   docker exec \
@@ -177,7 +237,7 @@ run_manylinux_cuda_container() {
     -e TVM_USE_CUDA=/usr/local/cuda \
     -e TVM_CUDA_ARCHITECTURES="$TVM_CUDA_ARCHITECTURES" \
     -e TVM_CUDA_BUILD_DIR="$container_cuda_build_dir" \
-    -e TVM_SKIP_CUDA="$TVM_SKIP_CUDA" \
+    -e TVM_INCLUDE_CUDA_RUNTIME=1 \
     -e CMAKE_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
     -e TVM_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
     "$container" bash -lc '
@@ -263,8 +323,8 @@ inject_wheel_file() {
     inject_args+=(--set-rpath '$ORIGIN')
   fi
 
-  echo "Injecting CUDA runtime/metadata into ${raw_wheel}"
-  "$TVM_PYTHON" "$SCRIPT_DIR/inject_cuda_runtime.py" "$raw_wheel" "${inject_args[@]}"
+  echo "Rewriting wheel metadata/runtime files for ${raw_wheel}"
+  "$TVM_PYTHON" "$SCRIPT_DIR/rewrite_wheel.py" "$raw_wheel" "${inject_args[@]}"
 }
 
 auditwheel_excludes() {
@@ -380,6 +440,10 @@ repair_wheel_to_dir() {
   local injected_wheel="$1"
   local output_dir="$2"
   mkdir -p "$output_dir"
+  local existing_wheel
+  while IFS= read -r existing_wheel; do
+    rm -f "$existing_wheel"
+  done < <(find "$output_dir" -maxdepth 1 -type f -name '*.whl')
   if [[ "$TVM_SKIP_REPAIR" == "1" ]]; then
     cp "$injected_wheel" "$output_dir/"
     echo "Repair skipped; final wheel copied to ${output_dir}"
@@ -389,8 +453,10 @@ repair_wheel_to_dir() {
   case "$(uname -s)" in
     Linux)
       require_cmd auditwheel
-      local cuda_lib
-      cuda_lib="$(cuda_runtime_path || true)"
+      local cuda_lib=""
+      if [[ "$TVM_SKIP_CUDA" != "1" ]]; then
+        cuda_lib="$(cuda_runtime_path)"
+      fi
       local exclude_args=()
       local exclude_arg
       while IFS= read -r exclude_arg; do
@@ -430,7 +496,12 @@ repair_wheel_to_dir() {
             export DYLD_LIBRARY_PATH="${repair_libdir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
           fi
         fi
+        delocate_arch_args=()
+        if [[ -n "${TVM_DELOCATE_ARCHS:-}" ]]; then
+          delocate_arch_args+=(--require-archs "$TVM_DELOCATE_ARCHS")
+        fi
         delocate-wheel \
+          "${delocate_arch_args[@]}" \
           --ignore-missing-dependencies \
           --exclude libtvm_ffi.dylib \
           -w "$output_dir" \
@@ -446,17 +517,17 @@ repair_wheel_to_dir() {
   single_wheel "$output_dir" >/dev/null
 }
 
-cibw_repair_wheel() {
+cibw_repair_wheel() (
   local raw_wheel="$1"
   local dest_dir="$2"
   local injected_dir
   injected_dir="$(mktemp -d)"
+  trap 'rm -rf "$injected_dir"' EXIT
   inject_wheel_file "$raw_wheel" "$injected_dir"
   local injected_wheel
   injected_wheel="$(single_wheel "$injected_dir")"
   repair_wheel_to_dir "$injected_wheel" "$dest_dir"
-  rm -rf "$injected_dir"
-}
+)
 
 validate_wheel_elf() {
   local final_wheel

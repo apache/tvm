@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Inject TVM's CUDA runtime DSO into a wheel and refresh RECORD."""
+"""Rewrite TVM wheel metadata and inject extra runtime files."""
 
 from __future__ import annotations
 
@@ -87,7 +87,11 @@ def _metadata_headers(metadata: bytes) -> tuple[str, str]:
 
 
 def _is_elf_shared_lib(name: str, data: bytes) -> bool:
-    return name.startswith("tvm/lib/") and name.endswith(".so") and data.startswith(b"\x7fELF")
+    return (
+        name.startswith("tvm/lib/")
+        and re.search(r"\.so(?:\.|$)", Path(name).name) is not None
+        and data.startswith(b"\x7fELF")
+    )
 
 
 def _set_rpath(data: bytes, rpath: str, name: str) -> bytes:
@@ -95,7 +99,10 @@ def _set_rpath(data: bytes, rpath: str, name: str) -> bytes:
         path = Path(tmpdir) / Path(name).name
         path.write_bytes(data)
         path.chmod(0o755)
-        subprocess.run(["patchelf", "--set-rpath", rpath, str(path)], check=True)
+        try:
+            subprocess.run(["patchelf", "--set-rpath", rpath, str(path)], check=True)
+        except subprocess.CalledProcessError as err:
+            raise ValueError(f"patchelf failed while setting rpath on {name}") from err
         return path.read_bytes()
 
 
@@ -111,14 +118,43 @@ def _retag_wheel_filename(
     return f"{_wheel_escape(dist_name)}-{_wheel_escape(version)}-{'-'.join(tags)}.whl"
 
 
+def _normalize_wheel_path(value: str, label: str) -> str:
+    raw = value.replace("\\", "/")
+    if raw.startswith("/") or re.match(r"^[A-Za-z]:", raw) is not None:
+        raise argparse.ArgumentTypeError(
+            f"{label} must be a relative wheel path without drive, empty, '.' or '..' segments"
+        )
+    normalized = raw
+    parts = normalized.split("/")
+    if (
+        not normalized
+        or any(part in {"", ".", ".."} for part in parts)
+    ):
+        raise argparse.ArgumentTypeError(
+            f"{label} must be a relative wheel path without drive, empty, '.' or '..' segments"
+        )
+    return normalized
+
+
+def _validate_wheel_member_path(value: str) -> str:
+    if "\\" in value:
+        raise ValueError(f"Wheel member path must use forward slashes: {value}")
+    try:
+        normalized = _normalize_wheel_path(value, "wheel member path")
+    except argparse.ArgumentTypeError as err:
+        raise ValueError(str(err)) from err
+    if normalized != value:
+        raise ValueError(f"Wheel member path is not normalized: {value}")
+    return normalized
+
+
 def _parse_extra_file(value: str) -> tuple[Path, str]:
     if "=" not in value:
         raise argparse.ArgumentTypeError("extra files must use SOURCE=TARGET format")
     source, target = value.split("=", 1)
     if not source or not target:
         raise argparse.ArgumentTypeError("extra files must use SOURCE=TARGET format")
-    target = target.replace("\\", "/").lstrip("/")
-    return Path(source), target
+    return Path(source), _normalize_wheel_path(target, "extra file target")
 
 
 def _extra_library_files(
@@ -126,16 +162,33 @@ def _extra_library_files(
     patterns: list[str],
     target_dir: str,
 ) -> list[tuple[Path, str]]:
-    target_dir = target_dir.replace("\\", "/").strip("/")
-    extra_files: dict[str, Path] = {}
+    target_dir = _normalize_wheel_path(target_dir, "extra library target dir")
+    extra_files: list[tuple[Path, str]] = []
+    missing_dirs = [str(library_dir) for library_dir in library_dirs if not library_dir.is_dir()]
+    if missing_dirs:
+        raise ValueError(f"extra library dirs do not exist: {', '.join(missing_dirs)}")
     for library_dir in library_dirs:
-        if not library_dir.is_dir():
-            continue
         for pattern in patterns:
             for source in sorted(library_dir.glob(pattern)):
                 if source.is_file():
-                    extra_files[f"{target_dir}/{source.name}"] = source
-    return [(source, target) for target, source in sorted(extra_files.items())]
+                    extra_files.append((source, f"{target_dir}/{source.name}"))
+    if library_dirs and patterns and not extra_files:
+        raise ValueError(
+            "extra library patterns did not match any files: " + ", ".join(patterns)
+        )
+    return sorted(extra_files, key=lambda item: (item[1], str(item[0])))
+
+
+def _check_duplicate_targets(targets: list[str]) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for target in targets:
+        if target in seen:
+            duplicates.add(target)
+        seen.add(target)
+    if duplicates:
+        joined = ", ".join(sorted(duplicates))
+        raise ValueError(f"Duplicate wheel target paths are not allowed: {joined}")
 
 
 def rewrite_wheel(
@@ -151,32 +204,41 @@ def rewrite_wheel(
     output_dir.mkdir(parents=True, exist_ok=True)
     extra_targets = {target for _, target in extra_files}
     with zipfile.ZipFile(wheel, "r") as zin:
-        original_names = zin.namelist()
+        original_infos = [info for info in zin.infolist() if not info.is_dir()]
+        original_names = [_validate_wheel_member_path(info.filename) for info in original_infos]
+        _check_duplicate_targets(original_names)
         original_dist_info = _find_dist_info(original_names)
         metadata_path = f"{original_dist_info}/METADATA"
+        if metadata_path not in original_names:
+            raise ValueError(f"Wheel metadata is missing: {metadata_path}")
         original_name, original_version = _metadata_headers(zin.read(metadata_path))
 
         final_name = distribution_name or original_name
         final_version = distribution_version or original_version
         final_dist_info = f"{_wheel_escape(final_name)}-{_wheel_escape(final_version)}.dist-info"
         record_path = f"{final_dist_info}/RECORD"
+        target_paths = [target for _, target in extra_files]
+        if cuda_runtime is not None:
+            target_paths.append(target_path)
+        target_paths.append(record_path)
+        _check_duplicate_targets(target_paths)
         output_path = output_dir / _retag_wheel_filename(wheel, final_name, final_version)
 
         entries: list[tuple[zipfile.ZipInfo, bytes]] = []
-        for info in zin.infolist():
-            if info.is_dir():
-                continue
+        entry_names: list[str] = []
+        for info in original_infos:
             mapped_name = info.filename
             if mapped_name == f"{original_dist_info}/RECORD":
                 continue
             if mapped_name.startswith(f"{original_dist_info}/"):
                 mapped_name = f"{final_dist_info}/{mapped_name.split('/', 1)[1]}"
+            mapped_name = _validate_wheel_member_path(mapped_name)
             if (
                 cuda_runtime is not None and mapped_name == target_path
             ) or mapped_name in extra_targets:
                 continue
 
-            data = zin.read(info.filename)
+            data = zin.read(info)
             if mapped_name == f"{final_dist_info}/METADATA":
                 if distribution_name is not None:
                     data = _replace_header(data, "Name", final_name)
@@ -185,6 +247,7 @@ def rewrite_wheel(
             if set_rpath is not None and _is_elf_shared_lib(mapped_name, data):
                 data = _set_rpath(data, set_rpath, mapped_name)
             entries.append((_copy_info(info, mapped_name), data))
+            entry_names.append(mapped_name)
 
         if cuda_runtime is not None:
             data = cuda_runtime.read_bytes()
@@ -194,13 +257,19 @@ def rewrite_wheel(
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             entries.append((info, data))
+            entry_names.append(target_path)
 
         for source, target in extra_files:
             data = source.read_bytes()
+            if set_rpath is not None and _is_elf_shared_lib(target, data):
+                data = _set_rpath(data, set_rpath, target)
             info = zipfile.ZipInfo(target)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             entries.append((info, data))
+            entry_names.append(target)
+
+        _check_duplicate_targets([*entry_names, record_path])
 
     record_buffer = io.StringIO()
     writer = csv.writer(record_buffer, lineterminator="\n")
@@ -268,29 +337,47 @@ def main() -> int:
             target_path = "tvm/lib/libtvm_runtime_cuda.so"
         else:
             target_path = f"tvm/lib/{cuda_runtime.name}"
+    else:
+        try:
+            target_path = _normalize_wheel_path(target_path, "target path")
+        except argparse.ArgumentTypeError as err:
+            parser.error(str(err))
 
     extra_files = list(args.extra_file)
-    extra_files.extend(
-        _extra_library_files(
-            library_dirs=args.extra_library_dir,
-            patterns=args.extra_library_pattern,
-            target_dir=args.extra_library_target_dir,
+    try:
+        extra_files.extend(
+            _extra_library_files(
+                library_dirs=args.extra_library_dir,
+                patterns=args.extra_library_pattern,
+                target_dir=args.extra_library_target_dir,
+            )
         )
-    )
+    except (argparse.ArgumentTypeError, ValueError) as err:
+        parser.error(str(err))
     missing_extra_files = [str(source) for source, _ in extra_files if not source.is_file()]
     if missing_extra_files:
         parser.error(f"extra files do not exist: {', '.join(missing_extra_files)}")
+    target_paths = [target for _, target in extra_files]
+    if cuda_runtime is not None:
+        target_paths.append(target_path)
+    try:
+        _check_duplicate_targets(target_paths)
+    except ValueError as err:
+        parser.error(str(err))
 
-    output_path = rewrite_wheel(
-        wheel=args.wheel,
-        output_dir=args.output_dir,
-        cuda_runtime=cuda_runtime,
-        target_path=target_path,
-        distribution_name=args.distribution_name or None,
-        distribution_version=args.distribution_version or None,
-        set_rpath=args.set_rpath,
-        extra_files=extra_files,
-    )
+    try:
+        output_path = rewrite_wheel(
+            wheel=args.wheel,
+            output_dir=args.output_dir,
+            cuda_runtime=cuda_runtime,
+            target_path=target_path,
+            distribution_name=args.distribution_name or None,
+            distribution_version=args.distribution_version or None,
+            set_rpath=args.set_rpath,
+            extra_files=extra_files,
+        )
+    except (ValueError, zipfile.BadZipFile, KeyError) as err:
+        parser.error(str(err))
     print(output_path)
     return 0
 
