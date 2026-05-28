@@ -158,8 +158,8 @@ class LoopHeightError : public ScheduleError {
 };
 
 PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
-  if (is_one(pred)) return Bool(true);
-  PrimExpr new_pred = Bool(true);
+  if (is_one(pred)) return const_true();
+  PrimExpr new_pred = const_true();
   auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
   arith::PVar<PrimExpr> lhs, rhs, rest;
   for (;;) {

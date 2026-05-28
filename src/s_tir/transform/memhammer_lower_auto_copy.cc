@@ -464,14 +464,14 @@ class AutoPadder {
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
       PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
-          return Integer(0);
+          return IntImm(DataType::Int(32), 0);
         } else {
           return v;
         }
       });
       PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
-          return Integer(1);
+          return IntImm(DataType::Int(32), 1);
         } else {
           return v;
         }

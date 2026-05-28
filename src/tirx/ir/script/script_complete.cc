@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op.h>
 
 #include <utility>
 
@@ -153,7 +154,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates,
 
   if (s_tir && should_insert_root) {
     SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = SBlockRealize({}, Bool(true), std::move(root_block));
+    res = SBlockRealize({}, IntImm(DataType::Bool(), 1), std::move(root_block));
   }
 
   // generate surrounding loops automatically

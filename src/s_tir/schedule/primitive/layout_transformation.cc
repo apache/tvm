@@ -492,7 +492,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
     auto read_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt = SBlockRealize(iter_values, Bool(true),
+    stmt = SBlockRealize(iter_values, const_true(),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
@@ -1187,7 +1187,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   ffi::Optional<IndexMap> opt_inverse = std::nullopt;
-  PrimExpr padding_predicate = Bool(false);
+  PrimExpr padding_predicate = const_false();
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;

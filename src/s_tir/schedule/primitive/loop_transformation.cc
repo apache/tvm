@@ -743,13 +743,13 @@ class LoopReconstructor : private StmtMutator {
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], Integer(0), new_loop_extents[0], ForKind::kSerial,
+    auto new_loop = For(new_loop_vars[0], IntImm(DataType::Int(32), 0), new_loop_extents[0], ForKind::kSerial,
                         SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop = For(loop_var, Integer(0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop = For(loop_var, IntImm(DataType::Int(32), 0), loop_extent, ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }

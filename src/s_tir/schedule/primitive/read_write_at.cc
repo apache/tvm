@@ -306,7 +306,7 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i], Integer(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt = For(loop_vars[i], IntImm(DataType::Int(32), 0), domain[i]->extent, ForKind::kSerial, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

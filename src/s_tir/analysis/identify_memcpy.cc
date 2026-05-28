@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 #include <optional>
@@ -105,7 +106,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // for i in T.serial(16):
   //     B[i] = A[T.abs(i-8)]
 
-  auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, Bool(true),
+  auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, const_true(),
                                            arith::IterMapLevel::Bijective, analyzer);
   if (src_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
@@ -115,7 +116,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                  << " for src_index = " << src_index)
         .str();
   }
-  auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, Bool(true),
+  auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, const_true(),
                                            arith::IterMapLevel::Bijective, analyzer);
   if (dst_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()

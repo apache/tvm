@@ -197,12 +197,12 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
   }
 
  public:
-  PrimExpr threadIdx_x_ext = Integer(1);
-  PrimExpr threadIdx_y_ext = Integer(1);
-  PrimExpr threadIdx_z_ext = Integer(1);
-  PrimExpr clusterCtaIdx_x_ext = Integer(1);
-  PrimExpr clusterCtaIdx_y_ext = Integer(1);
-  PrimExpr clusterCtaIdx_z_ext = Integer(1);
+  PrimExpr threadIdx_x_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr threadIdx_y_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr threadIdx_z_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr clusterCtaIdx_x_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr clusterCtaIdx_y_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr clusterCtaIdx_z_ext = IntImm(DataType::Int(32), 1);
   bool is_persistent_kernel = false;
 };
 

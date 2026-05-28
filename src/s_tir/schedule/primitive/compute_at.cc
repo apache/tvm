@@ -300,7 +300,7 @@ class ScopeReconstructor : private StmtMutator {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
       new_subtree = For(/*loop_var=*/loop_var,
-                        /*min=*/Integer(0),
+                        /*min=*/IntImm(DataType::Int(32), 0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
                         /*body=*/std::move(new_subtree));

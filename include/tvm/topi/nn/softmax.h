@@ -61,7 +61,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
   tvm::ffi::Map<ffi::String, ffi::Any> attrs;
-  attrs.Set("axis", Integer(axis));
+  attrs.Set("axis", IntImm(DataType::Int(32), axis));
 
   auto insert_reduce_index = [axis, ndim](const ffi::Array<Var>& indices,
                                           const IterVar& reduce_index) {

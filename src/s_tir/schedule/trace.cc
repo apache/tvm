@@ -405,7 +405,7 @@ ffi::ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     Any decision = this->GetDecision(inst);
     if (decision != nullptr) {
       json_decisions.push_back(ffi::Array<ffi::Any>{
-          /* 0: index    */ Integer(i),
+          /* 0: index    */ IntImm(DataType::Int(32), i),
           /* 1: decision */ decision,
       });
     }

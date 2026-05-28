@@ -183,7 +183,7 @@ struct BufferPadding {
     }
     Stmt body{nullptr};
     if (is_read) {
-      PrimExpr predicate = Bool(true);
+      PrimExpr predicate = const_true();
       for (int i = 0; i < ndim; ++i) {
         if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
           predicate = predicate && (indices[i] < buffer->shape[i]);
@@ -203,7 +203,7 @@ struct BufferPadding {
     SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
                      std::move(body));
     blocks->push_back(new_block);
-    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true),
+    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, const_true(),
                          new_block);
     for (int i = ndim - 1; i >= 0; --i) {
       body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,

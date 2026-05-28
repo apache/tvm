@@ -35,6 +35,7 @@
 
 #include "../op/tensor/linear_algebra.h"
 #include "../op/tensor/manipulate.h"
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace relax {
@@ -72,7 +73,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto pat = pat_matmul_on_lhs | pat_matmul_on_rhs | pat_permuted_matmul_on_lhs |
              pat_permuted_matmul_on_rhs;
 
-  PrimExpr symbolic_var_constraints = Bool(true);
+  PrimExpr symbolic_var_constraints = IntImm(DataType::Bool(), 1);
   auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
   auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
 

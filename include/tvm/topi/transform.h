@@ -919,7 +919,7 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const ffi::Array<Integer>
     TVM_FFI_ICHECK(axis >= 0 && axis < src_tensor_dim)
         << "Axis " << axes[i].IntValue() << " is out of bounds for tensor with " << src_tensor_dim
         << " dimensions";
-    normalized_axes.push_back(Integer(axis));
+    normalized_axes.push_back(IntImm(DataType::Int(32), axis));
   }
 
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
@@ -2044,7 +2044,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
     int indices_index = 0;
     for (int i = 0; i < ndim; i++) {
       if (i == true_axis) {
-        oshape.push_back(Integer(depth));
+        oshape.push_back(IntImm(DataType::Int(32), depth));
       } else {
         oshape.push_back(indices->shape[indices_index++]);
       }

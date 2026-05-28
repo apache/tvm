@@ -211,7 +211,7 @@ CompareResult RewriteSimplifier::Impl::TryComparisonOfProductAndSum(const PrimEx
                    (B * A) + (A + B) * C,
                }
                    .Match(diff)) {
-      return std::tuple{A.Eval(), B.Eval(), C.Eval(), Integer(-1)};
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), IntImm(DataType::Int(32), -1)};
     } else {
       return std::nullopt;
     }
@@ -1063,7 +1063,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         floordiv(y + x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      PrimExpr yval = y.EvalOr(Integer(0));
+      PrimExpr yval = y.EvalOr(IntImm(DataType::Int(32), 0));
       if (c2val == 0) return ret;
 
       // try eliminate residue part
@@ -1072,7 +1072,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       PrimExpr y_div = CanProveEqual(floordiv(yval, c2val), 0) ? 0 : floordiv(yval, c2val);
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
-        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + Integer(bound->max_value));
+        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + IntImm(DataType::Int(32), bound->max_value));
       }
 
       // try simplify divisor

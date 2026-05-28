@@ -131,7 +131,7 @@ class IndexPatternFinder : public ExprVisitor {
         switch (o.kind) {
           case Operator::OpKind::Mul:
             max *= o.operand;
-            index = index * Integer(o.operand);
+            index = index * IntImm(DataType::Int(32), o.operand);
             break;
           case Operator::OpKind::FloorDiv:
             if (max % o.operand != 0 && o.operand % max != 0) {
@@ -146,7 +146,7 @@ class IndexPatternFinder : public ExprVisitor {
               success_ = false;
               return;
             }
-            index = floordiv(index, Integer(o.operand));
+            index = floordiv(index, IntImm(DataType::Int(32), o.operand));
             break;
           case Operator::OpKind::FloorMod:
             int64_t step = max / extent;
@@ -161,12 +161,12 @@ class IndexPatternFinder : public ExprVisitor {
               extent = std::max(static_cast<int64_t>(1), std::min(extent, o.operand / step));
               max = extent * step;
             }
-            index = floormod(index, Integer(o.operand));
+            index = floormod(index, IntImm(DataType::Int(32), o.operand));
         }
       }
       if (extent > 1) {
         TVM_FFI_ICHECK(max % extent == 0);
-        access_shape_.push_back(Integer(extent));
+        access_shape_.push_back(IntImm(DataType::Int(32), extent));
         resulting_index_->push_back(floordiv(index, max / extent));
       }
     }

@@ -149,8 +149,8 @@ ffi::Array<Buffer> MakeScratchpads(const ffi::Array<Buffer>& reduction_buffers,
     name = name + "_thread_" + buffer->name;
     new_buffers.push_back(Buffer(/*ptr=*/Var(name, PointerType(PrimType(buffer->dtype), "local")),
                                  /*dtype=*/buffer->dtype,
-                                 /*shape=*/{Integer(1)},
-                                 /*strides=*/{Integer(1)},
+                                 /*shape=*/{IntImm(DataType::Int(32), 1)},
+                                 /*strides=*/{IntImm(DataType::Int(32), 1)},
                                  /*elem_offset=*/PrimExpr{nullptr},
                                  /*name=*/name,
                                  /*data_alignment=*/0,
@@ -336,7 +336,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
       inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {Integer(0)}));
+          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm(DataType::Int(32), 0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/const_true(),
@@ -380,7 +380,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // Next `n_buffers` arguments: sources
     if (it_buffers.defined()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(BufferLoad(it_buffers.value()[i], {Integer(0)}));
+        parameters.push_back(BufferLoad(it_buffers.value()[i], {IntImm(DataType::Int(32), 0)}));
       }
     } else {
       parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
@@ -465,7 +465,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     }
     for (int i = 0; i < n_buffers; ++i) {
       wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {Integer(0)}), wb_indices));
+          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm(DataType::Int(32), 0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 

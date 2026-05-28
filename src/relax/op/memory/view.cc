@@ -188,7 +188,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       return std::nullopt;
     }
 
-    PrimExpr num_elements = Integer(1);
+    PrimExpr num_elements = IntImm(DataType::Int(32), 1);
     for (const auto& dim : shape.value()) {
       num_elements *= dim;
     }

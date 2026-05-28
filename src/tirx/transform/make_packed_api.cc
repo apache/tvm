@@ -268,7 +268,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   // Return error code of zero on success
-  body = SeqStmt({body, Evaluate(ret(Integer(0)))});
+  body = SeqStmt({body, Evaluate(ret(IntImm(DataType::Int(32), 0)))});
 
   body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
                     std::move(result.decl_buffers)},

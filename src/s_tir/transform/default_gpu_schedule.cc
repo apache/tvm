@@ -72,13 +72,13 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   if (product > max_thread_per_block * max_threadblocks) {
     ffi::Array<s_tir::LoopRV> splits = sch->Split(
         fused,
-        /*factors=*/{std::nullopt, Integer(max_threadblocks), Integer(max_thread_per_block)});
+        /*factors=*/{std::nullopt, IntImm(DataType::Int(32), max_threadblocks), IntImm(DataType::Int(32), max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
     ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused, /*factors=*/{std::nullopt, Integer(std::min(product, max_thread_per_block))});
+        fused, /*factors=*/{std::nullopt, IntImm(DataType::Int(32), std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
   }
@@ -146,7 +146,7 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
                           /*writes=*/ffi::Array<tirx::BufferRegion>{},
                           /*name_hint=*/"root", /*body=*/for_stmt);
   tirx::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
-                                   /*predicate=*/tvm::Bool(true), root_block);
+                                   /*predicate=*/const_true(), root_block);
   tirx::PrimFunc result = func;
   result.CopyOnWrite()->body = std::move(root_realize);
   return result;

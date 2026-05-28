@@ -1013,11 +1013,11 @@ void ScheduleStateNode::UpdateScopeSBlockInfo(const Stmt& stmt) {
   SBlockInfoCollector::Collect(this, stmt);
 }
 
-TVM_DLL ffi::Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
+TVM_DLL ffi::Array<IntImm> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
   const SBlockInfo& info = self->GetSBlockInfo(block_sref);
-  return {Bool(info.affine_binding),  //
-          Bool(info.region_cover),    //
-          Bool(info.stage_pipeline)};
+  return {IntImm(DataType::Bool(), info.affine_binding),  //
+          IntImm(DataType::Bool(), info.region_cover),    //
+          IntImm(DataType::Bool(), info.stage_pipeline)};
 }
 
 /**************** FFI ****************/

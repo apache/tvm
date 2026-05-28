@@ -139,8 +139,8 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
       return {};
     }
   }
-  res.push_back({arith::IterMark(arith::IterSumExpr({}, 0), Bool(true)),
-                 arith::IterMark(arith::IterSumExpr({}, 0), Bool(true))});
+  res.push_back({arith::IterMark(arith::IterSumExpr({}, 0), const_true()),
+                 arith::IterMark(arith::IterSumExpr({}, 0), const_true())});
   return res;
 }
 
