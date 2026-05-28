@@ -1112,9 +1112,11 @@ class Cast(OnnxOpConverter):
 
         if np_dst.kind in ("i", "u"):
             src = inputs[0]
-            src_dtype = getattr(getattr(src, "struct_info", None), "dtype", None) or getattr(src, "dtype", None)
+            src_dtype = getattr(getattr(src, "struct_info", None), "dtype", None) or getattr(
+                src, "dtype", None
+            )
             if src_dtype is not None and _relax_dtype_is_floating_point(src_dtype):
-                bad = relax.op.logical_or(relax.op.isnan(src), relax.op.isinf(src))
+                bad = relax.op.logical_not(relax.op.isfinite(src))
                 x = bb.emit(relax.op.where(bad, relax.const(0.0, src_dtype), src))
                 return relax.op.astype(x, to_type)
 
