@@ -176,14 +176,17 @@ class OperatorConverter:
                 "lowering_stack": [],
                 "module_builder": ctx,
                 "resource_values": {},
+                "hashtable_values": {},
                 "in_call_once_init": False,
             }
         else:
             conversion_state.setdefault("module_builder", ctx)
             conversion_state.setdefault("resource_values", {})
+            conversion_state.setdefault("hashtable_values", {})
             conversion_state.setdefault("in_call_once_init", False)
         self.conversion_state = conversion_state
         self.resource_handles = {}
+        self.hashtable_handles = {}
 
         # Add more operators
         self.convert_map = {
@@ -240,6 +243,10 @@ class OperatorConverter:
             ),
             "GELU": self.convert_gelu,
             "HARD_SWISH": self.convert_hard_swish,
+            "HASHTABLE": self.convert_hashtable,
+            "HASHTABLE_FIND": self.convert_hashtable_find,
+            "HASHTABLE_IMPORT": self.convert_hashtable_import,
+            "HASHTABLE_SIZE": self.convert_hashtable_size,
             "IF": self.convert_if,
             "L2_NORMALIZATION": self.convert_l2_normalization,
             "L2_POOL_2D": functools.partial(self.convert_pool2d, pool_type="l2"),
@@ -610,6 +617,162 @@ class OperatorConverter:
                 "READ_VARIABLE requires a resource initialized by a supported CALL_ONCE subgraph"
             )
         return resource_values[resource_key]
+
+    def _get_hashtable_key(self, op, fallback_tensor=None):
+        """Return a stable key for a TFLite HASHTABLE resource."""
+        table_id = None
+        if op.BuiltinOptions() is not None:
+            try:
+                from tflite.HashtableOptions import HashtableOptions
+
+                opts = self._get_builtin_options(op, HashtableOptions)
+                table_id = int(opts.TableId())
+            except (ImportError, ModuleNotFoundError):
+                pass
+
+        if table_id is not None:
+            return table_id
+        if fallback_tensor is not None:
+            return get_tensor_name(self.subgraph, fallback_tensor.tensor_idx)
+        raise tvm.error.OpNotImplemented("HASHTABLE requires HashtableOptions")
+
+    def _get_hashtable_key_for_handle(self, tensor, op_name):
+        tensor_name = get_tensor_name(self.subgraph, tensor.tensor_idx)
+        if tensor_name not in self.hashtable_handles:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} requires a HASHTABLE in the same TFLite subgraph"
+            )
+        return self.hashtable_handles[tensor_name]
+
+    def convert_hashtable(self, op):
+        """Convert a TFLite HASHTABLE into an importer-local table handle."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 0 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("HASHTABLE expects no inputs and one output")
+
+        table_key = self._get_hashtable_key(op, output_tensors[0])
+        table_tensor_name = get_tensor_name(self.subgraph, output_tensors[0].tensor_idx)
+        self.hashtable_handles[table_tensor_name] = table_key
+        return None
+
+    @staticmethod
+    def _has_tensor_buffer_data(tensor_wrapper):
+        return (
+            tensor_wrapper.buffer is not None
+            and hasattr(tensor_wrapper.buffer, "DataLength")
+            and tensor_wrapper.buffer.DataLength() > 0
+        )
+
+    def convert_hashtable_import(self, op):
+        """Convert the CALL_ONCE initialization subset of HASHTABLE_IMPORT."""
+        if not self.conversion_state["in_call_once_init"]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_IMPORT outside CALL_ONCE initialization is not supported by the "
+                "Relax TFLite frontend yet because it requires mutable resource state modeling."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 3 or len(output_tensors) != 0:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_IMPORT expects table, keys, and values inputs with no outputs"
+            )
+
+        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_IMPORT")
+        if not self._has_tensor_buffer_data(input_tensors[1]) or not self._has_tensor_buffer_data(
+            input_tensors[2]
+        ):
+            raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT requires constant keys and values")
+        keys = self.get_tensor_value(input_tensors[1])
+        values = self.get_tensor_value(input_tensors[2])
+        if keys.ndim != 1 or values.ndim < 1:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_IMPORT requires one-dimensional keys and at least one-dimensional values"
+            )
+        if keys.shape[0] != values.shape[0]:
+            raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT keys and values size mismatch")
+
+        self.conversion_state["hashtable_values"][table_key] = {
+            "keys": self.get_tensor_expr(input_tensors[1]),
+            "values": self.get_tensor_expr(input_tensors[2]),
+            "size": int(keys.shape[0]),
+            "value_shape": tuple(int(dim) for dim in values.shape[1:]),
+        }
+        return None
+
+    def convert_hashtable_find(self, op):
+        """Convert HASHTABLE_FIND for static tables initialized by CALL_ONCE."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 3 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND expects table, keys, and default value inputs with one output"
+            )
+
+        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_FIND")
+        hashtable_values = self.conversion_state["hashtable_values"]
+        if table_key not in hashtable_values:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND requires a table initialized by a supported CALL_ONCE subgraph"
+            )
+
+        table = hashtable_values[table_key]
+        output_shape = (
+            tuple(output_tensors[0].tensor.ShapeAsNumpy())
+            if output_tensors[0].tensor.ShapeLength() > 0
+            else ()
+        )
+        value_shape = table["value_shape"]
+        if value_shape and (
+            len(output_shape) < len(value_shape)
+            or tuple(output_shape[-len(value_shape) :]) != value_shape
+        ):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND output shape must append the imported value shape"
+            )
+        query_keys = self.get_tensor_expr(input_tensors[1])
+        table_keys = table["keys"]
+        table_values = table["values"]
+        default_value = self.get_tensor_expr(input_tensors[2])
+
+        if input_tensors[1].tensor.ShapeLength() == 0:
+            matches = relax.op.equal(query_keys, table_keys)
+        else:
+            matches = relax.op.equal(relax.op.expand_dims(query_keys, axis=-1), table_keys)
+        matches_int = relax.op.astype(matches, "int32")
+        matched_indices = relax.op.argmax(matches_int, axis=-1)
+        selected_values = relax.op.take(table_values, matched_indices, axis=0, mode="fast")
+        has_match = relax.op.greater(
+            relax.op.max(matches_int, axis=-1),
+            relax.const(0, dtype="int32"),
+        )
+        if value_shape:
+            for _ in value_shape:
+                has_match = relax.op.expand_dims(has_match, axis=-1)
+            has_match = relax.op.broadcast_to(
+                has_match,
+                output_shape,
+            )
+        default_values = relax.op.broadcast_to(default_value, output_shape)
+        return relax.op.where(has_match, selected_values, default_values)
+
+    def convert_hashtable_size(self, op):
+        """Convert HASHTABLE_SIZE for static tables initialized by CALL_ONCE."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("HASHTABLE_SIZE expects one input and one output")
+
+        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_SIZE")
+        hashtable_values = self.conversion_state["hashtable_values"]
+        if table_key not in hashtable_values:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_SIZE requires a table initialized by a supported CALL_ONCE subgraph"
+            )
+
+        output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+        return relax.const(hashtable_values[table_key]["size"], dtype=output_dtype)
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
@@ -2404,7 +2567,7 @@ class OperatorConverter:
 
     def _convert_call_once_init_subgraph(self, init_subgraph):
         """Convert the resource-variable initialization subset of a CALL_ONCE subgraph."""
-        supported_init_ops = {"VAR_HANDLE", "ASSIGN_VARIABLE"}
+        supported_init_ops = {"VAR_HANDLE", "ASSIGN_VARIABLE", "HASHTABLE", "HASHTABLE_IMPORT"}
         for op_idx in range(init_subgraph.OperatorsLength()):
             op_name = self.get_op_code_str(init_subgraph.Operators(op_idx))
             if op_name not in supported_init_ops:
@@ -2415,6 +2578,8 @@ class OperatorConverter:
         old_in_call_once_init = self.conversion_state["in_call_once_init"]
         self.conversion_state["in_call_once_init"] = True
         try:
+            # The supported init ops below only update importer state and return None.
+            # If future CALL_ONCE ops emit Relax bindings, revisit sharing the parent builder.
             subgraph_converter = type(self)(
                 self.model,
                 init_subgraph,
