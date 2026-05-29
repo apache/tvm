@@ -265,7 +265,11 @@ def find_include_path(name=None, search_path=None, optional=False):
         source_dir = os.environ["TVM_HOME"]
     else:
         ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        for source_dir in ["..", "../..", "../../.."]:
+        # "." covers the installed-wheel layout, where the bundled headers live
+        # in ``<package>/include``; the remaining entries cover a source tree,
+        # where the package is at ``<root>/python/tvm`` and headers at
+        # ``<root>/include``.
+        for source_dir in [".", "..", "../..", "../../.."]:
             source_dir = os.path.join(ffi_dir, source_dir)
             if os.path.isdir(os.path.join(source_dir, "include")):
                 break
@@ -309,6 +313,28 @@ def find_include_path(name=None, search_path=None, optional=False):
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in tvm_ffi_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
+
+        # In a wheel install the tvm-ffi (and bundled dlpack) headers ship with
+        # the separate apache-tvm-ffi package rather than under 3rdparty/, so
+        # ask it where its headers live. This lets C/C++ source compilation
+        # (e.g. target="c" / Module.export_library) work from installed wheels.
+        try:
+            import tvm_ffi.libinfo as _ffi_libinfo  # pylint: disable=import-outside-toplevel
+
+            for _finder in (
+                getattr(_ffi_libinfo, "find_include_path", None),
+                getattr(_ffi_libinfo, "find_dlpack_include_path", None),
+            ):
+                if _finder is None:
+                    continue
+                try:
+                    _p = _finder()
+                except Exception:  # pylint: disable=broad-except
+                    continue
+                if _p and os.path.isdir(_p) and _p not in include_found:
+                    include_found.append(_p)
+        except Exception:  # pylint: disable=broad-except
+            pass
 
     if not include_found:
         message = (
