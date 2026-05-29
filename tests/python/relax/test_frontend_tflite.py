@@ -85,7 +85,7 @@ def verify(TestClass, expected=None):
     tf_output = cf(*tf_inputs)
 
     # TVM Run
-    tgt = tvm.target.Target("llvm")
+    tgt = tvm.target.Target("c")
     ex = tvm.compile(mod, tgt)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", *tvm_inputs)
@@ -110,7 +110,7 @@ def _verify_random_with_inputs(cfunc, inputs):
 
     tf_output = cfunc(*tf_inputs)
 
-    tgt = tvm.target.Target("llvm")
+    tgt = tvm.target.Target("c")
     ex = tvm.compile(mod, tgt)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
@@ -3705,7 +3705,6 @@ _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
 _tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
-_tfl_reduce_window_options = _get_tflite_schema_module("ReduceWindowOptions")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
 _tfl_tensor = _get_tflite_schema_module("Tensor")
@@ -3718,12 +3717,12 @@ _tfl_activation_fn = _get_tflite_schema_enum("ActivationFunctionType")
 _tfl_dimension_type = _get_tflite_schema_enum("DimensionType")
 _tfl_fc_weights_format = _get_tflite_schema_enum("FullyConnectedOptionsWeightsFormat")
 _tfl_padding = _get_tflite_schema_enum("Padding")
-_tfl_reduce_window_function = _get_tflite_schema_enum("ReduceWindowFunction")
 _tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
 _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
 
-_tfl_rnn_options = _get_tflite_schema_module("RNNOptions")
+_tfl_lstm_options = _get_tflite_schema_module("LSTMOptions")
 _tfl_sequence_rnn_options = _get_tflite_schema_module("SequenceRNNOptions")
+_tfl_svdf_options = _get_tflite_schema_module("SVDFOptions")
 
 _DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
 _DENSIFY_TEST_DENSE = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
@@ -3952,410 +3951,6 @@ def _load_model_from_buffer(model_bytes):
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
     return mod
-
-
-def _build_reduce_window_options(builder, reduce_function):
-    _tfl_reduce_window_options.ReduceWindowOptionsStart(builder)
-    _tfl_reduce_window_options.ReduceWindowOptionsAddReduceFunction(builder, reduce_function)
-    return _tfl_reduce_window_options.ReduceWindowOptionsEnd(builder)
-
-
-def _reduce_window_output_shape(input_shape, window_shape, window_strides, window_dilations):
-    output_shape = []
-    for input_dim, window_dim, stride, dilation in zip(
-        input_shape, window_shape, window_strides, window_dilations
-    ):
-        dilated_window = (window_dim - 1) * dilation + 1
-        if stride <= 0:
-            output_shape.append(0)
-        elif input_dim < dilated_window:
-            output_shape.append(0)
-        else:
-            output_shape.append((input_dim - dilated_window) // stride + 1)
-    return tuple(output_shape)
-
-
-def _build_reduce_window_model(
-    *,
-    input_shape,
-    init_value,
-    init_shape=(),
-    window_shape,
-    window_strides,
-    window_dilations,
-    output_shape=None,
-    reduce_function,
-    tensor_type=None,
-    value_dtype=np.float32,
-):
-    builder = flatbuffers.Builder(1024)
-    if tensor_type is None:
-        tensor_type = _tfl_tensor_type.FLOAT32
-
-    input_tensor_idx = 0
-    init_tensor_idx = 1
-    window_shape_tensor_idx = 2
-    window_strides_tensor_idx = 3
-    window_dilations_tensor_idx = 4
-    output_tensor_idx = 5
-
-    if output_shape is None:
-        output_shape = _reduce_window_output_shape(
-            input_shape, window_shape, window_strides, window_dilations
-        )
-
-    input_tensor = _build_tensor(builder, 1, input_shape, tensor_type=tensor_type)
-    init_tensor = _build_tensor(builder, 2, init_shape, tensor_type=tensor_type)
-    window_shape_tensor = _build_tensor(
-        builder, 3, [len(window_shape)], tensor_type=_tfl_tensor_type.INT64
-    )
-    window_strides_tensor = _build_tensor(
-        builder, 4, [len(window_strides)], tensor_type=_tfl_tensor_type.INT64
-    )
-    window_dilations_tensor = _build_tensor(
-        builder, 5, [len(window_dilations)], tensor_type=_tfl_tensor_type.INT64
-    )
-    output_tensor = _build_tensor(builder, 6, output_shape, tensor_type=tensor_type)
-
-    reduce_window_opts = _build_reduce_window_options(builder, reduce_function)
-    reduce_window_op = _build_operator(
-        builder,
-        0,
-        [
-            input_tensor_idx,
-            init_tensor_idx,
-            window_shape_tensor_idx,
-            window_strides_tensor_idx,
-            window_dilations_tensor_idx,
-        ],
-        [output_tensor_idx],
-        builtin_options2_type=_tfl_builtin_options2.ReduceWindowOptions,
-        builtin_options2=reduce_window_opts,
-    )
-
-    subgraph = _build_subgraph(
-        builder,
-        tensors=[
-            input_tensor,
-            init_tensor,
-            window_shape_tensor,
-            window_strides_tensor,
-            window_dilations_tensor,
-            output_tensor,
-        ],
-        operators=[reduce_window_op],
-        inputs=[input_tensor_idx],
-        outputs=[output_tensor_idx],
-    )
-    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.REDUCE_WINDOW)]
-
-    buffers = [
-        _build_buffer(builder),
-        _build_buffer(builder),
-        _build_buffer(builder, np.asarray([init_value], dtype=value_dtype).tobytes()),
-        _build_buffer(builder, np.asarray(window_shape, dtype=np.int64).tobytes()),
-        _build_buffer(builder, np.asarray(window_strides, dtype=np.int64).tobytes()),
-        _build_buffer(builder, np.asarray(window_dilations, dtype=np.int64).tobytes()),
-        _build_buffer(builder),
-    ]
-
-    return _finish_tflite_model(
-        builder, subgraph=subgraph, operator_codes=operator_codes, buffers=buffers
-    )
-
-
-def _from_reduce_window_model(**kwargs):
-    return _load_model_from_buffer(_build_reduce_window_model(**kwargs))
-
-
-def _reduce_window_dilated_shape(window_shape, window_dilations):
-    return [
-        (window_dim - 1) * dilation + 1
-        for window_dim, dilation in zip(window_shape, window_dilations)
-    ]
-
-
-def _make_reduce_window_numeric_expected(
-    *,
-    input_shape,
-    init_value,
-    init_shape=(),
-    window_shape,
-    window_strides,
-    window_dilations,
-    reduce_op,
-    combine_op,
-    dtype="float32",
-):
-    output_shape = _reduce_window_output_shape(
-        input_shape, window_shape, window_strides, window_dilations
-    )
-    dilated_window_shape = _reduce_window_dilated_shape(window_shape, window_dilations)
-    rank = len(input_shape)
-
-    bb = relax.BlockBuilder()
-    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, dtype))
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            windowed = bb.emit(
-                relax.op.call_dps_packed(
-                    "topi.sliding_window",
-                    (
-                        x,
-                        0,
-                        relax.ShapeExpr(dilated_window_shape),
-                        relax.ShapeExpr(window_strides),
-                    ),
-                    out_sinfo=relax.TensorStructInfo(
-                        output_shape + tuple(dilated_window_shape), dtype
-                    ),
-                )
-            )
-            if any(dilation != 1 for dilation in window_dilations):
-                windowed = bb.emit(
-                    relax.op.strided_slice(
-                        windowed,
-                        axes=list(range(rank, 2 * rank)),
-                        begin=[0] * rank,
-                        end=dilated_window_shape,
-                        strides=window_dilations,
-                    )
-                )
-            reduced = bb.emit(reduce_op(windowed, axis=list(range(rank, 2 * rank))))
-            init = relax.const(np.asarray([init_value], dtype=dtype).reshape(init_shape), dtype)
-            if len(init_shape) != 0:
-                init = relax.op.reshape(init, [])
-            gv = bb.emit_output(combine_op(reduced, init))
-        bb.emit_func_output(gv)
-
-    mod = bb.get()
-    mod["main"] = mod["main"].with_attr("num_input", 1)
-    return mod
-
-
-def _make_reduce_window_bool_expected(
-    *,
-    input_shape,
-    init_value,
-    window_shape,
-    window_strides,
-    window_dilations,
-    reduce_op,
-    combine_op,
-):
-    output_shape = _reduce_window_output_shape(
-        input_shape, window_shape, window_strides, window_dilations
-    )
-    dilated_window_shape = _reduce_window_dilated_shape(window_shape, window_dilations)
-    rank = len(input_shape)
-
-    bb = relax.BlockBuilder()
-    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, "bool"))
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            windowed = bb.emit(
-                relax.op.call_dps_packed(
-                    "topi.sliding_window",
-                    (
-                        x,
-                        0,
-                        relax.ShapeExpr(dilated_window_shape),
-                        relax.ShapeExpr(window_strides),
-                    ),
-                    out_sinfo=relax.TensorStructInfo(
-                        output_shape + tuple(dilated_window_shape), "bool"
-                    ),
-                )
-            )
-            cast_windowed = bb.emit(relax.op.astype(windowed, "int8"))
-            reduced = bb.emit(reduce_op(cast_windowed, axis=list(range(rank, 2 * rank))))
-            reduced_bool = bb.emit(relax.op.astype(reduced, "bool"))
-            gv = bb.emit_output(combine_op(reduced_bool, relax.const(init_value, "bool")))
-        bb.emit_func_output(gv)
-
-    mod = bb.get()
-    mod["main"] = mod["main"].with_attr("num_input", 1)
-    return mod
-
-
-def _make_reduce_window_empty_expected(*, input_shape, output_shape, dtype="float32"):
-    bb = relax.BlockBuilder()
-    x = relax.Var("tvmgen_tensor_0", relax.TensorStructInfo(input_shape, dtype))
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            gv = bb.emit_output(relax.op.zeros(output_shape, dtype))
-        bb.emit_func_output(gv)
-
-    mod = bb.get()
-    mod["main"] = mod["main"].with_attr("num_input", 1)
-    return mod
-
-
-def test_reduce_window_unsupported_function():
-    with pytest.raises(tvm.error.OpNotImplemented, match="UNSUPPORTED reduce_function"):
-        _from_reduce_window_model(
-            input_shape=(4,),
-            init_value=0.0,
-            window_shape=[2],
-            window_strides=[1],
-            window_dilations=[1],
-            reduce_function=_tfl_reduce_window_function.UNSUPPORTED,
-        )
-
-
-@pytest.mark.parametrize(
-    "reduce_function, reduce_op, combine_op",
-    [
-        (_tfl_reduce_window_function.ADD, relax.op.sum, relax.op.add),
-        (_tfl_reduce_window_function.MUL, relax.op.prod, relax.op.multiply),
-        (_tfl_reduce_window_function.MINIMUM, relax.op.min, relax.op.minimum),
-        (_tfl_reduce_window_function.MAXIMUM, relax.op.max, relax.op.maximum),
-    ],
-)
-def test_reduce_window_numeric_modes(reduce_function, reduce_op, combine_op):
-    input_shape = (4, 5)
-    init_value = 1.0
-    window_shape = [2, 2]
-    window_strides = [1, 2]
-    window_dilations = [2, 1]
-    mod = _from_reduce_window_model(
-        input_shape=input_shape,
-        init_value=init_value,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_function=reduce_function,
-    )
-    expected = _make_reduce_window_numeric_expected(
-        input_shape=input_shape,
-        init_value=init_value,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_op=reduce_op,
-        combine_op=combine_op,
-    )
-    tvm.ir.assert_structural_equal(mod, expected)
-
-
-def test_reduce_window_one_element_init_tensor():
-    input_shape = (4,)
-    init_value = 1.0
-    init_shape = (1,)
-    window_shape = [2]
-    window_strides = [1]
-    window_dilations = [1]
-    mod = _from_reduce_window_model(
-        input_shape=input_shape,
-        init_value=init_value,
-        init_shape=init_shape,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_function=_tfl_reduce_window_function.ADD,
-    )
-    expected = _make_reduce_window_numeric_expected(
-        input_shape=input_shape,
-        init_value=init_value,
-        init_shape=init_shape,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_op=relax.op.sum,
-        combine_op=relax.op.add,
-    )
-    tvm.ir.assert_structural_equal(mod, expected)
-
-
-@pytest.mark.parametrize(
-    "reduce_function, reduce_op, combine_op, init_value",
-    [
-        (_tfl_reduce_window_function.ALL, relax.op.min, relax.op.logical_and, True),
-        (_tfl_reduce_window_function.ANY, relax.op.max, relax.op.logical_or, False),
-    ],
-)
-def test_reduce_window_bool_modes(reduce_function, reduce_op, combine_op, init_value):
-    input_shape = (5,)
-    window_shape = [3]
-    window_strides = [2]
-    window_dilations = [1]
-    mod = _from_reduce_window_model(
-        input_shape=input_shape,
-        init_value=init_value,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_function=reduce_function,
-        tensor_type=_tfl_tensor_type.BOOL,
-        value_dtype=np.bool_,
-    )
-    expected = _make_reduce_window_bool_expected(
-        input_shape=input_shape,
-        init_value=init_value,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_op=reduce_op,
-        combine_op=combine_op,
-    )
-    tvm.ir.assert_structural_equal(mod, expected)
-
-
-def test_reduce_window_empty_output_dimension():
-    input_shape = (2,)
-    window_shape = [3]
-    window_strides = [1]
-    window_dilations = [1]
-    mod = _from_reduce_window_model(
-        input_shape=input_shape,
-        init_value=0.0,
-        window_shape=window_shape,
-        window_strides=window_strides,
-        window_dilations=window_dilations,
-        reduce_function=_tfl_reduce_window_function.ADD,
-    )
-    expected = _make_reduce_window_empty_expected(
-        input_shape=input_shape,
-        output_shape=(0,),
-    )
-    tvm.ir.assert_structural_equal(mod, expected)
-
-
-def test_reduce_window_mismatched_window_rank():
-    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="must match input rank"):
-        _from_reduce_window_model(
-            input_shape=(4, 5),
-            init_value=0.0,
-            window_shape=[2],
-            window_strides=[1],
-            window_dilations=[1],
-            reduce_function=_tfl_reduce_window_function.ADD,
-        )
-
-
-def test_reduce_window_non_positive_stride():
-    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="must be positive"):
-        _from_reduce_window_model(
-            input_shape=(4,),
-            init_value=0.0,
-            window_shape=[2],
-            window_strides=[0],
-            window_dilations=[1],
-            reduce_function=_tfl_reduce_window_function.ADD,
-        )
-
-
-def test_reduce_window_inconsistent_output_shape():
-    with pytest.raises(tvm.error.OpAttributeUnImplemented, match="output shape"):
-        _from_reduce_window_model(
-            input_shape=(5,),
-            init_value=0.0,
-            window_shape=[2],
-            window_strides=[1],
-            window_dilations=[1],
-            output_shape=(3,),
-            reduce_function=_tfl_reduce_window_function.ADD,
-        )
 
 
 def _get_builtin_operator(builtin_name):
@@ -10128,251 +9723,210 @@ def test_dilate_dynamic_dilations():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-# ── RNN ────────────────────────────────────────────────────────────────────────
+# ── LSTM ──────────────────────────────────────────────────────────────────────
 
 
-def _build_rnn_model(batch, input_size, num_units, weights, recurrent_weights, bias, activation):
-    """Build a minimal TFLite flatbuffer model containing one RNN op.
-
-    Tensor layout (indices 0-5):
-      0 - input             [batch, input_size]
-      1 - input_weights     [num_units, input_size]    (constant)
-      2 - recurrent_weights [num_units, num_units]     (constant)
-      3 - bias              [num_units]                (constant)
-      4 - hidden_state      [batch, num_units]         (variable, zero-initialised)
-      5 - output            [batch, num_units]
-    """
-    builder = flatbuffers.Builder(4096)
-
-    _tfl_rnn_options.RNNOptionsStart(builder)
-    _tfl_rnn_options.RNNOptionsAddFusedActivationFunction(builder, activation)
-    rnn_opts = _tfl_rnn_options.RNNOptionsEnd(builder)
-
-    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.RNN)
-
-    def _t(buf_idx, shape, is_variable=False):
-        shape_vec = _tflite_shape(builder, shape)
-        _tfl_tensor.TensorStart(builder)
-        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
-        _tfl_tensor.TensorAddHasRank(builder, True)
-        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
-        _tfl_tensor.TensorAddShape(builder, shape_vec)
-        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
-        return _tfl_tensor.TensorEnd(builder)
-
-    tensors = [
-        _t(0, [batch, input_size]),
-        _t(1, [num_units, input_size]),
-        _t(2, [num_units, num_units]),
-        _t(3, [num_units]),
-        _t(4, [batch, num_units], is_variable=True),
-        _t(5, [batch, num_units]),
-    ]
-
-    rnn_op = _build_operator(
-        builder,
-        0,
-        [0, 1, 2, 3, 4],
-        [5],
-        builtin_options_type=_tfl_builtin_options.RNNOptions,
-        builtin_options=rnn_opts,
-    )
-
-    subgraph = _build_subgraph(
-        builder,
-        tensors=tensors,
-        operators=[rnn_op],
-        inputs=[0],
-        outputs=[5],
-    )
-
-    buffers = [
-        _build_buffer(builder),
-        _build_buffer(builder, weights.tobytes()),
-        _build_buffer(builder, recurrent_weights.tobytes()),
-        _build_buffer(builder, bias.tobytes()),
-        _build_buffer(builder),
-        _build_buffer(builder),
-    ]
-
-    return _finish_tflite_model(
-        builder,
-        subgraph=subgraph,
-        operator_codes=[rnn_op_code],
-        buffers=buffers,
-    )
-
-
-def _build_two_step_shared_state_rnn_model(
-    batch, input_size, num_units, weights, recurrent_weights, bias, activation
+def _build_lstm_model(
+    batch,
+    input_size,
+    num_units,
+    input_to_forget_weights,
+    input_to_cell_weights,
+    input_to_output_weights,
+    recurrent_to_forget_weights,
+    recurrent_to_cell_weights,
+    recurrent_to_output_weights,
+    forget_gate_bias,
+    cell_bias,
+    output_gate_bias,
+    activation,
+    *,
+    cell_clip=0.0,
+    proj_clip=0.0,
+    include_unsupported=False,
 ):
-    """Build a TFLite model with two RNN ops sharing the same hidden-state tensor."""
+    """Build a minimal TFLite flatbuffer model with one LSTM op (coupled input-forget).
+
+    Tensor indices:
+      0  - input                       [batch, input_size]
+      1  - input_to_forget_weights     [num_units, input_size]   (constant)
+      2  - input_to_cell_weights       [num_units, input_size]   (constant)
+      3  - input_to_output_weights     [num_units, input_size]   (constant)
+      4  - recurrent_to_forget_weights [num_units, num_units]    (constant)
+      5  - recurrent_to_cell_weights   [num_units, num_units]    (constant)
+      6  - recurrent_to_output_weights [num_units, num_units]    (constant)
+      7  - forget_gate_bias            [num_units]               (constant)
+      8  - cell_bias                   [num_units]               (constant)
+      9  - output_gate_bias            [num_units]               (constant)
+      10 - output_state                [batch, num_units]        (input)
+      11 - cell_state                  [batch, num_units]        (input)
+      12 - output                      [batch, num_units]
+
+    Operator input indices (24 entries, -1 for absent):
+      [0, -1, 1, 2, 3, -1, 4, 5, 6, -1, -1, -1, -1, 7, 8, 9, -1, -1, 10, 11, -1, -1, -1, -1]
+    """
     builder = flatbuffers.Builder(4096)
 
-    _tfl_rnn_options.RNNOptionsStart(builder)
-    _tfl_rnn_options.RNNOptionsAddFusedActivationFunction(builder, activation)
-    rnn_opts = _tfl_rnn_options.RNNOptionsEnd(builder)
+    _tfl_lstm_options.LSTMOptionsStart(builder)
+    _tfl_lstm_options.LSTMOptionsAddFusedActivationFunction(builder, activation)
+    _tfl_lstm_options.LSTMOptionsAddCellClip(builder, cell_clip)
+    _tfl_lstm_options.LSTMOptionsAddProjClip(builder, proj_clip)
+    lstm_opts = _tfl_lstm_options.LSTMOptionsEnd(builder)
 
-    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.RNN)
+    lstm_op_code = _build_operator_code(builder, _tfl_builtin_operator.LSTM)
 
-    def _t(buf_idx, shape, is_variable=False):
+    def _t(buf_idx, shape):
         shape_vec = _tflite_shape(builder, shape)
         _tfl_tensor.TensorStart(builder)
         _tfl_tensor.TensorAddBuffer(builder, buf_idx)
         _tfl_tensor.TensorAddHasRank(builder, True)
-        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
+        _tfl_tensor.TensorAddIsVariable(builder, False)
         _tfl_tensor.TensorAddShape(builder, shape_vec)
         _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
         return _tfl_tensor.TensorEnd(builder)
 
     tensors = [
+        # 0: input
         _t(0, [batch, input_size]),
+        # 1: input_to_forget_weights (coupled)
         _t(1, [num_units, input_size]),
-        _t(2, [num_units, num_units]),
-        _t(3, [num_units]),
-        _t(4, [batch, num_units], is_variable=True),
-        _t(0, [batch, input_size]),
+        # 2: input_to_cell_weights
+        _t(2, [num_units, input_size]),
+        # 3: input_to_output_weights
+        _t(3, [num_units, input_size]),
+        # 4: recurrent_to_forget_weights (coupled)
+        _t(4, [num_units, num_units]),
+        # 5: recurrent_to_cell_weights
+        _t(5, [num_units, num_units]),
+        # 6: recurrent_to_output_weights
+        _t(6, [num_units, num_units]),
+        # 7: forget_gate_bias (coupled)
+        _t(7, [num_units]),
+        # 8: cell_bias
+        _t(8, [num_units]),
+        # 9: output_gate_bias
+        _t(9, [num_units]),
+        # 10: output_state (input)
         _t(0, [batch, num_units]),
+        # 11: cell_state (input)
+        _t(0, [batch, num_units]),
+        # 12: output
         _t(0, [batch, num_units]),
     ]
 
-    first_rnn_op = _build_operator(
+    if include_unsupported:
+        tensors.extend(
+            [
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units, num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+                _t(0, [num_units]),
+            ]
+        )
+
+    # Operator input indices: -1 for absent optional inputs
+    lstm_inputs = [
+        0,
+        -1,
+        1,
+        2,
+        3,
+        -1,
+        4,
+        5,
+        6,
+        13 if include_unsupported else -1,
+        14 if include_unsupported else -1,
+        15 if include_unsupported else -1,
+        -1,
+        7,
+        8,
+        9,
+        16 if include_unsupported else -1,
+        17 if include_unsupported else -1,
+        10,
+        11,
+        18 if include_unsupported else -1,
+        19 if include_unsupported else -1,
+        20 if include_unsupported else -1,
+        21 if include_unsupported else -1,
+    ]
+
+    lstm_op = _build_operator(
         builder,
         0,
-        [0, 1, 2, 3, 4],
-        [6],
-        builtin_options_type=_tfl_builtin_options.RNNOptions,
-        builtin_options=rnn_opts,
-    )
-    second_rnn_op = _build_operator(
-        builder,
-        0,
-        [5, 1, 2, 3, 4],
-        [7],
-        builtin_options_type=_tfl_builtin_options.RNNOptions,
-        builtin_options=rnn_opts,
+        lstm_inputs,
+        [12],
+        builtin_options_type=_tfl_builtin_options.LSTMOptions,
+        builtin_options=lstm_opts,
     )
 
     subgraph = _build_subgraph(
         builder,
         tensors=tensors,
-        operators=[first_rnn_op, second_rnn_op],
-        inputs=[0, 5],
-        outputs=[7],
+        operators=[lstm_op],
+        inputs=[0, 10, 11],
+        outputs=[12],
     )
 
     buffers = [
-        _build_buffer(builder),
-        _build_buffer(builder, weights.tobytes()),
-        _build_buffer(builder, recurrent_weights.tobytes()),
-        _build_buffer(builder, bias.tobytes()),
-        _build_buffer(builder),
+        _build_buffer(builder),  # 0: empty
+        _build_buffer(builder, input_to_forget_weights.tobytes()),  # 1
+        _build_buffer(builder, input_to_cell_weights.tobytes()),  # 2
+        _build_buffer(builder, input_to_output_weights.tobytes()),  # 3
+        _build_buffer(builder, recurrent_to_forget_weights.tobytes()),  # 4
+        _build_buffer(builder, recurrent_to_cell_weights.tobytes()),  # 5
+        _build_buffer(builder, recurrent_to_output_weights.tobytes()),  # 6
+        _build_buffer(builder, forget_gate_bias.tobytes()),  # 7
+        _build_buffer(builder, cell_bias.tobytes()),  # 8
+        _build_buffer(builder, output_gate_bias.tobytes()),  # 9
     ]
+
+    if include_unsupported:
+        buffers.extend([_build_buffer(builder) for _ in range(9)])
 
     return _finish_tflite_model(
         builder,
         subgraph=subgraph,
-        operator_codes=[rnn_op_code],
+        operator_codes=[lstm_op_code],
         buffers=buffers,
     )
 
 
-def test_rnn_none_activation():
-    """RNN with NONE activation lowers to matmul/add.
-
-    Cell equation: h = x @ W.T + h @ Wr.T + b  (no activation for NONE)
-    """
+def test_lstm_none_activation():
+    """LSTM with NONE activation uses the cell state before the output gate multiply."""
     from tflite.ActivationFunctionType import ActivationFunctionType
 
     batch, input_size, num_units = 2, 2, 2
-    weights = np.eye(num_units, input_size, dtype=np.float32)
-    recurrent_weights = np.eye(num_units, dtype=np.float32)
-    bias = np.zeros(num_units, dtype=np.float32)
+    w_f = np.eye(num_units, input_size, dtype=np.float32)
+    w_c = np.eye(num_units, input_size, dtype=np.float32)
+    w_o = np.eye(num_units, input_size, dtype=np.float32)
+    r_f = np.eye(num_units, dtype=np.float32)
+    r_c = np.eye(num_units, dtype=np.float32)
+    r_o = np.eye(num_units, dtype=np.float32)
+    b_f = np.zeros(num_units, dtype=np.float32)
+    b_c = np.zeros(num_units, dtype=np.float32)
+    b_o = np.zeros(num_units, dtype=np.float32)
 
     mod = _load_model_from_buffer(
-        _build_rnn_model(
+        _build_lstm_model(
             batch,
             input_size,
             num_units,
-            weights,
-            recurrent_weights,
-            bias,
-            ActivationFunctionType.NONE,
-        )
-    )
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
-                    R.const(np.eye(2, dtype=np.float32)), axes=None
-                )
-                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(x, lv, out_dtype="void")
-                lv2: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
-                lv3: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
-                    R.const(np.eye(2, dtype=np.float32)), axes=None
-                )
-                lv4: R.Tensor((2, 2), dtype="float32") = R.matmul(lv2, lv3, out_dtype="void")
-                lv5: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv4)
-                gv: R.Tensor((2, 2), dtype="float32") = R.add(
-                    lv5, R.const(np.zeros(2, dtype=np.float32))
-                )
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_rnn_relu_activation():
-    """RNN with RELU activation and random weights."""
-    from tflite.ActivationFunctionType import ActivationFunctionType
-
-    batch, input_size, num_units = 2, 4, 8
-    np.random.seed(42)
-    weights = np.random.randn(num_units, input_size).astype(np.float32)
-    recurrent_weights = np.random.randn(num_units, num_units).astype(np.float32)
-    bias = np.random.randn(num_units).astype(np.float32)
-
-    mod = _load_model_from_buffer(
-        _build_rnn_model(
-            batch,
-            input_size,
-            num_units,
-            weights,
-            recurrent_weights,
-            bias,
-            ActivationFunctionType.RELU,
-        )
-    )
-
-    fn = mod["main"]
-    assert len(fn.params) == 1, "only the input should be a graph input"
-    in_shape = fn.params[0].struct_info.shape
-    assert tuple(int(d) for d in in_shape) == (batch, input_size)
-    out_shape = fn.ret_struct_info.shape
-    assert tuple(int(d) for d in out_shape) == (batch, num_units)
-
-
-def test_rnn_shared_hidden_state_updates_exp_tab():
-    """Two consecutive RNN ops sharing hidden_state should use the updated state."""
-    from tflite.ActivationFunctionType import ActivationFunctionType
-
-    batch, input_size, num_units = 2, 2, 2
-    weights = np.eye(num_units, input_size, dtype=np.float32)
-    recurrent_weights = np.eye(num_units, dtype=np.float32)
-    bias = np.zeros(num_units, dtype=np.float32)
-
-    mod = _load_model_from_buffer(
-        _build_two_step_shared_state_rnn_model(
-            batch,
-            input_size,
-            num_units,
-            weights,
-            recurrent_weights,
-            bias,
+            w_f,
+            w_c,
+            w_o,
+            r_f,
+            r_c,
+            r_o,
+            b_f,
+            b_c,
+            b_o,
             ActivationFunctionType.NONE,
         )
     )
@@ -10381,35 +9935,505 @@ def test_rnn_shared_hidden_state_updates_exp_tab():
     class Expected:
         @R.function
         def main(
-            x0: R.Tensor((2, 2), dtype="float32"),
-            x1: R.Tensor((2, 2), dtype="float32"),
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+            tvmgen_tensor_10: R.Tensor((2, 2), dtype="float32"),
+            tvmgen_tensor_11: R.Tensor((2, 2), dtype="float32"),
         ) -> R.Tensor((2, 2), dtype="float32"):
-            R.func_attr({"num_input": 2})
+            R.func_attr({"num_input": 3})
             with R.dataflow():
                 lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(x0, lv, out_dtype="void")
-                lv2: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
-                lv3: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv, out_dtype="void"
+                )
+                lv2: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv4: R.Tensor((2, 2), dtype="float32") = R.matmul(lv2, lv3, out_dtype="void")
-                lv5: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv4)
-                lv6: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv2, out_dtype="void"
+                )
+                lv4: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv3)
+                lv5: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv4, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv6: R.Tensor((2, 2), dtype="float32") = R.sigmoid(lv5)
+                lv7: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv7: R.Tensor((2, 2), dtype="float32") = R.matmul(x1, lv6, out_dtype="void")
-                lv8: R.Tensor((2, 2), dtype="float32") = R.add(
-                    lv5, R.const(np.zeros(2, dtype=np.float32))
+                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv7, out_dtype="void"
                 )
                 lv9: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(lv8, lv9, out_dtype="void")
-                lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv7, lv10)
-                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv9, out_dtype="void"
+                )
+                lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv8, lv10)
+                lv12: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv11, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv13: R.Tensor((2, 2), dtype="float32") = R.sigmoid(lv12)
+                lv14: R.Tensor((2, 2), dtype="float32") = R.multiply(lv13, tvmgen_tensor_11)
+                lv15: R.Tensor((2, 2), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv13)
+                lv16: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv16, out_dtype="void"
+                )
+                lv18: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv18, out_dtype="void"
+                )
+                lv20: R.Tensor((2, 2), dtype="float32") = R.add(lv17, lv19)
+                lv21: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv20, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv22: R.Tensor((2, 2), dtype="float32") = R.tanh(lv21)
+                lv23: R.Tensor((2, 2), dtype="float32") = R.multiply(lv15, lv22)
+                lv24: R.Tensor((2, 2), dtype="float32") = R.add(lv14, lv23)
+                gv: R.Tensor((2, 2), dtype="float32") = R.multiply(lv6, lv24)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_lstm_tanh_activation():
+    """LSTM with TANH activation applies tanh before the output gate multiply."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units = 2, 2, 2
+    w_f = np.eye(num_units, input_size, dtype=np.float32)
+    w_c = np.eye(num_units, input_size, dtype=np.float32)
+    w_o = np.eye(num_units, input_size, dtype=np.float32)
+    r_f = np.eye(num_units, dtype=np.float32)
+    r_c = np.eye(num_units, dtype=np.float32)
+    r_o = np.eye(num_units, dtype=np.float32)
+    b_f = np.zeros(num_units, dtype=np.float32)
+    b_c = np.zeros(num_units, dtype=np.float32)
+    b_o = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_lstm_model(
+            batch,
+            input_size,
+            num_units,
+            w_f,
+            w_c,
+            w_o,
+            r_f,
+            r_c,
+            r_o,
+            b_f,
+            b_c,
+            b_o,
+            ActivationFunctionType.TANH,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((2, 2), dtype="float32"),
+            tvmgen_tensor_10: R.Tensor((2, 2), dtype="float32"),
+            tvmgen_tensor_11: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv, out_dtype="void"
+                )
+                lv2: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv2, out_dtype="void"
+                )
+                lv4: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv3)
+                lv5: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv4, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv6: R.Tensor((2, 2), dtype="float32") = R.sigmoid(lv5)
+                lv7: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv7, out_dtype="void"
+                )
+                lv9: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv9, out_dtype="void"
+                )
+                lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv8, lv10)
+                lv12: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv11, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv13: R.Tensor((2, 2), dtype="float32") = R.sigmoid(lv12)
+                lv14: R.Tensor((2, 2), dtype="float32") = R.multiply(lv13, tvmgen_tensor_11)
+                lv15: R.Tensor((2, 2), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv13)
+                lv16: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0, lv16, out_dtype="void"
+                )
+                lv18: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_10, lv18, out_dtype="void"
+                )
+                lv20: R.Tensor((2, 2), dtype="float32") = R.add(lv17, lv19)
+                lv21: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv20, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv22: R.Tensor((2, 2), dtype="float32") = R.tanh(lv21)
+                lv23: R.Tensor((2, 2), dtype="float32") = R.multiply(lv15, lv22)
+                lv24: R.Tensor((2, 2), dtype="float32") = R.add(lv14, lv23)
+                lv25: R.Tensor((2, 2), dtype="float32") = R.tanh(lv24)
+                gv: R.Tensor((2, 2), dtype="float32") = R.multiply(lv6, lv25)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_lstm_rejects_unsupported_features():
+    """LSTM with peephole/projection/layer norm tensors should be rejected."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units = 2, 2, 2
+    zeros_w = np.zeros((num_units, input_size), dtype=np.float32)
+    zeros_r = np.zeros((num_units, num_units), dtype=np.float32)
+    zeros_b = np.zeros(num_units, dtype=np.float32)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="not supported yet"):
+        _load_model_from_buffer(
+            _build_lstm_model(
+                batch,
+                input_size,
+                num_units,
+                zeros_w,
+                zeros_w,
+                zeros_w,
+                zeros_r,
+                zeros_r,
+                zeros_r,
+                zeros_b,
+                zeros_b,
+                zeros_b,
+                ActivationFunctionType.NONE,
+                include_unsupported=True,
+            )
+        )
+
+
+# ── SVDF ──────────────────────────────────────────────────────────────────────
+
+
+def _build_svdf_model(
+    batch,
+    input_size,
+    num_units,
+    rank,
+    memory_size,
+    num_filters,
+    feat_weights,
+    time_weights,
+    bias,
+    activation,
+):
+    """Build a minimal TFLite flatbuffer model containing one SVDF op.
+
+    Tensor indices:
+      0 - input           [batch, input_size]           (model input)
+      1 - feature_weights [num_filters, input_size]     (constant)
+      2 - time_weights    [num_filters, memory_size]    (constant)
+      3 - bias            [num_units]                   (constant)
+      4 - state           [batch, num_filters * memory_size]  (variable, model input)
+      5 - output          [batch, num_units]
+    """
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_svdf_options.SVDFOptionsStart(builder)
+    _tfl_svdf_options.SVDFOptionsAddRank(builder, rank)
+    _tfl_svdf_options.SVDFOptionsAddFusedActivationFunction(builder, activation)
+    svdf_opts = _tfl_svdf_options.SVDFOptionsEnd(builder)
+
+    svdf_op_code = _build_operator_code(builder, _tfl_builtin_operator.SVDF)
+
+    def _t(buf_idx, shape):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, False)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    tensors = [
+        _t(0, [batch, input_size]),  # 0: input
+        _t(1, [num_filters, input_size]),  # 1: feature_weights
+        _t(2, [num_filters, memory_size]),  # 2: time_weights
+        _t(3, [num_units]),  # 3: bias
+        _t(0, [batch, num_filters * memory_size]),  # 4: state (variable, zero-filled)
+        _t(0, [batch, num_units]),  # 5: output
+    ]
+
+    svdf_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [5],
+        builtin_options_type=_tfl_builtin_options.SVDFOptions,
+        builtin_options=svdf_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[svdf_op],
+        inputs=[0, 4],
+        outputs=[5],
+    )
+
+    buffers = [
+        _build_buffer(builder),  # 0: empty
+        _build_buffer(builder, feat_weights.tobytes()),  # 1
+        _build_buffer(builder, time_weights.tobytes()),  # 2
+        _build_buffer(builder, bias.tobytes()),  # 3
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[svdf_op_code],
+        buffers=buffers,
+    )
+
+
+def test_svdf_none_activation():
+    """SVDF with NONE activation, verifying output shape and params."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units, rank, memory_size = 2, 3, 2, 2, 3
+    num_filters = num_units * rank
+    np.random.seed(42)
+    feat_weights = np.random.randn(num_filters, input_size).astype(np.float32)
+    time_weights = np.random.randn(num_filters, memory_size).astype(np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_svdf_model(
+            batch,
+            input_size,
+            num_units,
+            rank,
+            memory_size,
+            num_filters,
+            feat_weights,
+            time_weights,
+            bias,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    fn = mod["main"]
+    assert len(fn.params) == 2, f"expected 2 params (input, state), got {len(fn.params)}"
+    in_shape = fn.params[0].struct_info.shape
+    assert tuple(int(d) for d in in_shape) == (batch, input_size)
+    state_shape = fn.params[1].struct_info.shape
+    assert tuple(int(d) for d in state_shape) == (batch, num_filters * memory_size)
+    out_shape = fn.ret_struct_info.shape
+    assert tuple(int(d) for d in out_shape) == (batch, num_units)
+
+
+def _build_two_step_shared_state_svdf_model(
+    batch,
+    input_size,
+    num_units,
+    rank,
+    memory_size,
+    feat_weights_0,
+    time_weights_0,
+    bias_0,
+    feat_weights_1,
+    time_weights_1,
+    bias_1,
+    activation,
+):
+    """Build two consecutive SVDF ops sharing a single state tensor."""
+    builder = flatbuffers.Builder(4096)
+    num_filters = num_units * rank
+
+    _tfl_svdf_options.SVDFOptionsStart(builder)
+    _tfl_svdf_options.SVDFOptionsAddRank(builder, rank)
+    _tfl_svdf_options.SVDFOptionsAddFusedActivationFunction(builder, activation)
+    svdf_opts = _tfl_svdf_options.SVDFOptionsEnd(builder)
+
+    svdf_op_code = _build_operator_code(builder, _tfl_builtin_operator.SVDF)
+
+    def _t(buf_idx, shape):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, False)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    tensors = [
+        _t(0, [batch, input_size]),  # 0 input_0
+        _t(1, [num_filters, input_size]),  # 1 feat_weights_0
+        _t(2, [num_filters, memory_size]),  # 2 time_weights_0
+        _t(3, [num_units]),  # 3 bias_0
+        _t(0, [batch, num_filters * memory_size]),  # 4 shared state
+        _t(0, [batch, num_units]),  # 5 output_0
+        _t(0, [batch, input_size]),  # 6 input_1
+        _t(4, [num_filters, input_size]),  # 7 feat_weights_1
+        _t(5, [num_filters, memory_size]),  # 8 time_weights_1
+        _t(6, [num_units]),  # 9 bias_1
+        _t(0, [batch, num_units]),  # 10 output_1
+    ]
+
+    svdf_op_0 = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [5],
+        builtin_options_type=_tfl_builtin_options.SVDFOptions,
+        builtin_options=svdf_opts,
+    )
+    svdf_op_1 = _build_operator(
+        builder,
+        0,
+        [6, 7, 8, 9, 4],
+        [10],
+        builtin_options_type=_tfl_builtin_options.SVDFOptions,
+        builtin_options=svdf_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[svdf_op_0, svdf_op_1],
+        inputs=[0, 6, 4],
+        outputs=[10],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, feat_weights_0.tobytes()),
+        _build_buffer(builder, time_weights_0.tobytes()),
+        _build_buffer(builder, bias_0.tobytes()),
+        _build_buffer(builder, feat_weights_1.tobytes()),
+        _build_buffer(builder, time_weights_1.tobytes()),
+        _build_buffer(builder, bias_1.tobytes()),
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[svdf_op_code],
+        buffers=buffers,
+    )
+
+
+def test_svdf_shared_state_updates_exp_tab():
+    """Two SVDF ops sharing state should use the updated FIFO state in the second step."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units, rank, memory_size = 1, 1, 1, 2, 3
+    feat_weights_0 = np.array([[1.0], [2.0]], dtype=np.float32)
+    time_weights_0 = np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]], dtype=np.float32)
+    bias_0 = np.zeros(num_units, dtype=np.float32)
+
+    feat_weights_1 = np.array([[7.0], [11.0]], dtype=np.float32)
+    time_weights_1 = np.array([[13.0, 17.0, 19.0], [23.0, 29.0, 31.0]], dtype=np.float32)
+    bias_1 = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_two_step_shared_state_svdf_model(
+            batch,
+            input_size,
+            num_units,
+            rank,
+            memory_size,
+            feat_weights_0,
+            time_weights_0,
+            bias_0,
+            feat_weights_1,
+            time_weights_1,
+            bias_1,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((1, 1), dtype="float32"),
+            tvmgen_tensor_6: R.Tensor((1, 1), dtype="float32"),
+            tvmgen_tensor_4: R.Tensor((1, 6), dtype="float32"),
+        ) -> R.Tensor((1, 1), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3), dtype="float32") = R.reshape(
+                    tvmgen_tensor_4, R.shape([1, 2, 3])
+                )
+                lv1: R.Tensor((1, 2, 3), dtype="float32") = R.reshape(
+                    R.const(np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]], dtype=np.float32)),
+                    R.shape([1, 2, 3]),
+                )
+                lv2: R.Tensor((1, 2, 3), dtype="float32") = R.multiply(lv, lv1)
+                lv3: R.Tensor((1, 2), dtype="float32") = R.sum(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((1, 1, 2), dtype="float32") = R.reshape(lv3, R.shape([1, 1, 2]))
+                lv5: R.Tensor((1, 1), dtype="float32") = R.sum(  # noqa: F841
+                    lv4, axis=[-1], keepdims=False
+                )
+                lv6: R.Tensor((1, 2, 2), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    (R.prim_value(3),),
+                    assume_inbound=False,
+                )
+                lv7: R.Tensor((1, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.array([[1.0], [2.0]], dtype=np.float32)), axes=None
+                )
+                lv8: R.Tensor((1, 2), dtype="float32") = R.matmul(
+                    tvmgen_tensor_0,
+                    lv7,
+                    out_dtype="void",
+                )
+                lv9: R.Tensor((1, 2, 1), dtype="float32") = R.expand_dims(lv8, axis=[-1])
+                lv10: R.Tensor((1, 2, 3), dtype="float32") = R.concat((lv6, lv9), axis=2)
+                lv11: R.Tensor((1, 6), dtype="float32") = R.reshape(lv10, R.shape([1, 6]))
+                lv12: R.Tensor((1, 2, 3), dtype="float32") = R.reshape(lv11, R.shape([1, 2, 3]))
+                lv13: R.Tensor((1, 2, 3), dtype="float32") = R.reshape(
+                    R.const(np.array([[13.0, 17.0, 19.0], [23.0, 29.0, 31.0]], dtype=np.float32)),
+                    R.shape([1, 2, 3]),
+                )
+                lv14: R.Tensor((1, 2, 3), dtype="float32") = R.multiply(lv12, lv13)
+                lv15: R.Tensor((1, 2), dtype="float32") = R.sum(lv14, axis=[-1], keepdims=False)
+                lv16: R.Tensor((1, 1, 2), dtype="float32") = R.reshape(lv15, R.shape([1, 1, 2]))
+                lv17: R.Tensor((1, 1), dtype="float32") = R.sum(lv16, axis=[-1], keepdims=False)
+                gv: R.Tensor((1, 1), dtype="float32") = R.add(
+                    lv17, R.const(np.zeros(1, dtype=np.float32))
                 )
                 R.output(gv)
             return gv

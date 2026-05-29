@@ -253,6 +253,7 @@ class OperatorConverter:
             "LOGICAL_NOT": self.convert_logical_not,
             "LOGICAL_OR": functools.partial(self._convert_logical_binary, relax_op=_op.logical_or),
             "LOGISTIC": self.convert_logistic,
+            "LSTM": self.convert_lstm,
             "MATRIX_DIAG": self.convert_matrix_diag,
             "MATRIX_SET_DIAG": self.convert_matrix_set_diag,
             "MAX_POOL_2D": functools.partial(self.convert_pool2d, pool_type="max"),
@@ -273,7 +274,6 @@ class OperatorConverter:
             "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
-            "RNN": self.convert_rnn,
             "QUANTIZE": self.convert_quantize,
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
@@ -282,7 +282,6 @@ class OperatorConverter:
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
             "REDUCE_MIN": functools.partial(self._convert_reduce, relax_op=_op.min),
             "REDUCE_PROD": functools.partial(self._convert_reduce, relax_op=_op.prod),
-            "REDUCE_WINDOW": self.convert_reduce_window,
             "RELU": self.convert_relu,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
@@ -376,6 +375,7 @@ class OperatorConverter:
             "STRIDED_SLICE": self.convert_strided_slice,
             "SUB": functools.partial(self._convert_elemwise, relax_op=_op.subtract),
             "SUM": functools.partial(self._convert_reduce, relax_op=_op.sum),
+            "SVDF": self.convert_svdf,
             "TAN": functools.partial(self._convert_unary_elemwise, relax_op=_op.tan),
             "TANH": self.convert_tanh,
             "TILE": self.convert_tile,
@@ -3447,171 +3447,6 @@ class OperatorConverter:
 
         return out
 
-    def convert_reduce_window(self, op):
-        """Convert TFLite REDUCE_WINDOW."""
-
-        from tflite.BuiltinOptions2 import BuiltinOptions2
-        from tflite.ReduceWindowFunction import ReduceWindowFunction
-        from tflite.ReduceWindowOptions import ReduceWindowOptions
-
-        input_tensors = self.get_input_tensors(op)
-        output_tensors = self.get_output_tensors(op)
-        if len(input_tensors) != 5:
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW requires 5 input tensors."
-            )
-        if len(output_tensors) != 1:
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW requires 1 output tensor."
-            )
-
-        if op.BuiltinOptions2Type() != BuiltinOptions2.ReduceWindowOptions:
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW requires ReduceWindowOptions."
-            )
-
-        (
-            input_tensor,
-            init_tensor,
-            window_shape_tensor,
-            window_strides_tensor,
-            window_dilations_tensor,
-        ) = input_tensors
-        output_tensor = output_tensors[0]
-
-        if any(
-            self.has_expr(tensor.tensor_idx)
-            for tensor in [window_shape_tensor, window_strides_tensor, window_dilations_tensor]
-        ):
-            raise tvm.error.OpNotImplemented(
-                "TFLite REDUCE_WINDOW requires constant window_shape, "
-                "window_strides, and window_dilations."
-            )
-
-        input_shape = to_int_list(self.get_tensor_shape(input_tensor))
-        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
-        input_dtype = self.get_tensor_type_str(input_tensor.tensor.Type())
-        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
-
-        if input_tensor.qnn_params or output_tensor.qnn_params:
-            raise tvm.error.OpNotImplemented(
-                "Quantized TFLite REDUCE_WINDOW is not yet supported in the Relax frontend."
-            )
-
-        if input_dtype != output_dtype:
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW requires input and output dtypes to match."
-            )
-
-        init_shape = to_int_list(self.get_tensor_shape(init_tensor))
-        if math.prod(init_shape) != 1:
-            raise tvm.error.OpNotImplemented(
-                "TFLite REDUCE_WINDOW requires init_value to contain exactly one element."
-            )
-
-        options = ReduceWindowOptions()
-        op_options = op.BuiltinOptions2()
-        options.Init(op_options.Bytes, op_options.Pos)
-        reduce_function = options.ReduceFunction()
-
-        if reduce_function == ReduceWindowFunction.UNSUPPORTED:
-            raise tvm.error.OpNotImplemented(
-                "TFLite REDUCE_WINDOW with UNSUPPORTED reduce_function is not supported."
-            )
-
-        window_shape = to_int_list(self.get_tensor_value(window_shape_tensor))
-        window_strides = to_int_list(self.get_tensor_value(window_strides_tensor))
-        window_dilations = to_int_list(self.get_tensor_value(window_dilations_tensor))
-        rank = len(input_shape)
-
-        if not (len(window_shape) == len(window_strides) == len(window_dilations) == rank):
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW window_shape, window_strides, and window_dilations "
-                "must match input rank."
-            )
-
-        if any(value <= 0 for value in window_shape + window_strides + window_dilations):
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW window dimensions, strides, and dilations must be positive."
-            )
-
-        dilated_window_shape = [
-            (window_dim - 1) * dilation + 1
-            for window_dim, dilation in zip(window_shape, window_dilations)
-        ]
-        expected_output_shape = [
-            0 if input_dim < dilated_dim else (input_dim - dilated_dim) // stride + 1
-            for input_dim, dilated_dim, stride in zip(
-                input_shape, dilated_window_shape, window_strides
-            )
-        ]
-
-        numeric_reduce_functions = {
-            ReduceWindowFunction.ADD: (relax.op.sum, relax.op.add),
-            ReduceWindowFunction.MUL: (relax.op.prod, relax.op.multiply),
-            ReduceWindowFunction.MINIMUM: (relax.op.min, relax.op.minimum),
-            ReduceWindowFunction.MAXIMUM: (relax.op.max, relax.op.maximum),
-        }
-        bool_reduce_functions = {
-            ReduceWindowFunction.ALL: (relax.op.min, relax.op.logical_and),
-            ReduceWindowFunction.ANY: (relax.op.max, relax.op.logical_or),
-        }
-
-        if reduce_function in numeric_reduce_functions and input_dtype == "bool":
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW numeric reductions expect numeric input."
-            )
-        if reduce_function in bool_reduce_functions and input_dtype != "bool":
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW boolean reductions expect bool input."
-            )
-
-        if output_shape != expected_output_shape:
-            raise tvm.error.OpAttributeUnImplemented(
-                "TFLite REDUCE_WINDOW output shape does not match input/window parameters."
-            )
-
-        if any(output_dim == 0 for output_dim in output_shape):
-            return relax.op.zeros(output_shape, output_dtype)
-
-        data = self.get_tensor_expr(input_tensor)
-        init_value = self.get_tensor_expr(init_tensor)
-        if len(init_shape) != 0:
-            init_value = relax.op.reshape(init_value, [])
-
-        windowed = relax.op.call_dps_packed(
-            "topi.sliding_window",
-            (
-                data,
-                0,
-                relax.ShapeExpr(dilated_window_shape),
-                relax.ShapeExpr(window_strides),
-            ),
-            out_sinfo=relax.TensorStructInfo(output_shape + dilated_window_shape, input_dtype),
-        )
-
-        if any(dilation != 1 for dilation in window_dilations):
-            windowed = relax.op.strided_slice(
-                windowed,
-                axes=list(range(rank, 2 * rank)),
-                begin=[0] * rank,
-                end=dilated_window_shape,
-                strides=window_dilations,
-            )
-
-        reduce_axes = list(range(rank, 2 * rank))
-        if reduce_function in numeric_reduce_functions:
-            reduce_op, combine_op = numeric_reduce_functions[reduce_function]
-            return combine_op(reduce_op(windowed, axis=reduce_axes), init_value)
-        if reduce_function in bool_reduce_functions:
-            reduce_op, combine_op = bool_reduce_functions[reduce_function]
-            reduced = reduce_op(relax.op.astype(windowed, "int8"), axis=reduce_axes)
-            return combine_op(relax.op.astype(reduced, "bool"), init_value)
-
-        raise tvm.error.OpNotImplemented(
-            f"TFLite REDUCE_WINDOW reduce_function {reduce_function} is not supported."
-        )
-
     def _convert_reduce_bool(self, relax_op, op):
         """Convert TFLite REDUCE_ANY / REDUCE_ALL (bool-only ops).
 
@@ -5045,83 +4880,263 @@ class OperatorConverter:
 
         return squeezed
 
-    def convert_rnn(self, op):
-        """Convert TFLite RNN.
+    def convert_lstm(self, op):
+        """Convert TFLite LSTM (single-step).
 
-        Single-step RNN cell.
+        Standard LSTM cell with FULL kernel and coupled input-forget gate.
+        Peephole, projection, and layer norm are not supported.
 
-        Inputs (5 tensors):
-          [0] input             [batch, input_size]
-          [1] input_weights     [num_units, input_size]
-          [2] recurrent_weights [num_units, num_units]
-          [3] bias              [num_units]
-          [4] hidden_state      [batch, num_units]  (variable, zero-initialised)
+        Inputs (24 tensors, many optional):
+          [0]  input                      [batch, input_size]
+          [1]  input_to_input_weights     (optional, -1 => coupled)
+          [2]  input_to_forget_weights    [num_units, input_size]
+          [3]  input_to_cell_weights      [num_units, input_size]
+          [4]  input_to_output_weights    [num_units, input_size]
+          [5]  recurrent_to_input_weights (optional)
+          [6]  recurrent_to_forget_weights [num_units, num_units]
+          [7]  recurrent_to_cell_weights  [num_units, num_units]
+          [8]  recurrent_to_output_weights [num_units, num_units]
+          [9-11] cell_to_*_weights        (optional, not supported)
+          [12] input_gate_bias            (optional)
+          [13] forget_gate_bias           [num_units]
+          [14] cell_bias                  [num_units]
+          [15] output_gate_bias           [num_units]
+          [16-17] projection_weights/bias (optional, not supported)
+          [18] output_state               [batch, num_units]
+          [19] cell_state                 [batch, num_units]
+          [20-23] layer_norm              (optional, not supported)
 
         Output:
           [0] output  [batch, num_units]
 
-        Cell equation:
-          h = fused_activation(x @ W.T + h @ Wr.T + b)
+        Cell (coupled input-forget):
+          f = sigmoid(x @ W_f.T + h @ R_f.T + b_f)
+          i = 1 - f
+          g = tanh(x @ W_c.T + h @ R_c.T + b_c)
+          o = sigmoid(x @ W_o.T + h @ R_o.T + b_o)
+          c_new = f * c_prev + i * g
+          h_new = fused_activation(o * tanh(c_new))
         """
         from tflite.BuiltinOptions import BuiltinOptions
-        from tflite.RNNOptions import RNNOptions
+        from tflite.LSTMOptions import LSTMOptions
 
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFLite quantized RNN is not supported yet.")
+            raise tvm.error.OpNotImplemented("TFLite quantized LSTM is not supported yet.")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 5, "input tensors length should be 5"
-
-        input_tensor = input_tensors[0]
-        weights_tensor = input_tensors[1]
-        recurrent_tensor = input_tensors[2]
-        bias_tensor = input_tensors[3]
-        hidden_state_tensor = input_tensors[4]
+        assert len(input_tensors) == 24, (
+            f"input tensors length should be 24, got {len(input_tensors)}"
+        )
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) >= 1, "output tensors length should be at least 1"
 
-        assert op.BuiltinOptionsType() == BuiltinOptions.RNNOptions
+        assert op.BuiltinOptionsType() == BuiltinOptions.LSTMOptions
         op_options = op.BuiltinOptions()
-        rnn_options = RNNOptions()
-        rnn_options.Init(op_options.Bytes, op_options.Pos)
-        fused_activation_fn = rnn_options.FusedActivationFunction()
+        lstm_opts = LSTMOptions()
+        lstm_opts.Init(op_options.Bytes, op_options.Pos)
 
-        # Constant weight/bias expressions.
-        weights_expr = self.get_tensor_expr(weights_tensor)  # [num_units, input_size]
-        recurrent_expr = self.get_tensor_expr(recurrent_tensor)  # [num_units, num_units]
-        bias_expr = self.get_tensor_expr(bias_tensor)  # [num_units]
+        fused_activation_fn = lstm_opts.FusedActivationFunction()
+        cell_clip = lstm_opts.CellClip()
+        proj_clip = lstm_opts.ProjClip()
 
-        # Transpose to [input_size, num_units] and [num_units, num_units] for x @ W.T.
-        w_t = relax.op.permute_dims(weights_expr)
-        wr_t = relax.op.permute_dims(recurrent_expr)
+        in_expr = self.get_tensor_expr(input_tensors[0])
 
-        # Resolve the input expression.
-        in_expr = self.get_tensor_expr(input_tensor)
+        # Only coupled input-forget gate is supported.
+        if input_tensors[1].tensor_idx != -1 or input_tensors[5].tensor_idx != -1:
+            raise tvm.error.OpNotImplemented("Only coupled input-forget LSTM is supported.")
 
-        # Initial hidden state: use the model's tensor value when available (non-zero init or
-        # graph input), otherwise fall back to zeros for the common variable-tensor case.
-        h_dtype = self.get_tensor_type_str(hidden_state_tensor.tensor.Type())
-        if self.has_expr(hidden_state_tensor.tensor_idx) or (
-            hidden_state_tensor.buffer is not None and hidden_state_tensor.buffer.DataLength() > 0
+        # Peephole, projection, and layer norm are not modeled yet.
+        if (
+            any(t.tensor_idx != -1 for t in input_tensors[9:12])
+            or any(t.tensor_idx != -1 for t in input_tensors[16:18])
+            or any(t.tensor_idx != -1 for t in input_tensors[20:24])
         ):
-            h = self.get_tensor_expr(hidden_state_tensor)
-        else:
-            h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
-            h = relax.op.zeros(h_shape, dtype=h_dtype)
+            raise tvm.error.OpNotImplemented(
+                "Peephole, projection, and layer norm LSTM are not supported yet."
+            )
 
-        gates = relax.op.add(
-            relax.op.add(relax.op.matmul(in_expr, w_t), relax.op.matmul(h, wr_t)),
-            bias_expr,
+        # Weights.
+        w_f = self.get_tensor_expr(input_tensors[2])
+        w_c = self.get_tensor_expr(input_tensors[3])
+        w_o = self.get_tensor_expr(input_tensors[4])
+
+        r_f = self.get_tensor_expr(input_tensors[6])
+        r_c = self.get_tensor_expr(input_tensors[7])
+        r_o = self.get_tensor_expr(input_tensors[8])
+
+        # Biases.
+        b_f = self.get_tensor_expr(input_tensors[13])
+        b_c = self.get_tensor_expr(input_tensors[14])
+        b_o = self.get_tensor_expr(input_tensors[15])
+
+        # State inputs.
+        h_prev = self.get_tensor_expr(input_tensors[18])
+        c_prev = self.get_tensor_expr(input_tensors[19])
+
+        # Coupled input-forget gate.
+        f = relax.op.sigmoid(
+            relax.op.add(
+                relax.op.add(
+                    relax.op.matmul(in_expr, relax.op.permute_dims(w_f)),
+                    relax.op.matmul(h_prev, relax.op.permute_dims(r_f)),
+                ),
+                b_f,
+            )
         )
-        h = self.convert_fused_activation_function(gates, fused_activation_fn)
+        i = relax.op.subtract(
+            relax.const(1.0, "float32"),
+            f,
+        )
 
+        # Cell candidate.
+        g = relax.op.tanh(
+            relax.op.add(
+                relax.op.add(
+                    relax.op.matmul(in_expr, relax.op.permute_dims(w_c)),
+                    relax.op.matmul(h_prev, relax.op.permute_dims(r_c)),
+                ),
+                b_c,
+            )
+        )
+
+        # Output gate.
+        o = relax.op.sigmoid(
+            relax.op.add(
+                relax.op.add(
+                    relax.op.matmul(in_expr, relax.op.permute_dims(w_o)),
+                    relax.op.matmul(h_prev, relax.op.permute_dims(r_o)),
+                ),
+                b_o,
+            )
+        )
+
+        # Cell state update with optional clipping.
+        c_new = relax.op.add(
+            relax.op.multiply(f, c_prev),
+            relax.op.multiply(i, g),
+        )
+        if cell_clip > 0:
+            c_new = relax.op.clip(c_new, -cell_clip, cell_clip)
+
+        # Hidden state.
+        # TFLite applies the fused activation to the cell state before the
+        # output gate multiply.
+        h_new = relax.op.multiply(
+            o, self.convert_fused_activation_function(c_new, fused_activation_fn)
+        )
+        if proj_clip > 0:
+            h_new = relax.op.clip(h_new, -proj_clip, proj_clip)
+
+        # Update state tensors in the expression table for subsequent ops.
         self.exp_tab.set_expr(
-            get_tensor_name(self.subgraph, hidden_state_tensor.tensor_idx),
-            h,
+            get_tensor_name(self.subgraph, input_tensors[18].tensor_idx),
+            h_new,
             force_override=True,
         )
-        return h
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[19].tensor_idx),
+            c_new,
+            force_override=True,
+        )
+
+        return h_new
+
+    def convert_svdf(self, op):
+        """Convert TFLite SVDF (single-step).
+
+        Structured-Vectorized Bidirectional Filter for keyword spotting.
+
+        Inputs (5 tensors):
+          [0] input           [batch, input_size]
+          [1] feature_weights [num_filters, input_size]
+          [2] time_weights    [num_filters, memory_size]
+          [3] bias            [num_filters]           (optional)
+          [4] state           [batch, num_filters * memory_size]  (variable)
+
+        Output:
+          [0] output  [batch, num_units]
+
+        Computation:
+          feat = x @ W_feat.T                              # feature projection
+          state_r = reshape(state, [B, F, memory_size])    # ring buffer
+          time = sum(state_r * time_weights, axis=-1)      # time filtering
+          out = activation(sum(reshape(time, [B, U, rank]), axis=-1) + bias)
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.SVDFOptions import SVDFOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented("TFLite quantized SVDF is not supported yet.")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, (
+            f"input tensors length should be 5, got {len(input_tensors)}"
+        )
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SVDFOptions
+        op_options = op.BuiltinOptions()
+        svdf_opts = SVDFOptions()
+        svdf_opts.Init(op_options.Bytes, op_options.Pos)
+
+        rank = svdf_opts.Rank()
+        fused_activation_fn = svdf_opts.FusedActivationFunction()
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        feat_weights = self.get_tensor_expr(input_tensors[1])
+        time_weights = self.get_tensor_expr(input_tensors[2])
+
+        batch_size = self.get_tensor_shape(input_tensors[0])[0]
+        if isinstance(batch_size, np.integer | int):
+            batch_size = int(batch_size)
+        num_filters = to_int_list(self.get_tensor_shape(input_tensors[1]))[0]
+        if num_filters % rank != 0:
+            raise tvm.error.OpNotImplemented("SVDF num_filters must be divisible by rank.")
+        num_units = num_filters // rank
+        memory_size = to_int_list(self.get_tensor_shape(input_tensors[2]))[1]
+
+        # Feature projection: [batch, input_size] @ [input_size, num_filters]
+        feat = relax.op.matmul(in_expr, relax.op.permute_dims(feat_weights))
+
+        # Time filtering: reshape state -> weight -> reduce.
+        state_expr = self.get_tensor_expr(input_tensors[4])
+        state_3d = relax.op.reshape(state_expr, (batch_size, num_filters, memory_size))
+
+        # time_weights: [num_filters, memory_size], broadcast to [1, num_filters, memory_size]
+        tw_3d = relax.op.reshape(time_weights, (1, num_filters, memory_size))
+        time_weighted = relax.op.multiply(state_3d, tw_3d)
+        time_output = relax.op.sum(time_weighted, axis=-1, keepdims=False)
+        reduced = relax.op.reshape(time_output, (batch_size, num_units, rank))
+        result = relax.op.sum(reduced, axis=-1, keepdims=False)
+
+        # Add bias if present
+        if input_tensors[3].tensor_idx != -1:
+            bias_expr = self.get_tensor_expr(input_tensors[3])
+            result = relax.op.add(result, bias_expr)
+
+        result = self.convert_fused_activation_function(result, fused_activation_fn)
+
+        # Update state tensor in the expression table for subsequent steps.
+        # SVDF state is a FIFO ring-buffer: shift left by 1, append new feat.
+        feat_3d = relax.op.expand_dims(feat, axis=-1)
+        if memory_size > 1:
+            shifted_state = relax.op.strided_slice(
+                state_3d, axes=[2], begin=[1], end=[int(memory_size)]
+            )
+            new_state_3d = relax.op.concat([shifted_state, feat_3d], axis=2)
+        else:
+            new_state_3d = feat_3d
+        new_state = relax.op.reshape(new_state_3d, (batch_size, num_filters * memory_size))
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[4].tensor_idx),
+            new_state,
+            force_override=True,
+        )
+
+        return result
 
     def convert_unidirectional_sequence_rnn(self, op):
         """Convert TFLite UNIDIRECTIONAL_SEQUENCE_RNN.
