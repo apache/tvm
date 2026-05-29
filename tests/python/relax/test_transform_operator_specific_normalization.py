@@ -186,7 +186,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
                 sinfo_args=[A.struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
@@ -203,7 +203,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
                 sinfo_args=[A.struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
@@ -233,7 +233,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
                 sinfo_args=[args[0].struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
@@ -249,7 +249,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
                 sinfo_args=[args[0].struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
@@ -280,7 +280,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 out_sinfo=[A.struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
@@ -300,7 +300,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 sinfo_args=[A.struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
@@ -331,12 +331,12 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
                 te_grad_name="f_grad",
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_grad(
             A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
         ):
@@ -358,12 +358,12 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
                 sinfo_args=[A.struct_info],
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_grad(
             A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
         ):

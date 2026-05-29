@@ -28,11 +28,11 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -53,7 +53,7 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
                     C[vi, vj] = B[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -79,9 +79,9 @@ def test_elementwise():
 
 
 def test_error_if_predicate_uses_block_variables():
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(8, "int32")):
             for i in T.serial(8):
                 with T.sblock():

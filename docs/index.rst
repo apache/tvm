@@ -36,6 +36,7 @@ driving its costs down.
    install/index
    get_started/tutorials/quick_start
    get_started/tutorials/ir_module
+   errors
 
 .. toctree::
    :maxdepth: 1
@@ -49,7 +50,6 @@ driving its costs down.
    how_to/tutorials/export_and_load_executable
    how_to/tutorials/mix_python_and_tvm_with_pymodule
    how_to/tutorials/bring_your_own_codegen
-   how_to/dev/index
 
 .. The Deep Dive content is comprehensive
 .. we maintain a ``maxdepth`` of 2 to display more information on the main page.

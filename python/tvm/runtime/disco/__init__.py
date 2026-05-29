@@ -23,6 +23,6 @@ from .session import (
     DRef,
     ProcessSession,
     Session,
-    ThreadedSession,
     SocketSession,
+    ThreadedSession,
 )

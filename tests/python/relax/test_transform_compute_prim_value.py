@@ -40,7 +40,7 @@ def test_prim_value_in_assert_condition():
             _ = R.assert_op(condition)
             return A
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             T.ret(N % 16 == 0)
@@ -73,7 +73,7 @@ def test_prim_value_in_branch_condition():
                 out = R.call_packed("slow_non_vectorized_impl", A, sinfo_args=[A.struct_info])
             return out
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             T.ret(N % 16 == 0)
@@ -101,7 +101,7 @@ def test_prim_value_in_pure_function():
             out = Expected.compute_symbolic_expr(R.prim_value(N), R.prim_value(M))
             return out
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def compute_symbolic_expr(N: T.int64, M: T.int64) -> T.int64:
             T.func_attr({"tirx.is_host_func": True})
             T.ret(N * M)

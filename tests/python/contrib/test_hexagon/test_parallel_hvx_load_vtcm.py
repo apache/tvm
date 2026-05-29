@@ -77,7 +77,7 @@ def apply_vtcm_cache_read_write(sch):
 def vrmpy(operations):
     """Generate VRMPY operator"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128)
@@ -99,7 +99,7 @@ def vrmpy(operations):
 def preloaded_vrmpy(operations):
     """Generate preloaded VRMPY operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(
@@ -141,7 +141,7 @@ def preallocated_vrmpy(operations):
     size = operations * 128
     out_size = operations * 32
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(
         a: T.handle, b: T.handle, c: T.handle, a_v: T.handle, b_v: T.handle, c_v: T.handle
     ) -> None:
@@ -190,7 +190,7 @@ def preallocated_single_dma_vrmpy(operations):
     size = operations * 128
     out_size = operations * 32
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(
         a: T.handle,
         b: T.handle,

@@ -149,14 +149,14 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
 }
 
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const ffi::Array<Integer>& axes) {
+                               const ffi::Array<int64_t>& axes) {
   TVM_FFI_ICHECK_NE(ndim, kUnknownNDim) << "The ndim is required to be known for this function.";
   std::vector<bool> appeared_dims_set;
   std::vector<int> axes_non_neg;
   appeared_dims_set.resize(ndim, /*value=*/false);
   axes_non_neg.reserve(axes.size());
-  for (const Integer& axis : axes) {
-    int _axis = axis->value;
+  for (int64_t axis : axes) {
+    int _axis = static_cast<int>(axis);
     if (_axis < -ndim || _axis >= ndim) {
       ctx->ReportFatal(Diagnostic::Error(call) << "In " << call->op << ", the input axis " << _axis
                                                << " is out of range. The input tensor has " << ndim
@@ -187,11 +187,11 @@ InferLayoutOutput InferLayoutUnaryEwise(
   return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
 }
 
-bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
+bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
                              ffi::Array<PrimExpr> shape) {
   bool can_prove = true;
   try {
-    tirx::BijectiveLayout todesired(input_layout, desired_layout);
+    tirx::SBijectiveLayout todesired(input_layout, desired_layout);
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     arith::Analyzer analyzer;

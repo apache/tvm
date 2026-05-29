@@ -35,15 +35,24 @@ struct SortableFunction {
       : priority(0), gv(obj.first), func(obj.second) {
     if (gv->name_hint == "main") {
       priority = 1000;
-    } else if (obj.second->GetTypeKey() == "tirx.PrimFunc") {
-      priority = 1;
-    } else if (obj.second->GetTypeKey() == "relax.expr.ExternFunc") {
-      priority = 2;
-    } else if (obj.second->GetTypeKey() == "relax.expr.Function") {
-      priority = 3;
+    } else if (func.defined()) {
+      if (func->GetTypeKey() == "tirx.PrimFunc") {
+        priority = 1;
+      } else if (func->GetTypeKey() == "relax.expr.ExternFunc") {
+        priority = 2;
+      } else if (func->GetTypeKey() == "relax.expr.Function") {
+        priority = 3;
+      } else {
+        TVM_FFI_THROW(TypeError) << "TVMScript cannot print functions of type: "
+                                 << func->GetTypeKey();
+      }
     } else {
-      TVM_FFI_THROW(TypeError) << "TVMScript cannot print functions of type: "
-                               << obj.second->GetTypeKey();
+      // PrimFuncPass may leave undefined GlobalVar slots when transforming
+      // this function (see tirx/ir/transform.cc); this transient state may
+      // be encountered during the internal call Dump(mod) executed in
+      // PrimFuncPass during debugging.
+      priority = 999;
+      LOG(INFO) << "Function " << gv->name_hint << " is undefined";
     }
   }
 
@@ -66,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->AddDispatchToken(d, "ir");
       IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
       (*f)->global_infos = &mod->global_infos;
-      if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+      if (!mod->attrs->dict.empty()) {
         (*f)->stmts.push_back(
             ExprStmtDoc(IR(d, "module_attrs")  //
                             ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));

@@ -32,7 +32,7 @@ from tvm.tirx import IndexMap
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -46,7 +46,7 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
@@ -60,7 +60,7 @@ def element_wise_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buf
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_set_axis_separator_input_buffer(A: T.Buffer(shape=(128, 128), dtype="float32", axis_separators=(1,)), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer([128, 128], dtype="float32")
 
@@ -74,7 +74,7 @@ def element_wise_set_axis_separator_input_buffer(A: T.Buffer(shape=(128, 128), d
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -90,7 +90,7 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_subregion_match_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
@@ -178,9 +178,9 @@ def test_set_axis_separator_subregion(argument_style):
     verify_trace_roundtrip(sch=s, mod=func)
 
 def test_indexed_lookup():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([4,4], dtype="int32")
             B = T.sblock_alloc_buffer([1,1], dtype="int32")
@@ -188,9 +188,9 @@ def test_indexed_lookup():
                 with T.sblock('block'):
                     A[B[0,0],j] = 0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([4,4], dtype="int32")
             B = T.sblock_alloc_buffer([1,1], dtype="int32", axis_separators=[1])

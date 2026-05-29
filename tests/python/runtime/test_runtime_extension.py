@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 def test_dltensor_compatible():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def arange(A: T.handle):
             n = T.int32()
             Ab = T.match_buffer(A, (n,), "int64")

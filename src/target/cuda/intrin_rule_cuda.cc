@@ -130,9 +130,11 @@ struct CUDAWarpIntrinsic {
       return Op::Get("tirx.cuda.__shfl_sync");
     } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
       return Op::Get("tirx.cuda.__shfl_up_sync");
-    } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_down())) {
       return Op::Get("tirx.cuda.__shfl_down_sync");
+    } else {
+      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_xor()));
+      return Op::Get("tirx.cuda.__shfl_xor_sync");
     }
   }
 };
@@ -174,37 +176,46 @@ TVM_REGISTER_OP("tirx.nearbyint")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp2")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.exp10")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.erf")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log2")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.log10")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.tan")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMathTan>);
+    // Now the fast math version of tan and the default version of tan are same.
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMathTan>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.cos")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.cosh")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sin")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>);
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sinh")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
@@ -213,12 +224,17 @@ TVM_REGISTER_OP("tirx.atan")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.tanh")
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.sqrt")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
+TVM_REGISTER_OP("tirx.rsqrt")
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
+
 TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("cuda.fastmath.FLowerIntrinsic", DispatchPureExtern<CUDAFastMath>)
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
 TVM_REGISTER_OP("tirx.popcount")
@@ -231,6 +247,9 @@ TVM_REGISTER_OP("tirx.tvm_warp_shuffle_up")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_OP("tirx.tvm_warp_shuffle_down")
+    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle_xor")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_OP("tirx.tvm_warp_activemask")
@@ -248,7 +267,7 @@ TVM_REGISTER_OP("tirx.cuda.__shfl_sync")
     .add_argument("lane", "Expr", "The source thread id.")
     .add_argument("width", "Expr", "The warp thread width, must be a power of 2.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_sync")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 TVM_REGISTER_OP("tirx.cuda.__shfl_up_sync")
@@ -258,7 +277,7 @@ TVM_REGISTER_OP("tirx.cuda.__shfl_up_sync")
     .add_argument("delta", "Expr", "The source lane id offset to be added.")
     .add_argument("width", "Expr", "The warp thread width, must be a power of 2.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_up_sync")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 TVM_REGISTER_OP("tirx.cuda.__shfl_down_sync")
@@ -268,13 +287,23 @@ TVM_REGISTER_OP("tirx.cuda.__shfl_down_sync")
     .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")
     .add_argument("width", "Expr", "The warp thread width, must be a power of 2.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_down_sync")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tirx.cuda.__shfl_xor_sync")
+    .set_num_inputs(4)
+    .add_argument("mask", "Expr", "The thread mask.")
+    .add_argument("var", "Expr", "The variable to sync.")
+    .add_argument("lane_mask", "Expr", "The lane mask.")
+    .add_argument("width", "Expr", "The warp thread width, must be a power of 2.")
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_xor_sync")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 TVM_REGISTER_OP("tirx.cuda.__activemask")
     .set_num_inputs(0)
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "__activemask")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 }  // namespace intrin

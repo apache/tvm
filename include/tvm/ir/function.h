@@ -125,6 +125,23 @@ constexpr const char* kTarget = "target";
  */
 constexpr const char* kGlobalSymbol = "global_symbol";
 
+/*!
+ * \brief The function uses s_tir (apache-derived TIR) semantics:
+ *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
+ *        and printer emits `s_tir=True` on the decorator.
+ *        Default (attr absent or False) is tirx semantics.
+ *
+ * Type: Bool
+ */
+constexpr const char* kSTir = "s_tir";
+
+/*!
+ * \brief Number of inputs of the Primfunc
+ *
+ * Type: Int
+ */
+constexpr const char* kNumInputs = "num_inputs";
+
 }  // namespace attr
 
 /*!
@@ -155,7 +172,7 @@ class BaseFuncNode : public RelaxExprNode {
    * \code
    *
    *  void GetAttrExample(const BaseFunc& f) {
-   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode

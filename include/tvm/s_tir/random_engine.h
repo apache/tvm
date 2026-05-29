@@ -61,7 +61,10 @@ class LinearCongruentialEngine {
    * \brief Get a device random state
    * \return The random state
    */
-  static TRandState DeviceRandom() { return (std::random_device()()) % modulus; }
+  static TRandState DeviceRandom() {
+    std::random_device rd;
+    return rd() % modulus;
+  }
 
   /*!
    * \brief Operator to move the random state to the next and return the new random state. According

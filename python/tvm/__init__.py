@@ -51,9 +51,6 @@ from . import script
 # tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
 from . import tirx
 
-# tvm.s_tir
-from . import s_tir
-
 # tvm.target
 from . import target
 
@@ -69,12 +66,17 @@ from . import arith
 # support infra
 from . import support
 
-# Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc
+# Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
+from .support import rocm as _rocm, nvcc as _nvcc
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
+    # tile_primitive imports both Python Op class declarations (Zero, Add, ...)
+    # and per-target dispatch schedule registrations. Must run before relax so
+    # any relax pass that looks up a schedule sees them.
+    from .tirx.operator import tile_primitive
+
     # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
     from . import relax
 

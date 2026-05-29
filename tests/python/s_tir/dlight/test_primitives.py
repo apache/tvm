@@ -22,7 +22,7 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
     T.func_attr({"tirx.noalias": True})
     # with T.sblock("root"):

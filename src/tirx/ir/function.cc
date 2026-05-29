@@ -77,10 +77,6 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
                    ffi::Map<tirx::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
-  if (!attrs.defined()) {
-    attrs = DictAttrs();
-  }
-
   if (!ret_type.defined()) {
     ret_type = VoidType();
   }

@@ -38,10 +38,17 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+
+constexpr const char* kEntryClusterSyncAttr = "tirx.entry_cluster_sync";
+
+}  // namespace
+
 class HostDeviceSplitter : public StmtMutator {
  public:
-  explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply)
-      : device_mod_(device_mod), var_supply_(var_supply) {}
+  explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply,
+                              PrimFunc cur_func)
+      : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tvm::attr::kTarget) {
@@ -59,15 +66,25 @@ class HostDeviceSplitter : public StmtMutator {
 
       // Sort first by variable type, then by variable name
       std::vector<Var> params{use_def.undefined_.begin(), use_def.undefined_.end()};
-      std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
-        auto sort_key = [](const Var& var) {
-          return std::tuple{
-              !var->dtype.is_handle(),
-              var->name_hint,
+      if (device_target->kind->name != "trn") {
+        std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
+          auto sort_key = [](const Var& var) {
+            return std::tuple{
+                !var->dtype.is_handle(),
+                var->name_hint,
+            };
           };
-        };
-        return sort_key(a) < sort_key(b);
-      });
+          return sort_key(a) < sort_key(b);
+        });
+      } else {
+        std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
+        for (size_t i = 0; i < cur_func_->params.size(); ++i) {
+          param_order[cur_func_->buffer_map[cur_func_->params[i]]->data] = i;
+        }
+        // sort by original order
+        std::sort(params.begin(), params.end(),
+                  [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
+      }
       return {params, use_def.undefined_buffers_};
     }();
 
@@ -95,7 +112,21 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
-
+    if (cur_func_->attrs->dict.count(tvm::attr::kSTir)) {
+      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
+    }
+    auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
+    if (num_inputs.has_value()) {
+      device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
+    }
+    auto persistent = cur_func_->GetAttr<bool>(tirx::attr::kPersistentKernel);
+    if (persistent.has_value()) {
+      device_func = WithAttr(std::move(device_func), tirx::attr::kPersistentKernel, persistent);
+    }
+    auto entry_cluster_sync = cur_func_->GetAttr<bool>(kEntryClusterSyncAttr);
+    if (entry_cluster_sync.has_value()) {
+      device_func = WithAttr(std::move(device_func), kEntryClusterSyncAttr, entry_cluster_sync);
+    }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
@@ -116,11 +147,13 @@ class HostDeviceSplitter : public StmtMutator {
   IRModule* device_mod_;
   // Generate new GlobalVar for the kernel
   std::function<GlobalVar()> var_supply_;
+  // Current function being split
+  PrimFunc cur_func_;
 };
 
 PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
                          std::function<GlobalVar()> var_supply) {
-  HostDeviceSplitter splitter(device_mod, var_supply);
+  HostDeviceSplitter splitter(device_mod, var_supply, func);
 
   if (auto body = splitter(func->body); !body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;

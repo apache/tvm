@@ -51,7 +51,7 @@ import struct
 import sys
 import threading
 
-from tvm.contrib.popen_pool import PopenWorker
+from tvm.support.popen_pool import PopenWorker
 
 try:
     from tornado import ioloop
@@ -76,6 +76,12 @@ console_handler.setFormatter(
 logger.addHandler(console_handler)
 logger.setLevel(logging.INFO)
 logger.propagate = False
+
+# Maximum size in bytes for a single tracker message. Tracker frames carry
+# small JSON command tuples; 1 MiB is well above any legitimate payload and
+# bounds memory growth when a peer sends an oversized or malformed size
+# header on the wire.
+MAX_TRACKER_MSG_BYTES = 1 << 20
 
 
 class Scheduler:
@@ -224,14 +230,27 @@ class TCPEventHandler(tornado_util.TCPHandler):
             if self._msg_size == 0:
                 if len(self._data) >= 4:
                     self._msg_size = struct.unpack("<i", self._data[:4])[0]
+                    if self._msg_size <= 0 or self._msg_size > MAX_TRACKER_MSG_BYTES:
+                        logger.warning(
+                            "Invalid msg_size %d from %s; closing connection",
+                            self._msg_size,
+                            self.name(),
+                        )
+                        self.close()
+                        return
+                    del self._data[:4]
                 else:
                     return
-            if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
-                msg = py_str(bytes(self._data[4 : 4 + self._msg_size]))
-                del self._data[: 4 + self._msg_size]
+            if self._msg_size != 0 and len(self._data) >= self._msg_size:
+                msg = py_str(bytes(self._data[: self._msg_size]))
+                del self._data[: self._msg_size]
                 self._msg_size = 0
-                # pylint: disable=broad-except
-                self.call_handler(json.loads(msg))
+                try:
+                    self.call_handler(json.loads(msg))
+                except Exception:  # pylint: disable=broad-except
+                    logger.warning("Error handling message from %s", self.name(), exc_info=True)
+                    self.close()
+                    return
             else:
                 return
 

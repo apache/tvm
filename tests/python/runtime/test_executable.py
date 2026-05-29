@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MyModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(
         A: T.Buffer((10,), "float32"),
         B: T.Buffer((10,), "float32"),

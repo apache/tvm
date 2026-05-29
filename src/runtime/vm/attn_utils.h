@@ -24,13 +24,17 @@
 #ifndef TVM_RUNTIME_VM_ATTN_UTILS_H_
 #define TVM_RUNTIME_VM_ATTN_UTILS_H_
 
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <limits>
 #include <utility>
 #include <vector>
+
 #if defined(OPENCL_ENABLE_HOST_PTR)
 #include "../opencl/opencl_common.h"
 #endif
@@ -370,6 +374,22 @@ class HostMemoryVector {
     static_cast<int32_t*>(data_->data)[current_size_++] = value;
   }
 
+  void push_back_vec(const std::vector<int32_t>& values) {
+    TVM_FFI_ICHECK_LE(current_size_, reserved_size_);
+    int64_t num_new_elements = static_cast<int64_t>(values.size());
+    if (current_size_ + num_new_elements > reserved_size_) {
+      while (current_size_ + num_new_elements > reserved_size_) {
+        reserved_size_ *= 2;
+      }
+      Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
+      std::memcpy(new_data->data, data_->data, current_size_ * DataType(data_->dtype).bytes());
+      data_ = new_data;
+    }
+    std::memcpy(static_cast<int32_t*>(data_->data) + current_size_, values.data(),
+                num_new_elements * sizeof(int32_t));
+    current_size_ += num_new_elements;
+  }
+
   const int32_t& operator[](int64_t idx) const {
     TVM_FFI_ICHECK_GE(idx, 0) << "Index " << idx << " is negative.";
     TVM_FFI_ICHECK_LT(idx, current_size_) << "Index " << idx << " out of bounds " << current_size_;
@@ -379,6 +399,22 @@ class HostMemoryVector {
   int32_t back() const {
     TVM_FFI_ICHECK_GT(current_size_, 0) << "Vector is empty";
     return static_cast<int32_t*>(data_->data)[current_size_ - 1];
+  }
+
+  void fill(int32_t value) {
+    std::fill(static_cast<int32_t*>(data_->data),
+              static_cast<int32_t*>(data_->data) + current_size_, value);
+  }
+
+  void resize(size_t new_size) {
+    TVM_FFI_ICHECK_LE(new_size, reserved_size_);
+    current_size_ = new_size;
+  }
+
+  void set(int64_t idx, int32_t value) {
+    TVM_FFI_ICHECK_GE(idx, 0) << "Index " << idx << " is negative.";
+    TVM_FFI_ICHECK_LT(idx, current_size_) << "Index " << idx << " out of bounds " << current_size_;
+    static_cast<int32_t*>(data_->data)[idx] = value;
   }
 
   size_t size() const { return static_cast<size_t>(current_size_); }
@@ -784,8 +820,9 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
         offset_alignment_(cuda_byte_alignment_ / elem_byte_size_) {
     // - Calculate cache size of all the attention auxiliary arrays in
     // local cache and the large on-device array.
-    int64_t attn_aux_data_cache_size =
-        CalculateAttnAuxDataCacheSize(reserved_num_seqs, num_total_pages, prefill_chunk_size);
+    // int64_t attn_aux_data_cache_size =
+    //     CalculateAttnAuxDataCacheSize(reserved_num_seqs, num_total_pages, prefill_chunk_size);
+    int64_t attn_aux_data_cache_size = 32 * 1024 * 1024;
     // - Initialize the host auxiliary data buffer.
     merged_attn_aux_data_host_ =
         HostMemoryVector(attn_aux_data_cache_size, dtype_aux, preferred_host_device);
@@ -861,9 +898,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
                 sliding_window_offset->data(), n_elem * elem_byte_size_);
     std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_ + 2 * n_elem,
                 sink_size->data(), n_elem * elem_byte_size_);
-    Tensor view =
-        Tensor::FromNDAlloc(ViewHelper(merged_attn_aux_data_device_), ffi::Shape({3, n_elem}),
-                            dtype_aux_, device_, attn_aux_data_copy_offset_ * elem_byte_size_);
+    Tensor view = merged_attn_aux_data_device_.CreateView(
+        {3, n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
     attn_aux_data_copy_offset_ += CeilDivElemAlignment(3 * n_elem);
     return view;
   }
@@ -897,9 +933,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
                 src_data->data(), n_elem * elem_byte_size_);
     std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_ + n_elem,
                 dst_data->data(), n_elem * elem_byte_size_);
-    Tensor view = Tensor::FromNDAlloc(ViewHelper(merged_compact_kv_aux_data_device_),
-                                      ffi::Shape({2, n_elem}), dtype_aux_, device_,
-                                      compact_kv_aux_data_copy_offset_ * elem_byte_size_);
+    Tensor view = merged_compact_kv_aux_data_device_.CreateView(
+        {2, n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
     compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(2 * n_elem);
     return view;
   }
@@ -922,20 +957,6 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   }
 
  private:
-  // helper allocator class that applies byte offset to the original data pointer
-  class ViewHelper {
-   public:
-    explicit ViewHelper(Tensor source) : source_(source) {}
-    void AllocData(DLTensor* tensor, int64_t extra_byte_offset) {
-      tensor->data = static_cast<char*>(source_->data) + extra_byte_offset;
-    }
-
-    void FreeData(DLTensor* tensor) {}
-
-   private:
-    Tensor source_;
-  };
-
   /*!
    * \brief Calculate the start element offsets of the auxiliary arrays in the local cache.
    * \return Return the local cache size (total number of elements in the local cache).
@@ -1007,9 +1028,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     int64_t n_elem = data->size();
     std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_, data->data(),
                 n_elem * elem_byte_size_);
-    Tensor view =
-        Tensor::FromNDAlloc(ViewHelper(merged_attn_aux_data_device_), ffi::Shape({n_elem}),
-                            dtype_aux_, device_, attn_aux_data_copy_offset_ * elem_byte_size_);
+    Tensor view = merged_attn_aux_data_device_.CreateView(
+        {n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
     attn_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
     return view;
   }
@@ -1018,9 +1038,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     int64_t n_elem = data->size();
     std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_,
                 data->data(), n_elem * elem_byte_size_);
-    Tensor view = Tensor::FromNDAlloc(ViewHelper(merged_compact_kv_aux_data_device_),
-                                      ffi::Shape({n_elem}), dtype_aux_, device_,
-                                      compact_kv_aux_data_copy_offset_ * elem_byte_size_);
+    Tensor view = merged_compact_kv_aux_data_device_.CreateView(
+        {n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
     compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
     return view;
   }

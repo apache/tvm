@@ -44,7 +44,7 @@ def _check(
 
 
 def test_call_tir_dtensor():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -56,7 +56,7 @@ def test_call_tir_dtensor():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -102,7 +102,7 @@ def test_call_tir_dtensor():
 
 
 def test_explicit_device_id():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -119,7 +119,7 @@ def test_explicit_device_id():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -147,7 +147,7 @@ def test_explicit_device_id():
 
 
 def test_constant():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -159,7 +159,7 @@ def test_constant():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),

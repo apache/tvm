@@ -33,7 +33,6 @@
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
-#include <optional>
 #include <string>
 
 namespace tvm {
@@ -239,6 +238,36 @@ TVM_DLL Pass VerifySSA();
  * \sa tvm::tirx::VerifyMemory
  */
 TVM_DLL Pass VerifyMemory();
+
+/*!
+ * \brief Pass variant of VerifyGPUCode.
+ *
+ * \param constraints The dict to specify constraints to check.
+ *
+ * \returns The pass.
+ * \sa tvm::tir::VerifyGPUCode
+ */
+/******** TIRx analysis helpers ********/
+
+/*!
+ * \brief Verify if the given TIRX is well-formed.
+ * \param func The PrimFunc to be verified.
+ * \param assert_mode The indicator if it raises an error when the function is not well-formed.
+ * \param device_func The indicator if it is a device function.
+ * \return Whether it is a well-formed TIRX function.
+ */
+TVM_DLL bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode = true,
+                                  bool device_func = false);
+
+/*!
+ * \brief Verify if the TIRX in the given IRMOdule is well-formed.
+ * \param mod The IRModule to be verified.
+ * \param assert_mode The indicator if it raises an error when the function is not well-formed.
+ * \param device_func The indicator if it is a device function.
+ * \return Whether it is a well-formed TIRX module.
+ */
+TVM_DLL bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode = true,
+                                  bool device_func = false);
 
 }  // namespace transform
 }  // namespace tirx

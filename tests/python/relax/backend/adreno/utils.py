@@ -23,7 +23,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.contrib import ndk
+from tvm.support import ndk
 
 # Test Infra
 
@@ -94,10 +94,9 @@ requires_adreno_opencl_real = tvm.testing.Feature(
 requires_adreno_clml = tvm.testing.Feature(
     "adreno_clml",
     "Adreno OpenCLML",
-    run_time_check=lambda: tvm.get_global_func(
-        "relax.is_openclml_runtime_enabled", allow_missing=True
-    )
-    is not None,
+    run_time_check=lambda: (
+        tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is not None
+    ),
     target_kind_enabled="opencl",
     parent_features="opencl" if "ADRENO_TARGET" not in os.environ else "rpc",
 )

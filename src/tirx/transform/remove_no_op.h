@@ -27,10 +27,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tirx/stmt.h>
 
-#include <optional>
-
-#include "../analysis/control_flow_graph.h"
-
 namespace tvm {
 namespace tirx {
 
@@ -43,17 +39,9 @@ namespace tirx {
  *
  * \param analyzer The analyzer to use while proving no-ops
  *
- * \param control_flow The analyzed control-flow graph, which contains
- * the `stmt` to be analyzed.  If provided, known buffer values will
- * be used to remove no-ops.  (e.g. Removing `buf[i] = 0` in cases
- * where `buf[i]` is known to already contain zero.)  If nullptr,
- * known buffer values will not be used.
- *
  * \return The modified statement with no-ops removed
  */
-Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer,
-                std::optional<ControlFlowGraph> touch_pattern = std::nullopt,
-                const StmtNode* context = nullptr);
+Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, bool ignore_profiler_call = false);
 
 }  // namespace tirx
 }  // namespace tvm

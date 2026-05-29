@@ -32,6 +32,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -449,9 +450,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       return it->second;
     }
 
-    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
-                             buf->elem_offset, new_backing_array->name_hint, buf->data_alignment,
-                             buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
+    Buffer remapped =
+        Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
+               new_backing_array->name_hint, buf->data_alignment, buf->offset_factor,
+               buf->buffer_type, buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
     buffer_remap_[key] = remapped;
     return remapped;
   }
@@ -494,7 +496,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]});
+      return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]},
+                  op->attrs, op->span);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -664,6 +667,18 @@ class StoragePlanRewriter : public StmtExprMutator {
           NewAllocTagMerged(e);
           continue;
         }
+        if (e->allocs.size() == 1 && e->allocs[0]->buffer->dtype.is_scalable_vector()) {
+          // Scalable vector lanes are runtime-dependent.  Keep these allocations exact rather
+          // than trying to compare or merge their compile-time bit size.
+          e->alloc_var = e->allocs[0]->buffer->data;
+          Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
+          ffi::Map<ffi::String, ffi::Any> annotations;
+          if (e->is_volatile) {
+            annotations.Set(attr::kVolatile, true);
+          }
+          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          continue;
+        }
         // Get the allocation size;
         e->alloc_var = e->allocs[0]->buffer->data;
         DataType alloc_type = e->allocs[0]->buffer->dtype;
@@ -696,7 +711,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           Buffer buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, Bool(true));
+            annotations.Set(attr::kVolatile, true);
           }
           e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         } else {
@@ -741,7 +756,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                      e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, Bool(true));
+            annotations.Set(attr::kVolatile, true);
           }
           e->alloc_nest.push_back(AllocBuffer(buf, annotations));
         }
@@ -783,7 +798,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (any_volatile) {
-      annotations.Set(attr::kVolatile, Bool(true));
+      annotations.Set(attr::kVolatile, true);
     }
     e->alloc_nest.push_back(AllocBuffer(buf, annotations));
   }
@@ -873,6 +888,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
+                    !alloc->buffer->dtype.is_scalable_vector() &&
                     src_entry->elem_type == alloc->buffer->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
                   int64_t const_size = AllocBuffer(ffi::GetRef<AllocBuffer>(alloc))
@@ -955,10 +971,13 @@ class StoragePlanRewriter : public StmtExprMutator {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
-    uint64_t op_elem_bits = op->buffer->dtype.bits() * op->buffer->dtype.lanes();
+    bool is_scalable_vector = op->buffer->dtype.is_scalable_vector();
+    uint64_t op_elem_bits =
+        is_scalable_vector ? 0 : op->buffer->dtype.bits() * op->buffer->dtype.lanes();
     int64_t const_size =
         AllocBuffer(ffi::GetRef<AllocBuffer>(op)).ConstantAllocationSize().value_or(0);
-    uint64_t const_nbits = static_cast<uint64_t>(const_size * op_elem_bits);
+    uint64_t const_nbits =
+        is_scalable_vector ? 0 : static_cast<uint64_t>(const_size * op_elem_bits);
 
     // If the size of the array isn't known at compile-time, it must
     // have its own allocation with size determined at runtime.
@@ -975,7 +994,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                           (scope.rank >= StorageRank::kWarp || op->buffer->dtype.is_handle() ||
                            (is_known_size && const_nbits <= 32));
 
-    if (!enable_reuse || is_small_array || !is_flat_memory_space) {
+    if (is_scalable_vector || !enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -1036,7 +1055,10 @@ class StoragePlanRewriter : public StmtExprMutator {
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.is_handle()) return;
+      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.is_handle() ||
+          e->allocs[0]->buffer->dtype.is_scalable_vector()) {
+        return;
+      }
       // disable reuse of small arrays
       if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     }
@@ -1218,7 +1240,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       PrimExpr index = op->args[2];
-      OnArrayAccess(dtype, buffer, {index}, false);
+      // args[1] may be a nested Call (e.g. another tvm_access_ptr) rather
+      // than a raw Var; OnArrayAccess derefs `buffer` so skip the record
+      // here and let the recursive visit handle any inner buffer var.
+      if (buffer != nullptr) {
+        OnArrayAccess(dtype, buffer, {index}, false);
+      }
     } else if (op->op.same_as(builtin::address_of())) {
       BufferLoad load = Downcast<BufferLoad>(op->args[0]);
       OnArrayAccess(load->dtype, load->buffer->data.get(), load->indices, /*is_buffer_load=*/false);
@@ -1591,6 +1618,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       writer->data = info.new_buffer_var;
       writer->dtype = info.new_element_dtype;
       writer->shape = shape;
+      writer->layout = std::nullopt;
     }
 
     buffer_map_[cache_key] = buf;
@@ -1622,7 +1650,10 @@ class VectorTypeRewriter : public StmtExprMutator {
       extent = extent / make_const(extent.dtype(), factor);
       index = index / make_const(index.dtype(), factor);
       ffi::Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
-      return Call(info.new_element_dtype, builtin::tvm_access_ptr(), acc_args);
+      // tvm_access_ptr produces a pointer; its Call.dtype must be handle
+      // (the lowering rule in src/target/intrin_rule.cc ICHECKs this).
+      // The element dtype is conveyed via the first arg (e_dtype marker).
+      return Call(DataType::Handle(), builtin::tvm_access_ptr(), acc_args);
 
     } else {
       return StmtExprMutator::VisitExpr_(op);
@@ -1723,7 +1754,7 @@ Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
-    bool merge_static_smem = ctx->GetConfig<Bool>("tirx.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
     if (merge_static_smem) {
       // When `merge_static_smem` is true, we will reuse and merge shared
       // memory in a dedicated pass `MergeSharedMemoryAllocations`.

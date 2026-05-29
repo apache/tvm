@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.UnifyThreadBinding()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
@@ -40,7 +40,7 @@ def _check_fail(original):
         tvm.s_tir.transform.UnifyThreadBinding()(mod)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -56,7 +56,7 @@ def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -76,7 +76,7 @@ def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_thread_x_different_dtype(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
@@ -93,7 +93,7 @@ def element_wise_thread_x_different_dtype(
                     C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_thread_x_different_dtype(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
@@ -113,7 +113,7 @@ def unified_element_wise_thread_x_different_dtype(
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
@@ -133,7 +133,7 @@ def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -153,7 +153,7 @@ def unified_element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> 
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -165,7 +165,7 @@ def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
                         B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -178,7 +178,7 @@ def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_two_thread_x_in_same_kernel_not_equal(
     a: T.handle, b: T.handle, c: T.handle
 ) -> None:
@@ -192,7 +192,7 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(
             C[i, j1] = A[i, j1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_kernels_with_different_size(
     a: T.handle, b: T.handle, c: T.handle, d: T.handle
 ) -> None:
@@ -208,7 +208,7 @@ def element_wise_kernels_with_different_size(
             D[i1, j1] = C[i1, j1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_kernels_with_different_size(
     a: T.handle, b: T.handle, c: T.handle, d: T.handle
 ) -> None:
@@ -224,7 +224,7 @@ def unified_element_wise_kernels_with_different_size(
             D[blockIdx_x, threadIdx_x] = C[blockIdx_x, threadIdx_x] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -240,7 +240,7 @@ def element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def unified_element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -291,7 +291,7 @@ def test_implicit_block():
 
 
 def test_inner_binding_with_annotation():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def inner_binding_with_annotation(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
         for bx in T.thread_binding(32, "blockIdx.x"):
             for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
@@ -299,7 +299,7 @@ def test_inner_binding_with_annotation():
                     v = T.axis.spatial(64, bx * 2 + tx)
                     B[v] = A[v]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def unified_inner_binding_with_annotation(
         A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")
     ):

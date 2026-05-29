@@ -25,18 +25,6 @@ tvm.contrib.cblas
     :members:
 
 
-tvm.contrib.clang
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.clang
-    :members:
-
-
-tvm.contrib.cc
-~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.cc
-    :members:
-
-
 tvm.contrib.coreml_runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.coreml_runtime
@@ -79,12 +67,6 @@ tvm.contrib.download
     :members:
 
 
-tvm.contrib.emcc
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.emcc
-    :members:
-
-
 tvm.contrib.hipblas
 ~~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.hipblas
@@ -97,21 +79,9 @@ tvm.contrib.mkl
     :members:
 
 
-tvm.contrib.ndk
-~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.ndk
-    :members:
-
-
 tvm.contrib.nnpack
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.nnpack
-    :members:
-
-
-tvm.contrib.nvcc
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.nvcc
     :members:
 
 
@@ -121,33 +91,9 @@ tvm.contrib.pickle_memoize
     :members:
 
 
-tvm.contrib.popen_pool
-~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.popen_pool
-    :members:
-
-
 tvm.contrib.random
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.random
-    :members:
-
-
-tvm.contrib.rocm
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.rocm
-    :members:
-
-
-tvm.contrib.spirv
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.spirv
-    :members:
-
-
-tvm.contrib.tar
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.tar
     :members:
 
 
@@ -160,18 +106,6 @@ tvm.contrib.thrust
 tvm.contrib.tvmjs
 ~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.tvmjs
-    :members:
-
-
-tvm.contrib.utils
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.utils
-    :members:
-
-
-tvm.contrib.xcode
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.xcode
     :members:
 
 

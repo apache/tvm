@@ -338,7 +338,7 @@ TEST(IRF, Substitute) {
                   /*dtype=*/DataType::Float(32),
                   /*shape=*/{n},
                   /*strides=*/{},
-                  /*elem_offset=*/NullValue<PrimExpr>(),
+                  /*elem_offset=*/PrimExpr(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
                   /*offset_factor=*/1,

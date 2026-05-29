@@ -34,14 +34,40 @@
 #include <utility>
 
 #include "../target/datatype/registry.h"
+#include "../tirx/analysis/check_contains.h"
 #include "conjunctive_normal_form.h"
 #include "const_fold.h"
 #include "constraint_extract.h"
 #include "pattern_match.h"
-#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
+
+namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<tirx::CallNode>()) {
+    return call->op.same_as(tirx::builtin::vscale());
+  }
+  return false;
+}
+
+// File-local helper: true if `expr` contains a call to tirx::builtin::vscale().
+bool ContainsVscaleCall(const PrimExpr& expr) {
+  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+}
+
+// File-local helper: returns the vscale multiplier if `lanes` is of the form
+// `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
+std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
+  PVar<IntImm> multiplier;
+  PCallExpr<PVscaleOp> vscale;
+  if (PMatchesOneOf(multiplier * vscale, vscale * multiplier).Match(lanes)) {
+    return multiplier.Eval()->value;
+  }
+  return std::nullopt;
+}
+}  // namespace
 
 using namespace tirx;
 
@@ -789,7 +815,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0) && !arith::ExtractVscaleFactor(lanes.Eval())) {
+      if (CanProveGreaterEqual(b1.Eval(), 0) && !ExtractVscaleFactor(lanes.Eval())) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
         auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
@@ -946,7 +972,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+        if (!ExtractVscaleFactor(lanes.Eval())) {
           auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
           int64_t ramp_min = bmod->base / c2val;
           int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
@@ -1032,7 +1058,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+      if (!ExtractVscaleFactor(lanes.Eval())) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = floordiv(bmod->base, c2val);
         auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
@@ -1124,6 +1150,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c2), floordiv(x, c2) + floordiv(c1, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
+    TVM_TRY_REWRITE_IF(
+        floordiv(x + c1, c2), floordiv(c1, c2),
+        c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+            CanProveGreaterEqual(x.Eval(), -(c1.Eval()->value % c2.Eval()->value)) &&
+            CanProveLess(x.Eval(), c2.Eval()->value - (c1.Eval()->value % c2.Eval()->value)));
+
     TVM_TRY_REWRITE_IF(floordiv(x * c1, x * c2), floordiv(c1, c2), c2.Eval()->value > 0);
 
     TVM_TRY_REWRITE_IF(matches_one_of(floordiv(x + y, x), floordiv(y + x, x)), floordiv(y, x) + 1,
@@ -1180,7 +1212,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+      if (!ExtractVscaleFactor(lanes.Eval())) {
         int64_t ramp_min = floordiv(bmod->base, c2val);
         auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
         int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
@@ -2337,7 +2369,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // Only check constant cases to avoid recursion
       if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
-        return if_then_else(cond && inner_cond, inner_then_expr, else_expr);
+        return Call(op->dtype, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
+                    op->span);
       }
     }
   }

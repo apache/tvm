@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 
 @tvm.testing.parametrize_targets("c")
 def test_buffer_store_predicate_not_supported(target):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(b: T.handle):
         B = T.match_buffer(b, (8,), "float32")
         B.vstore([T.Ramp(0, 2, 4)], T.Broadcast(1.0, 4), predicate=T.Broadcast(T.bool(True), 4))
@@ -40,7 +40,7 @@ def test_buffer_store_predicate_not_supported(target):
     "cuda", "opencl", "metal", "rocm", {"kind": "vulkan", "from_device": 0}
 )
 def test_buffer_store_predicate_not_supported_gpu(target):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (2, 3), "float32")
         B = T.match_buffer(b, (6,), "float32")
@@ -58,7 +58,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
 
 @tvm.testing.parametrize_targets("c")
 def test_buffer_load_predicate_not_supported(target):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (8,), "float32")
         B = T.match_buffer(b, (8,), "float32")
@@ -78,7 +78,7 @@ def test_buffer_load_predicate_not_supported(target):
     "cuda", "opencl", "metal", "rocm", {"kind": "vulkan", "from_device": 0}
 )
 def test_buffer_load_predicate_not_supported_gpu(target):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (8,), "float32")
         B = T.match_buffer(b, (8,), "float32")
@@ -96,7 +96,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
 
 @tvm.testing.parametrize_targets("c", "llvm")
 def test_codegen_loop_step(target):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_loop_step(
         A: T.Buffer((1024,), "float32"),
         B: T.Buffer((1024,), "float32"),

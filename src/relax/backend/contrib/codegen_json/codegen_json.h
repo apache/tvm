@@ -35,8 +35,8 @@
 #include <string>
 #include <vector>
 
-#include "../../../../runtime/contrib/json/json_node.h"
-#include "../../../../runtime/contrib/json/json_runtime.h"
+#include "../../../../runtime/extra/contrib/json/json_node.h"
+#include "../../../../runtime/extra/contrib/json/json_runtime.h"
 #include "../../../transform/utils.h"
 #include "../utils.h"
 

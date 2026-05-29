@@ -36,14 +36,14 @@ class BaseTestCase:
 class TestSimple(BaseTestCase):
     """Simple case directly acting on PrimFunc"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             for i in range(64):
                 Before.subroutine(T.address_of(A[i, 0]), T.address_of(B[i, 0]))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
             A = T.decl_buffer([16, 16], "float32", data=A_data)
             B = T.decl_buffer([16], "float32", data=B_data)
@@ -52,14 +52,14 @@ class TestSimple(BaseTestCase):
                 for j in range(16):
                     B[i] = B[i] + A[i, j]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             for i in range(64):
-                A_view_data: T.handle("float32") = T.address_of(A[i, 0])
+                A_view_data: T.let[T.handle("float32")] = T.address_of(A[i, 0])
                 Aview = T.decl_buffer([16, 16], "float32", data=A_view_data)
-                B_view_data: T.handle("float32") = T.address_of(B[i, 0])
+                B_view_data: T.let[T.handle("float32")] = T.address_of(B[i, 0])
                 Bview = T.decl_buffer([16], "float32", data=B_view_data)
                 for j in range(16):
                     Bview[j] = 0.0
@@ -77,15 +77,15 @@ class TestRetainCrossFunctionSubroutines(BaseTestCase):
     InlinePrivateSubroutines should not inline these cases.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             T.func_attr({"target": T.target("llvm")})
             for i in range(64):
                 Before.subroutine(T.address_of(A[i, 0]), T.address_of(B[i, 0]))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda")})
             A = T.decl_buffer([16, 16], "float32", data=A_data)
@@ -107,13 +107,13 @@ class TestRetainRecursiveSubroutines(BaseTestCase):
     analysis of the subroutine.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             Before.subroutine(T.address_of(A[0]), 16)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), A_size: T.int32):
             A = T.decl_buffer(A_size, "float32", data=A_data)
             A[1] = A[0] + A[1]
@@ -131,14 +131,14 @@ class TestDeduplicateBlockName(BaseTestCase):
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([2, 16], "float32"), B: T.Buffer([2, 16], "float32")):
             Before.subroutine(T.address_of(A[0, 0]), T.address_of(B[0, 0]))
             Before.subroutine(T.address_of(A[1, 0]), T.address_of(B[1, 0]))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
@@ -146,13 +146,13 @@ class TestDeduplicateBlockName(BaseTestCase):
                 with T.sblock("scalar_mul"):
                     B[i] = A[i] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             A_data_1 = T.bind(T.address_of(A[0, 0]), T.handle("float32"))
             A_1 = T.decl_buffer(16, "float32", data=A_data_1)
-            B_data_1: T.handle("float32") = T.address_of(B[0, 0])
+            B_data_1: T.let[T.handle("float32")] = T.address_of(B[0, 0])
             B_1 = T.decl_buffer(16, "float32", data=B_data_1)
             for i in range(16):
                 with T.sblock("scalar_mul_1"):
@@ -160,7 +160,7 @@ class TestDeduplicateBlockName(BaseTestCase):
 
             A_data_2 = T.bind(T.address_of(A[1, 0]), T.handle("float32"))
             A_2 = T.decl_buffer(16, "float32", data=A_data_2)
-            B_data_2: T.handle("float32") = T.address_of(B[1, 0])
+            B_data_2: T.let[T.handle("float32")] = T.address_of(B[1, 0])
             B_2 = T.decl_buffer(16, "float32", data=B_data_2)
             for i in range(16):
                 with T.sblock("scalar_mul_2"):
@@ -183,23 +183,23 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             for i in range(16):
                 A[i] = Before.subroutine(i)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(i: T.int32) -> T.float32:
             cos = T.cos(T.cast(i, "float32"))
             sin = T.sin(T.cast(i, "float32"))
             retval = cos * cos + sin * sin
             T.ret(retval)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             for i in range(16):
                 cos = T.cos(T.cast(i, "float32"))
@@ -222,9 +222,9 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             Before.subroutine(
                 T.tvm_stack_make_array(
@@ -238,14 +238,14 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
                 )
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A: T.Buffer(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0

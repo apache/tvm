@@ -21,14 +21,14 @@ import os.path as osp
 from collections.abc import Callable
 from contextlib import contextmanager
 
-from tvm.contrib.popen_pool import PopenPoolExecutor
+from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
+from tvm.support.popen_pool import PopenPoolExecutor
 
 from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import (
-    derived_object,
     get_global_func_on_rpc_session,
     get_global_func_with_default_on_worker,
 )

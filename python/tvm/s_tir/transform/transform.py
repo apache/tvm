@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name, unsupported-binary-operation
 
 from ... import ffi as _ffi
-from ... import ir as _ir
 from . import _ffi_api
 
 
@@ -213,7 +212,7 @@ def AnnotateIrregularLoop():
 
 
 @_ffi.register_object("s_tir.transform.LoopPartitionConfig")
-class LoopPartitionConfig(_ir.Attrs):
+class LoopPartitionConfig(_ffi.Object):
     """Config for loop partition pass"""
 
 
@@ -240,7 +239,7 @@ def InjectVirtualThread():
 
 
 @_ffi.register_object("s_tir.transform.InjectDoubleBufferConfig")
-class InjectDoubleBufferConfig(_ir.Attrs):
+class InjectDoubleBufferConfig(_ffi.Object):
     """Config for inject double buffer pass"""
 
 

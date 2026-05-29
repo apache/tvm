@@ -35,9 +35,9 @@ def _check(mod_before: IRModule, mod_after: IRModule):
 
 def test_rms_norm_with_casting():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()
@@ -95,9 +95,9 @@ def test_rms_norm_with_casting():
                     T.writes(T_cast[v_ax0, v_ax1, v_ax2])
                     T_cast[v_ax0, v_ax1, v_ax2] = T.Cast("float16", T_rms_norm[v_ax0, v_ax1, v_ax2])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()
@@ -167,9 +167,9 @@ def test_rms_norm_with_casting():
 
 def test_rms_norm_without_casting():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int32()
@@ -213,9 +213,9 @@ def test_rms_norm_without_casting():
                     T.writes(T_cast[v_ax0, v_ax1, v_ax2])
                     T_cast[v_ax0, v_ax1, v_ax2] = T_rms_norm[v_ax0, v_ax1, v_ax2]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()

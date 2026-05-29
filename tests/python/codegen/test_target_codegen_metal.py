@@ -28,9 +28,9 @@ def test_metal_inf_nan():
     target = "metal"
 
     def check_inf_nan(dev, n, value, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
@@ -64,7 +64,7 @@ def test_metal_inf_nan():
 def test_unaligned_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -90,9 +90,9 @@ def test_metal_erf():
     target = "metal"
 
     def check_erf(dev, n, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
@@ -124,7 +124,7 @@ def test_ramp():
 
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 2), "int32")):
             T.func_attr({"global_symbol": "main"})
             for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -145,7 +145,7 @@ def test_ramp():
 def test_select_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((6), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -168,7 +168,7 @@ def test_select_vectorize():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_metal
 def test_vectorized_uint8():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
         for i in T.thread_binding(4, thread="threadIdx.x"):
             for j in T.vectorized(4):
@@ -187,9 +187,9 @@ def test_vectorized_uint8():
 
 @tvm.testing.requires_metal(support_required="compile-only")
 def test_func_with_trailing_pod_params():
-    from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+    from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
         for i in T.thread_binding(16, thread="threadIdx.x"):
             with T.sblock("block"):
@@ -213,9 +213,9 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

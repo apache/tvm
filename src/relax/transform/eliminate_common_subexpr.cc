@@ -194,10 +194,10 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   bool IsAllocatorCall(const Expr& expr) {
-    static const auto& allocator_attr_map = Op::GetAttrMap<Bool>("TAllocator");
+    static const auto& allocator_attr_map = Op::GetAttrMap<bool>("TAllocator");
     if (const auto* call = expr.as<CallNode>()) {
       if (const auto* op = call->op.as<OpNode>()) {
-        bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), Bool(false))->value;
+        bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), false);
         if (is_allocator) {
           return true;
         }

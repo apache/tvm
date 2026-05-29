@@ -60,15 +60,12 @@ class PrimFunc(BaseFunc, Scriptable):
         The location of this itervar in the source code.
     """
 
-    def __init__(
-        self,
-        params,
-        body,
-        ret_type=None,
-        buffer_map=None,
-        attrs=None,
-        span=None,
-    ):
+    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+        # Legacy compatibility: expand body-carrying leaf stmt wrappers
+        # (e.g. DeclBuffer/AllocBuffer forms) into SeqStmt form.
+        from .stmt import _normalize_legacy_stmt
+
+        body = _normalize_legacy_stmt(body)
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
@@ -135,7 +132,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
                 A = T.match_buffer(a, (m, n), "float32")
                 B = T.match_buffer(b, (m, n), "float32")
@@ -158,7 +155,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (16, 16), "float32")
                 B = T.match_buffer(b, (16, 16), "float32")

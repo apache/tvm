@@ -37,7 +37,6 @@
 #include <vector>
 
 using namespace tvm;
-using namespace tvm::runtime;
 using namespace tvm::relax;
 
 TEST(NestedMsg, Basic) {

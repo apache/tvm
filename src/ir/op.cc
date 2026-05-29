@@ -33,7 +33,10 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ArgumentInfoNode::RegisterReflection();
+  OpNode::RegisterReflection();
+}
 
 using ffi::Any;
 using ffi::Function;

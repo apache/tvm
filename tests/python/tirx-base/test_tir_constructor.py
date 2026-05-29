@@ -19,6 +19,20 @@ import pytest
 
 import tvm
 from tvm import te, topi
+from tvm.tirx.analysis import expr_deep_equal
+from tvm.tirx.expr_functor import ExprMutator
+
+
+class ReplaceVar(ExprMutator):
+    def __init__(self, old_var, new_var):
+        super().__init__()
+        self.old_var = old_var
+        self.new_var = new_var
+
+    def visit_var_(self, op):
+        if op.same_as(self.old_var):
+            return self.new_var
+        return op
 
 
 def test_expr_constructor():
@@ -120,6 +134,57 @@ def test_expr_constructor():
     assert x.dtype == "float32"
     assert x.op.name == "tirx.call_extern"
     assert x.args[1] == a
+    assert x.attrs is None
+
+    attr_arg = tvm.tirx.Var("attr_arg", "float32")
+    x_with_attrs = tvm.tirx.Call(
+        "float32",
+        "tirx.call_extern",
+        [tvm.tirx.StringImm("xyz"), attr_arg],
+        attrs={"disable_tma": True},
+    )
+    assert x_with_attrs.attrs["disable_tma"] is True
+    assert not tvm.ir.structural_equal(x, x_with_attrs)
+    script = tvm.tirx.Evaluate(x_with_attrs).script()
+    assert "attrs" in script
+    assert "disable_tma" in script
+    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_attrs))
+    assert tvm.script.from_source(func.script()).script() == func.script()
+
+    y = tvm.tirx.Var("y", "float32")
+    mutated = ReplaceVar(attr_arg, y)(x_with_attrs)
+    assert mutated.attrs["disable_tma"] is True
+    assert mutated.args[1].same_as(y)
+
+    x_from_intrin = tvm.tirx.call_intrin(
+        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), attrs={"disable_tma": True}
+    )
+    assert x_from_intrin.attrs["disable_tma"] is True
+    x_with_other_attrs = tvm.tirx.Call(
+        "float32",
+        "tirx.call_extern",
+        [tvm.tirx.StringImm("xyz"), attr_arg],
+        attrs={"disable_tma": False},
+    )
+    assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
+
+    cond0 = tvm.tirx.Var("cond0", "bool")
+    cond1 = tvm.tirx.Var("cond1", "bool")
+    inner_if = tvm.tirx.Call(
+        "int32",
+        "tirx.if_then_else",
+        [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
+    )
+    outer_if = tvm.tirx.Call(
+        "int32",
+        "tirx.if_then_else",
+        [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
+        attrs={"keep": True},
+    )
+    simplified = tvm.tirx.transform.StmtSimplify()(
+        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
+    )["main"].body.value
+    assert simplified.attrs["keep"] is True
 
     v = tvm.tirx.Var("aa", "int32")
     x = tvm.tirx.Let(v, 1, v)

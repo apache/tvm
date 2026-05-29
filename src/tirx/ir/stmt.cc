@@ -21,7 +21,6 @@
  * \file tvm/tirx/stmt.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op.h>
@@ -47,10 +46,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfThenElseNode::RegisterReflection();
   ForNode::RegisterReflection();
   WhileNode::RegisterReflection();
+  BreakNode::RegisterReflection();
+  ContinueNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
+  ExecScopeStmtNode::RegisterReflection();
 }
 
 // Bind
@@ -240,8 +242,45 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
+// Break
+Break::Break(Span span) {
+  ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Break", [](Span span) { return Break(span); });
+}
+
+// Continue
+Continue::Continue(Span span) {
+  ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
+}
+
 // DeclBuffer
 DeclBuffer::DeclBuffer(Buffer buffer, Span span) {
+  // Enforce storage scope rules for DeclBuffer.
+  std::string scope = static_cast<std::string>(buffer.scope());
+  if (scope.empty()) {
+    scope = "global";
+  }
+  if (scope == "tmem") {
+    TVM_FFI_ICHECK_EQ(buffer->allocated_addr.size(), 1U)
+        << "ValueError: For `tmem` scope, DeclBuffer requires exactly one `allocated_addr` "
+           "PrimExpr";
+  } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
+    TVM_FFI_ICHECK(buffer->allocated_addr.empty())
+        << "ValueError: For `" << scope << "` scope, DeclBuffer does not accept `allocated_addr`";
+  }
   ffi::ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
   node->buffer = std::move(buffer);
   node->span = std::move(span);
@@ -564,6 +603,21 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
   data_ = std::move(node);
 }
 
+SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<Buffer> alloc_buffers, Span span) {
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  node->iter_vars = {};
+  node->reads = {};
+  node->writes = {};
+  node->name_hint = std::move(name_hint);
+  node->body = std::move(body);
+  node->init = std::nullopt;
+  node->alloc_buffers = std::move(alloc_buffers);
+  node->match_buffers = {};
+  node->annotations = {};
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.SBlock",
@@ -575,6 +629,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,
                                         alloc_buffers, match_buffers, annotations, span);
                         });
+}
+
+// ExecScopeStmt
+ExecScopeStmt::ExecScopeStmt(ExecScope exec_scope, Stmt body, Span span) {
+  TVM_FFI_ICHECK(exec_scope.defined());
+  TVM_FFI_ICHECK(body.defined());
+  ffi::ObjectPtr<ExecScopeStmtNode> node = ffi::make_object<ExecScopeStmtNode>();
+  node->exec_scope = std::move(exec_scope);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.ExecScopeStmt", [](ExecScope exec_scope, Stmt body, Span span) {
+    return ExecScopeStmt(exec_scope, body, span);
+  });
 }
 
 // BlockRealize
@@ -602,13 +674,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr TypeAnnotation(DataType dtype, Span span) {
   static auto op = Op::Get("tirx.type_annotation");
-  return tirx::Call(dtype, op, {}, span);
+  return tirx::Call(dtype, op, {}, {}, span);
 }
 
-TVM_TIR_REGISTER_OP("type_annotation")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+TVM_TIRX_REGISTER_OP("type_annotation")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         Integer(ScriptDtypePrintLocation::kFirst));
+                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
 }  // namespace tirx
 }  // namespace tvm

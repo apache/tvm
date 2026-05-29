@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -21,17 +22,17 @@ from tvm.script import tirx as T
 
 
 def test_stmt_simplify():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_buffer((10,), "float32", data=A)
         C_ptr = T.decl_buffer((10,), "float32", data=C)
-        n_val: T.int32 = 10
+        n_val: T.let[T.int32] = 10
         for i in T.serial(n_val):
             if i < 12:
                 A_ptr[i] = C_ptr[i]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tirx.DeclBuffer):
         body = body.body
@@ -46,18 +47,18 @@ def test_stmt_simplify():
 
 
 def test_thread_extent_simplify():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_buffer((10,), "float32", data=A)
         C_ptr = T.decl_buffer((10,), "float32", data=C)
-        n_val: T.int32 = 10
+        n_val: T.let[T.int32] = 10
         for tx in T.thread_binding(n_val, thread="threadIdx.x"):
             for ty in T.thread_binding(1, thread="threadIdx.y"):
                 if tx + ty < 12:
                     A_ptr[tx] = C_ptr[tx + ty]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # Navigate through DeclBuffer nodes to reach the inner body
     while isinstance(body, tvm.tirx.DeclBuffer):
         body = body.body
@@ -74,7 +75,7 @@ def test_thread_extent_simplify():
 
 
 def test_if_likely():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_buffer((32,), "float32", data=A)
         C_ptr = T.decl_buffer((1024,), "float32", data=C)
@@ -85,7 +86,7 @@ def test_if_likely():
                         A_ptr[tx] = C_ptr[tx * 32 + ty]
 
     mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.Simplify()(mod)["main"].body
+    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # With flat semantics, skip DeclBuffer/AllocBuffer siblings to find the For
     if isinstance(body, tvm.tirx.SeqStmt):
         for_stmts = [s for s in body.seq if isinstance(s, tvm.tirx.For)]
@@ -100,33 +101,29 @@ def _apply_simplify(
     transitively_prove_inequalities=False,
     convert_boolean_to_and_of_ors=False,
     apply_constraints_to_boolean_branches=False,
-    propagate_knowns_to_prove_conditional=False,
-    propagate_knowns_to_simplify_expressions=False,
 ):
     """Helper to apply simplify transform with config options."""
     config = {
-        "tirx.Simplify": {
+        "tirx.StmtSimplify": {
             "transitively_prove_inequalities": transitively_prove_inequalities,
             "convert_boolean_to_and_of_ors": convert_boolean_to_and_of_ors,
             "apply_constraints_to_boolean_branches": apply_constraints_to_boolean_branches,
-            "propagate_knowns_to_prove_conditional": propagate_knowns_to_prove_conditional,
-            "propagate_knowns_to_simplify_expressions": propagate_knowns_to_simplify_expressions,
         }
     }
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(config=config):
-        mod = tvm.tirx.transform.Simplify()(mod)
+        mod = tvm.tirx.transform.StmtSimplify()(mod)
     return mod["main"]
 
 
 def test_load_store_noop():
     """Store of a value that was just read from the same location is a no-op."""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((1,), "float32")):
         A[0] = A[0]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((1,), "float32")):
         T.evaluate(0)
 
@@ -143,11 +140,11 @@ def test_load_store_noop_after_simplify():
     regression.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((1,), "float32")):
         A[0] = A[0] + (5.0 - 5.0)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((1,), "float32")):
         T.evaluate(0)
 
@@ -163,14 +160,14 @@ def test_nested_condition():
     constraint.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
@@ -187,14 +184,14 @@ def test_nested_provable_condition():
     conditional.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i < 7:
                     A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
@@ -211,14 +208,14 @@ def test_nested_var_condition():
     constraint.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
                 if i == n:
                     A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -237,7 +234,7 @@ def test_altered_buffer_contents():
     may not.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((1,), "int32"), n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
@@ -257,7 +254,7 @@ def test_negation_of_condition():
     condition is known to be false.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i == 5:
@@ -266,7 +263,7 @@ def test_negation_of_condition():
                 else:
                     A[i] = 1
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i == 5:
@@ -285,7 +282,7 @@ def test_negation_of_not_equal():
     ``i==5`` as the negation of a literal constraint.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i != 5:
@@ -294,7 +291,7 @@ def test_negation_of_not_equal():
                 else:
                     A[i] = 1
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "int32")):
         for i in T.serial(16):
             if i != 5:
@@ -311,7 +308,7 @@ def test_negation_of_var_condition():
     must rely on RewriteSimplifier recognizing the repeated literal.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16,), "int32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -320,7 +317,7 @@ def test_negation_of_var_condition():
                 else:
                     A[i] = 1
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16,), "int32"), n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -339,14 +336,14 @@ def test_literal_constraint_split_boolean_and():
     the condition is to ensure we exercise RewriteSimplifier.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
                 if i == n:
                     A[i, j] = 0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
@@ -367,7 +364,7 @@ def test_literal_constraint_split_boolean_or():
     RewriteSimplifier.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
@@ -378,7 +375,7 @@ def test_literal_constraint_split_boolean_or():
                 else:
                     A[i, j] = 2
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((16, 16), "int32"), n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
@@ -402,17 +399,17 @@ def test_prove_condition_using_let():
     expressions.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
+            condition: T.let[T.bool] = i < 3
             if condition or i >= 3:
                 A[i] = condition
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition: T.bool = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3  # noqa: F841
             A[i] = i < 3
 
     after = _apply_simplify(before)
@@ -426,18 +423,18 @@ def test_prove_let_condition():
     substitutes the variable in later expressions.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
+            condition: T.let[T.bool] = i < 3
             if i < 3:
                 if condition:
                     A[i] = condition
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition: T.bool = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
                 A[i] = T.bool(True)
 
@@ -453,18 +450,18 @@ def test_prove_repeated_let_condition():
     the inner `if condition` simplifies to True and is eliminated.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition = i < 3
+            condition: T.let[T.bool] = i < 3
             if condition:
                 if condition:
                     A[i] = condition
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(4, "bool")):
         for i in T.serial(4):
-            condition: T.bool = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
                 A[i] = T.bool(True)
 
@@ -473,13 +470,13 @@ def test_prove_repeated_let_condition():
 
 
 def test_if_then_else_expr():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if i < 12:
@@ -492,13 +489,13 @@ def test_if_then_else_expr():
 def test_ceil_log2_int():
     """Simplify expressions resulting from topi.math.ceil_log2"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "int32")):
         A[0] = T.cast(
             T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
         )
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "int32")):
         A[0] = 4
 
@@ -513,20 +510,20 @@ def test_left_ceil_log2_lower_bound():
     after simplification. The if condition is still eliminated.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            x = T.cast(
+            x: T.let[T.int32] = T.cast(
                 T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
                 dtype="int32",
             )
             if x == 11:
                 A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            x: T.int32 = T.Cast(  # noqa: F841
+            x: T.let[T.int32] = T.Cast(  # noqa: F841
                 "int32",
                 T.ceil(T.log2(T.Cast("float64", i + 1025))),
             )
@@ -544,13 +541,13 @@ def test_left_shift_lower_bound():
                 = 1
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(1, i, dtype="int32") >= 1:
                 A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
@@ -567,13 +564,13 @@ def test_left_shift_upper_bound():
                  = 1015808
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(31, i, dtype="int32") <= 1015808:
                 A[i] = 0.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
@@ -590,7 +587,7 @@ def test_left_shift_of_negative_value():
     with undefined behavior.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if -64 <= T.shift_left(-i, 4, dtype="int32"):
@@ -610,7 +607,7 @@ def test_left_shift_by_negative_value():
     with undefined behavior.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if T.shift_left(16, -i, dtype="int32") <= 16:
@@ -701,7 +698,7 @@ def test_remove_transitively_provable_condition():
 
     for priors, postulate, provable in test_cases:
         # well formed checker complains of undefined variables in condition
-        @T.prim_func(private=True, check_well_formed=False)
+        @T.prim_func(private=True, check_well_formed=False, s_tir=True)
         def before_func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = postulate
@@ -710,7 +707,7 @@ def test_remove_transitively_provable_condition():
 
         if provable:
             # well formed checker complains of undefined variables in condition
-            @T.prim_func(private=True, check_well_formed=False)
+            @T.prim_func(private=True, check_well_formed=False, s_tir=True)
             def expected_func(A: T.Buffer(1, "bool")):
                 if priors_simplified:
                     A[0] = True
@@ -719,7 +716,7 @@ def test_remove_transitively_provable_condition():
             postulate_simplified = analyzer.canonical_simplify(postulate)
 
             # well formed checker complains of undefined variables in condition
-            @T.prim_func(private=True, check_well_formed=False)
+            @T.prim_func(private=True, check_well_formed=False, s_tir=True)
             def expected_func(A: T.Buffer(1, "bool")):
                 if priors_simplified:
                     A[0] = postulate_simplified
@@ -729,7 +726,7 @@ def test_remove_transitively_provable_condition():
 
 
 def test_suppress_transitively_provable_condition():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         if i < j and j < k:
             A[0] = i < k
@@ -743,11 +740,11 @@ def test_suppress_transitively_provable_condition():
 def test_rewrite_as_and_of_ors():
     """If enabled, rewrite boolean expressions into AND of OR"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(3, "bool")):
         T.evaluate(A[0] or (A[1] and A[2]))
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(3, "bool")):
         T.evaluate((A[0] or A[1]) and (A[0] or A[2]))
 
@@ -758,7 +755,7 @@ def test_rewrite_as_and_of_ors():
 def test_suppress_rewrite_as_and_of_ors():
     """Only rewrite into AND of OR when allowed"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(3, "bool")):
         T.evaluate(A[0] or (A[1] and A[2]))
 
@@ -778,11 +775,11 @@ def test_rewrite_as_and_of_ors_with_top_level_and():
     simplification.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(4, "bool")):
         T.evaluate((A[0] or A[1]) and (A[1] or (A[0] and A[2] and A[3])))
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(4, "bool")):
         # If the simplification is applied to the OrNode, then a
         # redundant `(A[1] or A[0])` would't be canceled out.  When
@@ -812,11 +809,11 @@ def test_rewrite_as_and_of_ors_with_simplification_between_groups():
     simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10 or k == 20) and (i == 0 or j == 10 or k != 30)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = i == 0 or j == 10 or k == 20
 
@@ -832,11 +829,11 @@ def test_rewrite_as_and_of_ors_with_simplification_between_reordered_groups():
     ordered according to the first group in the expression.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10 or k == 20) and (j == 10 or k != 30 or i == 0)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = j == 10 or k == 20 or i == 0
 
@@ -852,11 +849,11 @@ def test_rewrite_as_and_of_or_using_simplification_across_and():
     rearranging components in a chain of And/Or nodes are not performed.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (k == 20) and ((i == 0 or j == 10) and (k != 30))
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 0 or j == 10) and (k == 20)
 
@@ -876,11 +873,11 @@ def test_rewrite_as_and_of_or_using_simplification_within_or():
     clauses being simplified.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (i == 20) or (j == 0) or (i != 30)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
         A[0] = (j == 0) or (i != 30)
 
@@ -908,12 +905,12 @@ def test_conditional_floor_mod():
     `canonical_simplify`.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32):
         if T.floormod(0 - i, 2) == 0:
             A[0] = T.floormod(i, 2) == 0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32):
         if T.floormod(i, -2) == 0:
             A[0] = True
@@ -930,11 +927,11 @@ def test_simplify_rhs_of_boolean_and_using_lhs():
     simplifies `n < 10` under the assumption that `n < 5`.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5 and n < 10
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5
 
@@ -949,11 +946,11 @@ def test_simplify_lhs_of_boolean_and_using_rhs():
     simplify the LHS.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10 and n < 5
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5
 
@@ -969,11 +966,11 @@ def test_simplify_rhs_of_boolean_or_using_lhs():
     This test simplifies `n < 5` under the assumption that `!(n < 10)`
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10 or n < 5
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10
 
@@ -988,11 +985,11 @@ def test_simplify_lhs_of_boolean_or_using_rhs():
     simplify the LHS.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 5 or n < 10
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32):
         A[0] = n < 10
 
@@ -1009,11 +1006,11 @@ def test_simplify_rhs_of_boolean_and_using_lhs_without_const():
     inequalities.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5 and n < m + 10
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5
 
@@ -1032,11 +1029,11 @@ def test_simplify_lhs_of_boolean_and_using_rhs_without_const():
     inequalities.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10 and n < m + 5
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5
 
@@ -1055,11 +1052,11 @@ def test_simplify_rhs_of_boolean_or_using_lhs_without_const():
     inequalities.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10 or n < m + 5
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10
 
@@ -1078,11 +1075,11 @@ def test_simplify_lhs_of_boolean_or_using_rhs_without_const():
     inequalities.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 5 or n < m + 10
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), n: T.int32, m: T.int32):
         A[0] = n < m + 10
 
@@ -1095,12 +1092,12 @@ def test_simplify_lhs_of_boolean_or_using_rhs_without_const():
 def test_provable_condition_with_offset():
     """Use scoped-constraint to prove inequalities"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = i < j + 1
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer(1, "bool"), i: T.int32, j: T.int32):
         if i < j:
             A[0] = True
@@ -1133,13 +1130,13 @@ def test_most_restrictive_conditional():
 
     for priors, expr_before, expr_after in test_cases:
         # well formed checker complains of undefined variables in condition
-        @T.prim_func(private=True, check_well_formed=False)
+        @T.prim_func(private=True, check_well_formed=False, s_tir=True)
         def before_func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_before
 
         # well formed checker complains of undefined variables in condition
-        @T.prim_func(private=True, check_well_formed=False)
+        @T.prim_func(private=True, check_well_formed=False, s_tir=True)
         def expected_func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_after
@@ -1148,690 +1145,12 @@ def test_most_restrictive_conditional():
         tvm.ir.assert_structural_equal(after, expected_func)
 
 
-def test_altered_buffer_contents_with_propagation():
-    """Propagation of data-dependent conditionals.
-
-    A literal constraint must not be propagated if the values
-    referenced may change.  TIR requires single assignment of
-    variables, so Var objects may be assumed constant, but BufferLoad
-    may not.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer((1,), "int32"), n: T.int32):
-        if A[0] == n:
-            A[0] = A[0] + 1
-            # If the simplifier incorrectly uses the invalidated
-            # A[0]==n condition required to reach this point, then it
-            # will incorrectly simplify to the then-case.  If the
-            # simplifier correctly determines that A[0] now contains
-            # n+1, then it will correctly simplify to the else-case.
-            if A[0] == n:
-                A[0] = 5
-            else:
-                A[0] = 10
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer((1,), "int32"), n: T.int32):
-        if A[0] == n:
-            A[0] = A[0] + 1
-            A[0] = 10
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_possibly_altered_buffer_contents():
-    """No simplification of data-dependent conditionals.
-
-    Like test_altered_buffer_contents_with_propagation, but the `m==0` conditional
-    prevents the value of `A[0]` from being known at the point of the
-    inner conditional, either as `A[0] == n` from the outer
-    conditional or as `A[0] == n+1` from the write statement.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer((1,), "int32"), n: T.int32, m: T.int32):
-        if A[0] == n:
-            if m == 0:
-                A[0] = A[0] + 1
-
-            if A[0] == n:
-                A[0] = 5
-            else:
-                A[0] = 10
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_input_assumption():
-    """A T.assume annotation may be used to simplify"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32"), n: T.int32):
-        T.evaluate(T.assume(n == 0))
-        if n == 0:
-            A[0] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32"), n: T.int32):
-        T.evaluate(T.assume(n == 0))
-        A[0] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_no_simplify_from_scoped_input_assumption():
-    """A T.assume inside a scope may not apply outside that scope"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32"), n: T.int32, m: T.int32):
-        if m == 0:
-            T.evaluate(T.assume(n == 0))
-
-        if n == 0:
-            A[0] = 42
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_conditional_using_buffer_value():
-    """Simplify a conditional using the known value in the buffer"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = 0
-
-        if A[0] == 0:
-            A[0] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32")):
-        A[0] = 0
-        A[0] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_keep_expression_simplify_using_buffer_value():
-    """Do not simplify expressions in general using known values in the buffer
-
-    For now, because this is equivalent to inlining, preventing this
-    usage from occurring.  Known buffer values may be used to prove
-    conditionals, but should not be used for other simplifications.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
-        A[0] = 0
-        B[0] = A[0]
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_conditional_in_loop_using_buffer_value():
-    """Simplify a conditional using the known value in the buffer
-
-    Like test_simplify_conditional_using_buffer_value, but the value used
-    to simplify is set in a previous loop.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-        for j in T.serial(16):
-            if A[j] == j:
-                B[j] = 42
-            else:
-                B[j] = 100
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = i
-
-        for j in T.serial(16):
-            B[j] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_buffer_assumption():
-    """A T.assume may apply to a buffer's contents"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        T.evaluate(T.assume(A[0] == 0))
-
-        if A[0] == 0:
-            A[0] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32")):
-        T.evaluate(T.assume(A[0] == 0))
-        A[0] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_buffer_assumption_in_loop():
-    """An assumption about buffer contents may apply to a range"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == i))
-
-        for i in T.serial(16):
-            if A[i] < 100:
-                A[i] = 0
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == i))
-
-        for i in T.serial(16):
-            A[i] = 0
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_partially_known_buffer_conditional():
-    """An assumption about buffer contents may apply to only part of a buffer"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if 14 <= i:
-                T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            if 14 <= i:
-                if A[i] == 0:
-                    A[i] = 42
-
-            else:
-                if A[i] == 0:
-                    A[i] = 100
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if 14 <= i:
-                T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            if 14 <= i:
-                A[i] = 42
-
-            else:
-                if A[i] == 0:
-                    A[i] = 100
-
-    after = _apply_simplify(
-        before,
-        propagate_knowns_to_prove_conditional=True,
-        apply_constraints_to_boolean_branches=True,
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_partially_known_buffer_expression():
-    """An assumption about buffer contents may apply to only part of a buffer
-
-    Like test_simplify_using_partially_known_buffer_conditional, but the
-    conditional is expressed as part of T.assume, instead of in the
-    control flow.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(i < 14 or A[i] == 0))
-
-        for i in T.serial(16):
-            if 14 <= i:
-                if A[i] == 0:
-                    A[i] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(i < 14 or A[i] == 0))
-
-        for i in T.serial(16):
-            if 14 <= i:
-                A[i] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_no_simplification_if_predicate_not_met():
-    """Assumptions about buffer contents must apply to all cases to be used
-
-    Like test_simplify_using_partial_buffer_assumption_in_loop, but the
-    predicate in the second loop does not match the predicate in the
-    first loop.  Therefore, the `T.assume` refers to a different set
-    of indices.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if 14 <= i:
-                T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            if i < 14:
-                if A[i] == 0:
-                    A[i] = 42
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_no_simplify_using_invalidated_scoped_constraint():
-    """A write may not be used for proofs outside its conditional"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            if i == 0:
-                A[i] = 0
-
-            if A[i] == 0:
-                A[i] = 42
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_no_simplify_using_overwritten_value():
-    """A write that may have been overwritten may not be treated as known
-
-    The appearance of "A[i] = 5" must prevent the earlier constraint
-    from being used for simplification.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            if i == 0:
-                A[i] = 5
-
-            if A[i] == 0:
-                A[i] = 42
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_no_simplify_using_loop_dependent_buffer_value():
-    """Do not simplify assuming reads are invariant
-
-    If a buffer's value changes across loop iterations, the buffer's
-    value before the loop should not be used to simplify conditionals
-    within the loop.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32"), B: T.Buffer(1, "int32")):
-        B[0] = 0
-        for i in T.serial(16):
-            if B[0] < 10:
-                B[0] = A[i] * 2 + B[0]
-            else:
-                B[0] = A[i] + B[0]
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_prior_to_overwritten_value():
-    """A known value may be used until it is overwritten
-
-    Like test_no_simplify_using_overwritten_value, but the use of the
-    known `A[i]` value occurs before it is overwritten.
-
-    Like test_no_simplify_using_loop_dependent_buffer_value, but the loop
-    iterations are all independent.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            if A[i] == 0:
-                A[i] = 17
-
-            if i == 0:
-                A[i] = 5
-
-            if A[i] == 0:
-                A[i] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == 0))
-
-        for i in T.serial(16):
-            A[i] = 17
-
-            if i == 0:
-                A[i] = 5
-
-            if A[i] == 0:
-                A[i] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_element_wise_using_pre_loop_buffer_value():
-    """Allow data-Do not simplify assuming reads are invariant
-
-    If an element-wise loop reads and overwrites a buffer value, the
-    pre-loop buffer value may be used to simplify conditions that
-    occur prior to the write.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            B[i] = 0
-
-        for i in T.serial(16):
-            if B[i] < 10:
-                B[i] = A[i] * 2 + B[i]
-            else:
-                B[i] = A[i] + B[i]
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            B[i] = 0
-
-        for i in T.serial(16):
-            B[i] = A[i] * 2 + B[i]
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_non_conditional():
-    """Propagate a known value to later expressions."""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = 0
-        A[0] = A[0] + 1
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32")):
-        A[0] = 0
-        A[0] = 1
-
-    after = _apply_simplify(before, propagate_knowns_to_simplify_expressions=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_suppress_simplify_non_conditional():
-    """Propagate a known value to later expressions.
-
-    Like test_simplify_non_conditional, but with data-propagation turned off.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = 0
-        A[0] = A[0] + 1
-
-    expected = before
-
-    after = _apply_simplify(before, propagate_knowns_to_simplify_expressions=False)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_transitive_known_buffer_value():
-    """Propagate known buffer values
-
-    If a known value of a buffer depends on another known value, it
-    can be tracked backwards through both.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        T.evaluate(T.assume(A[0] == 0))
-
-        A[0] = A[0] + 1
-        A[0] = A[0] + 1
-        A[0] = A[0] + 1
-
-        if A[0] == 3:
-            A[0] = 42
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32")):
-        T.evaluate(T.assume(A[0] == 0))
-
-        A[0] = A[0] + 1
-        A[0] = A[0] + 1
-        A[0] = A[0] + 1
-
-        A[0] = 42
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_ramp_index_broadcast_value():
-    """Simplifications involving buffer loads with ramp indices"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(4, "int32")):
-        A[T.ramp(0, 1, 4)] = T.broadcast(0, 4)
-
-        if A[0] == 0:
-            A[0] = 42
-
-        if A[1] == 0:
-            A[1] = 60
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(4, "int32")):
-        A[T.ramp(0, 1, 4)] = T.broadcast(0, 4)
-
-        A[0] = 42
-        A[1] = 60
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_ramp_index_ramp_value():
-    """Simplifications involving buffer loads with ramp indices"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(4, "int32")):
-        A[T.ramp(0, 1, 4)] = T.ramp(11, 1, 4)
-
-        if A[0] == 11:
-            A[0] = 42
-
-        if A[1] == 12:
-            A[1] = 60
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(4, "int32")):
-        A[T.ramp(0, 1, 4)] = T.ramp(11, 1, 4)
-
-        A[0] = 42
-        A[1] = 60
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_partially_proven_buffer_value_gather():
-    """Propagate known buffer values in part of buffer.
-
-    Even if a constraint can't be solved for all values in an
-    assignment, it may be provable in part of a buffer.  Here, the
-    known 0 values in the padding of A produces known 0 values in the
-    padding of B.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
-        # A has non-zero values only in the range 3 <= i < 17
-        for i in T.serial(24):
-            T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
-
-        # After convoluting with F, B has non-zero values only in the
-        # range 3 <= i < 19.
-        for i in T.serial(24):
-            B[i] = 0
-            for f in T.serial(3):
-                if 0 <= i - f:
-                    B[i] = B[i] + A[i - f] * F[f]
-
-        # Which means that this loop is unnecessary.  It would be
-        # removed entirely in tirx.transform.RemoveNoOp, but here we
-        # want to test that the simplification works as intended.
-        for i in T.serial(24):
-            if i < 3 or 19 <= i:
-                if B[i] != 0:
-                    B[i] = 0
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
-        for i in T.serial(24):
-            T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
-
-        for i in T.serial(24):
-            B[i] = 0
-            for f in T.serial(3):
-                if 0 <= i - f:
-                    B[i] = B[i] + A[i - f] * F[f]
-
-        for i in T.serial(24):
-            if i < 3 or 19 <= i:
-                T.evaluate(0)
-
-    after = _apply_simplify(
-        before, transitively_prove_inequalities=True, propagate_knowns_to_prove_conditional=True
-    )
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_using_partially_proven_buffer_value_scatter():
-    """Propagate known buffer values in part of buffer.
-
-    Like test_simplify_using_partially_proven_buffer_value_gather, but the
-    compute loop is over the input buffer A, rather than the output
-    buffer B.
-    """
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
-        # A has non-zero values only in the range 3 <= i < 17
-        for i in T.serial(24):
-            T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
-
-        for i in T.serial(24):
-            B[i] = 0
-
-        # After convoluting with F, B has non-zero values only in the
-        # range 3 <= i < 19.
-        for i in T.serial(24):
-            for f in T.serial(3):
-                if i + f >= 0 and i + f < 24:
-                    B[i + f] = B[i + f] + A[i] * F[f]
-
-        # Which means that this loop is unnecessary.  It actually gets
-        # removed in tirx.transform.RemoveNoOp, but here we want to
-        # test that the simplification works as intended.
-        for i in T.serial(24):
-            if i < 3 or 19 <= i:
-                if B[i] != 0:
-                    B[i] = 0
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(24, "int32"), B: T.Buffer(24, "int32"), F: T.Buffer(3, "int32")):
-        for i in T.serial(24):
-            T.evaluate(T.assume(((3 <= i) and (i < 17)) or A[i] == 0))
-
-        for i in T.serial(24):
-            B[i] = 0
-
-        for i in T.serial(24):
-            for f in T.serial(3):
-                if i + f < 24:
-                    B[i + f] = B[i + f] + A[i] * F[f]
-
-        for i in T.serial(24):
-            if i < 3 or 19 <= i:
-                T.evaluate(0)
-
-    after = _apply_simplify(before, propagate_knowns_to_prove_conditional=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_simplify_buffer_store():
-    """Simplification using prior known"""
-
-    @T.prim_func(private=True)
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = 5
-        A[0] = A[0] + 7
-
-    @T.prim_func(private=True)
-    def expected(A: T.Buffer(1, "int32")):
-        A[0] = 5
-        A[0] = 12
-
-    after = _apply_simplify(before, propagate_knowns_to_simplify_expressions=True)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
 def test_simplify_trivial_let_buffer_var():
     """A Bind used in a buffer definition should be retained"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_ptr: T.handle("float32")):
-        A_ptr_redef: T.handle("float32") = A_ptr
+        A_ptr_redef: T.let[T.handle("float32")] = A_ptr
         A = T.decl_buffer(1, "float32", data=A_ptr_redef)
         A[0] = 42.0
 
@@ -1844,13 +1163,13 @@ def test_simplify_trivial_let_buffer_var():
 def test_simplify_trivial_let_elem_offset():
     """A Bind used in a buffer definition should be retained"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
         A = T.decl_buffer(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
         A[0] = 42.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
         A = T.decl_buffer(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
@@ -1863,13 +1182,13 @@ def test_simplify_trivial_let_elem_offset():
 def test_simplify_trivial_let_shape():
     """A Bind used in a buffer definition should be retained"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
         A = T.decl_buffer([A_size_redef], "float32", data=A_ptr)
         A[0] = 42.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
         A = T.decl_buffer([A_size_redef], "float32", data=A_ptr)
@@ -1882,13 +1201,13 @@ def test_simplify_trivial_let_shape():
 def test_simplify_trivial_let_stride():
     """A Bind used in a buffer definition should be retained"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
         A = T.decl_buffer(1, "float32", strides=[A_stride_redef], data=A_ptr)
         A[0] = 42.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
         A = T.decl_buffer(1, "float32", strides=[A_stride_redef], data=A_ptr)
@@ -1908,7 +1227,7 @@ def test_simplify_buffer_identity_well_formed():
     This causes DeclBuffer/BufferLoad buffer identity divergence.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
         n_val = n
         A = T.decl_buffer([n_val], "float32", data=A_ptr)
@@ -1922,7 +1241,7 @@ def test_simplify_buffer_identity_well_formed():
 def test_buffer_shape_constraint():
     @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle):
             n = T.int64()
             A = T.match_buffer(a, (n * 32,), "float32")
@@ -1930,20 +1249,20 @@ def test_buffer_shape_constraint():
 
     @I.ir_module(check_well_formed=False)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle):
             n = T.int64()
             A = T.match_buffer(a, (n * 32,), "float32")
             A[T.int64(0)] = T.float32(0)
 
-    after = tvm.tirx.transform.Simplify()(Before)
+    after = tvm.tirx.transform.StmtSimplify()(Before)
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
 def test_buffer_shape_constraint_with_offset():
     @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle):
             n = T.int64()
             A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
@@ -1951,25 +1270,25 @@ def test_buffer_shape_constraint_with_offset():
 
     @I.ir_module(check_well_formed=False)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle):
             n = T.int64()
             A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
             A[T.int64(1)] = T.float32(0)
 
-    after = tvm.tirx.transform.Simplify()(Before)
+    after = tvm.tirx.transform.StmtSimplify()(Before)
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
 def test_nested_if_elimination():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
         for i0, j0 in T.grid(2, 8):
             b[i0, j0] = T.if_then_else(
                 i0 == 1 and 6 <= j0, 0, T.max(0, T.if_then_else(i0 == 1 and 6 <= j0, 0, a[i0, j0]))
             )
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
         for i0, j0 in T.grid(2, 8):
             b[i0, j0] = T.if_then_else(i0 == 1 and 6 <= j0, 0, T.max(0, a[i0, j0]))

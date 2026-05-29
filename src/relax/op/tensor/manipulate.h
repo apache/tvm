@@ -52,7 +52,7 @@ Expr concat(Expr tensors, ffi::Optional<int64_t> axis);
  * \param axis The axes at which the input array are expanded.
  * \return The transformed result.
  */
-Expr expand_dims(Expr x, ffi::Array<Integer> axis);
+Expr expand_dims(Expr x, ffi::Array<int64_t> axis);
 
 /*!
  * \brief Flatten all the tensor dimensions into one.
@@ -82,7 +82,7 @@ Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue>
  * \param axes The target axes order, reverse order if not specified.
  * \return The transposed result.
  */
-Expr permute_dims(Expr x, ffi::Optional<ffi::Array<Integer>> axes);
+Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes);
 
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
@@ -117,14 +117,14 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
-Expr squeeze(Expr x, ffi::Optional<ffi::Array<Integer>> axis);
+Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis);
 /*!
  * \brief Stack tensors along the specified axis.
  * \param tensors The input tensors to be stacked.
  * \param axis The axis along which the tensors will be stacked.
  * \return The stacked result.
  */
-Expr stack(Expr tensors, ffi::Optional<Integer> axis);
+Expr stack(Expr tensors, ffi::Optional<int64_t> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.
@@ -171,7 +171,7 @@ Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis = std::nullopt);
  * \param repeats The number of repetitions of data along each axis.
  * \return The computed result.
  */
-Expr tile(Expr data, ffi::Array<Integer> repeats);
+Expr tile(Expr data, ffi::Array<int64_t> repeats);
 
 /*!
  * \brief Reverses the order of elements along given axis.
@@ -179,7 +179,7 @@ Expr tile(Expr data, ffi::Array<Integer> repeats);
  * \param axis The axis to flip on
  * \return The computed result.
  */
-Expr flip(Expr data, Integer axis);
+Expr flip(Expr data, int64_t axis);
 
 /*!
  * \brief Gather elements from a tensor using indices.

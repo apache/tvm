@@ -260,7 +260,7 @@ Windows-Specific Build Notes
 If you're building TVM on Windows, note these platform-specific considerations:
 
 Path Conventions
-................
+~~~~~~~~~~~~~~~~
 - Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
 - Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
 

@@ -31,7 +31,7 @@ use_np_array = tvm.testing.parameter(False, True)
 def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             A = T.match_buffer(x, (16, 16))

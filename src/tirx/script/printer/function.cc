@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 
 #include "./utils.h"
 
@@ -24,7 +25,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-bool IsSimpleBuffer(const tirx::Buffer& buf) {
+bool IsSimpleBuffer(const tirx::Buffer& buf, bool s_tir) {
   if (!buf->strides.empty()) {
     return false;
   }
@@ -45,6 +46,20 @@ bool IsSimpleBuffer(const tirx::Buffer& buf) {
     if (elem_offset->value != 0) {
       return false;
     }
+  }
+  if (s_tir) {
+    if (buf->layout.defined() &&
+        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
+      return false;
+    }
+  } else {
+    if (!buf->layout.defined() ||
+        !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
+      return false;
+    }
+  }
+  if (!buf->allocated_addr.empty()) {
+    return false;
   }
   return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
          buf->offset_factor == 1 && buf->buffer_type == tirx::BufferType::kDefault &&
@@ -91,7 +106,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         if (d->cfg->syntax_sugar && CountVarOccurrence(func, var) == 2 &&
             func->buffer_map.count(var)) {
           tirx::Buffer buffer = func->buffer_map[var];
-          if (IsSimpleBuffer(buffer) && buffer_data_counter.at(buffer->data.get()) == 1) {
+          bool s_tir = func->attrs->dict.count(tvm::attr::kSTir);
+          if (IsSimpleBuffer(buffer, s_tir) && buffer_data_counter.at(buffer->data.get()) == 1) {
             AccessPath buffer_p = p->Attr("buffer_map")->MapItem(var);
             IdDoc lhs = DefineBuffer(buffer, *f, d);
             ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
@@ -104,26 +120,32 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`
-      if (func->attrs.defined() && !func->attrs->dict.empty()) {
+      if (!func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
+        std::unordered_set<ffi::String> keys_to_remove;
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
             Downcast<ffi::String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) ==
                 func_name->name) {
-          ffi::Map<ffi::String, Any> new_attrs;
-          for (auto kv : func->attrs->dict) {
-            if (kv.first != tvm::attr::kGlobalSymbol) {
-              new_attrs.Set(kv.first, kv.second);
-            }
+          keys_to_remove.insert(tvm::attr::kGlobalSymbol);
+        }
+        // s_tir is shown in decorator, not in attr dict.
+        if (func->attrs->dict.count(tvm::attr::kSTir)) {
+          keys_to_remove.insert(tvm::attr::kSTir);
+        }
+        // for persistent, don't display it (shown in decorator)
+        if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {
+          keys_to_remove.insert(tirx::attr::kPersistentKernel);
+        }
+        ffi::Map<ffi::String, Any> new_attrs;
+        for (auto kv : func->attrs->dict) {
+          if (!keys_to_remove.count(kv.first)) {
+            new_attrs.Set(kv.first, kv.second);
           }
-          if (!new_attrs.empty()) {
-            (*f)->stmts.push_back(ExprStmtDoc(
-                TIR(d, "func_attr")  //
-                    ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
-          }
-        } else {
+        }
+        if (!new_attrs.empty()) {
           (*f)->stmts.push_back(
               ExprStmtDoc(TIR(d, "func_attr")  //
-                              ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
+                              ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
         }
       }
       // Step 3. Handle `func->buffer_map`
@@ -189,13 +211,27 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 5. Determine if we need to display the private annotation in the decorator
       ExprDoc decorator = TIR(d, "prim_func");
+      ffi::Array<ffi::String, void> kwargs_keys;
+      ffi::Array<ExprDoc, void> kwargs_values;
       // mark private if there is no global symbol
-      if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
-        ffi::Array<ExprDoc> pos_args;
-        decorator = decorator->Call(pos_args, {"private"},
-                                    {LiteralDoc::Boolean(true, ffi::Optional<AccessPath>())});
+      if (!func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+        kwargs_keys.push_back("private");
+        kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
       }
-
+      if (func->attrs->dict.count(tvm::attr::kSTir)) {
+        kwargs_keys.push_back("s_tir");
+        kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
+      }
+      if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {
+        kwargs_keys.push_back("persistent");
+        kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
+      }
+      // Only emit ``@T.prim_func(...)`` when there is at least one keyword
+      // argument; otherwise print bare ``@T.prim_func`` to match apache.
+      if (!kwargs_keys.empty()) {
+        ffi::Array<ExprDoc> pos_args;
+        decorator = std::move(decorator->Call(pos_args, kwargs_keys, kwargs_values));
+      }
       return HeaderWrapper(d, FunctionDoc(
                                   /*name=*/func_name,
                                   /*args=*/args,

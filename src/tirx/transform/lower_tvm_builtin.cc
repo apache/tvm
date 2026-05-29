@@ -240,12 +240,15 @@ class BuiltinLower : public StmtExprMutator {
     // AllocBuffer is flat (no body). Visit buffer fields via base class.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
-    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
       if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
         return stmt;
       }
     }
+    if (op->buffer->dtype.is_scalable_vector()) {
+      return stmt;
+    }
+    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;

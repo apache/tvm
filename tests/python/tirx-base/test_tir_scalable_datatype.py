@@ -32,22 +32,25 @@ def test_create_scalable_data_type_python_api():
     assert str(dtype) == "float32xvscalex4"
 
 
+_STEPVECTOR_NAME = (
+    "llvm.stepvector" if llvm_version_major() >= 18 else "llvm.experimental.stepvector"
+)
+
+
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_create_scalable_tir_intrin():
-    intrin = tirx.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")
+    intrin = tirx.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
     assert intrin.dtype == "int32xvscalex4"
-    assert str(intrin) == 'T.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")'
+    assert str(intrin) == f'T.call_llvm_intrin("int32xvscalex4", "{_STEPVECTOR_NAME}")'
 
 
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_tvm_script_create_scalable_tir_intrin():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def my_func():
-        T.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")
+        T.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
 
-    assert (
-        'T.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")' in my_func.script()
-    )
+    assert f'T.call_llvm_intrin("int32xvscalex4", "{_STEPVECTOR_NAME}")' in my_func.script()
 
 
 def test_invalid_data_type():

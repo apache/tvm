@@ -324,6 +324,10 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<WhileDoc>()) {
     PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<BreakDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ContinueDoc>()) {
+    PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<ForDoc>()) {
     PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<ScopeDoc>()) {
@@ -341,6 +345,8 @@ void DocPrinter::PrintDoc(const Doc& doc) {
   } else if (auto doc_node = doc.as<CommentDoc>()) {
     PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<DocStringDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<OpCallDoc>()) {
     PrintTypedDoc(doc_node.value());
   } else {
     TVM_FFI_THROW(InternalError) << "Do not know how to print " << doc->GetTypeKey();

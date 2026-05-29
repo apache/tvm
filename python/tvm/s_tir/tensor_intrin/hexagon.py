@@ -28,7 +28,7 @@ def generate_dma_load_intrin(
 ):
     """Generator of dma_load intrins"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def sync_dma_load_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
@@ -40,7 +40,7 @@ def generate_dma_load_intrin(
                     vii = T.axis.remap("S", [i])
                     C[vii] = A[vii]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def sync_dma_load_impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
@@ -78,7 +78,7 @@ def generate_dma_load_intrin(
 
 
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x4_u8u8i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
@@ -92,7 +92,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x4_u8u8i32_vrmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
@@ -119,7 +119,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x4_u8i8i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
@@ -133,7 +133,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x4_u8i8i32_vrmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
@@ -160,7 +160,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x2_i16i16i32_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
@@ -174,7 +174,7 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_product_32x2_i16i16i32_vdmpy(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)

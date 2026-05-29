@@ -212,11 +212,11 @@ Pass DefaultGPUSchedule() {
                 << "The target is missing either in the current context or in "
                    "the prim_func's attribute.";
             // get the max thread per block from target.
-            ffi::Optional<Integer> opt_max_thread_per_block =
-                target->GetAttr<Integer>("max_num_threads");
-            TVM_FFI_ICHECK(opt_max_thread_per_block.defined())
+            ffi::Optional<int64_t> opt_max_thread_per_block =
+                target->GetAttr<int64_t>("max_num_threads");
+            TVM_FFI_ICHECK(opt_max_thread_per_block.has_value())
                 << "max_num_threads is not set for target " << target;
-            int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
+            int64_t max_thread_per_block = opt_max_thread_per_block.value();
 
             sch->WorkOn(gv->name_hint);
             ffi::Array<s_tir::SBlockRV> blocks =

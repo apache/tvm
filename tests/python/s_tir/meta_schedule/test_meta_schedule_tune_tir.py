@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
@@ -34,7 +35,7 @@ logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -47,7 +48,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def two_step(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024), "float32")
     B = T.sblock_alloc_buffer((1024, 1024), "float32")
@@ -147,7 +148,7 @@ def test_tune_run_module_via_rpc():
 
 @pytest.mark.skip("Integration test")
 def test_tune_block_cpu():
-    @ms.derived_object
+    @derived_object
     class RemoveBlock(ms.schedule_rule.PyScheduleRule):
         def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
             pass

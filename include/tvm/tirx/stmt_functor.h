@@ -23,14 +23,15 @@
  * \brief Functors for tirx stmts
  *        utility functions to call common functors.
  */
-#ifndef TVM_TIR_STMT_FUNCTOR_H_
-#define TVM_TIR_STMT_FUNCTOR_H_
+#ifndef TVM_TIRX_STMT_FUNCTOR_H_
+#define TVM_TIRX_STMT_FUNCTOR_H_
 
 #include <tvm/ir/node_functor.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tirx_stmt.h>
 
 #include <unordered_map>
 #include <utility>
@@ -89,6 +90,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const DeclBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -97,6 +100,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SBlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SBlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ExecScopeStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const tirx::TilePrimitiveCallNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
@@ -111,6 +116,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
+    IR_STMT_FUNCTOR_DISPATCH(BreakNode);
+    IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(DeclBufferNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
@@ -119,6 +126,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
     IR_STMT_FUNCTOR_DISPATCH(SBlockNode);
     IR_STMT_FUNCTOR_DISPATCH(SBlockRealizeNode);
+    IR_STMT_FUNCTOR_DISPATCH(ExecScopeStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(tirx::TilePrimitiveCallNode);
     vtable.Finalize();
     return vtable;
   }
@@ -164,6 +173,8 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const BreakNode* op) override;
+  void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
@@ -172,6 +183,8 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SBlockNode* op) override;
   void VisitStmt_(const SBlockRealizeNode* op) override;
+  void VisitStmt_(const ExecScopeStmtNode* op) override;
+  void VisitStmt_(const tirx::TilePrimitiveCallNode* op) override;
 };
 
 /*!
@@ -278,6 +291,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
+  Stmt VisitStmt_(const BreakNode* op) override;
+  Stmt VisitStmt_(const ContinueNode* op) override;
   Stmt VisitStmt_(const AllocBufferNode* op) override;
   Stmt VisitStmt_(const DeclBufferNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
@@ -286,6 +301,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const EvaluateNode* op) override;
   Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const SBlockRealizeNode* op) override;
+  Stmt VisitStmt_(const ExecScopeStmtNode* op) override;
+  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) override;
   /*!
    * \brief Alternative advance method for SeqStmtNode.
    *
@@ -325,7 +342,7 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
 /*!
  * \brief Mutator that recursively mutates stmts and exprs on them.
  */
-class StmtExprMutator : public ExprMutator, public StmtMutator {
+class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
  public:
   using StmtMutator::operator();
   using ExprMutator::operator();

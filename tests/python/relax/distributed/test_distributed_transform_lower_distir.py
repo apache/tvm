@@ -27,14 +27,14 @@ from tvm.script.parser import tirx as T
 
 
 def test_mlp():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -76,7 +76,7 @@ def test_mlp():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -93,7 +93,7 @@ def test_mlp():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
@@ -137,7 +137,7 @@ def test_mlp():
             )
             return lv3
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class LoweredMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -186,14 +186,14 @@ def test_mlp():
 
 
 def test_mlp_with_tuple():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -235,7 +235,7 @@ def test_mlp_with_tuple():
                     T.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul11(
             A: T.Buffer((T.int64(64), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
@@ -252,7 +252,7 @@ def test_mlp_with_tuple():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
@@ -269,7 +269,7 @@ def test_mlp_with_tuple():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def split11(
             A: T.Buffer((128, 64), "float32"),
             T_split: T.Buffer((64, 64), "float32"),
@@ -332,7 +332,7 @@ def test_mlp_with_tuple():
             )
             return lv4
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class LoweredMLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(

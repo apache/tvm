@@ -20,7 +20,6 @@
 /*!
  * \file expr.cc
  */
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/builtin.h>
@@ -30,12 +29,33 @@
 
 #include <optional>
 
-#include "../../arith/scalable_expression.h"
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
 
 namespace tvm {
 namespace tirx {
+
+namespace {
+// File-local helper: returns the vscale multiplier if `lanes` is of the form
+// `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
+std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
+  auto is_vscale = [](const PrimExpr& e) -> bool {
+    if (const auto* call = e.as<CallNode>()) {
+      return call->op.same_as(tirx::builtin::vscale());
+    }
+    return false;
+  };
+  if (const auto* mul = lanes.as<MulNode>()) {
+    if (const auto* imm = mul->a.as<IntImmNode>(); imm && is_vscale(mul->b)) {
+      return static_cast<int>(imm->value);
+    }
+    if (const auto* imm = mul->b.as<IntImmNode>(); imm && is_vscale(mul->a)) {
+      return static_cast<int>(imm->value);
+    }
+  }
+  return std::nullopt;
+}
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   VarNode::RegisterReflection();
@@ -515,7 +535,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
-    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
@@ -549,7 +569,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
-    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());
@@ -591,7 +611,38 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Call
-Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
+using CallArg = ffi::Variant<ffi::String, DLDataType, IterVar, BufferRegion, PrimExpr>;
+
+static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
+  ffi::Array<PrimExpr> prim_expr_args;
+  for (const auto& it : args) {
+    if (auto opt_str = it.as<ffi::String>()) {
+      prim_expr_args.push_back(StringImm(opt_str.value()));
+    } else if (auto opt_dtype = it.as<DLDataType>()) {
+      prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
+    } else if (const auto* iter_var = it.as<IterVarNode>()) {
+      prim_expr_args.push_back(iter_var->var);
+    } else if (const auto* br = it.as<BufferRegionNode>()) {
+      ffi::Array<PrimExpr> indices;
+      for (Range r : br->region) {
+        if (is_one(r->extent)) {
+          indices.push_back(r->min);
+        } else if (r->extent.as<IntImmNode>()) {
+          indices.push_back(tirx::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
+        } else {
+          TVM_FFI_THROW(ValueError)
+              << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
+        }
+      }
+      prim_expr_args.push_back(BufferLoad(br->buffer, indices));
+    } else {
+      prim_expr_args.push_back(Downcast<PrimExpr>(it));
+    }
+  }
+  return prim_expr_args;
+}
+
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -600,44 +651,28 @@ Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
   node->dtype = dtype;
   node->op = std::move(op);
   node->args = std::move(args);
+  node->attrs = std::move(attrs);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
+Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span)
+    : Call(dtype, std::move(op), std::move(args), Attrs(), std::move(span)) {}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.Call",
-      [](ffi::Optional<DataType> dtype, RelaxExpr op,
-         ffi::Array<ffi::Variant<ffi::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
-         Span span) {
-        ffi::Array<PrimExpr> prim_expr_args;
-        for (const auto& it : args) {
-          if (auto opt_str = it.as<ffi::String>()) {
-            prim_expr_args.push_back(StringImm(opt_str.value()));
-          } else if (auto opt_dtype = it.as<DLDataType>()) {
-            prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
-          } else if (const auto* iter_var = it.as<IterVarNode>()) {
-            prim_expr_args.push_back(iter_var->var);
-          } else if (const auto* br = it.as<BufferRegionNode>()) {
-            ffi::Array<PrimExpr> indices;
-            for (Range r : br->region) {
-              if (is_one(r->extent)) {
-                indices.push_back(r->min);
-              } else if (r->extent.as<IntImmNode>()) {
-                indices.push_back(tirx::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
-              } else {
-                TVM_FFI_THROW(ValueError)
-                    << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
-              }
-            }
-            prim_expr_args.push_back(BufferLoad(br->buffer, indices));
-          } else {
-            prim_expr_args.push_back(Downcast<PrimExpr>(it));
-          }
-        }
-        return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
-      });
+  refl::GlobalDef()
+      .def("tirx.Call",
+           [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span) {
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args), Attrs(),
+                         span);
+           })
+      .def("tirx.CallWithAttrs",
+           [](ffi::Optional<DataType> dtype, RelaxExpr op, ffi::Array<CallArg> args,
+              ffi::Optional<Attrs> attrs, Span span) {
+             return Call(dtype.value_or(DataType::Void()), op, ConvertCallArgs(args),
+                         attrs.value_or(Attrs()), span);
+           });
 }
 
 // Shuffle

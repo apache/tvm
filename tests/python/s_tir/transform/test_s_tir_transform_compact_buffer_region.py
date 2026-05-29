@@ -37,7 +37,7 @@ class BaseCompactTest:
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential(
-            [tirx.transform.Simplify(), tirx.transform.RemoveNoOp()]
+            [tirx.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -76,7 +76,7 @@ class BaseCompactTest:
 
 
 class TestElemwise(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -96,7 +96,7 @@ class TestElemwise(BaseCompactTest):
                         T.writes(C[i, j])
                         C[i, j] = B[i, j] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -118,7 +118,7 @@ class TestElemwise(BaseCompactTest):
 
 
 class TestUnschedulableFunc(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -137,7 +137,7 @@ class TestUnschedulableFunc(BaseCompactTest):
 
 
 class TestParamBufferAccess(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (20, 20), "float32")
         B = T.match_buffer(c, (20, 20), "float32")
@@ -155,7 +155,7 @@ class TestParamBufferAccess(BaseCompactTest):
 
 
 class TestSharedMem(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -177,7 +177,7 @@ class TestSharedMem(BaseCompactTest):
                                 T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                                 C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -201,7 +201,7 @@ class TestSharedMem(BaseCompactTest):
 
 
 class TestWrapMem(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -223,7 +223,7 @@ class TestWrapMem(BaseCompactTest):
                                 T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                                 C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -247,7 +247,7 @@ class TestWrapMem(BaseCompactTest):
 
 
 class TestSymbolic(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle, n: T.int32) -> None:
         A = T.match_buffer(a, (n * 8,), "float32")
         C = T.match_buffer(c, (n * 8,), "float32")
@@ -267,7 +267,7 @@ class TestSymbolic(BaseCompactTest):
                         T.writes(C[i * 8 + j])
                         C[i * 8 + j] = B[i * 8 + j] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle, n: T.int32) -> None:
         A = T.match_buffer(a, (n * 8,), "float32")
         C = T.match_buffer(c, (n * 8,), "float32")
@@ -289,7 +289,7 @@ class TestSymbolic(BaseCompactTest):
 
 
 class TestComplexFunc(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle, n: T.int32) -> None:
         A = T.match_buffer(a, (8, 8), "float32")
         C = T.match_buffer(c, (8, 8), "float32")
@@ -318,7 +318,7 @@ class TestComplexFunc(BaseCompactTest):
                         T.writes(C[i, j])
                         C[i, j] = B[i, j]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle, n: T.int32) -> None:
         A = T.match_buffer(a, (8, 8), "float32")
         C = T.match_buffer(c, (8, 8), "float32")
@@ -351,7 +351,7 @@ class TestComplexFunc(BaseCompactTest):
 class TestMatchBuffer(BaseCompactTest):
     is_lower_order_free = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16))
         C = T.match_buffer(c, (16, 16))
@@ -373,7 +373,7 @@ class TestMatchBuffer(BaseCompactTest):
                         B2 = T.match_buffer(B[i, j], ())
                         C1[()] = B2[()] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16))
         C = T.match_buffer(c, (16, 16))
@@ -397,7 +397,7 @@ class TestMatchBuffer(BaseCompactTest):
 
 
 class TestStorageAlign(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -418,7 +418,7 @@ class TestStorageAlign(BaseCompactTest):
                         T.writes(C[i, j])
                         C[i, j] = B[i, j] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
@@ -441,7 +441,7 @@ class TestStorageAlign(BaseCompactTest):
 
 
 class TestPaddingPattern(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         C = T.match_buffer(c, (20, 20), "float32")
@@ -459,7 +459,7 @@ class TestPaddingPattern(BaseCompactTest):
                         dtype="float32",
                     )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [16, 16], dtype="float32")
         C = T.match_buffer(c, [20, 20], dtype="float32")
@@ -479,7 +479,7 @@ class TestPaddingPattern(BaseCompactTest):
 
 
 class TestPaddingPatternInlined(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, b: T.handle) -> None:
         X = T.match_buffer(a, [224, 224], dtype="float32")
         Y = T.match_buffer(b, [224, 224], dtype="float32")
@@ -502,7 +502,7 @@ class TestPaddingPatternInlined(BaseCompactTest):
                     ),
                 )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(X: T.Buffer((224, 224), "float32"), Y: T.Buffer((224, 224), "float32")) -> None:
         cache = T.sblock_alloc_buffer([224, 224], dtype="float32")
         for h, w in T.grid(224, 224):
@@ -525,7 +525,7 @@ class TestPaddingPatternInlined(BaseCompactTest):
 
 
 class TestMemAccessInBranch(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle) -> None:
         A = T.match_buffer(a, (224, 224), "float32")
         with T.sblock():
@@ -548,7 +548,7 @@ class TestMemAccessInBranch(BaseCompactTest):
                         else:
                             B4[i, j] = A[i, j] + 3.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle) -> None:
         A = T.match_buffer(a, [224, 224], dtype="float32")
         with T.sblock():
@@ -573,7 +573,7 @@ class TestMemAccessInBranch(BaseCompactTest):
 class TestAnnotatedOpaqueAccess(BaseCompactTest):
     is_lower_order_free = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle) -> None:
         A = T.match_buffer(a, (1024,), "float32")
         with T.sblock():
@@ -598,7 +598,7 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     )
                     C[i] = B[i]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle) -> None:
         A = T.match_buffer(a, (1024,), "float32")
         with T.sblock():
@@ -625,7 +625,7 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
 
 
 class TestSparseReadCache(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         A_data: T.Buffer((819,), "float32"),
         B: T.Buffer((128,), "float32"),
@@ -656,7 +656,7 @@ class TestSparseReadCache(BaseCompactTest):
                             T.writes(B[i])
                             B[i] = B[i] + A_data_local[A_indptr[i] + k]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(
         A_data: T.Buffer((819,), "float32"),
         B: T.Buffer((128,), "float32"),
@@ -692,7 +692,7 @@ class TestDataDependentRegion(BaseCompactTest):
     """Partial code of NMS, the `argsort_nms_cpu`'s region depends on inner allocated buffer
     `nkeep`'s value, thus the buffer should not be compacted with data dependent region extent."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         p0: T.Buffer((30,), "float32"),
         p1: T.Buffer((1,), "int32"),
@@ -721,7 +721,7 @@ class TestDataDependentRegion(BaseCompactTest):
 
 
 class TestNarrowShape(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
         B_cache = T.sblock_alloc_buffer(10, "float32")
         for j in T.serial(3):
@@ -732,7 +732,7 @@ class TestNarrowShape(BaseCompactTest):
         for i in T.serial(10):
             A[i] = B_cache[i] + T.float32(1)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
         B_cache = T.sblock_alloc_buffer([10], dtype="float32")
         for j, k in T.grid(3, 4):
@@ -746,7 +746,7 @@ class TestNarrowShape(BaseCompactTest):
 
 
 class TestLetBinding(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         A = T.sblock_alloc_buffer((64, 8), "float32")
         B = T.sblock_alloc_buffer((64, 8), "float32")
@@ -763,7 +763,7 @@ class TestLetBinding(BaseCompactTest):
 
 
 class TestNonIndexLetBinding(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         A = T.sblock_alloc_buffer((64), "float32")
         x1 = T.call_extern("get", dtype="float16")
@@ -780,7 +780,7 @@ class TestNonIndexLetBinding(BaseCompactTest):
 
 
 class TestSpatialTiledPadPooling(BaseCompactTest):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(X: T.Buffer((64, 112, 112), "int32"), Y: T.Buffer((64, 56, 56), "int32")) -> None:
         for h_o, w_o in T.grid(14, 14):
             with T.sblock():
@@ -818,7 +818,7 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
                             ),
                         )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(X: T.Buffer((64, 112, 112), "int32"), Y: T.Buffer((64, 56, 56), "int32")) -> None:
         for h_o, w_o in T.grid(14, 14):
             with T.sblock():
@@ -873,7 +873,7 @@ class TestComplexCase1(BaseCompactTest):
     """Meta-schedule matmul case for compact shared A, B matrix"""
 
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((960, 770), "float32"), B: T.Buffer((770, 2304), "float32"), C: T.Buffer((960, 2304), "float32")) -> None:
         for bx in T.thread_binding(144, thread="blockIdx.x"):
             for vx in T.thread_binding(2, thread="vthread.x"):
@@ -899,7 +899,7 @@ class TestComplexCase1(BaseCompactTest):
                                     with T.sblock("update_update"):
                                         C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] = C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] + A_shared[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, (k_0 + k_1) * 4 + k_2] * B_shared[(k_0 + k_1) * 4 + k_2, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((960, 770), "float32"), B: T.Buffer((770, 2304), "float32"), C: T.Buffer((960, 2304), "float32")) -> None:
         for bx in T.thread_binding(144, thread="blockIdx.x"):
             for vx in T.thread_binding(2, thread="vthread.x"):
@@ -930,7 +930,7 @@ class TestComplexCase1(BaseCompactTest):
 class TestDependentBufferIndices(BaseCompactTest):
     """Check the upper bound on different indices could be independently estimated."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         """This is a diagnal buffer access pattern"""
         for i in range(8):
@@ -941,7 +941,7 @@ class TestDependentBufferIndices(BaseCompactTest):
                         T.where(j * 8 + k < 60)
                         A[i * 64 + j * 8 + k, i * 64 + j * 8 + k] = 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected() -> None:
         for i in T.serial(8):
             with T.sblock():
@@ -955,7 +955,7 @@ class TestDependentBufferIndices(BaseCompactTest):
 class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
     """Check the outer dimension of the packed M-dim should be compacted to 1 wrt split condition."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         A: T.Buffer((1020, 64), "float32"),
         B: T.Buffer((1000, 64), "float32"),
@@ -994,7 +994,7 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
                             (i0 * 255 + ax0 * 16 + ax1) % 255 % 16,
                         ]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(
         A: T.Buffer((1020, 64), "float32"),
         B: T.Buffer((1000, 64), "float32"),
@@ -1036,7 +1036,7 @@ class TestTileAwareCompaction(BaseCompactTest):
 
     @property
     def before(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((128, 128), "float32"),
             B: T.Buffer((128, 128), "float32"),
@@ -1074,7 +1074,7 @@ class TestTileAwareCompaction(BaseCompactTest):
 
         return mod["main"]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -1161,7 +1161,7 @@ class TestTileAwareCompaction(BaseCompactTest):
 class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
     is_strict_mode = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         A: T.Buffer((127, 127), "float32"),
         B: T.Buffer((127, 127), "float32"),
@@ -1199,7 +1199,7 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
                         T.where(i_0 * 32 + ax0 < 127 and j_0 * 32 + ax1 < 127)
                         C[i_0 * 32 + ax0, j_0 * 32 + ax1] = C_local[i_0 * 32 + ax0, j_0 * 32 + ax1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(
         A: T.Buffer((127, 127), "float32"),
         B: T.Buffer((127, 127), "float32"),
@@ -1238,7 +1238,7 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
     # it is not testcase on block form
     is_lower_order_free = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
@@ -1257,7 +1257,7 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
     # it is not testcase on block form
     is_lower_order_free = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
@@ -1273,14 +1273,14 @@ class TestNonBoolCondition(BaseCompactTest):
     # it is not testcase on block form
     is_lower_order_free = False
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before():
         A = T.decl_buffer([12], "int32")
         for i in range(10):
             if i:
                 A[i] = A[i] + 1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected():
         A = T.decl_buffer((9,), "int32")
         for i in range(10):
@@ -1291,7 +1291,7 @@ class TestNonBoolCondition(BaseCompactTest):
 class TestCompactSymbolicBound0:
     """Test symbolic bound that get compacted to constant"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(x: T.handle, y: T.handle, n: T.int64):
         X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
@@ -1305,7 +1305,7 @@ class TestCompactSymbolicBound0:
                     with T.sblock("Y"):
                         Y[i, k_0 * T.int64(32) + k_1] = X_global[i, k_0 * T.int64(32) + k_1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(x: T.handle, y: T.handle, n: T.int64):
         X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
@@ -1323,7 +1323,7 @@ class TestCompactSymbolicBound0:
 class TestCompactSymbolicBound1:
     """Test symbolic bound that get compacted to constant"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(x: T.handle, y: T.handle, n: T.int64):
         X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
@@ -1337,7 +1337,7 @@ class TestCompactSymbolicBound1:
                     for x1 in range(T.int64(32)):
                         Y[i, k_0 * T.int64(32) + x1] = X_global[i, k_0 * T.int64(32) + x1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(x: T.handle, y: T.handle, n: T.int64):
         X = T.match_buffer(x, (T.int64(8), n * T.int64(32)))
         Y = T.match_buffer(y, (T.int64(8), n * T.int64(32)))
@@ -1356,7 +1356,7 @@ class TestCompactSymbolicBound1:
 class TestSymbolicDiagMaskCase:
     """Test symbolic allocation not too complex"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(p_output0: T.handle, n: T.int32):
         A = T.match_buffer(p_output0, (1, 1, n, n))
         B = T.sblock_alloc_buffer((n, n))
@@ -1385,7 +1385,7 @@ class TestSymbolicDiagMaskCase:
                             (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n
                         ]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(p_output0: T.handle, n: T.int32):
         A = T.match_buffer(p_output0, (1, 1, n, n))
         B = T.sblock_alloc_buffer((n, n))

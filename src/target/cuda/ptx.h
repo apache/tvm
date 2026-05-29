@@ -29,6 +29,8 @@
 #include <string>
 #include <tuple>
 
+#include "codegen_cuda.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -53,6 +55,17 @@ namespace codegen {
  * \param sparse Whether it's sparse mma or not.
  * \param saturate Whether saturate output or not.
  */
+/*!
+ * \brief ldmatrix assembly emitter. Offsets are element offsets in the
+ *  buffer's dtype; the generated C pointer arithmetic ``ptr + offset``
+ *  scales them to bytes.
+ */
+std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
+                                    const std::string& local_ptr,
+                                    const std::string& local_elem_offset,
+                                    const std::string& smem_ptr,
+                                    const std::string& smem_elem_offset);
+
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
@@ -62,51 +75,6 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                              const std::string& metadata, const std::string& metadata_offset,
                              const std::string& sparsity_selector, const std::string& bit_op,
                              bool sparse, bool saturate);
-
-/*!
- * \brief Print ldmatrix assembly string given parameters.
- * \param trans: whether the matrix is loaded in column major format or not.
- * \param num: number of matrices to load.
- * \param type: The data type in the matrix, .b16 is the only accepted data type.
- * \param local_ptr: pointer to local buffer.
- * \param local_elem_offset: The offset of the element to store in the local buffer.
- * \param smem_ptr: pointer to the shared memory buffer to load.
- * \param smem_elem_offset: The offset of the start element of the row to load in shared memory.
- */
-std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
-                                    const std::string& local_ptr,
-                                    const std::string& local_elem_offset,
-                                    const std::string& smem_ptr,
-                                    const std::string& smem_elem_offset);
-
-/*!
- * \brief Print ptx cp.async assembly string given parameters.
- * \param shared_ptr: The pointer to the destination shared memory.
- * \param shared_elem_offset: The offset into the shared memory.
- * \param global_ptr: The pointer to the global memory.
- * \param global_elem_offset: The offset into the global memory.
- * \param bytes: The number of bytes to copy, valid values are 4, 8, and 16.
- */
-std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
-                                 const std::string& shared_elem_offset,
-                                 const std::string& global_ptr,
-                                 const std::string& global_elem_offset, const std::string& bytes);
-
-/*!
- * \brief Print predicated ptx cp.async assembly string given parameters.
- * \param shared_ptr: The pointer to the destination shared memory.
- * \param shared_elem_offset: The offset into the shared memory.
- * \param global_ptr: The pointer to the global memory.
- * \param global_elem_offset: The offset into the global memory.
- * \param bytes: The number of bytes to copy, valid values are 4, 8, and 16.
- * \param predicate_value: The value of predicate `@p`.
- */
-std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
-                                           const std::string& shared_elem_offset,
-                                           const std::string& global_ptr,
-                                           const std::string& global_elem_offset,
-                                           const std::string& bytes,
-                                           const std::string& predicate_value);
 
 /*!
  * \brief Print ptx async copy from global to shared memory using cp.async.bulk
@@ -128,35 +96,6 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
  * \param barrier: The name of the barrier in shared memory.
  */
 std::string PrintCpAsyncBarrierAsm(const std::string& barrier);
-
-/*!
- * \brief Print ptx barrier initialization of thread count using mbarrier.init
- * \param barrier: The name of the barrier in shared memory.
- * \param thread_count: The number of threads expected to arrive at the barrier.
- */
-std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
-                                           const std::string& thread_count);
-
-/*!
- * \brief Print ptx barrier arrival using mbarrier.arrive
- * \param barrier: The name of the barrier in shared memory.
- */
-std::string PrintArriveBarrierAsm(const std::string& barrier);
-
-/*!
- * \brief Print ptx barrier arrival with expect tx operation using mbarrier.arrive.expect_tx
- * \param barrier: The name of the barrier in shared memory.
- * \param byte_count: Increases the tx count of the mbarrier object to track completion of
- * addtional async transactions.
- */
-std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier,
-                                          const std::string& byte_count);
-
-/*!
- * \brief Print ptx barrier wait using mbarrier.try_wait
- * \param barrier: The name of the barrier in shared memory.
- */
-std::string PrintWaitBarrierAsm(const std::string& barrier);
 
 }  // namespace codegen
 }  // namespace tvm

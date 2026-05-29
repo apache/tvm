@@ -29,7 +29,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Add:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
@@ -57,7 +57,7 @@ class Add:
 
 
 def test_random_compute_location():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add_0(
         A: T.Buffer((2048, 2048, 2048), "float32"),
         B: T.Buffer((2048, 2048, 2048), "float32"),

@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -34,22 +34,32 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
-#include "../../arith/scalable_expression.h"
 #include "../../target/datatype/registry.h"
+#include "../analysis/check_contains.h"
 
 namespace tvm {
 
 using namespace tirx;
 
+namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<CallNode>()) {
+    return call->op.same_as(builtin::vscale());
+  }
+  return false;
+}
+}  // namespace
+
 // macro to register an unary op
 #define TVM_TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
   TVM_TIR_REGISTER_OP(OpName).set_num_inputs(1).set_attr<TCallEffectKind>( \
-      "TCallEffectKind", Integer(CallEffectKind::kPure))
+      "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
 
 // macro to register an binary op
 #define TVM_TIR_REGISTER_PURE_BINARY_OP(OpName)                            \
   TVM_TIR_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
-      "TCallEffectKind", Integer(CallEffectKind::kPure))
+      "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
 
 runtime::DataType GetRuntimeDataType(const Type& type) {
   if (auto* n = type.as<PrimTypeNode>()) {
@@ -94,11 +104,22 @@ Type GetType(const PrimExpr& expr) {
           << "Builtin address_of() expects a single argument, but received arguments "
           << address_of->args;
       auto* address = address_of->args[0].as<BufferLoadNode>();
-      TVM_FFI_ICHECK(address)
-          << "Builtin address_of() expects the argument to be a BufferLoad, but received argument "
-          << address_of->args[0];
+      if (address) {
+        return PointerType(PrimType(address->dtype));
+      }
 
-      return PointerType(PrimType(address->dtype));
+      if (auto* var = address_of->args[0].as<VarNode>()) {
+        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+          if (ptr->element_type.as<TensorMapTypeNode>()) {
+            return PrimType(DataType::UInt(64));
+          }
+        }
+        return PointerType(PrimType(var->dtype));
+      }
+
+      TVM_FFI_ICHECK(false)
+          << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
+          << "received argument " << address_of->args[0];
     }
   }
   // Default: return the type indicated by the dtype.
@@ -117,14 +138,14 @@ Type GetTypeFromRuntimeDataType(const DataType& dtype) {
 PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high, Span span) {
   return tirx::Call(
       t, tirx::builtin::large_uint_imm(),
-      {make_const(DataType::UInt(32), low, span), make_const(DataType::UInt(32), high, span)},
+      {make_const(DataType::UInt(32), low, span), make_const(DataType::UInt(32), high, span)}, {},
       span);
 }
 
 // Q-multiplication
 PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span span) {
   return tirx::Call(DataType::Int(32, x.dtype().lanes()), tirx::builtin::q_multiply_shift(),
-                    {x, y, q, s}, span);
+                    {x, y, q, s}, {}, span);
 }
 
 void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
@@ -252,19 +273,19 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 
 PrimExpr ret(PrimExpr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  return tirx::Call(value.dtype(), tirx::builtin::ret(), {value}, span);
+  return tirx::Call(value.dtype(), tirx::builtin::ret(), {value}, {}, span);
 }
 
 PrimExpr thread_return(Span span) {
-  return tirx::Call(DataType::Void(), tirx::builtin::thread_return(), {}, span);
+  return tirx::Call(DataType::Void(), tirx::builtin::thread_return(), {}, {}, span);
 }
 
 PrimExpr continue_loop(Span span) {
-  return tirx::Call(DataType::Void(), tirx::builtin::continue_loop(), {}, span);
+  return tirx::Call(DataType::Void(), tirx::builtin::continue_loop(), {}, {}, span);
 }
 
 PrimExpr break_loop(Span span) {
-  return tirx::Call(DataType::Void(), tirx::builtin::break_loop(), {}, span);
+  return tirx::Call(DataType::Void(), tirx::builtin::break_loop(), {}, {}, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -501,7 +522,7 @@ PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
                     value.dtype().bytes() * value.dtype().lanes() == t.bytes() * t.lanes()))
         << "Reinterpret requires size match " << t << " vs " << value.dtype();
   }
-  return tirx::Call(t, tirx::builtin::reinterpret(), {value}, span);
+  return tirx::Call(t, tirx::builtin::reinterpret(), {value}, {}, span);
 }
 
 // operator+
@@ -643,13 +664,13 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
   }
 
   return tirx::Call(true_value.dtype(), tirx::builtin::if_then_else(),
-                    {cond, true_value, false_value}, span);
+                    {cond, true_value, false_value}, {}, span);
 }
 
 // likely
 PrimExpr likely(PrimExpr cond, Span span) {
   if (is_const_int(cond)) return cond;
-  return tirx::Call(cond.dtype(), tirx::builtin::likely(), {cond}, span);
+  return tirx::Call(cond.dtype(), tirx::builtin::likely(), {cond}, {}, span);
 }
 
 // operator>
@@ -685,7 +706,7 @@ PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tirx::EQ>(a, b)) return ret.value();
-  if (arith::IsVScaleCall(a) && arith::IsVScaleCall(b)) return true;
+  if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
   return tirx::EQ(a, b, span);
 }
 
@@ -775,7 +796,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
     }
   });
 
-  return tirx::Call(a.dtype(), tirx::builtin::shift_right(), {a, b}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::shift_right(), {a, b}, {}, span);
 }
 
 // shift left
@@ -794,7 +815,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
       if (pb->value == 0) return a;
     }
   });
-  return tirx::Call(a.dtype(), tirx::builtin::shift_left(), {a, b}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::shift_left(), {a, b}, {}, span);
 }
 
 // bitwise and
@@ -806,7 +827,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value & pb->value), span);
   });
-  return tirx::Call(a.dtype(), tirx::builtin::bitwise_and(), {a, b}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::bitwise_and(), {a, b}, {}, span);
 }
 
 // bitwise_or
@@ -818,7 +839,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value | pb->value), span);
   });
-  return tirx::Call(a.dtype(), tirx::builtin::bitwise_or(), {a, b}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::bitwise_or(), {a, b}, {}, span);
 }
 
 // bitwise_xor
@@ -830,7 +851,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value ^ pb->value), span);
   });
-  return tirx::Call(a.dtype(), tirx::builtin::bitwise_xor(), {a, b}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::bitwise_xor(), {a, b}, {}, span);
 }
 
 // bitwise_not
@@ -838,7 +859,7 @@ PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
 PrimExpr bitwise_neg(PrimExpr a, Span span) {
   type_check_int_or_bool_args(a, "~ operator (bitwise NOT)");
-  return tirx::Call(a.dtype(), tirx::builtin::bitwise_not(), {a}, span);
+  return tirx::Call(a.dtype(), tirx::builtin::bitwise_not(), {a}, {}, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -878,7 +899,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   }
 
   static auto op = Op::Get("tirx.pow");
-  return tirx::Call(x.dtype(), op, {x, y}, span);
+  return tirx::Call(x.dtype(), op, {x, y}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_BINARY_OP("pow").set_attr<TVectorizable>("TVectorizable", true);
@@ -899,7 +920,7 @@ PrimExpr abs(PrimExpr x, Span span) {
       return FloatImm(x.dtype(), std::fabs(fx->value), fx->span);
     }
     static auto op = Op::Get("tirx.fabs");
-    return tirx::Call(x.dtype(), op, {x}, span);
+    return tirx::Call(x.dtype(), op, {x}, {}, span);
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
@@ -924,9 +945,10 @@ PrimExpr isnan(PrimExpr x, Span span) {
     }
     static auto op = Op::Get("tirx.isnan");
     if (x.dtype().bits() == 16) {
-      return tirx::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x), span)}, span);
+      return tirx::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x), span)}, {},
+                        span);
     } else {
-      return tirx::Call(t, op, {x}, span);
+      return tirx::Call(t, op, {x}, {}, span);
     }
   } else {
     TVM_FFI_THROW(InternalError) << "Data type " << x.dtype()
@@ -1014,7 +1036,7 @@ PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
   TVM_FFI_ICHECK(x.dtype().is_float()) << "fmod only applies to float";
   static auto op = Op::Get("tirx.fmod");
-  return tirx::Call(x.dtype(), op, {x, y}, span);
+  return tirx::Call(x.dtype(), op, {x, y}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("fmod");
@@ -1028,7 +1050,7 @@ PrimExpr floor(PrimExpr x, Span span) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value), fx->span);
   static auto op = Op::Get("tirx.floor");
-  return tirx::Call(x.dtype(), op, {x}, span);
+  return tirx::Call(x.dtype(), op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable", true);
@@ -1042,7 +1064,7 @@ PrimExpr ceil(PrimExpr x, Span span) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value), fx->span);
   static auto op = Op::Get("tirx.ceil");
-  return tirx::Call(x.dtype(), op, {x}, span);
+  return tirx::Call(x.dtype(), op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("ceil").set_attr<TVectorizable>("TVectorizable", true);
@@ -1056,7 +1078,7 @@ PrimExpr round(PrimExpr x, Span span) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
   static auto op = Op::Get("tirx.round");
-  return tirx::Call(x.dtype(), op, {x}, span);
+  return tirx::Call(x.dtype(), op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("round").set_attr<TVectorizable>("TVectorizable", true);
@@ -1070,7 +1092,7 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
   static auto op = Op::Get("tirx.nearbyint");
-  return tirx::Call(x.dtype(), op, {x}, span);
+  return tirx::Call(x.dtype(), op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("nearbyint");
@@ -1087,7 +1109,7 @@ PrimExpr trunc(PrimExpr x, Span span) {
                     fx->span);
   }
   static auto op = Op::Get("tirx.trunc");
-  return tirx::Call(x.dtype(), op, {x}, span);
+  return tirx::Call(x.dtype(), op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("trunc").set_attr<TVectorizable>("TVectorizable", true);
@@ -1155,12 +1177,12 @@ TVM_TIR_REGISTER_PURE_BINARY_OP("ldexp");
 TVM_TIR_REGISTER_OP("TVMBackendAllocWorkspace")
     .set_num_inputs(5)
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_num_inputs(3)
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1293,6 +1315,78 @@ PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   q = x2 * q + beta_0;
 
   return p / q;
+}
+
+// Helper function to safely extract boolean from PackedArgs
+bool ExtractBool(const ffi::PackedArgs& args, int index) {
+  try {
+    return args[index].cast<bool>();
+  } catch (...) {
+    // Handle IntImm case (from TIR parsing)
+    PrimExpr expr = args[index].cast<PrimExpr>();
+    if (auto int_imm = expr.as<IntImmNode>()) {
+      return int_imm->value != 0;
+    }
+    LOG(FATAL) << "Cannot extract bool from argument at index " << index;
+    return false;
+  }
+}
+
+// Helper function to safely extract int from PackedArgs
+int ExtractInt(const ffi::PackedArgs& args, int index) {
+  try {
+    return args[index].cast<int>();
+  } catch (...) {
+    // Handle IntImm case (from TIR parsing)
+    PrimExpr expr = args[index].cast<PrimExpr>();
+    if (auto int_imm = expr.as<IntImmNode>()) {
+      return static_cast<int>(int_imm->value);
+    }
+    LOG(FATAL) << "Cannot extract int from argument at index " << index;
+    return 0;
+  }
+}
+
+PrimExpr PrintOpPacked(Var data, DataType dtype, bool is_string, bool is_scalar, int dim_num,
+                       ffi::Array<PrimExpr> shape) {
+  ffi::Array<PrimExpr> args;
+  args.push_back(data);
+  args.push_back(tirx::StringImm(ffi::DLDataTypeToString(dtype)));
+  args.push_back(make_const(DataType::Bool(), is_string));
+  args.push_back(make_const(DataType::Bool(), is_scalar));
+  args.push_back(make_const(DataType::UInt(32), dim_num));
+  for (const auto& dim : shape) {
+    args.push_back(dim);
+  }
+  return tirx::Call(dtype, tirx::builtin::print_buffer(), args);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tirx.print_buffer", [](ffi::PackedArgs args, ffi::Any* ret) {
+    // Expected arguments:
+    // args[0]: buffer_var (Var)
+    // args[1]: dtype (DataType)
+    // args[2]: is_string (bool or IntImm)
+    // args[3]: is_scalar (bool or IntImm)
+    // args[4]: dim_num (int or IntImm)
+    // args[5...]: shape dimensions (PrimExpr)
+
+    TVM_FFI_ICHECK_GE(args.size(), 5) << "print_buffer expects at least 5 arguments";
+
+    Var buffer_var = args[0].cast<Var>();
+    DataType dtype = args[1].cast<DataType>();
+    bool is_string = ExtractBool(args, 2);
+    bool is_scalar = ExtractBool(args, 3);
+    int dim_num = ExtractInt(args, 4);
+
+    ffi::Array<PrimExpr> shape;
+    for (int i = 5; i < args.size(); ++i) {
+      shape.push_back(args[i].cast<PrimExpr>());
+    }
+
+    *ret = PrintOpPacked(buffer_var, dtype, is_string, is_scalar, dim_num, shape);
+  });
 }
 
 }  // namespace tvm

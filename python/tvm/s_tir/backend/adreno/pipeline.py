@@ -20,7 +20,7 @@
 
 import tvm
 from tvm import s_tir, tirx
-from tvm.tirx import pipeline as tir_pipeline
+from tvm.tirx import compilation_pipeline as tir_pipeline
 
 
 def default_tir_pipeline():
@@ -44,7 +44,7 @@ def default_tir_pipeline():
             s_tir.transform.LowerAutoCopy(),
             s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),
@@ -68,7 +68,7 @@ def default_tir_pipeline():
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tirx.transform.Simplify(),
+                tirx.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
@@ -108,14 +108,13 @@ def default_tir_pipeline():
             passes.append(s_tir.transform.InjectPTXLDG32())
         passes.extend(
             [
+                s_tir.transform.MergeSharedMemoryAllocations(),
                 tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
-                # MergeSharedMemoryAllocations must follow SplitHostDevice.
-                s_tir.transform.MergeSharedMemoryAllocations(),
+                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
-                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)

@@ -30,8 +30,8 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for statistical operators */
-struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
-  ffi::Optional<ffi::Array<Integer>> axis;
+struct StatisticalAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> axis;
   bool keepdims;
 
   static void RegisterReflection() {
@@ -44,15 +44,14 @@ struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
                 "with size "
                 "one.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs, AttrsNode);
 };  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
-struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
+struct ScanopAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   DataType dtype;
-  Bool exclusive = Bool(false);
+  bool exclusive = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -64,9 +63,9 @@ struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
                 "The output data type."
                 "If dtype is not specified, it defaults to the dtype of input data.")
         .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
-                refl::DefaultValue(Bool(false)));
+                refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, AttrsNode);
 };  // struct ScanopAttrs
 
 }  // namespace relax

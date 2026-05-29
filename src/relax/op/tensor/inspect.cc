@@ -99,7 +99,7 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataTyp
                                                    IntImm(DataType::Int(32), field)})),
                      tirx::Evaluate(tvm::ret(value))});
 
-  DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host", true}});
+  DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
   tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, PrimType(field_dtype), {}, attrs);
 
@@ -153,9 +153,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeCode)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_dtype_bits
 
@@ -191,9 +191,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeBits)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_dtype_lanes
 
@@ -229,9 +229,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeLanes)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_ndim
 
@@ -267,9 +267,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_ndim")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorNDim)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_shape_i
 
@@ -325,7 +325,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
          tirx::DeclBuffer(shape_buffer), tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis})),
          tirx::Evaluate(tvm::ret(extent))});
 
-    DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host", true}});
+    DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
     tirx::PrimFunc func({dlpack_handle, axis}, body, PrimType(field_dtype), {}, attrs);
 
@@ -346,9 +346,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorShape)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_stride_i
 
@@ -394,9 +394,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorStride)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_byte_offset
 
@@ -425,9 +425,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorByteOffset)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_elem_offset
 
@@ -456,9 +456,9 @@ TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorElemOffset)
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace inspect
 }  // namespace relax

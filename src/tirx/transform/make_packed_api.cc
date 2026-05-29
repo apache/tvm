@@ -178,8 +178,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
 ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
-  if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
-    if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
+  if (auto opt = func->GetAttr<int64_t>(tvm::attr::kCallingConv)) {
+    if (CallingConv(opt.value()) != CallingConv::kDefault) {
       return std::nullopt;
     }
   }

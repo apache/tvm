@@ -29,7 +29,7 @@ def lower_intrin(params, stmt):
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
     )
     mod = tvm.transform.Sequential(
-        [tvm.tirx.transform.Simplify(), tvm.tirx.transform.LowerIntrin()]
+        [tvm.tirx.transform.StmtSimplify(), tvm.tirx.transform.LowerIntrin()]
     )(mod)
     func = mod["main"]
     stmt = func.body

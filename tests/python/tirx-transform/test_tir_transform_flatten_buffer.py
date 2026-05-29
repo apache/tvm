@@ -24,7 +24,7 @@ def _transform():
     return tvm.transform.Sequential(
         [
             tvm.tirx.transform.FlattenBuffer(),
-            tvm.tirx.transform.Simplify(),
+            tvm.tirx.transform.StmtSimplify(),
         ]
     )
 
@@ -32,9 +32,9 @@ def _transform():
 def test_elementwise():
     """2-d buffers are flattened to 1-d"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new = T.decl_buffer([1, 16], "float32")
@@ -43,9 +43,9 @@ def test_elementwise():
                 for j in T.serial(0, 16):
                     C[i, j] = B_new[0, j] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -70,9 +70,9 @@ def test_elementwise_without_decl_buffer():
     memory, and should be flattened to a 1-d allocation.
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((1, 16), "float32")
@@ -82,9 +82,9 @@ def test_elementwise_without_decl_buffer():
                 for j in T.serial(0, 16):
                     C[i, j] = B_new[0, j] * 2.0
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
             A = T.decl_buffer(256, dtype="float32", data=input_A.data)
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
@@ -103,9 +103,9 @@ def test_elementwise_without_decl_buffer():
 def test_gpu():
     """Buffer flattening may have indices based on GPU thread vars"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             i0 = T.env_thread("blockIdx.x")
             i1 = T.env_thread("threadIdx.x")
@@ -120,9 +120,9 @@ def test_gpu():
             for j in range(0, 16):
                 C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -147,9 +147,9 @@ def test_gpu():
 def test_symbolic():
     """Dynamically-sized arrrays are flattened"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
             A = T.match_buffer(a, (n, m), "float32")
             C = T.match_buffer(c, (n, m), "float32")
@@ -161,9 +161,9 @@ def test_symbolic():
                 for j in range(0, m):
                     C[i, j] = B[j] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
             A = T.match_buffer(a, (n, m), "float32")
             C = T.match_buffer(c, (n, m), "float32")
@@ -184,9 +184,9 @@ def test_symbolic():
 def test_fused_symbolic():
     """Dynamically-sized arrrays with fused iterator which can be flattened"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             A = T.match_buffer(a, (32, n, n), "float32")
             B = T.match_buffer(b, (32, n, n), "float32")
@@ -196,9 +196,9 @@ def test_fused_symbolic():
                     i // (n * n), (i % (n * n)) // n, i % n
                 ]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             input_A = T.match_buffer(a, (32, n, n), "float32")
             input_B = T.match_buffer(b, (32, n, n), "float32")
@@ -215,9 +215,9 @@ def test_fused_symbolic():
 def test_fused_symbolic_with_predicate():
     """Dynamically-sized arrrays with fused iterator which can be flattened with extra predicate"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             A = T.match_buffer(a, (32, n, n), "float32")
             B = T.match_buffer(b, (32, n, n), "float32")
@@ -233,9 +233,9 @@ def test_fused_symbolic_with_predicate():
                         (bx * 64 + tx) % n,
                     ]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, n: T.int32) -> None:
             input_A = T.match_buffer(a, (32, n, n), "float32")
             input_B = T.match_buffer(b, (32, n, n), "float32")
@@ -253,9 +253,9 @@ def test_fused_symbolic_with_predicate():
 def test_multi_alloc():
     """If multiple allocations occur, all are flattened."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
             for i, j in T.grid(4, 32):
                 B = T.decl_buffer((4, 32), "float32", scope="global")
@@ -264,9 +264,9 @@ def test_multi_alloc():
                 C[i, j] = A[i, j] + B[i, j]
                 D[i, j] = C[i, j] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
             A_1 = T.decl_buffer(128, "float32", data=A.data)
             D_1 = T.decl_buffer(128, "float32", data=D.data)
@@ -285,9 +285,9 @@ def test_multi_alloc():
 def test_strided():
     """Indices for flattened buffers use the specified striding."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i0 in T.serial(4):
                 B = T.decl_buffer([4, 17], "float32")
@@ -297,9 +297,9 @@ def test_strided():
                 for i1, j in T.grid(4, 16):
                     C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
             C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
@@ -320,16 +320,16 @@ def test_strided():
 def test_boolean():
     """Boolean buffers should be replaced by a backing int8 array"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(10, "bool"), B: T.Buffer(10, "bool")) -> None:
             for i0 in T.serial(10):
                 B[i0] = A[i0]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(input_A: T.Buffer(10, "bool"), input_B: T.Buffer(10, "bool")) -> None:
             A = T.decl_buffer(10, dtype="int8", data=input_A.data)
             B = T.decl_buffer(10, dtype="int8", data=input_B.data)
@@ -344,9 +344,9 @@ def test_boolean():
 def test_flatten_inside_block():
     """Flattening access inside a block flattens the accessed region."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([32, 32])
             for i, j in T.grid(32, 32):
@@ -354,9 +354,9 @@ def test_flatten_inside_block():
                     T.reads(A[i, j])
                     T.evaluate(A[i, j])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([1024])
             for i, j in T.grid(32, 32):
@@ -371,9 +371,9 @@ def test_flatten_inside_block():
 def test_no_change_to_2d_physical_buffer():
     """Flattening preserves axis separators."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([32, 32], axis_separators=[1])
             for i, j in T.grid(32, 32):
@@ -388,17 +388,17 @@ def test_no_change_to_2d_physical_buffer():
 def test_flatten_alloc_buffer_with_axis_separators():
     """Flattening preserves axis separators"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
                 T.evaluate(A[i0, i1, i2, i3, i4, i5])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.sblock_alloc_buffer([30, 1001], axis_separators=[1])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
@@ -416,17 +416,17 @@ def test_flatten_decl_buffer_with_axis_separators():
     BlockNode::alloc_buffers.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.decl_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
                 T.evaluate(A[i0, i1, i2, i3, i4, i5])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             A = T.decl_buffer([30, 1001], axis_separators=[1])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):

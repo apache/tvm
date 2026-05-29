@@ -26,8 +26,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/script/printer/printer.h>
 
 #include <sstream>
 #include <string>
@@ -46,17 +46,6 @@ namespace printer {
 // definition here would force the dialect headers to depend on this shared
 // header, which the per-dialect restructure aims to avoid for cross-directory
 // references. See each `<dialect>/script/printer/utils.h` for the macro.
-inline std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
-  try {
-    return TVMScriptPrinter::Script(obj, std::nullopt);
-  } catch (const tvm::ffi::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                 << e.what();
-    std::ostringstream os;
-    os << obj->GetTypeKey() << '(' << obj.get() << ')';
-    return os.str();
-  }
-}
 
 inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
@@ -116,6 +105,9 @@ inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
   return IdDoc(d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T"))->Attr(attr);
 }
 
+/*! \brief Alias for TIR — historical TIRx name used by tirx printer code */
+inline ExprDoc TIRx(const IRDocsifier& d, const ffi::String& attr) { return TIR(d, attr); }
+
 /*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("relax");
@@ -136,6 +128,10 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("tirx")) {
       stmts.push_back(CommentDoc("from tvm.script import tirx as " +
                                  d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T")));
+      // Layout sugar like `4 @ Axis.laneid` references registered axes via the
+      // `Axis` class attribute. Mirror the `Axis` injection in `_default_globals`
+      // so readers see the dependency. Decorative only.
+      stmts.push_back(CommentDoc("from tvm.tirx.layout import Axis"));
     }
     if (d->ir_usage.count("relax")) {
       stmts.push_back(CommentDoc("from tvm.script import relax as " +

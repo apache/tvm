@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E711, F821, F841
+# ruff: noqa: E711, F841
 import itertools
 
 import numpy as np
@@ -104,7 +104,7 @@ def test_ret_const():
 
 
 def test_control_flow_jump():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.float32, b: T.float32):
         if True:
             T.evaluate(T.ret(a))
@@ -116,8 +116,8 @@ def test_control_flow_jump():
 
 
 def test_break_loop():
-    @T.prim_func
-    def func(In: T.Buffer[(2,), "int32"], Out: T.Buffer[(2,), "int32"]):
+    @T.prim_func(s_tir=True)
+    def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
         for i in range(10):
@@ -143,8 +143,8 @@ def test_break_loop():
 
 
 def test_continue_loop():
-    @T.prim_func
-    def func(Out: T.Buffer[(2,), "int32"]):
+    @T.prim_func(s_tir=True)
+    def func(Out: T.Buffer((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0
         Out[1] = 0
@@ -167,7 +167,7 @@ def test_continue_loop():
         return
     func(b)
     assert b[0] == 34
-    assert b[1] == 5  # 6, 12, 18, 24, 30
+    assert b[1] == 5
 
 
 def test_exception():

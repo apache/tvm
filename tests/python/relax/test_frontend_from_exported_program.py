@@ -8094,6 +8094,8 @@ def test_norm():
 
 
 def test_eye():
+    import pytest
+
     class Eye1(Module):
         def forward(self, input):
             return torch.eye(3, 5, dtype=torch.float32)

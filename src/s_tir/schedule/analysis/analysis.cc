@@ -1894,19 +1894,18 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   }
 
   for (int i = 0, n = desc_loops.size(); i < n; ++i) {
-    ret->desc_loop_indexer.Set(ffi::GetRef<tirx::For>(desc_loops[i]), Integer(i));
+    ret->desc_loop_indexer.Set(ffi::GetRef<tirx::For>(desc_loops[i]), static_cast<int64_t>(i));
   }
   if (!block_index_to_padding.empty()) {
     if (!allow_padding) {
       return std::nullopt;
     }
-    ffi::Array<Integer> paddings;
+    ffi::Array<int64_t> paddings;
     for (int i = 0, n = block->block->iter_vars.size(); i < n; ++i) {
-      const IterVar& iter_var = block->block->iter_vars[i];
       if (auto it = block_index_to_padding.find(i); it != block_index_to_padding.end()) {
-        paddings.push_back(IntImm(iter_var->var.dtype(), it->second));
+        paddings.push_back(static_cast<int64_t>(it->second));
       } else {
-        paddings.push_back(IntImm(iter_var->var.dtype(), 1));
+        paddings.push_back(1);
       }
     }
     ret->block_iter_paddings = std::move(paddings);

@@ -47,9 +47,9 @@ def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
     def _create_mod(dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((64,), dtype),
                 B: T.Buffer((64,), dtype),
@@ -98,9 +98,9 @@ def test_fp8_packing(dtype):
     native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
     def _create_mod(native_dtype, packed_dtype, length):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((length,), native_dtype),
                 R: T.Buffer((length,), packed_dtype),
@@ -161,9 +161,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
     def _create_mod(native_dtype, promoted_dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((64,), native_dtype),
                 B: T.Buffer((64,), native_dtype),
@@ -222,9 +222,9 @@ def test_half_broadcast(bcast_length):
     dtype = "float16"
 
     def _create_mod(bcast_length, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -258,7 +258,7 @@ def test_half_misaligned_vector_load(vector_length):
     vec_dtype = dtype + "x" + str(vector_length)
     length = 256
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def vector_load(
         A: T.Buffer((length,), dtype), B: T.Buffer((length // vector_length,), vec_dtype)
     ):
@@ -294,9 +294,9 @@ def test_half4_vector_add():
     vector_length = 4
     vec_dtype = dtype + "x" + str(vector_length)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((64,), "float16x4"),
             B: T.Buffer((64,), "float16x4"),
@@ -558,7 +558,7 @@ class BaseFP8E4M3QuantScaleOnly:
             f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def quant_pack(
             A: T.Buffer(weight_shape, model_dtype),
             scale: T.Buffer(scale_shape, model_dtype),
@@ -607,7 +607,7 @@ class BaseFP8E4M3QuantScaleOnly:
         vec_model_dtype = f"{model_dtype}x{vector_length}"
         num_elem_per_storage = vector_length
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def dequant(
             packed_weight: T.Buffer(packed_weight_shape, storage_dtype),
             scale: T.Buffer(scale_shape, model_dtype),
@@ -808,7 +808,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 @tvm.testing.requires_cuda_compute_version(10)
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((4,), dtype)) -> None:
         A_local = T.sblock_alloc_buffer((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
@@ -824,7 +824,7 @@ def test_const(dtype):
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         A: T.Buffer(
             (
@@ -861,9 +861,9 @@ def test_moe_gemv_shfl_down_illegal_instr():
     global reduce_size
     global spatial_size
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class SingleBatchMoE_float8_e4m3:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def moe_dequantize_gemv(
             x_handle: T.handle,
             w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
@@ -970,9 +970,9 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     def _create_mod(vec_length, dtype):
         num_threads = 128 // vec_length
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((128,), "float8_e4m3fn"),
                 B: T.Buffer((128,), dtype),

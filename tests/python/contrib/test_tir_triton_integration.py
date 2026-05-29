@@ -55,9 +55,9 @@ def test_tir_triton_integration():
         output = x + y
         tl.store(output_ptr + offsets, output, mask=mask)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
             T.func_attr({"global_symbol": "add"})
             m = T.int64()
@@ -86,9 +86,9 @@ def test_tir_triton_integration():
                 R.output(output)
             return output
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Parsed:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))

@@ -34,7 +34,7 @@ np.random.seed(0)
 @tvm.script.ir_module
 class Gemm_F16F16F16:
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore
@@ -51,7 +51,7 @@ class Gemm_F16F16F16:
 @tvm.script.ir_module
 class Gemm_F16F16F32:
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore

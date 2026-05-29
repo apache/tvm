@@ -113,7 +113,7 @@ TVM_REGISTER_OP("relax.vision.all_class_non_max_suppression")
     .add_argument("score_threshold", "Tensor",
                   "The score threshold to filter out low score boxes early.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllClassNMS)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.vision.get_valid_counts */
 
@@ -189,7 +189,7 @@ TVM_REGISTER_OP("relax.vision.get_valid_counts")
     .add_argument("data", "Tensor",
                   "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGetValidCounts)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.vision.non_max_suppression */
 
@@ -371,7 +371,7 @@ TVM_REGISTER_OP("relax.vision.non_max_suppression")
     .add_argument("valid_count", "Tensor", "1-D tensor for valid number of boxes.")
     .add_argument("indices", "Tensor", "2-D tensor with shape [batch_size, num_anchors].")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNMS)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

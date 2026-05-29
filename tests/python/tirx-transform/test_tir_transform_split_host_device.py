@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -29,7 +30,7 @@ def test_ssa_across_entire_module():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             for i in range(16):
@@ -55,7 +56,7 @@ def test_split_host_device():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
@@ -63,12 +64,12 @@ def test_split_host_device():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             Expected.main_kernel(n)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -88,7 +89,7 @@ def test_split_host_device_on_cpu():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("llvm"), "target", 0)
@@ -96,13 +97,13 @@ def test_split_host_device_on_cpu():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            err = Expected.main_kernel(n)
+            err: T.let[T.int32] = Expected.main_kernel(n)
             assert err == 0, "Error executing compute kernel"
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main_kernel(n: T.int32) -> T.int32:
             T.func_attr(
                 {
@@ -127,7 +128,7 @@ def test_split_host_device_without_func_host_attribute():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.attr(T.target("cuda"), "target", 0)
@@ -135,12 +136,12 @@ def test_split_host_device_without_func_host_attribute():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             Expected.main_kernel(n)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -163,7 +164,7 @@ def test_split_host_device_without_device_region():
     attribute.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def Before():
         T.func_attr({"target": T.target("ext_dev", host="llvm")})
         T.evaluate(0)
@@ -184,25 +185,25 @@ def test_split_host_device_name_collision():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
             T.evaluate(n)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             Expected.main_kernel_1(n)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main_kernel_1(n: T.int32):
             T.func_attr(
                 {
@@ -213,7 +214,7 @@ def test_split_host_device_name_collision():
             )
             T.evaluate(n)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
@@ -243,14 +244,14 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
             T.func_attr({"target": T.target("cuda")})
 
             A = T.match_buffer(var_A, [seq_len], "int32")
             B = T.match_buffer(var_B, [seq_len], "int32")
 
-            num_blocks: T.int32 = (seq_len + 127) // 128
+            num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             with T.attr(T.target("cuda"), "target", 0):
                 blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -259,15 +260,15 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
             T.func_attr({"target": T.target("cuda")})
             A = T.match_buffer(var_A, (seq_len,), "int32")
             B = T.match_buffer(var_B, (seq_len,), "int32")
-            num_blocks: T.int32 = (seq_len + 127) // 128
+            num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def default_function_kernel(
             A_data: T.handle("int32"),
             B_data: T.handle("int32"),
@@ -297,7 +298,7 @@ def test_dynamic_launch_thread():
 def test_size_var():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"target": T.target("cuda")})
             m = T.int64(is_size_var=True)

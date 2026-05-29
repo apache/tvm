@@ -31,7 +31,7 @@ from . import transform
 from . import schedule
 from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
 from .sblock_dependence_info import SBlockDependenceInfo
-from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
+from .data_layout import SLayout, SBijectiveLayout, sbijective_layout, slayout
 
 if not _RUNTIME_ONLY:
     from . import analysis

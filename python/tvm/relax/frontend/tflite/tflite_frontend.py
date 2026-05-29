@@ -19,9 +19,6 @@
 # pylint: disable=no-value-for-parameter, unused-variable
 # pylint: disable=unexpected-keyword-arg, unused-import, too-many-function-args
 # ruff: noqa: RUF005
-# F821: _qnn and _expr references are in unreachable code paths (guarded by NotImplementedError)
-# and will be resolved when quantization and vision op support are added.
-# ruff: noqa: F821
 """Tensorflow lite frontend."""
 
 import functools
@@ -99,7 +96,65 @@ class TensorWrapper:
 class OperatorConverter:
     """Operator Converted for converting TFLite ops to Relax ops"""
 
-    def __init__(self, model, subgraph, exp_tab, ctx):
+    _SUPPORTED_QUANTIZED_OPS = frozenset(
+        {
+            "ABS",
+            "ADD",
+            "ATAN2",
+            "CEIL",
+            "CONCATENATION",
+            "CONV_2D",
+            "COS",
+            "DEPTHWISE_CONV_2D",
+            "DEQUANTIZE",
+            "DETECTION_POSTPROCESS",
+            "DIV",
+            "EQUAL",
+            "EXP",
+            "FLOOR",
+            "FLOOR_DIV",
+            "FLOOR_MOD",
+            "FULLY_CONNECTED",
+            "GREATER",
+            "GREATER_EQUAL",
+            "HARD_SWISH",
+            "LEAKY_RELU",
+            "LESS",
+            "LESS_EQUAL",
+            "LOG",
+            "LOGISTIC",
+            "LOG_SOFTMAX",
+            "MAXIMUM",
+            "MEAN",
+            "MINIMUM",
+            "MUL",
+            "NEG",
+            "NOT_EQUAL",
+            "POW",
+            "QUANTIZE",
+            "REDUCE_MAX",
+            "REDUCE_MIN",
+            "REDUCE_PROD",
+            "RELU",
+            "RELU6",
+            "RELU_N1_TO_1",
+            "RESHAPE",
+            "RESIZE_BILINEAR",
+            "ROUND",
+            "RSQRT",
+            "SIN",
+            "SOFTMAX",
+            "SQRT",
+            "SQUARED_DIFFERENCE",
+            "SUB",
+            "SUM",
+            "TAN",
+            "TANH",
+            "TRANSPOSE_CONV",
+        }
+    )
+
+    def __init__(self, model, subgraph, exp_tab, ctx, conversion_state=None):
         from tflite.ActivationFunctionType import ActivationFunctionType
         from tflite.BuiltinOperator import BuiltinOperator
         from tflite.BuiltinOptions import BuiltinOptions
@@ -113,6 +168,17 @@ class OperatorConverter:
         self.prefetched_nodes = {}
         self.allow_custom_ops = False
         self.bb = ctx
+        if conversion_state is None:
+            conversion_state = {
+                "lowered_subgraphs": {},
+                "lowered_if_functions": {},
+                "lowered_while_functions": {},
+                "lowering_stack": [],
+                "module_builder": ctx,
+            }
+        else:
+            conversion_state.setdefault("module_builder", ctx)
+        self.conversion_state = conversion_state
 
         # Add more operators
         self.convert_map = {
@@ -128,6 +194,8 @@ class OperatorConverter:
             "BITCAST": self.convert_bitcast,
             "BROADCAST_TO": self.convert_broadcast_to,
             "BROADCAST_ARGS": self.convert_broadcast_args,
+            "CALL": self.convert_call,
+            "CALL_ONCE": self.convert_call_once,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -166,6 +234,7 @@ class OperatorConverter:
             ),
             "GELU": self.convert_gelu,
             "HARD_SWISH": self.convert_hard_swish,
+            "IF": self.convert_if,
             "L2_NORMALIZATION": self.convert_l2_normalization,
             "L2_POOL_2D": functools.partial(self.convert_pool2d, pool_type="l2"),
             "LEAKY_RELU": self.convert_leaky_relu,
@@ -204,6 +273,7 @@ class OperatorConverter:
             "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
+            "RNN": self.convert_rnn,
             "QUANTIZE": self.convert_quantize,
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
@@ -212,6 +282,7 @@ class OperatorConverter:
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
             "REDUCE_MIN": functools.partial(self._convert_reduce, relax_op=_op.min),
             "REDUCE_PROD": functools.partial(self._convert_reduce, relax_op=_op.prod),
+            "REDUCE_WINDOW": self.convert_reduce_window,
             "RELU": self.convert_relu,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
@@ -244,15 +315,20 @@ class OperatorConverter:
             "STABLEHLO_ADD": functools.partial(self._convert_stablehlo_binary, relax_op=_op.add),
             "STABLEHLO_AND": self._convert_stablehlo_and,
             "STABLEHLO_BROADCAST_IN_DIM": self._convert_stablehlo_broadcast_in_dim,
+            "STABLEHLO_CBRT": self._convert_stablehlo_cbrt,
             "STABLEHLO_CLAMP": self._convert_stablehlo_clamp,
             "STABLEHLO_COMPARE": self._convert_stablehlo_compare,
+            "STABLEHLO_COMPOSITE": self._convert_stablehlo_composite,
             "STABLEHLO_CONCATENATE": self._convert_stablehlo_concatenate,
+            "STABLEHLO_CONVOLUTION": self._convert_stablehlo_convolution,
             "STABLEHLO_CONVERT": self._convert_stablehlo_convert,
             "STABLEHLO_COSINE": functools.partial(self._convert_stablehlo_unary, relax_op=_op.cos),
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
+            "STABLEHLO_DOT_GENERAL": self._convert_stablehlo_dot_general,
             "STABLEHLO_DYNAMIC_SLICE": self._convert_stablehlo_dynamic_slice,
+            "STABLEHLO_DYNAMIC_UPDATE_SLICE": self._convert_stablehlo_dynamic_update_slice,
             "STABLEHLO_EXPONENTIAL": functools.partial(
                 self._convert_stablehlo_unary, relax_op=_op.exp
             ),
@@ -280,13 +356,18 @@ class OperatorConverter:
             "STABLEHLO_POWER": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.power
             ),
+            "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
+            "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
+            "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
+            "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
             "STABLEHLO_SELECT": functools.partial(
                 self._convert_stablehlo_ternary, relax_op=_op.where
             ),
             "STABLEHLO_SHIFT_LEFT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.left_shift
             ),
+            "STABLEHLO_SORT": self._convert_stablehlo_sort,
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
@@ -302,6 +383,7 @@ class OperatorConverter:
             "TRANSPOSE_CONV": self.convert_transpose_conv,
             "TRANSPOSE": self.convert_transpose,
             "UNPACK": self.convert_unpack,
+            "UNIDIRECTIONAL_SEQUENCE_RNN": self.convert_unidirectional_sequence_rnn,
             "UNSORTED_SEGMENT_MIN": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_MIN", reduction="min"
             ),
@@ -310,6 +392,7 @@ class OperatorConverter:
             ),
             # "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "WHERE": self.convert_select,
+            "WHILE": self.convert_while,
             "ZEROS_LIKE": self.convert_zeros_like,
             "NON_MAX_SUPPRESSION_V4": self.convert_nms_v4,
             "NON_MAX_SUPPRESSION_V5": self.convert_nms_v5,
@@ -319,6 +402,7 @@ class OperatorConverter:
         """Check unsupported TFLite ops in our converter."""
         unsupported_ops_set = set()
         dynamic_range_ops_set = set()
+        unsupported_quantized_ops_set = set()
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
@@ -327,18 +411,22 @@ class OperatorConverter:
                 continue
 
             # Trying to exclude "dynamic range quantization" optimized ops as not supported in TVM
-            qnn_in_cnt = len(
-                [_.qnn_params for _ in self.get_input_tensors(op)[0:1] if _.qnn_params is not None]
-            )
+            input_tensors = self.get_input_tensors(op)
+            output_tensors = self.get_output_tensors(op)
+            qnn_in_cnt = len([_.qnn_params for _ in input_tensors[0:1] if _.qnn_params is not None])
             qnn_weight_cnt = len(
-                [_.qnn_params for _ in self.get_input_tensors(op)[1:] if _.qnn_params is not None]
+                [_.qnn_params for _ in input_tensors[1:] if _.qnn_params is not None]
             )
-            qnn_out_cnt = len(
-                [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
-            )
+            qnn_out_cnt = len([_.qnn_params for _ in output_tensors if _.qnn_params is not None])
 
             if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
                 dynamic_range_ops_set.add(op_code_str)
+
+            if (
+                qnn_in_cnt + qnn_weight_cnt + qnn_out_cnt > 0
+                and op_code_str not in self._SUPPORTED_QUANTIZED_OPS
+            ):
+                unsupported_quantized_ops_set.add(op_code_str)
 
         raise_msg = ""
 
@@ -351,7 +439,15 @@ class OperatorConverter:
             raise_msg += (
                 f"The following operators are likely to have dynamic range quantization: {ops}. "
                 f"If you are running an optimized graph, please turn off dynamic range "
-                f"quantization or use full integer quantization"
+                f"quantization or use full integer quantization\n"
+            )
+
+        if unsupported_quantized_ops_set:
+            ops = ", ".join(f"'{op}'" for op in sorted(unsupported_quantized_ops_set))
+            raise_msg += (
+                f"The following quantized TFLite operators are not supported in frontend "
+                f"TFLite yet: {ops}. Quantized operators require explicit QDQ lowering "
+                f"to avoid applying Relax ops directly to quantized integer tensors.\n"
             )
 
         if len(raise_msg) > 0:
@@ -484,7 +580,7 @@ class OperatorConverter:
     def get_tensors(self, tensors_idx_list):
         """Get tensor wrapper list from given TFLite tensor index list"""
         return_list = list()
-        for tensor_idx in tensors_idx_list:
+        for tensor_idx in self._indices_or_empty(tensors_idx_list):
             if tensor_idx < 0:
                 return_list.append(TensorWrapper(tensor_idx, 0, 0))
                 continue
@@ -547,9 +643,7 @@ class OperatorConverter:
                     qnn_params = dict()
                     qnn_params["scale"] = relax.const(scale, "float32")
                     qnn_params["zero_point"] = relax.const(zero_point, "int32")
-                    raise NotImplementedError(
-                        "Quantized TFLite models are not yet supported in the Relax frontend"
-                    )
+                    qnn_params["axis"] = int(tflite_qnn_params.QuantizedDimension())
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
@@ -654,20 +748,22 @@ class OperatorConverter:
         """Helper function to quantize a tensor with Relax"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
-        quantized = _qnn.op.quantize(
+        quantized = relax.op.quantize(
             data=expr,
-            output_scale=tensor_to_quantize.qnn_params["scale"],
-            output_zero_point=tensor_to_quantize.qnn_params["zero_point"],
+            scale=tensor_to_quantize.qnn_params["scale"],
+            zero_point=tensor_to_quantize.qnn_params["zero_point"],
+            axis=tensor_to_quantize.qnn_params["axis"],
             out_dtype=tensor_type_str,
         )
         return quantized
 
     def dequantize(self, expr, tensor):
         """Helper function to dequantize a tensor with Relax"""
-        dequantized = _qnn.op.dequantize(
+        dequantized = relax.op.dequantize(
             data=expr,
-            input_scale=tensor.qnn_params["scale"],
-            input_zero_point=tensor.qnn_params["zero_point"],
+            scale=tensor.qnn_params["scale"],
+            zero_point=tensor.qnn_params["zero_point"],
+            axis=tensor.qnn_params["axis"],
         )
         return dequantized
 
@@ -703,7 +799,7 @@ class OperatorConverter:
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
             return relax.op.clip(expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0)))
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return relax.op.clip(expr, min=max(qmin, quantize(0.0)), a_max=qmax)
+            return relax.op.clip(expr, min=max(qmin, quantize(0.0)), max=qmax)
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
@@ -778,20 +874,15 @@ class OperatorConverter:
                 "TFLite reshape requires input and output scale and zero points to be equal"
             )
 
-        out = relax.op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
         if input_tensor.qnn_params and input_tensor_type_str == "uint8":
             output_tensor = output_tensors[0]
             if not self.has_same_qnn_params(input_tensor, output_tensor):
-                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-                out = _qnn.op.requantize(
-                    out,
-                    input_scale=input_tensor.qnn_params["scale"],
-                    input_zero_point=input_tensor.qnn_params["zero_point"],
-                    output_scale=output_tensor.qnn_params["scale"],
-                    output_zero_point=output_tensor.qnn_params["zero_point"],
-                    out_dtype=output_tensor_type_str,
-                )
+                in_f32 = self.dequantize(in_expr, input_tensor)
+                out = relax.op.reshape(in_f32, shape=relax.ShapeExpr(target_shape))
+                out = self.quantize(out, output_tensor)
+                return out
 
+        out = relax.op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
         return out
 
     def _convert_resize(self, method, op):
@@ -1101,8 +1192,6 @@ class OperatorConverter:
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
 
-        from tflite.ActivationFunctionType import ActivationFunctionType
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -1113,31 +1202,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(
-                expr=in_expr,
-                fused_activation_fn=ActivationFunctionType.RELU,
-                scale=scale_val,
-                zero_point=zero_point_val,
-                dtype=output_tensor_type_str,
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.nn.relu(in_f32)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.nn.relu(in_expr)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -1174,8 +1243,6 @@ class OperatorConverter:
     def convert_relu6(self, op):
         """Convert TFLite ReLU6"""
 
-        from tflite.ActivationFunctionType import ActivationFunctionType
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -1186,31 +1253,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = self.convert_qnn_fused_activation_function(
-                expr=in_expr,
-                fused_activation_fn=ActivationFunctionType.RELU6,
-                scale=scale_val,
-                zero_point=zero_point_val,
-                dtype=output_tensor_type_str,
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.clip(in_f32, min=0, max=6)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.clip(in_expr, min=0, max=6)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -1255,35 +1302,11 @@ class OperatorConverter:
         output_tensor = output_tensors[0]
 
         if input_tensor.qnn_params:
-            # Quantize a float value to an quantized integer value
-            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
-            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-
-            def quantize(x):
-                return float(round(x / scale_val) + zero_point_val)
-
-            # Get min/max of the input dtype. This will be used to ensure that
-            # clip a_min/a_max are not beyond the dtype range.
-            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-            qmin = float(tvm.tirx.min_value(input_tensor_type_str).value)
-            qmax = float(tvm.tirx.max_value(input_tensor_type_str).value)
-
-            out = relax.op.clip(
-                in_expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0))
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.clip(in_f32, min=-1, max=1)
+            out = self.quantize(out, output_tensor)
         else:
             out = relax.op.clip(in_expr, min=-1, max=1)
-
-        if output_tensor.qnn_params:
-            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
 
         return out
 
@@ -1330,18 +1353,11 @@ class OperatorConverter:
         if not input_tensors[0].qnn_params:
             out = relax.op.concat(in_exprs, axis=concatenation_axis)
         else:
-            input_scales = [input_tensor.qnn_params["scale"] for input_tensor in input_tensors]
-            input_zero_points = [
-                input_tensor.qnn_params["zero_point"] for input_tensor in input_tensors
+            in_f32s = [
+                self.dequantize(expr, tensor) for expr, tensor in zip(in_exprs, input_tensors)
             ]
-            out = _qnn.op.concat(
-                in_exprs,
-                input_scales=input_scales,
-                input_zero_points=input_zero_points,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                axis=concatenation_axis,
-            )
+            out = relax.op.concat(in_f32s, axis=concatenation_axis)
+            out = self.quantize(out, output_tensor)
 
         # Handle fused activations
         if output_tensor.qnn_params:
@@ -1482,6 +1498,824 @@ class OperatorConverter:
         result = options_cls()
         result.Init(op_options.Bytes, op_options.Pos)
         return result
+
+    def _get_static_tensor_shape(self, tensor, op_name):
+        """Return a statically-known TFLite tensor shape as Python ints."""
+        try:
+            return [int(dim) for dim in self.get_tensor_shape(tensor)]
+        except (TypeError, ValueError) as err:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} requires statically-known tensor shapes"
+            ) from err
+
+    def _get_stablehlo_i64_vector(self, vector, default):
+        """Convert an optional StableHLO int64 vector field to a Python int list."""
+        if vector is None or isinstance(vector, int):
+            return list(default)
+        return [int(v) for v in vector]
+
+    def _ensure_stablehlo_float_dtype(self, expr, op_name):
+        """Return expr dtype if the StableHLO subset supports it."""
+        dtype = expr.struct_info.dtype
+        if not dtype.startswith("float"):
+            raise tvm.error.OpNotImplemented(f"{op_name} with dtype {dtype} is not supported")
+        return dtype
+
+    def _convert_stablehlo_cbrt(self, op):
+        """Convert STABLEHLO_CBRT to a sign-preserving Relax expression."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        assert len(self.get_output_tensors(op)) == 1
+
+        data = self.get_tensor_expr(input_tensors[0])
+        dtype = self._ensure_stablehlo_float_dtype(data, "STABLEHLO_CBRT")
+        zero = relax.const(0, dtype)
+        exponent = relax.const(1.0 / 3.0, dtype)
+
+        is_negative = self.bb.normalize(relax.op.less(data, zero))
+        negative_base = self.bb.normalize(relax.op.negative(data))
+        negative_root = self.bb.normalize(relax.op.power(negative_base, exponent))
+        negative_result = self.bb.normalize(relax.op.negative(negative_root))
+        positive_result = self.bb.normalize(relax.op.power(data, exponent))
+        return self.bb.normalize(relax.op.where(is_negative, negative_result, positive_result))
+
+    def _convert_stablehlo_remainder(self, op):
+        """Convert STABLEHLO_REMAINDER to truncating remainder for float tensors."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        self._ensure_stablehlo_float_dtype(lhs, "STABLEHLO_REMAINDER")
+        self._ensure_stablehlo_float_dtype(rhs, "STABLEHLO_REMAINDER")
+
+        quotient = self.bb.normalize(relax.op.divide(lhs, rhs))
+        truncated = self.bb.normalize(relax.op.trunc(quotient))
+        product = self.bb.normalize(relax.op.multiply(rhs, truncated))
+        return self.bb.normalize(relax.op.subtract(lhs, product))
+
+    def _get_stablehlo_simple_body_op(self, body_subgraph_index, parent_op_name, input_count):
+        """Return the single operator from a simple StableHLO body subgraph."""
+        if body_subgraph_index <= 0 or body_subgraph_index >= self.model.SubgraphsLength():
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} requires a valid non-main body subgraph"
+            )
+
+        body_subgraph = self.model.Subgraphs(body_subgraph_index)
+        if (
+            body_subgraph.InputsLength() != input_count
+            or body_subgraph.OutputsLength() != 1
+            or body_subgraph.OperatorsLength() != 1
+        ):
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} only supports single-op body subgraphs"
+            )
+
+        return body_subgraph.Operators(0)
+
+    def _check_stablehlo_reduce_init(
+        self, init_tensor, reducer_name, parent_op_name="STABLEHLO_REDUCE"
+    ):
+        """Validate that the StableHLO reduce init value matches the Relax identity."""
+        if self.has_expr(init_tensor.tensor_idx):
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} with dynamic init values is not supported"
+            )
+
+        init_value = np.asarray(self.get_tensor_value(init_tensor))
+        if init_value.shape not in [(), (1,)]:
+            raise tvm.error.OpNotImplemented(f"{parent_op_name} requires scalar init values")
+
+        dtype = init_value.dtype
+        scalar = init_value.item()
+        if reducer_name == "STABLEHLO_ADD":
+            is_identity = bool(np.isclose(scalar, 0))
+        elif reducer_name == "STABLEHLO_MULTIPLY":
+            is_identity = bool(np.isclose(scalar, 1))
+        elif reducer_name == "STABLEHLO_MAXIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isneginf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).min
+            else:
+                is_identity = False
+        elif reducer_name == "STABLEHLO_MINIMUM":
+            if np.issubdtype(dtype, np.floating):
+                is_identity = bool(np.isposinf(scalar))
+            elif np.issubdtype(dtype, np.integer):
+                is_identity = scalar == np.iinfo(dtype).max
+            else:
+                is_identity = False
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} reducer {reducer_name} is not supported"
+            )
+
+        if not is_identity:
+            raise tvm.error.OpNotImplemented(
+                f"{parent_op_name} init value must match the reducer identity"
+            )
+
+    def _convert_stablehlo_reduce(self, op):
+        """Convert the single-input STABLEHLO_REDUCE subset to Relax reductions."""
+        from tflite.StablehloReduceOptions import StablehloReduceOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceOptions)
+        dimensions = self._get_stablehlo_i64_vector(opts.DimensionsAsNumpy(), [])
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+
+        reducers = {
+            "STABLEHLO_ADD": relax.op.sum,
+            "STABLEHLO_MAXIMUM": relax.op.max,
+            "STABLEHLO_MINIMUM": relax.op.min,
+            "STABLEHLO_MULTIPLY": relax.op.prod,
+        }
+        if reducer_name not in reducers:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_REDUCE reducer {reducer_name} is not supported"
+            )
+
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name)
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(reducers[reducer_name](data, axis=dimensions, keepdims=False))
+
+    def _convert_stablehlo_reduce_window(self, op):
+        """Convert the NHWC 2D max-pool STABLEHLO_REDUCE_WINDOW subset."""
+        from tflite.StablehloReduceWindowOptions import StablehloReduceWindowOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloReduceWindowOptions)
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.BodySubgraphIndex()), "STABLEHLO_REDUCE_WINDOW", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        if reducer_name != "STABLEHLO_MAXIMUM":
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports MAXIMUM reducer windows"
+            )
+        self._check_stablehlo_reduce_init(input_tensors[1], reducer_name, "STABLEHLO_REDUCE_WINDOW")
+
+        data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_REDUCE_WINDOW")
+        if len(data_shape) != 4:
+            raise tvm.error.OpNotImplemented("STABLEHLO_REDUCE_WINDOW only supports 4D input")
+
+        window_dimensions = self._get_stablehlo_i64_vector(opts.WindowDimensionsAsNumpy(), [])
+        window_strides = self._get_stablehlo_i64_vector(
+            opts.WindowStridesAsNumpy(), [1] * len(window_dimensions)
+        )
+        base_dilations = self._get_stablehlo_i64_vector(
+            opts.BaseDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        window_dilations = self._get_stablehlo_i64_vector(
+            opts.WindowDilationsAsNumpy(), [1] * len(window_dimensions)
+        )
+        padding = self._get_stablehlo_i64_vector(
+            opts.PaddingAsNumpy(), [0] * (2 * len(window_dimensions))
+        )
+
+        if (
+            len(window_dimensions) != 4
+            or len(window_strides) != 4
+            or len(base_dilations) != 4
+            or len(window_dilations) != 4
+            or len(padding) != 8
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports rank-4 window attributes"
+            )
+        if window_dimensions[0] != 1 or window_dimensions[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports pooling over spatial dimensions"
+            )
+        if window_strides[0] != 1 or window_strides[3] != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports unit batch/channel strides"
+            )
+        if base_dilations != [1, 1, 1, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW with base dilation is not supported"
+            )
+        if padding[0] != 0 or padding[1] != 0 or padding[6] != 0 or padding[7] != 0:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_REDUCE_WINDOW only supports spatial padding"
+            )
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.nn.max_pool2d(
+                data,
+                pool_size=[window_dimensions[1], window_dimensions[2]],
+                strides=[window_strides[1], window_strides[2]],
+                padding=[padding[2], padding[4], padding[3], padding[5]],
+                dilation=[window_dilations[1], window_dilations[2]],
+                layout="NHWC",
+                out_layout="NHWC",
+            )
+        )
+
+    def _convert_stablehlo_scatter(self, op):
+        """Convert the canonical point-update STABLEHLO_SCATTER subset."""
+        from tflite.StablehloScatterOptions import StablehloScatterOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloScatterOptions)
+        operand_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_SCATTER")
+        indices_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_SCATTER")
+        updates_shape = self._get_static_tensor_shape(input_tensors[2], "STABLEHLO_SCATTER")
+        operand_rank = len(operand_shape)
+        indices_rank = len(indices_shape)
+
+        update_window_dims = self._get_stablehlo_i64_vector(opts.UpdateWindowDimsAsNumpy(), [])
+        inserted_window_dims = self._get_stablehlo_i64_vector(opts.InsertedWindowDimsAsNumpy(), [])
+        scatter_dims_to_operand_dims = self._get_stablehlo_i64_vector(
+            opts.ScatterDimsToOperandDimsAsNumpy(), []
+        )
+        index_vector_dim = int(opts.IndexVectorDim())
+
+        if indices_rank == 0 or index_vector_dim != indices_rank - 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports trailing index-vector dimensions"
+            )
+        if update_window_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates without update windows"
+            )
+        if inserted_window_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports point updates for every operand dimension"
+            )
+        if scatter_dims_to_operand_dims != list(range(operand_rank)):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER only supports canonical scatter-to-operand dimensions"
+            )
+        if indices_shape[-1] != operand_rank or updates_shape != indices_shape[:-1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SCATTER requires point update shapes to match scatter indices"
+            )
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.UpdateComputationSubgraphIndex()), "STABLEHLO_SCATTER", 2
+        )
+        reducer_name = self.get_op_code_str(body_op)
+        reductions = {
+            "STABLEHLO_ADD": "add",
+            "STABLEHLO_MAXIMUM": "max",
+            "STABLEHLO_MINIMUM": "min",
+            "STABLEHLO_MULTIPLY": "mul",
+        }
+        if reducer_name not in reductions:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SCATTER reducer {reducer_name} is not supported"
+            )
+
+        operand = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+        updates = self.get_tensor_expr(input_tensors[2])
+        return self.bb.normalize(
+            relax.op.scatter_nd(operand, indices, updates, reductions[reducer_name])
+        )
+
+    def _convert_stablehlo_composite(self, op):
+        """Convert STABLEHLO_COMPOSITE by inlining a simple decomposition subgraph."""
+        from tflite.StableHLOCompositeOptions import StableHLOCompositeOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_COMPOSITE only supports single-output decompositions"
+            )
+
+        opts = self._get_stablehlo_options(op, StableHLOCompositeOptions)
+        composite_name = opts.Name()
+        composite_name = (
+            composite_name.decode("utf-8") if composite_name is not None else "<unnamed>"
+        )
+        if opts.CompositeAttributesLength() != 0:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} with composite attributes is not supported"
+            )
+
+        decomposition_subgraph_index = int(opts.DecompositionSubgraphIndex())
+        if (
+            decomposition_subgraph_index <= 0
+            or decomposition_subgraph_index >= self.model.SubgraphsLength()
+        ):
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} requires a valid decomposition subgraph"
+            )
+        decomposition_subgraph = self.model.Subgraphs(decomposition_subgraph_index)
+        if decomposition_subgraph.InputsLength() != len(input_tensors):
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} decomposition input count mismatch"
+            )
+        if decomposition_subgraph.OutputsLength() != 1:
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_COMPOSITE {composite_name} only supports single-output decompositions"
+            )
+
+        decomposition_exp_tab = ExprTable()
+        decomposition_converter = OperatorConverter(
+            self.model, decomposition_subgraph, decomposition_exp_tab, self.bb
+        )
+        for decomposition_input_idx, composite_input in zip(
+            decomposition_subgraph.InputsAsNumpy(), input_tensors
+        ):
+            decomposition_input_name = get_tensor_name(
+                decomposition_subgraph, int(decomposition_input_idx)
+            )
+            decomposition_exp_tab.set_expr(
+                decomposition_input_name,
+                self.get_tensor_expr(composite_input),
+                force_override=True,
+            )
+
+        decomposition_converter.check_unsupported_ops()
+        decomposition_converter.convert_op_to_relax()
+        decomposition_output_idx = int(decomposition_subgraph.Outputs(0))
+        decomposition_output_tensor = decomposition_converter.get_tensors(
+            [decomposition_output_idx]
+        )[0]
+        for const_expr, value in decomposition_exp_tab.params.values():
+            param_name = f"_param_{self.exp_tab.const_ctr}"
+            self.exp_tab.const_ctr += 1
+            self.exp_tab.params[param_name] = (const_expr, value)
+        return decomposition_converter.get_tensor_expr(decomposition_output_tensor)
+
+    def _convert_stablehlo_sort(self, op):
+        """Convert the single-input STABLEHLO_SORT subset to Relax sort."""
+        from tflite.StablehloCompareOptions import StablehloCompareOptions
+        from tflite.StablehloComparisonDirection import StablehloComparisonDirection
+        from tflite.StablehloComparisonType import StablehloComparisonType
+        from tflite.StablehloSortOptions import StablehloSortOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT only supports single-input single-output sort"
+            )
+
+        opts = self._get_stablehlo_options(op, StablehloSortOptions)
+        if opts.IsStable():
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT stable sort is not supported")
+
+        body_op = self._get_stablehlo_simple_body_op(
+            int(opts.ComparatorSubgraphIndex()), "STABLEHLO_SORT", 2
+        )
+        comparator_name = self.get_op_code_str(body_op)
+        if comparator_name != "STABLEHLO_COMPARE":
+            raise tvm.error.OpNotImplemented(
+                f"STABLEHLO_SORT comparator {comparator_name} is not supported"
+            )
+
+        compare_opts = self._get_stablehlo_options(body_op, StablehloCompareOptions)
+        if (
+            compare_opts.CompareType()
+            == StablehloComparisonType.STABLEHLO_COMPARISON_TYPE_FLOAT_TOTAL_ORDER
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_SORT with TOTALORDER comparator is not supported"
+            )
+
+        direction = compare_opts.ComparisonDirection()
+        _DIR = StablehloComparisonDirection
+        if direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_LT:
+            descending = False
+        elif direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_GT:
+            descending = True
+        else:
+            raise tvm.error.OpNotImplemented("STABLEHLO_SORT only supports LT or GT comparators")
+
+        data = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.sort(data, axis=int(opts.Dimension()), descending=descending)
+        )
+
+    def _get_builtin_options(self, op, options_cls):
+        """Parse BuiltinOptions for a TFLite builtin operator."""
+        from tflite.BuiltinOptions import BuiltinOptions
+
+        op_options = op.BuiltinOptions()
+        if op_options is None:
+            raise tvm.error.OpNotImplemented(f"{options_cls.__name__} is required")
+
+        options_type = getattr(BuiltinOptions, options_cls.__name__, None)
+        if options_type is not None and op.BuiltinOptionsType() != options_type:
+            raise tvm.error.OpNotImplemented(
+                f"Unexpected BuiltinOptions type: expected "
+                f"{options_cls.__name__}, got {op.BuiltinOptionsType()}"
+            )
+        result = options_cls()
+        result.Init(op_options.Bytes, op_options.Pos)
+        return result
+
+    def _get_subgraph(self, subgraph_index, op_name, allow_main=False):
+        """Return a validated TFLite subgraph by index."""
+        if subgraph_index < 0 or subgraph_index >= self.model.SubgraphsLength():
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a valid subgraph index")
+        if not allow_main and subgraph_index == 0:
+            raise tvm.error.OpNotImplemented(f"{op_name} cannot target the main subgraph")
+        return self.model.Subgraphs(subgraph_index)
+
+    def _make_tuple_or_single(self, exprs):
+        """Return a single expression or Relax tuple for a list of expressions."""
+        if len(exprs) == 1:
+            return exprs[0]
+        return relax.Tuple(exprs)
+
+    def _indices_or_empty(self, indices):
+        """Return a TFLite index vector, using an empty list for absent vectors."""
+        return indices if indices is not None else []
+
+    def _check_subgraph_io(self, subgraph_index, op_name, input_count=None, output_count=None):
+        """Validate a referenced subgraph's input and output counts."""
+        subgraph = self._get_subgraph(subgraph_index, op_name)
+        if input_count is not None and subgraph.InputsLength() != input_count:
+            raise tvm.error.OpNotImplemented(f"{op_name} subgraph input count mismatch")
+        if output_count is not None and subgraph.OutputsLength() != output_count:
+            raise tvm.error.OpNotImplemented(f"{op_name} subgraph output count mismatch")
+        return subgraph
+
+    def _check_subgraph_interface(
+        self,
+        subgraph_index,
+        op_name,
+        input_tensors=None,
+        output_tensors=None,
+        input_count=None,
+        output_count=None,
+    ):
+        """Validate a referenced subgraph's arity and tensor metadata."""
+        if input_tensors is not None:
+            input_count = len(input_tensors)
+        if output_tensors is not None:
+            output_count = len(output_tensors)
+
+        subgraph = self._check_subgraph_io(
+            subgraph_index, op_name, input_count=input_count, output_count=output_count
+        )
+        if input_tensors is not None:
+            self._check_subgraph_tensor_metadata(
+                subgraph,
+                op_name,
+                "subgraph input",
+                subgraph.InputsAsNumpy(),
+                input_tensors,
+            )
+        if output_tensors is not None:
+            self._check_subgraph_tensor_metadata(
+                subgraph,
+                op_name,
+                "subgraph output",
+                subgraph.OutputsAsNumpy(),
+                output_tensors,
+            )
+        return subgraph
+
+    def _get_tensor_metadata(self, tensor):
+        """Return static shape and dtype metadata for a TFLite tensor."""
+        if isinstance(tensor, TensorWrapper):
+            tensor = tensor.tensor
+        shape = tuple(tensor.ShapeAsNumpy()) if tensor.ShapeLength() > 0 else ()
+        dtype = self.get_tensor_type_str(tensor.Type())
+        return shape, dtype
+
+    def _check_tensor_metadata_match(self, actual, expected, op_name, tensor_role):
+        """Validate that two TFLite tensors have matching static metadata."""
+        if self._get_tensor_metadata(actual) != self._get_tensor_metadata(expected):
+            raise tvm.error.OpNotImplemented(f"{op_name} {tensor_role} tensor metadata mismatch")
+
+    def _check_subgraph_tensor_metadata(
+        self, subgraph, op_name, tensor_role, subgraph_indices, expected_tensors
+    ):
+        """Validate referenced subgraph tensor metadata against caller tensors."""
+        for subgraph_index, expected_tensor in zip(
+            self._indices_or_empty(subgraph_indices), expected_tensors
+        ):
+            self._check_tensor_metadata_match(
+                subgraph.Tensors(int(subgraph_index)),
+                expected_tensor,
+                op_name,
+                tensor_role,
+            )
+
+    def _require_scalar_bool_tensor(self, tensor, op_name):
+        """Validate that a TFLite tensor is a scalar bool tensor."""
+        if isinstance(tensor, TensorWrapper):
+            tensor = tensor.tensor
+        dtype = self.get_tensor_type_str(tensor.Type())
+        if dtype != "bool" or tensor.ShapeLength() != 0:
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a scalar bool condition")
+
+    def _get_subgraph_params(self, subgraph):
+        """Create Relax parameters for a TFLite subgraph."""
+        params = []
+        exp_tab = ExprTable()
+        for input_index in self._indices_or_empty(subgraph.InputsAsNumpy()):
+            tensor = subgraph.Tensors(int(input_index))
+            input_name = get_tensor_name(subgraph, int(input_index))
+            shape = tuple(tensor.ShapeAsNumpy()) if tensor.ShapeLength() > 0 else []
+            dtype = self.get_tensor_type_str(tensor.Type())
+            param = relax.Var(input_name, relax.TensorStructInfo(shape=shape, dtype=dtype))
+            exp_tab.set_expr(input_name, param)
+            params.append(param)
+        return params, exp_tab
+
+    def _get_tensor_param(self, tensor_wrapper):
+        """Create a Relax parameter from TFLite tensor metadata."""
+        name = get_tensor_name(self.subgraph, tensor_wrapper.tensor_idx)
+        shape = (
+            tuple(tensor_wrapper.tensor.ShapeAsNumpy())
+            if tensor_wrapper.tensor.ShapeLength() > 0
+            else []
+        )
+        dtype = self.get_tensor_type_str(tensor_wrapper.tensor.Type())
+        return relax.Var(name, relax.TensorStructInfo(shape=shape, dtype=dtype))
+
+    def _lower_subgraph_to_function(self, subgraph_index, function_name_hint, op_name="CALL"):
+        """Lower a TFLite subgraph into a private Relax function."""
+        lowered_subgraphs = self.conversion_state["lowered_subgraphs"]
+        if subgraph_index in lowered_subgraphs:
+            return lowered_subgraphs[subgraph_index]
+
+        lowering_stack = self.conversion_state["lowering_stack"]
+        if subgraph_index in lowering_stack:
+            raise tvm.error.OpNotImplemented(
+                f"Recursive TFLite {op_name} subgraphs are not supported"
+            )
+
+        subgraph = self._get_subgraph(subgraph_index, op_name)
+        lowering_stack.append(subgraph_index)
+        try:
+            params, subgraph_exp_tab = self._get_subgraph_params(subgraph)
+            subgraph_bb = relax.BlockBuilder()
+            with subgraph_bb.function(function_name_hint, params=params, private=True):
+                with subgraph_bb.dataflow():
+                    subgraph_converter = type(self)(
+                        self.model,
+                        subgraph,
+                        subgraph_exp_tab,
+                        subgraph_bb,
+                        self.conversion_state,
+                    )
+                    subgraph_converter.check_unsupported_ops()
+                    subgraph_converter.convert_op_to_relax()
+                    output_tensors = subgraph_converter.get_tensors(subgraph.OutputsAsNumpy())
+                    outputs = [
+                        subgraph_converter.get_tensor_expr(tensor) for tensor in output_tensors
+                    ]
+                    output = subgraph_bb.emit_output(self._make_tuple_or_single(outputs))
+                subgraph_bb.emit_func_output(output)
+
+            subgraph_mod = subgraph_bb.get()
+            module_builder = self.conversion_state["module_builder"]
+            gv = module_builder.add_func(subgraph_mod[function_name_hint], function_name_hint)
+            lowered_subgraphs[subgraph_index] = gv
+            return gv
+        finally:
+            lowering_stack.pop()
+
+    def _bind_call_outputs(self, call, output_count):
+        """Return per-output expressions from a single or tuple-valued call."""
+        if output_count == 1:
+            return [call]
+        return [call[index] for index in range(output_count)]
+
+    def _lower_if_to_function(
+        self,
+        then_subgraph_index,
+        else_subgraph_index,
+        input_tensors,
+        branch_input_count,
+        output_count,
+    ):
+        """Lower a TFLite IF op into a private Relax function."""
+        cache_key = (then_subgraph_index, else_subgraph_index, branch_input_count, output_count)
+        lowered_if_functions = self.conversion_state["lowered_if_functions"]
+        if cache_key in lowered_if_functions:
+            return lowered_if_functions[cache_key]
+
+        then_func = self._lower_subgraph_to_function(
+            then_subgraph_index,
+            f"tflite_if_then_subgraph_{then_subgraph_index}",
+            op_name="IF",
+        )
+        else_func = self._lower_subgraph_to_function(
+            else_subgraph_index,
+            f"tflite_if_else_subgraph_{else_subgraph_index}",
+            op_name="IF",
+        )
+        if_name = f"tflite_if_subgraph_{then_subgraph_index}_{else_subgraph_index}"
+        params = [self._get_tensor_param(tensor) for tensor in input_tensors]
+        cond = params[0]
+        branch_args = params[1:]
+
+        if_bb = relax.BlockBuilder()
+        with if_bb.function(if_name, params=params, private=True):
+            result = relax.If(
+                cond,
+                relax.Call(then_func, branch_args),
+                relax.Call(else_func, branch_args),
+            )
+            if_bb.emit_func_output(result)
+        if_func = if_bb.get()[if_name]
+        module_builder = self.conversion_state["module_builder"]
+        gv = module_builder.add_func(if_func, if_name)
+        lowered_if_functions[cache_key] = gv
+        return gv
+
+    def _lower_while_to_function(
+        self,
+        cond_subgraph_index,
+        body_subgraph_index,
+        loop_var_count,
+        cond_func,
+        body_func,
+        body_subgraph,
+    ):
+        """Lower a TFLite WHILE op into a recursive private Relax function."""
+        cache_key = (cond_subgraph_index, body_subgraph_index, loop_var_count)
+        lowered_while_functions = self.conversion_state["lowered_while_functions"]
+        if cache_key in lowered_while_functions:
+            return lowered_while_functions[cache_key]
+
+        loop_name = f"tflite_while_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
+        params, _ = self._get_subgraph_params(body_subgraph)
+        dummy_body = self._make_tuple_or_single(params)
+        module_builder = self.conversion_state["module_builder"]
+        loop_gv = module_builder.add_func(relax.Function(params, dummy_body), loop_name)
+        lowered_while_functions[cache_key] = loop_gv
+
+        loop_bb = relax.BlockBuilder()
+        with loop_bb.function(loop_name, params=params, private=True):
+            cond = loop_bb.emit(relax.Call(cond_func, params), "while_cond")
+            next_state = relax.Call(body_func, params)
+            next_args = self._bind_call_outputs(next_state, loop_var_count)
+            true_branch = relax.Call(loop_gv, next_args)
+            false_branch = self._make_tuple_or_single(params)
+            result = relax.If(cond, true_branch, false_branch)
+            loop_bb.emit_func_output(result)
+        loop_func = loop_bb.get()[loop_name]
+        module_builder.update_func(loop_gv, loop_func)
+        return loop_gv
+
+    def convert_call(self, op):
+        """Convert TFLite CALL to a Relax private function call."""
+        from tflite.CallOptions import CallOptions
+
+        opts = self._get_builtin_options(op, CallOptions)
+        subgraph_index = int(opts.Subgraph())
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        self._check_subgraph_interface(
+            subgraph_index,
+            "CALL",
+            input_tensors=input_tensors,
+            output_tensors=output_tensors,
+        )
+
+        callee = self._lower_subgraph_to_function(
+            subgraph_index, f"tflite_call_subgraph_{subgraph_index}", op_name="CALL"
+        )
+        args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
+        return relax.Call(callee, args)
+
+    def convert_if(self, op):
+        """Convert TFLite IF to Relax If with private branch functions."""
+        from tflite.IfOptions import IfOptions
+
+        opts = self._get_builtin_options(op, IfOptions)
+        then_subgraph_index = int(opts.ThenSubgraphIndex())
+        else_subgraph_index = int(opts.ElseSubgraphIndex())
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) < 1:
+            raise tvm.error.OpNotImplemented("IF requires a condition input")
+
+        self._require_scalar_bool_tensor(input_tensors[0], "IF")
+        branch_input_count = len(input_tensors) - 1
+        output_count = len(output_tensors)
+        branch_input_tensors = input_tensors[1:]
+        self._check_subgraph_interface(
+            then_subgraph_index,
+            "IF",
+            input_tensors=branch_input_tensors,
+            output_tensors=output_tensors,
+        )
+        self._check_subgraph_interface(
+            else_subgraph_index,
+            "IF",
+            input_tensors=branch_input_tensors,
+            output_tensors=output_tensors,
+        )
+
+        if_func = self._lower_if_to_function(
+            then_subgraph_index,
+            else_subgraph_index,
+            input_tensors,
+            branch_input_count,
+            output_count,
+        )
+        args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
+        return relax.Call(if_func, args)
+
+    def convert_while(self, op):
+        """Convert TFLite WHILE to a recursive Relax private function."""
+        from tflite.WhileOptions import WhileOptions
+
+        opts = self._get_builtin_options(op, WhileOptions)
+        cond_subgraph_index = int(opts.CondSubgraphIndex())
+        body_subgraph_index = int(opts.BodySubgraphIndex())
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        loop_var_count = len(input_tensors)
+        if loop_var_count == 0:
+            raise tvm.error.OpNotImplemented("WHILE requires loop-carried inputs")
+        if len(output_tensors) != loop_var_count:
+            raise tvm.error.OpNotImplemented("WHILE output count must match input count")
+
+        cond_subgraph = self._check_subgraph_interface(
+            cond_subgraph_index,
+            "WHILE",
+            input_tensors=input_tensors,
+            output_count=1,
+        )
+        body_subgraph = self._check_subgraph_interface(
+            body_subgraph_index,
+            "WHILE",
+            input_tensors=input_tensors,
+            output_tensors=input_tensors,
+        )
+        for input_tensor, output_tensor in zip(input_tensors, output_tensors):
+            self._check_tensor_metadata_match(input_tensor, output_tensor, "WHILE", "loop state")
+        cond_output = cond_subgraph.Tensors(int(cond_subgraph.Outputs(0)))
+        self._require_scalar_bool_tensor(cond_output, "WHILE")
+
+        cond_func = self._lower_subgraph_to_function(
+            cond_subgraph_index,
+            f"tflite_while_cond_subgraph_{cond_subgraph_index}",
+            op_name="WHILE",
+        )
+        body_func = self._lower_subgraph_to_function(
+            body_subgraph_index,
+            f"tflite_while_body_subgraph_{body_subgraph_index}",
+            op_name="WHILE",
+        )
+
+        loop_gv = self._lower_while_to_function(
+            cond_subgraph_index,
+            body_subgraph_index,
+            loop_var_count,
+            cond_func,
+            body_func,
+            body_subgraph,
+        )
+
+        args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
+        return relax.Call(loop_gv, args)
+
+    def convert_call_once(self, op):
+        """Convert the no-op subset of TFLite CALL_ONCE.
+
+        Non-empty CALL_ONCE init subgraphs are used for resource initialization
+        side effects in TFLite.  The Relax TFLite frontend does not yet support
+        TFLite resource variable operators, so only the empty no-op form is safe
+        to import.
+        """
+        from tflite.CallOnceOptions import CallOnceOptions
+
+        opts = self._get_builtin_options(op, CallOnceOptions)
+        init_subgraph_index = int(opts.InitSubgraphIndex())
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 0 or len(output_tensors) != 0:
+            raise tvm.error.OpNotImplemented("CALL_ONCE with inputs or outputs is not supported")
+
+        init_subgraph = self._get_subgraph(init_subgraph_index, "CALL_ONCE")
+        if init_subgraph.InputsLength() != 0 or init_subgraph.OutputsLength() != 0:
+            raise tvm.error.OpNotImplemented(
+                "CALL_ONCE with non-empty init subgraph I/O is not supported"
+            )
+        if init_subgraph.OperatorsLength() != 0:
+            raise tvm.error.OpNotImplemented(
+                "CALL_ONCE with non-empty init subgraphs is not supported"
+            )
+        return None
 
     def _convert_stablehlo_convert(self, op):
         """Convert STABLEHLO_CONVERT to Relax (astype).
@@ -1719,6 +2553,189 @@ class OperatorConverter:
 
         return self.bb.normalize(relax.op.dynamic_strided_slice(operand, begin, end, strides))
 
+    def _convert_stablehlo_dynamic_update_slice(self, op):
+        """Convert STABLEHLO_DYNAMIC_UPDATE_SLICE to Relax for static starts."""
+        input_tensors = self.get_input_tensors(op)
+        # operand + update + N start-index scalars
+        assert len(input_tensors) >= 3, "input tensors length should be >= 3"
+        assert len(self.get_output_tensors(op)) == 1
+
+        operand_tensor = input_tensors[0]
+        update_tensor = input_tensors[1]
+        start_tensors = input_tensors[2:]
+
+        op_name = "STABLEHLO_DYNAMIC_UPDATE_SLICE"
+        operand_shape = self._get_static_tensor_shape(operand_tensor, op_name)
+        update_shape = self._get_static_tensor_shape(update_tensor, op_name)
+        rank = len(operand_shape)
+        if len(update_shape) != rank or len(start_tensors) != rank:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DYNAMIC_UPDATE_SLICE requires operand, update, "
+                "and start-index ranks to match"
+            )
+
+        if any(self.has_expr(t.tensor_idx) for t in start_tensors):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DYNAMIC_UPDATE_SLICE with dynamic start indices is not supported"
+            )
+
+        start_vals = [int(np.asarray(self.get_tensor_value(t)).item()) for t in start_tensors]
+        for start, size, dim in zip(start_vals, update_shape, operand_shape):
+            if start < 0 or start + size > dim:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_DYNAMIC_UPDATE_SLICE with out-of-bounds update "
+                    "indices is not supported"
+                )
+
+        update_indices = np.indices(update_shape, dtype=np.int64)
+        for axis, start in enumerate(start_vals):
+            update_indices[axis] += start
+        update_indices = np.moveaxis(update_indices, 0, -1)
+
+        operand = self.get_tensor_expr(operand_tensor)
+        update = self.get_tensor_expr(update_tensor)
+        indices = self.bb.normalize(relax.const(update_indices, dtype="int64"))
+        return self.bb.normalize(relax.op.scatter_nd(operand, indices, update, "update"))
+
+    def _convert_stablehlo_dot_general(self, op):
+        """Convert the canonical 2D STABLEHLO_DOT_GENERAL subset to Relax matmul."""
+        from tflite.StablehloDotGeneralOptions import StablehloDotGeneralOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloDotGeneralOptions)
+        lhs_batch_dims = self._get_stablehlo_i64_vector(opts.LhsBatchingDimensionsAsNumpy(), [])
+        rhs_batch_dims = self._get_stablehlo_i64_vector(opts.RhsBatchingDimensionsAsNumpy(), [])
+        lhs_contract_dims = self._get_stablehlo_i64_vector(
+            opts.LhsContractingDimensionsAsNumpy(), []
+        )
+        rhs_contract_dims = self._get_stablehlo_i64_vector(
+            opts.RhsContractingDimensionsAsNumpy(), []
+        )
+
+        lhs_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_DOT_GENERAL")
+        rhs_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_DOT_GENERAL")
+        if len(lhs_shape) != 2 or len(rhs_shape) != 2:
+            raise tvm.error.OpNotImplemented("STABLEHLO_DOT_GENERAL only supports 2D matmul")
+        if lhs_batch_dims or rhs_batch_dims:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DOT_GENERAL with batching dimensions is not supported"
+            )
+        if lhs_contract_dims != [1] or rhs_contract_dims != [0]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_DOT_GENERAL only supports canonical contracting dimensions"
+            )
+
+        lhs = self.get_tensor_expr(input_tensors[0])
+        rhs = self.get_tensor_expr(input_tensors[1])
+        return self.bb.normalize(relax.op.matmul(lhs, rhs))
+
+    def _convert_stablehlo_convolution(self, op):
+        """Convert the canonical 2D NHWC/HWIO STABLEHLO_CONVOLUTION subset."""
+        from tflite.StablehloConvolutionOptions import StablehloConvolutionOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloConvolutionOptions)
+        input_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.InputSpatialDimensionsAsNumpy(), []
+        )
+        kernel_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.KernelSpatialDimensionsAsNumpy(), []
+        )
+        output_spatial_dims = self._get_stablehlo_i64_vector(
+            opts.OutputSpatialDimensionsAsNumpy(), []
+        )
+        if input_spatial_dims != [1, 2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports NHWC input layout"
+            )
+        if kernel_spatial_dims != [0, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports HWIO kernel layout"
+            )
+        if output_spatial_dims != [1, 2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports NHWC output layout"
+            )
+
+        if (
+            int(opts.InputBatchDimension()) != 0
+            or int(opts.InputFeatureDimension()) != 3
+            or int(opts.KernelInputFeatureDimension()) != 2
+            or int(opts.KernelOutputFeatureDimension()) != 3
+            or int(opts.OutputBatchDimension()) != 0
+            or int(opts.OutputFeatureDimension()) != 3
+        ):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports canonical NHWC/HWIO dimension numbers"
+            )
+        if int(opts.BatchGroupCount()) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with batch_group_count > 1 is not supported"
+            )
+        if int(opts.FeatureGroupCount()) != 1:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with feature_group_count > 1 is not supported"
+            )
+
+        data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_CONVOLUTION")
+        kernel_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_CONVOLUTION")
+        if len(data_shape) != 4 or len(kernel_shape) != 4:
+            raise tvm.error.OpNotImplemented("STABLEHLO_CONVOLUTION only supports 2D convolution")
+        if data_shape[3] != kernel_shape[2]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION input channels must match kernel input channels"
+            )
+
+        window_strides = self._get_stablehlo_i64_vector(opts.WindowStridesAsNumpy(), [1, 1])
+        padding = self._get_stablehlo_i64_vector(opts.PaddingAsNumpy(), [0, 0, 0, 0])
+        lhs_dilation = self._get_stablehlo_i64_vector(opts.LhsDilationAsNumpy(), [1, 1])
+        rhs_dilation = self._get_stablehlo_i64_vector(opts.RhsDilationAsNumpy(), [1, 1])
+        window_reversal = opts.WindowReversalAsNumpy()
+        window_reversal = (
+            [False, False] if window_reversal is None else [bool(v) for v in window_reversal]
+        )
+
+        if len(window_strides) != 2 or len(rhs_dilation) != 2:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports two spatial dimensions"
+            )
+        if lhs_dilation != [1, 1]:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with lhs dilation is not supported"
+            )
+        if any(window_reversal):
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION with window reversal is not supported"
+            )
+        if len(padding) != 4:
+            raise tvm.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports 2D low/high padding"
+            )
+
+        # StableHLO stores padding as [low_h, high_h, low_w, high_w].
+        relax_padding = [padding[0], padding[2], padding[1], padding[3]]
+        data = self.get_tensor_expr(input_tensors[0])
+        kernel = self.get_tensor_expr(input_tensors[1])
+        self._ensure_stablehlo_float_dtype(data, "STABLEHLO_CONVOLUTION")
+        self._ensure_stablehlo_float_dtype(kernel, "STABLEHLO_CONVOLUTION")
+        return self.bb.normalize(
+            relax.op.nn.conv2d(
+                data,
+                kernel,
+                strides=window_strides,
+                padding=relax_padding,
+                dilation=rhs_dilation,
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+        )
+
     def _convert_stablehlo_gather(self, op):
         """Convert STABLEHLO_GATHER to Relax (take-equivalent subset only).
 
@@ -1841,7 +2858,7 @@ class OperatorConverter:
 
         return out
 
-    def _convert_elemwise(self, op, relax_op, relax_qnn_op=None, comparison_op=False):
+    def _convert_elemwise(self, op, relax_op, comparison_op=False):
         """Generic method to Convert TFLite elemwise"""
 
         from tflite.AddOptions import AddOptions
@@ -1850,7 +2867,6 @@ class OperatorConverter:
         from tflite.MulOptions import MulOptions
         from tflite.SubOptions import SubOptions
 
-        ignore_qnn_params = self.is_quantized(op)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
@@ -1858,36 +2874,19 @@ class OperatorConverter:
         rhs_tensor = input_tensors[1]
         lhs_expr = self.get_tensor_expr(lhs_tensor)
         rhs_expr = self.get_tensor_expr(rhs_tensor)
+        input_is_quantized = lhs_tensor.qnn_params is not None or rhs_tensor.qnn_params is not None
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        # TFLite format demands equal scale and zero_point tuple parameters for some operations
-        # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
-        if ignore_qnn_params and not comparison_op:
-            assert (
-                lhs_tensor.qnn_params
-                and self.has_same_qnn_params(lhs_tensor, output_tensor)
-                and self.has_same_qnn_params(rhs_tensor, output_tensor)
-            ), "All tensors should be quantized with the same (scale,zero-point) tuple parameters"
+        if input_is_quantized:
+            if lhs_tensor.qnn_params:
+                lhs_expr = self.dequantize(lhs_expr, lhs_tensor)
+            if rhs_tensor.qnn_params:
+                rhs_expr = self.dequantize(rhs_expr, rhs_tensor)
 
-        # If quantized, extracts qnn params and call QNN add operator.
-        if not ignore_qnn_params and lhs_tensor.qnn_params:
-            assert rhs_tensor.qnn_params, "Both tensors should be quantized."
-            assert output_tensor.qnn_params, "Output tensor should be quantized."
-            out = relax_op(
-                lhs=lhs_expr,
-                rhs=rhs_expr,
-                lhs_scale=lhs_tensor.qnn_params["scale"],
-                lhs_zero_point=lhs_tensor.qnn_params["zero_point"],
-                rhs_scale=rhs_tensor.qnn_params["scale"],
-                rhs_zero_point=rhs_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-            )
-        else:
-            out = relax_op(lhs_expr, rhs_expr)
+        out = relax_op(lhs_expr, rhs_expr)
 
         # Options (fused_activation_function)
         options = None
@@ -1905,20 +2904,14 @@ class OperatorConverter:
             options.Init(op_options.Bytes, op_options.Pos)
             fused_activation_fn = options.FusedActivationFunction()
 
-            # Handle fused activations
-            if not ignore_qnn_params and output_tensor.qnn_params:
-                scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
-                zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
-                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
-                out = self.convert_qnn_fused_activation_function(
-                    expr=out,
-                    fused_activation_fn=fused_activation_fn,
-                    scale=scale_val,
-                    zero_point=zero_point_val,
-                    dtype=output_tensor_type_str,
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        if input_is_quantized and not comparison_op:
+            if not output_tensor.qnn_params:
+                raise tvm.error.OpAttributeInvalid(
+                    "Quantized TFLite elemwise operator output must have quantization parameters"
                 )
-            else:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_add_n(self, op):
@@ -2441,26 +3434,183 @@ class OperatorConverter:
             keep_dims = False
 
         if input_tensor.qnn_params:
-            in_expr = relax.op.cast(in_expr, "int32")
+            in_expr = self.dequantize(in_expr, input_tensor)
 
         out = relax_op(in_expr, axis, keep_dims)
 
-        # Finally if the reduce is quantized. Add a requantize at the end.
+        # Finally if the reduce is quantized. Quantize the output.
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
         if output_tensor.qnn_params:
-            out = _qnn.op.requantize(
-                out,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            out = self.quantize(out, output_tensor)
 
         return out
+
+    def convert_reduce_window(self, op):
+        """Convert TFLite REDUCE_WINDOW."""
+
+        from tflite.BuiltinOptions2 import BuiltinOptions2
+        from tflite.ReduceWindowFunction import ReduceWindowFunction
+        from tflite.ReduceWindowOptions import ReduceWindowOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 5:
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW requires 5 input tensors."
+            )
+        if len(output_tensors) != 1:
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW requires 1 output tensor."
+            )
+
+        if op.BuiltinOptions2Type() != BuiltinOptions2.ReduceWindowOptions:
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW requires ReduceWindowOptions."
+            )
+
+        (
+            input_tensor,
+            init_tensor,
+            window_shape_tensor,
+            window_strides_tensor,
+            window_dilations_tensor,
+        ) = input_tensors
+        output_tensor = output_tensors[0]
+
+        if any(
+            self.has_expr(tensor.tensor_idx)
+            for tensor in [window_shape_tensor, window_strides_tensor, window_dilations_tensor]
+        ):
+            raise tvm.error.OpNotImplemented(
+                "TFLite REDUCE_WINDOW requires constant window_shape, "
+                "window_strides, and window_dilations."
+            )
+
+        input_shape = to_int_list(self.get_tensor_shape(input_tensor))
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        input_dtype = self.get_tensor_type_str(input_tensor.tensor.Type())
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+
+        if input_tensor.qnn_params or output_tensor.qnn_params:
+            raise tvm.error.OpNotImplemented(
+                "Quantized TFLite REDUCE_WINDOW is not yet supported in the Relax frontend."
+            )
+
+        if input_dtype != output_dtype:
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW requires input and output dtypes to match."
+            )
+
+        init_shape = to_int_list(self.get_tensor_shape(init_tensor))
+        if math.prod(init_shape) != 1:
+            raise tvm.error.OpNotImplemented(
+                "TFLite REDUCE_WINDOW requires init_value to contain exactly one element."
+            )
+
+        options = ReduceWindowOptions()
+        op_options = op.BuiltinOptions2()
+        options.Init(op_options.Bytes, op_options.Pos)
+        reduce_function = options.ReduceFunction()
+
+        if reduce_function == ReduceWindowFunction.UNSUPPORTED:
+            raise tvm.error.OpNotImplemented(
+                "TFLite REDUCE_WINDOW with UNSUPPORTED reduce_function is not supported."
+            )
+
+        window_shape = to_int_list(self.get_tensor_value(window_shape_tensor))
+        window_strides = to_int_list(self.get_tensor_value(window_strides_tensor))
+        window_dilations = to_int_list(self.get_tensor_value(window_dilations_tensor))
+        rank = len(input_shape)
+
+        if not (len(window_shape) == len(window_strides) == len(window_dilations) == rank):
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW window_shape, window_strides, and window_dilations "
+                "must match input rank."
+            )
+
+        if any(value <= 0 for value in window_shape + window_strides + window_dilations):
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW window dimensions, strides, and dilations must be positive."
+            )
+
+        dilated_window_shape = [
+            (window_dim - 1) * dilation + 1
+            for window_dim, dilation in zip(window_shape, window_dilations)
+        ]
+        expected_output_shape = [
+            0 if input_dim < dilated_dim else (input_dim - dilated_dim) // stride + 1
+            for input_dim, dilated_dim, stride in zip(
+                input_shape, dilated_window_shape, window_strides
+            )
+        ]
+
+        numeric_reduce_functions = {
+            ReduceWindowFunction.ADD: (relax.op.sum, relax.op.add),
+            ReduceWindowFunction.MUL: (relax.op.prod, relax.op.multiply),
+            ReduceWindowFunction.MINIMUM: (relax.op.min, relax.op.minimum),
+            ReduceWindowFunction.MAXIMUM: (relax.op.max, relax.op.maximum),
+        }
+        bool_reduce_functions = {
+            ReduceWindowFunction.ALL: (relax.op.min, relax.op.logical_and),
+            ReduceWindowFunction.ANY: (relax.op.max, relax.op.logical_or),
+        }
+
+        if reduce_function in numeric_reduce_functions and input_dtype == "bool":
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW numeric reductions expect numeric input."
+            )
+        if reduce_function in bool_reduce_functions and input_dtype != "bool":
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW boolean reductions expect bool input."
+            )
+
+        if output_shape != expected_output_shape:
+            raise tvm.error.OpAttributeUnImplemented(
+                "TFLite REDUCE_WINDOW output shape does not match input/window parameters."
+            )
+
+        if any(output_dim == 0 for output_dim in output_shape):
+            return relax.op.zeros(output_shape, output_dtype)
+
+        data = self.get_tensor_expr(input_tensor)
+        init_value = self.get_tensor_expr(init_tensor)
+        if len(init_shape) != 0:
+            init_value = relax.op.reshape(init_value, [])
+
+        windowed = relax.op.call_dps_packed(
+            "topi.sliding_window",
+            (
+                data,
+                0,
+                relax.ShapeExpr(dilated_window_shape),
+                relax.ShapeExpr(window_strides),
+            ),
+            out_sinfo=relax.TensorStructInfo(output_shape + dilated_window_shape, input_dtype),
+        )
+
+        if any(dilation != 1 for dilation in window_dilations):
+            windowed = relax.op.strided_slice(
+                windowed,
+                axes=list(range(rank, 2 * rank)),
+                begin=[0] * rank,
+                end=dilated_window_shape,
+                strides=window_dilations,
+            )
+
+        reduce_axes = list(range(rank, 2 * rank))
+        if reduce_function in numeric_reduce_functions:
+            reduce_op, combine_op = numeric_reduce_functions[reduce_function]
+            return combine_op(reduce_op(windowed, axis=reduce_axes), init_value)
+        if reduce_function in bool_reduce_functions:
+            reduce_op, combine_op = bool_reduce_functions[reduce_function]
+            reduced = reduce_op(relax.op.astype(windowed, "int8"), axis=reduce_axes)
+            return combine_op(relax.op.astype(reduced, "bool"), init_value)
+
+        raise tvm.error.OpNotImplemented(
+            f"TFLite REDUCE_WINDOW reduce_function {reduce_function} is not supported."
+        )
 
     def _convert_reduce_bool(self, relax_op, op):
         """Convert TFLite REDUCE_ANY / REDUCE_ALL (bool-only ops).
@@ -2575,20 +3725,24 @@ class OperatorConverter:
         )
 
         weight_expr = self.get_tensor_expr(weight_tensor)
-        weight_shape = weight_expr.struct_info.shape
         weight_expr = relax.op.permute_dims(weight_expr, [1, 0])
 
         if input_tensor.qnn_params:
-            out = _qnn.op.dense(
-                in_expr,
+            # Dequantize input and weight (OC remapped from axis 0 to 1)
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_axis = weight_tensor.qnn_params["axis"]
+            if weight_axis != 0:
+                raise tvm.error.OpAttributeInvalid(
+                    f"FC weight QuantizedDimension() must be 0 (output-channel "
+                    f"axis in [OC,IC] layout), got {weight_axis}"
+                )
+            w_f32 = relax.op.dequantize(
                 weight_expr,
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                kernel_zero_point=weight_tensor.qnn_params["zero_point"],
-                input_scale=input_tensor.qnn_params["scale"],
-                kernel_scale=weight_tensor.qnn_params["scale"],
-                units=weight_shape[0],
-                out_dtype="int64" if output_tensor_type_str == "int16" else "int32",
+                scale=weight_tensor.qnn_params["scale"],
+                zero_point=weight_tensor.qnn_params["zero_point"],
+                axis=1,
             )
+            out = relax.op.matmul(in_f32, w_f32)
         else:
             out = relax.op.matmul(in_expr, weight_expr)
 
@@ -2612,27 +3766,27 @@ class OperatorConverter:
                         dtype=bias_tensor_type_str,
                         source_name=bias_tensor.tensor.Name(),
                     )
+                if bias_tensor.qnn_params:
+                    bias_expr = self.dequantize(bias_expr, bias_tensor)
+                elif input_tensor.qnn_params and bias_tensor_type in (
+                    TensorType.INT32,
+                    TensorType.INT64,
+                ):
+                    bias_scale = relax.op.multiply(
+                        input_tensor.qnn_params["scale"],
+                        weight_tensor.qnn_params["scale"],
+                    )
+                    bias_expr = relax.op.dequantize(
+                        bias_expr,
+                        scale=bias_scale,
+                        zero_point=relax.const(0, "int32"),
+                        axis=0,
+                    )
                 out = relax.op.add(out, bias_expr)
 
-        # Finally if the dense is quantized. Add a requantize at the end.
+        # Finally if the dense is quantized. Quantize the output.
         if output_tensor.qnn_params:
-            data_scale = input_tensor.qnn_params["scale"]
-            weight_scale = weight_tensor.qnn_params["scale"]
-            data_scale_val = get_scalar_from_constant(data_scale)
-            weight_scale_val = get_scalar_from_constant(weight_scale)
-            new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relax.const(new_input_scale_val, "float32")
-            new_input_zero_point = relax.const(0, "int32")
-
-            # Requantize
-            out = _qnn.op.requantize(
-                out,
-                input_scale=new_input_scale,
-                input_zero_point=new_input_zero_point,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            out = self.quantize(out, output_tensor)
 
             # Call activation function
             output_scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
@@ -2844,15 +3998,35 @@ class OperatorConverter:
             )
 
         if input_tensor.qnn_params:
-            qnn_conv2d_params = dict(params)
-            qnn_conv2d_params["input_zero_point"] = input_tensor.qnn_params["zero_point"]
-            qnn_conv2d_params["kernel_zero_point"] = weight_tensor.qnn_params["zero_point"]
-            qnn_conv2d_params["out_dtype"] = (
-                "int64" if output_tensor_type_str == "int16" else "int32"
+            # Dequantize input activation
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            # Dequantize weight with per-channel axis remap.
+            # TFLite weight original layout: [OC, KH, KW, IC]
+            # After transpose to HWIO: [KH, KW, IC, OC]
+            # QuantizedDimension() == 0 (OC in original) → axis 3 in HWIO.
+            weight_axis = weight_tensor.qnn_params["axis"]
+            if is_depthwise_conv:
+                if weight_axis != 0:
+                    raise tvm.error.OpNotImplemented(
+                        "Per-channel quantized depthwise convolution is not supported "
+                        "because the channel axis changes semantics after the "
+                        "[1,KH,KW,C*M] → [KH,KW,C,M] reshape."
+                    )
+            else:
+                if weight_axis != 0:
+                    raise tvm.error.OpAttributeInvalid(
+                        f"Conv2D weight QuantizedDimension() must be 0 (output-channel "
+                        f"axis in [OC,KH,KW,IC] layout), got {weight_axis}"
+                    )
+                weight_axis = 3
+            w_f32 = relax.op.dequantize(
+                weight_expr,
+                scale=weight_tensor.qnn_params["scale"],
+                zero_point=weight_tensor.qnn_params["zero_point"],
+                axis=weight_axis,
             )
-            qnn_conv2d_params["input_scale"] = input_tensor.qnn_params["scale"]
-            qnn_conv2d_params["kernel_scale"] = weight_tensor.qnn_params["scale"]
-            out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
+            # Float convolution
+            out = relax.op.nn.conv2d(in_f32, w_f32, **params)
         else:
             out = relax.op.nn.conv2d(in_expr, weight_expr, **params)
 
@@ -2875,37 +4049,31 @@ class OperatorConverter:
                     dtype=bias_tensor_type_str,
                     source_name=bias_tensor.tensor.Name(),
                 )
+            # For quantized conv, INT32/INT64 bias must be dequantized
+            # to float32 before adding to the float conv output.
+            if bias_tensor.qnn_params:
+                bias_expr = self.dequantize(bias_expr, bias_tensor)
+            elif input_tensor.qnn_params and bias_tensor_type in (
+                TensorType.INT32,
+                TensorType.INT64,
+            ):
+                bias_expr = relax.op.dequantize(
+                    bias_expr,
+                    scale=relax.op.multiply(
+                        input_tensor.qnn_params["scale"],
+                        weight_tensor.qnn_params["scale"],
+                    ),
+                    zero_point=relax.const(0, "int32"),
+                    axis=0,
+                )
             out = relax.op.add(out, bias_expr)
 
         # Handle fused activation.
         if output_tensor.qnn_params:
-            # Calculate the intermediate scale and zero point of the int32 output.
-            data_scale = input_tensor.qnn_params["scale"]
-            data_scale_val = get_scalar_from_constant(data_scale)
+            # Quantize the float output using the output tensor's qnn params.
+            out = self.quantize(out, output_tensor)
 
-            weight_scale = weight_tensor.qnn_params["scale"]
-            # If weight scale is scalar, it is per-tensor quantization
-            if isinstance(weight_scale, float):
-                weight_scale_val = get_scalar_from_constant(weight_scale)
-            else:
-                weight_scale_val = get_tensor_from_constant(weight_scale)
-
-            new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relax.const(new_input_scale_val, "float32")
-            new_input_zero_point = relax.const(0, "int32")
-
-            # Finally requantize
-            out = _qnn.op.requantize(
-                out,
-                input_scale=new_input_scale,
-                input_zero_point=new_input_zero_point,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-                axis=3,
-            )
-
-            # Call activation function
+            # Call quantized activation function
             output_scale_val = get_scalar_from_constant(output_tensor.qnn_params["scale"])
             output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params["zero_point"])
             out = self.convert_qnn_fused_activation_function(
@@ -3877,6 +5045,184 @@ class OperatorConverter:
 
         return squeezed
 
+    def convert_rnn(self, op):
+        """Convert TFLite RNN.
+
+        Single-step RNN cell.
+
+        Inputs (5 tensors):
+          [0] input             [batch, input_size]
+          [1] input_weights     [num_units, input_size]
+          [2] recurrent_weights [num_units, num_units]
+          [3] bias              [num_units]
+          [4] hidden_state      [batch, num_units]  (variable, zero-initialised)
+
+        Output:
+          [0] output  [batch, num_units]
+
+        Cell equation:
+          h = fused_activation(x @ W.T + h @ Wr.T + b)
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.RNNOptions import RNNOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented("TFLite quantized RNN is not supported yet.")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, "input tensors length should be 5"
+
+        input_tensor = input_tensors[0]
+        weights_tensor = input_tensors[1]
+        recurrent_tensor = input_tensors[2]
+        bias_tensor = input_tensors[3]
+        hidden_state_tensor = input_tensors[4]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.RNNOptions
+        op_options = op.BuiltinOptions()
+        rnn_options = RNNOptions()
+        rnn_options.Init(op_options.Bytes, op_options.Pos)
+        fused_activation_fn = rnn_options.FusedActivationFunction()
+
+        # Constant weight/bias expressions.
+        weights_expr = self.get_tensor_expr(weights_tensor)  # [num_units, input_size]
+        recurrent_expr = self.get_tensor_expr(recurrent_tensor)  # [num_units, num_units]
+        bias_expr = self.get_tensor_expr(bias_tensor)  # [num_units]
+
+        # Transpose to [input_size, num_units] and [num_units, num_units] for x @ W.T.
+        w_t = relax.op.permute_dims(weights_expr)
+        wr_t = relax.op.permute_dims(recurrent_expr)
+
+        # Resolve the input expression.
+        in_expr = self.get_tensor_expr(input_tensor)
+
+        # Initial hidden state: use the model's tensor value when available (non-zero init or
+        # graph input), otherwise fall back to zeros for the common variable-tensor case.
+        h_dtype = self.get_tensor_type_str(hidden_state_tensor.tensor.Type())
+        if self.has_expr(hidden_state_tensor.tensor_idx) or (
+            hidden_state_tensor.buffer is not None and hidden_state_tensor.buffer.DataLength() > 0
+        ):
+            h = self.get_tensor_expr(hidden_state_tensor)
+        else:
+            h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
+            h = relax.op.zeros(h_shape, dtype=h_dtype)
+
+        gates = relax.op.add(
+            relax.op.add(relax.op.matmul(in_expr, w_t), relax.op.matmul(h, wr_t)),
+            bias_expr,
+        )
+        h = self.convert_fused_activation_function(gates, fused_activation_fn)
+
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, hidden_state_tensor.tensor_idx),
+            h,
+            force_override=True,
+        )
+        return h
+
+    def convert_unidirectional_sequence_rnn(self, op):
+        """Convert TFLite UNIDIRECTIONAL_SEQUENCE_RNN.
+
+        Inputs (5 tensors):
+          [0] input          [batch, time, input_size]  (or [time, batch, input_size] if time_major)
+          [1] input_weights  [num_units, input_size]
+          [2] recurrent_weights [num_units, num_units]
+          [3] bias           [num_units]
+          [4] hidden_state   [batch, num_units]  (variable, zero-initialised)
+
+        Output:
+          [0] output  [batch, time, num_units]
+
+        Cell equation:
+          h_t = fused_activation(x_t @ W.T + h_{t-1} @ Wr.T + b)
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.SequenceRNNOptions import SequenceRNNOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "TFLite quantized UNIDIRECTIONAL_SEQUENCE_RNN is not supported yet."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, "input tensors length should be 5"
+
+        input_tensor = input_tensors[0]
+        weights_tensor = input_tensors[1]
+        recurrent_tensor = input_tensors[2]
+        bias_tensor = input_tensors[3]
+        hidden_state_tensor = input_tensors[4]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SequenceRNNOptions
+        op_options = op.BuiltinOptions()
+        seq_rnn_options = SequenceRNNOptions()
+        seq_rnn_options.Init(op_options.Bytes, op_options.Pos)
+        time_major = seq_rnn_options.TimeMajor()
+        fused_activation_fn = seq_rnn_options.FusedActivationFunction()
+
+        # Constant weight/bias expressions.
+        weights_expr = self.get_tensor_expr(weights_tensor)  # [num_units, input_size]
+        recurrent_expr = self.get_tensor_expr(recurrent_tensor)  # [num_units, num_units]
+
+        # bias is optional (tensor_idx == -1 when absent); default to zeros.
+        if bias_tensor.tensor_idx != -1:
+            bias_expr = self.get_tensor_expr(bias_tensor)  # [num_units]
+        else:
+            num_units = int(self.get_tensor_shape(weights_tensor)[0])
+            bias_dtype = self.get_tensor_type_str(weights_tensor.tensor.Type())
+            bias_expr = relax.op.zeros((num_units,), dtype=bias_dtype)
+
+        # Transpose to [input_size, num_units] and [num_units, num_units] for x @ W.T.
+        w_t = relax.op.permute_dims(weights_expr)
+        wr_t = relax.op.permute_dims(recurrent_expr)
+
+        # Resolve the input expression; normalise to batch-major [batch, time, input_size].
+        # Only the time dimension must be static (needed for unrolling); batch may be dynamic.
+        in_expr = self.get_tensor_expr(input_tensor)
+        in_shape = self.get_tensor_shape(input_tensor)
+        if time_major:
+            in_expr = relax.op.permute_dims(in_expr, [1, 0, 2])
+            num_steps = int(in_shape[0])
+        else:
+            num_steps = int(in_shape[1])
+
+        # Initial hidden state: use the model's tensor value when available (non-zero init or
+        # graph input), otherwise fall back to zeros for the common variable-tensor case.
+        h_dtype = self.get_tensor_type_str(hidden_state_tensor.tensor.Type())
+        if self.has_expr(hidden_state_tensor.tensor_idx) or (
+            hidden_state_tensor.buffer is not None and hidden_state_tensor.buffer.DataLength() > 0
+        ):
+            h = self.get_tensor_expr(hidden_state_tensor)
+        else:
+            h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
+            h = relax.op.zeros(h_shape, dtype=h_dtype)
+
+        # Unroll over the time axis.
+        # relax.op.split with 1 section returns the tensor directly; handle uniformly.
+        if num_steps == 1:
+            steps = [relax.op.squeeze(in_expr, axis=[1])]
+        else:
+            splits = relax.op.split(in_expr, num_steps, axis=1)
+            steps = [relax.op.squeeze(splits[i], axis=[1]) for i in range(num_steps)]
+
+        outputs = []
+        for x_t in steps:  # x_t: [batch, input_size]
+            gates = relax.op.add(
+                relax.op.add(relax.op.matmul(x_t, w_t), relax.op.matmul(h, wr_t)),
+                bias_expr,
+            )
+            h = self.convert_fused_activation_function(gates, fused_activation_fn)
+            outputs.append(h)
+
+        # Stack timestep outputs: [batch, time, num_units].
+        return relax.op.stack(outputs, axis=1)
+
     """
     def convert_unidirectional_sequence_lstm(self, op):
         ### Long Short Term Memory for TFLite implementation. ###
@@ -4385,25 +5731,27 @@ class OperatorConverter:
             padding = (0, 0, 0, 0)
 
         if input_tensor.qnn_params:
-            input_zero_point = input_tensor.qnn_params["zero_point"]
-            kernel_zero_point = weights_tensor.qnn_params["zero_point"]
-            input_scale = input_tensor.qnn_params["scale"]
-            kernel_scale = weights_tensor.qnn_params["scale"]
-            out_dtype = "int64" if output_tensor_type_str == "int16" else "int32"
-            out = _qnn.op.conv2d_transpose(
-                in_expr,
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            weight_axis = weights_tensor.qnn_params["axis"]
+            if weight_axis != 0:
+                raise tvm.error.OpAttributeInvalid(
+                    f"TransposeConv weight QuantizedDimension() must be 0 "
+                    f"(output-channel axis in OHWI layout), got {weight_axis}"
+                )
+            w_f32 = relax.op.dequantize(
                 weight_expr_iohw,
-                input_zero_point,
-                kernel_zero_point,
-                input_scale,
-                kernel_scale,
+                scale=weights_tensor.qnn_params["scale"],
+                zero_point=weights_tensor.qnn_params["zero_point"],
+                axis=1,
+            )
+            out = relax.op.nn.conv2d_transpose(
+                in_f32,
+                w_f32,
                 strides=(stride_h, stride_w),
                 padding=padding,
-                channels=int(out_channels),
-                kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
                 kernel_layout="IOHW",
-                out_dtype=out_dtype,
+                out_dtype="float32",
             )
         else:
             out = relax.op.nn.conv2d_transpose(
@@ -4435,34 +5783,26 @@ class OperatorConverter:
                     dtype=bias_tensor_type_str,
                     source_name=bias_tensor.tensor.Name(),
                 )
-            channel_axis = 3
-            out = relax.op.nn.bias_add(out, bias_expr, axis=channel_axis)
+            if bias_tensor.qnn_params:
+                bias_expr = self.dequantize(bias_expr, bias_tensor)
+            elif input_tensor.qnn_params and bias_tensor_type in (
+                TensorType.INT32,
+                TensorType.INT64,
+            ):
+                bias_scale = relax.op.multiply(
+                    input_tensor.qnn_params["scale"],
+                    weights_tensor.qnn_params["scale"],
+                )
+                bias_expr = relax.op.dequantize(
+                    bias_expr,
+                    scale=bias_scale,
+                    zero_point=relax.const(0, "int32"),
+                    axis=0,
+                )
+            out = relax.op.add(out, bias_expr)
 
         if output_tensor.qnn_params:
-            # Calculate the intermediate scale and zero point of the int32 output.
-            data_scale = input_tensor.qnn_params["scale"]
-            data_scale_val = get_scalar_from_constant(data_scale)
-
-            weight_scale = weights_tensor.qnn_params["scale"]
-            # If weight scale is scalar, it is per-tensor quantization
-            if isinstance(weight_scale, float):
-                weight_scale_val = get_scalar_from_constant(weight_scale)
-            else:
-                weight_scale_val = get_tensor_from_constant(weight_scale)
-
-            new_input_scale_val = data_scale_val * weight_scale_val
-            new_input_scale = relax.const(new_input_scale_val, "float32")
-            new_input_zero_point = relax.const(0, "int32")
-
-            out = _qnn.op.requantize(
-                out,
-                input_scale=new_input_scale,
-                input_zero_point=new_input_zero_point,
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-                axis=3,
-            )
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_quantize(self, op):
@@ -4477,7 +5817,6 @@ class OperatorConverter:
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         # The output must be quantized
         assert output_tensor.qnn_params
@@ -4486,14 +5825,8 @@ class OperatorConverter:
         if input_tensor_type_str == "float32":
             out = self.quantize(in_expr, output_tensor)
         else:
-            out = _qnn.op.requantize(
-                in_expr,
-                input_scale=input_tensor.qnn_params["scale"],
-                input_zero_point=input_tensor.qnn_params["zero_point"],
-                output_scale=output_tensor.qnn_params["scale"],
-                output_zero_point=output_tensor.qnn_params["zero_point"],
-                out_dtype=output_tensor_type_str,
-            )
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = self.quantize(in_f32, output_tensor)
         return out
 
     def convert_dequantize(self, op):
@@ -4642,23 +5975,11 @@ class OperatorConverter:
         )
 
         if inputs[0].qnn_params:
-            loc_prob = _qnn.op.dequantize(
-                data=loc_prob,
-                input_scale=inputs[0].qnn_params["scale"],
-                input_zero_point=inputs[0].qnn_params["zero_point"],
-            )
+            loc_prob = self.dequantize(loc_prob, inputs[0])
         if inputs[1].qnn_params:
-            cls_pred = _qnn.op.dequantize(
-                data=cls_pred,
-                input_scale=inputs[1].qnn_params["scale"],
-                input_zero_point=inputs[1].qnn_params["zero_point"],
-            )
+            cls_pred = self.dequantize(cls_pred, inputs[1])
         if inputs[2].qnn_params:
-            anchor_expr = _qnn.op.dequantize(
-                data=anchor_expr,
-                input_scale=inputs[2].qnn_params["scale"],
-                input_zero_point=inputs[2].qnn_params["zero_point"],
-            )
+            anchor_expr = self.dequantize(anchor_expr, inputs[2])
 
         # loc_prob coords are in yxhw format
         # need to convert to xywh
@@ -5528,19 +6849,18 @@ def _input_type(model):
     assert subgraph_count > 0
     shape_dict = {}
     dtype_dict = {}
-    for subgraph_index in range(subgraph_count):
-        subgraph = model.Subgraphs(subgraph_index)
-        inputs_count = subgraph.InputsLength()
-        # TFLite subgraphs can validly have zero inputs (e.g. constant-only RANGE models).
-        for input_index in range(inputs_count):
-            input_ = subgraph.Inputs(input_index)
-            assert subgraph.TensorsLength() > input_
-            tensor = subgraph.Tensors(input_)
-            input_shape = tuple(tensor.ShapeAsNumpy())
-            tensor_type = tensor.Type()
-            input_name = get_tensor_name(subgraph, input_)
-            shape_dict[input_name] = input_shape
-            dtype_dict[input_name] = _decode_type(tensor_type)
+    subgraph = model.Subgraphs(0)
+    inputs_count = subgraph.InputsLength()
+    # TFLite subgraphs can validly have zero inputs (e.g. constant-only RANGE models).
+    for input_index in range(inputs_count):
+        input_ = subgraph.Inputs(input_index)
+        assert subgraph.TensorsLength() > input_
+        tensor = subgraph.Tensors(input_)
+        input_shape = tuple(tensor.ShapeAsNumpy())
+        tensor_type = tensor.Type()
+        input_name = get_tensor_name(subgraph, input_)
+        shape_dict[input_name] = input_shape
+        dtype_dict[input_name] = _decode_type(tensor_type)
 
     return shape_dict, dtype_dict
 
@@ -5652,8 +6972,10 @@ def from_tflite(
     if dtype_dict is not None:
         _dtype_dict.update(dtype_dict)
 
-    # keep the same as tflite
-    assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
+    # Only Subgraphs(0) is converted into Relax main. Additional subgraphs are
+    # region/control-flow bodies referenced by specific TFLite ops and are
+    # consumed by those op converters as needed.
+    assert model.SubgraphsLength() >= 1, "TFLite model must contain at least one subgraph"
     subgraph = model.Subgraphs(0)
 
     # model inputs / outputs

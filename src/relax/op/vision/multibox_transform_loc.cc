@@ -199,7 +199,7 @@ TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
                   "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
     .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultiboxTransformLoc)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

@@ -361,23 +361,22 @@ inline Constant MakeConstantScalar(T value, DataType dtype) {
   return Constant(arr);
 }
 
-inline ffi::Array<Integer> GetOrderedPositiveAxes(const ffi::Array<Integer>& axes, int ndim) {
+inline ffi::Array<int64_t> GetOrderedPositiveAxes(const ffi::Array<int64_t>& axes, int ndim) {
   std::vector<int64_t> ret;
   ret.reserve(axes.size());
-  for (const auto& axis : axes) {
-    int64_t axis_val = axis->value;
+  for (int64_t axis_val : axes) {
     if (axis_val < 0) {
       axis_val += ndim;
     }
     TVM_FFI_ICHECK(axis_val >= 0 && axis_val < ndim)
-        << "axis " << axis << " is out of bounds for array of "
+        << "axis " << axis_val << " is out of bounds for array of "
         << "dimension " << ndim;
     ret.push_back(axis_val);
   }
   std::sort(ret.begin(), ret.end());
-  ffi::Array<Integer> result;
+  ffi::Array<int64_t> result;
   result.reserve(ret.size());
-  for (int64_t x : ret) result.push_back(Integer(x));
+  for (int64_t x : ret) result.push_back(x);
   return result;
 }
 

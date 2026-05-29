@@ -338,7 +338,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     GlobalVar gv;
     ffi::Array<Attrs> op_attrs;
-    ffi::Optional<Integer> op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
+    ffi::Optional<int64_t> op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
     Tuple func_args;
 
     if (call->op == call_tir_op) {
@@ -349,7 +349,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
       func_args = Downcast<Tuple>(call->args[1]);
     } else {
       op_attrs = {call->attrs};
-      op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
+      op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
       func_args = Tuple(call->args);
     }
 
@@ -392,13 +392,13 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   template <typename T>
-  ffi::Optional<Integer> ExtractPattern(const T& func) {
-    ffi::Optional<Integer> op_pat = func->template GetAttr<Integer>("op_pattern");
+  ffi::Optional<int64_t> ExtractPattern(const T& func) {
+    ffi::Optional<int64_t> op_pat = func->template GetAttr<int64_t>("op_pattern");
     return op_pat;
   }
 
-  std::vector<bool> SupportsTexture(const ffi::Array<Attrs>& op_attrs, Integer op_pattern) {
-    if (op_pattern.IntValue() < OpPatternKind::kCommReduce) return {true};
+  std::vector<bool> SupportsTexture(const ffi::Array<Attrs>& op_attrs, int64_t op_pattern) {
+    if (op_pattern < OpPatternKind::kCommReduce) return {true};
 
     for (auto attr : op_attrs) {
       if (auto conv_attr = attr.as<Conv2DAttrs>()) {
@@ -435,9 +435,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
       }
       std::map<int, std::string> diffs;
       int spatial_limit =
-          target_->GetAttr<Integer>("texture_spatial_limit").value_or(Integer(16384))->value;
+          static_cast<int>(target_->GetAttr<int64_t>("texture_spatial_limit").value_or(16384));
       int depth_limit =
-          target_->GetAttr<Integer>("texture_depth_limit").value_or(Integer(2048))->value;
+          static_cast<int>(target_->GetAttr<int64_t>("texture_depth_limit").value_or(2048));
       int a0 = shape[0].as<IntImmNode>()->value;
       int a1 = shape[1].as<IntImmNode>()->value;
       int a2 = shape[2].as<IntImmNode>()->value;

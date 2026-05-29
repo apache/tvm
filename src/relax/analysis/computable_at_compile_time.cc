@@ -43,8 +43,8 @@ class CompileTimeCollector : ExprVisitor {
 
  private:
   void VisitExpr_(const FunctionNode* func) override {
-    if (auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
-      size_t num_input = opt_num_input.value()->value;
+    if (auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+      size_t num_input = opt_num_input.value();
       for (size_t i = num_input; i < func->params.size(); i++) {
         MarkAsKnown(func->params[i]);
       }

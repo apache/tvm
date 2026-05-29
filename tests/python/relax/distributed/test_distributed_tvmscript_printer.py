@@ -73,7 +73,7 @@ def test_dtensor_struct_info():
     )
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class TestModule:
     I.module_attrs({"device_num": 10})
     I.module_global_infos(
@@ -85,7 +85,7 @@ class TestModule:
         }
     )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_func(
         x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -130,13 +130,14 @@ def test_module():
         """
 # from tvm.script import ir as I
 # from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):

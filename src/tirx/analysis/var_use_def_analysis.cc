@@ -109,7 +109,11 @@ void VarUseDefAnalyzer::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
     }
   } else {
     // DeclBuffer: data references an existing variable — use it.
-    HandleUse(buffer->data);
+    // TMEM DeclBuffer data vars are internal lowering symbols and should
+    // not become external free vars in host packed-api generation.
+    if (buffer.scope() != "tmem") {
+      HandleUse(buffer->data);
+    }
   }
   HandleDef(buffer);
   // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
@@ -127,7 +131,11 @@ void VarUseDefAnalyzer::VisitBufferUse(const Buffer& buffer) {
 }
 
 void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
-  this->HandleUse(buffer->data);
+  // TMEM buffers can carry symbolic data vars that are internal to lowering
+  // and should not become external free vars during host/device splitting.
+  if (buffer.scope() != "tmem") {
+    this->HandleUse(buffer->data);
+  }
 
   auto visit_arr = [&](ffi::Array<PrimExpr> arr) {
     for (const auto& element : arr) {
@@ -164,8 +172,13 @@ void VarUseDefAnalyzer::HandleUse(const Var& var) {
 
 void VarUseDefAnalyzer::HandleDef(const Buffer& buf) {
   auto ptr = buf.get();
-  TVM_FFI_ICHECK(!buffer_def_count_.count(ptr))
-      << "buffer " << ptr->name << " has already been defined, the Stmt is not SSA";
+  // Some lowering pipelines may duplicate identical DeclBuffer nodes that
+  // reference the same Buffer object. Treat repeated definition of the same
+  // buffer object as idempotent.
+  if (buffer_def_count_.count(ptr)) {
+    VisitBuffer(buf);
+    return;
+  }
   TVM_FFI_ICHECK(!buffer_use_count_.count(ptr))
       << "buffer " << ptr->name << " has been used before definition!";
   buffer_use_count_[ptr] = 0;

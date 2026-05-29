@@ -124,7 +124,7 @@ def test_unexpected_tir_args():
 
         @tvm.script.ir_module
         class TestWellCallTIR:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
                 T.func_attr({"global_symbol": "tir_addone"})
                 for i, j in T.grid(16, 16):
@@ -191,9 +191,9 @@ def test_incorrect_tensor_shape():
 
 
 def test_simple_module():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -220,9 +220,9 @@ def test_simple_module():
 
 
 def test_emit_te_primfunc_attrs():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def plus_one(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -253,7 +253,7 @@ def test_emit_te_primfunc_attrs():
 
 
 def test_emit_te():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class EmitTE:
         @R.function
         def main(x: R.Tensor((10, 20), "float32")) -> R.Tensor((10, 20), dtype="float32"):
@@ -272,7 +272,7 @@ def test_emit_te():
 
 
 def test_module_with_attr_and_global_info():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"attr": 10})
         I.module_global_infos(
@@ -284,7 +284,7 @@ def test_module_with_attr_and_global_info():
             }
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -320,7 +320,7 @@ def test_global_info_vdevice():
         VDevice("metal", 0, "global"),
     ]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"attr": 10})
         I.module_global_infos(
@@ -334,7 +334,7 @@ def test_global_info_vdevice():
             }
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -779,7 +779,7 @@ def test_tensor_with_vdevice():
         VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
     ]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         I.module_attrs({"attr": 10})
         I.module_global_infos(
@@ -966,7 +966,7 @@ def test_call_tir_empty_tuple_arg():
 
 
 def test_call_tir_with_tir_var():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -977,7 +977,7 @@ def test_call_tir_with_tir_var():
             y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
             return y
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(var_x: T.handle, var_y: T.handle, n: T.int64):
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
@@ -990,9 +990,9 @@ def test_call_tir_with_tir_var():
 
 
 def test_call_tir_with_grad():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def identity_tir(a: T.handle, b: T.handle) -> None:
             A = T.match_buffer(a, [54, 96])
             B = T.match_buffer(b, [54, 96])
@@ -1020,7 +1020,7 @@ def test_call_tir_with_grad():
 def test_call_tir_inplace():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -1071,7 +1071,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                 )
                 return res
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def copy(
                 A: T.Buffer((2, 3), "int32"),
                 B: T.Buffer((2, 3), "int32"),
@@ -1120,11 +1120,11 @@ def test_local_function():
 def test_inline_prim_func():
     with pytest.raises(tvm.error.DiagnosticError):
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class TestModule:
             @R.function
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
-                @T.prim_func
+                @T.prim_func(s_tir=True)
                 def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                     A = T.match_buffer(a, (128, 128))
                     B = T.match_buffer(b, (128, 128))
@@ -1142,7 +1142,7 @@ def test_inline_prim_func():
 
 
 def test_cross_function_call():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Mod0:
         @R.function
         def foo(x: R.Tensor((10, 5), "float32")):
@@ -1157,7 +1157,7 @@ def test_cross_function_call():
             gv2 = Mod0.foo(x)
             return (inner, gv1, gv2)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Mod1:
         @R.function
         def main(x: R.Tensor((10, 5), "float32")):
@@ -1486,7 +1486,7 @@ def test_erase_to_well_defined_keeps_variants_exposed_by_prim_value():
 
 
 def test_erase_to_well_defined_infers_from_shape_expr():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         # The subroutine's symbolic variables are only in-scope for the subroutine.
         @R.function
@@ -1511,7 +1511,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
 
 
 def test_erase_to_well_defined_infers_from_prim_value():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         # The subroutine's symbolic variables are only in-scope for the subroutine.
         @R.function
@@ -1832,7 +1832,7 @@ def test_class_normalize():
 def test_context_aware_parsing(monkeypatch):
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(
             X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
             Y: T.Buffer((), "float32"),
@@ -1860,7 +1860,7 @@ def test_context_aware_parsing(monkeypatch):
 
 
 def test_unit_tuple_on_rhs_of_assign():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(input: R.Tensor((5, 5))) -> R.Tuple(R.Tensor((5, 5))):
@@ -1871,7 +1871,7 @@ def test_unit_tuple_on_rhs_of_assign():
 
 
 def test_empty_tuple_on_rhs_of_assign():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(input: R.Tensor((5, 5))) -> R.Tuple():
@@ -1882,7 +1882,7 @@ def test_empty_tuple_on_rhs_of_assign():
 
 
 def test_global_var_sinfo():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
@@ -1899,7 +1899,7 @@ def test_global_var_sinfo():
 
 
 def test_assert_op():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AssertOp:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -1940,7 +1940,7 @@ def test_impure_inner_function():
 
 
 def test_impure_inner_function_in_class():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ImpureInner:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -1961,7 +1961,7 @@ def test_impure_inner_function_in_class():
 
 
 def test_print():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Print:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -1972,7 +1972,7 @@ def test_print():
 
 
 def test_parse_multiple_pure_and_impure_funcs():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Mixture:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -1997,7 +1997,7 @@ def test_parse_multiple_pure_and_impure_funcs():
 def test_function_with_void_return_type_may_be_used_as_statements():
     """Void return of calls do not need to be assigned"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Unsugared:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2009,7 +2009,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
             y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
             return x
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Sugared:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2038,7 +2038,7 @@ def test_function_with_non_void_return_type_must_be_assigned():
 def test_function_with_void_return_type_in_if_else():
     """Last statement in if/else may be a void return"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Unsugared:
         @R.function(pure=False)
         def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
@@ -2050,7 +2050,7 @@ def test_function_with_void_return_type_in_if_else():
                 y = R.print(x, format="False condition: {}")
             return x
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Sugared:
         @R.function(pure=False)
         def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
@@ -2097,7 +2097,7 @@ def test_call_pure_packed_returning_object():
 
 
 def test_private_function():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Addition:
         @R.function(private=True)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2116,7 +2116,7 @@ def test_private_function():
 def test_private_function_with_global_symbol_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Addition:
             @R.function(private=True)
             def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -2248,7 +2248,7 @@ def test_reused_extern_func():
 def test_extern_func_in_module():
     """Module-level parsing may produce function bindings"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class parsed_module:
         my_ext = R.ExternFunc("my_ext")
 
@@ -2275,7 +2275,7 @@ def test_define_relax_function_using_global_var():
     function is being defined.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class DefinedAllAtOnce:
         @R.function
         def main(A: R.Tensor, B: R.Tensor):
@@ -2285,7 +2285,7 @@ def test_define_relax_function_using_global_var():
         def subroutine(A: R.Tensor, B: R.Tensor) -> R.Tensor:
             return R.matmul(A, B)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MainDefinedLater:
         @R.function(private=True)
         def subroutine(A: R.Tensor, B: R.Tensor) -> R.Tensor:
@@ -2305,7 +2305,7 @@ def test_define_relax_function_using_global_var():
 def test_function_attributes_are_defined():
     """func.attrs defaults to an empty DictAttrs"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(x: R.Tensor, shape: R.Shape(["m", "n"])):

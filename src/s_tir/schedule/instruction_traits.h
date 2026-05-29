@@ -114,7 +114,7 @@ using namespace tvm::tirx;
  *      LoopRV loop_rv,
  *      Integer n,
  *      Integer max_innermost_factor,
- *      ffi::Optional<ffi::Array<Integer>> decision) {
+ *      ffi::Optional<ffi::Array<int64_t>> decision) {
  *     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
  *   }
  *
@@ -129,7 +129,7 @@ using namespace tvm::tirx;
  *      ffi::String loop_rv,
  *      Integer n,
  *      Integer max_innermost_factor,
- *      ffi::Optional<ffi::Array<Integer>> decision) {
+ *      ffi::Optional<ffi::Array<int64_t>> decision) {
  *     PythonAPICall py("sample_perfect_tile");
  *     py.Input("loop", loop_rv);
  *     py.Input("n", n->value);

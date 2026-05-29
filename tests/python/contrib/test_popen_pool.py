@@ -23,7 +23,7 @@ import time
 import psutil
 import pytest
 
-from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker
+from tvm.support.popen_pool import PopenPoolExecutor, PopenWorker
 from tvm.testing import (
     identity_after,
     terminate_self,

@@ -160,8 +160,8 @@ class ScheduleRule : public ffi::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTiling(
       ffi::String structure,                                      //
       ffi::Optional<ffi::Array<ffi::String>> tile_binds,          //
-      ffi::Optional<Integer> max_innermost_factor,                //
-      ffi::Optional<ffi::Array<Integer>> vector_load_lens,        //
+      ffi::Optional<int64_t> max_innermost_factor,                //
+      ffi::Optional<ffi::Array<int64_t>> vector_load_lens,        //
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,  //
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write,
       ffi::Optional<ffi::Function> filter_fn = std::nullopt);
@@ -186,8 +186,8 @@ class ScheduleRule : public ffi::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
       ffi::String intrin_name, ffi::String structure,
       ffi::Optional<ffi::Array<ffi::String>> tile_binds,
-      ffi::Optional<Integer> max_innermost_factor,
-      ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+      ffi::Optional<int64_t> max_innermost_factor,
+      ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write);
 
@@ -214,8 +214,8 @@ class ScheduleRule : public ffi::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
       ffi::Array<ffi::Map<ffi::String, ffi::String>> intrin_groups, ffi::String structure,
       ffi::Optional<ffi::Array<ffi::String>> tile_binds,
-      ffi::Optional<Integer> max_innermost_factor,
-      ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+      ffi::Optional<int64_t> max_innermost_factor,
+      ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline);
 
@@ -232,7 +232,7 @@ class ScheduleRule : public ffi::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
       ffi::String structure, Integer vector_length_in_bits,
-      ffi::Optional<Integer> max_innermost_factor,
+      ffi::Optional<int64_t> max_innermost_factor,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write);
 
@@ -245,14 +245,14 @@ class ScheduleRule : public ffi::ObjectRef {
    * limit \return The schedule rule created
    */
   TVM_DLL static ScheduleRule AddRFactor(int max_jobs_per_core,  //
-                                         ffi::Optional<Integer> max_innermost_factor);
+                                         ffi::Optional<int64_t> max_innermost_factor);
   /*!
    * \brief Create a schedule rule which applies cross-thread reduction to some reduction blocks
    * correspondingly when needed
    * \param thread_extents Candidates of thread axis extent (values are required to be positive).
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule CrossThreadReduction(ffi::Array<Integer> thread_extents);
+  TVM_DLL static ScheduleRule CrossThreadReduction(ffi::Array<int64_t> thread_extents);
   /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The schedule rule created
@@ -273,7 +273,7 @@ class ScheduleRule : public ffi::ObjectRef {
    */
   TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,                 //
                                                          int max_vectorize_extent,              //
-                                                         ffi::Array<Integer> unroll_max_steps,  //
+                                                         ffi::Array<int64_t> unroll_max_steps,  //
                                                          bool unroll_explicit);
   /*!
    * \brief Auto bind loops around the block to BlockIdx and ThreadIdx
@@ -283,7 +283,7 @@ class ScheduleRule : public ffi::ObjectRef {
    * when this schedule rule is created.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, ffi::Array<Integer> thread_extents,
+  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, ffi::Array<int64_t> thread_extents,
                                        int max_threads_per_block = -1);
   /*!
    * \brief Create a schedule rule with customized methods on the python-side.

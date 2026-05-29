@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
@@ -66,6 +67,7 @@
 #include <tvm/ir/with_context.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
@@ -300,6 +302,25 @@ class PassContext : public ffi::ObjectRef {
   friend class With<PassContext>;
 };
 
+/*!
+ * \brief Create a pass-config object with all default values, using the
+ *        reflection defaults.
+ * \tparam TConfig the ObjectRef type to be created.
+ * \return An instance with all reflection-defined default values applied.
+ */
+template <typename TConfig>
+inline TConfig PassConfigWithDefaults() {
+  static_assert(std::is_base_of_v<ffi::ObjectRef, TConfig>,
+                "Can only create ObjectRef-derived types");
+  using ContainerType = typename TConfig::ContainerType;
+  static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+  ffi::AnyView packed_args[1];
+  packed_args[0] = ContainerType::RuntimeTypeIndex();
+  ffi::Any rv;
+  finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+  return rv.cast<TConfig>();
+}
+
 #define TVM_PASS_CTX_CONFIG_VAR_DEF [[maybe_unused]] static uint32_t __make_PassContext_tid
 
 /*!
@@ -528,31 +549,6 @@ class Sequential : public Pass {
 TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
                               int opt_level, ffi::String name, ffi::Array<ffi::String> required,
                               bool traceable = false);
-
-/*
- * \brief Utility to apply a pass to specific functions in an IRModule
- *
- * TVM uses IRModule to IRModule transformations at all stages of
- * lowering.  These transformations may be useful when hand-writing an
- * optimized model, or to perform optimizations on specific kernels
- * within an IRModule.  This utility allows a pass to be applied to a
- * specified function, without altering other functions in the module.
- *
- * \param pass The IRModule to IRModule pass to be applied.
- *
- * \param func_name_regex A regex used to select the functions to be
- * updated.  The pass will be applied to all functions whose name
- * matches the regex.
- *
- * \param error_if_no_function_matches_regex Specifies the behavior if
- *     an IRModule does not contain any function matching the provided
- *     regex.  If true, an error will be raised.  If false (default),
- *     the IRModule will be returned unmodified.
- *
- * \return The modified IRModule to IRModule pass.
- */
-TVM_DLL Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
-                                 bool error_if_no_function_matches_regex = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

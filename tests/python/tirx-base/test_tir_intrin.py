@@ -24,8 +24,8 @@ import scipy
 import tvm
 import tvm.testing
 from tvm import te, tirx, topi
-from tvm.contrib import clang, utils
 from tvm.script import tirx as T
+from tvm.support import clang, utils
 
 
 def test_nearbyint():
@@ -325,7 +325,7 @@ def test_clz(target, dev, dtype):
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})

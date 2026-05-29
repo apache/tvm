@@ -149,7 +149,7 @@ TVM_REGISTER_OP("relax.nn.max_pool1d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.max_pool2d */
 
@@ -272,7 +272,7 @@ InferLayoutOutput InferLayoutPool2d(
   ffi::ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
 
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    tirx::Layout in_layout(attrs->layout, DataType::Int(64));
+    tirx::SLayout in_layout(attrs->layout, DataType::Int(64));
     auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
     auto data_si = GetStructInfo(call->args[0]);
     TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
@@ -300,7 +300,7 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.max_pool3d */
 
@@ -446,7 +446,7 @@ TVM_REGISTER_OP("relax.nn.max_pool3d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.avg_pool1d */
 Expr avg_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -468,7 +468,7 @@ TVM_REGISTER_OP("relax.nn.avg_pool1d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.avg_pool2d */
 Expr avg_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -490,7 +490,7 @@ TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.avg_pool3d */
 Expr avg_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -512,7 +512,7 @@ TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.adaptive_avg_pool1d */
 
@@ -594,7 +594,7 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool1D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.adaptive_avg_pool2d */
 
@@ -669,7 +669,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    tirx::Layout in_layout(attrs->layout, DataType::Int(64));
+    tirx::SLayout in_layout(attrs->layout, DataType::Int(64));
     auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
     auto data_si = GetStructInfo(call->args[0]);
     TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
@@ -696,7 +696,7 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.adaptive_avg_pool3d */
 
@@ -783,7 +783,7 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool3d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAdaptiveAvgPool3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def Matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.func_attr({"global_symbol": "main"})
     A = T.match_buffer(a, (128, 256), "float32")

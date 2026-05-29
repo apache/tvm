@@ -19,13 +19,13 @@
 # compilation of TensorRT modules without requiring TensorRT to be installed. The compiled modules
 # will only be able to be executed using a TVM built with USE_TENSORRT_RUNTIME=ON.
 
-include (FindPackageHandleStandardArgs)
+include(FindPackageHandleStandardArgs)
 
 if(USE_TENSORRT_CODEGEN)
     message(STATUS "Build with TensorRT codegen")
     tvm_file_glob(GLOB COMPILER_TENSORRT_SRCS src/relax/backend/contrib/tensorrt/*.cc)
     set_source_files_properties(${COMPILER_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
-    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/tensorrt_runtime.cc)
+    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/extra/contrib/tensorrt/tensorrt_runtime.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     list(APPEND COMPILER_SRCS ${COMPILER_TENSORRT_SRCS})
     if(NOT USE_TENSORRT_RUNTIME)
@@ -33,7 +33,7 @@ if(USE_TENSORRT_CODEGEN)
     endif()
 endif()
 
-# TensorRT Runtime
+# TensorRT Runtime — goes into libtvm_runtime_extra.
 if(USE_TENSORRT_RUNTIME)
     if(IS_DIRECTORY ${USE_TENSORRT_RUNTIME})
         set(TENSORRT_ROOT_DIR ${USE_TENSORRT_RUNTIME})
@@ -47,12 +47,12 @@ if(USE_TENSORRT_RUNTIME)
     endif()
     message(STATUS "TENSORRT_LIB_DIR: " ${TENSORRT_LIB_DIR})
     include_directories(${TENSORRT_INCLUDE_DIR})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${TENSORRT_LIB_DIR})
-
     # TRT runtime sources
-    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/*.cc)
+    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/extra/contrib/tensorrt/*.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
-    list(APPEND RUNTIME_SRCS ${RUNTIME_TENSORRT_SRCS})
+    add_library(tvm_tensorrt_objs OBJECT ${RUNTIME_TENSORRT_SRCS})
+    target_link_libraries(tvm_tensorrt_objs PRIVATE tvm_runtime_extra_defs)
+    target_link_libraries(tvm_runtime_extra PRIVATE tvm_tensorrt_objs ${TENSORRT_LIB_DIR})
 
     # Set defines
     add_definitions(-DTVM_GRAPH_EXECUTOR_TENSORRT)

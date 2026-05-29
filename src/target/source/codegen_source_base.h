@@ -125,14 +125,14 @@ class CodeGenSourceBase {
   std::unordered_map<const tirx::VarNode*, std::string> var_idmap_;
   /*! \brief NameSupply for allocation */
   NameSupply name_supply_;
+  /*! \brief The current indentation value */
+  int indent_{0};
 
  private:
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
-  /*! \brief The current indentation value */
-  int indent_{0};
 };
 
 /*!

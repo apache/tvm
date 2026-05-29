@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
-struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
+struct Resize2DAttrs : public AttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -75,11 +75,11 @@ struct Resize2DAttrs : public AttrsNodeReflAdapter<Resize2DAttrs> {
             "The dtype of the output tensor. It it is not specified, the output will have the same "
             "dtype as input if not specified.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize2DAttrs", Resize2DAttrs, AttrsNode);
 };  // struct Resize2dAttrs
 
 /*! \brief Attributes used in image resize3d operator */
-struct Resize3DAttrs : public AttrsNodeReflAdapter<Resize3DAttrs> {
+struct Resize3DAttrs : public AttrsNode {
   ffi::Array<FloatImm> roi;
   ffi::String layout;
   ffi::String method;
@@ -124,11 +124,11 @@ struct Resize3DAttrs : public AttrsNodeReflAdapter<Resize3DAttrs> {
             "The dtype of the output tensor. It it is not specified, the output will have the same "
             "dtype as input if not specified.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize3DAttrs", Resize3DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Resize3DAttrs", Resize3DAttrs, AttrsNode);
 };  // struct Resize3DAttrs
 
 /*! \brief Attributes used in image grid_sample operator */
-struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
+struct GridSampleAttrs : public AttrsNode {
   ffi::String method;
   ffi::String layout;
   ffi::String padding_mode;
@@ -146,7 +146,7 @@ struct GridSampleAttrs : public AttrsNodeReflAdapter<GridSampleAttrs> {
         .def_ro("align_corners", &GridSampleAttrs::align_corners,
                 "If True, the corner pixels of the input and output tensors are aligned.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, AttrsNode);
 };  // struct GridSampleAttrs
 
 }  // namespace relax

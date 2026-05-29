@@ -16,11 +16,11 @@
 # under the License.
 """The base parser for tirx"""
 
+import ast
 import contextlib
+from copy import deepcopy
 from functools import partial
 from typing import Any
-
-import tvm_ffi
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -28,8 +28,70 @@ from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
 from tvm.script.parser._core import Parser, dispatch, doc
-from tvm.tirx import Buffer, IterVar, PrimExpr, Var
+from tvm.script.parser.core.doc import from_doc
+from tvm.tirx import Buffer, IterVar, Layout, PrimExpr, Var
 from tvm.tirx.script import builder as T
+from tvm.tirx.script.builder.ir import name_meta_class_value
+from tvm.tirx.stmt import BufferRegion
+
+from .entry import inline
+
+
+def slice_buffer_from_region(br: BufferRegion) -> Buffer:
+    """Create a matched DeclBuffer from a BufferRegion.
+
+    Slices the layout (if present) or computes elem_offset for the sub-region,
+    producing a DeclBuffer that views the same underlying data.
+    """
+    import functools  # pylint: disable=import-outside-toplevel
+
+    buf = br.buffer
+    region = br.region
+    new_shape = [r.extent for r in region]
+    sliced_layout = None
+    if buf.layout is not None:
+        range_pairs = [(r.min, r.min + r.extent) for r in region]
+        sliced_layout = buf.layout.slice(list(buf.shape), range_pairs)
+    if sliced_layout is not None:
+        return T.decl_buffer(
+            new_shape,
+            buf.dtype,
+            buf.data,
+            buf.strides,
+            buf.elem_offset,
+            None,
+            buf.scope(),
+            buf.data_alignment,
+            buf.offset_factor,
+            "",
+            buf.axis_separators,
+            sliced_layout,
+        )
+    # Fallback: compute elem_offset for default/no layout
+    strides = []
+    for i in range(len(buf.shape)):
+        stride = functools.reduce(
+            lambda x, y: x * y, buf.shape[i + 1 :], tvm.tirx.const(1, "int32")
+        )
+        strides.append(stride)
+    offset = tvm.tirx.const(0, "int32")
+    for i, r in enumerate(region):
+        offset = offset + r.min * strides[i]
+    new_elem_offset = buf.elem_offset + offset
+    return T.decl_buffer(
+        new_shape,
+        buf.dtype,
+        buf.data,
+        buf.strides,
+        new_elem_offset,
+        None,
+        buf.scope(),
+        buf.data_alignment,
+        buf.offset_factor,
+        "",
+        buf.axis_separators,
+        buf.layout,
+    )
 
 
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -92,7 +154,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
     res : Any
         The bound value.
     """
-    if isinstance(value, list | tuple | tvm_ffi.Array):
+    if isinstance(value, list | tuple | tvm.ir.Array):
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -128,27 +190,50 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     res : Any
         The bound value.
     """
+    if isinstance(value, T.scalar_wrapper):  # pylint: disable=protected-access
+        # special case for scalar, name the buffer, but the var is used as BufferLoad
+        assert isinstance(value.scalar, T.BufferLoad)
+        IRBuilder.name(var_name, value.scalar.buffer)
+        return value.scalar
     if isinstance(value, T.meta_var):
         return value.value
+    elif getattr(type(value), "_is_meta_class", False):
+        name_meta_class_value(var_name, value)
+        return value
     elif isinstance(value, list | tuple):
+        # Tuple-unpacking with a starred target (e.g. ``vi, *vs = T.axis.remap(...)``)
+        # collects multiple elements into a single list bound here. Recurse so each
+        # element gets a per-index name; this matches apache's behavior.
         for i, v in enumerate(value):
             bind_assign_value(self, node, f"{var_name}_{i}", v)
+        return value
+    elif isinstance(value, BufferRegion):
         return value
     elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
-    elif isinstance(value, Buffer | IterVar) or (
+    elif isinstance(value, Buffer | IterVar | Layout) or (
         isinstance(value, Var) and not self.var_table.exist(value)
     ):
         IRBuilder.name(var_name, value)
         return value
     else:
-        value = tvm.runtime.convert(value)
-        var = T.bind(value)
-        IRBuilder.name(var_name, var)
-        return var
+        if not isinstance(value, PrimExpr):
+            value = tvm.tirx.const(value)
+        if not isinstance(value, tvm.tirx.StringImm):
+            # x = expr -> scalar (auto-typed from value)
+            scalar = T.local_scalar(dtype=str(value.dtype))
+            IRBuilder.name(var_name, scalar.scalar.buffer)
+            T.buffer_store(scalar.scalar.buffer, value, [0])
+            return scalar.scalar
+        else:
+            # StringImm: x = expr -> immutable Bind var
+            ann_var = tvm.tirx.Var(var_name, value.dtype)
+            IRBuilder.name(var_name, ann_var)
+            T.Bind(value, var=ann_var)
+            return ann_var
 
 
 def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
@@ -166,28 +251,6 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
     return default
 
 
-def range_sugar(
-    start: PrimExpr,
-    stop: PrimExpr = None,
-    step: PrimExpr | None = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-) -> T.frame.ForFrame:
-    """The sugar for python range builtin."""
-
-    # Since `tirx.For` do not support reversed iteration semantic,
-    # the step must be checked to be positive integer when use range sugar
-    if step is not None:
-        try:
-            step = int(step)
-            if step <= 0:
-                raise ValueError(f"Only support positive step in range(), get {step}")
-        except TypeError:  # pylint: disable=broad-except
-            raise ValueError(f"Only support literal step in range(), get {step}")
-
-    return T.serial(start, stop, annotations=annotations, step=step)
-
-
 @dispatch.register(token="tirx", type_name="For")
 def visit_for(self: Parser, node: doc.For) -> None:
     """The for visiting method for tirx.
@@ -200,7 +263,25 @@ def visit_for(self: Parser, node: doc.For) -> None:
     node : doc.For
         The doc AST for node.
     """
-    for_frame = self.eval_expr(node.iter)
+    # Intercept range() at AST level so it works with both Python ints and PrimExprs.
+    # In other contexts (e.g. list comprehensions), range remains Python's builtin.
+    if (
+        isinstance(node.iter, doc.Call)
+        and isinstance(node.iter.func, doc.Name)
+        and node.iter.func.id == "range"
+    ):
+        args = [self.eval_expr(a) for a in node.iter.args]
+        kwargs = {kw.arg: self.eval_expr(kw.value) for kw in node.iter.keywords}
+        if len(args) == 1:
+            for_frame = T.serial(0, args[0], **kwargs)
+        elif len(args) == 2:
+            for_frame = T.serial(args[0], args[1], **kwargs)
+        elif len(args) == 3:
+            for_frame = T.serial(args[0], args[1], step=args[2], **kwargs)
+        else:
+            self.report_error(node.iter, "range() takes 1 to 3 arguments")
+    else:
+        for_frame = self.eval_expr(node.iter)
     if not isinstance(for_frame, T.frame.ForFrame):
         self.report_error(
             node.iter,
@@ -229,6 +310,36 @@ def visit_while(self: Parser, node: doc.While) -> None:
         cond = self.eval_expr(node.test)
         with T.While(cond):
             self.visit_body(node.body)
+
+
+@dispatch.register(token="tirx", type_name="Break")
+def visit_break(self: Parser, node: doc.Break) -> None:
+    """The break visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Break
+        The doc AST break node.
+    """
+    T.evaluate(T.break_loop())
+
+
+@dispatch.register(token="tirx", type_name="Continue")
+def visit_continue(self: Parser, node: doc.Continue) -> None:
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Continue
+        The doc AST continue node.
+    """
+    T.evaluate(T.continue_loop())
 
 
 @dispatch.register(token="tirx", type_name="Assign")
@@ -271,11 +382,49 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         if isinstance(lhs.slice, doc.Tuple):
             indices = []
             for index in lhs.slice.elts:
-                indices.append(self.eval_expr(index))
+                if isinstance(index, doc.Starred):
+                    # x[*y]
+                    indices.extend(self.eval_expr(index.value))
+                else:
+                    indices.append(self.eval_expr(index))
         else:
             indices = self.eval_expr(lhs.slice)
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
+        # special case for scalar buffers
+        # scalar = xxx <=> scalar.buffer[()] = xxx
+        # or for a normal 1-dim buffer with shape (1,)
+        # buffer = xxx <=> buffer[()] = xxx
+        # Try to resolve lhs as a buffer/scalar variable. eval_expr may raise
+        # if the name is not yet defined (i.e. this is a new variable binding),
+        # which is the expected fallthrough case.
+        lhs_value = None
+        try:
+            lhs_copy = deepcopy(lhs)
+            if hasattr(lhs_copy, "ctx"):
+                lhs_copy.ctx = doc.Load()
+            lhs_value = self.eval_expr(lhs_copy)
+        except Exception:  # pylint: disable=broad-except
+            pass
+        # Buffer check and store are intentionally outside the try/except so
+        # that genuine errors (e.g. wrong shape, bad store) are not swallowed.
+        # Only TypeError from FFI type mismatch (e.g. rhs is a meta_var, not
+        # a PrimExpr or auto-convertible scalar) triggers fallthrough.
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+            if isinstance(lhs_value, T.scalar_wrapper):
+                buffer = lhs_value.scalar.buffer
+            else:
+                buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
+            if len(buffer.shape) == 1 and bool(buffer.shape[0] == 1):
+                # only 1-dim buffer with shape (1,) can be assigned directly
+                # Note that shape can be a PrimExpr, so we only judge by
+                # bool(shape[0] == 1) rather than int(shape[0]) == 1.
+                try:
+                    T.buffer_store(buffer, rhs, [0])
+                    return
+                except TypeError:
+                    pass  # rhs not compatible with buffer_store, fall through
+        # otherwise
         self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
@@ -324,11 +473,34 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
         if isinstance(lhs.slice, doc.Tuple):
             indices = []
             for index in lhs.slice.elts:
-                indices.append(self.eval_expr(index))
+                if isinstance(index, doc.Starred):
+                    # x[*y]
+                    indices.extend(self.eval_expr(index.value))
+                else:
+                    indices.append(self.eval_expr(index))
         else:
             indices = [self.eval_expr(lhs.slice)]
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
+        lhs_value = None
+        try:
+            lhs_copy = deepcopy(lhs)
+            if hasattr(lhs_copy, "ctx"):
+                lhs_copy.ctx = doc.Load()
+            lhs_value = self.eval_expr(lhs_copy)
+        except Exception:  # pylint: disable=broad-except
+            pass
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+            if isinstance(lhs_value, T.scalar_wrapper):
+                buffer = lhs_value.scalar.buffer
+            else:
+                buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
+            if len(buffer.shape) == 1 and bool(buffer.shape[0] == 1):
+                try:
+                    T.buffer_store(buffer, rhs, [0])
+                    return
+                except TypeError:
+                    pass
         self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
@@ -345,12 +517,51 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         The doc AST annotated assign node.
     """
     lhs = node.target
-    rhs = self.eval_expr(node.value)
-    ann_var = self.visit_tvm_annotation(node.annotation)
-    if not isinstance(ann_var, Var):
-        self.report_error(node.annotation, "Annotation should be Var")
-    self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    T.bind(rhs, var=ann_var)
+    rhs = self.eval_expr(node.value) if node.value is not None else None
+    raw_ann = self.eval_expr(node.annotation)
+
+    if isinstance(raw_ann, T.LocalVectorAnnotation):
+        # x: T.float32[N] or x: T.f32[M, N] -> local buffer allocation
+        if rhs is not None:
+            self.report_error(node, "Vector annotation does not support initial value")
+        buf = T.alloc_local(shape=raw_ann.shape, dtype=raw_ann.dtype)
+        self.eval_assign(target=lhs, source=buf, bind_value=bind_assign_value)
+    elif isinstance(raw_ann, T.LetAnnotation):
+        # T.let or T.let[type] -> immutable Bind var
+        if rhs is None:
+            self.report_error(node, "T.let annotation requires a value")
+        if not isinstance(rhs, PrimExpr):
+            if isinstance(rhs, str):
+                rhs = tvm.tirx.StringImm(rhs)
+            else:
+                rhs = tvm.tirx.const(rhs)
+        if raw_ann.type_spec is not None:
+            ann_var = raw_ann.as_var()
+        else:
+            ann_var = raw_ann.as_var(rhs_dtype=rhs.dtype)
+        if not isinstance(ann_var, Var):
+            self.report_error(node.annotation, "Annotation should resolve to Var")
+        self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
+        T.Bind(rhs, var=ann_var)
+    else:
+        ann_var = raw_ann() if callable(raw_ann) else raw_ann
+        if not isinstance(ann_var, Var):
+            self.report_error(node.annotation, "Annotation should resolve to Var")
+        if not isinstance(ann_var.type_annotation, PrimType):
+            self.report_error(
+                node.annotation,
+                "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",
+            )
+        if str(ann_var.dtype) == "handle":
+            self.report_error(
+                node.annotation,
+                "handle type cannot be used as scalar annotation; use T.let[T.handle] instead",
+            )
+        # x: T.int32 = expr -> scalar (mutable scalar buffer)
+        scalar = T.local_scalar(dtype=str(ann_var.dtype))
+        self.eval_assign(target=lhs, source=scalar, bind_value=bind_assign_value)
+        if rhs is not None:
+            T.buffer_store(scalar.scalar.buffer, rhs, [0])
 
 
 @dispatch.register(token="tirx", type_name="With")
@@ -369,7 +580,9 @@ def visit_with(self: Parser, node: doc.With) -> None:
         stack.enter_context(self.var_table.with_frame())
         for item in node.items:
             frame = self.eval_expr(item.context_expr)
-            if not isinstance(frame, Frame):
+            if not isinstance(frame, Frame) and not (
+                hasattr(frame, "__enter__") and hasattr(frame, "__exit__")
+            ):
                 self.report_error(
                     item.context_expr,
                     "Invalid context expression in the with-statement.",
@@ -395,10 +608,12 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     supplied_annotation = self.function_annotations
     func_annotation = supplied_annotation.get(node.name, {})
     privacy = find_decorator_annotation(node, "private", default=False)
+    s_tir = find_decorator_annotation(node, "s_tir", default=False)
+    persistent = find_decorator_annotation(node, "persistent", default=False)
     self.function_annotations = None
     with self.var_table.with_frame():
-        self.var_table.add("range", range_sugar)
-        with T.prim_func(is_private=privacy):
+        prim_func_ctx = T.prim_func(is_private=privacy, s_tir=s_tir, persistent=persistent)
+        with prim_func_ctx:
             T.func_name(node.name)
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
@@ -428,6 +643,48 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     self.var_table.add(arg.arg, param)
                 self.visit_body(node.body)
     self.function_annotations = supplied_annotation
+
+
+@dispatch.register(token="tir.inline", type_name="FunctionDef")
+def visit_inline_function_def(self: Parser, node: doc.FunctionDef) -> None:
+    """The function definition visiting method for inline functions in tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.FunctionDef
+        The doc AST function definition node.
+    """
+    # remove the inline decorator
+    node.decorator_list.pop()
+    # adjust the node location to the source code location
+    node.lineno += self.diag.source.start_line - 1
+    node.col_offset += self.diag.source.start_column + 1
+    node.end_lineno += self.diag.source.start_line - 1
+    node.end_col_offset += self.diag.source.start_column + 1
+
+    # Record definition depth for LEGB late binding
+    definition_depth = len(self.var_table.frames)
+
+    def get_func():
+        func_ast = from_doc(node)
+        module_ast = ast.Module(body=[func_ast], type_ignores=[])
+        ast.fix_missing_locations(module_ast)
+        # set the filename to the source name, so that the error message can be reported correctly
+        code_obj = compile(module_ast, filename=self.diag.source.source_name, mode="exec")
+        namespace = self.var_table.get()
+        exec(code_obj, namespace)  # pylint: disable=exec-used
+        func_name = func_ast.name
+        func = namespace[func_name]
+        return func, func_name
+
+    func, func_name = get_func()
+    wrapper = inline(func, definition_depth=definition_depth, defining_var_table=self.var_table)
+
+    self.var_table.add(func_name, wrapper, allow_shadowing=False)
+    return None
 
 
 @dispatch.register(token="tirx", type_name="tvm_annotation")
@@ -467,6 +724,11 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
+    elif hasattr(res, "frames") and hasattr(res, "__enter__"):
+        # _FrameScope from T.attr({...}) — enter each inner frame for concise scoping
+        for f in res.frames:
+            f.add_callback(partial(f.__exit__, None, None, None))
+            f.__enter__()
     elif isinstance(res, Var):
         # Standalone Var expression (e.g. from T.bind(value, var=v)) --
         # the Bind statement was already emitted to the parent frame by the FFI call,
@@ -486,6 +748,11 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     elif isinstance(res, tvm.tirx.stmt.BufferStore):
         T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
+    elif isinstance(res, tvm.tirx.Buffer):
+        # ``T.match_buffer(...)`` used as a bare statement (no LHS) — the
+        # buffer object is discarded; the underlying side effect (the
+        # match_buffer node) has already been emitted into the frame.
+        pass
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
 
@@ -592,36 +859,6 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     if value is None:
         self.report_error(node, "Expression to be returned must be a PrimExpr")
     T.evaluate(tvm.tirx.ret(value))
-
-
-@dispatch.register(token="tirx", type_name="Continue")
-def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=unused-argument
-    """The continue visiting method for tirx.
-
-    Parameters
-    ----------
-    self : Parser
-        The visiting parser.
-
-    node : doc.Continue
-        The doc AST continue node.
-    """
-    T.evaluate(tvm.tirx.continue_loop())
-
-
-@dispatch.register(token="tirx", type_name="Break")
-def visit_break(self: Parser, node: doc.Break) -> None:  # pylint:disable=unused-argument
-    """The continue visiting method for tirx.
-
-    Parameters
-    ----------
-    self : Parser
-        The visiting parser.
-
-    node : doc.Break
-        The doc AST break node.
-    """
-    T.evaluate(tvm.tirx.break_loop())
 
 
 @dispatch.register(token="tirx", type_name="tvm_declare_function")

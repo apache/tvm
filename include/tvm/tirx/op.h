@@ -25,8 +25,8 @@
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
 // Acknowledgement: Most operator APIs originate from Halide.
-#ifndef TVM_TIR_OP_H_
-#define TVM_TIR_OP_H_
+#ifndef TVM_TIRX_OP_H_
+#define TVM_TIRX_OP_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
@@ -34,6 +34,8 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/target_builtin/cuda.h>
+#include <tvm/tirx/target_builtin/trn.h>
 
 #include <algorithm>
 #include <limits>
@@ -43,6 +45,8 @@ namespace tvm {
 
 #define TVM_TIR_REGISTER_OP(OpName) \
   TVM_REGISTER_OP("tirx." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+
+#define TVM_TIRX_REGISTER_OP(OpName) TVM_TIR_REGISTER_OP(OpName)
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
@@ -732,19 +736,19 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)     \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {               \
-    static const Op& op = Op::Get("tirx." #OpName);                      \
-    CheckInputDType(#OpName, x.dtype());                                 \
-    if (x.dtype().is_bfloat16()) {                                       \
-      DataType bf16_dtype = x.dtype();                                   \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());             \
-      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);               \
-      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, span); \
-      return tirx::Cast(bf16_dtype, {result_fp32}, span);                \
-    } else {                                                             \
-      return tirx::Call(x.dtype(), op, {x}, span);                       \
-    }                                                                    \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)         \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                   \
+    static const Op& op = Op::Get("tirx." #OpName);                          \
+    CheckInputDType(#OpName, x.dtype());                                     \
+    if (x.dtype().is_bfloat16()) {                                           \
+      DataType bf16_dtype = x.dtype();                                       \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());                 \
+      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);                   \
+      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, {}, span); \
+      return tirx::Cast(bf16_dtype, {result_fp32}, span);                    \
+    } else {                                                                 \
+      return tirx::Call(x.dtype(), op, {x}, {}, span);                       \
+    }                                                                        \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -782,7 +786,7 @@ TVM_DECLARE_INTRIN_UNARY(clz);
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
     static const Op& op = Op::Get("tirx." #OpName);                    \
-    return tirx::Call(x.dtype(), op, {x, y}, span);                    \
+    return tirx::Call(x.dtype(), op, {x, y}, {}, span);                \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);

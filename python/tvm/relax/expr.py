@@ -1010,6 +1010,8 @@ class Function(BaseFunc, Scriptable):
         attrs: tvm.ir.DictAttrs | None = None,
         span: Span | None = None,
     ) -> None:
+        if attrs is None:
+            attrs = tvm.ir.DictAttrs({})
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
             params,
@@ -1029,6 +1031,8 @@ class Function(BaseFunc, Scriptable):
         span: Span | None = None,
     ):
         """Construct a relax.Function but without body"""
+        if attrs is None:
+            attrs = tvm.ir.DictAttrs({})
         return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
 
     def __call__(self, *args):

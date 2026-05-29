@@ -591,6 +591,25 @@ def test_binary(op_name: str):
     verify_binary_scalar(op_name)
 
 
+def test_div_integer_constant_zero_divisor_raises_valueerror():
+    b_init = numpy_helper.from_array(np.array([3, 0, -2, 1], dtype=np.int32), name="b")
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "div_const_zero",
+        [helper.make_tensor_value_info("a", TensorProto.INT32, [4])],
+        [helper.make_tensor_value_info("y", TensorProto.INT32, [4])],
+        initializer=[b_init],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    model.ir_version = 9
+
+    with pytest.raises(
+        ValueError, match="ONNX Div with integer inputs encountered divisor value 0"
+    ):
+        from_onnx(model, opset=18, keep_params_in_input=False)
+
+
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:
@@ -705,9 +724,9 @@ def test_bitwise_shift(direction: str):
         "Sinh",
         "Cosh",
         "Tanh",
-        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation
-        # "Acos",
-        # "Atan",
+        "Asin",
+        "Acos",
+        "Atan",
         "Asinh",
         "Acosh",
         "Atanh",
@@ -2288,6 +2307,66 @@ def test_layer_norm_with_nd_gamma_beta():
 
     model = helper.make_model(graph, producer_name="layer_norm_with_nd_gamma_beta_test")
     check_correctness(model)
+
+
+def test_rms_norm():
+    # Basic test: default axis=-1
+    rms_norm_node = helper.make_node("RMSNormalization", ["input", "scale"], ["Y"], epsilon=1e-05)
+
+    graph = helper.make_graph(
+        [rms_norm_node],
+        "rms_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 8, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 8, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="rms_norm_test")
+    check_correctness(model, opset=23)
+
+    # Test with explicit axis=1 (normalize over last 2 dims)
+    rms_norm_node = helper.make_node(
+        "RMSNormalization", ["input", "scale"], ["Y"], axis=1, epsilon=1e-06
+    )
+
+    graph = helper.make_graph(
+        [rms_norm_node],
+        "rms_norm_axis_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [4, 8, 16]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [8, 16]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [4, 8, 16]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="rms_norm_axis_test")
+    check_correctness(model, opset=23)
+
+    # Test with float16 input (stash_type=1 means compute in float32)
+    rms_norm_node = helper.make_node(
+        "RMSNormalization", ["input", "scale"], ["Y"], epsilon=1e-05, stash_type=1
+    )
+
+    graph = helper.make_graph(
+        [rms_norm_node],
+        "rms_norm_fp16_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT16, [2, 8, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT16, [2, 8, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="rms_norm_fp16_test")
+    check_correctness(model, opset=23, rtol=1e-2, atol=1e-2)
 
 
 # TODO Enable dynamism
@@ -4924,7 +5003,7 @@ def test_nms_max_output_boxes_per_class_zero(with_explicit_max: bool):
     check_correctness(model, inputs=inputs, opset=11)
 
     tvm_out = run_in_tvm(model, inputs=inputs, opset=11)
-    tvm_selected = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    tvm_selected = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()  # noqa: UP038
     assert tvm_selected.shape == (0, 3)
 
 

@@ -420,7 +420,7 @@ def test_disregard_primfuncs():
     @tvm.script.ir_module
     class CallPrimFunc:
         # copied from test_analysis.py
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
             C = T.sblock_alloc_buffer((128, 128), "float32")
             for i0, i1 in T.grid(4, 4):

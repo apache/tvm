@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # - PrimFunc with buffer that uses custom storage_scope
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
     for i in T.serial(
         0,
@@ -58,7 +58,7 @@ def verify_func_1(module):
     tvm.testing.assert_allclose(a_np * 2 + 1, a.numpy(), rtol=1e-4)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_2(
     C: T.Buffer((1,), "float32"), A: T.Buffer((16,), "float32"), D: T.Buffer((2,), "float32")
 ):
@@ -88,7 +88,7 @@ def verify_func_2(module):
     tvm.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_3(
     C: T.Buffer((1,), "float32"),
     A: T.Buffer((16,), "float32"),
@@ -130,7 +130,7 @@ def verify_func_3(module):
     tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def func_4(
     C: T.Buffer((1,), "float32"),
     A: T.Buffer((16,), "float32"),

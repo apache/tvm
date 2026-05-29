@@ -17,7 +17,7 @@
 
 import tvm
 import tvm.testing
-from tvm.contrib import utils
+from tvm.support import utils
 
 
 @tvm.testing.requires_llvm

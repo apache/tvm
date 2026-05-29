@@ -122,8 +122,8 @@ class LayoutFreeBufferCollector : public StmtVisitor {
 
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
-  ffi::Array<Integer> layout_free_buffer_index =
-      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<Integer>()).value();
+  ffi::Array<int64_t> layout_free_buffer_index =
+      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
 
   ffi::Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {

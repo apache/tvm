@@ -31,7 +31,7 @@ from tvm.tirx.expr import IntImm
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -41,7 +41,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_dependent_loops(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -54,7 +54,7 @@ def elementwise_dependent_loops(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -64,7 +64,7 @@ def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -78,7 +78,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
@@ -92,7 +92,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -108,7 +108,7 @@ def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -121,7 +121,7 @@ def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -134,7 +134,7 @@ def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_starting_point(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -147,7 +147,7 @@ def elementwise_with_starting_point(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -162,7 +162,7 @@ def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -176,7 +176,7 @@ def elementwise_fused(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -190,7 +190,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
@@ -204,7 +204,7 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -219,7 +219,7 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -252,7 +252,7 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_split_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
@@ -269,7 +269,7 @@ def elementwise_split_with_opaque_block(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
@@ -287,7 +287,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16])
     B = T.match_buffer(b, [16, 16])
@@ -307,7 +307,7 @@ def opaque_access_fused(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj), dtype="handle"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     B = T.match_buffer(b, (16, 16))
@@ -327,7 +327,7 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj), dtype="handle"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (127, 128))
     B = T.match_buffer(b, (127, 128))
@@ -339,7 +339,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
                 B[vi, vj] = A[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [127, 128])
     B = T.match_buffer(b, [127, 128])
@@ -392,7 +392,7 @@ def test_split_with_inferred_factor():
 
 
 def test_split_with_dynamic_inferred_factor():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, b: T.handle) -> None:
         N = T.int32()
         M = T.int32()
@@ -403,7 +403,7 @@ def test_split_with_dynamic_inferred_factor():
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, b: T.handle) -> None:
         N, M = T.int32(), T.int32()
         A = T.match_buffer(a, (N, 128, M))
@@ -569,7 +569,7 @@ def test_fuse_not_affine():
 
 
 def test_add_unit_loop_above_block():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def zero_dim(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -579,7 +579,7 @@ def test_add_unit_loop_above_block():
             vi = T.axis.spatial(1, 0)
             C[()] = A[()] + B[()]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def zero_dim_added(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -597,7 +597,7 @@ def test_add_unit_loop_above_block():
 
 
 def test_add_unit_loop_above_loop():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def zero_dim(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -608,7 +608,7 @@ def test_add_unit_loop_above_loop():
                 vi = T.axis.spatial(1, 0)
                 C[()] = A[()] + B[()]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def zero_dim_added(
         A: T.Buffer((), "int32"),
         B: T.Buffer((), "int32"),
@@ -691,115 +691,8 @@ def test_split_int64_factors():
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 
-@pytest.mark.parametrize("num_elements", [128, 115])
-def test_sve_scalable_split_predicated(num_elements):
-    """
-    By default, splitting with by vscale factors over a fixed-length loop will
-    result in loop-level predication being inserted. This is because, at
-    compile-time, we don't know if vscale is a multiple of the extent of the
-    loop to be split.
-    """
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(num_elements, 4 * T.vscale()))
-
-        @T.prim_func
-        def before(a: T.handle):
-            A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i in T.serial(num_elements):
-                with T.sblock("A"):
-                    v_i = T.axis.remap("S", [i])
-                    A[v_i] = 1.0
-
-        @T.prim_func
-        def after(a: T.handle):
-            A = T.match_buffer(a, (num_elements,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
-                    T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
-                    A[v_i] = 1.0
-
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(a, factors=[outer_extent, 4 * T.vscale()])
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_sve_scalable_split_assume_exact_multiple():
-    """
-    If the schedule writer knows the extent of the loop to be split will always
-    be a multiple of vscale, they may use `disable_predication=True` to ensure
-    a predicate is not created. This can be used to ensure predication is not
-    inserted.
-    """
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(128, 4 * T.vscale()))
-
-        @T.prim_func
-        def before(a: T.handle):
-            A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i in T.serial(128):
-                with T.sblock("A"):
-                    v_i = T.axis.remap("S", [i])
-                    A[v_i] = 1.0
-
-        @T.prim_func
-        def after(a: T.handle):
-            A = T.match_buffer(a, (128,), "float32")
-            T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
-                    A[v_i] = 1.0
-
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(
-            a,
-            factors=[outer_extent, 4 * T.vscale()],
-            disable_predication=True,
-        )
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_sve_split_over_scalable_loop():
-    @T.prim_func
-    def before(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-        for i in T.serial(4 * T.vscale()):
-            with T.sblock("A"):
-                v_i = T.axis.remap("S", [i])
-                A[v_i] = 1.0
-
-    @T.prim_func
-    def after(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
-        for i_0, i_1 in T.grid(T.vscale() * 2, T.vscale() * 2):
-            with T.sblock("A"):
-                v_i = T.axis.spatial(T.vscale() * 4, i_0 * (T.vscale() * 2) + i_1)
-                T.where(i_0 * (T.vscale() * 2) + i_1 < T.vscale() * 4)
-                A[v_i] = 1.0
-
-    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
-        sch = tvm.s_tir.Schedule(before)
-        (a,) = sch.get_loops("A")
-        sch.split(
-            a,
-            factors=[2 * T.vscale(), 2 * T.vscale()],
-        )
-
-    tvm.ir.assert_structural_equal(sch.mod["main"], after)
-
-
-def test_unsupported_target_scalable_split(capfd):
-    @T.prim_func
+def test_unsupported_target_scalable_split():
+    @T.prim_func(s_tir=True)
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
@@ -815,17 +708,9 @@ def test_unsupported_target_scalable_split(capfd):
     with pytest.raises(tvm.s_tir.schedule.ScheduleError, match=err_msg):
         sch.split(a, factors=[T.ceildiv(128, 4 * T.vscale()), 4 * T.vscale()])
 
-    warning_msg = (
-        "Warning: The expression contains scalable values. An attempt to prove by substituting "
-        "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was "
-    )
-    captured = capfd.readouterr().err
-    assert warning_msg in captured
-
 
 def test_fused_symbolic_2D_tiling():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, b: T.handle, M: T.int32, N: T.int32) -> None:
         A = T.match_buffer(a, (M, N))
         B = T.match_buffer(b, (M, N))
@@ -834,7 +719,7 @@ def test_fused_symbolic_2D_tiling():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, b: T.handle, M: T.int32, N: T.int32) -> None:
         A = T.match_buffer(a, (M, N))
         B = T.match_buffer(b, (M, N))

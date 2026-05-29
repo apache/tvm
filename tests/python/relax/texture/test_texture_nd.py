@@ -30,11 +30,11 @@ from tvm import (
     relax,
     tirx,
 )
-from tvm.contrib import ndk
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import ndk
 from tvm.target import Target
 
 
@@ -118,9 +118,9 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     if read_width > lanes:
         return
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TextureCopy:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):

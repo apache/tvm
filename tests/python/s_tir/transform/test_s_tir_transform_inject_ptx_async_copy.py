@@ -42,7 +42,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
     vector_size_expr = tvm.runtime.convert(vector_size)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def ptx_global_to_shared_copy(
         A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
     ) -> None:
@@ -61,8 +61,8 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
                 for j in T.vectorized(vector_size):
                     A_shared[tx, i * vector_size_expr + j] = A[tx, i * vector_size_expr + j]
 
-            T.evaluate(T.ptx_commit_group(dtype=""))
-            T.evaluate(T.ptx_wait_group(0, dtype=""))
+            T.evaluate(T.ptx.cp_async.commit_group(dtype=""))
+            T.evaluate(T.ptx.cp_async.wait_group(0, dtype=""))
 
             for i in range(128):
                 B[tx, i] = A_shared[tx, i]
@@ -70,7 +70,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     return ptx_global_to_shared_copy
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def ptx_global_to_shared_copy_fp32x1(
     A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
 ) -> None:
@@ -88,14 +88,14 @@ def ptx_global_to_shared_copy_fp32x1(
         for i in T.serial(128):
             A_shared[tx, i] = A[tx, i]
 
-        T.evaluate(T.ptx_commit_group(dtype=""))
-        T.evaluate(T.ptx_wait_group(0, dtype=""))
+        T.evaluate(T.ptx.cp_async.commit_group(dtype=""))
+        T.evaluate(T.ptx.cp_async.wait_group(0, dtype=""))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def ptx_global_to_shared_dyn_copy_fp16x8(
     A: T.Buffer((32, 128), "float16"),
     B: T.Buffer((32, 128), "float16"),
@@ -118,8 +118,8 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
                 A_shared[tx, i * 8 + j] = A[tx, i * 8 + j]
                 B_shared[tx, i * 8 + j] = B[tx, i * 8 + j]
 
-        T.evaluate(T.ptx_commit_group(dtype=""))
-        T.evaluate(T.ptx_wait_group(0, dtype=""))
+        T.evaluate(T.ptx.cp_async.commit_group(dtype=""))
+        T.evaluate(T.ptx.cp_async.wait_group(0, dtype=""))
 
         for i in range(128):
             C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
@@ -187,60 +187,11 @@ def test_inject_async_copy_shared_dyn():
     tvm.testing.assert_allclose(C_nd.numpy(), A_np + B_np)
 
 
-@T.prim_func
-def ptx_global_to_shared_copy_fp32x1_barrier(
-    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
-) -> None:
-    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float32", scope="shared")
-
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128])
-
-        T.evaluate(T.create_barriers(1, dtype=""))
-        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
-
-        T.attr("default", "async_scope", 1)
-        for i in T.serial(128):
-            A_shared[tx, i] = A[tx, i]
-
-        T.evaluate(T.ptx_cp_async_barrier(0, dtype=""))
-        T.evaluate(T.ptx_arrive_barrier(0, dtype=""))
-        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
-
-        for i in range(128):
-            B[tx, i] = A_shared[tx, i]
-
-
-@tvm.testing.requires_cuda_compute_version(9)
-def test_inject_async_copy_barrier():
-    dtype = "float32"
-    vec_size = 1
-    f = ptx_global_to_shared_copy_fp32x1_barrier
-
-    mod = tvm.IRModule.from_expr(f)
-    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tirx.transform.FlattenBuffer()(mod)
-    mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
-
-    assert count_cp_async(mod["main"].body) == 1
-
-    if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
-            mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
-
-        A_np = np.random.rand(32, 128).astype(dtype)
-        B_np = np.zeros((32, 128)).astype(dtype)
-        dev = tvm.cuda(0)
-        A_nd = tvm.runtime.tensor(A_np, device=dev)
-        B_nd = tvm.runtime.tensor(B_np, device=dev)
-        mod(A_nd, B_nd)
-        tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+# Note: the test_inject_async_copy_barrier case (and its prim_func helper)
+# was removed — it relied on the indexed barrier API
+# (`create_barriers`, `init_barrier_thread_count`, `arrive_barrier`,
+# `wait_barrier`) which fork does not provide; fork uses the
+# `ptx_mbarrier_*` family instead.
 
 
 # Note: the expected output contains a dead CSE variable `cse_v1 = (i < 12)`.
@@ -397,8 +348,8 @@ __asm__ __volatile__("cp.async.wait_group 0;");
 
 @pytest.fixture
 def postproc_if_missing_async_support():
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    arch = tvm.support.nvcc.get_target_compute_version()
+    major, _ = tvm.support.nvcc.parse_compute_version(arch)
     support_async = major >= 8
 
     func_name = "tvm_callback_cuda_postproc"
@@ -443,7 +394,7 @@ def postproc_if_missing_async_support():
 
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def simple_compute(
         A: T.Buffer((16, 14), "float32"),
         B: T.Buffer((16, 14), "float32"),
@@ -486,7 +437,14 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     print(generated_code)
-    assert generated_code == expected_cuda_script
+    # Fork emits an NVRTC-aware preamble (`#ifdef __CUDACC_RTC__ ... #else ...`
+    # block) before the apache-style `#include <cuda.h>`; the body after that
+    # block matches the expected snippet, so compare from the kernel-body
+    # onwards instead of byte-for-byte from the start.
+    marker = "#include <cuda.h>"
+    expected_body = expected_cuda_script[expected_cuda_script.index(marker) :]
+    actual_body = generated_code[generated_code.index(marker) :]
+    assert actual_body == expected_body
 
 
 @pytest.mark.skip(
@@ -497,7 +455,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 )
 @tvm.testing.requires_cuda
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def complex_compute(
         A: T.Buffer((2, 16, 16, 1280), "float16"),
         W: T.Buffer((1280, 3, 3, 1280), "float16"),
@@ -954,9 +912,9 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
 
 def test_multiplication_nodes_are_inlined():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
@@ -971,16 +929,16 @@ def test_multiplication_nodes_are_inlined():
             T.ptx_commit_group()
             T.ptx_wait_group(0)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
             A_shared = T.decl_buffer((4096,), "float16", scope="shared")
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
-                T.ptx_cp_async(
+                T.ptx.cp_async(
                     "float16",
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),

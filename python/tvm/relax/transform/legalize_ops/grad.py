@@ -219,7 +219,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                 return ib.get()
 
         shape = x.shape
-        out_buf = tirx.decl_buffer(shape, x.dtype, "out_buf")
+        out_buf = tirx.decl_buffer(shape, x.dtype, "out_buf", layout=None)
 
         return te.extern(
             [shape],

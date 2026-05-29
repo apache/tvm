@@ -94,11 +94,11 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Run arithmetic simplifications on the statements and expressions.
+ * \brief Run statement-level arithmetic simplifications on the TIR PrimFunc.
  *
  * \return The pass.
  */
-TVM_DLL Pass Simplify();
+TVM_DLL Pass StmtSimplify();
 
 /*!
  * \brief Convert an IRModule to be SSA form.
@@ -343,17 +343,35 @@ TVM_DLL Pass AnnotateEntryFunc();
 TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
- * \brief Remove the weight layout rewrite block
- * \param skip_tensor_rewrite If True, exact rewrite of Tensor, according to the given index map,
- *  will be skipped. Only the shape of the Tensor is transformed correctly, and the content of
- *  the destination array will be filled with random values.
+ * \brief Lower TIRx op calls using registered op dispatchers for the given target.
  *
- *  When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
- *  before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
- *  MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
- *
+ * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
+ * consistency, extracts launch parameters, and emits Bind statements +
+ * thread_extent AttrStmts wrapping the dispatched body.
  * \return The pass.
  */
+TVM_DLL Pass TilePrimitiveDispatch();
+
+/*!
+ * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRxCleanup();
+
+/*!
+ * \brief Lower opaque constructs in TIRX programs: AllocBuffer, For(thread_binding),
+ *        unit loop elimination. This is the tirx-specific counterpart of
+ *        s_tir::LowerOpaqueBlock, without any SBlock handling.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRxOpaque();
+
+/*!
+ * \brief Lower the TIR to a lower level IR for the given target.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRx();
+
 }  // namespace transform
 }  // namespace tirx
 }  // namespace tvm

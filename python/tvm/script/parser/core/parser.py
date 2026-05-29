@@ -284,6 +284,33 @@ class VarTable:
         """
         return {key: values[-1] for key, values in self.name2value.items() if values}
 
+    def get_at_depth(self, depth: int) -> dict[str, Any]:
+        """Get variables visible at the given frame depth, using current values.
+
+        For each variable name that appears in frames 0..depth-1, count how many
+        times it was pushed (to handle shadowing), then index into name2value at
+        count-1 to retrieve the latest value visible at that depth.
+
+        Parameters
+        ----------
+        depth : int
+            The frame depth (number of frames visible).
+
+        Returns
+        -------
+        res : dict[str, Any]
+            Variable dictionary of values visible at the given depth.
+        """
+        result: dict[str, Any] = {}
+        name_count: dict[str, int] = defaultdict(int)
+        for frame_idx in range(min(depth, len(self.frames))):
+            for name in self.frames[frame_idx].vars:
+                name_count[name] += 1
+        for name, count in name_count.items():
+            if self.name2value[name]:
+                result[name] = self.name2value[name][count - 1]
+        return result
+
     def exist(self, value: Any) -> bool:
         """Check if any value exists in variable table.
 
@@ -590,7 +617,8 @@ class Parser(doc.NodeVisitor):
 
         # Only take the last line of the error message
         if isinstance(err, TVMError):
-            msg = list(filter(None, str(err).split("\n")))[-1]
+            lines = list(filter(None, str(err).split("\n")))
+            msg = lines[-1] if lines else (str(err) or type(err).__name__)
         elif isinstance(err, KeyError):
             msg = "KeyError: " + str(err)
         else:
@@ -681,7 +709,12 @@ class Parser(doc.NodeVisitor):
         token = self.get_dispatch_token(node)
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
-            self.report_error(node, "The parser does not understand the decorator")
+            self.report_error(
+                node,
+                """The parser does not understand the decorator,
+                or visit_FunctionDef is not implemented for the decorator with token: """
+                + token,
+            )
         _dispatch(self, "pre_visit_local_function")(self, node)
         _dispatch_wrapper(func)(self, node)
         _dispatch(self, "post_visit_local_function")(self, node)

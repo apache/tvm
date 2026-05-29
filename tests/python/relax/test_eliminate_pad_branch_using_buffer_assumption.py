@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class AddBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -126,7 +126,7 @@ class AddBefore:
 
 @tvm.script.ir_module
 class AddExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -228,7 +228,7 @@ class AddExpected:
 
 @tvm.script.ir_module
 class SubBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -325,7 +325,7 @@ class SubBefore:
 
 @tvm.script.ir_module
 class SubExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -427,7 +427,7 @@ class SubExpected:
 
 @tvm.script.ir_module
 class MulBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -524,7 +524,7 @@ class MulBefore:
 
 @tvm.script.ir_module
 class MulExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),

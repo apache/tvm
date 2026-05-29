@@ -1136,7 +1136,7 @@ def test_layer_norm(data_shape, dtype, axes):
 
 
 def test_attention_rewrite_fp16():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1169,7 +1169,7 @@ def test_attention_rewrite_fp16():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def fused_relax_nn_attention_bias_cutlass1(
@@ -1255,9 +1255,9 @@ def split_transform_deploy_mod(mod):
 
 
 def test_fp16A_int4B_gemm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(128),), "float16"),
@@ -1290,7 +1290,7 @@ def test_fp16A_int4B_gemm():
                         * B[v_j]
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(128), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
@@ -1512,9 +1512,9 @@ def test_fp16A_int4B_gemm():
 
 
 def test_fp16A_int8B_gemm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(64),), "float16"),
@@ -1529,7 +1529,7 @@ def test_fp16A_int8B_gemm():
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
@@ -1658,9 +1658,9 @@ def test_fp16A_int8B_gemm():
 
 
 def test_rms_norm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -1791,9 +1791,9 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(64),), "float16"),
@@ -1808,7 +1808,7 @@ def test_fp16A_int8B_gemm_batched():
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
@@ -1924,9 +1924,9 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(128), T.int64(128)), "int8"),
             B: T.Buffer((T.int64(2), T.int64(128)), "float16"),
@@ -1940,7 +1940,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(128), T.int64(128)), "float16"),
             w_gathered: T.Buffer((T.int64(128), T.int64(128)), "int8"),
@@ -2079,7 +2079,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
 
 def test_attention_rewrite_multi_query():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -2199,7 +2199,7 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {
@@ -2252,7 +2252,7 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {
@@ -2347,7 +2347,7 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {

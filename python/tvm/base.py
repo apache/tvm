@@ -22,6 +22,8 @@
 import os
 import sys
 
+from tvm_ffi.libinfo import load_lib_ctypes
+
 from . import libinfo
 
 # ----------------------------
@@ -48,16 +50,23 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # compiler library is simply not present (runtime-only wheel), only the
 # runtime is loaded and ``_LIB`` aliases ``_LIB_RUNTIME``.
 _extra_lib_paths = libinfo.package_lib_paths()
-_LIB_RUNTIME = libinfo.load_lib_ctypes(
+_LIB_RUNTIME = load_lib_ctypes(
     "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=_extra_lib_paths
 )
+
+# After libtvm_runtime.so is in the global symbol namespace, scan the same
+# directory for per-backend DSOs (libtvm_runtime_cuda.so, etc.) and load each
+# with RTLD_GLOBAL so their static initializers register device backends.
+# Failures are swallowed silently — a missing driver just means that backend
+# is unavailable, not an error.
+libinfo.load_backend_libs(_LIB_RUNTIME._name)
 
 _RUNTIME_ONLY = libinfo.use_runtime_lib()
 if _RUNTIME_ONLY:
     _LIB = _LIB_RUNTIME
 else:
     try:
-        _LIB = libinfo.load_lib_ctypes(
+        _LIB = load_lib_ctypes(
             "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_extra_lib_paths
         )
     except RuntimeError:

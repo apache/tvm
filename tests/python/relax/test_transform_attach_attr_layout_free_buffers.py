@@ -28,9 +28,9 @@ from tvm.script.ir_builder import relax as relax_builder
 
 
 def test_param():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -51,9 +51,9 @@ def test_param():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -82,9 +82,9 @@ def test_param():
 def test_const():
     const_value = np.ones((32, 32), dtype="float32")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -109,9 +109,9 @@ def test_const():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -142,9 +142,9 @@ def test_const():
 
 
 def test_multiple_same_func():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -178,9 +178,9 @@ def test_multiple_same_func():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -220,9 +220,9 @@ def test_multiple_same_func():
 
 
 def test_multiple_same_func_with_different_free_buffers():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -256,9 +256,9 @@ def test_multiple_same_func_with_different_free_buffers():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
@@ -271,7 +271,7 @@ def test_multiple_same_func_with_different_free_buffers():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul2(
             A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),

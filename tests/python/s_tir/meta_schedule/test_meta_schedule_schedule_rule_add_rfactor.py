@@ -27,7 +27,7 @@ from tvm.te import create_prim_func
 
 
 def test_cpu_matmul():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_0(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -43,7 +43,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_1(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -71,7 +71,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + C_rf[i, j, vi2_1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_2(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -122,7 +122,7 @@ def test_cpu_matmul():
 
 
 def test_cpu_argmax():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -145,7 +145,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_0(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -167,7 +167,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_1(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -214,7 +214,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_2(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),

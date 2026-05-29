@@ -152,7 +152,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tirx::transform::FlattenBuffer());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
           pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tirx::transform::VectorizeLoop(true));

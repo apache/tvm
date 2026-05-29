@@ -187,7 +187,7 @@ def test_env_func():
 
 
 def test_stmt():
-    @T.prim_func(private=True, check_well_formed=False)
+    @T.prim_func(private=True, check_well_formed=False, s_tir=True)
     def func2(A: T.handle, n_param: T.int32):
         n_var = T.var("int32")
         Ab = T.match_buffer(A, (n_var,))
@@ -373,7 +373,7 @@ def test_ir_module_equal():
     def generate(n: int):
         @I.ir_module
         class module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def func(A: T.Buffer(1, "int32")):
                 for i in range(n):
                     A[0] = A[0] + 1
@@ -402,11 +402,11 @@ def test_nan_values_are_equivalent():
 
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func_1():
         return T.float32("nan")
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func_2():
         return T.float32("nan")
 

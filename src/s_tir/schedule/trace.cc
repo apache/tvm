@@ -226,6 +226,54 @@ ffi::Array<Any> TranslateInputRVs(
   return results;
 }
 
+/**************** NormalizeJSONIntegers  ****************/
+
+/*!
+ * \brief Normalize integer-typed values inside an Any soup produced by JSON
+ *        deserialization so it matches the post-Integer-phaseout trait signatures.
+ *
+ * After the phase-out of `class Integer`, several schedule-instruction trait
+ * signatures expect bare `int64_t` / `Array<int64_t>` / `Optional<int64_t>` /
+ * `Optional<Array<int64_t>>` for sample-instruction attrs and decisions (e.g.
+ * `SampleCategorical::candidates`, `SamplePerfectTile::decision`). The FFI
+ * layer can unbox a top-level `IntImm` Any into `int64_t` via the
+ * `IntImm` <-> `int64_t` fallback, but it does NOT recursively unbox
+ * `Array<IntImm>` into `Array<int64_t>`. JSON deserialization that came in
+ * with `IntImm` leaves (e.g. produced by `Trace::AsJSON` over an in-memory
+ * `Array<IntImm>`) therefore fails dispatch.
+ *
+ * This helper recursively walks `value`, replacing every `IntImm` it sees
+ * with the equivalent `int64_t`. Recursion descends into `Array<Any>` but
+ * stops at any object that isn't `IntImm` or `Array<Any>` (e.g. `FloatImm`,
+ * `IndexMap`, RVs, strings stay as-is). The reverse `int64_t -> IntImm`
+ * conversion (where a trait still wants `Integer` / `IntImm`) is handled
+ * automatically by the FFI fallback in `TypeTraits<IntImm>`.
+ */
+Any NormalizeJSONIntegers(const Any& value) {
+  if (auto opt_int = value.try_cast<IntImm>()) {
+    return opt_int.value()->value;
+  }
+  if (auto opt_arr = value.try_cast<ffi::Array<Any>>()) {
+    const ffi::Array<Any>& arr = opt_arr.value();
+    ffi::Array<Any> result;
+    result.reserve(arr.size());
+    for (const Any& elem : arr) {
+      result.push_back(NormalizeJSONIntegers(elem));
+    }
+    return result;
+  }
+  return value;
+}
+
+ffi::Array<Any> NormalizeJSONIntegers(const ffi::Array<Any>& values) {
+  ffi::Array<Any> result;
+  result.reserve(values.size());
+  for (const Any& value : values) {
+    result.push_back(NormalizeJSONIntegers(value));
+  }
+  return result;
+}
+
 /**************** TranslateAddOutputRVs  ****************/
 
 void TranslateAddOutputRVs(const ffi::Array<Any>& old_outputs, const ffi::Array<Any>& new_outputs,
@@ -351,10 +399,14 @@ ffi::ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
                                                             : ffi::ObjectRef(inst->attrs),
         /* 3: outputs   */ TranslateAddOutputRVs(inst->outputs, &rv_names),
     });
-    if (auto decision = this->GetDecision(inst).cast<ffi::Optional<ffi::ObjectRef>>()) {
-      json_decisions.push_back(ffi::Array<ffi::ObjectRef>{
+    // Decisions may now hold POD types (e.g. int64_t for SampleCategorical /
+    // SampleComputeLocation, or Array<int64_t> for SamplePerfectTile) after
+    // the Integer phase-out. Treat them uniformly as Any.
+    Any decision = this->GetDecision(inst);
+    if (decision != nullptr) {
+      json_decisions.push_back(ffi::Array<ffi::Any>{
           /* 0: index    */ Integer(i),
-          /* 1: decision */ decision.value(),
+          /* 1: decision */ decision,
       });
     }
     ++i;
@@ -420,7 +472,9 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
       auto arr0 = arr->at(0).try_cast<IntImm>();
       TVM_FFI_ICHECK(arr0);
       index = arr0.value()->value;
-      decision = arr->at(1);
+      // Unbox any IntImm into int64_t so decisions whose trait expects
+      // Optional<int64_t> or Optional<Array<int64_t>> dispatch correctly.
+      decision = NormalizeJSONIntegers(arr->at(1));
     } catch (const tvm::ffi::Error& e) {
       TVM_FFI_THROW(ValueError) << "Each entry of a json decision should be a tuple [index, "
                                    "decision], but gets: "
@@ -457,6 +511,12 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
     // Parse attrs
     if (kind->f_attrs_from_json != nullptr) {
       attrs = kind->f_attrs_from_json(attrs);
+    } else {
+      // Unbox any IntImm into int64_t so attrs whose trait expects
+      // Array<int64_t> (e.g. SampleCategorical::candidates) dispatch
+      // correctly. The reverse int64_t -> IntImm conversion is handled
+      // automatically by the FFI fallback in TypeTraits<IntImm>.
+      attrs = NormalizeJSONIntegers(attrs);
     }
     // Apply to the schedule
     ffi::Array<Any> new_outputs = kind->f_apply_to_schedule(sch, inputs, attrs, decisions[i]);

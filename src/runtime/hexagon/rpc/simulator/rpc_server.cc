@@ -28,7 +28,7 @@
 #include <sstream>
 #include <string>
 
-#include "../../../minrpc/minrpc_server.h"
+#include "../../../rpc/minrpc/minrpc_server.h"
 #include "../../hexagon_common.h"
 #include "../../profiler/prof_utils.h"
 #include "hexagon_sim_proto.h"

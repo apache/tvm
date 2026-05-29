@@ -45,7 +45,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-struct LoopPartitionConfigNode : public AttrsNodeReflAdapter<LoopPartitionConfigNode> {
+struct LoopPartitionConfigNode : public ffi::Object {
   bool partition_const_loop;
   bool no_unroll_loop_with_extent_one;
   bool unroll_loop_with_partition_hint_no_interval;
@@ -64,14 +64,14 @@ struct LoopPartitionConfigNode : public AttrsNodeReflAdapter<LoopPartitionConfig
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.transform.LoopPartitionConfig", LoopPartitionConfigNode,
-                                    BaseAttrsNode);
+                                    ffi::Object);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { LoopPartitionConfigNode::RegisterReflection(); }
 
-class LoopPartitionConfig : public Attrs {
+class LoopPartitionConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopPartitionConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LoopPartitionConfig, ffi::ObjectRef,
                                                 LoopPartitionConfigNode);
 };
 
@@ -817,7 +817,7 @@ Pass LoopPartition() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
     }
     n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
                                    cfg.value()->no_unroll_loop_with_extent_one,

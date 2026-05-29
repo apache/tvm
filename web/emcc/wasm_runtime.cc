@@ -32,9 +32,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
+#include "src/runtime/extra/contrib/sort/sort.cc"
 #include "src/runtime/file_utils.cc"
 #include "src/runtime/logging.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
@@ -63,7 +63,6 @@
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 #include "src/runtime/memory/memory_manager.cc"
-#include "src/runtime/nvtx.cc"
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
 #include "src/runtime/vm/bytecode.cc"

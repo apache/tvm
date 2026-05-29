@@ -51,6 +51,7 @@ class Trainer:
     Examples
     --------
     .. code-block:: python
+
         setup_trainer = SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),

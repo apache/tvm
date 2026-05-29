@@ -21,11 +21,12 @@
  * \file tirx/ir/tir_visitor_with_path.h
  * \brief Provide a TIR visitor that tracks the current location
  */
-#ifndef TVM_TIR_IR_TIR_VISITOR_WITH_PATH_H_
-#define TVM_TIR_IR_TIR_VISITOR_WITH_PATH_H_
+#ifndef TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
+#define TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -51,9 +52,13 @@ class TIRVisitorWithPath
 
  protected:
   // Delegate to ExprFunctor::VisitExpr for PrimExpr, and any subclasses
-  inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) { VisitExpr(obj, path); }
+  virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
+    VisitExpr(obj, path);
+  }
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
-  inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) { VisitStmt(obj, path); }
+  virtual inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) {
+    VisitStmt(obj, path);
+  }
 
   // Visit a buffer at a use site (BufferLoad, BufferStore, reads/writes).
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
@@ -113,6 +118,8 @@ class TIRVisitorWithPath
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
@@ -121,6 +128,8 @@ class TIRVisitorWithPath
   void VisitStmt_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::VisitExpr;
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
@@ -261,6 +270,85 @@ class TIRVisitorWithPath
   using BindScopeEntry = std::variant<DefContext<Var>, DefContext<Buffer>>;
   ScopeStack<std::vector<BindScopeEntry>> bind_scope_;
 };
+
+namespace {
+
+template <typename DerivedVerifier>
+class Verifier : protected TIRVisitorWithPath {
+ public:
+  template <typename TirNodeRef>
+  static bool Verify(const TirNodeRef& node, bool assert_on_error) {
+    DerivedVerifier verifier(assert_on_error);
+    verifier(node);
+    return !verifier.has_error_;
+  }
+
+ protected:
+  explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
+
+  /* \brief Helper class to handle the bool-or-assert handles
+   *
+   * Each verifier can either return a boolean, or assert on failure.
+   * To avoid needing to duplicate this logic at every step, the
+   * Verify() method can be used.  Similar to `LOG(FATAL)` or
+   * `LOG(DEBUG)`, it returns an object that can accept streamed
+   * context information.
+   *
+   * If the error should be raised, then the context is collected
+   * identically to `LOG(FATAL)`.  If a boolean is returned, or if the
+   * condition passes, then the streamed context is discarded.
+   *
+   * Usage:
+   *
+   *     Verify(value == expected_value)
+   *            << "ValueError: " << value
+   *            << " was not the expected value of " << expected_value;
+   */
+  class VerifyStream {
+   public:
+    explicit VerifyStream(bool log_fatal) {
+      if (log_fatal) {
+        log_.emplace();
+      }
+    }
+
+    VerifyStream(const VerifyStream&) = delete;
+    VerifyStream& operator=(const VerifyStream&) = delete;
+    VerifyStream(VerifyStream&& other) { std::swap(log_, other.log_); }
+    VerifyStream& operator=(VerifyStream&& other) {
+      std::swap(log_, other.log_);
+      return *this;
+    }
+
+    template <typename T>
+    VerifyStream& operator<<(T&& t) {
+      if (log_.has_value()) {
+        log_.value() << std::forward<T>(t);
+      }
+      return *this;
+    }
+
+    ~VerifyStream() noexcept(false) {
+      if (log_.has_value()) {
+        LOG(FATAL) << log_->str();
+      }
+    }
+
+    std::optional<std::ostringstream> log_{std::nullopt};
+  };
+
+  // TODO(Lunderberg): Add the filename/linenum with
+  // std::source_location when C++20 is available.
+  VerifyStream Verify(bool condition) {
+    has_error_ = has_error_ || !condition;
+    return VerifyStream(!condition && assert_on_error_);
+  }
+
+  bool assert_on_error_;
+  bool has_error_{false};
+};
+
+}  // namespace
 
 }  // namespace tirx
 }  // namespace tvm

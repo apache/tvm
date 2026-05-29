@@ -34,7 +34,7 @@ TEST_OUTPUT_TEMPLATE = (
 def get_add_operator(operations):
     """Generate add operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
@@ -51,7 +51,7 @@ def get_add_operator(operations):
 def get_multiply_operator(operations):
     """Generate multiply operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
@@ -68,7 +68,7 @@ def get_multiply_operator(operations):
 def get_sub_operator(operations):
     """Generate subtract operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")

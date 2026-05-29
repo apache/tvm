@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 def test_ir_transform():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(n: T.int32):
             for i in T.serial(n):
                 for j in T.serial(10):

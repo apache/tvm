@@ -57,7 +57,8 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     }
 
     // if for loop is not a memcpy of a contiguous region, it might be a cuda cp.async behavior
-    std::optional<MemCpyDetails> mem_copy = IdentifyMemCpy(ffi::GetRef<For>(loop), analyzer_);
+    std::optional<s_tir::MemCpyDetails> mem_copy =
+        s_tir::IdentifyMemCpy(ffi::GetRef<For>(loop), analyzer_);
     if (!mem_copy.has_value() || mem_copy->dest->region.size() != 1 ||
         mem_copy->source->region.size() != 1) {
       return arith::IRMutatorWithAnalyzer::VisitStmt_(loop);
@@ -174,7 +175,7 @@ Pass LowerAsyncDMA() {
     auto fptr = f.CopyOnWrite();
     arith::Analyzer analyzer;
     bool dma_bypass_cache =
-        ctx->GetConfig<Bool>("tirx.experimental_dma_bypass_cache", Bool(false)).value();
+        ctx->GetConfig<bool>("tirx.experimental_dma_bypass_cache", false).value();
     fptr->body = AsyncDMALowerer(dma_bypass_cache, &analyzer)(std::move(fptr->body));
     return f;
   };

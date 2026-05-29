@@ -78,7 +78,7 @@
 #include <set>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../runtime/opencl/texture.h"
 #include "utils.h"
 
 namespace tvm {
@@ -1041,9 +1041,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
                                          VDevice vdevice) {
-  int image_row_align = vdevice->target->GetAttr<Integer>("image_base_address_alignment")
-                            .value_or(Integer(64))
-                            ->value;
+  int image_row_align = static_cast<int>(
+      vdevice->target->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
 
   struct Shape {
     const ffi::Array<PrimExpr>& shape;

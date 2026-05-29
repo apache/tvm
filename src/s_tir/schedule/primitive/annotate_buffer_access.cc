@@ -57,21 +57,21 @@ class AnnotateRegionRewriter : public StmtExprMutator {
                                      ? s_tir::attr::explicit_write_region
                                      : s_tir::attr::explicit_read_region;
     if (new_annotations.count(annotation_key)) {
-      ffi::Array<Integer> buffer_indices =
-          Downcast<ffi::Array<Integer>>(new_annotations[annotation_key]);
+      ffi::Array<int64_t> buffer_indices =
+          Downcast<ffi::Array<int64_t>>(new_annotations[annotation_key]);
       bool found = false;
-      for (const Integer& index : buffer_indices) {
-        if (index->value == buffer_index_) {
+      for (int64_t index : buffer_indices) {
+        if (index == buffer_index_) {
           found = true;
           break;
         }
       }
       if (!found) {
-        buffer_indices.push_back(Integer(buffer_index_));
+        buffer_indices.push_back(static_cast<int64_t>(buffer_index_));
         new_annotations.Set(annotation_key, buffer_indices);
       }
     } else {
-      new_annotations.Set(annotation_key, ffi::Array<Integer>{Integer(buffer_index_)});
+      new_annotations.Set(annotation_key, ffi::Array<int64_t>{static_cast<int64_t>(buffer_index_)});
     }
     n->annotations = std::move(new_annotations);
 

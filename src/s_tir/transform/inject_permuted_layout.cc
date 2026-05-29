@@ -155,10 +155,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }

@@ -164,7 +164,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
 void BuildAxisGraphReduce(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   bool keepdims;
   if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
     if (attrs->axis.defined()) {

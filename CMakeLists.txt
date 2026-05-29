@@ -51,6 +51,7 @@ tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon s
 tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
 tvm_option(USE_HEXAGON_GTEST "Path to Hexagon specific gtest version for runtime cpp tests." /path/to/hexagon/gtest)
 tvm_option(USE_HEXAGON_EXTERNAL_LIBS "Path to git repo containing external Hexagon runtime sources or libraries" OFF)
+
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -112,6 +113,20 @@ include_directories(SYSTEM ${COMPILER_RT_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
+set(TVM_RUNTIME_BACKEND_LIBS "")
+# Early target creation so contrib cmake files can call
+# target_link_libraries(tvm_runtime_extra PRIVATE <object_lib>) directly.
+add_library(tvm_runtime_extra SHARED)
+list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_extra)
+set_target_properties(tvm_runtime_extra PROPERTIES LINKER_LANGUAGE CXX)
+# INTERFACE target carrying compile definitions for OBJECT libs that build
+# into tvm_runtime_extra. On MSVC, TVM_RUNTIME_EXPORTS makes TVM_RUNTIME_DLL
+# expand to __declspec(dllexport) so that functions defined in extra modules
+# are properly exported from tvm_runtime_extra.dll.
+add_library(tvm_runtime_extra_defs INTERFACE)
+target_link_libraries(tvm_runtime_extra_defs INTERFACE tvm_ffi_header)
+target_compile_definitions(tvm_runtime_extra_defs
+  INTERFACE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
 
 
 # Check if this is being run on its own or as a subdirectory for another project
@@ -284,6 +299,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/script/ir_builder/base.cc
     src/script/ir_builder/ir/*.cc
     src/script/printer/config.cc
+    src/script/printer/script_printer.cc
     src/script/printer/doc.cc
     src/script/printer/doc_printer/*.cc
     src/script/printer/ir_docsifier.cc
@@ -328,10 +344,10 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
   src/runtime/memory/*.cc
-  src/runtime/disco/*.cc
-  src/runtime/minrpc/*.cc
-  src/runtime/vm/*.cc
+  src/runtime/rpc/minrpc/*.cc
 )
+# Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
+# Note: src/runtime/{cuda,vulkan,opencl,metal,rocm,hexagon}/* move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)
@@ -343,17 +359,11 @@ if(BUILD_FOR_HEXAGON)
   add_definitions(-D_MACH_I32=int)
 endif()
 
-# distributed disco runtime are disabled for hexagon
-if (NOT BUILD_FOR_HEXAGON)
-  tvm_file_glob(GLOB RUNTIME_DISCO_DISTRIBUTED_SRCS src/runtime/disco/distributed/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_DISCO_DISTRIBUTED_SRCS})
-endif()
-
 # Package runtime rules
 if(NOT USE_RTTI)
 endif()
 
-if (INDEX_DEFAULT_I64)
+if(INDEX_DEFAULT_I64)
   add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
 
@@ -362,36 +372,8 @@ if(USE_RPC)
   tvm_file_glob(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
-
-if(USE_CUDA AND USE_NCCL)
-  message(STATUS "Build with NCCL...")
-  find_nccl(${USE_NCCL})
-  include_directories(SYSTEM ${NCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB RUNTIME_NCCL_SRC src/runtime/disco/nccl/*.cc src/runtime/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
-  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
-  list(APPEND RUNTIME_SRCS ${RUNTIME_NCCL_SRC})
-endif()
-
-if (USE_CUDA AND USE_NVSHMEM)
-  message(STATUS "Build with NVSHMEM...")
-  find_nvshmem(${USE_NVSHMEM})
-  if (NOT NVSHMEM_FOUND)
-    message(FATAL_ERROR "Cannot find NVSHMEM, USE_NVSHMEM=" ${USE_NVSHMEM})
-  endif()
-  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  tvm_file_glob(GLOB RUNTIME_NVSHMEM_SRCS src/runtime/contrib/nvshmem/*.cc src/runtime/contrib/nvshmem/*.cu)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_NVSHMEM_SRCS})
-endif()
-
-if(USE_ROCM AND USE_RCCL)
-  message(STATUS "Build with RCCL...")
-  find_rccl(${USE_RCCL})
-  include_directories(SYSTEM ${RCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB RUNTIME_RCCL_SRC src/runtime/disco/nccl/*.cc)
-  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
-  list(APPEND RUNTIME_SRCS ${RUNTIME_RCCL_SRC})
-endif()
+# Note: disco/**, NCCL, NVSHMEM, RCCL all move to libtvm_runtime_extra
+# (assembled inline below after all contrib cmake files).
 
 # Enable ctest if gtest is available
 if(USE_GTEST)
@@ -470,6 +452,90 @@ include(cmake/modules/contrib/NNAPI.cmake)
 include(cmake/modules/contrib/ExampleNPU.cmake)
 include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
+
+# ---- libtvm_runtime_extra assembly ----
+# Disco core sources.
+tvm_file_glob(GLOB _disco_core_srcs src/runtime/extra/disco/*.cc)
+add_library(tvm_disco_objs OBJECT ${_disco_core_srcs})
+target_link_libraries(tvm_disco_objs PRIVATE tvm_runtime_extra_defs)
+target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_objs)
+
+# Distributed disco (disabled for Hexagon cross-compile).
+if(NOT BUILD_FOR_HEXAGON)
+  tvm_file_glob(GLOB _disco_dist_srcs src/runtime/extra/disco/distributed/*.cc)
+  add_library(tvm_disco_distributed_objs OBJECT ${_disco_dist_srcs})
+  target_link_libraries(tvm_disco_distributed_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_distributed_objs)
+endif()
+
+# NCCL / cuda_ipc — requires CUDA + NCCL.
+if(USE_CUDA AND USE_NCCL)
+  find_nccl(${USE_NCCL})
+  include_directories(SYSTEM ${NCCL_INCLUDE_DIR})
+  tvm_file_glob(GLOB _nccl_srcs src/runtime/extra/disco/nccl/*.cc src/runtime/extra/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
+  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
+  add_library(tvm_nccl_objs OBJECT ${_nccl_srcs})
+  target_link_libraries(tvm_nccl_objs PRIVATE tvm_runtime_extra_defs)
+  find_library(LIBRT rt)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_nccl_objs nccl ${LIBRT})
+endif()
+
+# NVSHMEM.
+if(USE_CUDA AND USE_NVSHMEM)
+  find_nvshmem(${USE_NVSHMEM})
+  if(NOT NVSHMEM_FOUND)
+    message(FATAL_ERROR "Cannot find NVSHMEM, USE_NVSHMEM=" ${USE_NVSHMEM})
+  endif()
+  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  tvm_file_glob(GLOB _nvshmem_srcs src/runtime/extra/contrib/nvshmem/*.cc src/runtime/extra/contrib/nvshmem/*.cu)
+  add_library(tvm_nvshmem_objs OBJECT ${_nvshmem_srcs})
+  target_link_libraries(tvm_nvshmem_objs PRIVATE tvm_runtime_extra_defs)
+  target_include_directories(tvm_nvshmem_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
+  find_library(NVSHMEM_HOST nvshmem_host ${NVSHMEM_LIB_DIR})
+  find_library(NVSHMEM_DEVICE nvshmem_device ${NVSHMEM_LIB_DIR})
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_nvshmem_objs ${NVSHMEM_HOST} ${NVSHMEM_DEVICE})
+  set_target_properties(tvm_runtime_extra PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+endif()
+
+# RCCL.
+if(USE_ROCM AND USE_RCCL)
+  find_rccl(${USE_RCCL})
+  include_directories(SYSTEM ${RCCL_INCLUDE_DIR})
+  tvm_file_glob(GLOB _rccl_srcs src/runtime/extra/disco/nccl/*.cc)
+  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
+  add_library(tvm_rccl_objs OBJECT ${_rccl_srcs})
+  target_link_libraries(tvm_rccl_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_rccl_objs rccl)
+endif()
+
+target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime)
+
+# If disco/cuda_ipc is included, link the CUDA DSO.
+if(USE_CUDA)
+  target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime_cuda)
+endif()
+
+# CUTLASS fpA_intB_gemm and flash_attn are separate shared libs.
+if(USE_CUDA AND USE_CUTLASS)
+  target_link_libraries(tvm_runtime_extra PRIVATE fpA_intB_gemm fpA_intB_gemm_tvm)
+  target_link_libraries(tvm_runtime_extra PRIVATE -Wl,--no-as-needed flash_attn)
+endif()
+
+if(TVM_VISIBILITY_FLAG)
+  set_property(TARGET tvm_runtime_extra APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+endif()
+
+set_target_properties(tvm_runtime_extra PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+)
+
+install(TARGETS tvm_runtime_extra DESTINATION lib${LIB_SUFFIX})
+if(TVM_BUILD_PYTHON_MODULE)
+  install(TARGETS tvm_runtime_extra DESTINATION "lib")
+endif()
 
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
@@ -762,45 +828,17 @@ dump_options_to_file("${TVM_ALL_OPTIONS}")
 
 if(USE_CUDA AND USE_CUTLASS)
   install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  # fpA_intB_gemm is a separate shared library; link it into the runtime so
-  # the runtime exposes its kernels and tvm_compiler picks them up
-  # transitively at run time.
-  target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm)
-  # fpA_intB_gemm_tvm is an OBJECT library carrying the
-  # `fastertransformer.gemm_fp16_int` global registration. Linking it into
-  # both tvm_runtime and tvm_compiler causes the static initializer to run
-  # twice (once per shared library). Anchor it in tvm_runtime only.
-  target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm_tvm)
-
   install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  target_link_libraries(tvm_runtime PRIVATE -Wl,--no-as-needed flash_attn)
+  # fpA_intB_gemm, fpA_intB_gemm_tvm, and flash_attn are linked by
+  # tvm_runtime_extra (see the inline assembly block above); no link needed here.
 endif()
 
 if(USE_CUDA AND USE_NVTX)
-  set_source_files_properties(src/runtime/nvtx.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NVTX_ENABLED=1")
+  add_compile_definitions(TVM_NVTX_ENABLED=1)
 endif()
 
-if(USE_CUDA AND USE_NCCL)
-  find_library(LIBRT rt)
-  # Runtime-only dependency.
-  target_link_libraries(tvm_runtime PRIVATE nccl ${LIBRT})
-endif()
-
-
-if (USE_CUDA AND USE_NVSHMEM)
-  target_include_directories(tvm_runtime_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
-  find_library(NVSHMEM_HOST nvshmem_host ${NVSHMEM_LIB_DIR})
-  find_library(NVSHMEM_DEVICE nvshmem_device ${NVSHMEM_LIB_DIR})
-  # Runtime-only dependency.
-  target_link_libraries(tvm_runtime PRIVATE ${NVSHMEM_HOST} ${NVSHMEM_DEVICE})
-  set_target_properties(tvm_runtime PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-  set_target_properties(tvm_compiler PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-endif()
-
-if(USE_ROCM AND USE_RCCL)
-  # Runtime-only dependency.
-  target_link_libraries(tvm_runtime PRIVATE rccl)
-endif()
+# Note: NCCL, NVSHMEM, RCCL target_link_libraries are handled in the inline
+# libtvm_runtime_extra assembly block above.
 
 # Python package installation configuration
 # This section ensures that all necessary files are installed for the Python wheel

@@ -644,7 +644,7 @@ def test_well_formed_function_referencing_global_var():
     well-formed, no GlobalVar definitions are available.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
@@ -674,13 +674,13 @@ def test_pass_dltensor_arg_to_tir():
     runtime datatype.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor) -> R.Prim("bool"):
             return Module.is_bfloat16_dtype(A)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
             T.func_attr({"tirx.is_scheduled": True, "tirx.is_host_func": True})
 
@@ -707,14 +707,14 @@ def test_pass_dltensor_arg_to_tir():
 def test_call_tir_with_matching_arguments():
     """R.call_tir is well-formed when called with matching arguments"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -732,14 +732,14 @@ def test_call_tir_input_ndim():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([4, 4], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -756,14 +756,14 @@ def test_call_tir_output_ndim():
     provided with a 2-d tensor.
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([4, 4], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -781,14 +781,14 @@ def test_call_tir_input_shape():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([32], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -805,14 +805,14 @@ def test_call_tir_output_shape():
     elements, but is provided an output tensor with 32 elements.
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([32], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -831,14 +831,14 @@ def test_call_tir_input_dtype():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float32")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -857,14 +857,14 @@ def test_call_tir_output_dtype():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float32"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -886,14 +886,14 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 8], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -919,14 +919,14 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([16, 16], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -954,14 +954,14 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 4, 2], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -992,14 +992,14 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([256], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([8, 16, 2], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(A: T.Buffer(256, "float16"), B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1024,14 +1024,14 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
             B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([32], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1062,14 +1062,14 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
             B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([64], "float16"))
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1096,7 +1096,7 @@ def test_call_tir_with_dtensor_arguments():
 
     # from tvm.script.parser import relax as R
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_attrs({"device_num": 4})
         I.module_global_infos({"mesh": [R.dist.device_mesh([4], I.Range(0, 4))]})
@@ -1108,7 +1108,7 @@ def test_call_tir_with_dtensor_arguments():
             )
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def flatten(A_handle: T.handle, B_handle: T.handle):
             M = T.int64()
             N = T.int64()
@@ -1126,7 +1126,7 @@ def test_call_tir_with_dtensor_arguments():
 def test_call_tir_inplace_with_correct_shapes():
     """R.call_tir_inplace is well-formed when called with matching arguments"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
@@ -1138,7 +1138,7 @@ def test_call_tir_inplace_with_correct_shapes():
             )
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -1151,7 +1151,7 @@ def test_call_tir_inplace_with_correct_shapes():
 def test_call_tir_inplace_with_incorrect_shapes():
     """R.call_tir_inplace is ill-formed when output shape does not match input"""
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
@@ -1163,7 +1163,7 @@ def test_call_tir_inplace_with_incorrect_shapes():
             )
             return B
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
                 with T.sblock("compute"):
@@ -1176,7 +1176,7 @@ def test_call_tir_inplace_with_incorrect_shapes():
 def test_call_tir_inplace_with_some_allocated_outputs():
     """R.call_tir_inplace may contain some non-inplace outputs"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16"), B: R.Tensor([32], "float16")):
@@ -1191,7 +1191,7 @@ def test_call_tir_inplace_with_some_allocated_outputs():
             )
             return out
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(
             A: T.Buffer(16, "float16"),
             B: T.Buffer(32, "float16"),
@@ -1250,7 +1250,7 @@ def test_var_binding_may_have_less_constrained_struct_info():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1305,7 +1305,7 @@ def test_incomplete_struct_info_must_be_consistent():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1326,7 +1326,7 @@ def test_struct_info_annotations_must_be_correct():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1348,7 +1348,7 @@ def test_struct_info_may_be_incomplete():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1369,7 +1369,7 @@ def test_incomplete_struct_info_must_be_consistent():
 
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class Module:
         @R.function
         def main(

@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TIRX_SCRIPT_BUILDER_FRAME_H_
-#define TVM_TIRX_SCRIPT_BUILDER_FRAME_H_
+#ifndef TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
+#define TVM_SCRIPT_IR_BUILDER_TIR_FRAME_H_
 
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/stmt.h>
 
 #include <utility>
@@ -85,6 +86,13 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief The buffer allocated in root block. */
   ffi::Array<tvm::tirx::Buffer> root_alloc_buffers;
 
+  // TIR utils
+  /*! \brief Whether this PrimFunc uses s_tir semantics (root SBlock wrap,
+   *  parser layout default = None). Default (false) = tirx semantics. */
+  bool s_tir;
+  /*! \brief Whether it is a persistent kernel. */
+  bool persistent;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncFrameNode>()
@@ -95,7 +103,9 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("buffer_map", &PrimFuncFrameNode::buffer_map)
         .def_ro("attrs", &PrimFuncFrameNode::attrs)
         .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
-        .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers);
+        .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers)
+        .def_ro("s_tir", &PrimFuncFrameNode::s_tir)
+        .def_ro("persistent", &PrimFuncFrameNode::persistent);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.PrimFuncFrame", PrimFuncFrameNode,
                                     TIRFrameNode);
@@ -235,6 +245,52 @@ class BlockInitFrame : public TIRFrame {
     data_ = std::move(data);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockInitFrame, TIRFrame, BlockInitFrameNode);
+};
+
+/*!
+ * \brief A frame that represents an execution scope (e.g. cta, warp, thread).
+ *
+ * When exiting this frame, it produces an ExecScopeStmt wrapping the body.
+ * This is the new IR pattern, replacing the old pattern of storing exec_scope on SBlock.
+ *
+ * \sa ExecScopeFrame
+ */
+class ExecScopeFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The execution scope (always plain kind; no slice). */
+  ffi::Optional<tvm::tirx::ExecScope> exec_scope;
+  /*! \brief Optional surface-syntax guards for ``with Tx.scope(cond)``. */
+  ffi::Array<PrimExpr> guards;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExecScopeFrameNode>()
+        .def_ro("exec_scope", &ExecScopeFrameNode::exec_scope)
+        .def_ro("guards", &ExecScopeFrameNode::guards);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ExecScopeFrame", ExecScopeFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to ExecScopeFrameNode.
+ *
+ * \sa ExecScopeFrameNode
+ */
+class ExecScopeFrame : public TIRFrame {
+ public:
+  explicit ExecScopeFrame(ffi::ObjectPtr<ExecScopeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecScopeFrame, TIRFrame, ExecScopeFrameNode);
 };
 
 /*!
@@ -595,6 +651,131 @@ class ElseFrame : public TIRFrame {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
+};
+
+class DeclBufferFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The declared buffer. */
+  tvm::tirx::Buffer buffer;
+  /*! \brief The buffer allocated or not. */
+  bool allocated;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferFrameNode>()
+        .def_ro("buffer", &DeclBufferFrameNode::buffer)
+        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclBufferFrame", DeclBufferFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class DeclBufferFrame : public TIRFrame {
+ public:
+  explicit DeclBufferFrame(ffi::ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+};
+
+class ComposeOpFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The workspace of the compose op. */
+  ffi::Map<ffi::String, tvm::tirx::Buffer> workspace;
+  /*! \brief The config of the compose op. */
+  ffi::Map<ffi::String, ffi::Any> config;
+  /*! \brief The optional dispatch variant name of the compose op. */
+  ffi::Optional<ffi::String> dispatch{std::nullopt};
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ComposeOpFrameNode>()
+        .def_ro("workspace", &ComposeOpFrameNode::workspace)
+        .def_ro("config", &ComposeOpFrameNode::config)
+        .def_ro("dispatch", &ComposeOpFrameNode::dispatch);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ComposeOpFrame", ComposeOpFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class ComposeOpFrame : public TIRFrame {
+ public:
+  explicit ComposeOpFrame(ffi::ObjectPtr<ComposeOpFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeOpFrame, TIRFrame, ComposeOpFrameNode);
+};
+class AllocBufferFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The allocated buffer. */
+  tvm::tirx::Buffer buffer;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocBufferFrameNode>().def_ro("buffer", &AllocBufferFrameNode::buffer);
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AllocBufferFrame", AllocBufferFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+class AllocBufferFrame : public TIRFrame {
+ public:
+  explicit AllocBufferFrame(ffi::ObjectPtr<AllocBufferFrameNode> data)
+      : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocBufferFrame, TIRFrame, AllocBufferFrameNode);
+};
+
+/*!
+ * \brief A frame that represents a hint directive for the sketch language.
+ *
+ * \sa HintFrame
+ */
+class HintFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The free-form hint message string. */
+  ffi::String message;
+  /*! \brief Optional structured key-value attributes. */
+  ffi::Map<ffi::String, ffi::Any> attrs;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<HintFrameNode>()
+        .def_ro("message", &HintFrameNode::message)
+        .def_ro("attrs", &HintFrameNode::attrs);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.HintFrame", HintFrameNode,
+                                    TIRFrameNode);
+
+ public:
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to HintFrameNode.
+ *
+ * \sa HintFrameNode
+ */
+class HintFrame : public TIRFrame {
+ public:
+  explicit HintFrame(ffi::ObjectPtr<HintFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HintFrame, TIRFrame, HintFrameNode);
 };
 
 }  // namespace tirx

@@ -75,20 +75,20 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   // generate thread binding loops
   std::vector<int> factors{-1};
   std::vector<std::string> thread_axis;
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.z")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.z")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.z");
   }
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.y")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.y")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.y");
   }
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.x")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.x")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.x");

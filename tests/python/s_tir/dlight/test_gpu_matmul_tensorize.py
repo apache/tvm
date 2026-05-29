@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring, unused-variable, invalid-name
 # ruff: noqa: E501, F841
+
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
@@ -25,7 +26,7 @@ from tvm.target import Target
 
 def test_matmul_tensorize():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
@@ -38,7 +39,7 @@ def test_matmul_tensorize():
                     compute[v_i, v_j] = T.float16(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + X[v_i, v_k] * W[v_j, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with T.sblock("root"):
@@ -164,7 +165,7 @@ def test_matmul_tensorize():
 
 def test_matmul_tensorize_too_small():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
         T.func_attr({"tirx.noalias": True})
         m = T.int32()
@@ -180,7 +181,7 @@ def test_matmul_tensorize_too_small():
                     compute[v_i, v_j] = T.float32(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("float32", X[v_i, v_k]) * T.Cast("float32", W[v_j, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         m = T.int32()
@@ -260,7 +261,7 @@ def test_matmul_tensorize_too_small():
 
 def test_matmul_tensorize_epilogue():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(lv686: T.Buffer((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Buffer((T.int32(4096), T.int32(64)), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
         n = T.int32()
@@ -298,7 +299,7 @@ def test_matmul_tensorize_epilogue():
                 T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_T_divide_intermediate[v_ax0, v_ax1, v_ax2] + var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(lv686: T.Buffer((4096, 256), "uint32"), lv687: T.Buffer((4096, 64), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         n = T.int32()
@@ -428,7 +429,7 @@ def test_matmul_tensorize_epilogue():
 
 def test_matmul_int8_tensorize():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
@@ -441,7 +442,7 @@ def test_matmul_int8_tensorize():
                     compute[v_i, v_j] = 0
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("int32", X[v_i, v_k]) * T.Cast("int32", W[v_j, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with T.sblock("root"):
@@ -566,7 +567,7 @@ def test_matmul_int8_tensorize():
 
 def test_matmul_int8_tensorize_3d2d_dyn():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
         m = T.int32()
@@ -582,7 +583,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
                     matmul_1[v_i0, v_i1, v_i2] = 0
                 matmul_1[v_i0, v_i1, v_i2] = matmul_1[v_i0, v_i1, v_i2] + T.Cast("int32", A[v_i0, v_i1, v_k]) * T.Cast("int32", B[v_i2, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
         m = T.int32()
@@ -711,7 +712,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
 
 def test_matmul_metal():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         var_A: T.handle,
         B: T.Buffer((28672, 4096), "float16"),
@@ -728,7 +729,7 @@ def test_matmul_metal():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] += A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((28672, 4096), "float16"), var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
@@ -846,7 +847,7 @@ def test_matmul_metal():
 
 def test_matmul_metal_int4_quant():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         B0: T.Buffer((28672, 512), "uint32"),
         B1: T.Buffer((28672, 128), "float16"),
@@ -873,7 +874,7 @@ def test_matmul_metal_int4_quant():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(B0: T.Buffer((28672, 512), "uint32"), B1: T.Buffer((28672, 128), "float16"), var_A: T.handle, var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()

@@ -28,7 +28,7 @@ import numpy as np
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import ndk, utils
+from tvm.support import ndk, utils
 
 # Set to be address of tvm proxy.
 tracker_host = os.environ["TVM_TRACKER_HOST"]

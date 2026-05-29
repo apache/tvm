@@ -33,7 +33,6 @@
 #include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
-#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
@@ -417,17 +416,12 @@ class ConstIntBoundAnalyzer::Impl
     // only special handle >> and & which can be
     // used for index calculation.
 
-    auto curr_target = Target::Current();
     if (op->op.same_as(tirx::builtin::shift_right())) {
       return VisitRightShift(op);
     } else if (op->op.same_as(tirx::builtin::shift_left())) {
       return VisitLeftShift(op);
     } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tirx::builtin::vscale()) && TargetHasVLA(curr_target)) {
-      auto kVScaleValues = GetVScaleValues(curr_target);
-      unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
-      return MakeBound(1, max_val);
     } else {
       return Everything(op->dtype);
     }

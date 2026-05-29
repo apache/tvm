@@ -25,14 +25,14 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import rpc
-from tvm.contrib import cc, utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import cc, utils
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class AddModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((1024,), "float32"),
         B: T.Buffer((1024,), "float32"),

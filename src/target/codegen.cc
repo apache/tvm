@@ -46,9 +46,7 @@ namespace tvm {
 namespace codegen {
 
 ffi::Module Build(IRModule mod, Target target) {
-  if (transform::PassContext::Current()
-          ->GetConfig<Bool>("tirx.disable_assert", Bool(false))
-          .value()) {
+  if (transform::PassContext::Current()->GetConfig<bool>("tirx.disable_assert", false).value()) {
     mod = tirx::transform::SkipAssert()(mod);
   }
 

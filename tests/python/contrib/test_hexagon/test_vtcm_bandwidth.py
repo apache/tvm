@@ -40,7 +40,7 @@ TEST_OUTPUT_TEMPLATE = (
 def memcopy_operator(size):
     """Generate memory copy operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, a_v: T.handle) -> None:
         a_buffer = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
         a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
@@ -57,7 +57,7 @@ def memcopy_operator(size):
 def single_dma_operator(size):
     """Generate single dma operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, a_v: T.handle) -> None:
         a_buffer = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
         a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")

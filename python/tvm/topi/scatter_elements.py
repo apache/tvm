@@ -162,7 +162,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, mean, min, max]:", reduction
         )
 
-    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf")
+    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf", layout=None)
     return te.extern(
         [data.shape],
         [data, indices, updates],

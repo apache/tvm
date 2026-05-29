@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
@@ -36,7 +36,7 @@ def _check_fail(original):
         mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def buffer_load_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.match_buffer(c, (16, 16))
@@ -52,7 +52,7 @@ def buffer_load_store(a: T.handle, c: T.handle) -> None:
                 sub_A[ii, 0, kk] += sub_C[ii, kk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_buffer_load_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.match_buffer(c, (16, 16))
@@ -69,7 +69,7 @@ def intrin_test(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
     return 0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (32, 64, 128))
     B = T.match_buffer(b, (64, 64, 64))
@@ -117,7 +117,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (32, 64, 128))
     B = T.match_buffer(b, (64, 64, 64))
@@ -151,7 +151,7 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
@@ -178,7 +178,7 @@ def high_dim_opaque_access(a: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
@@ -197,7 +197,7 @@ def transformed_high_dim_opaque_access(a: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
     for i, j, k in T.grid(16, 2, 4):
@@ -224,7 +224,7 @@ def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
     for i, j, k in T.grid(16, 2, 4):
@@ -243,7 +243,7 @@ def transformed_high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def recursive_match(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (64, 64, 64))
     B = T.match_buffer(b, (64, 64, 64))
@@ -305,7 +305,7 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                         sub_sub_B[jjj, kkk] = 1
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (64, 64, 64))
     B = T.match_buffer(b, (64, 64, 64))
@@ -349,7 +349,7 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
                         B[i, j * 16 + jj * 4 + jjj, k * 16 + kk * 4 + kkk] = 1
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n * m, m))
     B = T.match_buffer(b, (n * 2, m * 4))
@@ -378,7 +378,7 @@ def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
                 )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n * m, m))
     B = T.match_buffer(b, (n * 2, m * 4))
@@ -401,7 +401,7 @@ def transformed_symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32)
                 )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rank0_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     B = T.match_buffer(b, (8, 8))
@@ -424,7 +424,7 @@ def rank0_buffer(a: T.handle, b: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     B = T.match_buffer(b, (8, 8))
@@ -445,7 +445,7 @@ def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def fail_match_load(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):
@@ -456,7 +456,7 @@ def fail_match_load(a: T.handle) -> None:
             T.evaluate(sub_A[()])
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def fail_match_store(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):
@@ -468,7 +468,7 @@ def fail_match_store(a: T.handle) -> None:
 
 
 # well-formed checker complains about redefinition of a stride variable
-@T.prim_func(check_well_formed=False)
+@T.prim_func(check_well_formed=False, s_tir=True)
 def fail_buffer_bind(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
@@ -482,7 +482,7 @@ def fail_buffer_bind(a: T.handle) -> None:
 
 
 # well-formed checker complains about redefinition of a stride variable
-@T.prim_func(check_well_formed=False)
+@T.prim_func(check_well_formed=False, s_tir=True)
 def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
@@ -533,7 +533,7 @@ def test_fail_match_func_param():
     _check_fail(fail_match_func_param)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def scalar_match_buffer_type_coercion(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):
@@ -547,7 +547,7 @@ def scalar_match_buffer_type_coercion(a: T.handle) -> None:
             scalar_buf[()] = T.float32(1.0)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_scalar_match_buffer_type_coercion(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):

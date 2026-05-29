@@ -31,7 +31,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->trace_ = Trace();
   n->Seed(seed);
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -53,9 +53,9 @@ Schedule TracedScheduleNode::Copy() {
 
 /******** Schedule: Sampling ********/
 
-ExprRV TracedScheduleNode::SampleCategorical(const ffi::Array<Integer>& candidates,
+ExprRV TracedScheduleNode::SampleCategorical(const ffi::Array<int64_t>& candidates,
                                              const ffi::Array<FloatImm>& probs,
-                                             ffi::Optional<Integer> decision) {
+                                             ffi::Optional<int64_t> decision) {
   ExprRV result =
       CreateRV(::tvm::s_tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   static const InstructionKind& kind = InstructionKind::Get("SampleCategorical");
@@ -69,7 +69,7 @@ ExprRV TracedScheduleNode::SampleCategorical(const ffi::Array<Integer>& candidat
 
 ffi::Array<ExprRV> TracedScheduleNode::SamplePerfectTile(
     const LoopRV& loop_rv, int n, int max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> decision) {
+    ffi::Optional<ffi::Array<int64_t>> decision) {
   // use None RV object to denotes auto-infer tile factors.
   ffi::Array<ExprRV> results =
       CreateRV(::tvm::s_tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
@@ -86,7 +86,7 @@ ffi::Array<ExprRV> TracedScheduleNode::SamplePerfectTile(
 
 ffi::Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(
     const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
-    ffi::Optional<ffi::Array<Integer>> decision) {
+    ffi::Optional<ffi::Array<int64_t>> decision) {
   ffi::Array<ExprRV> results = CreateRV(::tvm::s_tir::SamplePartitionedTile(
       &this->rand_state_, this->GetSRef(loop_rv), n, partition_pos, innerpart_factor, &decision));
 
@@ -101,7 +101,7 @@ ffi::Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(
 }
 
 LoopRV TracedScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
-                                                 ffi::Optional<Integer> decision) {
+                                                 ffi::Optional<int64_t> decision) {
   LoopRV result = CreateRV<LoopRV>(::tvm::s_tir::SampleComputeLocation(
       this->state_, &this->rand_state_, this->GetSRef(block_rv), &decision));
 
@@ -118,7 +118,7 @@ LoopRV TracedScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
 
 SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
                                        const ffi::Optional<ffi::String>& func_name) {
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.defined()) {
@@ -282,7 +282,7 @@ void TracedScheduleNode::Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) {
 }
 
 void TracedScheduleNode::ReorderBlockIterVar(const SBlockRV& block_rv,
-                                             const ffi::Array<Integer> new_order) {
+                                             const ffi::Array<int64_t> new_order) {
   ConcreteScheduleNode::ReorderBlockIterVar(block_rv, new_order);
   static const InstructionKind& kind = InstructionKind::Get("ReorderBlockIterVar");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
@@ -744,7 +744,7 @@ SBlockRV TracedScheduleNode::DecomposePadding(const SBlockRV& block_rv, const Lo
   return new_block;
 }
 
-void TracedScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) {
+void TracedScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) {
   ConcreteScheduleNode::PadEinsum(block_rv, padding);
   static const InstructionKind& kind = InstructionKind::Get("PadEinsum");
   trace_->Append(/*inst=*/Instruction(

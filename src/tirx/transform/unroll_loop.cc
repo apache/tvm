@@ -39,7 +39,7 @@
 namespace tvm {
 namespace tirx {
 
-struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> {
+struct UnrollLoopConfigNode : public ffi::Object {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
@@ -64,12 +64,13 @@ struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> 
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigNode,
-                                    BaseAttrsNode);
+                                    ffi::Object);
 };
 
-class UnrollLoopConfig : public Attrs {
+class UnrollLoopConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, ffi::ObjectRef,
+                                                UnrollLoopConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
@@ -284,7 +285,7 @@ Pass UnrollLoop() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<UnrollLoopConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
     }
     n->body = UnrollLoop(std::move(f->body), cfg.value());
     return f;

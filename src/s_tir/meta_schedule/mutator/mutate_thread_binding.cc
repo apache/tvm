@@ -146,7 +146,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     TVM_FFI_ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
 
-    int decision = Downcast<IntImm>(trace->decisions[ffi::GetRef<Instruction>(sample_inst)])->value;
+    // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
+    int decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
 
     std::vector<double> probs =
         support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
@@ -168,7 +169,8 @@ ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandSta
   if (result >= candidate.decision) {
     result += 1;
   }
-  return trace->WithDecision(candidate.inst, Integer(result), /*remove_postproc=*/true);
+  return trace->WithDecision(candidate.inst, static_cast<int64_t>(result),
+                             /*remove_postproc=*/true);
 }
 
 Mutator Mutator::MutateThreadBinding() {

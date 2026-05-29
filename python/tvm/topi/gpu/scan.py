@@ -280,9 +280,15 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tirx.gener
 
             return ib.get()
 
-    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "valid_indices_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "valid_indices_buf", data_alignment=8, layout=None
+    )
     ex_scan_output_buf = tvm.tirx.decl_buffer(
-        ex_scan_output.shape, ex_scan_output.dtype, "ex_scan_output_buf", data_alignment=8
+        ex_scan_output.shape,
+        ex_scan_output.dtype,
+        "ex_scan_output_buf",
+        data_alignment=8,
+        layout=None,
     )
 
     reduction = te.extern(
@@ -346,11 +352,17 @@ def scan_thrust(
         (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    output_buf = tvm.tirx.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    )
+    output_buf = tvm.tirx.decl_buffer(
+        data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
+    )
 
     workspace_buf = (
-        tvm.tirx.decl_buffer(workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8)
+        tvm.tirx.decl_buffer(
+            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
+        )
         if workspace is not None
         else None
     )
@@ -449,8 +461,12 @@ def exclusive_scan(
             # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
-        data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-        output_buf = tvm.tirx.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
+        data_buf = tvm.tirx.decl_buffer(
+            data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+        )
+        output_buf = tvm.tirx.decl_buffer(
+            data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
+        )
 
         if return_reduction:
             output, reduction = te.extern(

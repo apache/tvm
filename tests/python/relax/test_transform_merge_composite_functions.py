@@ -1005,7 +1005,7 @@ def test_mixed_non_composite():
 
 def test_reshape():
     # Verify that the non-CallNode input (shape in reshape) can be handled properly.
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function(private=True)
         def fused_relax_matmul(
@@ -1045,7 +1045,7 @@ def test_reshape():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def fused_relax_reshape_relax_matmul_tensorrt(
@@ -1113,7 +1113,7 @@ def test_handle_existence_of_call_tir():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(A: R.Tensor([10], dtype="float32")) -> R.Tensor([10], dtype="float32"):
@@ -1135,7 +1135,7 @@ def test_handle_existence_of_call_tir():
                 R.output(Output)
             return Output
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def relu(
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
@@ -1156,7 +1156,7 @@ def test_handle_existence_of_call_tir():
                 R.output(Output)
             return Output
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(A: R.Tensor([10], dtype="float32")) -> R.Tensor([10], dtype="float32"):
@@ -1187,7 +1187,7 @@ def test_handle_existence_of_call_tir():
             Output = composite_lambda(Input)
             return Output
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def relu(
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),

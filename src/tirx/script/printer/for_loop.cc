@@ -114,8 +114,23 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         kwargs_values.push_back(thread.value());
       }
       if (annotations.defined()) {
-        kwargs_keys.push_back("annotations");
-        kwargs_values.push_back(annotations.value());
+        // Check for the special cases:
+        // - annotations == {"disable_unroll": True}: print as unroll=False
+        // - annotations == {"pragma_unroll": True}: print as unroll=True
+        bool printed_as_unroll = false;
+        if (loop->annotations.size() == 1 && loop->annotations.count("disable_unroll")) {
+          kwargs_keys.push_back("unroll");
+          kwargs_values.push_back(LiteralDoc::Boolean(false, loop_p->Attr("annotations")));
+          printed_as_unroll = true;
+        } else if (loop->annotations.size() == 1 && loop->annotations.count("pragma_unroll")) {
+          kwargs_keys.push_back("unroll");
+          kwargs_values.push_back(LiteralDoc::Boolean(true, loop_p->Attr("annotations")));
+          printed_as_unroll = true;
+        }
+        if (!printed_as_unroll) {
+          kwargs_keys.push_back("annotations");
+          kwargs_values.push_back(annotations.value());
+        }
       }
       if (!loop->HasTrivialStep()) {
         ExprDoc step = d->AsDoc<ExprDoc>(*loop->step, loop_p->Attr("step"));

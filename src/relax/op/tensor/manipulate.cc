@@ -139,7 +139,7 @@ TVM_REGISTER_OP("relax.broadcast_to")
     .add_argument("shape", "Shape", "The target shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastTo)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.concat */
 
@@ -402,11 +402,11 @@ TVM_REGISTER_OP("relax.concat")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.expand_dims */
 
-Expr expand_dims(Expr x, ffi::Array<Integer> axis) {
+Expr expand_dims(Expr x, ffi::Array<int64_t> axis) {
   ffi::ObjectPtr<ExpandDimsAttrs> attrs = ffi::make_object<ExpandDimsAttrs>();
   attrs->axis = std::move(axis);
 
@@ -478,7 +478,7 @@ InferLayoutOutput InferLayoutExpandDims(
   int output_ndim = ndim + n_new_dim;
   std::vector<bool> is_new_dim(output_ndim, false);
   for (const auto& axis : attrs->axis) {
-    is_new_dim[(axis->value + output_ndim) % output_ndim] = true;
+    is_new_dim[(axis + output_ndim) % output_ndim] = true;
   }
   std::string new_layout;
   for (int i = 0; i < output_ndim; ++i) {
@@ -495,7 +495,7 @@ InferLayoutOutput InferLayoutExpandDims(
       output_layout.push_back(new_layout.at(j++));
     }
   }
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
                            Attrs(call->attrs));
 }
 
@@ -506,7 +506,7 @@ TVM_REGISTER_OP("relax.expand_dims")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoExpandDims)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
@@ -552,7 +552,7 @@ TVM_REGISTER_OP("relax.flatten")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.index_tensor */
 
@@ -701,7 +701,7 @@ TVM_REGISTER_OP("relax.index_tensor")
     .add_argument("data", "Tensor", "The input data.")
     .add_argument("indices", "List of Tensors", "The indices used to index.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.layout_transform */
 
@@ -775,11 +775,11 @@ TVM_REGISTER_OP("relax.layout_transform")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.permute_dims */
 
-Expr permute_dims(Expr x, ffi::Optional<ffi::Array<Integer>> axes) {
+Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes) {
   ffi::ObjectPtr<PermuteDimsAttrs> attrs = ffi::make_object<PermuteDimsAttrs>();
   attrs->axes = std::move(axes);
 
@@ -865,24 +865,24 @@ InferLayoutOutput InferLayoutPermuteDims(
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  ffi::Array<Integer> order;
+  ffi::Array<int64_t> order;
   if (attrs->axes.defined()) {
     order = attrs->axes.value();
   } else {
     order.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      order.push_back(Integer(ndim - i - 1));
+      order.push_back(ndim - i - 1);
     }
   }
   std::string order_str;
-  for (const auto& axis : order) {
-    order_str.push_back(axis->value + 'A');
+  for (int64_t axis : order) {
+    order_str.push_back(static_cast<char>(axis + 'A'));
   }
   ffi::String new_axes =
       TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout, order_str);
-  ffi::Array<Integer> new_order;
+  ffi::Array<int64_t> new_order;
   for (size_t i = 0; i < new_axes.size(); ++i) {
-    new_order.push_back(Integer(new_axes.at(i) - 'A'));
+    new_order.push_back(new_axes.at(i) - 'A');
   }
   ffi::ObjectPtr<PermuteDimsAttrs> new_attrs = ffi::make_object<PermuteDimsAttrs>(*attrs);
   new_attrs->axes = new_order;
@@ -896,7 +896,7 @@ TVM_REGISTER_OP("relax.permute_dims")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPermuteDims)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data,
@@ -1059,7 +1059,7 @@ TVM_REGISTER_OP("relax.reshape")
     .add_argument("shape", "Shape", "The input new shape.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoReshape)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.split */
 
@@ -1238,11 +1238,11 @@ TVM_REGISTER_OP("relax.split")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSplit)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.squeeze */
 
-Expr squeeze(Expr x, ffi::Optional<ffi::Array<Integer>> axis) {
+Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis) {
   ffi::ObjectPtr<SqueezeAttrs> attrs = ffi::make_object<SqueezeAttrs>();
   attrs->axis = std::move(axis);
 
@@ -1346,21 +1346,21 @@ InferLayoutOutput InferLayoutSqueeze(
   const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(shape != nullptr) << "Only support static shape for now";
 
-  ffi::Array<Integer> axis;
+  ffi::Array<int64_t> axis;
   if (attrs->axis.defined()) {
     axis = attrs->axis.value();
   } else {
     axis.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       if (tirx::is_one(shape->values[i])) {
-        axis.push_back(Integer(i));
+        axis.push_back(i);
       }
     }
   }
 
   std::string axis_str(ndim, '0');
-  for (const auto& iter : axis) {
-    axis_str[iter->value] = '1';
+  for (int64_t iter : axis) {
+    axis_str[iter] = '1';
   }
   for (int i = 0, j = 0; i < ndim; ++i) {
     if (axis_str[i] != '1') {
@@ -1375,10 +1375,10 @@ InferLayoutOutput InferLayoutSqueeze(
   }
   ffi::String new_axis_str =
       TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
-  ffi::Array<Integer> new_axis;
+  ffi::Array<int64_t> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
     if (new_axis_str.at(i) == '1') {
-      new_axis.push_back(Integer(i));
+      new_axis.push_back(static_cast<int64_t>(i));
     }
   }
   std::string output_layout = new_axis_str;
@@ -1387,7 +1387,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
   ffi::ObjectPtr<SqueezeAttrs> new_attrs = ffi::make_object<SqueezeAttrs>(*attrs);
   new_attrs->axis = new_axis;
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(Layout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
                            Attrs(new_attrs));
 }
 
@@ -1398,7 +1398,7 @@ TVM_REGISTER_OP("relax.squeeze")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSqueeze)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
                         const ffi::Array<PrimExpr>& data_shape,
@@ -1441,7 +1441,7 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
 
 /* relax.stack */
 
-Expr stack(Expr tensors, ffi::Optional<Integer> axis) {
+Expr stack(Expr tensors, ffi::Optional<int64_t> axis) {
   ffi::ObjectPtr<StackAttrs> attrs = ffi::make_object<StackAttrs>();
   attrs->axis = std::move(axis);
 
@@ -1565,8 +1565,9 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   if (vdevice_unknown) vdev = std::nullopt;
 
   // Normalize axis (default to 0 if not specified)
-  int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+  int axis = attrs->axis.has_value()
+                 ? NormalizeAxis(call, ctx, output_ndim, static_cast<int>(attrs->axis.value()))
+                 : 0;
 
   // Single tensor case
   if (tensor_sinfo.size() == 1) {
@@ -1633,13 +1634,13 @@ InferLayoutOutput InferLayoutStack(
 
   // For stack, we need to adjust the output layout by inserting a new axis
   std::string layout_str = layout->layout.name();
-  int axis = attrs->axis.defined() ? attrs->axis.value()->value : 0;
+  int axis = attrs->axis.has_value() ? static_cast<int>(attrs->axis.value()) : 0;
   layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
-  Layout output_layout = Layout(layout_str);
+  SLayout output_layout = SLayout(layout_str);
   output_layouts.push_back(LayoutDecision(output_layout));
 
   ffi::ObjectPtr<StackAttrs> new_attrs = ffi::make_object<StackAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, axis));
+  new_attrs->axis = static_cast<int64_t>(FindAxis(layout->layout, axis));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -1650,7 +1651,7 @@ TVM_REGISTER_OP("relax.stack")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStack)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
@@ -1699,7 +1700,7 @@ TVM_REGISTER_OP("relax.collapse_sum_like")
     .add_argument("collapse_target", "Tensor",
                   "The tensor whose shape is the shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
@@ -1751,7 +1752,7 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("shape", "Shape", "The shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumTo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.repeat */
 
@@ -1877,11 +1878,11 @@ TVM_REGISTER_OP("relax.repeat")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRepeat)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.tile */
 
-Expr tile(Expr data, ffi::Array<Integer> repeats) {
+Expr tile(Expr data, ffi::Array<int64_t> repeats) {
   auto attrs = ffi::make_object<TileAttrs>();
   attrs->repeats = std::move(repeats);
 
@@ -1909,8 +1910,8 @@ StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
     if (l > ndim) {
       return TensorStructInfo(data_sinfo->dtype, l, data_sinfo->vdevice);
     } else {
-      for (auto i : attrs->repeats) {
-        if (!analyzer->CanProveEqual(i, 1)) {
+      for (int64_t i : attrs->repeats) {
+        if (i != 1) {
           return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
         }
       }
@@ -1927,10 +1928,11 @@ StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
     if (i < l_delta) {
       out_shape.push_back(data_shape->values[i - ndim_delta]);
     } else if (i < ndim_delta) {
-      out_shape.push_back(attrs->repeats[i - l_delta]);
+      out_shape.push_back(IntImm(DataType::Int(64), attrs->repeats[i - l_delta]));
     } else {
       out_shape.push_back(
-          analyzer->Simplify(data_shape->values[i - ndim_delta] * attrs->repeats[i - l_delta]));
+          analyzer->Simplify(data_shape->values[i - ndim_delta] *
+                             IntImm(DataType::Int(64), attrs->repeats[i - l_delta])));
     }
   }
 
@@ -1960,8 +1962,8 @@ InferLayoutOutput InferLayoutTile(
 
   // Tile operation repeats data along each axis.
   // When layout changes, we need to transform the repeats array to match the new layout.
-  Layout initial_layout = InitialLayout(ndim);
-  Layout existing_layout_obj = existing_layout->layout;
+  SLayout initial_layout = InitialLayout(ndim);
+  SLayout existing_layout_obj = existing_layout->layout;
 
   // Transform repeats array according to layout change.
   // The repeats array semantics:
@@ -1970,13 +1972,13 @@ InferLayoutOutput InferLayoutTile(
   // - If len(repeats) > ndim: first (len(repeats) - ndim) elements are new dimensions,
   //   remaining elements correspond to input dimensions.
   //   e.g., ndim=4, repeats=[2, 1, 2, 1, 1] means new dims [2, 1] + input dims [2, 1, 1]
-  ffi::Array<Integer> new_repeats;
+  ffi::Array<int64_t> new_repeats;
 
   if (out_ndim == ndim) {
     // Same dimension: reorder repeats according to layout transformation.
     // If len(repeats) < ndim, it's padded with 1s at the beginning.
     for (int i = 0; i < ndim; ++i) {
-      const tirx::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::SLayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       // If len(repeats) < ndim, repeats are right-aligned.
@@ -1984,7 +1986,7 @@ InferLayoutOutput InferLayoutTile(
       if (pos_in_initial >= ndim - l) {
         new_repeats.push_back(attrs->repeats[pos_in_initial - (ndim - l)]);
       } else {
-        new_repeats.push_back(Integer(1));
+        new_repeats.push_back(1);
       }
     }
   } else {
@@ -1998,7 +2000,7 @@ InferLayoutOutput InferLayoutTile(
     }
     // Repeats for existing dimensions need to be permuted.
     for (int i = 0; i < ndim; ++i) {
-      const tirx::LayoutAxis& axis = existing_layout_obj[i];
+      const tirx::SLayoutAxis& axis = existing_layout_obj[i];
       int pos_in_initial = initial_layout.IndexOf(axis);
       TVM_FFI_ICHECK_NE(pos_in_initial, -1) << "Axis not found in initial layout";
       new_repeats.push_back(attrs->repeats[pos_in_initial + num_new_dims]);
@@ -2021,13 +2023,13 @@ TVM_REGISTER_OP("relax.tile")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTile)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.flip */
 
-Expr flip(Expr data, Integer axis) {
+Expr flip(Expr data, int64_t axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
-  attrs->axis = std::move(axis);
+  attrs->axis = axis;
   static const Op& op = Op::Get("relax.flip");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
@@ -2043,7 +2045,7 @@ StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   }
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<FlipAttrs>();
-  int axis = attrs->axis.IntValue();
+  int axis = static_cast<int>(attrs->axis);
   if (!data_sinfo->IsUnknownNdim()) {
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
@@ -2073,7 +2075,7 @@ InferLayoutOutput InferLayoutFlip(
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
-  int axis = attrs->axis.IntValue();
+  int axis = static_cast<int>(attrs->axis);
   if (axis < 0) {
     axis += ndim;
   }
@@ -2082,7 +2084,7 @@ InferLayoutOutput InferLayoutFlip(
   TVM_FFI_ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
 
   ffi::ObjectPtr<FlipAttrs> new_attrs = ffi::make_object<FlipAttrs>(*attrs);
-  new_attrs->axis = Integer(new_axis);
+  new_attrs->axis = static_cast<int64_t>(new_axis);
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
 }
@@ -2093,13 +2095,13 @@ TVM_REGISTER_OP("relax.flip")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.gather_elements */
 
 Expr gather_elements(Expr data, Expr indices, int axis) {
   auto attrs = ffi::make_object<GatherElementsAttrs>();
-  attrs->axis = Integer(axis);
+  attrs->axis = axis;
   static const Op& op = Op::Get("relax.gather_elements");
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
@@ -2138,7 +2140,7 @@ StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& c
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
-  int axis = attrs->axis.IntValue();
+  int axis = static_cast<int>(attrs->axis);
   if (axis < -data_sinfo->ndim || axis >= data_sinfo->ndim) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "GatherElements requires axis to be within the input dimension range ["
@@ -2187,7 +2189,7 @@ InferLayoutOutput InferLayoutGatherElements(
   }
 
   ffi::ObjectPtr<GatherElementsAttrs> new_attrs = ffi::make_object<GatherElementsAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis->value);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
   return InferLayoutOutput({layout, layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -2198,13 +2200,13 @@ TVM_REGISTER_OP("relax.gather_elements")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherElements)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGatherElements)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.gather_nd */
 
 Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   auto attrs = ffi::make_object<GatherNDAttrs>();
-  attrs->batch_dims = Integer(batch_dims);
+  attrs->batch_dims = batch_dims;
   static const Op& op = Op::Get("relax.gather_nd");
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
@@ -2231,8 +2233,8 @@ StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
         << "GatherND requires the input indices to be a Tensor. However, the given one is "
         << call->args[1]->struct_info_->GetTypeKey());
   }
-  TVM_FFI_ICHECK_GE(attrs->batch_dims.IntValue(), 0);
-  int batch_dims = attrs->batch_dims.IntValue();
+  TVM_FFI_ICHECK_GE(attrs->batch_dims, 0);
+  int batch_dims = static_cast<int>(attrs->batch_dims);
   int input_dims = data_sinfo->ndim;
   if (!indices_sinfo->IsUnknownDtype() && indices_sinfo->dtype != DataType::Int(64)) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -2294,7 +2296,7 @@ TVM_REGISTER_OP("relax.gather_nd")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherND)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.index_put */
 
@@ -2443,7 +2445,7 @@ TVM_REGISTER_OP("relax.index_put")
     .add_argument("indices", "Tensor", "The indices tensor(s).")
     .add_argument("values", "Tensor", "The values to put.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexPut)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.meshgrid */
 
@@ -2548,7 +2550,7 @@ TVM_REGISTER_OP("relax.meshgrid")
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMeshgrid)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.scatter_elements */
 
@@ -2680,7 +2682,7 @@ InferLayoutOutput InferLayoutScatterElements(
   }
 
   ffi::ObjectPtr<ScatterElementsAttrs> new_attrs = ffi::make_object<ScatterElementsAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis->value);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
   return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -2692,7 +2694,7 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.scatter_nd */
 
@@ -2869,7 +2871,7 @@ TVM_REGISTER_OP("relax.scatter_nd")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterND)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.scatter_nd */
 
@@ -3026,7 +3028,7 @@ TVM_REGISTER_OP("relax.slice_scatter")
     .add_argument("end", "PrimValue", "The ending index of the slice (exclusive).")
     .add_argument("step", "PrimValue", "The step of the slice.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSliceScatter)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.one_hot */
 
@@ -3103,7 +3105,7 @@ TVM_REGISTER_OP("relax.one_hot")
     .add_argument("on_value", "PrimValue", "The value to fill at specified indices.")
     .add_argument("off_value", "PrimValue", "The value to fill at other indices.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOneHot)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

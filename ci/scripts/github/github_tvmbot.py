@@ -536,7 +536,6 @@ class PR:
             "tvm-cpu",
             "tvm-docker",
             "tvm-gpu",
-            "tvm-lint",
             "tvm-wasm",
         ]
         for name in job_names:

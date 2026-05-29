@@ -40,9 +40,9 @@ def register_linker():
 def test_basic():
     target = tvm.target.Target("qcom/hexagon-v66")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             C: T.Buffer((128,), "uint8"),
             A: T.Buffer((128,), "uint8"),
@@ -66,9 +66,9 @@ def test_basic():
 def test_llvm_target_features():
     target = tvm.target.Target("qcom/hexagon-v66")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
@@ -99,9 +99,9 @@ def test_llvm_options():
         }
     )
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(compute: T.Buffer((10,), "int32")):
             T.func_attr({"tirx.noalias": True})
             for _ in range(10):

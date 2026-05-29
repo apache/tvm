@@ -18,13 +18,13 @@
 
 import random
 
+from tvm.ir.utils import derived_object
 from tvm.s_tir.schedule import Trace
 
 from ..builder import BuilderInput, BuilderResult, PyBuilder
 from ..mutator import PyMutator
 from ..runner import PyRunner, PyRunnerFuture, RunnerFuture, RunnerInput, RunnerResult
 from ..tune_context import TuneContext  # pylint: disable=unused-import
-from ..utils import derived_object
 
 
 @derived_object

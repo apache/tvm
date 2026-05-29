@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/script/printer/printer.h>
 
 #include <set>
 #include <thread>
@@ -199,12 +200,13 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
             workload = workloads[workload_index];
             records[task_id] = TuningRecord::FromJSON(arr->at(1).cast<ffi::ObjectRef>(), workload);
           } catch (std::runtime_error& e) {
-            TVM_FFI_THROW(ValueError) << "Unable to parse TuningRecord, on line " << (task_id + 1)
-                                      << " of file " << path_tuning_record << ". The workload is:\n"
-                                      << (workload.defined() ? workload->mod->Script() : "(null)")
-                                      << "\nThe JSONObject of TuningRecord is:\n"
-                                      << json_obj << "\nThe error message is:\n"
-                                      << e.what();
+            TVM_FFI_THROW(ValueError)
+                << "Unable to parse TuningRecord, on line " << (task_id + 1) << " of file "
+                << path_tuning_record << ". The workload is:\n"
+                << (workload.defined() ? tvm::Script(workload->mod) : "(null)")
+                << "\nThe JSONObject of TuningRecord is:\n"
+                << json_obj << "\nThe error message is:\n"
+                << e.what();
           }
         });
     for (const TuningRecord& record : records) {

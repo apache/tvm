@@ -386,11 +386,11 @@ class ConstantFolder : public ExprMutator {
         Expr arg = post_call->args[0];
         ShapeExpr shape = Downcast<ShapeExpr>(arg);
         ffi::Array<PrimExpr> values = shape->values;
-        ffi::Array<Integer> arr;
+        ffi::Array<int64_t> arr;
         bool is_known = true;
         for (size_t i = 0; i < values.size(); i++) {
           PrimExpr val = values[i];
-          arr.push_back(ffi::GetRef<IntImm>(val.as<IntImmNode>()));
+          arr.push_back(val.as<IntImmNode>()->value);
           is_known &= (val.dtype() == DataType::Int(64));
         }
         if (is_known) {

@@ -16,9 +16,6 @@
 # under the License.
 
 if(USE_CUDA AND USE_CUTLASS)
-  set(CUTLASS_GEN_COND "$<AND:$<BOOL:${USE_CUDA}>,$<BOOL:${USE_CUTLASS}>>")
-  set(CUTLASS_RUNTIME_OBJS "")
-
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC
     src/relax/backend/contrib/cutlass/*.cc
   )
@@ -36,14 +33,14 @@ if(USE_CUDA AND USE_CUTLASS)
   target_link_libraries(fpA_intB_gemm_tvm PRIVATE tvm_ffi_header)
 
   set(CUTLASS_FPA_INTB_RUNTIME_SRCS "")
-  list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/contrib/cutlass/weight_preprocess.cc)
+  list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/weight_preprocess.cc)
   add_library(fpA_intB_cutlass_objs OBJECT ${CUTLASS_FPA_INTB_RUNTIME_SRCS})
-  target_link_libraries(fpA_intB_cutlass_objs PRIVATE tvm_ffi_header)
+  target_link_libraries(fpA_intB_cutlass_objs PRIVATE tvm_runtime_extra_defs)
   target_include_directories(fpA_intB_cutlass_objs PRIVATE
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
   )
-  list(APPEND CUTLASS_RUNTIME_OBJS "$<${CUTLASS_GEN_COND}:$<TARGET_OBJECTS:fpA_intB_cutlass_objs>>")
+  target_link_libraries(tvm_runtime_extra PRIVATE fpA_intB_cutlass_objs)
 
   ### Build cutlass runtime objects for flash attention
   add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/libflash_attn)
@@ -56,16 +53,16 @@ if(USE_CUDA AND USE_CUTLASS)
   set(CUTLASS_DIR ${PROJECT_SOURCE_DIR}/3rdparty/cutlass)
   set(TVM_CUTLASS_RUNTIME_SRCS "")
 
-  if (CMAKE_CUDA_ARCHITECTURES MATCHES "90a")
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_group_gemm_sm90.cu)
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_group_gemm_sm90.cu)
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_gemm.cu)
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_groupwise_scaled_gemm_sm90.cu)
+  if(CMAKE_CUDA_ARCHITECTURES MATCHES "90a")
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp16_group_gemm_sm90.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp8_group_gemm_sm90.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp8_gemm.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp8_groupwise_scaled_gemm_sm90.cu)
   endif()
-  if (CMAKE_CUDA_ARCHITECTURES MATCHES "100a")
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_group_gemm_sm100.cu)
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_groupwise_scaled_gemm_sm100.cu)
-    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_groupwise_scaled_group_gemm_sm100.cu)
+  if(CMAKE_CUDA_ARCHITECTURES MATCHES "100a")
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp16_group_gemm_sm100.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp8_groupwise_scaled_gemm_sm100.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/fp8_groupwise_scaled_group_gemm_sm100.cu)
   endif()
   if(TVM_CUTLASS_RUNTIME_SRCS)
     add_library(tvm_cutlass_objs OBJECT ${TVM_CUTLASS_RUNTIME_SRCS})
@@ -74,14 +71,11 @@ if(USE_CUDA AND USE_CUTLASS)
       ${CUTLASS_DIR}/include
       ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass_extensions/include
     )
-    target_link_libraries(tvm_cutlass_objs PRIVATE tvm_ffi_header)
+    target_link_libraries(tvm_cutlass_objs PRIVATE tvm_runtime_extra_defs)
     # Note: enable this to get more detailed logs for cutlass kernels
     # target_compile_definitions(tvm_cutlass_objs PRIVATE CUTLASS_DEBUG_TRACE_LEVEL=2)
-    list(APPEND CUTLASS_RUNTIME_OBJS "$<${CUTLASS_GEN_COND}:$<TARGET_OBJECTS:tvm_cutlass_objs>>")
+    target_link_libraries(tvm_runtime_extra PRIVATE tvm_cutlass_objs)
   endif()
-
-  ### Add cutlass objects to list of TVM runtime extension objs
-  list(APPEND TVM_RUNTIME_EXT_OBJS "${CUTLASS_RUNTIME_OBJS}")
 
   message(STATUS "Build with CUTLASS")
 endif()

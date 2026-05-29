@@ -43,7 +43,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),

@@ -97,7 +97,9 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
       // Step 1. Extract the instruction input and the old decision.
       TVM_FFI_ICHECK_EQ(inputs.size(), 1);
       tirx::StmtSRef block_sref = sch->GetSRef(Downcast<s_tir::SBlockRV>(inputs[0]));
-      int old_decision = Downcast<Integer>(decision)->value;
+      // SampleComputeLocation decision is Optional<int64_t> after the
+      // Integer phase-out.
+      int old_decision = decision.cast<int64_t>();
 
       // Step 2. Collect all the compute_at locations.
       auto [location_srefs, location_indices] = CollectComputeLocation(sch->state(), block_sref);
@@ -128,7 +130,7 @@ ffi::Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandS
   }
   const Candidate& candidate = candidates[s_tir::SampleInt(rand_state, 0, candidates.size())];
   int loc = candidate.locs[s_tir::SampleInt(rand_state, 0, candidate.locs.size())];
-  return trace->WithDecision(candidate.inst, Integer(loc), /*remove_postproc=*/true);
+  return trace->WithDecision(candidate.inst, static_cast<int64_t>(loc), /*remove_postproc=*/true);
 }
 
 Mutator Mutator::MutateComputeLocation() {

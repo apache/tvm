@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -44,7 +44,7 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
     B = T.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
@@ -60,7 +60,7 @@ def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128,
             T.writes(C[vi, vj])
             C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -76,7 +76,7 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_subregion_match_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):

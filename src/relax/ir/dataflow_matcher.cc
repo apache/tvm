@@ -209,7 +209,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   } else if (auto* op = expr.as<FunctionNode>()) {
     matches = true;
     for (auto kv : attributes) {
-      if (matches && op->attrs.defined() && op->attrs->dict.count(kv.first)) {
+      if (matches && op->attrs->dict.count(kv.first)) {
         matches &= ffi::StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
       } else {
         matches = false;

@@ -21,15 +21,14 @@
  * \file tvm/tirx/buffer.h
  * \brief Symbolic n-dimensional array, to represent a memory buffer.
  */
-#ifndef TVM_TIR_BUFFER_H_
-#define TVM_TIR_BUFFER_H_
+#ifndef TVM_TIRX_BUFFER_H_
+#define TVM_TIRX_BUFFER_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
-#include <tvm/script/printer/config.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/var.h>
 
 #include <string>
@@ -110,24 +109,41 @@ class BufferNode : public ffi::Object {
    *        Reserved debug information.
    */
   mutable Span span;
+
+  /*! \brief The layout of the buffer */
+  ffi::Optional<Layout> layout;
+
+  /*! \brief The allocated address of the buffer.
+   * The address might be multi-dimensional based on its scope.
+   * For example, trn.psum takes 2D address, representing (bank, offset).
+   */
+  ffi::Array<PrimExpr> allocated_addr;
+
   /*! \brief constructor */
   BufferNode() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferNode>()
-        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("dtype", &BufferNode::dtype)
-        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDef())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("axis_separators", &BufferNode::axis_separators,
-                refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("elem_offset", &BufferNode::elem_offset, refl::AttachFieldFlag::SEqHashDef())
+                refl::AttachFieldFlag::SEqHashDefRecursive())
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("elem_offset", &BufferNode::elem_offset,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
         .def_ro("buffer_type", &BufferNode::buffer_type)
-        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("layout", &BufferNode::layout)
+        .def_ro("allocated_addr", &BufferNode::allocated_addr);
   }
 
   /*! \return preferred index type for this buffer node */
@@ -140,13 +156,15 @@ class BufferNode : public ffi::Object {
    * Returns the buffer offset, in number of elements of type dtype,
    * without adjusting for number of lanes.  (e.g. The number of
    * float16x4 elements in a buffer of type float16x4.)
+   *
+   * \param index The index to be accessed.
+   * \param inner Ignore the elem_offset, return inner offset only
    */
-  ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index) const;
+  ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index, bool inner = false) const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Buffer", BufferNode, ffi::Object);
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
 /*!
@@ -161,7 +179,8 @@ class Buffer : public ffi::ObjectRef {
   TVM_DLL Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
                  PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
                  BufferType buffer_type, ffi::Array<IntImm> axis_separators = {},
-                 Span span = Span());
+                 Span span = Span(), ffi::Optional<Layout> layout = std::nullopt,
+                 ffi::Array<PrimExpr> allocated_addr = {});
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -222,9 +241,38 @@ class Buffer : public ffi::ObjectRef {
   ffi::Array<PrimExpr> OffsetOf(ffi::Array<PrimExpr> index) const;
 
   /*!
+   * \brief Get the buffer_offset op for the given index.
+   * \param index The index to be accessed.
+   * \return The buffer_offset op.
+   */
+  PrimExpr OffsetOf_p(const ffi::Array<PrimExpr>& indices) const;
+
+  /*!
    * \brief Return the storage scope associated with this buffer.
    */
   TVM_DLL ffi::String scope() const;
+
+  /*!
+   * \brief Return a new buffer with the allocated address.
+   */
+  TVM_DLL Buffer with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
+
+  /*!
+   * \brief Return true if the buffer is a scalar.
+   * \param alloc_or_decl Whether to consider alloc_scalar and decl_scalar as scalar. True for
+   * alloc_scalar, False for decl_scalar.
+   */
+  TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
+
+  /*!
+   * \brief Return a new buffer with the dtype.
+   */
+  TVM_DLL Buffer with_dtype(DataType dtype) const;
+
+  /*!
+   * \brief Return a new buffer with the data.
+   */
+  TVM_DLL Buffer with_data(Var data) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Buffer, ffi::ObjectRef, BufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);

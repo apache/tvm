@@ -49,7 +49,7 @@
 namespace tvm {
 namespace relax {
 
-using tirx::Layout;
+using tirx::SLayout;
 
 /*!
  * \brief A layout decision node that holds the layout decision of the tensor.
@@ -58,7 +58,7 @@ using tirx::Layout;
 class LayoutDecisionNode : public ffi::Object {
  public:
   /*! \brief The layout decision of the tensor. */
-  Layout layout;
+  SLayout layout;
   /*! \brief Whether the dim of tensor is unknown. */
   bool is_unknown_dim = false;
 
@@ -74,14 +74,14 @@ class LayoutDecisionNode : public ffi::Object {
 
 class LayoutDecision : public ffi::ObjectRef {
  public:
-  LayoutDecision(Layout layout, bool is_unknown_dim = false) {  // NOLINT(*)
+  LayoutDecision(SLayout layout, bool is_unknown_dim = false) {  // NOLINT(*)
     auto n = ffi::make_object<LayoutDecisionNode>();
     n->layout = std::move(layout);
     n->is_unknown_dim = is_unknown_dim;
     data_ = n;
   }
 
-  static LayoutDecision InitUnknownDim() { return LayoutDecision(Layout::Undef(), true); }
+  static LayoutDecision InitUnknownDim() { return LayoutDecision(SLayout::Undef(), true); }
 
   inline std::string name() const {
     if (operator->()->is_unknown_dim) {
@@ -151,7 +151,7 @@ struct NLayoutEqual {
 using VarLayoutMap = ffi::Map<Var, NLayout>;
 
 /*!
- * \brief Layout conversion interface.
+ * \brief SLayout conversion interface.
  * \param call The call node.
  * \param desired_layouts The desired layouts of the operator.
  * \param var_layout_map The layout of the variables.
@@ -165,7 +165,7 @@ using FRelaxInferLayout = ffi::TypedFunction<InferLayoutOutput(
  * \param ndim The number of dimensions.
  * \return The initialized layout.
  */
-Layout InitialLayout(int ndim);
+SLayout InitialLayout(int ndim);
 
 /*!
  * \brief Initialize a layout decision given the number of dimensions.
@@ -195,7 +195,7 @@ NLayout InitialNLayout(const Expr& expr);
  * \param dst The destination layout.
  * \return The transposed dst layout.
  */
-Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired);
+SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLayout& desired);
 
 /*!
  * \brief Transposing given layout in string format with subindexing
@@ -214,7 +214,7 @@ std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::stri
  * \param dst The destination layout.
  * \return The transposed input layout.
  */
-Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst);
+SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst);
 
 /*!
  * \brief Transpose the input string like the src layout to the dst layout.
@@ -223,7 +223,7 @@ Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst);
  * \param dst The destination layout.
  * \return The transposed input str.
  */
-ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const Layout& dst);
+ffi::String TransposeStrLike(const ffi::String& input, const SLayout& src, const SLayout& dst);
 
 /*!
  * \brief Find axis in the dst layout. 0 represents the first axis, 1 represents the second axis,
@@ -232,7 +232,7 @@ ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const 
  * \param axis The axis to be found
  * \return The axis in the dst layout.
  */
-int FindAxis(const Layout& dst, int axis);
+int FindAxis(const SLayout& dst, int axis);
 
 /*!
  * \brief Get the layout decision of the expr. The expr must be a Tensor.

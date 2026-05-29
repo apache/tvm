@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../runtime/opencl/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
 #include "opencl_fallback_module.h"
@@ -689,8 +689,9 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
         << "CodeGenOpenCL: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
-    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    auto calling_conv = prim_func->GetAttr<int64_t>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(calling_conv.has_value() &&
+                   calling_conv.value() == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch))
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     functions.Set(gvar, prim_func);
   }

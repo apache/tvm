@@ -22,7 +22,7 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def ptx_ldmatrix(
     A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
@@ -39,7 +39,7 @@ def ptx_ldmatrix(
             A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
 
         T.evaluate(
-            T.ptx_ldmatrix(
+            T.ptx.ldmatrix_legacy(
                 trans,
                 num,
                 ".b16",

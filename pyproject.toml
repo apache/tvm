@@ -182,6 +182,13 @@ addopts = "-v --tb=short"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+  "adreno_clml: Mark a test as using adreno_clml",
+  "adreno_opencl_vulkan: Mark a test as using adreno_opencl_vulkan",
+  "adreno_vulkan: Mark a test as using adreno_vulkan",
+  "adreno_opencl: Mark a test as using adreno_opencl",
+  "adreno_opencl_real: Mark a test as using adreno_opencl_real",
+]
 
 [tool.ruff]
 include = [
@@ -230,6 +237,14 @@ unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401", "F403", "F405"]
+"python/tvm/relax/op/nn/nn.py" = ["E501"]
+"docs/how_to/tutorials/mix_python_and_tvm_with_pymodule.py" = ["RUF003"]
+"python/tvm/relax/frontend/tflite/tflite_frontend.py" = ["E501"]
+"python/tvm/relax/transform/legalize_ops/nn.py" = ["E501"]
+# Scope-id declarations like ``lane_id = Tx.lane_id([32])`` register a TIR
+# scope_id for side effect; the Python handle is often unused. Silence F841
+# for paths that heavily use this idiom.
+"tests/python/tirx/**/*.py" = ["F841"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tvm"]

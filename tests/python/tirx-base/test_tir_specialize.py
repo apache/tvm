@@ -24,7 +24,7 @@ from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_sym
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
     m = T.int32()
     A = T.match_buffer(a, [m, n])
@@ -39,7 +39,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -53,7 +53,7 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     m = T.int32()
     A = T.match_buffer(a, [m, 128])
@@ -70,7 +70,7 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 # x is considered undefined because it appears as part of x*8,
 # but not on its own
-@T.prim_func(check_well_formed=False)
+@T.prim_func(check_well_formed=False, s_tir=True)
 def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     x = T.int32()
     m = T.int32()
@@ -86,7 +86,7 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(a: T.handle, c: T.handle) -> None:
     m = T.int32()
     n = T.int32()
@@ -106,7 +106,7 @@ def element_wise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_128_64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 64), "float32")
     C = T.match_buffer(c, (128, 64), "float32")
@@ -123,7 +123,7 @@ def element_wise_128_64(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_128_n(a: T.handle, c: T.handle) -> None:
     n = T.int32()
     A = T.match_buffer(a, (128, n), "float32")
@@ -141,7 +141,7 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.int32) -> None:
     A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
@@ -152,7 +152,7 @@ def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.
             B[vi, vj] = A[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
     B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
@@ -163,7 +163,7 @@ def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
             B[vi, vj] = A[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32) -> None:
     A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
@@ -221,7 +221,7 @@ def test_specialize_recursive_load():
 
 
 def test_specialize_with_const_folding():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(a: T.handle, b: T.handle):
         n = T.int32()
         A = T.match_buffer(a, [n // 8, 8], "int32")
@@ -231,7 +231,7 @@ def test_specialize_with_const_folding():
                 vi = T.axis.S(n - 1, i)
                 B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, [2, 8], "int32")
         B = T.match_buffer(b, [16], "int32")
@@ -248,13 +248,13 @@ def test_specialize_with_const_folding():
 def test_specialize_decl_buffer():
     """Buffers occurring in a DeclBuffer statement should be updated"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_data: T.handle("float32"), A_size: T.int32):
         A_buf = T.decl_buffer(A_size, "float32", data=A_data)
         for i in range(A_size):
             A_buf[i] = A_buf[i] * 2.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A_data: T.handle("float32")):
         A_buf = T.decl_buffer(16, "float32", data=A_data)
         for i in range(16):
@@ -273,7 +273,7 @@ def test_specialize_buffer_var_to_var():
     buffers using the same buffer var should also be updated.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")):
         A_flat = T.decl_buffer([256], "float32", data=A.data)
         B_flat = T.decl_buffer([256], "float32", data=B.data)
@@ -282,7 +282,7 @@ def test_specialize_buffer_var_to_var():
 
     # well-formed checker complains about multiple nested definitions of B_flat
     # since it appears in the buffer map twice
-    @T.prim_func(private=True, check_well_formed=False)
+    @T.prim_func(private=True, check_well_formed=False, s_tir=True)
     def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
         B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
         A_flat = T.decl_buffer([256], "float32", data=A.data)
@@ -308,17 +308,17 @@ def test_specialize_buffer_var_to_expr():
     included in the specialized function.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
         A_buf = T.decl_buffer(32, "float32", data=A_data)
         B_buf = T.decl_buffer(16, "float32", data=B_data)
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A_data: T.handle("float32")):
         A_buf = T.decl_buffer(32, "float32", data=A_data)
-        B_data: T.Ptr[T.float32] = T.address_of(A_buf[16])
+        B_data: T.let[T.Ptr[T.float32]] = T.address_of(A_buf[16])
         B_buf = T.decl_buffer(16, "float32", data=B_data)
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
@@ -339,11 +339,11 @@ def test_specialization_updates_struct_info():
     specialized, the struct info should be updated.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(n: T.int32) -> T.int32:
         T.ret(n * 10)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected() -> T.int32:
         T.ret(50)
 

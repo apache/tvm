@@ -28,7 +28,7 @@ from tvm.script.parser import tirx as T
 
 
 def test_mlp():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -52,7 +52,7 @@ def test_mlp():
             lv3 = R.matmul(lv2, weight2)
             return lv3
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -79,7 +79,7 @@ def test_mlp():
 
 
 def test_mlp_with_tuple():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -91,7 +91,7 @@ def test_mlp_with_tuple():
             }
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def split1(var_A: T.handle, var_T_split: T.handle, var_T_split_1: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (128, 128), "float32")
@@ -129,14 +129,14 @@ def test_mlp_with_tuple():
             lv4 = R.matmul(lv3, weight2)
             return lv4
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedMLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def split1(
             A: T.Buffer((128, 128), "float32"),
             T_split: T.Buffer((64, 128), "float32"),
@@ -191,7 +191,7 @@ def test_mlp_with_tuple():
 
 
 def test_mlp_const():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLPWithConst:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -216,7 +216,7 @@ def test_mlp_const():
             lv4 = R.matmul(lv3, weight2)
             return lv4
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedMLPWithConst:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -246,7 +246,7 @@ def test_mlp_const():
 
 
 def test_mlp_dynamic_shape():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class MLPDynamicShape:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -270,7 +270,7 @@ def test_mlp_dynamic_shape():
             lv3 = R.matmul(lv2, weight2)
             return lv3
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedMLPDynamicShape:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -301,7 +301,7 @@ def test_mlp_dynamic_shape():
 
 
 def test_mlp_pipeline_parallelism():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class PipelineMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -335,7 +335,7 @@ def test_mlp_pipeline_parallelism():
     # from tvm.script import ir as I
     # from tvm.script import relax as R
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedPipelineMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -374,7 +374,7 @@ def test_mlp_pipeline_parallelism():
 
 
 def test_decoder_layer():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class LlamaAttentionLayer:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -386,7 +386,7 @@ def test_decoder_layer():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -423,7 +423,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -590,14 +590,14 @@ def test_decoder_layer():
 
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedLlamaAttentionLayer:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -633,7 +633,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -806,14 +806,14 @@ def test_decoder_layer():
 # PropagateSharding should analyze TIR funtions
 # and successfully propagate sharding annotations through them
 def test_decoder_layer_tir():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class LlamaAttentionLayerTIR:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -831,7 +831,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2] + B[T.int64(0), v_ax1, v_ax2]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def divide(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -849,7 +849,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3] / B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -869,7 +869,7 @@ def test_decoder_layer_tir():
                         matmul[T.int64(0), v_i1, v_i2] + A[T.int64(0), v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul1(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -892,7 +892,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def matmul2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -915,7 +915,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def maximum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -933,7 +933,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def minimum(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
@@ -953,7 +953,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), T.int64(0), v_ax2, v_ax3]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -970,7 +970,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 * T.int64(128) + v_ax3
                     ]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -984,7 +984,7 @@ def test_decoder_layer_tir():
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = A[T.int64(0), v_ax0, v_ax1, v_ax2]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape2(
             A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -999,7 +999,7 @@ def test_decoder_layer_tir():
                     T.writes(T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3])
                     T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3] = A[v_ax1, v_ax2, v_ax3]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape3(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -1016,7 +1016,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 // T.int64(128), v_ax2 % T.int64(128)
                     ]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
@@ -1054,7 +1054,7 @@ def test_decoder_layer_tir():
                         ),
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rotary_embedding(
             A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1086,7 +1086,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def softmax(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_softmax_norm: T.Buffer(
@@ -1153,7 +1153,7 @@ def test_decoder_layer_tir():
                         / T_softmax_expsum[T.int64(0), v_i1, v_i2]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def transpose(
             A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
@@ -1167,7 +1167,7 @@ def test_decoder_layer_tir():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def transpose1(
             A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -1184,7 +1184,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax2, v_ax1, v_ax3
                     ]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def transpose2(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -1201,7 +1201,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax3, v_ax2
                     ]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def transpose3(
             A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -1371,7 +1371,7 @@ def test_decoder_layer_tir():
 
     # the below uses global vars that are not yet defined but the definitions
     # will be added later
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module(check_well_formed=False, s_tir=True)
     class ShardedLlamaAttentionLayerTIR:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -1587,7 +1587,7 @@ def test_decoder_layer_tir():
 
 
 def test_decoder_layer_dynamic_shape():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class LlamaAttentionLayerDynamicShape:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -1599,7 +1599,7 @@ def test_decoder_layer_dynamic_shape():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -1636,7 +1636,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
@@ -1800,14 +1800,14 @@ def test_decoder_layer_dynamic_shape():
 
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ShardedLlamaAttentionLayerDynamicShape:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle
         ):
@@ -1844,7 +1844,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rotary_embedding(
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),

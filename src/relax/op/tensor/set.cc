@@ -167,7 +167,7 @@ TVM_REGISTER_OP("relax.unique")
                   "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nonzero */
 Expr nonzero(Expr x) {
@@ -190,7 +190,7 @@ TVM_REGISTER_OP("relax.nonzero")
     .add_argument("x", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

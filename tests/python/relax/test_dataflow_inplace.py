@@ -34,7 +34,7 @@ from tvm.script.parser import tirx as T
 
 
 def test_liveness_analysis():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class BasicLiveness:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -64,7 +64,7 @@ def test_liveness_analysis():
 
 
 def test_alias_analysis_basic():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class BasicAliasAnalysis:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -90,7 +90,7 @@ def test_alias_analysis_basic():
 
 
 def test_alias_analysis_tuple():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AliasesWithTuples:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -133,7 +133,7 @@ def test_alias_analysis_tuple():
 
 
 def test_alias_split():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AliasSplit:
         @R.function
         def main(x: R.Tensor((60,), "int32")) -> R.Tensor((15,), "int32"):
@@ -168,9 +168,9 @@ def test_alias_split():
 
 def test_alias_call_tir():
     # call TIR can yield either a single tensor or a tuple
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AliasCallTir:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_id(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
@@ -183,7 +183,7 @@ def test_alias_call_tir():
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_id2(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
@@ -241,7 +241,7 @@ def test_alias_call_tir():
 
 
 def test_mystery_calls():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AliasChaosCalls:
         @R.function
         def identity(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -289,7 +289,7 @@ def test_mystery_calls():
 
 
 def test_alias_external_value():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class AliasExternalValue:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -323,7 +323,7 @@ def test_alias_external_value():
 
 
 def test_inplace_simple_case():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class InplaceBasic:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
@@ -362,7 +362,7 @@ def test_inplace_simple_case():
 
 
 def test_inplace_single_call():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestModule:
         @R.function
         def main(
@@ -375,7 +375,7 @@ def test_inplace_single_call():
     add_call = TestModule["main"].body.blocks[0].bindings[0].value
     new_add, new_mod = dataflow_single_inplace_call(TestModule, add_call, [0])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected_add(
         A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
         B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
@@ -395,7 +395,7 @@ def test_inplace_single_call():
         arg == add_call.args[i]
     new_add.attrs.inplace_indices == [0]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
         compute = T.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -424,7 +424,7 @@ def test_inplace_single_call():
 
 
 def test_insert_inplace_calls():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class EndToEndTest:
         @R.function
         def main(
@@ -441,9 +441,9 @@ def test_insert_inplace_calls():
                 R.output(m)
             return m
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -456,7 +456,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def multiply_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -469,7 +469,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subtract_inplace(
             A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -541,7 +541,7 @@ def test_insert_inplace_calls():
 
 
 def test_dynamic():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class DynamicTestCase:
         @R.function
         def main(
@@ -559,9 +559,9 @@ def test_dynamic():
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(DynamicTestCase)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             a, b = T.int64(), T.int64()
@@ -574,7 +574,7 @@ def test_dynamic():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subtract_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             a, b = T.int64(), T.int64()
@@ -625,7 +625,7 @@ def test_dynamic():
 
 def test_dynamic_mismatch():
     # cannot statically prove the shapes to be equal so the module should be unchanged
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class DynamicMistmatchTestCase:
         @R.function
         def main(

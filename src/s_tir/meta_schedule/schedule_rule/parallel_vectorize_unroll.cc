@@ -108,7 +108,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
    * \brief The options of the maximum number of unroll steps to be done.
    * Use an empty array to disable unroll.
    */
-  ffi::Array<Integer> unroll_max_steps;
+  ffi::Array<int64_t> unroll_max_steps;
   /*! \brief Whether to explicitly unroll the loop, or just add an "unroll" pragma. */
   bool unroll_explicit;
   /*! \brief The number of maximum available jobs in CPU. */
@@ -128,7 +128,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
                                                       int max_vectorize_extent,
-                                                      ffi::Array<Integer> unroll_max_steps,
+                                                      ffi::Array<int64_t> unroll_max_steps,
                                                       bool unroll_explicit) {
   ffi::ObjectPtr<ParallelizeVectorizeUnrollNode> n =
       ffi::make_object<ParallelizeVectorizeUnrollNode>();

@@ -29,7 +29,6 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
@@ -105,7 +104,7 @@ class PrimFuncNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
         .def_ro("buffer_map", &PrimFuncNode::buffer_map)
         .def_ro("body", &PrimFuncNode::body);
@@ -120,7 +119,6 @@ class PrimFuncNode : public BaseFuncNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.PrimFunc", PrimFuncNode, BaseFuncNode);
 };
 

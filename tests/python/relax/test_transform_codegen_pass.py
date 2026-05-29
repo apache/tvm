@@ -25,12 +25,12 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, s_tir, tirx
-from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.support import utils
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -379,7 +379,7 @@ def test_no_op_for_call_to_tir():
             _ = Before.shape_func(x)
             return x
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

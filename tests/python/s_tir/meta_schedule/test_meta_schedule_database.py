@@ -29,6 +29,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.ir.module import IRModule
+from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
@@ -40,7 +41,7 @@ from tvm.target import Target
 # fmt: off
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -56,7 +57,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class MatmulRelu:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -113,7 +114,7 @@ def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
         assert str(arg0.as_json()) == str(arg1.as_json())
 
 
-@ms.utils.derived_object
+@derived_object
 class PyMemoryDatabaseDefault(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()
@@ -156,7 +157,7 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
         return len(self.tuning_records_)
 
 
-@ms.utils.derived_object
+@derived_object
 class PyMemoryDatabaseOverride(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()

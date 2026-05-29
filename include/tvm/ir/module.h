@@ -34,7 +34,6 @@
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/script/printer/config.h>
 
 #include <string>
 #include <unordered_map>
@@ -86,7 +85,7 @@ class IRModuleNode : public ffi::Object {
    * \code
    *
    *  void GetAttrExample(const IRModule& mod) {
-   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode
@@ -240,8 +239,6 @@ class IRModuleNode : public ffi::Object {
    * \brief The set of imported files.
    */
   TVM_DLL std::unordered_set<ffi::String> Imports() const;
-
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 

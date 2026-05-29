@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_before(
     A: T.Buffer((128, 127), "float32"),
     B: T.Buffer((127, 127), "float32"),
@@ -59,7 +59,7 @@ def matmul_before(
             C[i, j] = C_shared[i, j]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_expected(
     A: T.Buffer((128, 127), "float32"),
     B: T.Buffer((127, 127), "float32"),
@@ -106,7 +106,7 @@ def matmul_expected(
 def test_pad_matmul():
     # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul_before(
         a: T.handle,
         b: T.handle,
@@ -123,7 +123,7 @@ def test_pad_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul_after(
         a: T.handle,
         b: T.handle,
@@ -160,7 +160,7 @@ def test_pad_matmul():
 
 
 def test_pad_matmul_2():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         a: T.handle,
         b: T.handle,
@@ -187,7 +187,7 @@ def test_pad_matmul_2():
                 v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 D[v_ax0, v_ax1, v_ax2] = M[v_ax0, v_ax1, v_ax2] * C[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(a: T.handle, b: T.handle, m: T.handle, d: T.handle):
         T.func_attr({"tirx.noalias": True})
         n = T.int32()
@@ -230,7 +230,7 @@ def test_pad_matmul_2():
 
 
 def test_pad_rms():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         a: T.handle,
         w: T.handle,
@@ -258,7 +258,7 @@ def test_pad_rms():
                     / T.sqrt(S[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(1e-6))
                 )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(a: T.handle, w: T.handle, r: T.handle):
         T.func_attr({"tirx.noalias": True})
         n = T.int32()

@@ -141,7 +141,7 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         """Elementwise STIR module for benchmarking"""
 
         # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, c: T.handle):
             # We exchange data between function by handles, which are similar to pointer.
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})

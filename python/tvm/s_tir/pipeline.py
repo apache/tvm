@@ -20,7 +20,9 @@
 
 import tvm
 from tvm import s_tir, tirx
-from tvm.tirx import pipeline as tir_pipeline
+from tvm.tirx import compilation_pipeline as tir_pipeline
+
+tir = tirx  # alias for backward compat
 
 
 def default_s_tir_pipeline():
@@ -43,7 +45,7 @@ def default_s_tir_pipeline():
             s_tir.transform.LowerAutoCopy(),
             s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tirx.transform.Simplify(),
+            tirx.transform.StmtSimplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),
@@ -66,7 +68,7 @@ def default_s_tir_pipeline():
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tirx.transform.Simplify(),
+                tirx.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
@@ -106,20 +108,19 @@ def default_s_tir_pipeline():
             passes.append(s_tir.transform.InjectPTXLDG32())
         passes.extend(
             [
+                s_tir.transform.MergeSharedMemoryAllocations(),
                 tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
-                # MergeSharedMemoryAllocations must follow SplitHostDevice.
-                s_tir.transform.MergeSharedMemoryAllocations(),
+                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
-                tirx.transform.LowerDeviceKernelLaunch(),
             ]
         )
         mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod
 
-    return _pipeline
+    return _pipeline, finalize_host_passes, finalize_device_passes
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
@@ -130,6 +131,17 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
+
+
+def finalize_device_passes():  # pylint: disable=unused-argument
+    """The default finalization passes for TIR backend."""
+    device_pass_list = [
+        tirx.transform.LowerWarpMemory(),
+        tirx.transform.StmtSimplify(),
+        tirx.transform.LowerCustomDatatypes(),
+        tirx.transform.LowerIntrin(),
+    ]
+    return tvm.ir.transform.Sequential(device_pass_list)
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline

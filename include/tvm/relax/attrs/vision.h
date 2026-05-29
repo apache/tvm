@@ -32,8 +32,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in AllClassNonMaximumSuppression operator */
-struct AllClassNonMaximumSuppressionAttrs
-    : public AttrsNodeReflAdapter<AllClassNonMaximumSuppressionAttrs> {
+struct AllClassNonMaximumSuppressionAttrs : public AttrsNode {
   ffi::String output_format;
 
   static void RegisterReflection() {
@@ -44,11 +43,11 @@ struct AllClassNonMaximumSuppressionAttrs
         "consumed by each frontend.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs",
-                                    AllClassNonMaximumSuppressionAttrs, BaseAttrsNode);
+                                    AllClassNonMaximumSuppressionAttrs, AttrsNode);
 };  // struct AllClassNonMaximumSuppressionAttrs
 
 /*! \brief Attributes used in ROIAlign operator */
-struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
+struct ROIAlignAttrs : public AttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   int sample_ratio;
@@ -69,11 +68,11 @@ struct ROIAlignAttrs : public AttrsNodeReflAdapter<ROIAlignAttrs> {
         .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.")
         .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, AttrsNode);
 };  // struct ROIAlignAttrs
 
 /*! \brief Attributes used in ROIPool operator */
-struct ROIPoolAttrs : public AttrsNodeReflAdapter<ROIPoolAttrs> {
+struct ROIPoolAttrs : public AttrsNode {
   ffi::Array<int64_t> pooled_size;
   double spatial_scale;
   ffi::String layout;
@@ -86,11 +85,11 @@ struct ROIPoolAttrs : public AttrsNodeReflAdapter<ROIPoolAttrs> {
                 "Ratio of input feature map height (or width) to raw image height (or width).")
         .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrs, AttrsNode);
 };  // struct ROIPoolAttrs
 
 /*! \brief Attributes used in GetValidCounts operator */
-struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
+struct GetValidCountsAttrs : public AttrsNode {
   double score_threshold;
   int id_index;
   int score_index;
@@ -106,11 +105,11 @@ struct GetValidCountsAttrs : public AttrsNodeReflAdapter<GetValidCountsAttrs> {
                 "Index of the scores/confidence of boxes.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GetValidCountsAttrs", GetValidCountsAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct GetValidCountsAttrs
 
 /*! \brief Attributes used in NonMaximumSuppression operator */
-struct NonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<NonMaximumSuppressionAttrs> {
+struct NonMaximumSuppressionAttrs : public AttrsNode {
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
@@ -150,11 +149,11 @@ struct NonMaximumSuppressionAttrs : public AttrsNodeReflAdapter<NonMaximumSuppre
                 "Score threshold for soft-NMS validity check; 0.0 when unused.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
-                                    NonMaximumSuppressionAttrs, BaseAttrsNode);
+                                    NonMaximumSuppressionAttrs, AttrsNode);
 };  // struct NonMaximumSuppressionAttrs
 
 /*! \brief Attributes for multibox_transform_loc (SSD / TFLite-style box decode). */
-struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransformLocAttrs> {
+struct MultiboxTransformLocAttrs : public AttrsNode {
   bool clip;
   double threshold;
   ffi::Array<double> variances;
@@ -174,7 +173,7 @@ struct MultiboxTransformLocAttrs : public AttrsNodeReflAdapter<MultiboxTransform
                 "If false, force output scores[:,0,:] to 0 (background class).");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultiboxTransformLocAttrs",
-                                    MultiboxTransformLocAttrs, BaseAttrsNode);
+                                    MultiboxTransformLocAttrs, AttrsNode);
 };  // struct MultiboxTransformLocAttrs
 
 }  // namespace relax

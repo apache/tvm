@@ -54,7 +54,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 /////////////////////////////// Function ////////////////////////////////
 
-FunctionFrame Function(const Bool& is_pure, const Bool& is_private) {
+FunctionFrame Function(bool is_pure, bool is_private) {
   ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
   ffi::Optional<tvm::IRModule> mod = std::nullopt;
@@ -90,7 +90,7 @@ void FuncName(const ffi::String& name) {
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
   for (const auto& [key, value] : attrs) {
-    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(Bool(false))->value) {
+    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(false)) {
       TVM_FFI_THROW(ValueError) << "A private function may not have the kGlobalSymbol (\""
                                 << tvm::attr::kGlobalSymbol << "\") attribute.  "
                                 << "However, a private function specified the global symbol as "
