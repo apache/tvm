@@ -30,6 +30,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/tirx/op.h>
 
 // functions to be overriden.
 #define RELAX_VISIT_BINDING_DISPATCH(OP)                                        \
@@ -798,7 +799,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   TVM_FFI_ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
 
-  PrimExpr constraint = Bool(true);
+  PrimExpr constraint = IntImm(DataType::Bool(), 1);
   if (params.defined()) {
     auto non_negative_expressions =
         CollectNonNegativeExpressions(TupleStructInfo(params.value().Map(GetStructInfo)));

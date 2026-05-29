@@ -981,7 +981,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
   auto alias_sets = res.first;
   auto tuple_map = res.second;
   ffi::Map<Var, ffi::Array<int64_t>> new_alias_sets;
-  ffi::Map<Integer, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
+  ffi::Map<IntImm, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
   for (auto kv : alias_sets) {
     ffi::Array<int64_t> aliases;
     for (auto alias : kv.second) {
@@ -998,7 +998,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
       }
       elem_aliases.push_back(dim_aliases);
     }
-    new_tuple_map.Set(kv.first, elem_aliases);
+    new_tuple_map.Set(IntImm(DataType::Int(32), kv.first), elem_aliases);
   }
   return {new_alias_sets, new_tuple_map};
 }

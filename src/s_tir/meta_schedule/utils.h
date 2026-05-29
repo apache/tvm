@@ -655,9 +655,9 @@ class SBlockCollector : public tirx::StmtVisitor {
 
     // If filter function is provided, use it to selectively collect blocks.
     // Otherwise collect all blocks.
-    Bool collect_block = Bool(true);
+    bool collect_block = true;
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<Bool>();
+      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<IntImm>()->value != 0;
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

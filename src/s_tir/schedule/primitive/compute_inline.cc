@@ -625,7 +625,7 @@ class ReverseComputeInliner : public BaseInliner {
         producer_block_(producer_block),
         consumer_block_(consumer_block_realize->block.get()) {
     // Initialize the predicates to ensure consumer block iters are in-bound
-    consumer_iter_in_bound_ = Bool(true);
+    consumer_iter_in_bound_ = const_true();
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
       consumer_iter_in_bound_ =
           consumer_iter_in_bound_ &&

@@ -88,8 +88,8 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
                          const ffi::Array<int64_t>& new_order) {
   const SBlockNode* block_n = TVM_SREF_TO_SBLOCK(block_sref);
   std::vector<int> new_order_vec;
-  for (const Integer& x : new_order) {
-    new_order_vec.push_back(x->value);
+  for (int64_t x : new_order) {
+    new_order_vec.push_back(static_cast<int>(x));
   }
   // check whether new_order is valid or not;
   size_t num_block_itervars = block_n->iter_vars.size();

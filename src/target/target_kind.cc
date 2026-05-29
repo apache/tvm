@@ -277,11 +277,11 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
 ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   bool subgroups = false;
   if (target.count("supports_subgroups")) {
-    subgroups = Downcast<Bool>(target.at("supports_subgroups"));
+    subgroups = Downcast<IntImm>(target.at("supports_subgroups"))->value != 0;
   }
 
   if (target.count("thread_warp_size")) {
-    int64_t thread_warp_size = Downcast<Integer>(target.at("thread_warp_size"))->value;
+    int64_t thread_warp_size = Downcast<IntImm>(target.at("thread_warp_size"))->value;
     TVM_FFI_ICHECK(subgroups || thread_warp_size <= 1)
         << "WebGPU target with thread_warp_size=" << thread_warp_size
         << " requires supports_subgroups=true";

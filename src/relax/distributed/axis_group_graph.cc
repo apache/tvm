@@ -181,8 +181,8 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   int ndim = GetTensorStructInfo(input_tensor)->ndim;
 
   std::unordered_set<int> normalized_axes;
-  for (const Integer& i : axes) {
-    int val = i->value;
+  for (int64_t i : axes) {
+    int val = static_cast<int>(i);
     TVM_FFI_ICHECK(val < ndim && val >= -ndim);
     if (val < 0) {
       val = ndim + val;
@@ -289,8 +289,8 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
   int ndim = GetTensorStructInfo(input_tensor)->ndim;
   std::vector<int> normalized_axes;
   if (attrs->axes.defined()) {
-    for (const Integer& i : attrs->axes.value()) {
-      int val = i->value;
+    for (int64_t i : attrs->axes.value()) {
+      int val = static_cast<int>(i);
       TVM_FFI_ICHECK(val < ndim && val >= -ndim);
       if (val < 0) {
         val = ndim + val;

@@ -481,7 +481,7 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
  * \return A Tensor whose op member is the space_to_batch_nd operation
  */
 inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
-                                         const tvm::ffi::Array<Integer>& block_shape,
+                                         const tvm::ffi::Array<int64_t>& block_shape,
                                          const tvm::ffi::Array<tvm::PrimExpr>& pad_before,
                                          const tvm::ffi::Array<tvm::PrimExpr>& pad_after,
                                          PrimExpr pad_value = PrimExpr(),
@@ -516,7 +516,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
 
   // infer shapes
   tvm::ffi::Array<PrimExpr> r_shape;
-  tvm::ffi::Array<Integer> axis;
+  tvm::ffi::Array<int64_t> axis;
   tvm::ffi::Array<PrimExpr> o_shape;
 
   size_t num_block_dims = block_shape.size();
@@ -526,7 +526,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
 
   for (size_t i = 1; i <= num_block_dims; i++) {
     int padded_input = static_cast<int>(GetConstInt(padded_shape[i]));
-    int block_size = static_cast<int>(GetConstInt(block_shape[i - 1]));
+    int block_size = static_cast<int>(block_shape[i - 1]);
     TVM_FFI_ICHECK_EQ((padded_input % block_size), 0)
         << "(" << i
         << ")th "
@@ -534,26 +534,29 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
         << padded_input << ")"
         << " must be divisible by its block size (" << block_size << ")";
 
-    r_shape.push_back(div(padded_shape[i], block_shape[i - 1]));
-    r_shape.push_back(block_shape[i - 1]);
-    block_shape_prod *= block_shape[i - 1];
-    axis.push_back(Integer(r_shape.size() - 1));  // index of block_shape[i - 1]
+    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    r_shape.push_back(div(padded_shape[i], bs));
+    r_shape.push_back(bs);
+    block_shape_prod *= bs;
+    axis.push_back(static_cast<int64_t>(r_shape.size() - 1));  // index of block_shape[i - 1]
   }
 
   size_t n = axis.size();
   axis.push_back(0);  // batch is at index 0
   // index of (padded_shape[i] / block_shape[i - 1]) in r_shape
   for (size_t i = 0; i < n; i++) {
-    axis.push_back(static_cast<int>(GetConstInt(axis[i] - 1)));
+    axis.push_back(axis[i] - 1);
   }
   o_shape.push_back(tvm::PrimExpr(batch) * block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    o_shape.push_back(div(padded_shape[i], block_shape[i - 1]));
+    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    o_shape.push_back(div(padded_shape[i], bs));
   }
   // append remaining shape
   for (size_t i = num_block_dims + 1; i < input_shape.size(); i++) {
     r_shape.push_back(input_shape[i]);
-    axis.push_back(Integer(r_shape.size() - 1));  // index of remaining shape in r_shape
+    axis.push_back(
+        static_cast<int64_t>(r_shape.size() - 1));  // index of remaining shape in r_shape
     o_shape.push_back(input_shape[i]);
   }
 
@@ -577,7 +580,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
  * \return A Tensor whose op member is the batch_to_space_nd operation
  */
 inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
-                                         const tvm::ffi::Array<Integer>& block_shape,
+                                         const tvm::ffi::Array<int64_t>& block_shape,
                                          const tvm::ffi::Array<tvm::PrimExpr>& crop_begin_list,
                                          const tvm::ffi::Array<tvm::PrimExpr>& crop_end_list,
                                          std::string name = "batch_to_space_nd",
@@ -585,23 +588,25 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   // Construct shapes for reshape and transpose operation
   ffi::Array<PrimExpr> in_shape = data->shape;
   ffi::Array<PrimExpr> r_shape;
-  ffi::Array<Integer> axis;
+  ffi::Array<int64_t> axis;
   size_t num_block_dims = block_shape.size();
   size_t num_input_dims = in_shape.size();
   tvm::PrimExpr block_shape_prod(1);
   int batch = static_cast<int>(GetConstInt(in_shape[0]));
 
   for (size_t i = 0; i < num_block_dims; i++) {
-    r_shape.push_back(block_shape[i]);
-    block_shape_prod *= block_shape[i];
+    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i]);
+    r_shape.push_back(bs);
+    block_shape_prod *= bs;
   }
-  axis.push_back(Integer(r_shape.size()));  // axis of (batch / block_shape_prod)
+  axis.push_back(static_cast<int64_t>(r_shape.size()));  // axis of (batch / block_shape_prod)
   r_shape.push_back(batch / block_shape_prod);
 
   for (size_t i = 1; i < num_input_dims; i++) {
-    axis.push_back(Integer(r_shape.size()));  // axis of in_shape[i]
+    axis.push_back(static_cast<int64_t>(r_shape.size()));  // axis of in_shape[i]
     if (axis.size() < (num_block_dims + num_input_dims)) {
-      axis.push_back(Integer(r_shape.size() - (num_block_dims + 1)));  // axis of block_shape[i]
+      axis.push_back(
+          static_cast<int64_t>(r_shape.size() - (num_block_dims + 1)));  // axis of block_shape[i]
     }
     r_shape.push_back(in_shape[i]);
   }
@@ -609,7 +614,8 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   ffi::Array<PrimExpr> r_p_shape;
   r_p_shape.push_back(batch / block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    r_p_shape.push_back(in_shape[i] * block_shape[i - 1]);
+    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    r_p_shape.push_back(in_shape[i] * bs);
   }
   for (size_t i = num_block_dims + 1; i < num_input_dims; i++) {
     r_p_shape.push_back(in_shape[i]);
@@ -621,23 +627,25 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  ffi::Array<Integer> begin_idx, end_idx, strides;
+  ffi::Array<ffi::Optional<IntImm>> begin_idx, end_idx;
+  ffi::Array<IntImm> strides;
+  DataType index_dtype = DataType::Int(64);
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
-    strides.push_back(Integer(1));
+    strides.push_back(IntImm(index_dtype, 1));
     if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
-      int begin_i = static_cast<int>(GetConstInt(crop_begin_list[i - 1]));
-      int end_i = static_cast<int>(GetConstInt(crop_end_list[i - 1]));
-      int out_i = static_cast<int>(GetConstInt(r_p_shape[i]));
+      int64_t begin_i = GetConstInt(crop_begin_list[i - 1]);
+      int64_t end_i = GetConstInt(crop_end_list[i - 1]);
+      int64_t out_i = GetConstInt(r_p_shape[i]);
       TVM_FFI_ICHECK_GT(out_i, (begin_i + end_i))
           << "Incorrect crop sizes for (" << i << ")th dim, can not crop more than"
           << " output size" << out_i << " vs " << (begin_i + end_i);
-      begin_idx.push_back(begin_i);
-      end_idx.push_back(out_i - end_i);
+      begin_idx.push_back(IntImm(index_dtype, begin_i));
+      end_idx.push_back(IntImm(index_dtype, out_i - end_i));
     } else {
       // ignore the batch and remaining dimension
-      begin_idx.push_back(Integer(0));
-      end_idx.push_back(static_cast<int>(GetConstInt(r_p_shape[i])));
+      begin_idx.push_back(IntImm(index_dtype, 0));
+      end_idx.push_back(IntImm(index_dtype, GetConstInt(r_p_shape[i])));
     }
   }
 
@@ -710,10 +718,10 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                    tvm::tirx::make_const(predictions->dtype, 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, tvm::ffi::Array<Integer>(nullptr)),
-                        topi::sum(W, tvm::ffi::Array<Integer>(nullptr)));
+    return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),
+                        topi::sum(W, tvm::ffi::Array<int64_t>(nullptr)));
   } else if (reduction == "sum") {
-    return topi::sum(T, tvm::ffi::Array<Integer>(nullptr));
+    return topi::sum(T, tvm::ffi::Array<int64_t>(nullptr));
   } else {  // reduction == "none"
     return T;
   }

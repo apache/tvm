@@ -229,6 +229,9 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end", assu
         strides = []
     if axes is None:
         axes = []
+    # axes is a list of host integers on the C++ side (Array<int64_t>); unwrap any
+    # IntImm entries that callers may pass through (e.g. relax legalize pipeline).
+    axes = [int(v) if isinstance(v, tvm.tirx.IntImm) else v for v in axes]
     return cpp.strided_slice(a, begin, end, strides, axes, slice_mode, assume_inbound)
 
 

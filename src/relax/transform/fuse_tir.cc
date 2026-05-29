@@ -24,6 +24,7 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -154,7 +155,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
   arith::Analyzer* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
-  PrimExpr must_prove_ = Bool(true);
+  PrimExpr must_prove_ = const_true();
 };
 
 /*!
@@ -1020,7 +1021,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, Bool(true), Downcast<tirx::SBlock>(body));
+    body = tirx::SBlockRealize({}, IntImm(DataType::Bool(), 1), Downcast<tirx::SBlock>(body));
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                         DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions

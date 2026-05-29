@@ -49,10 +49,10 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
     ffi::Map<ffi::String, ffi::Any> target_json =
         target::canonicalizer::llvm::aprofile::Canonicalize(target->ToConfig());
 
-    if (Downcast<Bool>(target_json.at("feature.has_dotprod"))) {
+    if (Downcast<IntImm>(target_json.at("feature.has_dotprod"))->value) {
       return "dotprod";
     }
-    if (Downcast<Bool>(target_json.at("feature.has_asimd"))) {
+    if (Downcast<IntImm>(target_json.at("feature.has_asimd"))->value) {
       return "asimd";
     }
     return "llvm";

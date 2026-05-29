@@ -492,7 +492,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
     auto read_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt = SBlockRealize(iter_values, Bool(true),
+    stmt = SBlockRealize(iter_values, const_true(),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
@@ -1187,7 +1187,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   ffi::Optional<IndexMap> opt_inverse = std::nullopt;
-  PrimExpr padding_predicate = Bool(false);
+  PrimExpr padding_predicate = const_false();
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;
@@ -1579,18 +1579,18 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IndexMap index_map,
-                                      Integer buffer_index, Integer buffer_index_type,
+                                      IntImm buffer_index, IntImm buffer_index_type,
                                       ffi::Optional<IndexMap> pad_value,
-                                      Bool assume_injective_transform) {
-    return sch->TransformLayout(block_rv, buffer_index.IntValue(),
+                                      IntImm assume_injective_transform) {
+    return sch->TransformLayout(block_rv, buffer_index->value,
                                 static_cast<BufferIndexType>(buffer_index_type->value), index_map,
-                                pad_value, assume_injective_transform.operator bool());
+                                pad_value, assume_injective_transform->value != 0);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IndexMap index_map, Integer buffer_index,
-                                      Integer buffer_index_type, ffi::Optional<IndexMap> pad_value,
-                                      Bool assume_injective_transform) {
+                                      IndexMap index_map, IntImm buffer_index,
+                                      IntImm buffer_index_type, ffi::Optional<IndexMap> pad_value,
+                                      IntImm assume_injective_transform) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 
@@ -1600,7 +1600,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     py.Input("buffer", os.str());
     py.Input("index_map", index_map->ToPythonString());
     py.Input("pad_value", pad_value ? pad_value.value()->ToPythonString() : "None");
-    py.Input("assume_injective_transform", assume_injective_transform.operator bool());
+    py.Input("assume_injective_transform", assume_injective_transform->value != 0);
 
     return py.Str();
   }
@@ -1691,16 +1691,16 @@ struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits
   static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, Integer buffer_index,
-                                      Integer buffer_index_type,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
+                                      IntImm buffer_index_type,
                                       ffi::Array<IntImm> axis_separators) {
-    return sch->SetAxisSeparator(block_rv, buffer_index.IntValue(),
+    return sch->SetAxisSeparator(block_rv, buffer_index->value,
                                  static_cast<BufferIndexType>(buffer_index_type->value),
                                  axis_separators);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      Integer buffer_index, Integer buffer_index_type,
+                                      IntImm buffer_index, IntImm buffer_index_type,
                                       ffi::Array<IntImm> axis_separators) {
     PythonAPICall py("set_axis_separator");
     py.Input("block", block_rv);

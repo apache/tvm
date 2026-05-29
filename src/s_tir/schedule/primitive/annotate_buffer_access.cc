@@ -122,8 +122,8 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer buffer_index,
-                                      Integer buffer_index_type, IndexMap index_map) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
+                                      IntImm buffer_index_type, IndexMap index_map) {
     return sch->AnnotateBufferAccess(block, buffer_index->value,
                                      static_cast<BufferIndexType>(buffer_index_type->value),
                                      index_map);
@@ -150,7 +150,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer buffer_index, Integer buffer_index_type,
+                                      IntImm buffer_index, IntImm buffer_index_type,
                                       IndexMap index_map) {
     PythonAPICall py("annotate_buffer_access");
     py.Input("block", block);

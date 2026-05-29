@@ -28,6 +28,7 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
+#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 #include <utility>
@@ -93,7 +94,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::unordered_map<DFPattern, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
-  PrimExpr symbolic_expr_condition_{Bool(true)};
+  PrimExpr symbolic_expr_condition_{IntImm(DataType::Bool(), 1)};
   arith::Analyzer analyzer_;
   bool memoize_ = true;
 };

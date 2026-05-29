@@ -125,13 +125,13 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
 }
 
 ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
-    ffi::String structure, Integer vector_length_in_bits,
+    ffi::String structure, int64_t vector_length_in_bits,
     ffi::Optional<int64_t> max_innermost_factor,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
       structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
-  node->vector_length_in_bits = vector_length_in_bits->value;
+  node->vector_length_in_bits = vector_length_in_bits;
   return ScheduleRule(node);
 }
 

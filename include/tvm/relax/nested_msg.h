@@ -157,7 +157,7 @@ class NestedMsg {
   }
 
   // delete the int constructor
-  // since NestedMsg<Integer>(0) is ambiguous
+  // since NestedMsg<IntImm>(0) is ambiguous
   // 0 can be implicitly casted to nullptr_t
   explicit NestedMsg(int val) = delete;
   NestedMsg<T>& operator=(int val) = delete;

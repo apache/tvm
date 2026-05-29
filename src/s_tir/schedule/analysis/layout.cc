@@ -218,14 +218,16 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
     for (int i = 0, n = indices.size(); i < n; ++i) {
       const Var& index = indices[inverse_order[i]];
       inv_permuted_indices.push_back(index);
-      analyzer->Bind(index, Range::FromMinExtent(0, Integer(split_exprs[i].extent)));
+      analyzer->Bind(index,
+                     Range::FromMinExtent(0, IntImm(DataType::Int(32), split_exprs[i].extent)));
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
     PrimExpr flattened_index = make_const(indices[0]->dtype, 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
-      flattened_index = inv_permuted_indices[i] * Integer(stride) + flattened_index;
+      flattened_index =
+          inv_permuted_indices[i] * IntImm(DataType::Int(32), stride) + flattened_index;
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.

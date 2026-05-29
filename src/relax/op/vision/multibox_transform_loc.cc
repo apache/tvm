@@ -179,7 +179,7 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
     }
   }
 
-  ffi::Array<PrimExpr> boxes_shape = {batch, num_anchors, Integer(4)};
+  ffi::Array<PrimExpr> boxes_shape = {batch, num_anchors, IntImm(DataType::Int(32), 4)};
   ffi::Array<PrimExpr> scores_shape = {batch, num_classes, num_anchors};
   ffi::Array<StructInfo> fields = {
       TensorStructInfo(ShapeExpr(boxes_shape), cls_sinfo->dtype, vdev),

@@ -42,13 +42,14 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
 struct OpenCLMLCompilerConfigNode : public ffi::Object {
-  Integer clml_version;
+  IntImm clml_version;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OpenCLMLCompilerConfigNode>().def_ro(
         "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
-        "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
+        "OpenCLML version as (major, minor, patch).",
+        refl::DefaultValue(IntImm(DataType::Int(32), 3)));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
                                     OpenCLMLCompilerConfigNode, ffi::Object);
@@ -269,7 +270,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!cfg.defined()) {
       cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
     }
-    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version.IntValue()));
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version->value));
   }
 
  private:
@@ -332,11 +333,11 @@ inline constexpr bool IsOpenCLMLRuntimeEnabled() {
  * \brief Get OpenCLML version that TVM is built against.
  * \return The OpenCLML SDK version.
  */
-Integer GetOpenCLMLVersion() {
+IntImm GetOpenCLMLVersion() {
 #if TVM_GRAPH_EXECUTOR_CLML
-  return Integer(TVM_CLML_VERSION);
+  return IntImm(DataType::Int(32), TVM_CLML_VERSION);
 #else
-  return Integer(3);
+  return IntImm(DataType::Int(32), 3);
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 

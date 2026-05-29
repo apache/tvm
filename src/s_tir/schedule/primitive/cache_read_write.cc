@@ -189,13 +189,13 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
     old_indices.push_back(Substitute(range->min, var_map));
-    old_region.push_back(Range::FromMinExtent(old_indices.back(), Integer(1)));
+    old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm(DataType::Int(32), 1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
   Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
     new_indices.push_back(Substitute((idx), var_map));
-    new_region.push_back(Range::FromMinExtent(new_indices.back(), Integer(1)));
+    new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm(DataType::Int(32), 1)));
   }
 
   // Create New Block
@@ -562,7 +562,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
                                              BufferIndexType index_type) {
   struct Collector : public StmtVisitor {
     Collector(const Buffer& buf, BufferIndexType idx_type)
-        : buffer_(buf), index_type_(idx_type), result_(Bool(false)), found_(false) {}
+        : buffer_(buf), index_type_(idx_type), result_(const_false()), found_(false) {}
 
     void VisitStmt_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
@@ -604,7 +604,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
   collector(body);
   // If no nested block accessed the buffer, return true (no restriction — the caller
   // will fall back to the original scope-block reads / FullRegion path).
-  return collector.found_ ? collector.result_ : Bool(true);
+  return collector.found_ ? collector.result_ : const_true();
 }
 
 /*!
@@ -621,7 +621,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
 BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_region,
                                const StmtSRef& block_sref, const StmtSRef& dom_low_inclusive,
                                const StmtSRef& dom_high_exclusive,
-                               PrimExpr extra_predicate = Bool(true)) {
+                               PrimExpr extra_predicate = const_true()) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const Buffer& buffer = buffer_region->buffer;
@@ -1089,7 +1089,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
         if (buf_region->buffer.same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, Integer(1)));
+            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
           }
           new_reads.push_back(BufferRegion(info_->write_buffer, region));
         } else {
@@ -1105,7 +1105,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
         if (source->buffer.same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, Integer(1)));
+            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
           }
           new_match_buffers.push_back(MatchBufferRegion(match_buffer_region->buffer,
                                                         BufferRegion(info_->write_buffer, region)));
@@ -1378,7 +1378,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
         if (buf_region->buffer.same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, Integer(1)));
+            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
           }
           new_reads.push_back(BufferRegion(info_->read_buffer, region));
         } else {
@@ -1394,7 +1394,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
         if (source->buffer.same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, Integer(1)));
+            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
           }
           new_match_buffers.push_back(MatchBufferRegion(match_buffer_region->buffer,
                                                         BufferRegion(info_->read_buffer, region)));
@@ -1781,7 +1781,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
         GetBufferRegionFromBuffer(block->reads, read_buffer);
     PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(block->body, read_buffer,
                                                                           BufferIndexType::kRead)
-                                           : Bool(true);
+                                           : const_true();
     if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
       cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,
@@ -2396,13 +2396,13 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
-                                          Integer read_buffer_index, ffi::String storage_scope) {
+                                          IntImm read_buffer_index, ffi::String storage_scope) {
     return sch->CacheRead(block, read_buffer_index->value, storage_scope, consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       ffi::Array<ffi::String> consumer_blocks,
-                                      Integer read_buffer_index, ffi::String storage_scope) {
+                                      IntImm read_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
@@ -2430,13 +2430,13 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
-                                          Integer write_buffer_index, ffi::String storage_scope) {
+                                          IntImm write_buffer_index, ffi::String storage_scope) {
     return sch->CacheWrite(block, write_buffer_index->value, storage_scope, consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       ffi::Array<ffi::String> consumer_blocks,
-                                      Integer write_buffer_index, ffi::String storage_scope) {
+                                      IntImm write_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_write");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index->value);
@@ -2463,13 +2463,13 @@ struct CacheInplaceTraits : public UnpackedInstTraits<CacheInplaceTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
-                                                      Integer read_buffer_index,
+                                                      IntImm read_buffer_index,
                                                       ffi::String storage_scope) {
     return sch->CacheInplace(block, read_buffer_index->value, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer read_buffer_index, ffi::String storage_scope) {
+                                      IntImm read_buffer_index, ffi::String storage_scope) {
     PythonAPICall py("cache_inplace");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
@@ -2491,14 +2491,14 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer buffer_index,
-                                          Integer buffer_index_type) {
-    return sch->ReIndex(block, buffer_index.IntValue(),
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
+                                          IntImm buffer_index_type) {
+    return sch->ReIndex(block, buffer_index->value,
                         static_cast<BufferIndexType>(buffer_index_type->value));
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer buffer_index, Integer buffer_index_type) {
+                                      IntImm buffer_index, IntImm buffer_index_type) {
     PythonAPICall py("reindex");
     py.Input("block", block);
     std::ostringstream os;
@@ -2523,12 +2523,12 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
-                                          Integer read_buffer_index, ffi::String storage_scope) {
+                                          IntImm read_buffer_index, ffi::String storage_scope) {
     return sch->ReindexCacheRead(block, read_buffer_index->value, storage_scope, index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IndexMap index_map, Integer read_buffer_index,
+                                      IndexMap index_map, IntImm read_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_read");
     py.Input("block", block);
@@ -2553,12 +2553,12 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
-                                          Integer write_buffer_index, ffi::String storage_scope) {
+                                          IntImm write_buffer_index, ffi::String storage_scope) {
     return sch->ReindexCacheWrite(block, write_buffer_index->value, storage_scope, index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IndexMap index_map, Integer write_buffer_index,
+                                      IndexMap index_map, IntImm write_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_write");
     py.Input("block", block);

@@ -33,16 +33,16 @@ namespace topi {
 using namespace tvm::runtime;
 
 /*! \brief Canonicalize an argument that may be ffi::Array<Expr> or int to ffi::Array<Expr> */
-inline ffi::Optional<ffi::Array<Integer>> ArrayOrInt(AnyView arg) {
+inline ffi::Optional<ffi::Array<int64_t>> ArrayOrInt(AnyView arg) {
   if (arg == nullptr) {
     return std::nullopt;
   }
   if (auto opt_int = arg.try_cast<int>()) {
-    ffi::Array<Integer> result;
+    ffi::Array<int64_t> result;
     result.push_back(opt_int.value());
     return result;
   } else {
-    return arg.cast<ffi::Array<Integer>>();
+    return arg.cast<ffi::Array<int64_t>>();
   }
 }
 }  // namespace topi

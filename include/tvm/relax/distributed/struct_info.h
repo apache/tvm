@@ -71,7 +71,7 @@ class PlacementSpec : public ffi::ObjectRef {
 class ShardingNode : public PlacementSpecNode {
  public:
   /*! \brief The dimension of tensor we shard*/
-  Integer sharding_dim;
+  int64_t sharding_dim;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

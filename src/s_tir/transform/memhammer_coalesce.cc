@@ -67,7 +67,7 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = Downcast<Integer>(loop->extent)->value;
+  int loop_extent = Downcast<IntImm>(loop->extent)->value;
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -191,7 +191,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   arith::Analyzer analyzer;
   DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   auto iter_map =
-      arith::DetectIterMap(mapping_pattern, var_range, Bool(true), arith::Bijective, &analyzer);
+      arith::DetectIterMap(mapping_pattern, var_range, const_true(), arith::Bijective, &analyzer);
   TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
   ffi::Map<Var, PrimExpr> inverse_mapping =
       arith::InverseAffineIterMap(iter_map->indices, loop_vars);

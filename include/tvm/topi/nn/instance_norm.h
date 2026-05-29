@@ -51,7 +51,7 @@ using namespace tvm::te;
  * \return The normalized tensor, with the same shape as data.
  */
 inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
-                            int channel_axis, const ffi::Array<Integer>& axis, double epsilon,
+                            int channel_axis, const ffi::Array<int64_t>& axis, double epsilon,
                             std::string name = "T_instance_norm", std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;

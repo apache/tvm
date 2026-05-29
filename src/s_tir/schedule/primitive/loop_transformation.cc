@@ -743,13 +743,14 @@ class LoopReconstructor : private StmtMutator {
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], Integer(0), new_loop_extents[0], ForKind::kSerial,
-                        SeqStmt(std::move(new_stmts)));
+    auto new_loop = For(new_loop_vars[0], IntImm(DataType::Int(32), 0), new_loop_extents[0],
+                        ForKind::kSerial, SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop = For(loop_var, Integer(0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop =
+          For(loop_var, IntImm(DataType::Int(32), 0), loop_extent, ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }
@@ -1200,20 +1201,20 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
   static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
                                                     ffi::Array<ffi::Optional<ExprRV>> factors,
-                                                    Bool preserve_unit_iters,
-                                                    Bool disable_predication) {
-    return sch->Split(loop_rv, factors, preserve_unit_iters.operator bool(),
-                      disable_predication.operator bool());
+                                                    IntImm preserve_unit_iters,
+                                                    IntImm disable_predication) {
+    return sch->Split(loop_rv, factors, preserve_unit_iters->value != 0,
+                      disable_predication->value != 0);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      ffi::Array<Any> factors, Bool preserve_unit_iters,
-                                      Bool disable_predication) {
+                                      ffi::Array<Any> factors, IntImm preserve_unit_iters,
+                                      IntImm disable_predication) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
-    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
-    py.Input("disable_predication", disable_predication.operator bool());
+    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("disable_predication", disable_predication->value != 0);
     py.OutputList(outputs);
     return py.Str();
   }
@@ -1243,16 +1244,16 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
 
   static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
                                                     ffi::Array<ffi::Optional<ExprRV>> factors,
-                                                    Bool preserve_unit_iters) {
-    return sch->LoopPartition(loop_rv, factors, preserve_unit_iters.operator bool());
+                                                    IntImm preserve_unit_iters) {
+    return sch->LoopPartition(loop_rv, factors, preserve_unit_iters->value != 0);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      ffi::Array<Any> factors, Bool preserve_unit_iters) {
+                                      ffi::Array<Any> factors, IntImm preserve_unit_iters) {
     PythonAPICall py("loop_partition");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
-    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
+    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
     py.OutputList(outputs);
     return py.Str();
   }
@@ -1308,17 +1309,18 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ffi::Array<LoopRV> loop_rvs,
-                                        Bool preserve_unit_iters) {
-    return sch->Fuse(loop_rvs, preserve_unit_iters.operator bool());
+                                        IntImm preserve_unit_iters) {
+    return sch->Fuse(loop_rvs, preserve_unit_iters->value != 0);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
-                                      ffi::Array<ffi::String> loop_rvs, Bool preserve_unit_iters) {
+                                      ffi::Array<ffi::String> loop_rvs,
+                                      IntImm preserve_unit_iters) {
     PythonAPICall py("fuse");
     for (const ffi::String& loop_rv : loop_rvs) {
       py.Input("", loop_rv);
     }
-    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
+    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
     py.SingleOutput(outputs);
     return py.Str();
   }

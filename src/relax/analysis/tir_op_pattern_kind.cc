@@ -25,6 +25,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -444,7 +445,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return arith::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
-            /*input_pred=*/Bool(true),
+            /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/&ana_,
             /*simplify_trivial_iterators=*/true)[0];
@@ -494,7 +495,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
-            /*input_pred=*/Bool(true),
+            /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/&this->ana_,
             /*simplify_trivial_iterators=*/true);

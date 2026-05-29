@@ -47,7 +47,7 @@ using namespace tvm::te;
  * \param tag The tag to mark the operation.
  * \return The normalized tensor, with the same shape as data.
  */
-inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Array<Integer>& axis,
+inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Array<int64_t>& axis,
                        double epsilon, std::string name = "T_rms_norm",
                        std::string tag = kInjective) {
   const auto& data_type = data->dtype;

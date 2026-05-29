@@ -27,6 +27,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
@@ -544,7 +545,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
     seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                     /*predicate=*/Bool(true),
+                                     /*predicate=*/const_true(),
                                      /*block=*/
                                      SBlock(/*iter_vars=*/leaf.block_iters,
                                             /*reads=*/{},
@@ -566,7 +567,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       Stmt body = GenerateBodyStmt(leaf.store_indices, {buffers[i]}, leaf.axes_remap, expr_body,
                                    info, analyzer);
       seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                       /*predicate=*/Bool(true),
+                                       /*predicate=*/IntImm(DataType::Bool(), 1),
                                        /*block=*/
                                        SBlock(/*iter_vars=*/leaf.block_iters,
                                               /*reads=*/{},
@@ -599,7 +600,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
       // wrap nested block
       body = SBlockRealize(/*iter_values=*/cur.bindings,
-                           /*predicate=*/Bool(true),
+                           /*predicate=*/IntImm(DataType::Bool(), 1),
                            /*block=*/
                            SBlock(/*iter_vars=*/block_iters,
                                   /*reads=*/{},
@@ -659,7 +660,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 
   // Step 4. Generate opaque block as body.
   return SBlockRealize(/*iter_values=*/{},
-                       /*predicate=*/Bool(true),
+                       /*predicate=*/IntImm(DataType::Bool(), 1),
                        /*block=*/
                        SBlock(/*iter_vars=*/{},
                               /*reads=*/{},

@@ -109,7 +109,7 @@ PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) 
     if (extent1_imm->value == extent2_imm->value) {
       return extent1;
     } else if (extent1_imm->value == 1 || extent2_imm->value == 1) {
-      return Integer(std::max(extent1_imm->value, extent2_imm->value));
+      return IntImm(DataType::Int(32), std::max(extent1_imm->value, extent2_imm->value));
     }
     TVM_FFI_THROW(InternalError) << "Cannot broadcast extents " << extent1 << " and " << extent2;
     throw;

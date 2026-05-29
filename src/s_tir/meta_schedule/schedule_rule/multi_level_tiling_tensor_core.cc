@@ -425,9 +425,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  Integer(low_inclusive));
+                  IntImm(DataType::Int(32), low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  Integer(high_inclusive));
+                  IntImm(DataType::Int(32), high_inclusive));
   }
   return {state};
 }
@@ -668,15 +668,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     if (state->is_mma) {
       // Add vector bytes for memhammer
-      sch->Annotate(cache_read, s_tir::attr::vector_bytes, Integer(16));
+      sch->Annotate(cache_read, s_tir::attr::vector_bytes, IntImm(DataType::Int(32), 16));
       if (!state->use_async) {
-        sch->Annotate(cache_read, s_tir::attr::local_stage, Integer(1));
-        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
+        sch->Annotate(cache_read, s_tir::attr::local_stage, IntImm(DataType::Int(32), 1));
+        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
       }
     } else {
       // Add local stage and double buffering
-      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, Integer(1));
-      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
+      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage,
+                    IntImm(DataType::Int(32), 1));
+      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
     }
   }
 
@@ -908,7 +909,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
                        state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, s_tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, Integer(1));
+  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, IntImm(DataType::Int(32), 1));
   return {std::move(state)};
 }
 

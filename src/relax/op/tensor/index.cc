@@ -474,7 +474,7 @@ InferLayoutOutput InferLayoutStridedSlice(
   }
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs,
-                           {{1, relax::Tuple(new_axes)}});
+                           {{IntImm(DataType::Int(32), 1), relax::Tuple(new_axes)}});
 }
 
 TVM_REGISTER_OP("relax.strided_slice")

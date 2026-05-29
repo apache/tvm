@@ -713,7 +713,7 @@ PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
 }
 
 PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Span span) {
-  return Shuffle({vector}, {Integer(index)}, span);
+  return Shuffle({vector}, {IntImm(DataType::Int(32), index)}, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

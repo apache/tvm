@@ -126,9 +126,9 @@ void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const ffi::
 }
 
 PrimExpr PresburgerSetNode::GenerateConstraint() const {
-  PrimExpr constraint = Bool(0);
+  PrimExpr constraint = const_false();
   for (const IntegerRelation& disjunct : disjuncts) {
-    PrimExpr union_entry = Bool(1);
+    PrimExpr union_entry = const_true();
     for (unsigned i = 0, e = disjunct.getNumEqualities(); i < e; ++i) {
       PrimExpr linear_eq = IntImm(DataType::Int(64), 0);
       if (disjunct.getNumCols() > 1) {

@@ -118,11 +118,12 @@ StructInfo InferStructInfoROIAlign(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_shape = data_sinfo->shape.as<ShapeExprNode>()->values;
   ffi::Array<PrimExpr> out_shape;
   if (attrs->layout == "NCHW") {
-    out_shape = {rois_shape->values[0], data_shape[1], Integer(attrs->pooled_size[0]),
-                 Integer(attrs->pooled_size[1])};
+    out_shape = {rois_shape->values[0], data_shape[1],
+                 IntImm(DataType::Int(32), attrs->pooled_size[0]),
+                 IntImm(DataType::Int(32), attrs->pooled_size[1])};
   } else {
-    out_shape = {rois_shape->values[0], Integer(attrs->pooled_size[0]),
-                 Integer(attrs->pooled_size[1]), data_shape[3]};
+    out_shape = {rois_shape->values[0], IntImm(DataType::Int(32), attrs->pooled_size[0]),
+                 IntImm(DataType::Int(32), attrs->pooled_size[1]), data_shape[3]};
   }
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
