@@ -160,7 +160,7 @@ TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
  * \param func The TIR PrimFunc for which the constants size to be calculated
  * \param constant_byte_alignment The byte alignment required for each constant allocated
  */
-TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, const Integer& constant_byte_alignment);
+TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, int64_t constant_byte_alignment);
 
 /*!
  * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
@@ -168,8 +168,7 @@ TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, const Integer& const
  * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
  * workspace
  */
-TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
-                                       const Integer& workspace_byte_alignment);
+TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func, int64_t workspace_byte_alignment);
 
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:

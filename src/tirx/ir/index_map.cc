@@ -67,7 +67,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
-    PrimExpr padding_predicate = Bool(false);
+    PrimExpr padding_predicate = IntImm(DataType::Bool(), 0);
     return {Downcast<IndexMap>(self->inverse_index_map.value()), padding_predicate};
   }
 

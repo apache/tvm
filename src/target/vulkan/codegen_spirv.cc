@@ -627,7 +627,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
       << "SPIR-V codegen only supports shuffle "
       << "of one vector with one index";
   spirv::Value vector = MakeValue(op->vectors[0]);
-  int index = Downcast<Integer>(op->indices[0])->value;
+  int index = Downcast<IntImm>(op->indices[0])->value;
   spirv::SType etype = builder_->GetSType(op->dtype);
   spirv::Value element = builder_->MakeValue(spv::OpCompositeExtract, etype, vector, index);
   return element;
