@@ -308,7 +308,7 @@ constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
 /*!
  * \brief Whether to set noalias rule on the function arguments.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kNoAlias = "tirx.noalias";
 
@@ -316,7 +316,7 @@ constexpr const char* kNoAlias = "tirx.noalias";
  * \brief Mark the function as the entry function of
  *        the final generated runtime module.
  *
- * Type: Integer
+ * Type: IntImm
  *
  * \note There can only be one entry function per module.
  */
@@ -325,21 +325,21 @@ constexpr const char* kIsEntryFunc = "tirx.is_entry_func";
 /*!
  * \brief Mark the function as the global function called from the host.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsGlobalFunc = "tirx.is_global_func";
 
 /*!
  * \brief Mark the function as run on the host, mutually exclusive with kTarget.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsHostFunc = "tirx.is_host_func";
 
 /*!
  * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsScheduled = "tirx.is_scheduled";
 

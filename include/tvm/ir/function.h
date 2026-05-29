@@ -89,7 +89,7 @@ namespace attr {
 /*!
  * \brief Indicates the special calling convention.
  *
- * Type: Integer
+ * Type: IntImm
  *
  * \sa tvm::CallingConv
  */
@@ -131,7 +131,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  *        and printer emits `s_tir=True` on the decorator.
  *        Default (attr absent or False) is tirx semantics.
  *
- * Type: Bool
+ * Type: IntImm (bool dtype)
  */
 constexpr const char* kSTir = "s_tir";
 

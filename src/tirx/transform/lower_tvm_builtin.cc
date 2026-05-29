@@ -45,7 +45,7 @@ class BuiltinLower : public StmtExprMutator {
   static PrimFunc Build(PrimFunc func) {
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-      device_type = Integer(target.value()->kind->default_device_type);
+      device_type = IntImm(DataType::Int(32), target.value()->kind->default_device_type);
     }
 
     BuiltinLower mutator(device_type);
@@ -241,7 +241,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
+      if (Downcast<IntImm>(op->annotations[transform::kDisableLowerTVMBuiltin])->value) {
         return stmt;
       }
     }

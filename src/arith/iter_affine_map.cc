@@ -1711,7 +1711,7 @@ PrimExpr ApproxLeastCommonMultiple(const PrimExpr& a, const PrimExpr& b, Analyze
   };
   auto p1 = fsplit(a);
   auto p2 = fsplit(b);
-  auto const_lcm = Integer(LeastCommonMultiple(p1.second, p2.second));
+  auto const_lcm = IntImm(DataType::Int(32), LeastCommonMultiple(p1.second, p2.second));
   if (analyzer->CanProveEqual(p1.first, p2.first)) {
     return p1.first * const_lcm;
   } else if (analyzer->CanProveEqual(floormod(p1.first, p2.first), 0)) {
@@ -2479,7 +2479,7 @@ class SubspaceDivider {
   std::unordered_map<IterSplitExpr, DivisionResult, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       split_map_;
   // predicate of outer space and inner space;
-  PrimExpr outer_preds_{Bool(true)}, inner_preds_{Bool(true)};
+  PrimExpr outer_preds_{const_true()}, inner_preds_{const_true()};
 };
 
 ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bindings,
@@ -2540,7 +2540,7 @@ class InverseAffineIterMapTransformer {
 
     // initialize back propagation accumulator
     for (const IterMapExprNode* node : post_dfs_order) {
-      backprop_.Set(ffi::GetRef<IterMapExpr>(node), Integer(0));
+      backprop_.Set(ffi::GetRef<IterMapExpr>(node), IntImm(DataType::Int(32), 0));
     }
     for (size_t i = 0; i < iter_map.size(); i++) {
       backprop_.Set(iter_map[i], outputs[i]);
