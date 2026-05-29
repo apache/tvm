@@ -55,10 +55,6 @@ inputs:
     description: "Absolute path to libtvm_runtime_cuda.so produced by build-cuda"
     required: false
     default: ""
-  debug_symbols:
-    description: "Build Linux wheels with debug symbols and keep them unstripped for crash diagnosis"
-    required: false
-    default: "false"
 
 runs:
   using: "composite"
@@ -260,10 +256,6 @@ runs:
           TVM_EXPECT_STATIC_LLVM=1
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
-          TVM_WHEEL_DEBUG_SYMBOLS="${{ inputs.debug_symbols }}"
-          SKBUILD_INSTALL_STRIP="${{ inputs.debug_symbols == 'true' && 'false' || '' }}"
-          CFLAGS="${{ inputs.debug_symbols == 'true' && '-g' || '' }}"
-          CXXFLAGS="${{ inputs.debug_symbols == 'true' && '-g' || '' }}"
         CIBW_ENVIRONMENT_WINDOWS: >-
           TVM_USE_LLVM="C:/opt/llvm/Library/bin/llvm-config-static.bat"
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
@@ -278,7 +270,6 @@ runs:
           TVM_EXPECT_STATIC_LLVM=1
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
-          TVM_WHEEL_DEBUG_SYMBOLS="${{ inputs.debug_symbols }}"
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
           bash "{project}/ci/scripts/package/tvm_wheel_helper.sh" cibw-repair "{wheel}" "{dest_dir}"
         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
