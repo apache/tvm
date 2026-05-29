@@ -29,12 +29,33 @@
 
 #include <optional>
 
-#include "../../arith/scalable_expression.h"
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
 
 namespace tvm {
 namespace tirx {
+
+namespace {
+// File-local helper: returns the vscale multiplier if `lanes` is of the form
+// `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
+std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
+  auto is_vscale = [](const PrimExpr& e) -> bool {
+    if (const auto* call = e.as<CallNode>()) {
+      return call->op.same_as(tirx::builtin::vscale());
+    }
+    return false;
+  };
+  if (const auto* mul = lanes.as<MulNode>()) {
+    if (const auto* imm = mul->a.as<IntImmNode>(); imm && is_vscale(mul->b)) {
+      return static_cast<int>(imm->value);
+    }
+    if (const auto* imm = mul->b.as<IntImmNode>(); imm && is_vscale(mul->a)) {
+      return static_cast<int>(imm->value);
+    }
+  }
+  return std::nullopt;
+}
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   VarNode::RegisterReflection();
@@ -514,7 +535,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
-    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
@@ -548,7 +569,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
-    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());

@@ -87,6 +87,11 @@ def test_simplify_symbolic_comparison():
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
 
 
+# These tests exercised arith::CanProve's substitution-based proof loop for
+# vscale-bearing expressions (iterating over known vscale values for a VLA target).
+# That loop has been removed -- arith no longer attempts target-dependent proofs
+# about scalable-vector lengths. The LOG(WARNING) for non-VLA targets is also gone.
+@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
 @pytest.mark.parametrize(
     "expression",
     [
@@ -103,6 +108,9 @@ def test_simplify_vscale_comparison_with_sve_target(expression):
         assert ana.can_prove(expression)
 
 
+@pytest.mark.xfail(
+    reason="arith no longer emits a LOG(WARNING) for vscale proofs on non-VLA targets"
+)
 def test_simplify_vscale_comparison_without_sve_target(capfd):
     ana = tvm.arith.Analyzer()
     vs = tvm.tirx.vscale()

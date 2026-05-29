@@ -19,10 +19,26 @@
 #include "./ir_comparator.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/tirx/builtin.h>
 
-#include "../../arith/scalable_expression.h"
+#include "../../tirx/analysis/check_contains.h"
 
 namespace tvm {
+
+namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<tirx::CallNode>()) {
+    return call->op.same_as(tirx::builtin::vscale());
+  }
+  return false;
+}
+
+// File-local helper: true if `expr` contains a call to tirx::builtin::vscale().
+bool ContainsVscaleCall(const PrimExpr& expr) {
+  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+}
+}  // namespace
 
 namespace s_tir {
 using namespace tvm::tirx;
@@ -80,7 +96,7 @@ bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) &&
                 n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other)) ||
-               (tvm::arith::ContainsVscaleCall(n) && analyzer_.CanProveEqual(n, other));
+               (ContainsVscaleCall(n) && analyzer_.CanProveEqual(n, other));
 
   if (!equal && assert_mode_) {
     std::ostringstream os;

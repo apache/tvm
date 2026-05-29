@@ -34,12 +34,22 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
-#include "../../arith/scalable_expression.h"
 #include "../../target/datatype/registry.h"
+#include "../analysis/check_contains.h"
 
 namespace tvm {
 
 using namespace tirx;
+
+namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<CallNode>()) {
+    return call->op.same_as(builtin::vscale());
+  }
+  return false;
+}
+}  // namespace
 
 // macro to register an unary op
 #define TVM_TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
@@ -696,7 +706,7 @@ PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tirx::EQ>(a, b)) return ret.value();
-  if (arith::IsVScaleCall(a) && arith::IsVScaleCall(b)) return true;
+  if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
   return tirx::EQ(a, b, span);
 }
 
