@@ -3722,6 +3722,7 @@ _tfl_reduce_window_function = _get_tflite_schema_enum("ReduceWindowFunction")
 _tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
 _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
 
+_tfl_rnn_options = _get_tflite_schema_module("RNNOptions")
 _tfl_sequence_rnn_options = _get_tflite_schema_module("SequenceRNNOptions")
 
 _DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
@@ -10120,6 +10121,295 @@ def test_dilate_dynamic_dilations():
                     [2 * dilate_stride_0 + 1, 3 * dilate_stride_1 + 1],
                     [1, 1],
                     assume_inbound=False,
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+# ── RNN ────────────────────────────────────────────────────────────────────────
+
+
+def _build_rnn_model(batch, input_size, num_units, weights, recurrent_weights, bias, activation):
+    """Build a minimal TFLite flatbuffer model containing one RNN op.
+
+    Tensor layout (indices 0-5):
+      0 - input             [batch, input_size]
+      1 - input_weights     [num_units, input_size]    (constant)
+      2 - recurrent_weights [num_units, num_units]     (constant)
+      3 - bias              [num_units]                (constant)
+      4 - hidden_state      [batch, num_units]         (variable, zero-initialised)
+      5 - output            [batch, num_units]
+    """
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_rnn_options.RNNOptionsStart(builder)
+    _tfl_rnn_options.RNNOptionsAddFusedActivationFunction(builder, activation)
+    rnn_opts = _tfl_rnn_options.RNNOptionsEnd(builder)
+
+    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.RNN)
+
+    def _t(buf_idx, shape, is_variable=False):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    tensors = [
+        _t(0, [batch, input_size]),
+        _t(1, [num_units, input_size]),
+        _t(2, [num_units, num_units]),
+        _t(3, [num_units]),
+        _t(4, [batch, num_units], is_variable=True),
+        _t(5, [batch, num_units]),
+    ]
+
+    rnn_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [5],
+        builtin_options_type=_tfl_builtin_options.RNNOptions,
+        builtin_options=rnn_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[rnn_op],
+        inputs=[0],
+        outputs=[5],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, weights.tobytes()),
+        _build_buffer(builder, recurrent_weights.tobytes()),
+        _build_buffer(builder, bias.tobytes()),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[rnn_op_code],
+        buffers=buffers,
+    )
+
+
+def _build_two_step_shared_state_rnn_model(
+    batch, input_size, num_units, weights, recurrent_weights, bias, activation
+):
+    """Build a TFLite model with two RNN ops sharing the same hidden-state tensor."""
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_rnn_options.RNNOptionsStart(builder)
+    _tfl_rnn_options.RNNOptionsAddFusedActivationFunction(builder, activation)
+    rnn_opts = _tfl_rnn_options.RNNOptionsEnd(builder)
+
+    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.RNN)
+
+    def _t(buf_idx, shape, is_variable=False):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    tensors = [
+        _t(0, [batch, input_size]),
+        _t(1, [num_units, input_size]),
+        _t(2, [num_units, num_units]),
+        _t(3, [num_units]),
+        _t(4, [batch, num_units], is_variable=True),
+        _t(0, [batch, input_size]),
+        _t(0, [batch, num_units]),
+        _t(0, [batch, num_units]),
+    ]
+
+    first_rnn_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [6],
+        builtin_options_type=_tfl_builtin_options.RNNOptions,
+        builtin_options=rnn_opts,
+    )
+    second_rnn_op = _build_operator(
+        builder,
+        0,
+        [5, 1, 2, 3, 4],
+        [7],
+        builtin_options_type=_tfl_builtin_options.RNNOptions,
+        builtin_options=rnn_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[first_rnn_op, second_rnn_op],
+        inputs=[0, 5],
+        outputs=[7],
+    )
+
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, weights.tobytes()),
+        _build_buffer(builder, recurrent_weights.tobytes()),
+        _build_buffer(builder, bias.tobytes()),
+        _build_buffer(builder),
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[rnn_op_code],
+        buffers=buffers,
+    )
+
+
+def test_rnn_none_activation():
+    """RNN with NONE activation lowers to matmul/add.
+
+    Cell equation: h = x @ W.T + h @ Wr.T + b  (no activation for NONE)
+    """
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units = 2, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent_weights = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_rnn_model(
+            batch,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(x, lv, out_dtype="void")
+                lv2: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
+                lv3: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv4: R.Tensor((2, 2), dtype="float32") = R.matmul(lv2, lv3, out_dtype="void")
+                lv5: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv4)
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv5, R.const(np.zeros(2, dtype=np.float32))
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_rnn_relu_activation():
+    """RNN with RELU activation and random weights."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units = 2, 4, 8
+    np.random.seed(42)
+    weights = np.random.randn(num_units, input_size).astype(np.float32)
+    recurrent_weights = np.random.randn(num_units, num_units).astype(np.float32)
+    bias = np.random.randn(num_units).astype(np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_rnn_model(
+            batch,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.RELU,
+        )
+    )
+
+    fn = mod["main"]
+    assert len(fn.params) == 1, "only the input should be a graph input"
+    in_shape = fn.params[0].struct_info.shape
+    assert tuple(int(d) for d in in_shape) == (batch, input_size)
+    out_shape = fn.ret_struct_info.shape
+    assert tuple(int(d) for d in out_shape) == (batch, num_units)
+
+
+def test_rnn_shared_hidden_state_updates_exp_tab():
+    """Two consecutive RNN ops sharing hidden_state should use the updated state."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, input_size, num_units = 2, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent_weights = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_two_step_shared_state_rnn_model(
+            batch,
+            input_size,
+            num_units,
+            weights,
+            recurrent_weights,
+            bias,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x0: R.Tensor((2, 2), dtype="float32"),
+            x1: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(x0, lv, out_dtype="void")
+                lv2: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
+                lv3: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv4: R.Tensor((2, 2), dtype="float32") = R.matmul(lv2, lv3, out_dtype="void")
+                lv5: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv4)
+                lv6: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv7: R.Tensor((2, 2), dtype="float32") = R.matmul(x1, lv6, out_dtype="void")
+                lv8: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv5, R.const(np.zeros(2, dtype=np.float32))
+                )
+                lv9: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
+                    R.const(np.eye(2, dtype=np.float32)), axes=None
+                )
+                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(lv8, lv9, out_dtype="void")
+                lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv7, lv10)
+                gv: R.Tensor((2, 2), dtype="float32") = R.add(
+                    lv11, R.const(np.zeros(2, dtype=np.float32))
                 )
                 R.output(gv)
             return gv

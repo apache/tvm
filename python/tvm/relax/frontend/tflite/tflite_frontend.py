@@ -273,6 +273,7 @@ class OperatorConverter:
             "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
+            "RNN": self.convert_rnn,
             "QUANTIZE": self.convert_quantize,
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
@@ -5043,6 +5044,84 @@ class OperatorConverter:
             )
 
         return squeezed
+
+    def convert_rnn(self, op):
+        """Convert TFLite RNN.
+
+        Single-step RNN cell.
+
+        Inputs (5 tensors):
+          [0] input             [batch, input_size]
+          [1] input_weights     [num_units, input_size]
+          [2] recurrent_weights [num_units, num_units]
+          [3] bias              [num_units]
+          [4] hidden_state      [batch, num_units]  (variable, zero-initialised)
+
+        Output:
+          [0] output  [batch, num_units]
+
+        Cell equation:
+          h = fused_activation(x @ W.T + h @ Wr.T + b)
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.RNNOptions import RNNOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented("TFLite quantized RNN is not supported yet.")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, "input tensors length should be 5"
+
+        input_tensor = input_tensors[0]
+        weights_tensor = input_tensors[1]
+        recurrent_tensor = input_tensors[2]
+        bias_tensor = input_tensors[3]
+        hidden_state_tensor = input_tensors[4]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.RNNOptions
+        op_options = op.BuiltinOptions()
+        rnn_options = RNNOptions()
+        rnn_options.Init(op_options.Bytes, op_options.Pos)
+        fused_activation_fn = rnn_options.FusedActivationFunction()
+
+        # Constant weight/bias expressions.
+        weights_expr = self.get_tensor_expr(weights_tensor)  # [num_units, input_size]
+        recurrent_expr = self.get_tensor_expr(recurrent_tensor)  # [num_units, num_units]
+        bias_expr = self.get_tensor_expr(bias_tensor)  # [num_units]
+
+        # Transpose to [input_size, num_units] and [num_units, num_units] for x @ W.T.
+        w_t = relax.op.permute_dims(weights_expr)
+        wr_t = relax.op.permute_dims(recurrent_expr)
+
+        # Resolve the input expression.
+        in_expr = self.get_tensor_expr(input_tensor)
+
+        # Initial hidden state: use the model's tensor value when available (non-zero init or
+        # graph input), otherwise fall back to zeros for the common variable-tensor case.
+        h_dtype = self.get_tensor_type_str(hidden_state_tensor.tensor.Type())
+        if self.has_expr(hidden_state_tensor.tensor_idx) or (
+            hidden_state_tensor.buffer is not None and hidden_state_tensor.buffer.DataLength() > 0
+        ):
+            h = self.get_tensor_expr(hidden_state_tensor)
+        else:
+            h_shape = tuple(to_int_list(self.get_tensor_shape(hidden_state_tensor)))
+            h = relax.op.zeros(h_shape, dtype=h_dtype)
+
+        gates = relax.op.add(
+            relax.op.add(relax.op.matmul(in_expr, w_t), relax.op.matmul(h, wr_t)),
+            bias_expr,
+        )
+        h = self.convert_fused_activation_function(gates, fused_activation_fn)
+
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, hidden_state_tensor.tensor_idx),
+            h,
+            force_override=True,
+        )
+        return h
 
     def convert_unidirectional_sequence_rnn(self, op):
         """Convert TFLite UNIDIRECTIONAL_SEQUENCE_RNN.
