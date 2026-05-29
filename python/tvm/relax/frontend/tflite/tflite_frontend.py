@@ -618,25 +618,52 @@ class OperatorConverter:
             )
         return resource_values[resource_key]
 
+    def _is_tflite_string_type(self, tensor_type):
+        from tflite.TensorType import TensorType
+
+        return hasattr(TensorType, "STRING") and tensor_type == TensorType.STRING
+
+    def _is_supported_hashtable_type_pair(self, key_dtype, value_dtype):
+        from tflite.TensorType import TensorType
+
+        return (key_dtype == TensorType.INT64 and self._is_tflite_string_type(value_dtype)) or (
+            self._is_tflite_string_type(key_dtype) and value_dtype == TensorType.INT64
+        )
+
     def _get_hashtable_key(self, op, fallback_tensor=None):
-        """Return a stable key for a TFLite HASHTABLE resource."""
+        """Return a stable key and TFLite dtype pair for a HASHTABLE resource."""
         table_id = None
+        key_dtype = None
+        value_dtype = None
         if op.BuiltinOptions() is not None:
             try:
                 from tflite.HashtableOptions import HashtableOptions
 
                 opts = self._get_builtin_options(op, HashtableOptions)
                 table_id = int(opts.TableId())
+                key_dtype = int(opts.KeyDtype())
+                value_dtype = int(opts.ValueDtype())
             except (ImportError, ModuleNotFoundError):
                 pass
 
+        if key_dtype is None or value_dtype is None:
+            raise tvm.error.OpNotImplemented("HASHTABLE requires HashtableOptions")
+        if not self._is_supported_hashtable_type_pair(key_dtype, value_dtype):
+            raise tvm.error.OpNotImplemented(
+                "TFLite HASHTABLE only supports int64/string or string/int64 tables"
+            )
+
         if table_id is not None:
-            return table_id
+            return table_id, key_dtype, value_dtype
         if fallback_tensor is not None:
-            return get_tensor_name(self.subgraph, fallback_tensor.tensor_idx)
+            return (
+                get_tensor_name(self.subgraph, fallback_tensor.tensor_idx),
+                key_dtype,
+                value_dtype,
+            )
         raise tvm.error.OpNotImplemented("HASHTABLE requires HashtableOptions")
 
-    def _get_hashtable_key_for_handle(self, tensor, op_name):
+    def _get_hashtable_info_for_handle(self, tensor, op_name):
         tensor_name = get_tensor_name(self.subgraph, tensor.tensor_idx)
         if tensor_name not in self.hashtable_handles:
             raise tvm.error.OpNotImplemented(
@@ -644,17 +671,11 @@ class OperatorConverter:
             )
         return self.hashtable_handles[tensor_name]
 
-    def convert_hashtable(self, op):
-        """Convert a TFLite HASHTABLE into an importer-local table handle."""
-        input_tensors = self.get_input_tensors(op)
-        output_tensors = self.get_output_tensors(op)
-        if len(input_tensors) != 0 or len(output_tensors) != 1:
-            raise tvm.error.OpNotImplemented("HASHTABLE expects no inputs and one output")
-
-        table_key = self._get_hashtable_key(op, output_tensors[0])
-        table_tensor_name = get_tensor_name(self.subgraph, output_tensors[0].tensor_idx)
-        self.hashtable_handles[table_tensor_name] = table_key
-        return None
+    @staticmethod
+    def _get_tensor_shape_tuple(tensor_wrapper):
+        if tensor_wrapper.tensor.ShapeLength() == 0:
+            return ()
+        return tuple(int(dim) for dim in tensor_wrapper.tensor.ShapeAsNumpy())
 
     @staticmethod
     def _has_tensor_buffer_data(tensor_wrapper):
@@ -664,8 +685,24 @@ class OperatorConverter:
             and tensor_wrapper.buffer.DataLength() > 0
         )
 
+    def convert_hashtable(self, op):
+        """Convert a TFLite HASHTABLE into an importer-local table handle."""
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 0 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("HASHTABLE expects no inputs and one output")
+
+        table_key, key_dtype, value_dtype = self._get_hashtable_key(op, output_tensors[0])
+        table_tensor_name = get_tensor_name(self.subgraph, output_tensors[0].tensor_idx)
+        self.hashtable_handles[table_tensor_name] = {
+            "table_key": table_key,
+            "key_dtype": key_dtype,
+            "value_dtype": value_dtype,
+        }
+        return None
+
     def convert_hashtable_import(self, op):
-        """Convert the CALL_ONCE initialization subset of HASHTABLE_IMPORT."""
+        """Convert static metadata for the CALL_ONCE HASHTABLE_IMPORT subset."""
         if not self.conversion_state["in_call_once_init"]:
             raise tvm.error.OpNotImplemented(
                 "HASHTABLE_IMPORT outside CALL_ONCE initialization is not supported by the "
@@ -679,100 +716,58 @@ class OperatorConverter:
                 "HASHTABLE_IMPORT expects table, keys, and values inputs with no outputs"
             )
 
-        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_IMPORT")
-        if not self._has_tensor_buffer_data(input_tensors[1]) or not self._has_tensor_buffer_data(
-            input_tensors[2]
+        table_info = self._get_hashtable_info_for_handle(input_tensors[0], "HASHTABLE_IMPORT")
+        key_tensor = input_tensors[1]
+        value_tensor = input_tensors[2]
+        if (
+            key_tensor.tensor.Type() != table_info["key_dtype"]
+            or value_tensor.tensor.Type() != table_info["value_dtype"]
+        ):
+            raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT key/value dtypes mismatch")
+        key_shape = self._get_tensor_shape_tuple(key_tensor)
+        value_shape = self._get_tensor_shape_tuple(value_tensor)
+        if key_shape != value_shape:
+            raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT requires keys and values same shape")
+        if not self._has_tensor_buffer_data(key_tensor) or not self._has_tensor_buffer_data(
+            value_tensor
         ):
             raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT requires constant keys and values")
-        keys = self.get_tensor_value(input_tensors[1])
-        values = self.get_tensor_value(input_tensors[2])
-        if keys.ndim != 1 or values.ndim < 1:
-            raise tvm.error.OpNotImplemented(
-                "HASHTABLE_IMPORT requires one-dimensional keys and at least one-dimensional values"
-            )
-        if keys.shape[0] != values.shape[0]:
-            raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT keys and values size mismatch")
 
-        self.conversion_state["hashtable_values"][table_key] = {
-            "keys": self.get_tensor_expr(input_tensors[1]),
-            "values": self.get_tensor_expr(input_tensors[2]),
-            "size": int(keys.shape[0]),
-            "value_shape": tuple(int(dim) for dim in values.shape[1:]),
-        }
+        hashtable_values = self.conversion_state["hashtable_values"]
+        table_key = table_info["table_key"]
+        if table_key not in hashtable_values:
+            hashtable_values[table_key] = {
+                "size": math.prod(key_shape) if key_shape else 1,
+                "key_dtype": table_info["key_dtype"],
+                "value_dtype": table_info["value_dtype"],
+            }
         return None
 
     def convert_hashtable_find(self, op):
-        """Convert HASHTABLE_FIND for static tables initialized by CALL_ONCE."""
-        input_tensors = self.get_input_tensors(op)
-        output_tensors = self.get_output_tensors(op)
-        if len(input_tensors) != 3 or len(output_tensors) != 1:
-            raise tvm.error.OpNotImplemented(
-                "HASHTABLE_FIND expects table, keys, and default value inputs with one output"
-            )
-
-        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_FIND")
-        hashtable_values = self.conversion_state["hashtable_values"]
-        if table_key not in hashtable_values:
-            raise tvm.error.OpNotImplemented(
-                "HASHTABLE_FIND requires a table initialized by a supported CALL_ONCE subgraph"
-            )
-
-        table = hashtable_values[table_key]
-        output_shape = (
-            tuple(output_tensors[0].tensor.ShapeAsNumpy())
-            if output_tensors[0].tensor.ShapeLength() > 0
-            else ()
+        """Reject HASHTABLE_FIND until Relax can represent TFLite string tensors."""
+        raise tvm.error.OpNotImplemented(
+            "HASHTABLE_FIND requires TensorType.STRING support in Relax TFLite frontend"
         )
-        value_shape = table["value_shape"]
-        if value_shape and (
-            len(output_shape) < len(value_shape)
-            or tuple(output_shape[-len(value_shape) :]) != value_shape
-        ):
-            raise tvm.error.OpNotImplemented(
-                "HASHTABLE_FIND output shape must append the imported value shape"
-            )
-        query_keys = self.get_tensor_expr(input_tensors[1])
-        table_keys = table["keys"]
-        table_values = table["values"]
-        default_value = self.get_tensor_expr(input_tensors[2])
-
-        if input_tensors[1].tensor.ShapeLength() == 0:
-            matches = relax.op.equal(query_keys, table_keys)
-        else:
-            matches = relax.op.equal(relax.op.expand_dims(query_keys, axis=-1), table_keys)
-        matches_int = relax.op.astype(matches, "int32")
-        matched_indices = relax.op.argmax(matches_int, axis=-1)
-        selected_values = relax.op.take(table_values, matched_indices, axis=0, mode="fast")
-        has_match = relax.op.greater(
-            relax.op.max(matches_int, axis=-1),
-            relax.const(0, dtype="int32"),
-        )
-        if value_shape:
-            for _ in value_shape:
-                has_match = relax.op.expand_dims(has_match, axis=-1)
-            has_match = relax.op.broadcast_to(
-                has_match,
-                output_shape,
-            )
-        default_values = relax.op.broadcast_to(default_value, output_shape)
-        return relax.op.where(has_match, selected_values, default_values)
 
     def convert_hashtable_size(self, op):
-        """Convert HASHTABLE_SIZE for static tables initialized by CALL_ONCE."""
+        """Convert HASHTABLE_SIZE for a statically imported TFLite hashtable."""
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
         if len(input_tensors) != 1 or len(output_tensors) != 1:
             raise tvm.error.OpNotImplemented("HASHTABLE_SIZE expects one input and one output")
 
-        table_key = self._get_hashtable_key_for_handle(input_tensors[0], "HASHTABLE_SIZE")
+        from tflite.TensorType import TensorType
+
+        if output_tensors[0].tensor.Type() != TensorType.INT64:
+            raise tvm.error.OpNotImplemented("HASHTABLE_SIZE output must be int64")
+        table_info = self._get_hashtable_info_for_handle(input_tensors[0], "HASHTABLE_SIZE")
+        table_key = table_info["table_key"]
         hashtable_values = self.conversion_state["hashtable_values"]
         if table_key not in hashtable_values:
             raise tvm.error.OpNotImplemented(
                 "HASHTABLE_SIZE requires a table initialized by a supported CALL_ONCE subgraph"
             )
-
-        output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
-        return relax.const(hashtable_values[table_key]["size"], dtype=output_dtype)
+        return relax.const(np.array([hashtable_values[table_key]["size"]], dtype=np.int64), "int64")
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
