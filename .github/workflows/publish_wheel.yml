@@ -53,98 +53,50 @@ on:
         required: true
         default: true
         type: boolean
-      build_target:
-        description: "Wheel job subset to build"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - linux-x86_64
-          - linux-aarch64
-          - macos-arm64
-          - windows-amd64
 
 permissions:
   contents: read
 
 jobs:
-  select_build_matrix:
-    name: Select wheel build matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - name: Select matrix entries
-        id: matrix
-        shell: bash
-        env:
-          TVM_BUILD_TARGET: ${{ inputs.build_target }}
-        run: |
-          set -eux
-          python - <<'PY' >> "${GITHUB_OUTPUT}"
-          import json
-          import os
-
-          entries = [
-              {
-                  "name": "Linux x86_64 wheel with CUDA runtime (manylinux_2_28)",
-                  "target": "linux-x86_64",
-                  "os": "ubuntu-latest",
-                  "arch": "x86_64",
-                  "build": "cp310-manylinux_x86_64",
-                  "linux_image": "manylinux_2_28",
-                  "linux_image_tag": "2026.01.04-1",
-                  "include_cuda_runtime": "true",
-                  "artifact_suffix": "linux-x86_64-manylinux_2_28",
-              },
-              {
-                  "name": "Linux aarch64 wheel with CUDA runtime (manylinux_2_28)",
-                  "target": "linux-aarch64",
-                  "os": "ubuntu-24.04-arm",
-                  "arch": "aarch64",
-                  "build": "cp310-manylinux_aarch64",
-                  "linux_image": "manylinux_2_28",
-                  "linux_image_tag": "2026.01.04-1",
-                  "include_cuda_runtime": "true",
-                  "artifact_suffix": "linux-aarch64-manylinux_2_28",
-              },
-              {
-                  "name": "macOS arm64 CPU wheel",
-                  "target": "macos-arm64",
-                  "os": "macos-14",
-                  "arch": "arm64",
-                  "build": "cp310-macosx_arm64",
-                  "linux_image": "",
-                  "linux_image_tag": "",
-                  "include_cuda_runtime": "false",
-                  "artifact_suffix": "macos-arm64",
-              },
-              {
-                  "name": "Windows AMD64 CPU wheel",
-                  "target": "windows-amd64",
-                  "os": "windows-latest",
-                  "arch": "AMD64",
-                  "build": "cp310-win_amd64",
-                  "linux_image": "",
-                  "linux_image_tag": "",
-                  "include_cuda_runtime": "false",
-                  "artifact_suffix": "windows-amd64",
-              },
-          ]
-          selected = os.environ["TVM_BUILD_TARGET"]
-          if selected != "all":
-              entries = [entry for entry in entries if entry["target"] == selected]
-          print("matrix=" + json.dumps({"include": entries}, separators=(",", ":")))
-          PY
-
   build_wheels:
     name: ${{ matrix.name }}
-    needs: [select_build_matrix]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.select_build_matrix.outputs.matrix) }}
+      matrix:
+        include:
+          - name: "Linux x86_64 wheel with CUDA runtime (manylinux_2_28)"
+            os: ubuntu-latest
+            arch: x86_64
+            build: cp310-manylinux_x86_64
+            linux_image: manylinux_2_28
+            linux_image_tag: "2026.01.04-1"
+            include_cuda_runtime: "true"
+            artifact_suffix: linux-x86_64-manylinux_2_28
+          - name: "Linux aarch64 wheel with CUDA runtime (manylinux_2_28)"
+            os: ubuntu-24.04-arm
+            arch: aarch64
+            build: cp310-manylinux_aarch64
+            linux_image: manylinux_2_28
+            linux_image_tag: "2026.01.04-1"
+            include_cuda_runtime: "true"
+            artifact_suffix: linux-aarch64-manylinux_2_28
+          - name: "macOS arm64 CPU wheel"
+            os: macos-14
+            arch: arm64
+            build: cp310-macosx_arm64
+            linux_image: ""
+            linux_image_tag: ""
+            include_cuda_runtime: "false"
+            artifact_suffix: macos-arm64
+          - name: "Windows AMD64 CPU wheel"
+            os: windows-latest
+            arch: AMD64
+            build: cp310-win_amd64
+            linux_image: ""
+            linux_image_tag: ""
+            include_cuda_runtime: "false"
+            artifact_suffix: windows-amd64
     steps:
       - name: Validate publish inputs
         shell: bash
@@ -152,7 +104,6 @@ jobs:
           TVM_PUBLISH_REPOSITORY: ${{ inputs.publish_repository }}
           TVM_PUBLISH_REF: ${{ inputs.tag }}
           TVM_VERIFY_FROM_REPOSITORY: ${{ inputs.verify_from_repository }}
-          TVM_BUILD_TARGET: ${{ inputs.build_target }}
           TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
           TVM_WHEEL_DIST_VERSION: ${{ inputs.distribution_version }}
         run: |
@@ -179,10 +130,6 @@ jobs:
           fi
           if [[ "${TVM_PUBLISH_REPOSITORY}" == "pypi" && "${TVM_VERIFY_FROM_REPOSITORY}" != "true" ]]; then
             echo "verify_from_repository must be enabled when publishing to PyPI" >&2
-            exit 1
-          fi
-          if [[ "${TVM_PUBLISH_REPOSITORY}" != "none" && "${TVM_BUILD_TARGET}" != "all" ]]; then
-            echo "build_target must be all when publishing wheels" >&2
             exit 1
           fi
 

@@ -129,6 +129,12 @@ runs:
         echo "cibw_container_engine=${cibw_container_engine}" >> "${GITHUB_OUTPUT}"
         echo "include_cuda_runtime=${include_cuda_runtime}" >> "${GITHUB_OUTPUT}"
 
+    # Single source of truth for the LLVM toolchain version, shared by the cache
+    # key and the conda install steps below.
+    - name: Set LLVM version
+      shell: bash
+      run: echo "LLVM_VERSION=22.1.0" >> "$GITHUB_ENV"
+
     - name: Prepare LLVM cache path (Unix)
       if: runner.os != 'Windows'
       shell: bash
@@ -143,7 +149,7 @@ runs:
       id: llvm-cache
       with:
         path: ${{ runner.os == 'Windows' && 'C:/opt/llvm' || '/opt/llvm' }}
-        key: tvm-wheel-llvm-22.1.0-${{ runner.os }}-${{ inputs.arch }}-v4
+        key: tvm-wheel-llvm-${{ env.LLVM_VERSION }}-${{ runner.os }}-${{ inputs.arch }}-v4
 
     # ---- Install LLVM via conda (cache miss only) ----
     - name: Setup conda
@@ -173,14 +179,14 @@ runs:
           sudo chown -R "$(whoami)" /opt/llvm
         fi
         conda create -q -p /opt/llvm -c conda-forge \
-          llvmdev=22.1.0 clangdev=22.1.0 compiler-rt=22.1.0 zlib zstd-static libxml2-devel \
+          "llvmdev=${LLVM_VERSION}" "clangdev=${LLVM_VERSION}" "compiler-rt=${LLVM_VERSION}" zlib zstd-static libxml2-devel \
           -y
 
     - name: Install LLVM (Windows)
       if: steps.llvm-cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
       shell: cmd /C call {0}
       run: |
-        conda create -q -p C:\opt\llvm -c conda-forge llvmdev=22.1.0 zlib zstd-static libxml2-devel -y
+        conda create -q -p C:\opt\llvm -c conda-forge llvmdev=%LLVM_VERSION% zlib zstd-static libxml2-devel -y
 
     - name: Create static llvm-config wrapper (Unix)
       if: runner.os != 'Windows'
