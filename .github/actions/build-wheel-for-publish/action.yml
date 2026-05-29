@@ -285,6 +285,7 @@ runs:
           python "{project}/ci/scripts/package/rewrite_wheel.py" "{wheel}"
           --output-dir "{dest_dir}"
           --distribution-name "${{ inputs.distribution_name }}"
+          --distribution-version "${{ inputs.distribution_version }}"
           --extra-library-dir "C:/opt/llvm/Library/bin"
           --extra-library-pattern "libxml2*.dll"
           --extra-library-pattern "zstd*.dll"
