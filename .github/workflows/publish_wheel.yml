@@ -64,11 +64,6 @@ on:
           - linux-aarch64
           - macos-arm64
           - windows-amd64
-      debug_symbols:
-        description: "Keep Linux wheel debug symbols for CI crash diagnosis; do not use for publishing"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -160,7 +155,6 @@ jobs:
           TVM_BUILD_TARGET: ${{ inputs.build_target }}
           TVM_WHEEL_DIST_NAME: ${{ inputs.distribution_name }}
           TVM_WHEEL_DIST_VERSION: ${{ inputs.distribution_version }}
-          TVM_DEBUG_SYMBOLS: ${{ inputs.debug_symbols }}
         run: |
           set -eux
           if [[ -n "${TVM_WHEEL_DIST_NAME}" && ! "${TVM_WHEEL_DIST_NAME}" =~ ^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$ ]]; then
@@ -189,10 +183,6 @@ jobs:
           fi
           if [[ "${TVM_PUBLISH_REPOSITORY}" != "none" && "${TVM_BUILD_TARGET}" != "all" ]]; then
             echo "build_target must be all when publishing wheels" >&2
-            exit 1
-          fi
-          if [[ "${TVM_PUBLISH_REPOSITORY}" != "none" && "${TVM_DEBUG_SYMBOLS}" == "true" ]]; then
-            echo "debug_symbols keeps unstripped debug wheels and cannot be used while publishing" >&2
             exit 1
           fi
 
@@ -226,7 +216,6 @@ jobs:
           cuda_architectures: ${{ inputs.cuda_architectures }}
           include_cuda_runtime: ${{ matrix.include_cuda_runtime }}
           cuda_runtime_path: ${{ steps.build_cuda.outputs.cuda_runtime_path }}
-          debug_symbols: ${{ inputs.debug_symbols }}
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
