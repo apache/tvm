@@ -28,7 +28,6 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
-#include "./scalable_expression.h"
 #include "const_fold.h"
 #include "product_normal_form.h"
 
@@ -231,23 +230,6 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
-  // Current analysis may not be powerful enough to prove expressions containing
-  // the same symbolic value multiple times. However, when the symbolic values are
-  // "T.vscale" and the compile target uses a scalable architecture extension like
-  // VLA, we can make some assumptions about the value of vscale and iterate over a
-  // space of pre-defined values to attempt to prove the expression.
-  Target curr_target = Target::Current();
-  if (ContainsVscaleCall(simplified)) {
-    if (TargetHasVLA(curr_target)) {
-      auto kVScaleValues = GetVScaleValues(curr_target);
-      return CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
-    }
-    LOG(WARNING)
-        << "The expression contains scalable values. An attempt to prove by substituting "
-           "with known values of vscale was not performed. This proof currently only supports "
-           "VLA targets, but the target was "
-        << curr_target;
-  }
   return false;
 }
 

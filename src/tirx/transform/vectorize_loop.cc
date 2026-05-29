@@ -38,13 +38,33 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../src/arith/scalable_expression.h"
 #include "../../tirx/analysis/check_contains.h"
 #include "tvm/runtime/data_type.h"
 #include "tvm/tirx/buffer.h"
 
 namespace tvm {
 namespace tirx {
+
+namespace {
+// File-local helper: true if `expr` is a call to tirx::builtin::vscale().
+bool IsVScaleCall(const PrimExpr& expr) {
+  if (const auto* call = expr.as<CallNode>()) {
+    return call->op.same_as(builtin::vscale());
+  }
+  return false;
+}
+
+// File-local helper: true if the target supports Variable-Length Array extensions
+// (AArch64 SVE or RISC-V V).
+bool TargetHasVLA(Target target) {
+  if (!target.defined()) return false;
+  bool has_vla = target->GetAttr<bool>("feature.has_sve").value_or(false);
+  static auto target_has_feature_fn =
+      tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+  has_vla |= target_has_feature_fn("v", target).cast<bool>();
+  return has_vla;
+}
+}  // namespace
 
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
   if (is_scalable) {
@@ -86,7 +106,7 @@ bool EnableBufferLevelPredication(Target target) {
   }
 
   // Use buffer-level predication by default for VLA targets
-  return arith::TargetHasVLA(target);
+  return TargetHasVLA(target);
 }
 
 /*!
@@ -956,8 +976,8 @@ class LoopVectorizer : public StmtMutator {
       auto* extent_as_int = op->extent.as<IntImmNode>();
 
       if (!extent_as_int || extent_as_int->value < 1) {
-        bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        TVM_FFI_ICHECK(is_scalable_expr && arith::TargetHasVLA(target_))
+        bool is_scalable_expr = CheckContains::ExprContains(op->extent, IsVScaleCall);
+        TVM_FFI_ICHECK(is_scalable_expr && TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
       TVM_FFI_ICHECK(is_zero(op->min));

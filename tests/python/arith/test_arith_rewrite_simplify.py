@@ -917,6 +917,13 @@ class TestMaxIndex(BaseCompare):
     )
 
 
+# These simplifications relied on arith::CanProve being able to prove
+# vscale-bearing inequalities (e.g. vscale() > 0) by substituting known
+# vscale values for the current VLA target. That proof loop has been removed
+# from the arith layer -- arith no longer attempts to reason about scalable
+# vector lengths at the target level. The simplifications are correct in
+# principle but can no longer be proven without the substitution loop.
+@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
 class TestScalableIndex(BaseCompare):
     x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     test_case = tvm.testing.parameter(
