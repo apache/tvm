@@ -4948,7 +4948,14 @@ class OperatorConverter:
             relax.op.add(relax.op.matmul(in_expr, w_t), relax.op.matmul(h, wr_t)),
             bias_expr,
         )
-        return self.convert_fused_activation_function(gates, fused_activation_fn)
+        h = self.convert_fused_activation_function(gates, fused_activation_fn)
+
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, hidden_state_tensor.tensor_idx),
+            h,
+            force_override=True,
+        )
+        return h
 
     def convert_unidirectional_sequence_rnn(self, op):
         """Convert TFLite UNIDIRECTIONAL_SEQUENCE_RNN.
