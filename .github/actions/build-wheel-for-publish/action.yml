@@ -261,8 +261,9 @@ runs:
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
           TVM_WHEEL_DEBUG_SYMBOLS="${{ inputs.debug_symbols }}"
-          SKBUILD_CMAKE_BUILD_TYPE="${{ inputs.debug_symbols == 'true' && 'RelWithDebInfo' || '' }}"
           SKBUILD_INSTALL_STRIP="${{ inputs.debug_symbols == 'true' && 'false' || '' }}"
+          CFLAGS="${{ inputs.debug_symbols == 'true' && '-g' || '' }}"
+          CXXFLAGS="${{ inputs.debug_symbols == 'true' && '-g' || '' }}"
         CIBW_ENVIRONMENT_WINDOWS: >-
           TVM_USE_LLVM="C:/opt/llvm/Library/bin/llvm-config-static.bat"
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"

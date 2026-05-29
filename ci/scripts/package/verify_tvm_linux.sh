@@ -24,6 +24,8 @@ echo "Linux wheel verify diagnostics"
 echo "TVM_WHEEL_DEBUG_SYMBOLS=${TVM_WHEEL_DEBUG_SYMBOLS:-}"
 echo "SKBUILD_CMAKE_BUILD_TYPE=${SKBUILD_CMAKE_BUILD_TYPE:-}"
 echo "SKBUILD_INSTALL_STRIP=${SKBUILD_INSTALL_STRIP:-}"
+echo "CFLAGS=${CFLAGS:-}"
+echo "CXXFLAGS=${CXXFLAGS:-}"
 
 for name in TVM_LIBRARY_PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
   if [[ -n "${!name:-}" ]]; then
