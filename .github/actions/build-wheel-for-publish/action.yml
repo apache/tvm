@@ -239,7 +239,6 @@ runs:
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_INCLUDE_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_CUDA_RUNTIME_PATH="${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && inputs.cuda_runtime_path || '' }}"
-          TVM_AUDITWHEEL_PLAT="${{ steps.wheel_inputs.outputs.wheel_platform_tag }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
           TVM_EXPECT_LLVM_ENABLED=1
           TVM_EXPECT_STATIC_LLVM=1
@@ -260,7 +259,8 @@ runs:
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-          auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
+          auditwheel repair --plat "${{ steps.wheel_inputs.outputs.wheel_platform_tag }}"
+          --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
           --exclude libcuda.so.1 --exclude libcudart.so.12
           -w "{dest_dir}" "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
