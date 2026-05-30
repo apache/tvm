@@ -387,6 +387,7 @@ class OperatorConverter:
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
             "STABLEHLO_TANH": functools.partial(self._convert_stablehlo_unary, relax_op=_op.tanh),
+            "STABLEHLO_WHILE": self._convert_stablehlo_while,
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
             "SUB": functools.partial(self._convert_elemwise, relax_op=_op.subtract),
@@ -2161,6 +2162,19 @@ class OperatorConverter:
             relax.op.sort(data, axis=int(opts.Dimension()), descending=descending)
         )
 
+    def _convert_stablehlo_while(self, op):
+        """Convert STABLEHLO_WHILE to a recursive Relax private function."""
+        from tflite.StablehloWhileOptions import StablehloWhileOptions
+
+        opts = self._get_stablehlo_options(op, StablehloWhileOptions)
+        return self._convert_while_like(
+            op,
+            "STABLEHLO_WHILE",
+            int(opts.CondSubgraphIndex()),
+            int(opts.BodySubgraphIndex()),
+            "tflite_stablehlo_while",
+        )
+
     def _get_builtin_options(self, op, options_cls):
         """Parse BuiltinOptions for a TFLite builtin operator."""
         from tflite.BuiltinOptions import BuiltinOptions
@@ -2402,14 +2416,15 @@ class OperatorConverter:
         cond_func,
         body_func,
         body_subgraph,
+        function_prefix="tflite_while",
     ):
         """Lower a TFLite WHILE op into a recursive private Relax function."""
-        cache_key = (cond_subgraph_index, body_subgraph_index, loop_var_count)
+        cache_key = (function_prefix, cond_subgraph_index, body_subgraph_index, loop_var_count)
         lowered_while_functions = self.conversion_state["lowered_while_functions"]
         if cache_key in lowered_while_functions:
             return lowered_while_functions[cache_key]
 
-        loop_name = f"tflite_while_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
+        loop_name = f"{function_prefix}_subgraph_{cond_subgraph_index}_{body_subgraph_index}"
         params, _ = self._get_subgraph_params(body_subgraph)
         dummy_body = self._make_tuple_or_single(params)
         module_builder = self.conversion_state["module_builder"]
@@ -2489,47 +2504,44 @@ class OperatorConverter:
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
         return relax.Call(if_func, args)
 
-    def convert_while(self, op):
-        """Convert TFLite WHILE to a recursive Relax private function."""
-        from tflite.WhileOptions import WhileOptions
-
-        opts = self._get_builtin_options(op, WhileOptions)
-        cond_subgraph_index = int(opts.CondSubgraphIndex())
-        body_subgraph_index = int(opts.BodySubgraphIndex())
+    def _convert_while_like(
+        self, op, op_name, cond_subgraph_index, body_subgraph_index, function_prefix
+    ):
+        """Convert a TFLite while-like operator with referenced cond/body subgraphs."""
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
         loop_var_count = len(input_tensors)
         if loop_var_count == 0:
-            raise tvm.error.OpNotImplemented("WHILE requires loop-carried inputs")
+            raise tvm.error.OpNotImplemented(f"{op_name} requires loop-carried inputs")
         if len(output_tensors) != loop_var_count:
-            raise tvm.error.OpNotImplemented("WHILE output count must match input count")
+            raise tvm.error.OpNotImplemented(f"{op_name} output count must match input count")
 
         cond_subgraph = self._check_subgraph_interface(
             cond_subgraph_index,
-            "WHILE",
+            op_name,
             input_tensors=input_tensors,
             output_count=1,
         )
         body_subgraph = self._check_subgraph_interface(
             body_subgraph_index,
-            "WHILE",
+            op_name,
             input_tensors=input_tensors,
             output_tensors=input_tensors,
         )
         for input_tensor, output_tensor in zip(input_tensors, output_tensors):
-            self._check_tensor_metadata_match(input_tensor, output_tensor, "WHILE", "loop state")
+            self._check_tensor_metadata_match(input_tensor, output_tensor, op_name, "loop state")
         cond_output = cond_subgraph.Tensors(int(cond_subgraph.Outputs(0)))
-        self._require_scalar_bool_tensor(cond_output, "WHILE")
+        self._require_scalar_bool_tensor(cond_output, op_name)
 
         cond_func = self._lower_subgraph_to_function(
             cond_subgraph_index,
-            f"tflite_while_cond_subgraph_{cond_subgraph_index}",
-            op_name="WHILE",
+            f"{function_prefix}_cond_subgraph_{cond_subgraph_index}",
+            op_name=op_name,
         )
         body_func = self._lower_subgraph_to_function(
             body_subgraph_index,
-            f"tflite_while_body_subgraph_{body_subgraph_index}",
-            op_name="WHILE",
+            f"{function_prefix}_body_subgraph_{body_subgraph_index}",
+            op_name=op_name,
         )
 
         loop_gv = self._lower_while_to_function(
@@ -2539,10 +2551,24 @@ class OperatorConverter:
             cond_func,
             body_func,
             body_subgraph,
+            function_prefix=function_prefix,
         )
 
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
         return relax.Call(loop_gv, args)
+
+    def convert_while(self, op):
+        """Convert TFLite WHILE to a recursive Relax private function."""
+        from tflite.WhileOptions import WhileOptions
+
+        opts = self._get_builtin_options(op, WhileOptions)
+        return self._convert_while_like(
+            op,
+            "WHILE",
+            int(opts.CondSubgraphIndex()),
+            int(opts.BodySubgraphIndex()),
+            "tflite_while",
+        )
 
     def convert_call_once(self, op):
         """Convert TFLite CALL_ONCE for no-op and resource-variable initialization subsets."""
