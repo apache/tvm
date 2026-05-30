@@ -200,6 +200,8 @@ class OperatorConverter:
             "AVERAGE_POOL_2D": functools.partial(self.convert_pool2d, pool_type="average"),
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
             "BATCH_MATMUL": self.convert_batch_matmul,
+            "BIDIRECTIONAL_SEQUENCE_LSTM": self.convert_bidirectional_sequence_lstm,
+            "BIDIRECTIONAL_SEQUENCE_RNN": self.convert_bidirectional_sequence_rnn,
             "BITCAST": self.convert_bitcast,
             "BROADCAST_TO": self.convert_broadcast_to,
             "BROADCAST_ARGS": self.convert_broadcast_args,
@@ -404,7 +406,7 @@ class OperatorConverter:
             "UNSORTED_SEGMENT_PROD": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_PROD", reduction="mul"
             ),
-            # "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
+            "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "VAR_HANDLE": self.convert_var_handle,
             "WHERE": self.convert_select,
             "WHILE": self.convert_while,
@@ -5510,153 +5512,547 @@ class OperatorConverter:
         # Stack timestep outputs: [batch, time, num_units].
         return relax.op.stack(outputs, axis=1)
 
-    """
     def convert_unidirectional_sequence_lstm(self, op):
-        ### Long Short Term Memory for TFLite implementation. ###
+        """Convert TFLite UNIDIRECTIONAL_SEQUENCE_LSTM.
+
+        Inputs (24 tensors, same layout as single-step LSTM):
+          [0]  input                       [batch, time, input_size]
+          [1]  input_to_input_weights      [num_units, input_size]   (optional)
+          [2]  input_to_forget_weights     [num_units, input_size]
+          [3]  input_to_cell_weights       [num_units, input_size]
+          [4]  input_to_output_weights     [num_units, input_size]
+          [5]  recurrent_to_input_weights  [num_units, num_units]   (optional)
+          [6]  recurrent_to_forget_weights [num_units, num_units]
+          [7]  recurrent_to_cell_weights   [num_units, num_units]
+          [8]  recurrent_to_output_weights [num_units, num_units]
+          [9]  cell_to_input_weights       [num_units]              (optional)
+          [10] cell_to_forget_weights      [num_units]              (optional)
+          [11] cell_to_output_weights      [num_units]              (optional)
+          [12] input_gate_bias             [num_units]              (optional)
+          [13] forget_gate_bias            [num_units]
+          [14] cell_gate_bias              [num_units]
+          [15] output_gate_bias            [num_units]
+          [16] projection_weights          [num_units, num_units]   (optional)
+          [17] projection_bias             [num_units]              (optional)
+          [18] output_state                [batch, num_units]       (variable)
+          [19] cell_state                  [batch, num_units]       (variable)
+          [20-23] optional layer norm weights
+
+        Output:
+          [0] output  [batch, time, num_units]
+
+        Uses coupled input-forget gate (i = 1 - f) for the FULL kernel.
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.UnidirectionalSequenceLSTMOptions import UnidirectionalSequenceLSTMOptions
+
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                "TFlite quantized UNIDIRECTIONALSEQUENCELSTM operator is not supported yet."
+                "TFLite quantized UNIDIRECTIONAL_SEQUENCE_LSTM is not supported yet."
             )
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 24, "input tensors length should be == 24"
+        assert len(input_tensors) == 24, (
+            f"input tensors length should be 24, got {len(input_tensors)}"
+        )
 
-        # Extract input tensor from saved model
-        input_tensor = input_tensors[0]
-
-        # Extract tensors from input tensors from saved model
-        # Input weights
-        input_input_weights = input_tensors[1]
-        input_forget_weights = input_tensors[2]
-        input_cell_weights = input_tensors[3]
-        input_output_weights = input_tensors[4]
-        # Recurrent weights
-        recurrent_input_weights = input_tensors[5]
-        recurrent_forget_weights = input_tensors[6]
-        recurrent_cell_weights = input_tensors[7]
-        recurrent_output_weights = input_tensors[8]
-        # inputs 9, 10, 11, 16, 17, 20, 21, 22, 23 are not occupied
-        # there locations are -1 in the flatbuffer
-        # Bias weights
-        input_gate_bias = input_tensors[12]
-        forget_gate_bias = input_tensors[13]
-        cell_gate_bias = input_tensors[14]
-        output_gate_bias = input_tensors[15]
-
-        # State input
-        output_state_in = input_tensors[18]
-        cell_state_in = input_tensors[19]
-
-        # Extract output tensor from saved model
         output_tensors = self.get_output_tensors(op)
-        assert len(output_tensors) == 1, "output tensors length should be 1"
-        X_steps = self.unbind(input_tensor, axis=1)
-        weights_dict = {}
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
 
-        # hidden_state_weights is equivalent to output_state_in in tflite model
-        out_state_in_shape = tuple(self.get_tensor_shape(output_state_in))
-        out_state_in_dtype = self.get_tensor_type_str(output_state_in.tensor.Type())
-        out_state_in_expr = relax.op.zeros(out_state_in_shape, dtype=out_state_in_dtype)
-        weights_dict["hidden_state"] = relax.op.split(out_state_in_expr, 1)[0]
+        assert op.BuiltinOptionsType() == BuiltinOptions.UnidirectionalSequenceLSTMOptions
+        op_options = op.BuiltinOptions()
+        lstm_opts = UnidirectionalSequenceLSTMOptions()
+        lstm_opts.Init(op_options.Bytes, op_options.Pos)
+        time_major = lstm_opts.TimeMajor()
+        fused_activation_fn = lstm_opts.FusedActivationFunction()
+        cell_clip = lstm_opts.CellClip()
+        proj_clip = lstm_opts.ProjClip()
 
-        # cell_state_weights is equivalent to output_state_in tflite model
-        cell_state_in_shape = tuple(self.get_tensor_shape(cell_state_in))
-        cell_state_in_dtype = self.get_tensor_type_str(cell_state_in.tensor.Type())
-        cell_state_in_expr = relax.op.zeros(cell_state_in_shape, dtype=cell_state_in_dtype)
-        weights_dict["cell_state"] = relax.op.split(cell_state_in_expr, 1)[0]
+        # Only coupled input-forget gate is supported.
+        if input_tensors[1].tensor_idx != -1 or input_tensors[5].tensor_idx != -1:
+            raise tvm.error.OpNotImplemented("Only coupled input-forget LSTM is supported.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [9, 10, 11]):
+            raise tvm.error.OpNotImplemented("TFLite peephole LSTM is not supported yet.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [16, 17]):
+            raise tvm.error.OpNotImplemented("TFLite projection LSTM is not supported yet.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [20, 21, 22, 23]):
+            raise tvm.error.OpNotImplemented("TFLite layer-norm LSTM is not supported yet.")
 
-        # Process weight matrix of input: w_inp
-        # Concatenate of [input_input_weight, input_forget_weights,
-        # input_cell_weights, input_output_weights]
-        input_input_weights_default_values = self.get_tensor_value(input_input_weights)
-        input_input_weights_op = relax.op.split(
-            relax.op.const(input_input_weights_default_values.tolist()), 1
+        # Weights (transposed once outside the loop).
+        w_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[2]))
+        w_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[3]))
+        w_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[4]))
+        r_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[6]))
+        r_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[7]))
+        r_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[8]))
+
+        # Biases.
+        b_f = self.get_tensor_expr(input_tensors[13])
+        b_c = self.get_tensor_expr(input_tensors[14])
+        b_o = self.get_tensor_expr(input_tensors[15])
+
+        # Initial states.
+        h = self.get_tensor_expr(input_tensors[18])
+        c = self.get_tensor_expr(input_tensors[19])
+
+        # Resolve the input expression; normalise to batch-major [batch, time, input_size].
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        in_shape = self.get_tensor_shape(input_tensors[0])
+        if time_major:
+            in_expr = relax.op.permute_dims(in_expr, [1, 0, 2])
+            num_steps = int(in_shape[0])
+        else:
+            num_steps = int(in_shape[1])
+
+        # Unroll over the time axis.
+        if num_steps == 1:
+            steps = [relax.op.squeeze(in_expr, axis=[1])]
+        else:
+            splits = relax.op.split(in_expr, num_steps, axis=1)
+            steps = [relax.op.squeeze(splits[i], axis=[1]) for i in range(num_steps)]
+
+        one = relax.const(1.0, "float32")
+        outputs = []
+        for x_t in steps:
+            f = relax.op.sigmoid(
+                relax.op.add(
+                    relax.op.add(
+                        relax.op.matmul(x_t, w_f_t),
+                        relax.op.matmul(h, r_f_t),
+                    ),
+                    b_f,
+                )
+            )
+            i = relax.op.subtract(one, f)
+            g = self.convert_fused_activation_function(
+                relax.op.add(
+                    relax.op.add(relax.op.matmul(x_t, w_c_t), relax.op.matmul(h, r_c_t)),
+                    b_c,
+                ),
+                fused_activation_fn,
+            )
+            o = relax.op.sigmoid(
+                relax.op.add(
+                    relax.op.add(
+                        relax.op.matmul(x_t, w_o_t),
+                        relax.op.matmul(h, r_o_t),
+                    ),
+                    b_o,
+                )
+            )
+
+            c_new = relax.op.add(relax.op.multiply(f, c), relax.op.multiply(i, g))
+            if cell_clip > 0.0:
+                c_new = relax.op.clip(c_new, -cell_clip, cell_clip)
+
+            h_new = relax.op.multiply(
+                o, self.convert_fused_activation_function(c_new, fused_activation_fn)
+            )
+            if proj_clip > 0.0:
+                h_new = relax.op.clip(h_new, -proj_clip, proj_clip)
+            outputs.append(h_new)
+            h, c = h_new, c_new
+
+        h_out = relax.op.stack(outputs, axis=1)
+        if time_major:
+            h_out = relax.op.permute_dims(h_out, [1, 0, 2])
+
+        # Update state tensors in the expression table for subsequent ops.
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[18].tensor_idx),
+            h,
+            force_override=True,
         )
-        input_output_weights_default_values = self.get_tensor_value(input_output_weights)
-        input_output_weights_op = relax.op.split(
-            relax.op.const(input_output_weights_default_values.tolist()), 1
-        )
-        input_forget_weights_default_values = self.get_tensor_value(input_forget_weights)
-        input_forget_weights_op = relax.op.split(
-            relax.op.const(input_forget_weights_default_values.tolist()), 1
-        )
-        input_cell_weights_default_values = self.get_tensor_value(input_cell_weights)
-        input_cell_weights_op = relax.op.split(
-            _op.const(input_cell_weights_default_values.tolist()), 1
-        )
-        weights_dict["w_inp"] = relax.op.concat(
-            [
-                relax.op.squeeze(input_input_weights_op[0]),
-                relax.op.squeeze(input_forget_weights_op[0]),
-                relax.op.squeeze(input_cell_weights_op[0]),
-                relax.op.squeeze(input_output_weights_op[0]),
-            ],
-            axis=0,
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[19].tensor_idx),
+            c,
+            force_override=True,
         )
 
-        # Process weight matrix of hidden state:
-        # w_hid to support lstm_cell function. Not used in tflite
-        recurrent_input_weights_values = self.get_tensor_value(recurrent_input_weights)
-        recurrent_input_weights_op = relax.op.split(
-            relax.op.const(recurrent_input_weights_values.tolist()), 1
-        )
-        recurrent_output_weights_values = self.get_tensor_value(recurrent_output_weights)
-        recurrent_output_weights_op = relax.op.split(
-            relax.op.const(recurrent_output_weights_values.tolist()), 1
-        )
-        recurrent_forget_weights_values = self.get_tensor_value(recurrent_forget_weights)
-        recurrent_forget_weights_op = relax.op.split(
-            relax.op.const(recurrent_forget_weights_values.tolist()), 1
-        )
-        recurrent_cell_weights_values = self.get_tensor_value(recurrent_cell_weights)
-        recurrent_cell_weights_op = relax.op.split(
-            _op.const(recurrent_cell_weights_values.tolist()), 1
-        )
-        weights_dict["w_hid"] = relax.op.concat(
-            [
-                recurrent_input_weights_op[0],
-                recurrent_forget_weights_op[0],
-                recurrent_cell_weights_op[0],
-                recurrent_output_weights_op[0],
-            ],
-            axis=0,
+        return h_out
+
+    def convert_bidirectional_sequence_rnn(self, op):
+        """Convert TFLite BIDIRECTIONAL_SEQUENCE_RNN.
+
+        Inputs (9 tensors, aux_input not supported):
+          [0] input                [batch, time, input_size]
+          [1] fw_weights           [num_units, input_size]
+          [2] fw_recurrent_weights [num_units, num_units]
+          [3] fw_bias              [num_units]
+          [4] fw_hidden_state      [batch, num_units]         (variable)
+          [5] bw_weights           [num_units, input_size]
+          [6] bw_recurrent_weights [num_units, num_units]
+          [7] bw_bias              [num_units]
+          [8] bw_hidden_state      [batch, num_units]         (variable)
+
+        Output (merge_outputs=True):
+          [0] output  [batch, time, 2 * num_units]  (fw and bw concatenated)
+
+        Output (merge_outputs=False):
+          [0] fw_output  [batch, time, num_units]
+          [1] bw_output  [batch, time, num_units]
+        """
+        from tflite.BidirectionalSequenceRNNOptions import BidirectionalSequenceRNNOptions
+        from tflite.BuiltinOptions import BuiltinOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "TFLite quantized BIDIRECTIONAL_SEQUENCE_RNN is not supported yet."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 12, (
+            f"input tensors length should be 12, got {len(input_tensors)}"
         )
 
-        # Process weight matrix of bias: b_inp
-        input_gate_bias_values = self.get_tensor_value(input_gate_bias)
-        input_gate_bias_op = relax.op.split(_op.const(input_gate_bias_values.tolist()), 1)
-        output_gate_bias_values = self.get_tensor_value(output_gate_bias)
-        output_gate_bias_op = relax.op.split(_op.const(output_gate_bias_values.tolist()), 1)
-        forget_gate_bias_values = self.get_tensor_value(forget_gate_bias)
-        forget_gate_bias_op = relax.op.split(_op.const(forget_gate_bias_values.tolist()), 1)
-        cell_gate_bias_values = self.get_tensor_value(cell_gate_bias)
-        cell_gate_bias_op = relax.op.split(_op.const(cell_gate_bias_values.tolist()), 1)
-        weights_dict["b_inp"] = relax.op.concat(
-            [
-                input_gate_bias_op[0],
-                forget_gate_bias_op[0],
-                cell_gate_bias_op[0],
-                output_gate_bias_op[0],
-            ],
-            axis=0,
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.BidirectionalSequenceRNNOptions
+        op_options = op.BuiltinOptions()
+        rnn_opts = BidirectionalSequenceRNNOptions()
+        rnn_opts.Init(op_options.Bytes, op_options.Pos)
+        time_major = rnn_opts.TimeMajor()
+        fused_activation_fn = rnn_opts.FusedActivationFunction()
+        merge_outputs = rnn_opts.MergeOutputs()
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [9, 10, 11]):
+            raise tvm.error.OpNotImplemented(
+                "TFLite BIDIRECTIONAL_SEQUENCE_RNN aux input is not supported yet."
+            )
+
+        # Forward weights and biases.
+        fw_weights_expr = self.get_tensor_expr(input_tensors[1])
+        fw_recurrent_expr = self.get_tensor_expr(input_tensors[2])
+        fw_bias_expr = self.get_tensor_expr(input_tensors[3])
+        fw_w_t = relax.op.permute_dims(fw_weights_expr)
+        fw_wr_t = relax.op.permute_dims(fw_recurrent_expr)
+
+        # Backward weights and biases.
+        bw_weights_expr = self.get_tensor_expr(input_tensors[5])
+        bw_recurrent_expr = self.get_tensor_expr(input_tensors[6])
+        bw_bias_expr = self.get_tensor_expr(input_tensors[7])
+        bw_w_t = relax.op.permute_dims(bw_weights_expr)
+        bw_wr_t = relax.op.permute_dims(bw_recurrent_expr)
+
+        # Resolve the input expression; normalise to batch-major [batch, time, input_size].
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        in_shape = self.get_tensor_shape(input_tensors[0])
+        if time_major:
+            in_expr = relax.op.permute_dims(in_expr, [1, 0, 2])
+            num_steps = int(in_shape[0])
+        else:
+            num_steps = int(in_shape[1])
+
+        # Initial hidden states.
+        def _get_hidden_state(tensor):
+            if self.has_expr(tensor.tensor_idx) or (
+                tensor.buffer is not None and tensor.buffer.DataLength() > 0
+            ):
+                return self.get_tensor_expr(tensor)
+            dtype = self.get_tensor_type_str(tensor.tensor.Type())
+            h_shape = tuple(to_int_list(self.get_tensor_shape(tensor)))
+            return relax.op.zeros(h_shape, dtype=dtype)
+
+        fw_h = _get_hidden_state(input_tensors[4])
+        bw_h = _get_hidden_state(input_tensors[8])
+
+        # Unroll over the time axis.
+        if num_steps == 1:
+            steps = [relax.op.squeeze(in_expr, axis=[1])]
+        else:
+            splits = relax.op.split(in_expr, num_steps, axis=1)
+            steps = [relax.op.squeeze(splits[i], axis=[1]) for i in range(num_steps)]
+
+        # Forward pass.
+        fw_outputs = []
+        for x_t in steps:
+            gates = relax.op.add(
+                relax.op.add(relax.op.matmul(x_t, fw_w_t), relax.op.matmul(fw_h, fw_wr_t)),
+                fw_bias_expr,
+            )
+            fw_h = self.convert_fused_activation_function(gates, fused_activation_fn)
+            fw_outputs.append(fw_h)
+
+        # Backward pass (process steps in reverse).
+        bw_outputs = []
+        for x_t in reversed(steps):
+            gates = relax.op.add(
+                relax.op.add(relax.op.matmul(x_t, bw_w_t), relax.op.matmul(bw_h, bw_wr_t)),
+                bw_bias_expr,
+            )
+            bw_h = self.convert_fused_activation_function(gates, fused_activation_fn)
+            bw_outputs.append(bw_h)
+        bw_outputs.reverse()
+
+        fw_stacked = relax.op.stack(fw_outputs, axis=1)  # [batch, time, num_units]
+        bw_stacked = relax.op.stack(bw_outputs, axis=1)  # [batch, time, num_units]
+        if time_major:
+            fw_stacked = relax.op.permute_dims(fw_stacked, [1, 0, 2])
+            bw_stacked = relax.op.permute_dims(bw_stacked, [1, 0, 2])
+
+        # Update state tensors in the expression table for subsequent ops.
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[4].tensor_idx),
+            fw_h,
+            force_override=True,
+        )
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[8].tensor_idx),
+            bw_h,
+            force_override=True,
         )
 
-        # Process weight matrix of hidden bias:
-        # b_hid (with the same shape as b_inp)
-        gate_bias_dtype = self.get_tensor_type_str(input_gate_bias.tensor.Type())
-        weights_dict["b_hid"] = relax.op.split(
-            relax.op.const(
-                np.zeros(self._infer_shape(weights_dict["b_inp"]), dtype=gate_bias_dtype),
-                dtype=gate_bias_dtype,
-            ),
-            1,
-        )[0]
+        if merge_outputs:
+            return relax.op.concat([fw_stacked, bw_stacked], axis=-1)
+        else:
+            return relax.Tuple([fw_stacked, bw_stacked])
 
-        outputs, _, _ = lstm_cell(input_seqs=X_steps, **weights_dict)
+    def convert_bidirectional_sequence_lstm(self, op):
+        """Convert TFLite BIDIRECTIONAL_SEQUENCE_LSTM.
 
-        output = relax.op.stack(outputs, axis=1)
-        return output
-    """
+        Inputs (48 tensors, indices 0-17 forward LSTM, 18-34 backward LSTM, 35-38 states,
+        39-47 optional aux inputs, which are not supported):
+
+        Forward LSTM cell (indices 0-17, same layout as single-step LSTM):
+          [0]  input (shared)              [batch, time, input_size]
+          [1]  fw_input_to_input_weights   (optional)
+          [2]  fw_input_to_forget_weights
+          [3]  fw_input_to_cell_weights
+          [4]  fw_input_to_output_weights
+          [5]  fw_recurrent_to_input_wts   (optional)
+          [6]  fw_recurrent_to_forget_wts
+          [7]  fw_recurrent_to_cell_wts
+          [8]  fw_recurrent_to_output_wts
+          [9-11] fw cell_to_*_weights      (optional, not supported)
+          [12] fw_input_gate_bias          (optional)
+          [13] fw_forget_gate_bias
+          [14] fw_cell_gate_bias
+          [15] fw_output_gate_bias
+          [16] fw_projection_weights       (optional, not supported)
+          [17] fw_projection_bias          (optional, not supported)
+
+        Backward LSTM cell (indices 18-34, same layout as fw):
+          [19] bw_input_to_forget_weights
+          [20] bw_input_to_cell_weights
+          [21] bw_input_to_output_weights
+          [23] bw_recurrent_to_forget_wts
+          [24] bw_recurrent_to_cell_wts
+          [25] bw_recurrent_to_output_wts
+          [30] bw_forget_gate_bias
+          [31] bw_cell_gate_bias
+          [32] bw_output_gate_bias
+
+        State tensors:
+          [35] fw_activation_state  [batch, num_units]
+          [36] fw_cell_state        [batch, num_units]
+          [37] bw_activation_state  [batch, num_units]
+          [38] bw_cell_state        [batch, num_units]
+
+        Output (merge_outputs=True):
+          [0] output  [batch, time, 2 * num_units]
+
+        Output (merge_outputs=False):
+          [0] fw_output  [batch, time, num_units]
+          [1] bw_output  [batch, time, num_units]
+        """
+        from tflite.BidirectionalSequenceLSTMOptions import BidirectionalSequenceLSTMOptions
+        from tflite.BuiltinOptions import BuiltinOptions
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "TFLite quantized BIDIRECTIONAL_SEQUENCE_LSTM is not supported yet."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 48, (
+            f"input tensors length should be 48, got {len(input_tensors)}"
+        )
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) >= 1, "output tensors length should be at least 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.BidirectionalSequenceLSTMOptions
+        op_options = op.BuiltinOptions()
+        lstm_opts = BidirectionalSequenceLSTMOptions()
+        lstm_opts.Init(op_options.Bytes, op_options.Pos)
+        time_major = lstm_opts.TimeMajor()
+        fused_activation_fn = lstm_opts.FusedActivationFunction()
+        merge_outputs = lstm_opts.MergeOutputs()
+        cell_clip = lstm_opts.CellClip()
+        proj_clip = lstm_opts.ProjClip()
+
+        # ── Forward LSTM weights (transposed once outside the loop) ──
+        if input_tensors[1].tensor_idx != -1 or input_tensors[5].tensor_idx != -1:
+            raise tvm.error.OpNotImplemented("Only coupled input-forget LSTM is supported.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [9, 10, 11]):
+            raise tvm.error.OpNotImplemented("TFLite peephole LSTM is not supported yet.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [16, 17]):
+            raise tvm.error.OpNotImplemented("TFLite projection LSTM is not supported yet.")
+
+        fw_w_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[2]))
+        fw_w_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[3]))
+        fw_w_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[4]))
+        fw_r_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[6]))
+        fw_r_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[7]))
+        fw_r_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[8]))
+        fw_b_f = self.get_tensor_expr(input_tensors[13])
+        fw_b_c = self.get_tensor_expr(input_tensors[14])
+        fw_b_o = self.get_tensor_expr(input_tensors[15])
+
+        # ── Backward LSTM weights (transposed once outside the loop) ──
+        if input_tensors[18].tensor_idx != -1 or input_tensors[22].tensor_idx != -1:
+            raise tvm.error.OpNotImplemented("Only coupled input-forget LSTM is supported.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [26, 27, 28]):
+            raise tvm.error.OpNotImplemented("TFLite peephole LSTM is not supported yet.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in [33, 34]):
+            raise tvm.error.OpNotImplemented("TFLite projection LSTM is not supported yet.")
+        if any(input_tensors[idx].tensor_idx != -1 for idx in range(39, 48)):
+            raise tvm.error.OpNotImplemented(
+                "TFLite BIDIRECTIONAL_SEQUENCE_LSTM aux input is not supported yet."
+            )
+
+        bw_w_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[19]))
+        bw_w_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[20]))
+        bw_w_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[21]))
+        bw_r_f_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[23]))
+        bw_r_c_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[24]))
+        bw_r_o_t = relax.op.permute_dims(self.get_tensor_expr(input_tensors[25]))
+        bw_b_f = self.get_tensor_expr(input_tensors[30])
+        bw_b_c = self.get_tensor_expr(input_tensors[31])
+        bw_b_o = self.get_tensor_expr(input_tensors[32])
+
+        # ── Initial states ──
+        fw_h = self.get_tensor_expr(input_tensors[35])
+        fw_c = self.get_tensor_expr(input_tensors[36])
+        bw_h = self.get_tensor_expr(input_tensors[37])
+        bw_c = self.get_tensor_expr(input_tensors[38])
+
+        # ── Unroll input ──
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        in_shape = self.get_tensor_shape(input_tensors[0])
+        if time_major:
+            in_expr = relax.op.permute_dims(in_expr, [1, 0, 2])
+            num_steps = int(in_shape[0])
+        else:
+            num_steps = int(in_shape[1])
+
+        if num_steps == 1:
+            steps = [relax.op.squeeze(in_expr, axis=[1])]
+        else:
+            splits = relax.op.split(in_expr, num_steps, axis=1)
+            steps = [relax.op.squeeze(splits[i], axis=[1]) for i in range(num_steps)]
+
+        one = relax.const(1.0, "float32")
+
+        def _lstm_step(x_t, h, c, w_f_t, w_c_t, w_o_t, r_f_t, r_c_t, r_o_t, b_f, b_c, b_o):
+            """Single LSTM step with coupled input-forget gate."""
+            f = relax.op.sigmoid(
+                relax.op.add(
+                    relax.op.add(
+                        relax.op.matmul(x_t, w_f_t),
+                        relax.op.matmul(h, r_f_t),
+                    ),
+                    b_f,
+                )
+            )
+            i = relax.op.subtract(one, f)
+            g = self.convert_fused_activation_function(
+                relax.op.add(
+                    relax.op.add(relax.op.matmul(x_t, w_c_t), relax.op.matmul(h, r_c_t)),
+                    b_c,
+                ),
+                fused_activation_fn,
+            )
+            o = relax.op.sigmoid(
+                relax.op.add(
+                    relax.op.add(
+                        relax.op.matmul(x_t, w_o_t),
+                        relax.op.matmul(h, r_o_t),
+                    ),
+                    b_o,
+                )
+            )
+            c_new = relax.op.add(relax.op.multiply(f, c), relax.op.multiply(i, g))
+            if cell_clip > 0.0:
+                c_new = relax.op.clip(c_new, -cell_clip, cell_clip)
+            h_new = relax.op.multiply(
+                o, self.convert_fused_activation_function(c_new, fused_activation_fn)
+            )
+            if proj_clip > 0.0:
+                h_new = relax.op.clip(h_new, -proj_clip, proj_clip)
+            return h_new, c_new
+
+        # ── Forward pass ──
+        fw_outputs = []
+        for x_t in steps:
+            fw_h, fw_c = _lstm_step(
+                x_t,
+                fw_h,
+                fw_c,
+                fw_w_f_t,
+                fw_w_c_t,
+                fw_w_o_t,
+                fw_r_f_t,
+                fw_r_c_t,
+                fw_r_o_t,
+                fw_b_f,
+                fw_b_c,
+                fw_b_o,
+            )
+            fw_outputs.append(fw_h)
+
+        # ── Backward pass ──
+        bw_outputs = []
+        for x_t in reversed(steps):
+            bw_h, bw_c = _lstm_step(
+                x_t,
+                bw_h,
+                bw_c,
+                bw_w_f_t,
+                bw_w_c_t,
+                bw_w_o_t,
+                bw_r_f_t,
+                bw_r_c_t,
+                bw_r_o_t,
+                bw_b_f,
+                bw_b_c,
+                bw_b_o,
+            )
+            bw_outputs.append(bw_h)
+        bw_outputs.reverse()
+
+        fw_stacked = relax.op.stack(fw_outputs, axis=1)
+        bw_stacked = relax.op.stack(bw_outputs, axis=1)
+        if time_major:
+            fw_stacked = relax.op.permute_dims(fw_stacked, [1, 0, 2])
+            bw_stacked = relax.op.permute_dims(bw_stacked, [1, 0, 2])
+
+        # Update state tensors in the expression table for subsequent ops.
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[35].tensor_idx),
+            fw_h,
+            force_override=True,
+        )
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[36].tensor_idx),
+            fw_c,
+            force_override=True,
+        )
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[37].tensor_idx),
+            bw_h,
+            force_override=True,
+        )
+        self.exp_tab.set_expr(
+            get_tensor_name(self.subgraph, input_tensors[38].tensor_idx),
+            bw_c,
+            force_override=True,
+        )
+
+        if merge_outputs:
+            return relax.op.concat([fw_stacked, bw_stacked], axis=-1)
+        else:
+            return relax.Tuple([fw_stacked, bw_stacked])
 
     def convert_batch_to_space_nd(self, op):
         """batch_to_space_nd implementation."""

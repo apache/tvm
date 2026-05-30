@@ -3723,6 +3723,15 @@ _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
 _tfl_lstm_options = _get_tflite_schema_module("LSTMOptions")
 _tfl_sequence_rnn_options = _get_tflite_schema_module("SequenceRNNOptions")
 _tfl_svdf_options = _get_tflite_schema_module("SVDFOptions")
+_tfl_unidirectional_sequence_lstm_options = _get_tflite_schema_module(
+    "UnidirectionalSequenceLSTMOptions"
+)
+_tfl_bidirectional_sequence_rnn_options = _get_tflite_schema_module(
+    "BidirectionalSequenceRNNOptions"
+)
+_tfl_bidirectional_sequence_lstm_options = _get_tflite_schema_module(
+    "BidirectionalSequenceLSTMOptions"
+)
 
 _DENSIFY_TEST_VALUES = np.array([1.0, 2.0], dtype=np.float32)
 _DENSIFY_TEST_DENSE = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
@@ -11050,6 +11059,889 @@ def test_svdf_shared_state_updates_exp_tab():
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+# ── UNIDIRECTIONAL_SEQUENCE_LSTM ─────────────────────────────────────────────
+
+
+def _build_unidirectional_sequence_lstm_model(
+    batch,
+    time,
+    input_size,
+    num_units,
+    input_to_forget_weights,
+    input_to_cell_weights,
+    input_to_output_weights,
+    recurrent_to_forget_weights,
+    recurrent_to_cell_weights,
+    recurrent_to_output_weights,
+    forget_gate_bias,
+    cell_bias,
+    output_gate_bias,
+    activation,
+    *,
+    time_major=False,
+    cell_clip=0.0,
+    proj_clip=0.0,
+    projection_weights=None,
+):
+    """Build a TFLite flatbuffer model with one UNIDIRECTIONAL_SEQUENCE_LSTM op.
+
+    Tensor indices (same layout as single-step LSTM, but input is 3D):
+      0  - input                       [batch, time, input_size]
+      1  - input_to_forget_weights     [num_units, input_size]
+      2  - input_to_cell_weights       [num_units, input_size]
+      3  - input_to_output_weights     [num_units, input_size]
+      4  - recurrent_to_forget_weights [num_units, num_units]
+      5  - recurrent_to_cell_weights   [num_units, num_units]
+      6  - recurrent_to_output_weights [num_units, num_units]
+      7  - forget_gate_bias            [num_units]
+      8  - cell_bias                   [num_units]
+      9  - output_gate_bias            [num_units]
+      10 - output_state                [batch, num_units]   (model input)
+      11 - cell_state                  [batch, num_units]   (model input)
+      12 - output                      [batch, time, num_units] or [time, batch, num_units]
+    """
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsStart(builder)
+    _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsAddFusedActivationFunction(
+        builder, activation
+    )
+    _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsAddTimeMajor(
+        builder, time_major
+    )
+    _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsAddCellClip(
+        builder, cell_clip
+    )
+    _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsAddProjClip(
+        builder, proj_clip
+    )
+    lstm_opts = _tfl_unidirectional_sequence_lstm_options.UnidirectionalSequenceLSTMOptionsEnd(
+        builder
+    )
+
+    lstm_op_code = _build_operator_code(builder, _tfl_builtin_operator.UNIDIRECTIONAL_SEQUENCE_LSTM)
+
+    def _t(buf_idx, shape):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, False)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    input_shape = [time, batch, input_size] if time_major else [batch, time, input_size]
+    output_shape = [time, batch, num_units] if time_major else [batch, time, num_units]
+    tensors = [
+        _t(0, input_shape),  # 0: input
+        _t(1, [num_units, input_size]),  # 1: input_to_forget_weights
+        _t(2, [num_units, input_size]),  # 2: input_to_cell_weights
+        _t(3, [num_units, input_size]),  # 3: input_to_output_weights
+        _t(4, [num_units, num_units]),  # 4: recurrent_to_forget_weights
+        _t(5, [num_units, num_units]),  # 5: recurrent_to_cell_weights
+        _t(6, [num_units, num_units]),  # 6: recurrent_to_output_weights
+        _t(7, [num_units]),  # 7: forget_gate_bias
+        _t(8, [num_units]),  # 8: cell_bias
+        _t(9, [num_units]),  # 9: output_gate_bias
+        _t(0, [batch, num_units]),  # 10: output_state (model input)
+        _t(0, [batch, num_units]),  # 11: cell_state (model input)
+        _t(0, output_shape),  # 12: output
+    ]
+
+    # 24 operator inputs, -1 for absent.
+    lstm_inputs = [
+        0,
+        -1,
+        1,
+        2,
+        3,
+        -1,
+        4,
+        5,
+        6,
+        -1,
+        -1,
+        -1,
+        -1,
+        7,
+        8,
+        9,
+        -1,
+        -1,
+        10,
+        11,
+        -1,
+        -1,
+        -1,
+        -1,
+    ]
+    buffers = [
+        _build_buffer(builder),  # 0: empty
+        _build_buffer(builder, input_to_forget_weights.tobytes()),  # 1
+        _build_buffer(builder, input_to_cell_weights.tobytes()),  # 2
+        _build_buffer(builder, input_to_output_weights.tobytes()),  # 3
+        _build_buffer(builder, recurrent_to_forget_weights.tobytes()),  # 4
+        _build_buffer(builder, recurrent_to_cell_weights.tobytes()),  # 5
+        _build_buffer(builder, recurrent_to_output_weights.tobytes()),  # 6
+        _build_buffer(builder, forget_gate_bias.tobytes()),  # 7
+        _build_buffer(builder, cell_bias.tobytes()),  # 8
+        _build_buffer(builder, output_gate_bias.tobytes()),  # 9
+    ]
+    if projection_weights is not None:
+        tensors.append(_t(len(buffers), [num_units, num_units]))
+        lstm_inputs[16] = len(tensors) - 1
+        buffers.append(_build_buffer(builder, projection_weights.tobytes()))
+
+    lstm_op = _build_operator(
+        builder,
+        0,
+        lstm_inputs,
+        [12],
+        builtin_options_type=_tfl_builtin_options.UnidirectionalSequenceLSTMOptions,
+        builtin_options=lstm_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[lstm_op],
+        inputs=[0, 10, 11],
+        outputs=[12],
+    )
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[lstm_op_code],
+        buffers=buffers,
+    )
+
+
+def test_unidirectional_sequence_lstm_none_activation():
+    """UNIDIRECTIONAL_SEQUENCE_LSTM with NONE activation keeps cell activation linear."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 1, 2, 2
+    w_f = np.eye(num_units, input_size, dtype=np.float32)
+    w_c = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    w_o = np.array([[0.5, -0.25], [0.75, 0.5]], dtype=np.float32)
+    r_f = np.eye(num_units, dtype=np.float32)
+    r_c = np.array([[0.5, 0.0], [0.0, 0.25]], dtype=np.float32)
+    r_o = np.array([[0.1, 0.0], [0.0, 0.2]], dtype=np.float32)
+    b_f = np.zeros(num_units, dtype=np.float32)
+    b_c = np.zeros(num_units, dtype=np.float32)
+    b_o = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_lstm_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            w_f,
+            w_c,
+            w_o,
+            r_f,
+            r_c,
+            r_o,
+            b_f,
+            b_c,
+            b_o,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    script = mod.script(show_meta=True)
+    assert script.count("R.sigmoid") == 2
+    assert "R.tanh" not in script
+    assert "R.multiply" in script
+
+
+def test_unidirectional_sequence_lstm_tanh_activation():
+    """UNIDIRECTIONAL_SEQUENCE_LSTM with TANH activation applies it inside the cell."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 1, 2, 2
+    w_f = np.eye(num_units, input_size, dtype=np.float32)
+    w_c = np.array([[1.0, -1.0], [0.25, 0.5]], dtype=np.float32)
+    w_o = np.array([[0.5, 0.5], [-0.5, 1.0]], dtype=np.float32)
+    r_f = np.eye(num_units, dtype=np.float32)
+    r_c = np.array([[0.0, 0.1], [0.2, 0.0]], dtype=np.float32)
+    r_o = np.array([[0.3, 0.0], [0.0, 0.4]], dtype=np.float32)
+    b_f = np.zeros(num_units, dtype=np.float32)
+    b_c = np.zeros(num_units, dtype=np.float32)
+    b_o = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_lstm_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            w_f,
+            w_c,
+            w_o,
+            r_f,
+            r_c,
+            r_o,
+            b_f,
+            b_c,
+            b_o,
+            ActivationFunctionType.TANH,
+        )
+    )
+
+    script = mod.script(show_meta=True)
+    assert script.count("R.sigmoid") == 2
+    assert script.count("R.tanh") == 2
+    assert "R.multiply" in script
+
+
+def test_unidirectional_sequence_lstm_time_major():
+    """UNIDIRECTIONAL_SEQUENCE_LSTM preserves time-major output layout."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 3, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_unidirectional_sequence_lstm_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            weights,
+            weights,
+            recurrent,
+            recurrent,
+            recurrent,
+            bias,
+            bias,
+            bias,
+            ActivationFunctionType.NONE,
+            time_major=True,
+        )
+    )
+
+    fn = mod["main"]
+    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units)
+
+
+def test_unidirectional_sequence_lstm_rejects_projection():
+    """UNIDIRECTIONAL_SEQUENCE_LSTM rejects unsupported projection inputs."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 2, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="projection LSTM"):
+        _load_model_from_buffer(
+            _build_unidirectional_sequence_lstm_model(
+                batch,
+                time,
+                input_size,
+                num_units,
+                weights,
+                weights,
+                weights,
+                recurrent,
+                recurrent,
+                recurrent,
+                bias,
+                bias,
+                bias,
+                ActivationFunctionType.NONE,
+                projection_weights=np.eye(num_units, dtype=np.float32),
+            )
+        )
+
+
+# ── BIDIRECTIONAL_SEQUENCE_RNN ───────────────────────────────────────────────
+
+
+def _build_bidirectional_sequence_rnn_model(
+    batch,
+    time,
+    input_size,
+    num_units,
+    fw_weights,
+    fw_recurrent_weights,
+    fw_bias,
+    bw_weights,
+    bw_recurrent_weights,
+    bw_bias,
+    activation,
+    *,
+    time_major=False,
+    merge_outputs=True,
+    with_aux_input=False,
+):
+    """Build a TFLite flatbuffer model with one BIDIRECTIONAL_SEQUENCE_RNN op.
+
+    Tensor indices:
+      0  - input               [batch, time, input_size]
+      1  - fw_weights          [num_units, input_size]
+      2  - fw_recurrent_weights [num_units, num_units]
+      3  - fw_bias             [num_units]
+      4  - fw_hidden_state     [batch, num_units]   (model input)
+      5  - bw_weights          [num_units, input_size]
+      6  - bw_recurrent_weights [num_units, num_units]
+      7  - bw_bias             [num_units]
+      8  - bw_hidden_state     [batch, num_units]   (model input)
+      9  - aux_input           (optional)
+      10 - fw_aux_weights      (optional)
+      11 - bw_aux_weights      (optional)
+      12 - output (or fw_output if merge_outputs=False)
+      13 - bw_output (only if merge_outputs=False)
+    """
+    builder = flatbuffers.Builder(4096)
+
+    _tfl_bidirectional_sequence_rnn_options.BidirectionalSequenceRNNOptionsStart(builder)
+    _tfl_bidirectional_sequence_rnn_options.BidirectionalSequenceRNNOptionsAddTimeMajor(
+        builder, time_major
+    )
+    _tfl_bidirectional_sequence_rnn_options.BidirectionalSequenceRNNOptionsAddFusedActivationFunction(
+        builder, activation
+    )
+    _tfl_bidirectional_sequence_rnn_options.BidirectionalSequenceRNNOptionsAddMergeOutputs(
+        builder, merge_outputs
+    )
+    rnn_opts = _tfl_bidirectional_sequence_rnn_options.BidirectionalSequenceRNNOptionsEnd(builder)
+
+    rnn_op_code = _build_operator_code(builder, _tfl_builtin_operator.BIDIRECTIONAL_SEQUENCE_RNN)
+
+    def _t(buf_idx, shape):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, False)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    input_shape = [time, batch, input_size] if time_major else [batch, time, input_size]
+    output_prefix = [time, batch] if time_major else [batch, time]
+    output_shape = output_prefix + ([num_units * 2] if merge_outputs else [num_units])
+
+    tensors = [
+        _t(0, input_shape),  # 0: input
+        _t(1, [num_units, input_size]),  # 1: fw_weights
+        _t(2, [num_units, num_units]),  # 2: fw_recurrent_weights
+        _t(3, [num_units]),  # 3: fw_bias
+        _t(0, [batch, num_units]),  # 4: fw_hidden_state (model input)
+        _t(4, [num_units, input_size]),  # 5: bw_weights
+        _t(5, [num_units, num_units]),  # 6: bw_recurrent_weights
+        _t(6, [num_units]),  # 7: bw_bias
+        _t(0, [batch, num_units]),  # 8: bw_hidden_state (model input)
+    ]
+    buffers = [
+        _build_buffer(builder),  # 0: empty
+        _build_buffer(builder, fw_weights.tobytes()),  # 1
+        _build_buffer(builder, fw_recurrent_weights.tobytes()),  # 2
+        _build_buffer(builder, fw_bias.tobytes()),  # 3
+        _build_buffer(builder, bw_weights.tobytes()),  # 4
+        _build_buffer(builder, bw_recurrent_weights.tobytes()),  # 5
+        _build_buffer(builder, bw_bias.tobytes()),  # 6
+    ]
+    rnn_inputs = [*list(range(9)), -1, -1, -1]
+    if with_aux_input:
+        tensors.extend(
+            [
+                _t(len(buffers), input_shape),
+                _t(len(buffers) + 1, [num_units, input_size]),
+                _t(len(buffers) + 2, [num_units, input_size]),
+            ]
+        )
+        rnn_inputs[9:12] = [len(tensors) - 3, len(tensors) - 2, len(tensors) - 1]
+        buffers.extend(
+            [
+                _build_buffer(builder, np.zeros(input_shape, dtype=np.float32).tobytes()),
+                _build_buffer(
+                    builder, np.zeros((num_units, input_size), dtype=np.float32).tobytes()
+                ),
+                _build_buffer(
+                    builder, np.zeros((num_units, input_size), dtype=np.float32).tobytes()
+                ),
+            ]
+        )
+
+    if merge_outputs:
+        tensors.append(_t(0, output_shape))
+        outputs = [len(tensors) - 1]
+    else:
+        tensors.extend([_t(0, output_shape), _t(0, output_shape)])
+        outputs = [len(tensors) - 2, len(tensors) - 1]
+
+    rnn_op = _build_operator(
+        builder,
+        0,
+        rnn_inputs,
+        outputs,
+        builtin_options_type=_tfl_builtin_options.BidirectionalSequenceRNNOptions,
+        builtin_options=rnn_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[rnn_op],
+        inputs=[0, 4, 8],
+        outputs=outputs,
+    )
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[rnn_op_code],
+        buffers=buffers,
+    )
+
+
+def test_bidirectional_sequence_rnn_none_activation():
+    """BIDIRECTIONAL_SEQUENCE_RNN with NONE activation lowers the expected equations."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 1, 2, 2
+    fw_w = np.array([[1.0, 0.0], [0.5, -1.0]], dtype=np.float32)
+    fw_r = np.array([[0.25, 0.0], [0.0, 0.5]], dtype=np.float32)
+    fw_b = np.zeros(num_units, dtype=np.float32)
+    bw_w = np.array([[0.0, 1.0], [-0.5, 0.75]], dtype=np.float32)
+    bw_r = np.array([[0.1, 0.0], [0.0, 0.2]], dtype=np.float32)
+    bw_b = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_bidirectional_sequence_rnn_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            fw_w,
+            fw_r,
+            fw_b,
+            bw_w,
+            bw_r,
+            bw_b,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 1, 2), dtype="float32"),
+            fw_h: R.Tensor((2, 2), dtype="float32"),
+            bw_h: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 1, 4), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                x_t: R.Tensor((2, 2), dtype="float32") = R.squeeze(x, axis=[1])
+                fw_w_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(fw_w), axes=None)
+                fw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, fw_w_t, out_dtype="void")
+                fw_r_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(fw_r), axes=None)
+                fw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    fw_h, fw_r_t, out_dtype="void"
+                )
+                fw_out: R.Tensor((2, 2), dtype="float32") = R.add(
+                    R.add(fw_x, fw_h_proj), R.const(fw_b)
+                )
+                fw_stacked: R.Tensor((2, 1, 2), dtype="float32") = R.stack((fw_out,), axis=1)
+                bw_w_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(bw_w), axes=None)
+                bw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, bw_w_t, out_dtype="void")
+                bw_r_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(bw_r), axes=None)
+                bw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(
+                    bw_h, bw_r_t, out_dtype="void"
+                )
+                bw_out: R.Tensor((2, 2), dtype="float32") = R.add(
+                    R.add(bw_x, bw_h_proj), R.const(bw_b)
+                )
+                bw_stacked: R.Tensor((2, 1, 2), dtype="float32") = R.stack((bw_out,), axis=1)
+                gv: R.Tensor((2, 1, 4), dtype="float32") = R.concat(
+                    (fw_stacked, bw_stacked), axis=-1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_bidirectional_sequence_rnn_time_major():
+    """BIDIRECTIONAL_SEQUENCE_RNN preserves time-major output layout."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 3, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_bidirectional_sequence_rnn_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            recurrent,
+            bias,
+            weights,
+            recurrent,
+            bias,
+            ActivationFunctionType.NONE,
+            time_major=True,
+        )
+    )
+
+    fn = mod["main"]
+    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
+
+
+def test_bidirectional_sequence_rnn_rejects_aux_input():
+    """BIDIRECTIONAL_SEQUENCE_RNN rejects unsupported auxiliary input tensors."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 2, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="aux input"):
+        _load_model_from_buffer(
+            _build_bidirectional_sequence_rnn_model(
+                batch,
+                time,
+                input_size,
+                num_units,
+                weights,
+                recurrent,
+                bias,
+                weights,
+                recurrent,
+                bias,
+                ActivationFunctionType.NONE,
+                with_aux_input=True,
+            )
+        )
+
+
+# ── BIDIRECTIONAL_SEQUENCE_LSTM ──────────────────────────────────────────────
+
+
+def _build_bidirectional_sequence_lstm_model(
+    batch,
+    time,
+    input_size,
+    num_units,
+    fw_w_f,
+    fw_w_c,
+    fw_w_o,
+    fw_r_f,
+    fw_r_c,
+    fw_r_o,
+    fw_b_f,
+    fw_b_c,
+    fw_b_o,
+    bw_w_f,
+    bw_w_c,
+    bw_w_o,
+    bw_r_f,
+    bw_r_c,
+    bw_r_o,
+    bw_b_f,
+    bw_b_c,
+    bw_b_o,
+    activation,
+    *,
+    time_major=False,
+    merge_outputs=True,
+    cell_clip=0.0,
+    proj_clip=0.0,
+    with_aux_input=False,
+):
+    """Build a TFLite flatbuffer model with one BIDIRECTIONAL_SEQUENCE_LSTM op.
+
+    48 operator inputs. Forward LSTM: indices 0-17, Backward LSTM: indices 18-34,
+    States: indices 35-38.
+    """
+    builder = flatbuffers.Builder(8192)
+
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsStart(builder)
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsAddFusedActivationFunction(
+        builder, activation
+    )
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsAddTimeMajor(
+        builder, time_major
+    )
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsAddMergeOutputs(
+        builder, merge_outputs
+    )
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsAddCellClip(
+        builder, cell_clip
+    )
+    _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsAddProjClip(
+        builder, proj_clip
+    )
+    lstm_opts = _tfl_bidirectional_sequence_lstm_options.BidirectionalSequenceLSTMOptionsEnd(
+        builder
+    )
+
+    lstm_op_code = _build_operator_code(builder, _tfl_builtin_operator.BIDIRECTIONAL_SEQUENCE_LSTM)
+
+    def _t(buf_idx, shape, is_variable=False):
+        shape_vec = _tflite_shape(builder, shape)
+        _tfl_tensor.TensorStart(builder)
+        _tfl_tensor.TensorAddBuffer(builder, buf_idx)
+        _tfl_tensor.TensorAddHasRank(builder, True)
+        _tfl_tensor.TensorAddIsVariable(builder, is_variable)
+        _tfl_tensor.TensorAddShape(builder, shape_vec)
+        _tfl_tensor.TensorAddType(builder, _tfl_tensor_type.FLOAT32)
+        return _tfl_tensor.TensorEnd(builder)
+
+    input_shape = [time, batch, input_size] if time_major else [batch, time, input_size]
+    output_size = num_units * 2 if merge_outputs else num_units
+    output_shape = ([time, batch] if time_major else [batch, time]) + [output_size]
+
+    tensors = [
+        _t(0, input_shape),  # 0: input
+        _t(1, [num_units, input_size]),  # 1: fw_w_f
+        _t(2, [num_units, input_size]),  # 2: fw_w_c
+        _t(3, [num_units, input_size]),  # 3: fw_w_o
+        _t(4, [num_units, num_units]),  # 4: fw_r_f
+        _t(5, [num_units, num_units]),  # 5: fw_r_c
+        _t(6, [num_units, num_units]),  # 6: fw_r_o
+        _t(7, [num_units]),  # 7: fw_b_f
+        _t(8, [num_units]),  # 8: fw_b_c
+        _t(9, [num_units]),  # 9: fw_b_o
+        _t(10, [num_units, input_size]),  # 10: bw_w_f
+        _t(11, [num_units, input_size]),  # 11: bw_w_c
+        _t(12, [num_units, input_size]),  # 12: bw_w_o
+        _t(13, [num_units, num_units]),  # 13: bw_r_f
+        _t(14, [num_units, num_units]),  # 14: bw_r_c
+        _t(15, [num_units, num_units]),  # 15: bw_r_o
+        _t(16, [num_units]),  # 16: bw_b_f
+        _t(17, [num_units]),  # 17: bw_b_c
+        _t(18, [num_units]),  # 18: bw_b_o
+        _t(0, [batch, num_units]),  # 19: fw_activation_state (model input)
+        _t(0, [batch, num_units]),  # 20: fw_cell_state (model input)
+        _t(0, [batch, num_units]),  # 21: bw_activation_state (model input)
+        _t(0, [batch, num_units]),  # 22: bw_cell_state (model input)
+        _t(0, output_shape),  # 23: output
+    ]
+
+    # Build operator inputs: 48 total, with unsupported optional inputs set to -1.
+    fw_inputs = [0, -1, 1, 2, 3, -1, 4, 5, 6, -1, -1, -1, -1, 7, 8, 9, -1, -1]
+    bw_inputs = [-1, 10, 11, 12, -1, 13, 14, 15, -1, -1, -1, -1, 16, 17, 18, -1, -1]
+    states = [19, 20, 21, 22]
+    aux_inputs = [-1] * 9
+    if with_aux_input:
+        tensors.append(_t(0, input_shape))
+        aux_inputs[0] = len(tensors) - 1
+    lstm_inputs = fw_inputs + bw_inputs + states + aux_inputs
+
+    lstm_op = _build_operator(
+        builder,
+        0,
+        lstm_inputs,
+        [23],
+        builtin_options_type=_tfl_builtin_options.BidirectionalSequenceLSTMOptions,
+        builtin_options=lstm_opts,
+    )
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[lstm_op],
+        inputs=[0, 19, 20, 21, 22],
+        outputs=[23],
+    )
+
+    buffers = [
+        _build_buffer(builder),  # 0: empty
+        _build_buffer(builder, fw_w_f.tobytes()),  # 1
+        _build_buffer(builder, fw_w_c.tobytes()),  # 2
+        _build_buffer(builder, fw_w_o.tobytes()),  # 3
+        _build_buffer(builder, fw_r_f.tobytes()),  # 4
+        _build_buffer(builder, fw_r_c.tobytes()),  # 5
+        _build_buffer(builder, fw_r_o.tobytes()),  # 6
+        _build_buffer(builder, fw_b_f.tobytes()),  # 7
+        _build_buffer(builder, fw_b_c.tobytes()),  # 8
+        _build_buffer(builder, fw_b_o.tobytes()),  # 9
+        _build_buffer(builder, bw_w_f.tobytes()),  # 10
+        _build_buffer(builder, bw_w_c.tobytes()),  # 11
+        _build_buffer(builder, bw_w_o.tobytes()),  # 12
+        _build_buffer(builder, bw_r_f.tobytes()),  # 13
+        _build_buffer(builder, bw_r_c.tobytes()),  # 14
+        _build_buffer(builder, bw_r_o.tobytes()),  # 15
+        _build_buffer(builder, bw_b_f.tobytes()),  # 16
+        _build_buffer(builder, bw_b_c.tobytes()),  # 17
+        _build_buffer(builder, bw_b_o.tobytes()),  # 18
+    ]
+
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[lstm_op_code],
+        buffers=buffers,
+    )
+
+
+def test_bidirectional_sequence_lstm_none_activation():
+    """BIDIRECTIONAL_SEQUENCE_LSTM with NONE activation keeps both cell activations linear."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 1, 2, 2
+
+    def _eye_or_randn(m, n):
+        if m == n:
+            return np.eye(m, dtype=np.float32)
+        return np.arange(m * n, dtype=np.float32).reshape(m, n) / 10.0
+
+    fw_w_f = _eye_or_randn(num_units, input_size)
+    fw_w_c = np.array([[1.0, -0.5], [0.25, 0.75]], dtype=np.float32)
+    fw_w_o = np.array([[0.5, 0.25], [-0.25, 1.0]], dtype=np.float32)
+    fw_r_f = _eye_or_randn(num_units, num_units)
+    fw_r_c = np.array([[0.2, 0.0], [0.0, 0.3]], dtype=np.float32)
+    fw_r_o = np.array([[0.1, 0.0], [0.0, 0.2]], dtype=np.float32)
+    fw_b_f = np.zeros(num_units, dtype=np.float32)
+    fw_b_c = np.zeros(num_units, dtype=np.float32)
+    fw_b_o = np.zeros(num_units, dtype=np.float32)
+
+    bw_w_f = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    bw_w_c = np.array([[0.5, 0.5], [-0.5, 1.0]], dtype=np.float32)
+    bw_w_o = np.array([[0.25, -0.25], [0.75, 0.5]], dtype=np.float32)
+    bw_r_f = np.array([[0.4, 0.0], [0.0, 0.6]], dtype=np.float32)
+    bw_r_c = np.array([[0.3, 0.0], [0.0, 0.2]], dtype=np.float32)
+    bw_r_o = np.array([[0.2, 0.0], [0.0, 0.1]], dtype=np.float32)
+    bw_b_f = np.zeros(num_units, dtype=np.float32)
+    bw_b_c = np.zeros(num_units, dtype=np.float32)
+    bw_b_o = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_bidirectional_sequence_lstm_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            fw_w_f,
+            fw_w_c,
+            fw_w_o,
+            fw_r_f,
+            fw_r_c,
+            fw_r_o,
+            fw_b_f,
+            fw_b_c,
+            fw_b_o,
+            bw_w_f,
+            bw_w_c,
+            bw_w_o,
+            bw_r_f,
+            bw_r_c,
+            bw_r_o,
+            bw_b_f,
+            bw_b_c,
+            bw_b_o,
+            ActivationFunctionType.NONE,
+        )
+    )
+
+    script = mod.script(show_meta=True)
+    assert script.count("R.sigmoid") == 4
+    assert "R.tanh" not in script
+    assert script.count("R.stack") == 2
+    assert "R.concat" in script
+
+
+def test_bidirectional_sequence_lstm_time_major():
+    """BIDIRECTIONAL_SEQUENCE_LSTM preserves time-major output layout."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 3, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    mod = _load_model_from_buffer(
+        _build_bidirectional_sequence_lstm_model(
+            batch,
+            time,
+            input_size,
+            num_units,
+            weights,
+            weights,
+            weights,
+            recurrent,
+            recurrent,
+            recurrent,
+            bias,
+            bias,
+            bias,
+            weights,
+            weights,
+            weights,
+            recurrent,
+            recurrent,
+            recurrent,
+            bias,
+            bias,
+            bias,
+            ActivationFunctionType.NONE,
+            time_major=True,
+        )
+    )
+
+    fn = mod["main"]
+    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
+
+
+def test_bidirectional_sequence_lstm_rejects_aux_input():
+    """BIDIRECTIONAL_SEQUENCE_LSTM rejects unsupported auxiliary inputs."""
+    from tflite.ActivationFunctionType import ActivationFunctionType
+
+    batch, time, input_size, num_units = 2, 2, 2, 2
+    weights = np.eye(num_units, input_size, dtype=np.float32)
+    recurrent = np.eye(num_units, dtype=np.float32)
+    bias = np.zeros(num_units, dtype=np.float32)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="aux input"):
+        _load_model_from_buffer(
+            _build_bidirectional_sequence_lstm_model(
+                batch,
+                time,
+                input_size,
+                num_units,
+                weights,
+                weights,
+                weights,
+                recurrent,
+                recurrent,
+                recurrent,
+                bias,
+                bias,
+                bias,
+                weights,
+                weights,
+                weights,
+                recurrent,
+                recurrent,
+                recurrent,
+                bias,
+                bias,
+                bias,
+                ActivationFunctionType.NONE,
+                with_aux_input=True,
+            )
+        )
 
 
 # ── UNIDIRECTIONAL_SEQUENCE_RNN ───────────────────────────────────────────────
