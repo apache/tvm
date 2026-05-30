@@ -283,7 +283,8 @@ runs:
           auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
           -w "{dest_dir}" "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-          delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib
+          DYLD_LIBRARY_PATH="/opt/llvm/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+          delocate-wheel --exclude libtvm_ffi.dylib
           --require-archs "{delocate_archs}" -w "{dest_dir}" -v "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
           python "{project}/ci/scripts/package/rewrite_wheel.py" "{wheel}"
