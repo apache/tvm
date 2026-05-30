@@ -532,7 +532,7 @@ set_target_properties(tvm_runtime_extra PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
-tvm_set_python_module_relative_rpath(tvm_runtime_extra)
+tvm_set_relative_rpath(tvm_runtime_extra)
 
 install(TARGETS tvm_runtime_extra DESTINATION lib${LIB_SUFFIX})
 if(TVM_BUILD_PYTHON_MODULE)
@@ -864,9 +864,9 @@ if(TVM_BUILD_PYTHON_MODULE)
   # Keep wheel-internal shared libraries relocatable in both build and install
   # trees.  Several runtime DSOs link against libtvm_runtime.so and are installed
   # into the same tvm/lib directory inside the wheel.
-  tvm_set_python_module_relative_rpath(tvm_compiler)
-  tvm_set_python_module_relative_rpath(tvm_runtime)
-  tvm_set_python_module_relative_rpath(tvm_runtime_extra)
+  tvm_set_relative_rpath(tvm_compiler)
+  tvm_set_relative_rpath(tvm_runtime)
+  tvm_set_relative_rpath(tvm_runtime_extra)
 
   # Install compiled shared libraries into <project>/lib so that
   # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find
@@ -876,11 +876,11 @@ if(TVM_BUILD_PYTHON_MODULE)
 
   # Install third-party compiled dependencies into the same lib/ dir.
   if(TARGET fpA_intB_gemm)
-    tvm_set_python_module_relative_rpath(fpA_intB_gemm)
+    tvm_set_relative_rpath(fpA_intB_gemm)
     install(TARGETS fpA_intB_gemm DESTINATION "lib")
   endif()
   if(TARGET flash_attn)
-    tvm_set_python_module_relative_rpath(flash_attn)
+    tvm_set_relative_rpath(flash_attn)
     install(TARGETS flash_attn DESTINATION "lib")
   endif()
 

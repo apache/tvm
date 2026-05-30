@@ -18,14 +18,14 @@
 # Helpers for configuring library targets.
 
 #######################################################
-# tvm_set_python_module_relative_rpath(target_name)
+# tvm_set_relative_rpath(target_name)
 #
-# Give a target a relative rpath ($ORIGIN / @loader_path) so that, inside a
-# Python wheel, intra-package shared libraries resolve each other from their
-# own directory. No-op unless TVM_BUILD_PYTHON_MODULE is set and the target
-# exists.
-function(tvm_set_python_module_relative_rpath target_name)
-  if(NOT TVM_BUILD_PYTHON_MODULE OR NOT TARGET ${target_name})
+# Give a target a relative rpath ($ORIGIN / @loader_path) so that sibling
+# shared libraries in the same directory resolve each other regardless of the
+# install location (e.g. inside a Python wheel). No-op if the target does not
+# exist.
+function(tvm_set_relative_rpath target_name)
+  if(NOT TARGET ${target_name})
     return()
   endif()
 
@@ -63,7 +63,7 @@ function(tvm_configure_runtime_module target_name)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   )
-  tvm_set_python_module_relative_rpath(${target_name})
+  tvm_set_relative_rpath(${target_name})
   install(TARGETS ${target_name} DESTINATION lib${LIB_SUFFIX})
   if(TVM_BUILD_PYTHON_MODULE)
     install(TARGETS ${target_name} DESTINATION "lib")
