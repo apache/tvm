@@ -70,7 +70,7 @@ def verify(TestClass, expected=None):
 
     # Run E2E test only on nightly
     if "CI_ENV_NIGHTLY" not in os.environ:
-        return
+        return mod
 
     # Inputs
     tf_inputs = []
@@ -97,6 +97,8 @@ def verify(TestClass, expected=None):
             np.testing.assert_allclose(tf_out.numpy(), tvm_out.numpy(), rtol=1e-5, atol=1e-5)
     else:
         np.testing.assert_allclose(tf_output.numpy(), tvm_output.numpy(), rtol=1e-5, atol=1e-5)
+
+    return mod
 
 
 def _verify_random_with_inputs(cfunc, inputs):
@@ -556,8 +558,8 @@ def test_range(start, limit, delta, dtype):
     verify(Range)
 
 
-def test_range_dynamic_scalar_inputs_not_supported():
-    """RANGE conversion currently rejects dynamic scalar inputs."""
+def test_range_dynamic():
+    """RANGE with dynamic scalar inputs lowers to relax.op.arange."""
 
     class RangeDynamic(tf.Module):
         @tf.function(
@@ -570,8 +572,7 @@ def test_range_dynamic_scalar_inputs_not_supported():
         def func(self, start, limit, delta):
             return tf.range(start, limit, delta, dtype=tf.int32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
-        verify(RangeDynamic)
+    verify(RangeDynamic)
 
 
 def test_tile_ir():
@@ -11255,6 +11256,170 @@ def test_unidirectional_sequence_rnn_time_major():
     # Output is always batch-major [batch, time, num_units].
     out_shape = fn.ret_struct_info.shape
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
+
+
+def test_sign():
+    """SIGN → relax.op.sign (unary elemwise, float and int)."""
+
+    class Sign(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 4), dtype=tf.float32)])
+        def func(self, x):
+            return tf.math.sign(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4), dtype="float32") = R.sign(x)
+                R.output(gv)
+            return gv
+
+    verify(Sign, Expected)
+
+    class SignInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.math.sign(x)
+
+    verify(SignInt)
+
+
+def test_unique():
+    """UNIQUE → relax.op.unique, two-output (values, inverse_indices)."""
+
+    class Unique(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(6,), dtype=tf.float32)])
+        def func(self, x):
+            y, idx = tf.unique(x)
+            return y, idx
+
+    verify(Unique)
+
+    class UniqueInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(8,), dtype=tf.int32)])
+        def func(self, x):
+            y, idx = tf.unique(x)
+            return y, idx
+
+    verify(UniqueInt)
+
+
+def test_bucketize():
+    """BUCKETIZE → relax.op.bucketize with constant boundaries from BucketizeOptions."""
+
+    class Bucketize(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(5,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[0.0, 1.0, 2.0])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((5,), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5,), dtype="int32") = R.bucketize(
+                    x,
+                    R.const(np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"),
+                    out_int32=True,
+                    right=True,
+                )
+                R.output(gv)
+            return gv
+
+    verify(Bucketize, Expected)
+
+    class BucketizeEmpty(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4,), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[])
+
+    verify(BucketizeEmpty)
+
+
+def _build_fake_quant_model(shape, opt_min, opt_max, num_bits=8, narrow_range=False):
+    """Build a minimal TFLite flatbuffer containing a single FAKE_QUANT op.
+
+    tf.quantization.fake_quant_with_min_max_args folds into QUANTIZE+DEQUANTIZE
+    in TFLite 2.x and cannot be used to exercise the FAKE_QUANT (opcode 80)
+    converter path.  This helper builds the flatbuffer directly.
+    """
+    _tfl_fq = _get_tflite_schema_module("FakeQuantOptions")
+    builder = flatbuffers.Builder(512)
+
+    _tfl_fq.FakeQuantOptionsStart(builder)
+    _tfl_fq.FakeQuantOptionsAddMin(builder, opt_min)
+    _tfl_fq.FakeQuantOptionsAddMax(builder, opt_max)
+    _tfl_fq.FakeQuantOptionsAddNumBits(builder, num_bits)
+    _tfl_fq.FakeQuantOptionsAddNarrowRange(builder, narrow_range)
+    fq_opts = _tfl_fq.FakeQuantOptionsEnd(builder)
+
+    input_tensor = _build_tensor(builder, buffer_idx=1, shape=list(shape))
+    output_tensor = _build_tensor(builder, buffer_idx=2, shape=list(shape))
+
+    op = _build_operator(
+        builder,
+        opcode_index=0,
+        inputs=[0],
+        outputs=[1],
+        builtin_options_type=_tfl_builtin_options.FakeQuantOptions,
+        builtin_options=fq_opts,
+    )
+    opcode = _build_operator_code(builder, _tfl_builtin_operator.FAKE_QUANT)
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    buffers = [_build_buffer(builder), _build_buffer(builder), _build_buffer(builder)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[opcode], buffers=buffers
+    )
+
+
+def _load_fake_quant_module(shape, opt_min, opt_max, num_bits=8, narrow_range=False):
+    model_bytes = _build_fake_quant_model(shape, opt_min, opt_max, num_bits, narrow_range)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(model_bytes, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+    return mod
+
+
+def test_fake_quant():
+    """FAKE_QUANT op — standard range, narrow range, 4-bit, and degenerate (min == max)."""
+    # Standard, narrow-range, and 4-bit cases: verify conversion succeeds (no crash).
+    _load_fake_quant_module((2, 4), -1.0, 1.0, num_bits=8, narrow_range=False)
+    _load_fake_quant_module((2, 4), -1.0, 1.0, num_bits=8, narrow_range=True)
+    _load_fake_quant_module((3, 3), 0.0, 15.0, num_bits=4, narrow_range=False)
+
+    # Degenerate range (min == max → scale == 0).  The fix must emit a plain
+    # clip rather than dividing by zero.  We check the IR directly to confirm
+    # that the output is exactly R.clip(x, min=v, max=v) and that no division
+    # node is present.
+    mod = _load_fake_quant_module((2, 3), 0.5, 0.5, num_bits=8, narrow_range=False)
+
+    @I.ir_module
+    class ExpectedDegenerate:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.clip(x, min=0.5, max=0.5)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, ExpectedDegenerate)
+    ir_text = mod.script()
+    assert "R.divide(" not in ir_text, "Degenerate FAKE_QUANT must not emit a division node"
 
 
 if __name__ == "__main__":

@@ -203,6 +203,7 @@ class OperatorConverter:
             "BITCAST": self.convert_bitcast,
             "BROADCAST_TO": self.convert_broadcast_to,
             "BROADCAST_ARGS": self.convert_broadcast_args,
+            "BUCKETIZE": self.convert_bucketize,
             "CALL": self.convert_call,
             "CALL_ONCE": self.convert_call_once,
             "CAST": self.convert_cast,
@@ -299,6 +300,7 @@ class OperatorConverter:
             "RELU": self.convert_relu,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
+            "RELU_0_TO_1": self.convert_relu_0_to_1,
             "RESHAPE": self.convert_reshape,
             "RESIZE_BILINEAR": self.convert_resize_bilinear,
             "RESIZE_NEAREST_NEIGHBOR": self.convert_resize_nearest_neighbor,
@@ -313,6 +315,7 @@ class OperatorConverter:
                 self._convert_segment_op, op_name="SEGMENT_SUM", reduction="add"
             ),
             "SHAPE": self.convert_shape,
+            "SIGN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sign),
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
             "SLICE": self.convert_slice,
             "SOFTMAX": self.convert_softmax,
@@ -398,6 +401,7 @@ class OperatorConverter:
             "TRANSPOSE": self.convert_transpose,
             "UNPACK": self.convert_unpack,
             "UNIDIRECTIONAL_SEQUENCE_RNN": self.convert_unidirectional_sequence_rnn,
+            "UNIQUE": self.convert_unique,
             "UNSORTED_SEGMENT_MIN": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_MIN", reduction="min"
             ),
@@ -893,10 +897,20 @@ class OperatorConverter:
 
                 # Check that the scale and zero points are valid.
                 if is_qnn_params_valid:
-                    qnn_params = dict()
-                    qnn_params["scale"] = relax.const(scale, "float32")
-                    qnn_params["zero_point"] = relax.const(zero_point, "int32")
-                    qnn_params["axis"] = int(tflite_qnn_params.QuantizedDimension())
+                    from tflite.TensorType import TensorType as TFLiteTensorType
+
+                    if tensor.Type() == TFLiteTensorType.FLOAT32:
+                        # Float32 tensors may carry qnn_params as annotations
+                        # (e.g. FAKE_QUANT outputs) but are not truly quantized;
+                        # treat them as unquantized so the converter can proceed.
+                        is_qnn_params_valid = False
+                    else:
+                        qnn_params = dict()
+                        qnn_params["scale"] = relax.const(scale, "float32")
+                        qnn_params["zero_point"] = relax.const(zero_point, "int32")
+                        raise NotImplementedError(
+                            "Quantized TFLite models are not yet supported in the Relax frontend"
+                        )
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
@@ -1378,7 +1392,12 @@ class OperatorConverter:
         return out
 
     def convert_range(self, op):
-        """Convert TFLite Range"""
+        """Convert TFLite Range
+
+        Handles both constant and dynamic scalar inputs.  When all three operands
+        are compile-time constants the output shape is fully static; when any
+        operand is a dynamic Relax expr the shape is symbolic.
+        """
 
         from tflite.TensorType import TensorType
 
@@ -1387,28 +1406,24 @@ class OperatorConverter:
 
         start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
 
-        def get_scalar_value(tensor):
+        def get_scalar_or_expr(tensor):
+            """Return a Python scalar for constants, a Relax expr for dynamic inputs."""
             if self.has_expr(tensor.tensor_idx):
                 expr = self.get_expr(tensor.tensor_idx)
                 if isinstance(expr, relax.Constant):
                     value = expr.data.numpy()
-                else:
-                    # relax.op.arange currently expects scalar-like values here.
-                    # Keep dynamic scalar RANGE explicit until frontend support is added.
-                    raise tvm.error.OpNotImplemented(
-                        "TFLite RANGE with dynamic scalar inputs is not supported in"
-                        "Relax frontend yet."
-                    )
-            else:
-                value = self.get_tensor_value(tensor)
-
+                    assert value.size == 1, "RANGE scalar input must have exactly one element"
+                    return value.item()
+                # Dynamic: pass the 0-d tensor expr directly to relax.op.arange.
+                return expr
+            value = self.get_tensor_value(tensor)
             # TFLite RANGE operands are scalar tensors in the flatbuffer.
             assert value.size == 1, "RANGE scalar input must have exactly one element"
             return value.item()
 
-        start_value = get_scalar_value(start)
-        limit_value = get_scalar_value(limit)
-        delta_value = get_scalar_value(delta)
+        start_value = get_scalar_or_expr(start)
+        limit_value = get_scalar_or_expr(limit)
+        delta_value = get_scalar_or_expr(delta)
 
         # out type inference
         if delta.tensor.Type() == TensorType.FLOAT32:
@@ -1560,6 +1575,46 @@ class OperatorConverter:
             out = self.quantize(out, output_tensor)
         else:
             out = relax.op.clip(in_expr, min=-1, max=1)
+
+        return out
+
+    def convert_relu_0_to_1(self, op):
+        """Convert TFLite RELU_0_TO_1 — clips input to [0, 1]."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
+
+            def quantize(x):
+                return float(math.floor(x / scale_val + 0.5) + zero_point_val)
+
+            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
+            qmin = float(tvm.tirx.min_value(input_tensor_type_str).value)
+            qmax = float(tvm.tirx.max_value(input_tensor_type_str).value)
+            out = relax.op.clip(
+                in_expr, min=max(qmin, quantize(0.0)), max=min(qmax, quantize(1.0))
+            )
+        else:
+            out = relax.op.clip(in_expr, min=0, max=1)
+
+        if output_tensor.qnn_params:
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = _qnn.op.requantize(
+                out,
+                input_scale=input_tensor.qnn_params["scale"],
+                input_zero_point=input_tensor.qnn_params["zero_point"],
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+            )
 
         return out
 
@@ -4829,6 +4884,32 @@ class OperatorConverter:
             relax.op.where(s1_is_one, s0, relax.op.maximum(s0, s1)),
         )
 
+    def convert_bucketize(self, op):
+        """Convert TFLite BUCKETIZE → relax.op.bucketize.
+
+        Boundaries are stored as a repeated float in BucketizeOptions, not as a
+        tensor input, so we materialise them as a compile-time constant.
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.BucketizeOptions import BucketizeOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        in_expr = self.get_tensor_expr(input_tensors[0])
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.BucketizeOptions
+        op_options = op.BuiltinOptions()
+        bucket_options = BucketizeOptions()
+        bucket_options.Init(op_options.Bytes, op_options.Pos)
+
+        boundaries = [
+            bucket_options.Boundaries(i) for i in range(bucket_options.BoundariesLength())
+        ]
+        boundaries_const = relax.const(np.array(boundaries, dtype="float32"))
+
+        out = relax.op.bucketize(in_expr, boundaries_const, out_int32=True, right=True)
+        return out
+
     def convert_cast(self, op):
         """Convert TFLite CAST"""
 
@@ -5509,6 +5590,47 @@ class OperatorConverter:
 
         # Stack timestep outputs: [batch, time, num_units].
         return relax.op.stack(outputs, axis=1)
+
+    def convert_unique(self, op):
+        """Convert TFLite UNIQUE → relax.op.unique.
+
+        TFLite always emits two outputs: unique values and the per-element index
+        back into the unique values.  The index dtype (int32 or int64) is encoded
+        in UniqueOptions.
+        """
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.UniqueOptions import UniqueOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        in_expr = self.get_tensor_expr(input_tensors[0])
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 2, "output tensors length should be 2"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.UniqueOptions
+        op_options = op.BuiltinOptions()
+        unique_options = UniqueOptions()
+        unique_options.Init(op_options.Bytes, op_options.Pos)
+
+        idx_dtype = self.get_tensor_type_str(output_tensors[1].tensor.Type())
+
+        # relax.op.unique returns (values, indices, inverse_indices, counts).
+        # TFLite expects (values, indices) where indices map each input element
+        # to its position in the unique output.  That corresponds to inverse_indices.
+        out = relax.op.unique(
+            in_expr,
+            sorted=False,
+            return_index=False,
+            return_inverse=True,
+            return_counts=False,
+            dim=None,
+        )
+        values = relax.TupleGetItem(out, 0)
+        inverse_indices = relax.TupleGetItem(out, 1)
+        if idx_dtype != "int32":
+            inverse_indices = relax.op.astype(inverse_indices, idx_dtype)
+        return relax.Tuple([values, inverse_indices])
 
     """
     def convert_unidirectional_sequence_lstm(self, op):
@@ -6791,7 +6913,18 @@ class OperatorConverter:
         self.set_prefetched_node(output_tensor.tensor_idx, dense_weight)
 
     def convert_fake_quant(self, op):
-        """Convert TFLite FAKE_QUANT"""
+        """Convert TFLite FAKE_QUANT.
+
+        Implements the same nudging logic as the TFLite reference kernel:
+          https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/kernels/fake_quant.cc
+
+        Fixes vs the previous implementation:
+          * Degenerate range (opt_min == opt_max, scale == 0): early-return a
+            passthrough clip rather than dividing by zero.
+          * Use ``quant_max - quant_min`` (= num_levels) consistently as the
+            scale denominator, which is correct for both narrow_range and
+            standard configs.
+        """
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
@@ -6816,7 +6949,13 @@ class OperatorConverter:
 
         quant_min = 1 if narrow_range else 0
         quant_max = (1 << num_bits) - 1
-        scale = (opt_max - opt_min) / (quant_max - quant_min)
+        num_levels = quant_max - quant_min  # 254 for narrow int8, 255 for standard int8
+
+        # Guard degenerate range: scale == 0 would cause division by zero.
+        if opt_max == opt_min:
+            return relax.op.clip(in_expr, opt_min, opt_max)
+
+        scale = (opt_max - opt_min) / num_levels
 
         zero_point_from_min = quant_min - opt_min / scale
         if zero_point_from_min <= quant_min:
@@ -6829,13 +6968,13 @@ class OperatorConverter:
         nudged_min = (quant_min - nudged_zero_point) * scale
         nudged_max = (quant_max - nudged_zero_point) * scale
 
-        nudged_min_expr = relax.op.const(nudged_min)
+        nudged_min_expr = relax.const(nudged_min)
         clamped = relax.op.clip(in_expr, nudged_min, nudged_max)
         clamped_shifted = relax.op.subtract(clamped, nudged_min_expr)
 
-        half = relax.op.const(0.5)
-        one = relax.op.const(1.0)
-        scale_expr = relax.op.const(scale)
+        half = relax.const(0.5)
+        one = relax.const(1.0)
+        scale_expr = relax.const(scale)
         inv_scale = relax.op.divide(one, scale_expr)
         rounded = relax.op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
         return relax.op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
