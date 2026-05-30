@@ -897,10 +897,20 @@ class OperatorConverter:
 
                 # Check that the scale and zero points are valid.
                 if is_qnn_params_valid:
-                    qnn_params = dict()
-                    qnn_params["scale"] = relax.const(scale, "float32")
-                    qnn_params["zero_point"] = relax.const(zero_point, "int32")
-                    qnn_params["axis"] = int(tflite_qnn_params.QuantizedDimension())
+                    from tflite.TensorType import TensorType as TFLiteTensorType
+
+                    if tensor.Type() == TFLiteTensorType.FLOAT32:
+                        # Float32 tensors may carry qnn_params as annotations
+                        # (e.g. FAKE_QUANT outputs) but are not truly quantized;
+                        # treat them as unquantized so the converter can proceed.
+                        is_qnn_params_valid = False
+                    else:
+                        qnn_params = dict()
+                        qnn_params["scale"] = relax.const(scale, "float32")
+                        qnn_params["zero_point"] = relax.const(zero_point, "int32")
+                        raise NotImplementedError(
+                            "Quantized TFLite models are not yet supported in the Relax frontend"
+                        )
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
@@ -4897,7 +4907,7 @@ class OperatorConverter:
         ]
         boundaries_const = relax.const(np.array(boundaries, dtype="float32"))
 
-        out = relax.op.bucketize(in_expr, boundaries_const, right=True)
+        out = relax.op.bucketize(in_expr, boundaries_const, out_int32=True, right=True)
         return out
 
     def convert_cast(self, op):
@@ -6958,13 +6968,13 @@ class OperatorConverter:
         nudged_min = (quant_min - nudged_zero_point) * scale
         nudged_max = (quant_max - nudged_zero_point) * scale
 
-        nudged_min_expr = relax.op.const(nudged_min)
+        nudged_min_expr = relax.const(nudged_min)
         clamped = relax.op.clip(in_expr, nudged_min, nudged_max)
         clamped_shifted = relax.op.subtract(clamped, nudged_min_expr)
 
-        half = relax.op.const(0.5)
-        one = relax.op.const(1.0)
-        scale_expr = relax.op.const(scale)
+        half = relax.const(0.5)
+        one = relax.const(1.0)
+        scale_expr = relax.const(scale)
         inv_scale = relax.op.divide(one, scale_expr)
         rounded = relax.op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
         return relax.op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)

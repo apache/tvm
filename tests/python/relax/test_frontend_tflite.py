@@ -70,7 +70,7 @@ def verify(TestClass, expected=None):
 
     # Run E2E test only on nightly
     if "CI_ENV_NIGHTLY" not in os.environ:
-        return
+        return mod
 
     # Inputs
     tf_inputs = []
@@ -97,6 +97,8 @@ def verify(TestClass, expected=None):
             np.testing.assert_allclose(tf_out.numpy(), tvm_out.numpy(), rtol=1e-5, atol=1e-5)
     else:
         np.testing.assert_allclose(tf_output.numpy(), tvm_output.numpy(), rtol=1e-5, atol=1e-5)
+
+    return mod
 
 
 def _verify_random_with_inputs(cfunc, inputs):
@@ -11318,10 +11320,12 @@ def test_bucketize():
         def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((5,), dtype="int32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((3,), dtype="float32") = R.const(
-                    np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"
+                gv: R.Tensor((5,), dtype="int32") = R.bucketize(
+                    x,
+                    R.const(np.array([0.0, 1.0, 2.0], dtype="float32"), "float32"),
+                    out_int32=True,
+                    right=True,
                 )
-                gv: R.Tensor((5,), dtype="int32") = R.bucketize(x, lv, right=False)
                 R.output(gv)
             return gv
 
@@ -11335,46 +11339,73 @@ def test_bucketize():
     verify(BucketizeEmpty)
 
 
+def _build_fake_quant_model(shape, opt_min, opt_max, num_bits=8, narrow_range=False):
+    """Build a minimal TFLite flatbuffer containing a single FAKE_QUANT op.
+
+    tf.quantization.fake_quant_with_min_max_args folds into QUANTIZE+DEQUANTIZE
+    in TFLite 2.x and cannot be used to exercise the FAKE_QUANT (opcode 80)
+    converter path.  This helper builds the flatbuffer directly.
+    """
+    _tfl_fq = _get_tflite_schema_module("FakeQuantOptions")
+    builder = flatbuffers.Builder(512)
+
+    _tfl_fq.FakeQuantOptionsStart(builder)
+    _tfl_fq.FakeQuantOptionsAddMin(builder, opt_min)
+    _tfl_fq.FakeQuantOptionsAddMax(builder, opt_max)
+    _tfl_fq.FakeQuantOptionsAddNumBits(builder, num_bits)
+    _tfl_fq.FakeQuantOptionsAddNarrowRange(builder, narrow_range)
+    fq_opts = _tfl_fq.FakeQuantOptionsEnd(builder)
+
+    input_tensor = _build_tensor(builder, buffer_idx=1, shape=list(shape))
+    output_tensor = _build_tensor(builder, buffer_idx=2, shape=list(shape))
+
+    op = _build_operator(
+        builder,
+        opcode_index=0,
+        inputs=[0],
+        outputs=[1],
+        builtin_options_type=_tfl_builtin_options.FakeQuantOptions,
+        builtin_options=fq_opts,
+    )
+    opcode = _build_operator_code(builder, _tfl_builtin_operator.FAKE_QUANT)
+
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    buffers = [_build_buffer(builder), _build_buffer(builder), _build_buffer(builder)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[opcode], buffers=buffers
+    )
+
+
+def _load_fake_quant_module(shape, opt_min, opt_max, num_bits=8, narrow_range=False):
+    model_bytes = _build_fake_quant_model(shape, opt_min, opt_max, num_bits, narrow_range)
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(model_bytes, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+    return mod
+
+
 def test_fake_quant():
-    """FAKE_QUANT — standard range, narrow range, and degenerate (min == max)."""
-
-    class FakeQuantStandard(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
-        def func(self, x):
-            return tf.quantization.fake_quant_with_min_max_args(
-                x, min=-1.0, max=1.0, num_bits=8, narrow_range=False
-            )
-
-    verify(FakeQuantStandard)
-
-    class FakeQuantNarrowRange(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.float32)])
-        def func(self, x):
-            return tf.quantization.fake_quant_with_min_max_args(
-                x, min=-1.0, max=1.0, num_bits=8, narrow_range=True
-            )
-
-    verify(FakeQuantNarrowRange)
-
-    class FakeQuant4Bit(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.quantization.fake_quant_with_min_max_args(
-                x, min=0.0, max=15.0, num_bits=4, narrow_range=False
-            )
-
-    verify(FakeQuant4Bit)
+    """FAKE_QUANT op — standard range, narrow range, 4-bit, and degenerate (min == max)."""
+    # Standard, narrow-range, and 4-bit cases: verify conversion succeeds (no crash).
+    _load_fake_quant_module((2, 4), -1.0, 1.0, num_bits=8, narrow_range=False)
+    _load_fake_quant_module((2, 4), -1.0, 1.0, num_bits=8, narrow_range=True)
+    _load_fake_quant_module((3, 3), 0.0, 15.0, num_bits=4, narrow_range=False)
 
     # Degenerate range (min == max → scale == 0).  The fix must emit a plain
     # clip rather than dividing by zero.  We check the IR directly to confirm
     # that the output is exactly R.clip(x, min=v, max=v) and that no division
     # node is present.
-    class FakeQuantDegenerate(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.quantization.fake_quant_with_min_max_args(
-                x, min=0.5, max=0.5, num_bits=8, narrow_range=False
-            )
+    mod = _load_fake_quant_module((2, 3), 0.5, 0.5, num_bits=8, narrow_range=False)
 
     @I.ir_module
     class ExpectedDegenerate:
@@ -11386,8 +11417,7 @@ def test_fake_quant():
                 R.output(gv)
             return gv
 
-    mod = verify(FakeQuantDegenerate, ExpectedDegenerate)
-    # Double-check: no division node must appear in the compiled IR.
+    tvm.ir.assert_structural_equal(mod, ExpectedDegenerate)
     ir_text = mod.script()
     assert "R.divide(" not in ir_text, "Degenerate FAKE_QUANT must not emit a division node"
 
