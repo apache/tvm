@@ -261,6 +261,7 @@ runs:
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
           auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
+          --exclude libcuda.so.1 --exclude libcudart.so.12
           -w "{dest_dir}" "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
           DYLD_LIBRARY_PATH="/opt/llvm/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
