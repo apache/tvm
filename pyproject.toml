@@ -259,3 +259,12 @@ exclude = ["3rdparty", "build", "dist"]
 # TVM has many optional third-party imports and large untyped areas; don't fail
 # the check on every missing stub (mirrors the previous mypy leniency).
 unresolved-import = "ignore"
+
+[tool.cibuildwheel]
+build-verbosity = 1
+# Verify the installed wheel with a small pytest suite (post-install checks
+# such as the LLVM compile smoke test and the static-LLVM / CUDA-runtime
+# library checks). The wheel-specific expectations are passed through the
+# environment by the publishing workflow.
+test-requires = ["pytest", "numpy"]
+test-command = "pytest {project}/tests/python/wheel"

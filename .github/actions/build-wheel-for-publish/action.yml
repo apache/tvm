@@ -293,11 +293,6 @@ runs:
           --extra-library-pattern "*lzma*.dll"
           --extra-library-pattern "*iconv*.dll"
           --extra-library-pattern "*charset*.dll"
-        CIBW_TEST_COMMAND: >-
-          python -u -X faulthandler "{project}/ci/scripts/package/verify_tvm_install.py"
-        CIBW_TEST_COMMAND_LINUX: >-
-          bash "{project}/ci/scripts/package/verify_tvm_linux.sh"
-          "{project}/ci/scripts/package/verify_tvm_install.py"
 
     - name: Verify final wheel
       shell: bash -l {0}

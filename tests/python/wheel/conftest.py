@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,20 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Ensure the wheel checks load libraries from the installed wheel.
 
-# Linux wheel verification entrypoint. Clears any development library-path
-# overrides so the verifier loads the libraries bundled in the installed wheel,
-# then runs the cross-platform verifier.
+Development library-path overrides are dropped before tvm is imported so the
+bundled libraries are used rather than any from a local build tree.
+"""
 
-set -euo pipefail
+import os
 
-VERIFY_SCRIPT="${1:?usage: verify_tvm_linux.sh /path/to/verify_tvm_install.py}"
-
-for name in TVM_LIBRARY_PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
-  if [[ -n "${!name:-}" ]]; then
-    echo "clearing ${name} before importing tvm"
-    unset "${name}"
-  fi
-done
-
-exec python -u -X faulthandler "${VERIFY_SCRIPT}"
+for _name in ("TVM_LIBRARY_PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+    os.environ.pop(_name, None)

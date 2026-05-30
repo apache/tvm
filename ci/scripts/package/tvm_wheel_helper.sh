@@ -559,7 +559,8 @@ verify_wheel() {
 
   "$venv_python" -m pip install --upgrade pip
   "$venv_python" -m pip install --extra-index-url "${TVM_EXTRA_INDEX_URL:-https://pypi.org/simple}" "$final_wheel"
-  "$venv_python" "$SCRIPT_DIR/verify_tvm_install.py"
+  "$venv_python" -m pip install pytest numpy
+  "$venv_python" -m pytest "$REPO_ROOT/tests/python/wheel"
 }
 
 upload_wheel() {
@@ -595,7 +596,8 @@ verify_pypi_wheel() {
     --index-url "$index_url" \
     --extra-index-url "$extra_index_url" \
     "${package_name}==${package_version}"
-  "$venv_python" "$SCRIPT_DIR/verify_tvm_install.py"
+  "$venv_python" -m pip install pytest numpy
+  "$venv_python" -m pytest "$REPO_ROOT/tests/python/wheel"
 }
 
 main() {
@@ -613,7 +615,7 @@ main() {
       ;;
     validate) validate_wheel_elf ;;
     verify) verify_wheel ;;
-    verify-installed) "$TVM_PYTHON" "$SCRIPT_DIR/verify_tvm_install.py" ;;
+    verify-installed) "$TVM_PYTHON" -m pytest "$REPO_ROOT/tests/python/wheel" ;;
     upload) upload_wheel ;;
     verify-pypi) verify_pypi_wheel ;;
     -h|--help|help) usage ;;

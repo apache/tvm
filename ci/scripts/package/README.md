@@ -75,10 +75,11 @@ Workflow structure:
   `manylinux-cuda`, `cibw-repair`, `verify`, `upload`, and `verify-pypi`.
 - `ci/scripts/package/rewrite_wheel.py`: rewrites wheel metadata and injects
   extra runtime files, including the CUDA runtime library when CUDA is enabled.
-- `ci/scripts/package/verify_tvm_install.py`: imports the installed wheel and
-  checks that the runtime library was loaded from the wheel, expected runtime
-  DSOs are present, dynamic LLVM libraries are not bundled when static LLVM is
-  required, and minimal TIRX/Relax programs compile and run through LLVM.
+- `tests/python/wheel/`: pytest checks run against the installed wheel (via the
+  `[tool.cibuildwheel]` `test-command`). They import tvm, run a minimal LLVM
+  compile, and assert the bundled libraries are correct (no dynamic LLVM when
+  static LLVM is required, CUDA runtime present when expected). Each check is
+  gated by a `TVM_EXPECT_*` environment variable.
 
 To test the workflow from a fork without publishing:
 
