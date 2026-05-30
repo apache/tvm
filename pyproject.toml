@@ -45,13 +45,16 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 # Core runtime dependencies: the minimum needed to ``import tvm`` and build/run
-# modules. Model-importer frameworks and the dev/test toolchain are deliberately
-# kept out of here (see [project.optional-dependencies] and [dependency-groups]).
+# modules. Model-importer frameworks are kept out of here (see
+# [project.optional-dependencies]). pytest is required at import time because
+# tvm.rpc loads tvm.testing, which pulls in pytest; until that import chain is
+# decoupled it must stay a core dependency.
 dependencies = [
   "apache-tvm-ffi>=0.1.11",
   "ml_dtypes",
   "numpy",
   "psutil",
+  "pytest",
   "typing_extensions",
 ]
 
