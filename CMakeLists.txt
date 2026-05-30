@@ -856,17 +856,18 @@ endif()
 # Note: NCCL, NVSHMEM, RCCL target_link_libraries are handled in the inline
 # libtvm_runtime_extra assembly block above.
 
+# Keep the core shared libraries relocatable. A relative rpath
+# ($ORIGIN / @loader_path) is correct in any build because the sibling runtime
+# DSOs are installed next to each other, so apply it unconditionally rather than
+# only when building the Python wheel. (tvm_runtime_extra already gets its rpath
+# where it is defined above.)
+tvm_set_relative_rpath(tvm_compiler)
+tvm_set_relative_rpath(tvm_runtime)
+
 # Python package installation configuration
 # This section ensures that all necessary files are installed for the Python wheel
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
-
-  # Keep wheel-internal shared libraries relocatable in both build and install
-  # trees.  Several runtime DSOs link against libtvm_runtime.so and are installed
-  # into the same tvm/lib directory inside the wheel.
-  tvm_set_relative_rpath(tvm_compiler)
-  tvm_set_relative_rpath(tvm_runtime)
-  tvm_set_relative_rpath(tvm_runtime_extra)
 
   # Install compiled shared libraries into <project>/lib so that
   # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find

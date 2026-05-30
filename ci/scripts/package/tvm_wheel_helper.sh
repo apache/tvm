@@ -29,8 +29,6 @@ TVM_USE_LLVM="${TVM_USE_LLVM:-llvm-config --link-static}"
 TVM_USE_CUDA="${TVM_USE_CUDA:-ON}"
 TVM_CUDA_ARCHITECTURES="${TVM_CUDA_ARCHITECTURES:-75}"
 TVM_BUILD_PARALLEL_LEVEL="${TVM_BUILD_PARALLEL_LEVEL:-${CMAKE_BUILD_PARALLEL_LEVEL:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}}"
-TVM_WHEEL_DIST_NAME="${TVM_WHEEL_DIST_NAME:-}"
-TVM_WHEEL_DIST_VERSION="${TVM_WHEEL_DIST_VERSION:-}"
 TVM_INCLUDE_CUDA_RUNTIME="${TVM_INCLUDE_CUDA_RUNTIME:-}"
 
 normalize_bool() {
@@ -71,26 +69,24 @@ TVM_KEEP_BUILD_DIRS="$(normalize_bool TVM_KEEP_BUILD_DIRS "$TVM_KEEP_BUILD_DIRS"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|verify|verify-installed|upload|verify-pypi]
+Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|verify-pypi]
+
+The main wheel build, repair, and post-install tests are owned by cibuildwheel
+(see pyproject.toml [tool.cibuildwheel] and the publish workflow). This helper
+only covers the pieces cibuildwheel cannot: building the CUDA runtime sidecar
+and verifying an already-published package.
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config for the CUDA runtime build, default "llvm-config --link-static"
   TVM_USE_CUDA                 CUDA root or ON for the CUDA build, default ON
   TVM_CUDA_RUNTIME_PATH        Explicit libtvm_runtime_cuda.so path
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
-  TVM_WHEEL_DIST_NAME          Optional distribution rename for TestPyPI
-  TVM_WHEEL_DIST_VERSION       Optional distribution version rewrite
-  TVM_UPLOAD_REPOSITORY_URL    Twine repository URL, e.g. TestPyPI legacy URL
   TVM_INCLUDE_CUDA_RUNTIME=1   Build libtvm_runtime_cuda.so
   TVM_SKIP_CUDA=1              Do not build libtvm_runtime_cuda.so
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
   TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
   TVM_MANYLINUX_IMAGE_TAG      pinned image tag for manylinux-cuda
   TVM_ARCH                     Target architecture for manylinux-cuda
-  TVM_EXPECT_WHEEL_PLATFORM_TAG
-                                Require the final wheel filename to include this tag
-  TVM_EXPECT_CUDA_RUNTIME      Verify whether the installed wheel ships a CUDA runtime DSO
-  TVM_EXPECT_STATIC_LLVM       Verify that the installed wheel does not ship libLLVM
   TVM_TEST_INDEX_URL           Package index for verify-pypi, default TestPyPI
   TVM_EXTRA_INDEX_URL          Extra package index for dependencies, default PyPI
 EOF
@@ -291,40 +287,6 @@ build_cuda_runtime() {
   echo "CUDA runtime: ${cuda_lib}"
 }
 
-verify_wheel() {
-  local final_wheel
-  final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
-  if [[ -n "${TVM_EXPECT_WHEEL_PLATFORM_TAG:-}" ]]; then
-    if [[ "$(basename "$final_wheel")" != *"${TVM_EXPECT_WHEEL_PLATFORM_TAG}"* ]]; then
-      echo "error: expected final wheel tag ${TVM_EXPECT_WHEEL_PLATFORM_TAG}, got ${final_wheel}" >&2
-      return 1
-    fi
-  fi
-
-  local venv="${TVM_VERIFY_VENV:-${REPO_ROOT}/build-wheel-verify-venv}"
-  rm -rf "$venv"
-  "$TVM_PYTHON" -m venv "$venv"
-
-  local venv_python="${venv}/bin/python"
-  if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == CYGWIN* ]]; then
-    venv_python="${venv}/Scripts/python.exe"
-  fi
-
-  "$venv_python" -m pip install --upgrade pip
-  "$venv_python" -m pip install --extra-index-url "${TVM_EXTRA_INDEX_URL:-https://pypi.org/simple}" "$final_wheel"
-  "$venv_python" -m pip install pytest numpy
-  "$venv_python" -m pytest "$REPO_ROOT/tests/python/wheel"
-}
-
-upload_wheel() {
-  require_cmd twine
-  local repo_args=()
-  if [[ -n "${TVM_UPLOAD_REPOSITORY_URL:-}" ]]; then
-    repo_args+=(--repository-url "$TVM_UPLOAD_REPOSITORY_URL")
-  fi
-  twine upload "${repo_args[@]}" "$TVM_WHEELHOUSE"/*
-}
-
 verify_pypi_wheel() {
   local final_wheel
   final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
@@ -359,9 +321,6 @@ main() {
     cuda) build_cuda_runtime ;;
     cuda-path) cuda_runtime_path ;;
     manylinux-cuda) run_manylinux_cuda_container ;;
-    verify) verify_wheel ;;
-    verify-installed) "$TVM_PYTHON" -m pytest "$REPO_ROOT/tests/python/wheel" ;;
-    upload) upload_wheel ;;
     verify-pypi) verify_pypi_wheel ;;
     -h|--help|help) usage ;;
     *)

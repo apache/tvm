@@ -69,9 +69,9 @@ Workflow structure:
   and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. The CUDA
   runtime is installed by CMake (`TVM_PACKAGE_EXTRA_LIBS`) and the wheel is
   repaired with standard `auditwheel`/`delocate`.
-- `ci/scripts/package/tvm_wheel_helper.sh`: implements reusable local and CI
-  entrypoints around the `cibuildwheel` build, such as `cuda`,
-  `manylinux-cuda`, `verify`, `upload`, and `verify-pypi`.
+- `ci/scripts/package/tvm_wheel_helper.sh`: implements the build pieces
+  `cibuildwheel` cannot — the CUDA runtime sidecar (`cuda`, `manylinux-cuda`)
+  and post-publish package verification (`verify-pypi`).
 - `ci/scripts/package/set_wheel_dist.py`: applies optional distribution
   name/version overrides to `[project]` before the build (used for TestPyPI
   validation builds), so the backend produces the desired wheel directly.
@@ -104,32 +104,30 @@ workflows once the workflow file exists in the repository.
 
 Local debugging:
 
-The main wheel build is owned by `cibuildwheel`. The shell helper is used for
-the build pieces around `cibuildwheel`: CUDA runtime construction, the
-`CIBW_REPAIR_WHEEL_COMMAND` hook, final wheel verification, and optional
-publish verification.
+The main wheel build, repair, and post-install tests are owned by
+`cibuildwheel` (see `pyproject.toml` `[tool.cibuildwheel]` and the publish
+workflow). The shell helper only covers what `cibuildwheel` cannot: building
+the CUDA runtime sidecar and verifying an already-published package. Use
+`.github/actions/build-wheel-for-publish/action.yml` as the source of truth for
+the exact `cibuildwheel` environment.
 
-For the exact `cibuildwheel` environment, use
-`.github/actions/build-wheel-for-publish/action.yml` as the source of truth.
-For local checks after a wheel exists under `wheelhouse/`, run:
+To test a locally built wheel under `wheelhouse/`, install it and run the same
+suite `cibuildwheel` uses:
 
 ```bash
-TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/tvm_wheel_helper.sh verify
+python -m pip install wheelhouse/*.whl pytest numpy
+python -m pytest -c tests/python/wheel/pytest.ini tests/python/wheel
+```
 
+To verify a package that has already been uploaded to an index, run:
+
+```bash
 TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
 ci/scripts/package/tvm_wheel_helper.sh verify-pypi
 ```
 
-For a manual or local upload with the helper, leave `TVM_WHEEL_DIST_NAME`
-unset and set the normal Twine credentials:
-
-```bash
-TWINE_USERNAME=__token__ \
-TWINE_PASSWORD="$PYPI_TOKEN" \
-TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/tvm_wheel_helper.sh upload
-```
+Publishing itself is handled in the workflow by the standard
+`pypa/gh-action-pypi-publish` action (trusted publishing), not this helper.
 
 Useful knobs:
 
@@ -140,24 +138,14 @@ Useful knobs:
 - `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
 - `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
 - `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
-- `TVM_INCLUDE_CUDA_RUNTIME=1`: build or repair a wheel with the CUDA runtime.
-  Do not set this to a value that conflicts with `TVM_SKIP_CUDA`.
-- `TVM_SKIP_REPAIR=1`: skip the wheel repair step.
-- `TVM_SKIP_CUDA=1`: build or repair a wheel without the CUDA runtime.
+- `TVM_INCLUDE_CUDA_RUNTIME=1`: build `libtvm_runtime_cuda.so`. Do not set this
+  to a value that conflicts with `TVM_SKIP_CUDA`.
+- `TVM_SKIP_CUDA=1`: skip building `libtvm_runtime_cuda.so`.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
 - `TVM_MANYLINUX_IMAGE`: manylinux image family for `manylinux-cuda`, such as
   `manylinux_2_28`.
 - `TVM_MANYLINUX_IMAGE_TAG`: pinned manylinux image tag for `manylinux-cuda`.
 - `TVM_ARCH`: target architecture for `manylinux-cuda`, such as `x86_64` or
   `aarch64`.
-- `TVM_AUDITWHEEL_PLAT`: optional `auditwheel repair --plat` override.
-- `TVM_AUDITWHEEL_LIBRARY_PATH`: optional, explicit library search path for
-  `auditwheel repair`.
-- `TVM_EXPECT_WHEEL_PLATFORM_TAG`: require the final wheel filename to include
-  a specific platform tag, such as `manylinux_2_28_x86_64`.
-- `TVM_EXPECT_CUDA_RUNTIME`: verify whether the installed wheel ships a CUDA
-  runtime library.
-- `TVM_EXPECT_STATIC_LLVM`: verify that the installed wheel does not ship a
-  dynamic LLVM library.
 - `TVM_TEST_INDEX_URL`: package index for `verify-pypi`, default TestPyPI.
 - `TVM_EXTRA_INDEX_URL`: extra package index for dependencies, default PyPI.
