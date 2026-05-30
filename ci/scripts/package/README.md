@@ -29,13 +29,12 @@ The wheel build flow is:
    disabled. When a CUDA runtime is requested its path is passed to CMake via
    `TVM_PACKAGE_EXTRA_LIBS`, so CMake installs it into `tvm/lib/` as part of the
    normal build — no post-build wheel rewriting.
-3. Repair the wheel with standard `auditwheel` / `delocate`, excluding
-   `libtvm_ffi.so` (resolved from the apache-tvm-ffi package) and
-   `libtvm_runtime_cuda.so` (intentionally bundled). LLVM is linked statically,
-   so the final wheel must not bundle or dynamically depend on `libLLVM`.
-   On Windows, `rewrite_wheel.py` copies the small runtime DLLs required by the
-   LLVM support libraries into `tvm/lib/` because there is no auditwheel-style
-   repair tool.
+3. Repair the wheel with the standard per-platform tool — `auditwheel`
+   (Linux), `delocate` (macOS), `delvewheel` (Windows) — excluding the
+   tvm-ffi library (resolved from the apache-tvm-ffi package) and, on Linux,
+   the intentionally bundled `libtvm_runtime_cuda.so` plus its CUDA driver
+   dependencies. LLVM is linked statically, so the final wheel must not bundle
+   or dynamically depend on `libLLVM`.
 4. Verify the installed wheel with the `tests/python/wheel` pytest suite via the
    `[tool.cibuildwheel]` `test-command`.
 5. Optionally upload and verify the uploaded package.
@@ -76,8 +75,6 @@ Workflow structure:
 - `ci/scripts/package/set_wheel_dist.py`: applies optional distribution
   name/version overrides to `[project]` before the build (used for TestPyPI
   validation builds), so the backend produces the desired wheel directly.
-- `ci/scripts/package/rewrite_wheel.py`: Windows-only helper that copies the
-  LLVM support DLLs into `tvm/lib/` (no auditwheel-style tool on Windows).
 - `tests/python/wheel/`: pytest checks run against the installed wheel (via the
   `[tool.cibuildwheel]` `test-command`). They import tvm, run a minimal LLVM
   compile, and assert the bundled libraries are correct (no dynamic LLVM when
