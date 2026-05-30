@@ -5,6 +5,7 @@ project(tvm C CXX)
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
 include(cmake/utils/Linker.cmake)
+include(cmake/utils/Library.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindNCCL.cmake)
 include(cmake/utils/FindOpenCL.cmake)
@@ -103,24 +104,6 @@ tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
 
 # Python package options
 tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" OFF)
-
-function(tvm_set_python_module_relative_rpath target_name)
-  if(NOT TVM_BUILD_PYTHON_MODULE OR NOT TARGET ${target_name})
-    return()
-  endif()
-
-  if(APPLE)
-    set_target_properties(${target_name} PROPERTIES
-      BUILD_RPATH "@loader_path"
-      INSTALL_RPATH "@loader_path"
-    )
-  elseif(UNIX)
-    set_target_properties(${target_name} PROPERTIES
-      BUILD_RPATH "\$ORIGIN"
-      INSTALL_RPATH "\$ORIGIN"
-    )
-  endif()
-endfunction()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
