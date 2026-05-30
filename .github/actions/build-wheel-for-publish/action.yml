@@ -240,17 +240,20 @@ runs:
         CIBW_BEFORE_BUILD_LINUX: >-
           if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2-devel; fi &&
           python -m pip install -U pip cmake ninja scikit-build-core wheel auditwheel &&
+          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_MACOS: >-
           python -m pip install -U pip cmake ninja scikit-build-core wheel delocate &&
+          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_WINDOWS: >-
           python -m pip install -U pip cmake ninja scikit-build-core wheel &&
+          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_ENVIRONMENT: >-
           TVM_USE_LLVM="/opt/llvm/bin/llvm-config-static"
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm"
+          CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && format('-DTVM_PACKAGE_EXTRA_LIBS={0}', inputs.cuda_runtime_path) || '' }}"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
@@ -277,10 +280,11 @@ runs:
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-          bash "{project}/ci/scripts/package/tvm_wheel_helper.sh" cibw-repair "{wheel}" "{dest_dir}"
+          auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
+          -w "{dest_dir}" "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-          TVM_DELOCATE_ARCHS="{delocate_archs}"
-          bash "{project}/ci/scripts/package/tvm_wheel_helper.sh" cibw-repair "{wheel}" "{dest_dir}"
+          delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib
+          --require-archs "{delocate_archs}" -w "{dest_dir}" -v "{wheel}"
         CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
           python "{project}/ci/scripts/package/rewrite_wheel.py" "{wheel}"
           --output-dir "{dest_dir}"

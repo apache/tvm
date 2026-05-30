@@ -884,6 +884,18 @@ if(TVM_BUILD_PYTHON_MODULE)
     install(TARGETS flash_attn DESTINATION "lib")
   endif()
 
+  # Install prebuilt extra runtime libraries into the same lib/ dir. This is how
+  # the separately-built CUDA runtime (libtvm_runtime_cuda.so) is bundled: the
+  # publishing flow builds it in a CUDA-enabled environment and passes its path
+  # via TVM_PACKAGE_EXTRA_LIBS, so it ships through the normal CMake install
+  # rather than a post-build wheel rewrite.
+  foreach(_extra_lib IN LISTS TVM_PACKAGE_EXTRA_LIBS)
+    if(NOT EXISTS "${_extra_lib}")
+      message(FATAL_ERROR "TVM_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
+    endif()
+    install(FILES "${_extra_lib}" DESTINATION "lib")
+  endforeach()
+
   # Install minimal header files needed by Python extensions
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/runtime/"

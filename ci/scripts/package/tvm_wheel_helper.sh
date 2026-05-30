@@ -73,7 +73,7 @@ TVM_KEEP_BUILD_DIRS="$(normalize_bool TVM_KEEP_BUILD_DIRS "$TVM_KEEP_BUILD_DIRS"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|cibw-repair|validate|verify|verify-installed|upload|verify-pypi]
+Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|cibw-repair|verify|verify-installed|upload|verify-pypi]
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config used by repair helpers, default "llvm-config --link-static"
@@ -529,14 +529,6 @@ cibw_repair_wheel() (
   repair_wheel_to_dir "$injected_wheel" "$dest_dir"
 )
 
-validate_wheel_elf() {
-  local final_wheel
-  final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
-  if [[ "$(uname -s)" == "Linux" ]]; then
-    "$TVM_PYTHON" "$SCRIPT_DIR/validate_wheel_elf.py" "$final_wheel"
-  fi
-}
-
 verify_wheel() {
   local final_wheel
   final_wheel="$(single_wheel "$TVM_WHEELHOUSE")"
@@ -546,7 +538,6 @@ verify_wheel() {
       return 1
     fi
   fi
-  validate_wheel_elf
 
   local venv="${TVM_VERIFY_VENV:-${REPO_ROOT}/build-wheel-verify-venv}"
   rm -rf "$venv"
@@ -613,7 +604,6 @@ main() {
       fi
       cibw_repair_wheel "$2" "$3"
       ;;
-    validate) validate_wheel_elf ;;
     verify) verify_wheel ;;
     verify-installed) "$TVM_PYTHON" -m pytest "$REPO_ROOT/tests/python/wheel" ;;
     upload) upload_wheel ;;

@@ -26,19 +26,19 @@ The wheel build flow is:
 
 1. Optionally build `libtvm_runtime_cuda.so` in a CUDA-enabled Linux CMake build.
 2. Build the main Python wheel with `cibuildwheel`, LLVM enabled, and CUDA
-   disabled.
-3. When requested, inject the CUDA runtime DSO into `tvm/lib/` during the
-   `cibuildwheel` repair hook.
-4. Repair the wheel, excluding CUDA toolkit/driver DSOs and `libtvm_ffi`.
-   `libtvm_runtime_cuda.so`, when requested, is the TVM CUDA runtime that is
-   intentionally injected into the wheel.
-   On Windows, copy the small runtime DLLs required by LLVM support libraries
-   into `tvm/lib/` because there is no auditwheel-style repair tool.
-5. Validate ELF links so intra-wheel TVM DSOs resolve through relative rpaths.
-   LLVM is expected to be linked statically; the final wheel must not bundle
-   or dynamically depend on `libLLVM`.
-6. Verify the wheel in a fresh virtualenv.
-7. Optionally upload and verify the uploaded package.
+   disabled. When a CUDA runtime is requested its path is passed to CMake via
+   `TVM_PACKAGE_EXTRA_LIBS`, so CMake installs it into `tvm/lib/` as part of the
+   normal build — no post-build wheel rewriting.
+3. Repair the wheel with standard `auditwheel` / `delocate`, excluding
+   `libtvm_ffi.so` (resolved from the apache-tvm-ffi package) and
+   `libtvm_runtime_cuda.so` (intentionally bundled). LLVM is linked statically,
+   so the final wheel must not bundle or dynamically depend on `libLLVM`.
+   On Windows, `rewrite_wheel.py` copies the small runtime DLLs required by the
+   LLVM support libraries into `tvm/lib/` because there is no auditwheel-style
+   repair tool.
+4. Verify the installed wheel with the `tests/python/wheel` pytest suite via the
+   `[tool.cibuildwheel]` `test-command`.
+5. Optionally upload and verify the uploaded package.
 
 GitHub Actions flow:
 
@@ -67,14 +67,17 @@ Workflow structure:
   On Linux this action owns the pinned manylinux Docker/CUDA setup and exposes
   the runtime DSO path as an action output.
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
-  and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. Its custom
-  repair hook injects the CUDA runtime before `auditwheel`/`delocate`/Windows
-  dependency-copy repair.
+  and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. The CUDA
+  runtime is installed by CMake (`TVM_PACKAGE_EXTRA_LIBS`) and the wheel is
+  repaired with standard `auditwheel`/`delocate`.
 - `ci/scripts/package/tvm_wheel_helper.sh`: implements reusable local and CI
   entrypoints around the `cibuildwheel` build, such as `cuda`,
-  `manylinux-cuda`, `cibw-repair`, `verify`, `upload`, and `verify-pypi`.
-- `ci/scripts/package/rewrite_wheel.py`: rewrites wheel metadata and injects
-  extra runtime files, including the CUDA runtime library when CUDA is enabled.
+  `manylinux-cuda`, `verify`, `upload`, and `verify-pypi`.
+- `ci/scripts/package/set_wheel_dist.py`: applies optional distribution
+  name/version overrides to `[project]` before the build (used for TestPyPI
+  validation builds), so the backend produces the desired wheel directly.
+- `ci/scripts/package/rewrite_wheel.py`: Windows-only helper that copies the
+  LLVM support DLLs into `tvm/lib/` (no auditwheel-style tool on Windows).
 - `tests/python/wheel/`: pytest checks run against the installed wheel (via the
   `[tool.cibuildwheel]` `test-command`). They import tvm, run a minimal LLVM
   compile, and assert the bundled libraries are correct (no dynamic LLVM when
@@ -142,7 +145,7 @@ Useful knobs:
 - `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
 - `TVM_INCLUDE_CUDA_RUNTIME=1`: build or repair a wheel with the CUDA runtime.
   Do not set this to a value that conflicts with `TVM_SKIP_CUDA`.
-- `TVM_SKIP_REPAIR=1`: leave the injected wheel unrepaired.
+- `TVM_SKIP_REPAIR=1`: skip the wheel repair step.
 - `TVM_SKIP_CUDA=1`: build or repair a wheel without the CUDA runtime.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
 - `TVM_MANYLINUX_IMAGE`: manylinux image family for `manylinux-cuda`, such as
