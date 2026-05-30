@@ -238,7 +238,7 @@ runs:
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CIBW_CONTAINER_ENGINE: ${{ steps.wheel_inputs.outputs.cibw_container_engine }}
         CIBW_BEFORE_BUILD_LINUX: >-
-          if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2; fi &&
+          if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2-devel; fi &&
           python -m pip install -U pip cmake ninja scikit-build-core wheel auditwheel &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_MACOS: >-
