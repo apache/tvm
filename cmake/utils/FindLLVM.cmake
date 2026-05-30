@@ -59,10 +59,6 @@ macro(find_llvm use_llvm)
       message(STATUS "Fall back to using llvm-config")
       set(LLVM_CONFIG "${LLVM_TOOLS_BINARY_DIR}/llvm-config")
     endif()
-    set(TVM_LLVM_HAS_RTTI 0)
-    if(LLVM_ENABLE_RTTI)
-      set(TVM_LLVM_HAS_RTTI 1)
-    endif()
   endif()
 
   if(LLVM_LIBS) # check if defined, not if it is true
@@ -126,12 +122,6 @@ macro(find_llvm use_llvm)
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libdir")
     endif()
     message(STATUS "LLVM libdir: ${__llvm_libdir}")
-    set(__llvm_lib_hints
-      "${__llvm_libdir}"
-      "${__llvm_prefix}/lib"
-      "${__llvm_prefix}/lib64"
-      "${__llvm_prefix}/Library/lib"
-    )
     execute_process(COMMAND ${LLVM_CONFIG} --cmakedir
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_cmakedir
@@ -145,13 +135,6 @@ macro(find_llvm use_llvm)
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --targets-built")
-    endif()
-    execute_process(COMMAND ${LLVM_CONFIG} --has-rtti
-      RESULT_VARIABLE __llvm_exit_code
-      OUTPUT_VARIABLE __llvm_has_rtti
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --has-rtti")
     endif()
     cmake_path(SET "__llvm_cmakedir" "${__llvm_cmakedir}")
     message(STATUS "LLVM cmakedir: ${__llvm_cmakedir}")
@@ -192,13 +175,6 @@ macro(find_llvm use_llvm)
     if("AArch64" IN_LIST BUILT_TARGET_LIST)
       set(TVM_LLVM_HAS_AARCH64_TARGET 1)
     endif()
-    string(TOUPPER "${__llvm_has_rtti}" __llvm_has_rtti_upper)
-    set(TVM_LLVM_HAS_RTTI 0)
-    if("${__llvm_has_rtti_upper}" STREQUAL "YES"
-       OR "${__llvm_has_rtti_upper}" STREQUAL "ON"
-       OR "${__llvm_has_rtti_upper}" STREQUAL "1")
-      set(TVM_LLVM_HAS_RTTI 1)
-    endif()
     if (${USE_MLIR})
       if (EXISTS "${__llvm_libdir}/libMLIRPresburger.a")
         if (EXISTS "${__llvm_libdir}/libMLIRSupport.a")
@@ -217,61 +193,22 @@ macro(find_llvm use_llvm)
         message(STATUS "LLVM links against math")
         list(APPEND LLVM_LIBS "m")
       elseif(("${__flag}" STREQUAL "-lz") OR ("${__flag}" STREQUAL "z.lib"))
-        find_library(ZLIB_STATIC
-          NAMES libz.a zlibstatic z
-          HINTS ${__llvm_lib_hints}
-          NO_DEFAULT_PATH)
-        if (ZLIB_STATIC)
-          message(STATUS "LLVM links against static zlib: ${ZLIB_STATIC}")
-          list(APPEND LLVM_LIBS "${ZLIB_STATIC}")
-        else()
-          message(STATUS "LLVM links against zlib")
-          find_package(ZLIB REQUIRED)
-          list(APPEND LLVM_LIBS "ZLIB::ZLIB")
-        endif()
+        message(STATUS "LLVM links against zlib")
+        find_package(ZLIB REQUIRED)
+        list(APPEND LLVM_LIBS "ZLIB::ZLIB")
       elseif("${__flag}" STREQUAL "-lzstd")
-        find_library(ZSTD_STATIC
-          NAMES libzstd.a zstd_static zstd
-          HINTS ${__llvm_lib_hints}
-          NO_DEFAULT_PATH)
-        if (ZSTD_STATIC)
-          message(STATUS "LLVM links against static zstd: ${ZSTD_STATIC}")
-          list(APPEND LLVM_LIBS "${ZSTD_STATIC}")
+        list(APPEND CMAKE_MODULE_PATH "${__llvm_cmakedir}")
+        find_package(zstd REQUIRED)
+        if (TARGET "zstd::libzstd_static")
+          message(STATUS "LLVM links against static zstd")
+          list(APPEND LLVM_LIBS "zstd::libzstd_static")
         else()
-          list(APPEND CMAKE_MODULE_PATH "${__llvm_cmakedir}")
-          find_package(zstd REQUIRED)
-          if (TARGET "zstd::libzstd_static")
-            message(STATUS "LLVM links against static zstd")
-            list(APPEND LLVM_LIBS "zstd::libzstd_static")
-          else()
-            message(STATUS "LLVM links against shared zstd")
-            list(APPEND LLVM_LIBS "zstd::libzstd_shared")
-          endif()
+          message(STATUS "LLVM links against shared zstd")
+          list(APPEND LLVM_LIBS "zstd::libzstd_shared")
         endif()
       elseif("${__flag}" STREQUAL "-lxml2")
-        if (UNIX AND NOT APPLE)
-          find_library(LIBXML2_SYSTEM_LIBRARY
-            NAMES libxml2.so.2 xml2 libxml2
-            PATHS /usr/lib64 /usr/lib /lib64 /lib
-            NO_DEFAULT_PATH)
-        endif()
-        if (LIBXML2_SYSTEM_LIBRARY)
-          message(STATUS "LLVM links against system xml2: ${LIBXML2_SYSTEM_LIBRARY}")
-          list(APPEND LLVM_LIBS "${LIBXML2_SYSTEM_LIBRARY}")
-        else()
-          find_library(LIBXML2_LIBRARY
-            NAMES libxml2.a xml2 libxml2
-            HINTS ${__llvm_lib_hints}
-            NO_DEFAULT_PATH)
-          if (LIBXML2_LIBRARY)
-            message(STATUS "LLVM links against xml2: ${LIBXML2_LIBRARY}")
-            list(APPEND LLVM_LIBS "${LIBXML2_LIBRARY}")
-          else()
-            message(STATUS "LLVM links against xml2")
-            find_package(LibXml2 REQUIRED)
-            list(APPEND LLVM_LIBS "LibXml2::LibXml2")
-          endif()
-        endif()
+        message(STATUS "LLVM links against xml2")
+        list(APPEND LLVM_LIBS "-lxml2")
       elseif("${__flag}" STREQUAL "zstd.dll.lib")
         message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/zstd.lib")
         list(APPEND LLVM_LIBS "${__llvm_libdir}/zstd.lib")
@@ -297,7 +234,6 @@ macro(find_llvm use_llvm)
     message(FATAL_ERROR "TVM requires LLVM 15.0 or higher.")
   endif()
   message(STATUS "Found TVM_LLVM_HAS_AARCH64_TARGET=" ${TVM_LLVM_HAS_AARCH64_TARGET})
-  message(STATUS "Found TVM_LLVM_HAS_RTTI=" ${TVM_LLVM_HAS_RTTI})
 
   # Detect whether DIBuilder insertion APIs (insertDeclare,
   # insertDbgValueIntrinsic) accept BasicBlock::iterator as the insertion point
