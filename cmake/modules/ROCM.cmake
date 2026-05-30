@@ -48,16 +48,7 @@ if(USE_ROCM)
   add_library(tvm_runtime_rocm SHARED $<TARGET_OBJECTS:tvm_runtime_rocm_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_rocm)
   target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime ${_rocm_libs})
-  set_target_properties(tvm_runtime_rocm PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  tvm_set_python_module_relative_rpath(tvm_runtime_rocm)
-  install(TARGETS tvm_runtime_rocm DESTINATION lib${LIB_SUFFIX})
-  if(TVM_BUILD_PYTHON_MODULE)
-    install(TARGETS tvm_runtime_rocm DESTINATION "lib")
-  endif()
+  tvm_configure_runtime_module(tvm_runtime_rocm)
 endif(USE_ROCM)
 
 # HIPBLAS contrib goes into libtvm_runtime_extra.

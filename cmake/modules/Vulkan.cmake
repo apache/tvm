@@ -55,14 +55,5 @@ if(USE_VULKAN)
   add_library(tvm_runtime_vulkan SHARED $<TARGET_OBJECTS:tvm_runtime_vulkan_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_vulkan)
   target_link_libraries(tvm_runtime_vulkan PUBLIC tvm_runtime ${Vulkan_LIBRARY})
-  set_target_properties(tvm_runtime_vulkan PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  tvm_set_python_module_relative_rpath(tvm_runtime_vulkan)
-  install(TARGETS tvm_runtime_vulkan DESTINATION lib${LIB_SUFFIX})
-  if(TVM_BUILD_PYTHON_MODULE)
-    install(TARGETS tvm_runtime_vulkan DESTINATION "lib")
-  endif()
+  tvm_configure_runtime_module(tvm_runtime_vulkan)
 endif(USE_VULKAN)

@@ -41,3 +41,31 @@ function(tvm_set_python_module_relative_rpath target_name)
     )
   endif()
 endfunction()
+
+#######################################################
+# tvm_configure_runtime_module(target_name)
+#
+# Apply the standard layout for an optional runtime backend library
+# (tvm_runtime_cuda, tvm_runtime_vulkan, ...): emit it into the build lib
+# directory, give it a wheel-relative rpath, and install it. When building the
+# Python module it is additionally installed into the package "lib" directory.
+# No-op if the target does not exist.
+#
+# Parameters:
+#   target_name: CMake target to configure
+function(tvm_configure_runtime_module target_name)
+  if(NOT TARGET ${target_name})
+    return()
+  endif()
+
+  set_target_properties(${target_name} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  )
+  tvm_set_python_module_relative_rpath(${target_name})
+  install(TARGETS ${target_name} DESTINATION lib${LIB_SUFFIX})
+  if(TVM_BUILD_PYTHON_MODULE)
+    install(TARGETS ${target_name} DESTINATION "lib")
+  endif()
+endfunction()
