@@ -776,9 +776,7 @@ def test_no_inplace_when_view_ops_share_input(view_op):
     # Check that the pass should not rewrite the module
     x_np = input_for_view_op(view_op)
     mod_inplace = DataflowUseInplaceCalls()(mod)
-    assert tvm.ir.assert_structural_equal(mod_inplace, mod), (
-        f"{view_op}: pass should not rewrite the module"
-    )
+    tvm.ir.assert_structural_equal(mod_inplace, mod)
 
     # Check that the multiply operands should share storage at runtime
     storage = capture_multiply_operand_storage(mod_inplace, x_np)

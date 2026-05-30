@@ -62,9 +62,9 @@ std::unordered_set<int> GetVarAliasSetFromExpr(
 }
 
 // In-place on arg `candidate` is invalid if another distinct operand may alias the same
-// storage (e.g. two expand_dims views of x bound to different vars). We only reject when
-// alias analysis gives a definite overlap; unknown (-1) other operands are handled elsewhere.
-// Repeated uses of the same var (e.g. add(z, z)) are allowed.
+// storage (e.g. two expand_dims views of x bound to different vars). Reject on any shared
+// alias id; -1 in the other operand's set does not skip checking other ids. Same var twice
+// (e.g. add(z, z)) is allowed.
 bool InplaceArgDisjointFromOtherCallArgs(
     const CallNode* call_node, int candidate,
     const std::unordered_map<Var, std::unordered_set<int>>& alias_sets) {
@@ -72,7 +72,6 @@ bool InplaceArgDisjointFromOtherCallArgs(
   if (!cand_var_node) {
     return false;
   }
-  Var cand_var = ffi::GetRef<Var>(cand_var_node);
   auto cand_set = GetVarAliasSetFromExpr(call_node->args[candidate], alias_sets);
   if (cand_set.count(-1)) {
     return false;
@@ -82,15 +81,10 @@ bool InplaceArgDisjointFromOtherCallArgs(
       continue;
     }
     const Expr& other_arg = call_node->args[j];
-    if (const auto* other_var_node = other_arg.as<VarNode>()) {
-      if (other_var_node == cand_var_node || ffi::GetRef<Var>(other_var_node).same_as(cand_var)) {
-        continue;
-      }
-    }
-    auto other_set = GetVarAliasSetFromExpr(other_arg, alias_sets);
-    if (other_set.count(-1)) {
+    if (other_arg.same_as(call_node->args[candidate])) {
       continue;
     }
+    auto other_set = GetVarAliasSetFromExpr(other_arg, alias_sets);
     for (int alias_idx : other_set) {
       if (cand_set.count(alias_idx)) {
         return false;
