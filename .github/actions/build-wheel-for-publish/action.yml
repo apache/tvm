@@ -250,7 +250,7 @@ runs:
         CIBW_ENVIRONMENT: >-
           TVM_USE_LLVM="/opt/llvm/bin/llvm-config-static"
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm -DCMAKE_SHARED_LINKER_FLAGS=-L/opt/llvm/lib -DCMAKE_EXE_LINKER_FLAGS=-L/opt/llvm/lib"
+          CMAKE_ARGS="-DUSE_LLVM=/opt/llvm/bin/llvm-config-static -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm"
           TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
