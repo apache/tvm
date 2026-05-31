@@ -130,7 +130,7 @@ runs:
         # build then bundles the resulting libtvm_runtime_cuda.so via
         # -DTVM_PACKAGE_EXTRA_LIBS. Replaces the separate build-cuda docker job.
         CIBW_BEFORE_ALL_LINUX: >-
-          bash {project}/ci/scripts/package/before_all_linux.sh
+          bash {project}/ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
           "${{ inputs.include_cuda_runtime }}"
           "${{ inputs.cuda_architectures }}"
         CIBW_ENVIRONMENT: >-
