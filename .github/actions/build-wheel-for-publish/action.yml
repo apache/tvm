@@ -68,7 +68,6 @@ runs:
         INPUT_LINUX_IMAGE_TAG: ${{ inputs.linux_image_tag }}
       run: |
         set -eux
-        wheel_platform_tag=""
         manylinux_container_image=""
         cibw_manylinux_x86_64_image="${INPUT_LINUX_IMAGE:-manylinux_2_28}"
         cibw_manylinux_aarch64_image="${INPUT_LINUX_IMAGE:-manylinux_2_28}"
@@ -91,7 +90,6 @@ runs:
             echo "linux_image_tag is required on Linux runners" >&2
             exit 1
           fi
-          wheel_platform_tag="${INPUT_LINUX_IMAGE}_${INPUT_ARCH}"
           manylinux_container_image="quay.io/pypa/${INPUT_LINUX_IMAGE}_${INPUT_ARCH}:${INPUT_LINUX_IMAGE_TAG}"
           if [[ "${INPUT_ARCH}" == "x86_64" ]]; then
             cibw_manylinux_x86_64_image="${manylinux_container_image}"
@@ -103,7 +101,6 @@ runs:
           echo "CUDA runtime injection is only enabled on Linux in this workflow" >&2
           exit 1
         fi
-        echo "wheel_platform_tag=${wheel_platform_tag}" >> "${GITHUB_OUTPUT}"
         echo "manylinux_container_image=${manylinux_container_image}" >> "${GITHUB_OUTPUT}"
         echo "cibw_manylinux_x86_64_image=${cibw_manylinux_x86_64_image}" >> "${GITHUB_OUTPUT}"
         echo "cibw_manylinux_aarch64_image=${cibw_manylinux_aarch64_image}" >> "${GITHUB_OUTPUT}"
@@ -195,7 +192,6 @@ runs:
         CIBW_ARCHS_WINDOWS: ${{ inputs.arch }}
         CIBW_MANYLINUX_X86_64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_x86_64_image }}
         CIBW_MANYLINUX_AARCH64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_aarch64_image }}
-        CIBW_BUILD_VERBOSITY: 1
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CIBW_CONTAINER_ENGINE: ${{ steps.wheel_inputs.outputs.cibw_container_engine }}
         # Build the CUDA runtime sidecar once per architecture inside the
@@ -206,34 +202,17 @@ runs:
           bash {project}/ci/scripts/package/before_all_linux.sh
           "${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           "${{ inputs.cuda_architectures }}"
-        # Build-backend deps (scikit-build-core, and the cmake/ninja it pulls in
-        # automatically) come from [build-system].requires under build isolation.
-        # auditwheel (manylinux image) and delocate (cibuildwheel) are already
-        # present; only delvewheel must be installed for the Windows repair. The
-        # remaining steps apply the dist-name/version override and build against
-        # the vendored tvm-ffi.
-        CIBW_BEFORE_BUILD_LINUX: >-
-          if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2-devel; fi &&
-          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
-          python -m pip install -v "{project}/3rdparty/tvm-ffi"
-        CIBW_BEFORE_BUILD_MACOS: >-
-          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
-          python -m pip install -v "{project}/3rdparty/tvm-ffi"
-        CIBW_BEFORE_BUILD_WINDOWS: >-
-          python -m pip install delvewheel &&
-          python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
-          python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_ENVIRONMENT: >-
           TVM_USE_LLVM="/opt/llvm/bin/llvm-config --link-static"
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm -DZLIB_USE_STATIC_LIBS=ON ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DCMAKE_PREFIX_PATH=/opt/llvm ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
         CIBW_ENVIRONMENT_WINDOWS: >-
           TVM_USE_LLVM="C:/opt/llvm/Library/bin/llvm-config.exe --link-static"
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
-          CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library -DZLIB_USE_STATIC_LIBS=ON"
+          CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
@@ -245,23 +224,3 @@ runs:
           TVM_EXPECT_STATIC_LLVM=1
           TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
-        CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-          auditwheel repair --plat "${{ steps.wheel_inputs.outputs.wheel_platform_tag }}"
-          --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so
-          --exclude "libcuda.so.*" --exclude "libcudart.so.*"
-          --exclude "libnvrtc.so.*" --exclude "libnvrtc-builtins.so.*"
-          -w "{dest_dir}" "{wheel}"
-        CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-          DYLD_LIBRARY_PATH="/opt/llvm/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-          delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib
-          --require-archs "{delocate_archs}" -w "{dest_dir}" -v "{wheel}"
-        # TVM's tvm_compiler.dll / tvm_runtime.dll are loaded at runtime via
-        # ctypes (not linked from a .pyd), so delvewheel needs --analyze-existing
-        # to inspect them for their real dependencies (e.g. libxml2.dll), and
-        # --ignore-existing so the sibling DLLs already in the wheel are treated
-        # as satisfied and located inside the wheel rather than on the search path.
-        CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
-          delvewheel repair --analyze-existing --ignore-existing
-          --add-path "C:/opt/llvm/Library/bin"
-          --exclude tvm_ffi.dll --exclude libtvm_ffi.dll
-          -w "{dest_dir}" "{wheel}"
