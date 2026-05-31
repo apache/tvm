@@ -25,6 +25,7 @@
 #define TVM_TOPI_NN_LAYER_NORM_H_
 
 #include <tvm/te/operation.h>
+#include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>
 
 #include <string>
@@ -59,17 +60,18 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
       << "layer_norm: only support float32 and float16 for now";
   bool is_float16 = data_type == DataType::Float(16);
-  // sum x and x^2
+  // Two-pass algorithm for improved numerical stability:
+  //   pass1: mean = E[x]
+  //   pass2: var = E[(x - mean)^2]
   auto ndim = data->shape.size();
   TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape =
       MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/false);
-  auto func = MakeTupleSumReducer();
 
-  auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
-                  &data](const ffi::Array<Var>& indices) {
+  auto make_eval_range = [&real_axis, &reduce_axes,
+                          ndim](const ffi::Array<Var>& non_reduce_indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -80,34 +82,51 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         eval_range.push_back(reduce_axes[red_counter]);
         red_counter++;
       } else {
-        eval_range.push_back(indices[arg_counter]);
+        eval_range.push_back(non_reduce_indices[arg_counter]);
         arg_counter++;
       }
     }
-    auto square = [is_float16](const PrimExpr& x) {
-      if (is_float16) {
-        return Cast(DataType::Float(32), x) * Cast(DataType::Float(32), x);
-      }
-      return x * x;
-    };
-    if (is_float16) {
-      return func({Cast(DataType::Float(32), data(eval_range)), square(data(eval_range))},
-                  reduce_axes, nullptr);
-    } else {
-      return func({data(eval_range), square(data(eval_range))}, reduce_axes, nullptr);
-    }
+    return eval_range;
   };
 
-  auto temp_x_x2 =
-      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduce);
+  Tensor temp_sum = te::compute(
+      target_shape,
+      [is_float16, &data, &reduce_axes, &make_eval_range](const ffi::Array<Var>& indices) {
+        auto eval_range = make_eval_range(indices);
+        PrimExpr x = data(eval_range);
+        if (is_float16) {
+          x = Cast(DataType::Float(32), x);
+        }
+        return sum(x, reduce_axes);
+      },
+      data->op->name + "_sum", kCommReduce);
 
-  auto temp_x = temp_x_x2[0];
-  auto temp_x2 = temp_x_x2[1];
-
-  auto reduce_extent = make_const(data->dtype, 1);
+  DataType reduce_dtype = is_float16 ? DataType::Float(32) : data->dtype;
+  PrimExpr reduce_extent = make_const(reduce_dtype, 1);
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
+  Tensor temp_mean = te::compute(
+      target_shape,
+      [&temp_sum, &reduce_extent](const ffi::Array<Var>& indices) {
+        return temp_sum(indices) / reduce_extent;
+      },
+      data->op->name + "_mean", kInjective);
+
+  Tensor temp_var_sum = te::compute(
+      target_shape,
+      [is_float16, &data, &reduce_axes, &make_eval_range,
+       &temp_mean](const ffi::Array<Var>& indices) {
+        auto eval_range = make_eval_range(indices);
+        PrimExpr x = data(eval_range);
+        if (is_float16) {
+          x = Cast(DataType::Float(32), x);
+        }
+        PrimExpr diff = x - temp_mean(indices);
+        return sum(diff * diff, reduce_axes);
+      },
+      data->op->name + "_var_sum", kCommReduce);
+
   auto layer_norm_func = [&](const ffi::Array<Var>& indices) {
     ffi::Array<Var> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
@@ -117,9 +136,9 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    auto mean = temp_x(non_reduce_indices) / reduce_extent;
-    auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
-    auto layer_norm = (data(indices) - mean) * tvm::rsqrt(var + make_const(var->dtype, epsilon));
+    auto mean = temp_mean(non_reduce_indices);
+    auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
+    auto layer_norm = (data(indices) - mean) * rsqrt(var + make_const(var->dtype, epsilon));
     if (is_float16) {
       layer_norm = Cast(DataType::Float(16), layer_norm);
     }
@@ -129,7 +148,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     }
     return layer_norm;
   };
-  return tvm::te::compute(data->shape, layer_norm_func, name, tag);
+  return te::compute(data->shape, layer_norm_func, name, tag);
 }
 
 }  // namespace nn
