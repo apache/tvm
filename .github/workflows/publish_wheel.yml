@@ -242,24 +242,28 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Verify package from TestPyPI
-        if: ${{ inputs.publish_repository == 'testpypi' }}
+      - name: Verify the published package
         env:
-          TVM_PYTHON: python
-          TVM_TEST_INDEX_URL: https://test.pypi.org/simple/
-          TVM_EXTRA_INDEX_URL: https://pypi.org/simple
           TVM_EXPECT_LLVM_ENABLED: "1"
           TVM_EXPECT_STATIC_LLVM: "1"
           TVM_EXPECT_CUDA_RUNTIME: "1"
-        run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi
-
-      - name: Verify package from PyPI
-        if: ${{ inputs.publish_repository == 'pypi' }}
-        env:
-          TVM_PYTHON: python
-          TVM_TEST_INDEX_URL: https://pypi.org/simple/
-          TVM_EXTRA_INDEX_URL: https://pypi.org/simple
-          TVM_EXPECT_LLVM_ENABLED: "1"
-          TVM_EXPECT_STATIC_LLVM: "1"
-          TVM_EXPECT_CUDA_RUNTIME: "1"
-        run: ci/scripts/package/tvm_wheel_helper.sh verify-pypi
+        run: |
+          set -eux
+          if [[ "${{ inputs.publish_repository }}" == "pypi" ]]; then
+            index_url="https://pypi.org/simple/"
+          else
+            index_url="https://test.pypi.org/simple/"
+          fi
+          # The package name/version come from the uploaded wheel's filename
+          # (PEP 427: {distribution}-{version}-...).
+          wheel="$(ls wheelhouse/*.whl | head -n1)"
+          base="$(basename "${wheel}")"
+          name="${base%%-*}"
+          version="$(printf '%s' "${base#*-}" | cut -d- -f1)"
+          python -m venv /tmp/verify-venv
+          /tmp/verify-venv/bin/python -m pip install --upgrade pip
+          /tmp/verify-venv/bin/python -m pip install \
+            --index-url "${index_url}" --extra-index-url https://pypi.org/simple \
+            "${name}==${version}"
+          /tmp/verify-venv/bin/python -m pip install pytest numpy
+          /tmp/verify-venv/bin/python -m pytest -c tests/python/wheel/pytest.ini tests/python/wheel

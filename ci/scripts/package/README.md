@@ -112,10 +112,8 @@ Workflow structure:
   `auditwheel`/`delocate`/`delvewheel`.
 - `ci/scripts/package/before_all_linux.sh`: `CIBW_BEFORE_ALL_LINUX` hook that
   installs the CUDA toolkit in the manylinux container and builds
-  `libtvm_runtime_cuda.so` (no-op for CPU-only wheels).
-- `ci/scripts/package/tvm_wheel_helper.sh`: implements the build pieces
-  `cibuildwheel` cannot — building the CUDA runtime sidecar (`cuda`) and
-  post-publish package verification (`verify-pypi`).
+  `libtvm_runtime_cuda.so` (no-op for CPU-only wheels). This is the only build
+  piece cibuildwheel cannot do itself, since its container has no CUDA toolkit.
 - `ci/scripts/package/set_wheel_dist.py`: applies optional distribution
   name/version overrides to `[project]` before the build (used for TestPyPI
   validation builds), so the backend produces the desired wheel directly.
@@ -163,30 +161,26 @@ python -m pip install wheelhouse/*.whl pytest numpy
 python -m pytest -c tests/python/wheel/pytest.ini tests/python/wheel
 ```
 
-To verify a package that has already been uploaded to an index, run:
+Post-publish verification (installing the uploaded package from the index and
+running the same suite) is inlined in the `verify_pypi` job of
+`publish_wheel.yml`. To reproduce it locally:
 
 ```bash
-TVM_PYTHON=/tmp/tvm-wheel-tools/bin/python \
-ci/scripts/package/tvm_wheel_helper.sh verify-pypi
+python -m venv /tmp/verify-venv
+/tmp/verify-venv/bin/python -m pip install \
+  --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple \
+  "<name>==<version>"
+/tmp/verify-venv/bin/python -m pip install pytest numpy
+/tmp/verify-venv/bin/python -m pytest -c tests/python/wheel/pytest.ini tests/python/wheel
 ```
 
 Publishing itself is handled in the workflow by the standard
-`pypa/gh-action-pypi-publish` action (trusted publishing), not this helper.
+`pypa/gh-action-pypi-publish` action (trusted publishing).
 
-Useful knobs:
+Environment knobs:
 
-- `TVM_USE_LLVM`: LLVM config for the CIBW build and repair helpers, default
-  `llvm-config --link-static`.
-- `TVM_USE_CUDA`: CUDA root or `ON` for the CUDA build, default `ON`.
-- `TVM_CUDA_RUNTIME_PATH`: explicit path to `libtvm_runtime_cuda.so` for repair.
-- `TVM_CUDA_ARCHITECTURES`: CMake CUDA architectures, default `75`.
-- `TVM_WHEEL_DIST_NAME`: optional distribution rename for TestPyPI.
-- `TVM_WHEEL_DIST_VERSION`: optional distribution version rewrite.
-- `TVM_INCLUDE_CUDA_RUNTIME=1`: build `libtvm_runtime_cuda.so`. Do not set this
-  to a value that conflicts with `TVM_SKIP_CUDA`.
-- `TVM_SKIP_CUDA=1`: skip building `libtvm_runtime_cuda.so`.
-- `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
-- `TVM_CUDA_BUILD_DIR`: build directory for the CUDA runtime, default
-  `<repo>/build-wheel-cuda`.
-- `TVM_TEST_INDEX_URL`: package index for `verify-pypi`, default TestPyPI.
-- `TVM_EXTRA_INDEX_URL`: extra package index for dependencies, default PyPI.
+- `TVM_WHEEL_DIST_NAME` / `TVM_WHEEL_DIST_VERSION`: optional package name/version
+  overrides applied by `set_wheel_dist.py` before the build (for TestPyPI
+  validation); both empty for a normal `tvm` release.
+- `before_all_linux.sh` takes its inputs as positional arguments
+  (`<include_cuda_runtime> <cuda_architectures>`), not environment variables.
