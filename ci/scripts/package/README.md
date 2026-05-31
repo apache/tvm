@@ -44,8 +44,10 @@ The wheel build flow is:
 GitHub Actions flow:
 
 1. The `Publish TVM wheels` workflow builds a platform wheel matrix:
-   - Linux x86_64 in a pinned `manylinux_2_28` container, with the CUDA runtime.
-   - Linux aarch64 in a pinned `manylinux_2_28` container, with the CUDA runtime.
+   - Linux x86_64 in cibuildwheel's default `manylinux_2_28` container, with the
+     CUDA runtime.
+   - Linux aarch64 in cibuildwheel's default `manylinux_2_28` container, with the
+     CUDA runtime.
    - macOS arm64 CPU-only.
    - Windows AMD64 CPU-only.
 2. On Linux the CUDA runtime is built inside the same `cibuildwheel` container
@@ -80,9 +82,11 @@ scikit-build-core runs):
 
 In the workflow `env:` (dynamic — describes only this CI run, cannot be static):
 
-- `CIBW_BUILD` / `CIBW_ARCHS_*`: the per-architecture build selector.
-- `CIBW_MANYLINUX_*_IMAGE` and `CIBW_CONTAINER_ENGINE`: the pinned manylinux
-  image and the `/opt/llvm` bind-mount.
+- `CIBW_BUILD` / `CIBW_ARCHS_*`: the per-architecture build selector. The
+  `manylinux_*` build tag selects cibuildwheel's default `manylinux_2_28` image,
+  so no image override is needed.
+- `CIBW_CONTAINER_ENGINE`: bind-mounts the cached `/opt/llvm` prefix into the
+  Linux build container.
 - `CIBW_ENVIRONMENT`: the `USE_LLVM` config path, `CMAKE_PREFIX_PATH`, and the
   CUDA `TVM_PACKAGE_EXTRA_LIBS` path — all depend on where the runner installed
   things.

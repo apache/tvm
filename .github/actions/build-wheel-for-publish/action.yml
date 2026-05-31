@@ -27,14 +27,6 @@ inputs:
   build:
     description: "cibuildwheel build selector (e.g., cp310-manylinux_x86_64)"
     required: true
-  linux_image:
-    description: "Manylinux image family to use on Linux runners; required on Linux"
-    required: false
-    default: ""
-  linux_image_tag:
-    description: "Pinned manylinux container tag shared with the CUDA runtime build; required on Linux"
-    required: false
-    default: ""
   distribution_name:
     description: "Optional wheel distribution name override, useful for TestPyPI"
     required: false
@@ -48,64 +40,15 @@ inputs:
     required: false
     default: "75"
   include_cuda_runtime:
-    description: "Set to true to inject the CUDA runtime library"
+    description: "Set to 1 to build and inject the CUDA runtime library (Linux only)"
     required: false
-    default: "false"
+    default: "0"
 
 runs:
   using: "composite"
   steps:
     - uses: ./.github/actions/detect-env-vars
       id: env_vars
-
-    - name: Detect wheel inputs
-      id: wheel_inputs
-      shell: bash -l {0}
-      env:
-        INPUT_ARCH: ${{ inputs.arch }}
-        INPUT_INCLUDE_CUDA_RUNTIME: ${{ inputs.include_cuda_runtime }}
-        INPUT_LINUX_IMAGE: ${{ inputs.linux_image }}
-        INPUT_LINUX_IMAGE_TAG: ${{ inputs.linux_image_tag }}
-      run: |
-        set -eux
-        manylinux_container_image=""
-        cibw_manylinux_x86_64_image="${INPUT_LINUX_IMAGE:-manylinux_2_28}"
-        cibw_manylinux_aarch64_image="${INPUT_LINUX_IMAGE:-manylinux_2_28}"
-        cibw_container_engine="docker"
-        include_cuda_runtime="$(printf '%s' "${INPUT_INCLUDE_CUDA_RUNTIME}" | tr '[:upper:]' '[:lower:]')"
-        case "${include_cuda_runtime}" in
-          1|true|yes|on) include_cuda_runtime=1 ;;
-          0|false|no|off) include_cuda_runtime=0 ;;
-          *)
-            echo "include_cuda_runtime must be a boolean value" >&2
-            exit 1
-            ;;
-        esac
-        if [[ "${RUNNER_OS}" == "Linux" ]]; then
-          if [[ -z "${INPUT_LINUX_IMAGE}" ]]; then
-            echo "linux_image is required on Linux runners" >&2
-            exit 1
-          fi
-          if [[ -z "${INPUT_LINUX_IMAGE_TAG}" ]]; then
-            echo "linux_image_tag is required on Linux runners" >&2
-            exit 1
-          fi
-          manylinux_container_image="quay.io/pypa/${INPUT_LINUX_IMAGE}_${INPUT_ARCH}:${INPUT_LINUX_IMAGE_TAG}"
-          if [[ "${INPUT_ARCH}" == "x86_64" ]]; then
-            cibw_manylinux_x86_64_image="${manylinux_container_image}"
-          elif [[ "${INPUT_ARCH}" == "aarch64" ]]; then
-            cibw_manylinux_aarch64_image="${manylinux_container_image}"
-          fi
-          cibw_container_engine="docker; create_args: --volume /opt/llvm:/opt/llvm:ro"
-        elif [[ "${include_cuda_runtime}" == "1" ]]; then
-          echo "CUDA runtime injection is only enabled on Linux in this workflow" >&2
-          exit 1
-        fi
-        echo "manylinux_container_image=${manylinux_container_image}" >> "${GITHUB_OUTPUT}"
-        echo "cibw_manylinux_x86_64_image=${cibw_manylinux_x86_64_image}" >> "${GITHUB_OUTPUT}"
-        echo "cibw_manylinux_aarch64_image=${cibw_manylinux_aarch64_image}" >> "${GITHUB_OUTPUT}"
-        echo "cibw_container_engine=${cibw_container_engine}" >> "${GITHUB_OUTPUT}"
-        echo "include_cuda_runtime=${include_cuda_runtime}" >> "${GITHUB_OUTPUT}"
 
     # Single source of truth for the LLVM toolchain version, shared by the cache
     # key and the conda install steps below.
@@ -190,22 +133,23 @@ runs:
         CIBW_ARCHS_LINUX: ${{ inputs.arch }}
         CIBW_ARCHS_MACOS: ${{ inputs.arch }}
         CIBW_ARCHS_WINDOWS: ${{ inputs.arch }}
-        CIBW_MANYLINUX_X86_64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_x86_64_image }}
-        CIBW_MANYLINUX_AARCH64_IMAGE: ${{ steps.wheel_inputs.outputs.cibw_manylinux_aarch64_image }}
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
-        CIBW_CONTAINER_ENGINE: ${{ steps.wheel_inputs.outputs.cibw_container_engine }}
+        # Linux builds run in cibuildwheel's default manylinux_2_28 container;
+        # bind-mount the cached LLVM prefix into it. Ignored on macOS/Windows,
+        # which build without a container.
+        CIBW_CONTAINER_ENGINE: "docker; create_args: --volume /opt/llvm:/opt/llvm:ro"
         # Build the CUDA runtime sidecar once per architecture inside the
         # manylinux build container (no-op for CPU-only wheels). The CPU wheel
         # build then bundles the resulting libtvm_runtime_cuda.so via
         # -DTVM_PACKAGE_EXTRA_LIBS. Replaces the separate build-cuda docker job.
         CIBW_BEFORE_ALL_LINUX: >-
           bash {project}/ci/scripts/package/before_all_linux.sh
-          "${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
+          "${{ inputs.include_cuda_runtime }}"
           "${{ inputs.cuda_architectures }}"
         CIBW_ENVIRONMENT: >-
           TVM_USE_LLVM="/opt/llvm/bin/llvm-config --link-static"
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DCMAKE_PREFIX_PATH=/opt/llvm ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
@@ -222,5 +166,5 @@ runs:
         CIBW_TEST_ENVIRONMENT: >-
           TVM_EXPECT_LLVM_ENABLED=1
           TVM_EXPECT_STATIC_LLVM=1
-          TVM_EXPECT_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
-          TVM_EXPECT_CUDA_ENABLED="${{ steps.wheel_inputs.outputs.include_cuda_runtime != '1' && '0' || '' }}"
+          TVM_EXPECT_CUDA_RUNTIME="${{ inputs.include_cuda_runtime }}"
+          TVM_EXPECT_CUDA_ENABLED="${{ inputs.include_cuda_runtime != '1' && '0' || '' }}"
