@@ -206,17 +206,21 @@ runs:
           bash {project}/ci/scripts/package/before_all_linux.sh
           "${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
           "${{ inputs.cuda_architectures }}"
+        # Build-backend deps (scikit-build-core, and the cmake/ninja it pulls in
+        # automatically) come from [build-system].requires under build isolation.
+        # auditwheel (manylinux image) and delocate (cibuildwheel) are already
+        # present; only delvewheel must be installed for the Windows repair. The
+        # remaining steps apply the dist-name/version override and build against
+        # the vendored tvm-ffi.
         CIBW_BEFORE_BUILD_LINUX: >-
           if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2-devel; fi &&
-          python -m pip install -U pip cmake ninja scikit-build-core wheel auditwheel &&
           python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_MACOS: >-
-          python -m pip install -U pip cmake ninja scikit-build-core wheel delocate &&
           python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_BEFORE_BUILD_WINDOWS: >-
-          python -m pip install -U pip cmake ninja scikit-build-core wheel delvewheel &&
+          python -m pip install delvewheel &&
           python "{project}/ci/scripts/package/set_wheel_dist.py" "{project}/pyproject.toml" &&
           python -m pip install -v "{project}/3rdparty/tvm-ffi"
         CIBW_ENVIRONMENT: >-
