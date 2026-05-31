@@ -62,23 +62,24 @@ dependencies = [
 # framework needed to read models from that ecosystem; install only what you
 # need, e.g. ``pip install tvm[importer-onnx]``.
 [project.optional-dependencies]
-# Model importers
-importer-coreml = ["coremltools"]
-importer-keras = ["tensorflow"]
+# Model importers -- only the Relax frontends that actually exist under
+# python/tvm/relax/frontend are listed (onnx, torch, tflite).
 importer-onnx = ["onnx", "onnxoptimizer", "onnxruntime"]
 importer-pytorch = ["torch", "torchvision"]
-importer-tensorflow = ["tensorflow"]
 importer-tflite = ["tflite"]
-importer-paddle = ["paddlepaddle"]
 
-# AutoTVM and auto-scheduler tuning
-autotvm = ["xgboost"]
-autoscheduler = ["xgboost"]
+# CoreML codegen backend (tvm.relax.backend.metal.coreml) emits a CoreML model;
+# this is a backend, not a model importer.
+coreml = ["coremltools"]
 
-# ``all`` intentionally pulls in only TVM's own optional runtime features (the
-# tuning stack). Model importers are heavy third-party frameworks (torch,
-# tensorflow, paddle, tflite, ...) that depend on TVM rather than the reverse,
-# so they are NOT bundled here -- install them explicitly per ecosystem.
+# Meta-schedule auto-tuning cost model. (AutoTVM / auto-scheduler were removed
+# from the Relax-era TVM; meta_schedule is the current tuning stack.)
+meta-schedule = ["xgboost"]
+
+# ``all`` intentionally pulls in only TVM's own optional runtime feature (the
+# meta-schedule tuning stack). Model importers and codegen backends are heavy
+# third-party frameworks that depend on TVM rather than the reverse, so they are
+# NOT bundled here -- install them explicitly per ecosystem.
 all = ["xgboost"]
 
 [project.urls]
