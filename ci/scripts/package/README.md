@@ -24,11 +24,13 @@ and shell/Python helpers.
 
 The wheel build flow is:
 
-1. Optionally build `libtvm_runtime_cuda.so` in a CUDA-enabled Linux CMake build.
+1. On Linux, when a CUDA runtime is requested, `cibuildwheel`'s
+   `CIBW_BEFORE_ALL_LINUX` hook installs the CUDA toolkit inside the manylinux
+   container and builds `libtvm_runtime_cuda.so` (see `before_all_linux.sh`).
 2. Build the main Python wheel with `cibuildwheel`, LLVM enabled, and CUDA
-   disabled. When a CUDA runtime is requested its path is passed to CMake via
+   disabled. The prebuilt CUDA runtime path is passed to CMake via
    `TVM_PACKAGE_EXTRA_LIBS`, so CMake installs it into `tvm/lib/` as part of the
-   normal build — no post-build wheel rewriting.
+   normal build — no separate CUDA build job and no post-build wheel rewriting.
 3. Repair the wheel with the standard per-platform tool — `auditwheel`
    (Linux), `delocate` (macOS), `delvewheel` (Windows) — excluding the
    tvm-ffi library (resolved from the apache-tvm-ffi package) and, on Linux,
@@ -46,9 +48,9 @@ GitHub Actions flow:
    - Linux aarch64 in a pinned `manylinux_2_28` container, with the CUDA runtime.
    - macOS arm64 CPU-only.
    - Windows AMD64 CPU-only.
-2. The Linux CUDA runtime action exposes the built DSO path as an action output.
-   The wheel action receives that path explicitly and mounts it into the
-   `cibuildwheel` container for the repair hook.
+2. On Linux the CUDA runtime is built inside the same `cibuildwheel` container
+   via the `CIBW_BEFORE_ALL_LINUX` hook, so there is no separate CUDA build job
+   or cross-step artifact handoff.
 3. The optional publishing jobs upload the artifacts and can verify the package
    from the selected package index. PyPI publishing requires a `refs/tags/<tag>`
    input and keeps post-upload verification enabled.
@@ -62,16 +64,17 @@ Workflow structure:
 - `.github/workflows/publish_wheel.yml`: defines the platform matrix,
   artifact upload, optional publishing, and post-upload verification.
 - `.github/actions/detect-env-vars`: shared environment detection.
-- `.github/actions/build-cuda`: builds only the optional CUDA runtime library.
-  On Linux this action owns the pinned manylinux Docker/CUDA setup and exposes
-  the runtime DSO path as an action output.
 - `.github/actions/build-wheel-for-publish`: installs the cached LLVM prefix
-  and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. The CUDA
-  runtime is installed by CMake (`TVM_PACKAGE_EXTRA_LIBS`) and the wheel is
-  repaired with standard `auditwheel`/`delocate`.
+  and runs `pypa/cibuildwheel` for the LLVM-enabled runtime wheel. On Linux the
+  CUDA runtime is built in the `CIBW_BEFORE_ALL_LINUX` hook, installed by CMake
+  (`TVM_PACKAGE_EXTRA_LIBS`), and the wheel is repaired with standard
+  `auditwheel`/`delocate`/`delvewheel`.
+- `ci/scripts/package/before_all_linux.sh`: `CIBW_BEFORE_ALL_LINUX` hook that
+  installs the CUDA toolkit in the manylinux container and builds
+  `libtvm_runtime_cuda.so` (no-op for CPU-only wheels).
 - `ci/scripts/package/tvm_wheel_helper.sh`: implements the build pieces
-  `cibuildwheel` cannot — the CUDA runtime sidecar (`cuda`, `manylinux-cuda`)
-  and post-publish package verification (`verify-pypi`).
+  `cibuildwheel` cannot — building the CUDA runtime sidecar (`cuda`) and
+  post-publish package verification (`verify-pypi`).
 - `ci/scripts/package/set_wheel_dist.py`: applies optional distribution
   name/version overrides to `[project]` before the build (used for TestPyPI
   validation builds), so the backend produces the desired wheel directly.
@@ -142,10 +145,7 @@ Useful knobs:
   to a value that conflicts with `TVM_SKIP_CUDA`.
 - `TVM_SKIP_CUDA=1`: skip building `libtvm_runtime_cuda.so`.
 - `TVM_KEEP_BUILD_DIRS=1`: reuse the CMake build directories.
-- `TVM_MANYLINUX_IMAGE`: manylinux image family for `manylinux-cuda`, such as
-  `manylinux_2_28`.
-- `TVM_MANYLINUX_IMAGE_TAG`: pinned manylinux image tag for `manylinux-cuda`.
-- `TVM_ARCH`: target architecture for `manylinux-cuda`, such as `x86_64` or
-  `aarch64`.
+- `TVM_CUDA_BUILD_DIR`: build directory for the CUDA runtime, default
+  `<repo>/build-wheel-cuda`.
 - `TVM_TEST_INDEX_URL`: package index for `verify-pypi`, default TestPyPI.
 - `TVM_EXTRA_INDEX_URL`: extra package index for dependencies, default PyPI.

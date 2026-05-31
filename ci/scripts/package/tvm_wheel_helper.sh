@@ -69,24 +69,23 @@ TVM_KEEP_BUILD_DIRS="$(normalize_bool TVM_KEEP_BUILD_DIRS "$TVM_KEEP_BUILD_DIRS"
 
 usage() {
   cat <<'EOF'
-Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|cuda-path|manylinux-cuda|verify-pypi]
+Usage: ci/scripts/package/tvm_wheel_helper.sh [cuda|verify-pypi]
 
 The main wheel build, repair, and post-install tests are owned by cibuildwheel
 (see pyproject.toml [tool.cibuildwheel] and the publish workflow). This helper
 only covers the pieces cibuildwheel cannot: building the CUDA runtime sidecar
+(invoked from the cibuildwheel CIBW_BEFORE_ALL_LINUX hook via before_all_linux.sh)
 and verifying an already-published package.
 
 Environment knobs:
   TVM_USE_LLVM                 LLVM config for the CUDA runtime build, default "llvm-config --link-static"
   TVM_USE_CUDA                 CUDA root or ON for the CUDA build, default ON
   TVM_CUDA_RUNTIME_PATH        Explicit libtvm_runtime_cuda.so path
+  TVM_CUDA_BUILD_DIR           Build dir for the CUDA runtime, default <repo>/build-wheel-cuda
   TVM_CUDA_ARCHITECTURES       CMake CUDA arch list, default 75
   TVM_INCLUDE_CUDA_RUNTIME=1   Build libtvm_runtime_cuda.so
   TVM_SKIP_CUDA=1              Do not build libtvm_runtime_cuda.so
   TVM_KEEP_BUILD_DIRS=1        Reuse CMake build dirs instead of cleaning them
-  TVM_MANYLINUX_IMAGE          manylinux image tag for manylinux-cuda
-  TVM_MANYLINUX_IMAGE_TAG      pinned image tag for manylinux-cuda
-  TVM_ARCH                     Target architecture for manylinux-cuda
   TVM_TEST_INDEX_URL           Package index for verify-pypi, default TestPyPI
   TVM_EXTRA_INDEX_URL          Extra package index for dependencies, default PyPI
 EOF
@@ -146,101 +145,6 @@ cuda_runtime_path() {
     return 0
   fi
   find "$TVM_CUDA_BUILD_DIR" -type f -name 'libtvm_runtime_cuda.so' | sort | tail -n 1
-}
-
-manylinux_image_name() {
-  local base="$1"
-  local arch="$2"
-  local tag="${3:-}"
-  if [[ "$base" == *"/"* || "$base" == *":"* ]]; then
-    if [[ "$base" != *@sha256:* && "${base##*/}" != *":"* ]]; then
-      echo "error: fully qualified TVM_MANYLINUX_IMAGE must include a tag or digest" >&2
-      return 1
-    fi
-    echo "$base"
-  elif [[ -n "$tag" ]]; then
-    echo "quay.io/pypa/${base}_${arch}:${tag}"
-  else
-    echo "error: TVM_MANYLINUX_IMAGE_TAG is required when TVM_MANYLINUX_IMAGE is not fully qualified" >&2
-    return 1
-  fi
-}
-
-validate_manylinux_cuda_image() {
-  local image="$1"
-  local image_name="${image##*/}"
-  if [[ "$image_name" != manylinux_2_28_*:* && "$image_name" != manylinux_2_28_*@sha256:* ]]; then
-    echo "error: manylinux-cuda currently supports only pinned manylinux_2_28 images" >&2
-    return 1
-  fi
-}
-
-run_manylinux_cuda_container() {
-  if [[ "$TVM_SKIP_CUDA" == "1" ]]; then
-    echo "Skipping manylinux CUDA build because TVM_SKIP_CUDA=1"
-    return 0
-  fi
-
-  require_cmd docker
-  require_cmd curl
-  if [[ -z "${TVM_MANYLINUX_IMAGE:-}" ]]; then
-    echo "error: TVM_MANYLINUX_IMAGE is required for manylinux-cuda" >&2
-    return 1
-  fi
-  if [[ -z "${TVM_ARCH:-}" ]]; then
-    echo "error: TVM_ARCH is required for manylinux-cuda" >&2
-    return 1
-  fi
-
-  local image
-  image="$(manylinux_image_name "$TVM_MANYLINUX_IMAGE" "$TVM_ARCH" "${TVM_MANYLINUX_IMAGE_TAG:-}")"
-  validate_manylinux_cuda_image "$image"
-  local container="tvm_wheel_cuda_${GITHUB_RUN_ID:-local}_${GITHUB_RUN_ATTEMPT:-1}_${TVM_ARCH}"
-  local host_cuda_build_dir="$TVM_CUDA_BUILD_DIR"
-  local container_cuda_root="/workspace-cuda-build"
-  local container_cuda_build_dir="${container_cuda_root}/build"
-  mkdir -p "$host_cuda_build_dir"
-  local cuda_rpm="/tmp/cuda-repo-rhel8-13-0-local-13.0.2_580.95.05-1.${TVM_ARCH}.rpm"
-  trap "rm -f '${cuda_rpm}'; docker exec '${container}' bash -lc 'chown -R $(id -u):$(id -g) ${container_cuda_root} || true' >/dev/null 2>&1 || true; docker rm -f '${container}' >/dev/null 2>&1 || true" EXIT
-  docker pull "$image"
-  docker rm -f "$container" >/dev/null 2>&1 || true
-  docker run --name "$container" -d \
-    --workdir /workspace \
-    --volume "${REPO_ROOT}:/workspace" \
-    --volume "${host_cuda_build_dir}:${container_cuda_root}" \
-    "$image" tail -f /dev/null
-
-  local cuda_rpm_name
-  cuda_rpm_name="$(basename "$cuda_rpm")"
-  curl -fsSLo "$cuda_rpm" "https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/${cuda_rpm_name}"
-  docker cp "$cuda_rpm" "${container}:/${cuda_rpm_name}"
-  rm "$cuda_rpm"
-  docker exec "$container" bash -lc "
-    rpm -i /${cuda_rpm_name} && \
-    dnf clean all && \
-    dnf -y --disablerepo=epel install cuda-toolkit-13-0 && \
-    rm /${cuda_rpm_name} && \
-    dnf clean all"
-
-  docker exec \
-    -e TVM_PYTHON=/opt/python/cp310-cp310/bin/python \
-    -e TVM_USE_CUDA=/usr/local/cuda \
-    -e TVM_CUDA_ARCHITECTURES="$TVM_CUDA_ARCHITECTURES" \
-    -e TVM_CUDA_BUILD_DIR="$container_cuda_build_dir" \
-    -e TVM_INCLUDE_CUDA_RUNTIME=1 \
-    -e CMAKE_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
-    -e TVM_BUILD_PARALLEL_LEVEL="$TVM_BUILD_PARALLEL_LEVEL" \
-    "$container" bash -lc '
-      set -eux
-      export PATH=/opt/python/cp310-cp310/bin:/usr/local/cuda/bin:$PATH
-      python -m pip install -U pip cmake ninja
-      python --version
-      cmake --version
-      nvcc --version
-      ci/scripts/package/tvm_wheel_helper.sh cuda'
-
-  docker exec "$container" bash -lc \
-    "chown -R $(id -u):$(id -g) ${container_cuda_root} || true"
 }
 
 build_cuda_runtime() {
@@ -319,8 +223,6 @@ main() {
   local step="${1:-help}"
   case "$step" in
     cuda) build_cuda_runtime ;;
-    cuda-path) cuda_runtime_path ;;
-    manylinux-cuda) run_manylinux_cuda_container ;;
     verify-pypi) verify_pypi_wheel ;;
     -h|--help|help) usage ;;
     *)

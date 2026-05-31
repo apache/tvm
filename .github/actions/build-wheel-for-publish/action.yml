@@ -51,10 +51,6 @@ inputs:
     description: "Set to true to inject the CUDA runtime library"
     required: false
     default: "false"
-  cuda_runtime_path:
-    description: "Absolute path to libtvm_runtime_cuda.so produced by build-cuda"
-    required: false
-    default: ""
 
 runs:
   using: "composite"
@@ -70,7 +66,6 @@ runs:
         INPUT_INCLUDE_CUDA_RUNTIME: ${{ inputs.include_cuda_runtime }}
         INPUT_LINUX_IMAGE: ${{ inputs.linux_image }}
         INPUT_LINUX_IMAGE_TAG: ${{ inputs.linux_image_tag }}
-        INPUT_CUDA_RUNTIME_PATH: ${{ inputs.cuda_runtime_path }}
       run: |
         set -eux
         wheel_platform_tag=""
@@ -96,16 +91,6 @@ runs:
             echo "linux_image_tag is required on Linux runners" >&2
             exit 1
           fi
-          if [[ "${include_cuda_runtime}" == "1" ]]; then
-            if [[ -z "${INPUT_CUDA_RUNTIME_PATH}" ]]; then
-              echo "cuda_runtime_path is required when include_cuda_runtime=true" >&2
-              exit 1
-            fi
-            if [[ ! -f "${INPUT_CUDA_RUNTIME_PATH}" ]]; then
-              echo "cuda_runtime_path does not exist: ${INPUT_CUDA_RUNTIME_PATH}" >&2
-              exit 1
-            fi
-          fi
           wheel_platform_tag="${INPUT_LINUX_IMAGE}_${INPUT_ARCH}"
           manylinux_container_image="quay.io/pypa/${INPUT_LINUX_IMAGE}_${INPUT_ARCH}:${INPUT_LINUX_IMAGE_TAG}"
           if [[ "${INPUT_ARCH}" == "x86_64" ]]; then
@@ -114,10 +99,6 @@ runs:
             cibw_manylinux_aarch64_image="${manylinux_container_image}"
           fi
           cibw_container_engine="docker; create_args: --volume /opt/llvm:/opt/llvm:ro"
-          if [[ "${include_cuda_runtime}" == "1" && -n "${INPUT_CUDA_RUNTIME_PATH}" ]]; then
-            cuda_runtime_dir="$(dirname "${INPUT_CUDA_RUNTIME_PATH}")"
-            cibw_container_engine+=" --volume ${cuda_runtime_dir}:${cuda_runtime_dir}:ro"
-          fi
         elif [[ "${include_cuda_runtime}" == "1" ]]; then
           echo "CUDA runtime injection is only enabled on Linux in this workflow" >&2
           exit 1
@@ -217,6 +198,14 @@ runs:
         CIBW_BUILD_VERBOSITY: 1
         CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         CIBW_CONTAINER_ENGINE: ${{ steps.wheel_inputs.outputs.cibw_container_engine }}
+        # Build the CUDA runtime sidecar once per architecture inside the
+        # manylinux build container (no-op for CPU-only wheels). The CPU wheel
+        # build then bundles the resulting libtvm_runtime_cuda.so via
+        # -DTVM_PACKAGE_EXTRA_LIBS. Replaces the separate build-cuda docker job.
+        CIBW_BEFORE_ALL_LINUX: >-
+          bash {project}/ci/scripts/package/before_all_linux.sh
+          "${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
+          "${{ inputs.cuda_architectures }}"
         CIBW_BEFORE_BUILD_LINUX: >-
           if command -v dnf >/dev/null 2>&1; then dnf -y install libxml2-devel; fi &&
           python -m pip install -U pip cmake ninja scikit-build-core wheel auditwheel &&
@@ -233,22 +222,16 @@ runs:
         CIBW_ENVIRONMENT: >-
           TVM_USE_LLVM="/opt/llvm/bin/llvm-config --link-static"
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm -DZLIB_USE_STATIC_LIBS=ON ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && format('-DTVM_PACKAGE_EXTRA_LIBS={0}', inputs.cuda_runtime_path) || '' }}"
-          TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=/opt/llvm -DZLIB_USE_STATIC_LIBS=ON ${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
-          TVM_INCLUDE_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
-          TVM_CUDA_RUNTIME_PATH="${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && inputs.cuda_runtime_path || '' }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
         CIBW_ENVIRONMENT_WINDOWS: >-
           TVM_USE_LLVM="C:/opt/llvm/Library/bin/llvm-config.exe --link-static"
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
           CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DUSE_CUDA=OFF -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library -DZLIB_USE_STATIC_LIBS=ON"
-          TVM_CUDA_ARCHITECTURES="${{ inputs.cuda_architectures }}"
           TVM_WHEEL_DIST_NAME="${{ inputs.distribution_name }}"
           TVM_WHEEL_DIST_VERSION="${{ inputs.distribution_version }}"
-          TVM_INCLUDE_CUDA_RUNTIME="${{ steps.wheel_inputs.outputs.include_cuda_runtime }}"
-          TVM_CUDA_RUNTIME_PATH="${{ steps.wheel_inputs.outputs.include_cuda_runtime == '1' && inputs.cuda_runtime_path || '' }}"
           TVM_BUILD_PARALLEL_LEVEL="${{ steps.env_vars.outputs.cpu_count }}"
         # Strict post-install expectations consumed by tests/python/wheel. These
         # belong to the cibuildwheel test phase, so the standard test-command

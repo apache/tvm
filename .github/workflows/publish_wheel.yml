@@ -141,16 +141,6 @@ jobs:
           fetch-depth: 1
           fetch-tags: true
 
-      - name: Build CUDA runtime
-        id: build_cuda
-        uses: ./.github/actions/build-cuda
-        with:
-          arch: ${{ matrix.arch }}
-          linux_image: ${{ matrix.linux_image }}
-          linux_image_tag: ${{ matrix.linux_image_tag }}
-          cuda_architectures: ${{ inputs.cuda_architectures }}
-          include_cuda_runtime: ${{ matrix.include_cuda_runtime }}
-
       - name: Build TVM wheel
         uses: ./.github/actions/build-wheel-for-publish
         with:
@@ -162,7 +152,6 @@ jobs:
           distribution_version: ${{ inputs.distribution_version }}
           cuda_architectures: ${{ inputs.cuda_architectures }}
           include_cuda_runtime: ${{ matrix.include_cuda_runtime }}
-          cuda_runtime_path: ${{ steps.build_cuda.outputs.cuda_runtime_path }}
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
