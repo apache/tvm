@@ -105,7 +105,7 @@ test = [
   "pytest-rerunfailures",
   "pytest-repeat",
 ]
-lint = ["ruff", "ty", "pre-commit"]
+lint = ["ruff", "pre-commit"]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
 
 [tool.scikit-build]
@@ -253,20 +253,6 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
-
-[tool.ty.environment]
-python-version = "3.10"
-# First-party modules live under python/ (imported as ``tvm``).
-root = ["python"]
-
-[tool.ty.src]
-include = ["python/tvm"]
-exclude = ["3rdparty", "build", "dist"]
-
-[tool.ty.rules]
-# TVM has many optional third-party imports and large untyped areas; don't fail
-# the check on every missing stub (mirrors the previous mypy leniency).
-unresolved-import = "ignore"
 
 [tool.cibuildwheel]
 # TVM cannot build 32-bit or musl targets; skip them so a bare `cibuildwheel`
