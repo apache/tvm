@@ -183,6 +183,26 @@ class Tensor : public tvm::ffi::Tensor {
    */
   TVM_RUNTIME_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
                                             TVMStreamHandle stream = nullptr);
+
+  /*!
+   * \brief Check if two tensors share the same underlying storage.
+   *
+   * This detects runtime storage aliasing (e.g. views from CreateView, etc.) but does
+   * not imply either tensor was created by CreateView.
+   *
+   * \param a The first tensor.
+   * \param b The second tensor.
+   * \return True if the tensors share the same storage.
+   */
+  TVM_RUNTIME_DLL static bool IsStorageShared(const DLTensor* a, const DLTensor* b);
+
+  /*!
+   * \brief Tensor overload of IsStorageShared.
+   * \param a The first tensor.
+   * \param b The second tensor.
+   * \return True if the tensors share the same storage.
+   */
+  static bool IsStorageShared(const Tensor& a, const Tensor& b);
 };
 
 /*!
