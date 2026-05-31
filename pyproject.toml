@@ -203,14 +203,7 @@ include = [
 line-length = 100
 indent-width = 4
 target-version = "py310"
-exclude = [
-  "3rdparty",
-  "build",
-  "dist",
-  ".venv",
-  ".ruff_cache",
-  "node_modules",
-]
+exclude = ["3rdparty", "build", "dist", ".venv", ".ruff_cache", "node_modules"]
 
 [tool.ruff.lint]
 select = [

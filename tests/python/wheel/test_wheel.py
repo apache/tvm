@@ -53,6 +53,7 @@ def test_llvm_compile():
         pytest.skip("llvm runtime not enabled")
 
     import numpy as np
+
     from tvm import te
 
     n = 8
