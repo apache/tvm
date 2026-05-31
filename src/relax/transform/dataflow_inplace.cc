@@ -39,6 +39,67 @@
 namespace tvm {
 namespace relax {
 
+// Ops that may return a tensor sharing storage with the first argument.
+// These ops has been verified to share storage with the first argument in
+// tests/python/relax/test_dataflow_inplace.py.
+bool IsViewMemoryOp(const OpNode* op_node) {
+  // TODO: Consider to add more ops that may return a tensor sharing storage with
+  // the first argument in the future.
+  static const std::unordered_set<std::string> kViewOps = {
+      "relax.expand_dims", "relax.squeeze",
+      "relax.reshape",     "relax.permute_dims",
+      "relax.flatten",     "relax.nn.batch_flatten",
+      "relax.memory.view", "relax.memory.ensure_zero_offset",
+  };
+  return kViewOps.count(op_node->name);
+}
+
+// Look up alias ids for a call argument (only Var args are expected in dataflow blocks).
+std::unordered_set<int> GetVarAliasSetFromExpr(
+    const Expr& arg, const std::unordered_map<Var, std::unordered_set<int>>& alias_sets) {
+  if (auto* var_node = arg.as<VarNode>()) {
+    Var var = ffi::GetRef<Var>(var_node);
+    if (!alias_sets.count(var)) {
+      return {-1};
+    }
+    return alias_sets.at(var);
+  }
+  return {-1};
+}
+
+// In-place on arg `candidate` is invalid if another distinct operand may alias the same
+// storage (e.g. two expand_dims views of x bound to different vars). Reject on any shared
+// alias id; -1 in the other operand's set does not skip checking other ids. Same var twice
+// (e.g. add(z, z)) is allowed.
+bool InplaceArgDisjointFromOtherCallArgs(
+    const CallNode* call_node, int candidate,
+    const std::unordered_map<Var, std::unordered_set<int>>& alias_sets) {
+  const auto* cand_var_node = call_node->args[candidate].as<VarNode>();
+  if (!cand_var_node) {
+    return false;
+  }
+  auto cand_set = GetVarAliasSetFromExpr(call_node->args[candidate], alias_sets);
+  if (cand_set.count(-1)) {
+    return false;
+  }
+  for (size_t j = 0; j < call_node->args.size(); j++) {
+    if (static_cast<int>(j) == candidate) {
+      continue;
+    }
+    const Expr& other_arg = call_node->args[j];
+    if (other_arg.same_as(call_node->args[candidate])) {
+      continue;
+    }
+    auto other_set = GetVarAliasSetFromExpr(other_arg, alias_sets);
+    for (int alias_idx : other_set) {
+      if (cand_set.count(alias_idx)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // Perform liveness analysis on a dataflow block, returning a map of vars to
 // pairs of indices (the liveness interval, from the starting index to the end index).
 // A starting index of -1 means the var is defined before the block starts and an end index
@@ -274,6 +335,9 @@ class AliasAnalyzer {
           } else {
             ret.insert(get_fresh_idx());
           }
+        } else if (IsViewMemoryOp(op_node) && !call_node->args.empty()) {
+          // View-like ops may share storage with their input (and with other views of it).
+          return GetAliasSet(call_node->args[0], bound_var);
         } else {
           // We are assuming most op calls return fresh values.
           // We may have to track more exceptions
@@ -654,7 +718,8 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         std::unordered_set<int> remove_candidates;
         for (auto candidate : candidates) {
           if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live,
-                                    call_node->args[candidate], i)) {
+                                    call_node->args[candidate], i) ||
+              !InplaceArgDisjointFromOtherCallArgs(call_node, candidate, alias_sets)) {
             remove_candidates.insert(candidate);
           }
         }
