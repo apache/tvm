@@ -16,8 +16,11 @@
 # under the License.
 
 [build-system]
-# >=0.11 for PEP 639 license expression / license-files support.
-requires = ["scikit-build-core>=0.11"]
+# scikit-build-core>=0.11 for PEP 639 license expression / license-files
+# support. cmake and ninja are declared explicitly here (rather than left to
+# scikit-build-core's implicit fetch) so the full build toolchain lives in
+# pyproject.toml; cmake>=3.24 is required for ZLIB_USE_STATIC_LIBS.
+requires = ["scikit-build-core>=0.11", "cmake>=3.24", "ninja"]
 build-backend = "scikit_build_core.build"
 
 [project]
