@@ -1118,8 +1118,8 @@ class Cast(OnnxOpConverter):
             if src_dtype is not None and _relax_dtype_is_floating_point(src_dtype):
                 x_sanitized = bb.emit(
                     relax.op.where(
-                        relax.op.logical_not(relax.op.isfinite(src)), 
-                        relax.const(0.0, src_dtype), 
+                        relax.op.logical_not(relax.op.isfinite(src)),
+                        relax.const(0.0, src_dtype),
                         src,
                     )
                 )
@@ -1136,6 +1136,8 @@ class Cast(OnnxOpConverter):
                 temp_dtype = "int64" if bits > 32 else "int32"
                 t = relax.op.astype(x_sanitized, temp_dtype)
                 mask_val = (1 << bits) - 1
+                if temp_dtype == "int32" and mask_val > 0x7FFFFFFF:
+                    temp_dtype = "int64"
                 mask = relax.const(mask_val, temp_dtype)
                 uw = relax.op.bitwise_and(t, mask)
                 if signed:
@@ -1143,7 +1145,7 @@ class Cast(OnnxOpConverter):
                     half_c = relax.const(half, temp_dtype)
                     two_pow = relax.const(1 << bits, temp_dtype)
                     wrapped = relax.op.where(
-                        relax.op.greater_equal(uw, half_c), 
+                        relax.op.greater_equal(uw, half_c),
                         relax.op.subtract(uw, two_pow),
                         uw,
                     )
