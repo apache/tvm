@@ -338,6 +338,7 @@ class OperatorConverter:
             "STABLEHLO_CONVOLUTION": self._convert_stablehlo_convolution,
             "STABLEHLO_CONVERT": self._convert_stablehlo_convert,
             "STABLEHLO_COSINE": functools.partial(self._convert_stablehlo_unary, relax_op=_op.cos),
+            "STABLEHLO_CUSTOM_CALL": self._convert_stablehlo_custom_call,
             "STABLEHLO_DIVIDE": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.divide
             ),
@@ -1743,6 +1744,13 @@ class OperatorConverter:
         from tflite.BuiltinOptions2 import BuiltinOptions2
 
         op_options = op.BuiltinOptions2()
+        if op_options is None:
+            # A malformed flatbuffer may declare a BuiltinOptions2 type without
+            # carrying the actual options table. Fail cleanly instead of raising
+            # an opaque AttributeError when accessing the missing payload.
+            raise tvm.error.OpNotImplemented(
+                f"{options_cls.__name__} is required but missing from the operator"
+            )
         # Look up the expected BuiltinOptions2 enum value by matching the class
         # name to an enum member (e.g. StablehloConcatenateOptions → 1).
         options_type = getattr(BuiltinOptions2, options_cls.__name__, None)
@@ -2161,6 +2169,42 @@ class OperatorConverter:
         return self.bb.normalize(
             relax.op.sort(data, axis=int(opts.Dimension()), descending=descending)
         )
+
+    def _convert_stablehlo_custom_call(self, op):
+        """Convert supported annotation-only STABLEHLO_CUSTOM_CALL targets."""
+        from tflite.StablehloCustomCallOptions import StablehloCustomCallOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        opts = self._get_stablehlo_options(op, StablehloCustomCallOptions)
+        call_target_name = self._decode_tflite_string(opts.CallTargetName())
+
+        if call_target_name == "Sharding":
+            # TensorFlow treats Sharding custom calls as metadata annotations
+            # and may erase them by replacing the op with its input. Mirror
+            # that identity semantics for the safe single-input/single-output
+            # subset. The sharding spec in backend_config is intentionally
+            # dropped for single-device import. TFLite has no runtime kernel
+            # for general STABLEHLO_CUSTOM_CALL targets.
+            if opts.HasSideEffect():
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_CUSTOM_CALL Sharding with side effects is not supported"
+                )
+            if opts.CalledComputationsLength() != 0:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_CUSTOM_CALL Sharding with called computations is not supported"
+                )
+            if len(input_tensors) != 1 or len(output_tensors) != 1:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_CUSTOM_CALL Sharding requires one input and one output"
+                )
+            self._check_tensor_metadata_match(
+                input_tensors[0], output_tensors[0], "STABLEHLO_CUSTOM_CALL", "Sharding"
+            )
+            return self.get_tensor_expr(input_tensors[0])
+
+        target = call_target_name or "<empty>"
+        raise tvm.error.OpNotImplemented(f"STABLEHLO_CUSTOM_CALL target {target} is not supported")
 
     def _convert_stablehlo_while(self, op):
         """Convert STABLEHLO_WHILE to a recursive Relax private function."""
