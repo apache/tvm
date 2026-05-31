@@ -109,8 +109,6 @@ lint = ["ruff", "ty", "pre-commit"]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
 
 [tool.scikit-build]
-# Point to the root CMakeLists.txt
-cmake.source-dir = "."
 cmake.build-type = "Release"
 
 # Configure the wheel to be Python version-agnostic
@@ -271,6 +269,10 @@ exclude = ["3rdparty", "build", "dist"]
 unresolved-import = "ignore"
 
 [tool.cibuildwheel]
+# TVM cannot build 32-bit or musl targets; skip them so a bare `cibuildwheel`
+# invocation (outside the publish matrix) fails fast instead of attempting them.
+# The workflow matrix selects the real per-platform targets via CIBW_BUILD.
+skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-verbosity = 1
 # Verify the installed wheel with a small pytest suite (post-install checks
 # such as the LLVM compile smoke test and the static-LLVM / CUDA-runtime

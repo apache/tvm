@@ -109,19 +109,6 @@ runs:
       run: |
         conda create -q -p C:\opt\llvm -c conda-forge llvmdev=%LLVM_VERSION% zlib zstd-static libxml2-devel -y
 
-    - name: Print build inputs
-      shell: bash -l {0}
-      run: |
-        set -eux
-        git log -1 --oneline
-        if [[ "${RUNNER_OS}" == "Windows" ]]; then
-          "C:/opt/llvm/Library/bin/llvm-config.exe" --link-static --version
-          "C:/opt/llvm/Library/bin/llvm-config.exe" --link-static --system-libs
-        else
-          /opt/llvm/bin/llvm-config --link-static --version
-          /opt/llvm/bin/llvm-config --link-static --system-libs
-        fi
-
     # ---- Build and test wheels ----
     - name: Build and test wheels
       uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # v3.3.1
