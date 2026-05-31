@@ -40,10 +40,16 @@ namespace tvm {
 namespace relax {
 
 // Ops that may return a tensor sharing storage with the first argument.
+// These ops has been verified to share storage with the first argument in
+// tests/python/relax/test_dataflow_inplace.py.
 bool IsViewMemoryOp(const OpNode* op_node) {
+  // TODO: Consider to add more ops that may return a tensor sharing storage with
+  // the first argument in the future.
   static const std::unordered_set<std::string> kViewOps = {
-      "relax.expand_dims",  "relax.squeeze",     "relax.reshape",
-      "relax.permute_dims", "relax.memory.view", "relax.memory.ensure_zero_offset",
+      "relax.expand_dims", "relax.squeeze",
+      "relax.reshape",     "relax.permute_dims",
+      "relax.flatten",     "relax.nn.batch_flatten",
+      "relax.memory.view", "relax.memory.ensure_zero_offset",
   };
   return kViewOps.count(op_node->name);
 }
