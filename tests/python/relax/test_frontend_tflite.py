@@ -3695,6 +3695,7 @@ _tfl_stablehlo_reduce_opts = _get_tflite_schema_module("StablehloReduceOptions")
 _tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWindowOptions")
 _tfl_stablehlo_scatter_opts = _get_tflite_schema_module("StablehloScatterOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
+_tfl_stablehlo_while_opts = _get_tflite_schema_module("StablehloWhileOptions")
 _tfl_call_options = _get_tflite_schema_module("CallOptions")
 _tfl_call_once_options = _get_tflite_schema_module("CallOnceOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
@@ -3944,6 +3945,17 @@ def _build_while_options(builder, cond_subgraph_index, body_subgraph_index):
     _tfl_while_options.WhileOptionsAddCondSubgraphIndex(builder, cond_subgraph_index)
     _tfl_while_options.WhileOptionsAddBodySubgraphIndex(builder, body_subgraph_index)
     return _tfl_while_options.WhileOptionsEnd(builder)
+
+
+def _build_stablehlo_while_options(builder, cond_subgraph_index, body_subgraph_index):
+    _tfl_stablehlo_while_opts.StablehloWhileOptionsStart(builder)
+    _tfl_stablehlo_while_opts.StablehloWhileOptionsAddCondSubgraphIndex(
+        builder, cond_subgraph_index
+    )
+    _tfl_stablehlo_while_opts.StablehloWhileOptionsAddBodySubgraphIndex(
+        builder, body_subgraph_index
+    )
+    return _tfl_stablehlo_while_opts.StablehloWhileOptionsEnd(builder)
 
 
 def _build_call_once_options(builder, init_subgraph_index):
@@ -6296,6 +6308,107 @@ def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_d
     )
 
 
+def _build_stablehlo_while_model(
+    cond_subgraph_index=1,
+    body_subgraph_index=2,
+    cond_output_type=_tfl_tensor_type.BOOL,
+    cond_input_type=_tfl_tensor_type.INT32,
+    body_outputs=None,
+    body_input_type=_tfl_tensor_type.INT32,
+    body_output_type=_tfl_tensor_type.INT32,
+    main_output_type=_tfl_tensor_type.INT32,
+):
+    """Build a STABLEHLO_WHILE model incrementing an int32 scalar until i < 3 is false."""
+    builder = flatbuffers.Builder(1024)
+
+    body_outputs = [2] if body_outputs is None else body_outputs
+    while_options = _build_stablehlo_while_options(
+        builder, cond_subgraph_index, body_subgraph_index
+    )
+    _tfl_stablehlo_compare_opts.StablehloCompareOptionsStart(builder)
+    _tfl_stablehlo_compare_opts.StablehloCompareOptionsAddComparisonDirection(
+        builder,
+        _tfl_stablehlo_comp_dir.StablehloComparisonDirection.STABLEHLO_COMPARISON_DIRECTION_LT,
+    )
+    compare_opts = _tfl_stablehlo_compare_opts.StablehloCompareOptionsEnd(builder)
+    one = np.array(1, dtype=np.int32)
+    three = np.array(3, dtype=np.int32)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=main_output_type),
+    ]
+    main_while = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StablehloWhileOptions,
+        builtin_options2=while_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[main_while],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    cond_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=cond_input_type),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=cond_output_type),
+    ]
+    cond_compare = _build_operator(
+        builder,
+        1,
+        [0, 1],
+        [2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloCompareOptions,
+        builtin_options2=compare_opts,
+    )
+    cond_subgraph = _build_subgraph(
+        builder,
+        tensors=cond_tensors,
+        operators=[cond_compare],
+        inputs=[0],
+        outputs=[2],
+    )
+
+    body_tensors = [
+        _build_tensor(builder, 0, [], tensor_type=body_input_type),
+        _build_tensor(builder, 2, [], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 3, [], tensor_type=body_output_type),
+    ]
+    body_add = _build_operator(builder, 2, [0, 1], [2])
+    body_subgraph = _build_subgraph(
+        builder,
+        tensors=body_tensors,
+        operators=[body_add],
+        inputs=[0],
+        outputs=body_outputs,
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_stablehlo_builtin_operator("STABLEHLO_WHILE")),
+        _build_operator_code(builder, _get_stablehlo_builtin_operator("STABLEHLO_COMPARE")),
+        _build_operator_code(builder, _get_stablehlo_builtin_operator("STABLEHLO_ADD")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, three.tobytes()),
+        _build_buffer(builder, one.tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[cond_subgraph, body_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_composite_model(with_attributes=False, use_main_input_after_composite=False):
     """Build a STABLEHLO_COMPOSITE model that decomposes to STABLEHLO_NEGATE."""
     builder = flatbuffers.Builder(1024)
@@ -6697,6 +6810,112 @@ def test_stablehlo_scatter_update_window_unsupported():
 
     with pytest.raises(tvm.error.OpNotImplemented, match="point updates"):
         from_tflite(tflite_model)
+
+
+def test_stablehlo_while():
+    """TFLite STABLEHLO_WHILE lowers to a recursive Relax private function."""
+    mod = _load_model_from_buffer(_build_stablehlo_while_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def tflite_stablehlo_while_cond_subgraph_1(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="bool"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="bool") = R.less(tvmgen_tensor_0, R.const(3, "int32"))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_stablehlo_while_body_subgraph_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.add(tvmgen_tensor_0, R.const(1, "int32"))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def tflite_stablehlo_while_subgraph_1_2(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            cls = Expected
+            while_cond: R.Tensor((), dtype="bool") = cls.tflite_stablehlo_while_cond_subgraph_1(
+                tvmgen_tensor_0
+            )
+            if while_cond:
+                gv: R.Tensor((), dtype="int32") = cls.tflite_stablehlo_while_body_subgraph_2(
+                    tvmgen_tensor_0
+                )
+                gv1: R.Tensor((), dtype="int32") = cls.tflite_stablehlo_while_subgraph_1_2(gv)
+                cond_result: R.Tensor((), dtype="int32") = gv1
+            else:
+                cond_result: R.Tensor((), dtype="int32") = tvmgen_tensor_0
+            return cond_result
+
+        @R.function
+        def main(
+            tvmgen_tensor_0: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = cls.tflite_stablehlo_while_subgraph_1_2(
+                    tvmgen_tensor_0
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_while_non_bool_condition_unsupported():
+    """STABLEHLO_WHILE rejects cond subgraphs that do not return scalar bool."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE requires a scalar bool condition"
+    ):
+        _load_model_from_buffer(
+            _build_stablehlo_while_model(cond_output_type=_tfl_tensor_type.INT32)
+        )
+
+
+def test_stablehlo_while_invalid_index_unsupported():
+    """STABLEHLO_WHILE rejects invalid cond/body subgraph indices before lowering."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE requires a valid subgraph index"
+    ):
+        _load_model_from_buffer(_build_stablehlo_while_model(cond_subgraph_index=3))
+
+
+def test_stablehlo_while_output_count_mismatch_unsupported():
+    """STABLEHLO_WHILE rejects body subgraphs whose output arity does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE subgraph output count mismatch"
+    ):
+        _load_model_from_buffer(_build_stablehlo_while_model(body_outputs=[]))
+
+
+def test_stablehlo_while_input_metadata_mismatch_unsupported():
+    """STABLEHLO_WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented,
+        match="STABLEHLO_WHILE subgraph input tensor metadata mismatch",
+    ):
+        _load_model_from_buffer(
+            _build_stablehlo_while_model(cond_input_type=_tfl_tensor_type.FLOAT32)
+        )
+
+
+def test_stablehlo_while_output_metadata_mismatch_unsupported():
+    """STABLEHLO_WHILE rejects body outputs whose metadata does not match loop vars."""
+    with pytest.raises(
+        tvm.error.OpNotImplemented,
+        match="STABLEHLO_WHILE subgraph output tensor metadata mismatch",
+    ):
+        _load_model_from_buffer(
+            _build_stablehlo_while_model(body_output_type=_tfl_tensor_type.FLOAT32)
+        )
 
 
 def test_stablehlo_composite():
