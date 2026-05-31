@@ -3683,6 +3683,7 @@ _tfl_stablehlo_concat_opts = _get_tflite_schema_module("StablehloConcatenateOpti
 _tfl_stablehlo_bcast_opts = _get_tflite_schema_module("StablehloBroadcastInDimOptions")
 _tfl_stablehlo_composite_opts = _get_tflite_schema_module("StableHLOCompositeOptions")
 _tfl_stablehlo_conv_opts = _get_tflite_schema_module("StablehloConvolutionOptions")
+_tfl_stablehlo_custom_call_opts = _get_tflite_schema_module("StablehloCustomCallOptions")
 _tfl_stablehlo_dot_opts = _get_tflite_schema_module("StablehloDotGeneralOptions")
 _tfl_stablehlo_iota_opts = _get_tflite_schema_module("StablehloIotaOptions")
 _tfl_stablehlo_compare_opts = _get_tflite_schema_module("StablehloCompareOptions")
@@ -6308,6 +6309,68 @@ def _build_stablehlo_scatter_model(reducer_name="STABLEHLO_ADD", update_window_d
     )
 
 
+def _build_stablehlo_custom_call_model(
+    call_target_name="Sharding",
+    has_side_effect=False,
+    output_tensor_type=_tfl_tensor_type.FLOAT32,
+    include_options=True,
+):
+    """Build a single-input STABLEHLO_CUSTOM_CALL model.
+
+    When ``include_options`` is False the operator declares the
+    StablehloCustomCallOptions type but omits the options table, emulating a
+    malformed flatbuffer with a missing BuiltinOptions2 payload.
+    """
+    builder = flatbuffers.Builder(1024)
+
+    custom_call_opts = None
+    if include_options:
+        call_target_name_offset = builder.CreateString(call_target_name)
+        backend_config_offset = builder.CreateString("")
+        _tfl_stablehlo_custom_call_opts.StablehloCustomCallOptionsStart(builder)
+        _tfl_stablehlo_custom_call_opts.StablehloCustomCallOptionsAddCallTargetName(
+            builder, call_target_name_offset
+        )
+        _tfl_stablehlo_custom_call_opts.StablehloCustomCallOptionsAddHasSideEffect(
+            builder, has_side_effect
+        )
+        _tfl_stablehlo_custom_call_opts.StablehloCustomCallOptionsAddBackendConfig(
+            builder, backend_config_offset
+        )
+        custom_call_opts = _tfl_stablehlo_custom_call_opts.StablehloCustomCallOptionsEnd(builder)
+
+    custom_call_builtin = _get_stablehlo_builtin_operator("STABLEHLO_CUSTOM_CALL")
+    custom_call_code = _build_operator_code(builder, custom_call_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, [2, 2], tensor_type=output_tensor_type),
+    ]
+    custom_call_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options2_type=_tfl_builtin_options2.StablehloCustomCallOptions,
+        builtin_options2=custom_call_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[custom_call_op],
+        inputs=[0],
+        outputs=[1],
+    )
+
+    buffers = [_build_buffer(builder) for _ in range(2)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        operator_codes=[custom_call_code],
+        buffers=buffers,
+    )
+
+
 def _build_stablehlo_while_model(
     cond_subgraph_index=1,
     body_subgraph_index=2,
@@ -6810,6 +6873,57 @@ def test_stablehlo_scatter_update_window_unsupported():
 
     with pytest.raises(tvm.error.OpNotImplemented, match="point updates"):
         from_tflite(tflite_model)
+
+
+def test_stablehlo_custom_call_sharding():
+    """TFLite StableHLO CUSTOM_CALL Sharding annotation lowers to identity."""
+    mod = _load_model_from_buffer(_build_stablehlo_custom_call_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = x
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_stablehlo_custom_call_unsupported_target():
+    """TFLite StableHLO CUSTOM_CALL rejects unknown external call targets."""
+    buf = _build_stablehlo_custom_call_model(call_target_name="custom_backend")
+    with pytest.raises(
+        tvm.error.OpNotImplemented,
+        match="STABLEHLO_CUSTOM_CALL target custom_backend is not supported",
+    ):
+        _load_model_from_buffer(buf)
+
+
+def test_stablehlo_custom_call_sharding_side_effect_unsupported():
+    """TFLite StableHLO CUSTOM_CALL rejects side-effecting Sharding calls."""
+    buf = _build_stablehlo_custom_call_model(has_side_effect=True)
+    with pytest.raises(tvm.error.OpNotImplemented, match="side effects"):
+        _load_model_from_buffer(buf)
+
+
+def test_stablehlo_custom_call_sharding_metadata_mismatch_unsupported():
+    """TFLite StableHLO CUSTOM_CALL rejects Sharding calls that change tensor metadata."""
+    buf = _build_stablehlo_custom_call_model(output_tensor_type=_tfl_tensor_type.INT32)
+    with pytest.raises(tvm.error.OpNotImplemented, match="Sharding tensor metadata mismatch"):
+        _load_model_from_buffer(buf)
+
+
+def test_stablehlo_options_missing_payload_unsupported():
+    """A StableHLO op that declares an options type but omits the payload fails cleanly."""
+    buf = _build_stablehlo_custom_call_model(include_options=False)
+    with pytest.raises(
+        tvm.error.OpNotImplemented,
+        match="StablehloCustomCallOptions is required but missing from the operator",
+    ):
+        _load_model_from_buffer(buf)
 
 
 def test_stablehlo_while():
