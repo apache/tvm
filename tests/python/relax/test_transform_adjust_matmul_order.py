@@ -17,8 +17,11 @@
 
 import inspect
 
+import numpy as np
 import pytest
+import torch
 
+import tvm
 import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
@@ -234,8 +237,26 @@ class TestIdempotentRHSDynamic(Base):
     Expected = TestRHSDynamic.Expected
 
 
-class TestLHSDynamicWithBatch(Base):
-    """Prefer (x*A)*B instead of x*(A*B)"""
+class TestDynamicWithBatchSymbolic1(Base):
+    """Keep existing order when batch_size and lora_r are both symbolic.
+
+    Before computes `x @ (A @ B)` with
+    `x: [batch_size, 1, 16]`, `A: [16, lora_r]`, `B: [lora_r, 32]`.
+
+    RHS first (fuse A@B once, no batch on inner matmul):
+        16*lora_r*32 + batch_size*1*16*32 = 512*(lora_r + batch_size)
+
+    LHS first (both matmuls scale with batch_size):
+        batch_size*1*16*lora_r + batch_size*1*lora_r*32 = 48*batch_size*lora_r
+
+    When `batch_size` and `lora_r` are known at compile-time:
+        - satisfy the inequality 48*batch_size*lora_r < 512*(lora_r + batch_size),
+          the LHS first is preferred.
+        - satisfy the inequality 512*(lora_r + batch_size) < 48*batch_size*lora_r,
+          the RHS first is preferred.
+
+    Without bounds on `batch_size` and `lora_r`, neither side is provably cheaper.
+    """
 
     @I.ir_module
     class Before:
@@ -250,6 +271,31 @@ class TestLHSDynamicWithBatch(Base):
             out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
             return out
 
+    Expected = Before
+
+
+class TestDynamicWithBatchConcrete1LHSFirst(Base):
+    """With concrete shapes, LHS first is provably cheaper.
+
+    batch_size=4, lora_r=16:
+        LHS first: 48*4*16 = 3072
+        RHS first: 512*(16 + 4) = 10240
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 1, 16]),
+            A: R.Tensor([16, "lora_r"]),
+            B: R.Tensor(["lora_r", 32]),
+        ) -> R.Tensor(["batch_size", 1, 32]):
+            batch_size = T.int64(4)
+            lora_r = T.int64(16)  # noqa: F841
+            weight: R.Tensor([16, 32]) = R.matmul(A, B)
+            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            return out
+
     @I.ir_module
     class Expected:
         @R.function
@@ -258,15 +304,70 @@ class TestLHSDynamicWithBatch(Base):
             A: R.Tensor([16, "lora_r"]),
             B: R.Tensor(["lora_r", 32]),
         ) -> R.Tensor(["batch_size", 1, 32]):
-            lora_r = T.int64()
-            batch_size = T.int64()
-            x: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
-            x: R.Tensor([batch_size, 1, 32]) = R.matmul(x, B)
-            return x
+            batch_size = T.int64(4)
+            lora_r = T.int64(16)
+            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
+            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            return out
 
 
-class TestRHSDynamicWithBatch(Base):
-    """Prefer A*(B*x) instead of (A*B)*x"""
+class TestDynamicWithBatchConcrete1RHSFirst(Base):
+    """With concrete shapes, RHS first is provably cheaper.
+
+    batch_size=64, lora_r=16:
+        LHS first: 48*64*16 = 49152
+        RHS first: 512*(16 + 64) = 40960
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 1, 16]),
+            A: R.Tensor([16, "lora_r"]),
+            B: R.Tensor(["lora_r", 32]),
+        ) -> R.Tensor(["batch_size", 1, 32]):
+            batch_size = T.int64(64)
+            lora_r = T.int64(16)
+            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
+            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 1, 16]),
+            A: R.Tensor([16, "lora_r"]),
+            B: R.Tensor(["lora_r", 32]),
+        ) -> R.Tensor(["batch_size", 1, 32]):
+            batch_size = T.int64(64)
+            lora_r = T.int64(16)  # noqa: F841
+            weight: R.Tensor([16, 32]) = R.matmul(A, B)
+            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            return out
+
+
+class TestDynamicWithBatchSymbolic2(Base):
+    """Keep existing order when batch_size and lora_r are both symbolic.
+
+    Before computes `(A @ B) @ x` with
+    `A: [32, lora_r]`, `B: [lora_r, 16]`, `x: [batch_size, 16, 1]`.
+
+    LHS first (fuse A@B once, no batch on inner matmul):
+        32*lora_r*16 + batch_size*32*16*1 = 512*(lora_r + batch_size)
+
+    RHS first (both matmuls scale with batch_size):
+        batch_size*lora_r*16*1 + batch_size*32*lora_r*1 = 48*batch_size*lora_r
+
+    When `batch_size` and `lora_r` are known at compile-time:
+        - satisfy the inequality 48*batch_size*lora_r < 512*(lora_r + batch_size),
+          the RHS first is preferred.
+        - satisfy the inequality 512*(lora_r + batch_size) < 48*batch_size*lora_r,
+          the LHS first is preferred.
+
+    Without bounds on `batch_size` and `lora_r`, neither side is provably cheaper.
+    """
 
     @I.ir_module
     class Before:
@@ -281,6 +382,31 @@ class TestRHSDynamicWithBatch(Base):
             out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
             return out
 
+    Expected = Before
+
+
+class TestDynamicWithBatchConcrete2RHSFirst(Base):
+    """With concrete shapes, RHS first is provably cheaper.
+
+    batch_size=4, lora_r=16:
+        RHS first: 48*4*16 = 3072
+        LHS first: 512*(16 + 4) = 10240
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 16, 1]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 16]),
+        ) -> R.Tensor(["batch_size", 32, 1]):
+            batch_size = T.int64(4)
+            lora_r = T.int64(16)  # noqa: F841
+            weight: R.Tensor([32, 16]) = R.matmul(A, B)
+            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            return out
+
     @I.ir_module
     class Expected:
         @R.function
@@ -289,11 +415,48 @@ class TestRHSDynamicWithBatch(Base):
             A: R.Tensor([32, "lora_r"]),
             B: R.Tensor(["lora_r", 16]),
         ) -> R.Tensor(["batch_size", 32, 1]):
-            lora_r = T.int64()
-            batch_size = T.int64()
-            x: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
-            x: R.Tensor([batch_size, 32, 1]) = R.matmul(A, x)
-            return x
+            batch_size = T.int64(4)
+            lora_r = T.int64(16)
+            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
+            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            return out
+
+
+class TestDynamicWithBatchConcrete2LHSFirst(Base):
+    """With concrete shapes, LHS first is provably cheaper.
+
+    batch_size=64, lora_r=16:
+        RHS first: 48*64*16 = 49152
+        LHS first: 512*(16 + 64) = 40960
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 16, 1]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 16]),
+        ) -> R.Tensor(["batch_size", 32, 1]):
+            batch_size = T.int64(64)
+            lora_r = T.int64(16)
+            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
+            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 16, 1]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 16]),
+        ) -> R.Tensor(["batch_size", 32, 1]):
+            batch_size = T.int64(64)
+            lora_r = T.int64(16)  # noqa: F841
+            weight: R.Tensor([32, 16]) = R.matmul(A, B)
+            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            return out
 
 
 class TestNoOpForFullyDynamicOnLHS(Base):
@@ -511,6 +674,74 @@ class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
             A_transpose = R.permute_dims(A)
             x: R.Tensor([32]) = R.matmul(x, A_transpose)
             return x
+
+
+class TestAdjustMatmulOrderAttentionBlock:
+    """AdjustMatmulOrder preserves numerics on a batched attention block.
+
+    Covers ND `permute_dims` (swap last two axes) inside `matmul(q, kt)`,
+    regression for issue #19576.
+    """
+
+    def _build_attention_module(self, batch, seq, dim):
+        """Minimal batched attention block exercising ND permute_dims + matmul."""
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", relax.TensorStructInfo((batch, seq, dim), "float32"))
+        wq = relax.Var("wq", relax.TensorStructInfo((dim, dim), "float32"))
+        wk = relax.Var("wk", relax.TensorStructInfo((dim, dim), "float32"))
+        wv = relax.Var("wv", relax.TensorStructInfo((dim, dim), "float32"))
+        wo = relax.Var("wo", relax.TensorStructInfo((dim, dim), "float32"))
+        with bb.function("main", [x, wq, wk, wv, wo]):
+            with bb.dataflow():
+                q = bb.emit(relax.op.matmul(x, wq))
+                k = bb.emit(relax.op.matmul(x, wk))
+                v = bb.emit(relax.op.matmul(x, wv))
+                kt = bb.emit(relax.op.permute_dims(k, axes=[0, 2, 1]))
+                scores = bb.emit(relax.op.matmul(q, kt))
+                scale = bb.emit(relax.const(1.0 / np.sqrt(dim), "float32"))
+                scores = bb.emit(relax.op.multiply(scores, scale))
+                attn = bb.emit(relax.op.nn.softmax(scores, axis=-1))
+                out = bb.emit(relax.op.matmul(attn, v))
+                proj = bb.emit_output(relax.op.matmul(out, wo))
+            bb.emit_func_output(proj)
+        return bb.finalize()
+
+    def _run_relax_main(self, mod, inputs):
+        exe = relax.build(mod, target="llvm")
+        vm = relax.VirtualMachine(exe, device=tvm.cpu())
+        args = [tvm.runtime.tensor(arr, device=tvm.cpu()) for arr in inputs]
+        return vm["main"](*args).numpy()
+
+    def _torch_attention_ref(self, x_np, w_np, dim):
+        x = torch.from_numpy(x_np)
+        w = torch.from_numpy(w_np)
+        with torch.no_grad():
+            q = torch.matmul(x, w)
+            k = torch.matmul(x, w)
+            v = torch.matmul(x, w)
+            scores = torch.matmul(q, k.transpose(-2, -1))
+            scores = scores * (1.0 / np.sqrt(dim))
+            attn = torch.nn.functional.softmax(scores, dim=-1)
+            out = torch.matmul(attn, v)
+            out = torch.matmul(out, w)
+        return out.detach().numpy()
+
+    @pytest.mark.parametrize("batch,seq,dim", [(2, 16, 64)])
+    def test_attention_block_numerics(self, batch, seq, dim):
+        mod = self._build_attention_module(batch, seq, dim)
+        mod_opt = relax.transform.AdjustMatmulOrder()(mod)
+
+        x_np = np.random.randn(batch, seq, dim).astype("float32")
+        w_np = np.random.randn(dim, dim).astype("float32")
+        inputs = [x_np, w_np, w_np, w_np, w_np]
+
+        ref = self._torch_attention_ref(x_np, w_np, dim)
+        out_before = self._run_relax_main(mod, inputs)
+        out_after = self._run_relax_main(mod_opt, inputs)
+
+        tvm.testing.assert_allclose(out_before, ref, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(out_after, ref, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(out_before, out_after, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
