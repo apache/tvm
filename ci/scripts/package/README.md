@@ -59,6 +59,43 @@ Linux wheels are built inside manylinux images. This avoids accidentally
 publishing a wheel tagged for the GitHub runner's host glibc, such as
 `manylinux_2_39`, which would not install on older supported Linux systems.
 
+Where configuration lives:
+
+Package build behaviour is declared in `pyproject.toml` so it applies to *every*
+build — `pip install .`, a local `cibuildwheel` run, another CI, a fork, or an
+upstream release pipeline — not just this workflow. The GitHub Actions workflow
+adds only the environment that a *specific CI run* provides on top.
+
+In `pyproject.toml` (stable, package-intrinsic — correct wherever cibuildwheel /
+scikit-build-core runs):
+
+- `[build-system].requires`: the build toolchain (`scikit-build-core`, `cmake`,
+  `ninja`).
+- `[tool.scikit-build.cmake.define]`: static CMake options shared by every build
+  (`TVM_BUILD_PYTHON_MODULE=ON`, `USE_CUDA=OFF`, `BUILD_TESTING=OFF`,
+  `ZLIB_USE_STATIC_LIBS=ON`).
+- `[tool.cibuildwheel]`: `build-verbosity`, `test-requires`, `test-command`.
+- `[tool.cibuildwheel.{linux,macos,windows}]`: the per-platform `before-build`
+  and `repair-wheel-command` (the `auditwheel`/`delocate`/`delvewheel` excludes).
+
+In the workflow `env:` (dynamic — describes only this CI run, cannot be static):
+
+- `CIBW_BUILD` / `CIBW_ARCHS_*`: the per-architecture build selector.
+- `CIBW_MANYLINUX_*_IMAGE` and `CIBW_CONTAINER_ENGINE`: the pinned manylinux
+  image and the `/opt/llvm` bind-mount.
+- `CIBW_ENVIRONMENT`: the `USE_LLVM` config path, `CMAKE_PREFIX_PATH`, and the
+  CUDA `TVM_PACKAGE_EXTRA_LIBS` path — all depend on where the runner installed
+  things.
+- `CIBW_BEFORE_ALL_LINUX`: the CUDA-runtime build (its arguments depend on the
+  per-run CUDA architecture and whether CUDA is requested).
+- `CIBW_TEST_ENVIRONMENT`: the `TVM_EXPECT_*` post-install expectations (they
+  track whether this wheel was built with the CUDA runtime).
+- The TestPyPI distribution name/version overrides.
+
+Rule of thumb: if a setting is still correct when the package is built in a
+different environment, it belongs in `pyproject.toml`; if it only describes what
+this particular CI run provides, it stays in the workflow.
+
 Workflow structure:
 
 - `.github/workflows/publish_wheel.yml`: defines the platform matrix,
