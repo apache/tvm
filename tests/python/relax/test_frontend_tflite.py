@@ -4053,6 +4053,18 @@ def _get_builtin_operator(builtin_name):
     return getattr(_tfl_builtin_operator, builtin_name)
 
 
+def _run_module(mod, *inputs):
+    tgt = tvm.target.Target("c")
+    ex = tvm.compile(mod, tgt)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", *inputs)
+    vm.invoke_stateful("main")
+    outputs = vm.get_outputs("main")
+    if hasattr(outputs, "numpy"):
+        return outputs.numpy()
+    return tuple(output.numpy() for output in outputs)
+
+
 def _build_tflite_call_model(
     call_subgraph_index=1,
     callee_inputs=None,
@@ -5844,6 +5856,36 @@ def _build_tflite_hashtable_size_uninitialized_model():
     )
 
 
+def _build_tflite_hashtable_lookup_model(*, value_shape, value_type=None):
+    """Build a model containing one HASHTABLE_LOOKUP operator."""
+    builder = flatbuffers.Builder(1024)
+
+    value_type = _tfl_tensor_type.FLOAT32 if value_type is None else value_type
+
+    lookup_tensor = _build_tensor(builder, 0, [4], tensor_type=_tfl_tensor_type.INT32)
+    key_tensor = _build_tensor(builder, 1, [3], tensor_type=_tfl_tensor_type.INT32)
+    value_tensor = _build_tensor(builder, 2, value_shape, tensor_type=value_type)
+    output_tensor = _build_tensor(builder, 3, [4, *value_shape[1:]], tensor_type=value_type)
+    hits_tensor = _build_tensor(builder, 4, [4], tensor_type=_tfl_tensor_type.UINT8)
+
+    hashtable_lookup = _build_operator(builder, 0, [0, 1, 2], [3, 4])
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[lookup_tensor, key_tensor, value_tensor, output_tensor, hits_tensor],
+        operators=[hashtable_lookup],
+        inputs=[0, 1, 2],
+        outputs=[3, 4],
+    )
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("HASHTABLE_LOOKUP"))]
+    buffers = [_build_buffer(builder) for _ in range(5)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
 def test_resource_variable_call_once_init_read():
     """Test reading a resource variable initialized by a supported CALL_ONCE subgraph."""
     mod = _load_model_from_buffer(_build_tflite_resource_variable_model())
@@ -5906,6 +5948,53 @@ def test_hashtable_size_uninitialized_unsupported():
     """Test HASHTABLE_SIZE rejects tables without supported initialization."""
     with pytest.raises(tvm.error.OpNotImplemented, match="HASHTABLE_SIZE requires a table"):
         _load_model_from_buffer(_build_tflite_hashtable_size_uninitialized_model())
+
+
+def test_hashtable_lookup_1d_value():
+    mod = _load_model_from_buffer(_build_tflite_hashtable_lookup_model(value_shape=[3]))
+
+    output, hits = _run_module(
+        mod,
+        np.array([1234, -292, -11, 0], dtype=np.int32),
+        np.array([-11, 0, 1234], dtype=np.int32),
+        np.array([0.0, 0.1, 0.4], dtype=np.float32),
+    )
+
+    np.testing.assert_allclose(output, np.array([0.4, 0.0, 0.0, 0.1], dtype=np.float32))
+    np.testing.assert_array_equal(hits, np.array([1, 0, 1, 1], dtype=np.uint8))
+
+
+def test_hashtable_lookup_2d_value():
+    mod = _load_model_from_buffer(_build_tflite_hashtable_lookup_model(value_shape=[3, 2]))
+
+    output, hits = _run_module(
+        mod,
+        np.array([1234, -292, -11, 0], dtype=np.int32),
+        np.array([-11, 0, 1234], dtype=np.int32),
+        np.array([[0.0, 0.1], [1.0, 1.1], [2.0, 2.1]], dtype=np.float32),
+    )
+
+    np.testing.assert_allclose(
+        output,
+        np.array(
+            [
+                [2.0, 2.1],
+                [0.0, 0.0],
+                [0.0, 0.1],
+                [1.0, 1.1],
+            ],
+            dtype=np.float32,
+        ),
+    )
+    np.testing.assert_array_equal(hits, np.array([1, 0, 1, 1], dtype=np.uint8))
+
+
+def test_hashtable_lookup_string_value_unsupported():
+    string_type = _get_string_tensor_type()
+    with pytest.raises(ValueError, match="unknown dtype `string`"):
+        _load_model_from_buffer(
+            _build_tflite_hashtable_lookup_model(value_shape=[3], value_type=string_type)
+        )
 
 
 def _get_stablehlo_builtin_operator(builtin_name):
