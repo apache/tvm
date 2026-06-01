@@ -4037,6 +4037,17 @@ def _build_hashtable_options(
     return hashtable_options.HashtableOptionsEnd(builder)
 
 
+def _build_embedding_lookup_sparse_options(builder, combiner):
+    try:
+        sparse_options = _get_tflite_schema_module("EmbeddingLookupSparseOptions")
+    except ModuleNotFoundError:
+        pytest.skip("TFLite schema does not provide EmbeddingLookupSparseOptions")
+
+    sparse_options.EmbeddingLookupSparseOptionsStart(builder)
+    sparse_options.EmbeddingLookupSparseOptionsAddCombiner(builder, combiner)
+    return sparse_options.EmbeddingLookupSparseOptionsEnd(builder)
+
+
 def _load_model_from_buffer(model_bytes):
     if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
@@ -4051,6 +4062,15 @@ def _get_builtin_operator(builtin_name):
     if not hasattr(_tfl_builtin_operator, builtin_name):
         pytest.skip(f"TFLite schema does not provide BuiltinOperator.{builtin_name}")
     return getattr(_tfl_builtin_operator, builtin_name)
+
+
+def _run_no_input_module(mod):
+    tgt = tvm.target.Target("c")
+    ex = tvm.compile(mod, tgt)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main")
+    vm.invoke_stateful("main")
+    return vm.get_outputs("main").numpy()
 
 
 def _build_tflite_call_model(
@@ -5844,6 +5864,82 @@ def _build_tflite_hashtable_size_uninitialized_model():
     )
 
 
+def _build_tflite_embedding_lookup_sparse_model(combiner, indices_data, dense_shape_data):
+    builder = flatbuffers.Builder(4096)
+
+    ids_data = np.array([1, 3, 0], dtype=np.int32)
+    indices_data = np.array(indices_data, dtype=np.int32)
+    dense_shape_data = np.array(dense_shape_data, dtype=np.int32)
+    weights_data = np.array([1.0, 2.0, 4.0], dtype=np.float32)
+    params_data = np.array(
+        [
+            [[0.00, 0.01], [0.10, 0.11], [0.20, 0.21]],
+            [[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]],
+            [[2.00, 2.01], [2.10, 2.11], [2.20, 2.21]],
+            [[3.00, 3.01], [3.10, 3.11], [3.20, 3.21]],
+        ],
+        dtype=np.float32,
+    )
+
+    output_shape = dense_shape_data[:-1].tolist() + list(params_data.shape[1:])
+    sparse_options = _build_embedding_lookup_sparse_options(builder, combiner)
+
+    ids_tensor = _build_tensor(builder, 0, list(ids_data.shape), tensor_type=_tfl_tensor_type.INT32)
+    indices_tensor = _build_tensor(
+        builder, 1, list(indices_data.shape), tensor_type=_tfl_tensor_type.INT32
+    )
+    dense_shape_tensor = _build_tensor(
+        builder, 2, list(dense_shape_data.shape), tensor_type=_tfl_tensor_type.INT32
+    )
+    weights_tensor = _build_tensor(
+        builder, 3, list(weights_data.shape), tensor_type=_tfl_tensor_type.FLOAT32
+    )
+    params_tensor = _build_tensor(
+        builder, 4, list(params_data.shape), tensor_type=_tfl_tensor_type.FLOAT32
+    )
+    output_tensor = _build_tensor(builder, 5, output_shape, tensor_type=_tfl_tensor_type.FLOAT32)
+
+    sparse_op = _build_operator(
+        builder,
+        0,
+        [0, 1, 2, 3, 4],
+        [5],
+        builtin_options_type=_get_builtin_options_type("EmbeddingLookupSparseOptions"),
+        builtin_options=sparse_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[
+            ids_tensor,
+            indices_tensor,
+            dense_shape_tensor,
+            weights_tensor,
+            params_tensor,
+            output_tensor,
+        ],
+        operators=[sparse_op],
+        inputs=[],
+        outputs=[5],
+    )
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("EMBEDDING_LOOKUP_SPARSE"))
+    ]
+    buffers = [
+        _build_buffer(builder, ids_data.tobytes()),
+        _build_buffer(builder, indices_data.tobytes()),
+        _build_buffer(builder, dense_shape_data.tobytes()),
+        _build_buffer(builder, weights_data.tobytes()),
+        _build_buffer(builder, params_data.tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
 def test_resource_variable_call_once_init_read():
     """Test reading a resource variable initialized by a supported CALL_ONCE subgraph."""
     mod = _load_model_from_buffer(_build_tflite_resource_variable_model())
@@ -5906,6 +6002,98 @@ def test_hashtable_size_uninitialized_unsupported():
     """Test HASHTABLE_SIZE rejects tables without supported initialization."""
     with pytest.raises(tvm.error.OpNotImplemented, match="HASHTABLE_SIZE requires a table"):
         _load_model_from_buffer(_build_tflite_hashtable_size_uninitialized_model())
+
+
+def test_embedding_lookup_sparse_sum():
+    from tflite.CombinerType import CombinerType
+
+    mod = _load_model_from_buffer(
+        _build_tflite_embedding_lookup_sparse_model(
+            CombinerType.SUM,
+            indices_data=[[0, 0], [2, 0], [2, 1]],
+            dense_shape_data=[3, 2],
+        )
+    )
+
+    out = _run_no_input_module(mod)
+    expected = np.array(
+        [
+            [[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]],
+            [[0.00, 0.00], [0.00, 0.00], [0.00, 0.00]],
+            [[6.00, 6.06], [6.60, 6.66], [7.20, 7.26]],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
+
+
+def test_embedding_lookup_sparse_mean():
+    from tflite.CombinerType import CombinerType
+
+    mod = _load_model_from_buffer(
+        _build_tflite_embedding_lookup_sparse_model(
+            CombinerType.MEAN,
+            indices_data=[[0, 0], [2, 0], [2, 1]],
+            dense_shape_data=[3, 2],
+        )
+    )
+
+    out = _run_no_input_module(mod)
+    expected = np.array(
+        [
+            [[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]],
+            [[0.00, 0.00], [0.00, 0.00], [0.00, 0.00]],
+            [[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
+
+
+def test_embedding_lookup_sparse_sqrtn():
+    from tflite.CombinerType import CombinerType
+
+    mod = _load_model_from_buffer(
+        _build_tflite_embedding_lookup_sparse_model(
+            CombinerType.SQRTN,
+            indices_data=[[0, 0], [2, 0], [2, 1]],
+            dense_shape_data=[3, 2],
+        )
+    )
+
+    out = _run_no_input_module(mod)
+    scale = np.sqrt(20.0).astype("float32")
+    expected = np.array(
+        [
+            [[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]],
+            [[0.00, 0.00], [0.00, 0.00], [0.00, 0.00]],
+            [
+                [6.00 / scale, 6.06 / scale],
+                [6.60 / scale, 6.66 / scale],
+                [7.20 / scale, 7.26 / scale],
+            ],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
+
+
+def test_embedding_lookup_sparse_indices_3d():
+    from tflite.CombinerType import CombinerType
+
+    mod = _load_model_from_buffer(
+        _build_tflite_embedding_lookup_sparse_model(
+            CombinerType.SUM,
+            indices_data=[[0, 0, 0], [2, 0, 0], [2, 0, 1]],
+            dense_shape_data=[3, 2, 2],
+        )
+    )
+
+    out = _run_no_input_module(mod)
+    expected = np.zeros((3, 2, 3, 2), dtype=np.float32)
+    expected[0, 0] = np.array([[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]], dtype=np.float32)
+    expected[2, 0] = np.array([[6.00, 6.06], [6.60, 6.66], [7.20, 7.26]], dtype=np.float32)
+    np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
 
 
 def _get_stablehlo_builtin_operator(builtin_name):
