@@ -1134,10 +1134,10 @@ class Cast(OnnxOpConverter):
                     return relax.op.astype(x_sanitized, to_type)
 
                 temp_dtype = "int64" if bits > 32 else "int32"
-                t = relax.op.astype(x_sanitized, temp_dtype)
                 mask_val = (1 << bits) - 1
                 if temp_dtype == "int32" and mask_val > 0x7FFFFFFF:
                     temp_dtype = "int64"
+                t = relax.op.astype(x_sanitxized, temp_dtype)
                 mask = relax.const(mask_val, temp_dtype)
                 uw = relax.op.bitwise_and(t, mask)
                 if signed:
