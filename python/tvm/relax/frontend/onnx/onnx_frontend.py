@@ -1141,7 +1141,7 @@ class Cast(OnnxOpConverter):
                 if signed:
                     half = 1 << (bits - 1)
                     half_c = relax.const(half, temp_dtype)
-                    two_pow = relax.const(1 << bits, temp_dtype)
+                    two_pow = relax.op.add(mask, relax.const(1, temp_dtype))
                     wrapped = relax.op.where(
                         relax.op.greater_equal(uw, half_c),
                         relax.op.subtract(uw, two_pow),
