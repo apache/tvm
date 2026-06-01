@@ -162,7 +162,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
     auto fcompile = ffi::Function::GetGlobal("tvm_callback_cuda_compile");
     TVM_FFI_CHECK(fcompile.has_value(), RuntimeError)
         << "fmt=='cuda' requires tvm_callback_cuda_compile to be registered. "
-        << "Import tvm.contrib.nvcc.";
+        << "Import tvm.support.nvcc.";
     return (*fcompile)(source).cast<ffi::Bytes>();
   }
 
