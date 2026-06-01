@@ -919,6 +919,8 @@ class OperatorConverter:
             TensorType.FLOAT32: np.float32,
             TensorType.INT32: np.int32,
             TensorType.INT64: np.int64,
+            TensorType.UINT32: np.uint32,
+            TensorType.UINT64: np.uint64,
             TensorType.BOOL: np.bool_,
         }[tensor_wrapper.tensor.Type()]
 
@@ -7531,14 +7533,15 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
             key_1 = _u32(state_key >> T.uint64(32))
             output_state[0] = state_key
             output_state[1] = state_counter + T.uint64(num_blocks)
-            for tail in T.serial(state_len - 2):
-                output_state[tail + 2] = initial_state[tail + 2]
             out_flat = T.decl_buffer((total,), out_dtype, data=output.data)
             ctr = T.decl_buffer((4,), "uint32", scope="local")
             keys = T.decl_buffer((2,), "uint32", scope="local")
             high_ctr = T.decl_buffer((2,), "uint32", scope="local")
             if state_len == 3:
+                # PHILOX u64[3]: the third state word feeds the high counter and
+                # is passed through to the output state unchanged.
                 high_state = initial_state[2]
+                output_state[2] = high_state
                 high_ctr[0] = _u32(high_state & T.uint64(0xFFFFFFFF))
                 high_ctr[1] = _u32(high_state >> T.uint64(32))
             else:

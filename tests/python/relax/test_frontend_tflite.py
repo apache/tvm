@@ -6928,8 +6928,12 @@ def test_stablehlo_options_missing_payload_unsupported():
         _load_model_from_buffer(buf)
 
 
-def _build_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type):
-    """Build a STABLEHLO_RNG_BIT_GENERATOR model with a uint64 state input."""
+def _build_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type, const_state=None):
+    """Build a STABLEHLO_RNG_BIT_GENERATOR model.
+
+    When ``const_state`` is provided, the uint64 initial state is embedded as a
+    constant tensor (no graph input); otherwise it is a graph input.
+    """
     builder = flatbuffers.Builder(1024)
 
     _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsStart(builder)
@@ -6956,11 +6960,18 @@ def _build_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type)
         builder,
         tensors=main_tensors,
         operators=[rng_op],
-        inputs=[0],
+        inputs=[] if const_state is not None else [0],
         outputs=[1, 2],
     )
 
-    buffers = [_build_buffer(builder) for _ in range(3)]
+    state_data = None
+    if const_state is not None:
+        state_data = np.array(const_state, dtype="uint64").tobytes()
+    buffers = [
+        _build_buffer(builder, data=state_data),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
     return _finish_tflite_model(
         builder,
         subgraph=main_subgraph,
@@ -7086,6 +7097,20 @@ def test_stablehlo_rng_bit_generator_deterministic():
     second = vm["main"](init)
     np.testing.assert_equal(first[1].numpy(), second[1].numpy())
     np.testing.assert_equal(first[0].numpy(), second[0].numpy())
+
+
+def test_stablehlo_rng_bit_generator_constant_state():
+    """A constant uint64 initial state imports and stays bit-exact (no graph input)."""
+    buf = _build_stablehlo_rng_model(
+        _tfl_rng_algorithm.THREEFRY, 2, [2, 3], _tfl_tensor_type.INT32, const_state=[1, 2]
+    )
+    mod = _load_model_from_buffer(buf)
+    assert len(mod["main"].params) == 0
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    result = vm["main"]()
+    assert result[1].numpy().flatten().tolist() == _RNG_THREEFRY_EXPECTED["int32"]
+    assert result[0].numpy().tolist() == _RNG_THREEFRY_STATE["int32"]
 
 
 def test_stablehlo_rng_bit_generator_unsupported_output_dtype():
