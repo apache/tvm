@@ -6293,7 +6293,7 @@ class OperatorConverter:
         denominator = relax.op.reshape(denominator, broadcast_shape)
         denominator = relax.op.broadcast_to(denominator, output_shape)
         safe_denominator = relax.op.maximum(
-            denominator, relax.const(np.full(output_shape, 1e-12, dtype=np.float32), "float32")
+            denominator, relax.const(1e-12, "float32")
         )
         normalized = relax.op.divide(summed_lookup, safe_denominator)
         return relax.op.where(
