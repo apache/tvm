@@ -248,6 +248,7 @@ class OperatorConverter:
             "HASHTABLE": self.convert_hashtable,
             "HASHTABLE_FIND": self.convert_hashtable_find,
             "HASHTABLE_IMPORT": self.convert_hashtable_import,
+            "HASHTABLE_LOOKUP": self.convert_hashtable_lookup,
             "HASHTABLE_SIZE": self.convert_hashtable_size,
             "IF": self.convert_if,
             "L2_NORMALIZATION": self.convert_l2_normalization,
@@ -754,6 +755,88 @@ class OperatorConverter:
         raise tvm.error.OpNotImplemented(
             "HASHTABLE_FIND requires TensorType.STRING support in Relax TFLite frontend"
         )
+
+    def convert_hashtable_lookup(self, op):
+        """Convert TFLite HASHTABLE_LOOKUP for non-string value tensors."""
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 3 or len(output_tensors) != 2:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP expects lookup, key, and value inputs with two outputs"
+            )
+
+        lookup_tensor, key_tensor, value_tensor = input_tensors
+        output_tensor, hits_tensor = output_tensors
+
+        if (
+            lookup_tensor.tensor.Type() != TensorType.INT32
+            or key_tensor.tensor.Type() != TensorType.INT32
+        ):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires int32 lookup and key tensors"
+            )
+        if self._is_tflite_string_type(value_tensor.tensor.Type()):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP with TensorType.STRING values is not supported"
+            )
+        if value_tensor.tensor.Type() != output_tensor.tensor.Type():
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP output dtype must match the value tensor dtype"
+            )
+        if hits_tensor.tensor.Type() != TensorType.UINT8:
+            raise tvm.error.OpNotImplemented("HASHTABLE_LOOKUP hits output must be uint8")
+
+        lookup_shape = to_int_list(self.get_tensor_shape(lookup_tensor))
+        key_shape = to_int_list(self.get_tensor_shape(key_tensor))
+        value_shape = to_int_list(self.get_tensor_shape(value_tensor))
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        hits_shape = to_int_list(self.get_tensor_shape(hits_tensor))
+
+        if len(lookup_shape) != 1 or len(key_shape) != 1 or len(value_shape) < 1:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires rank-1 lookup/key and rank>=1 value tensors"
+            )
+        if key_shape[0] != value_shape[0]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires key and value tensors to agree on row count"
+            )
+        if key_shape[0] == 0:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires a non-empty key/value table"
+            )
+        if output_shape != [lookup_shape[0]] + value_shape[1:]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP output shape must match lookup count and value tail shape"
+            )
+        if hits_shape != [lookup_shape[0]]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP hits output shape must match lookup count"
+            )
+
+        lookup = self.get_tensor_expr(lookup_tensor)
+        key = self.get_tensor_expr(key_tensor)
+        value = self.get_tensor_expr(value_tensor)
+
+        positions = relax.op.bucketize(lookup, key, out_int32=True, right=False)
+        candidate_keys = relax.op.take(key, positions, axis=0, mode="clip")
+        in_range = relax.op.less(positions, relax.const(key_shape[0], "int32"))
+        found = relax.op.logical_and(in_range, relax.op.equal(candidate_keys, lookup))
+
+        gathered_values = relax.op.take(value, positions, axis=0, mode="clip")
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+        zero_values = relax.op.zeros(output_shape, output_dtype)
+
+        if len(value_shape) > 1:
+            found_values = relax.op.expand_dims(found, axis=list(range(1, len(value_shape))))
+            found_values = relax.op.broadcast_to(found_values, output_shape)
+        else:
+            found_values = found
+
+        output = relax.op.where(found_values, gathered_values, zero_values)
+        hits = relax.op.astype(found, "uint8")
+        return relax.Tuple([output, hits])
 
     def convert_hashtable_size(self, op):
         """Convert HASHTABLE_SIZE for a statically imported TFLite hashtable."""
