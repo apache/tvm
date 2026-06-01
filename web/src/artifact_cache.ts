@@ -268,7 +268,7 @@ class CrossOriginStorage {
     }
     // Check persistent store before falling back to network-based hash extraction.
     // This covers non-LFS files (JSON configs, tokenizers) and non-HuggingFace URLs
-    // (e.g. GitHub raw .wasm) whose hashes were computed from blob content on a
+    // (e.g. GitHub raw .wasm files) whose hashes were computed from blob content on a
     // previous visit and persisted to the Cache API.
     const persisted = await this.loadPersistedHashEntry(url);
     if (persisted) {
