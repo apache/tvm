@@ -6292,9 +6292,7 @@ class OperatorConverter:
         broadcast_shape = count_shape + [1] * len(embedding_tail_shape)
         denominator = relax.op.reshape(denominator, broadcast_shape)
         denominator = relax.op.broadcast_to(denominator, output_shape)
-        safe_denominator = relax.op.maximum(
-            denominator, relax.const(1e-12, "float32")
-        )
+        safe_denominator = relax.op.maximum(denominator, relax.const(1e-12, "float32"))
         normalized = relax.op.divide(summed_lookup, safe_denominator)
         return relax.op.where(
             relax.op.greater(denominator, relax.const(0.0, "float32")), normalized, value_base
