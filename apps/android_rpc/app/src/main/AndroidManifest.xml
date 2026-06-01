@@ -50,6 +50,7 @@ under the License.
             android:process=":RPCProcess"
             android:label="@string/rpc_name"
             android:theme="@style/AppTheme.NoActionBar"
+            android:exported="false"
             android:screenOrientation="unspecified">
         </activity>
     </application>
