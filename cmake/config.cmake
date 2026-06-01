@@ -135,6 +135,15 @@ set(USE_LLVM OFF)
 # Possible values: ON/OFF
 set(USE_MLIR OFF)
 
+# Whether to fetch and statically link libxml2 in-tree instead of
+# depending on the system libxml2. Only valid when USE_LLVM is
+# configured with `--link-static`. When ON, FetchContent downloads
+# GNOME/libxml2 at v2.15.0 with all optional features OFF and links
+# the in-tree static archive into libtvm.so, replacing any -lxml2
+# that llvm-config --link-static emits.
+# Default OFF (preserves existing behavior).
+set(USE_STATIC_LIBXML2_FROM_SOURCE OFF)
+
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------

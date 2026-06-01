@@ -25,6 +25,7 @@ on:
   push:
     branches:
       - main
+      - static-libxml2
   pull_request:
     branches:
       - main
@@ -92,7 +93,7 @@ jobs:
         shell: cmd /C call {0}
         run: |
           pip install scikit-build-core
-          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
+          set CMAKE_ARGS=-DUSE_LLVM="llvm-config --link-static" -DUSE_STATIC_LIBXML2_FROM_SOURCE=ON -DBUILD_TESTING=OFF
           pip install --no-deps . -v
       - name: Install test dependencies
         shell: cmd /C call {0}

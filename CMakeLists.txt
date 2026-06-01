@@ -670,6 +670,26 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
+# Work around a GNU ld (binutils) relaxation bug that miscompiles
+# R_X86_64_GOTPCRELX relocations inside very large statically-linked archives.
+# When the full LLVM static libraries are linked into libtvm_compiler.so, the
+# library is large enough that ld can relax an indirect GOT call (LLVM built
+# with -fno-plt emits these) into a direct call with an incorrect displacement.
+# The call then targets read-only data instead of the intended function and
+# crashes at runtime with a SIGSEGV inside llvm::X86Subtarget during code
+# generation. Disabling linker relaxation keeps the GOT-indirect sequences and
+# avoids the miscompilation; it is harmless when LLVM is linked dynamically.
+# See binutils bug ld/25754.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--no-relax")
+  # Explicitly request --as-needed so libxml2.so (and other unused libs that
+  # llvm-config --system-libs lists) do not land in DT_NEEDED. Some older
+  # manylinux base images do not default to --as-needed, which would otherwise
+  # cause auditwheel to bundle libxml2 into wheels even though nothing in
+  # libtvm_compiler.so actually calls into it. Belt-and-braces.
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--as-needed")
+endif()
+
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_FOUND)
