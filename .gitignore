@@ -14,6 +14,8 @@ __pycache__/
 env/
 build/
 build-*/
+!.github/actions/build-*/
+!.github/actions/build-*/action.yml
 develop-eggs/
 dist/
 downloads/
