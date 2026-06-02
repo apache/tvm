@@ -906,7 +906,7 @@ def callback_libdevice_path(arch):
         return ""
 
 
-@tvm_ffi.register_global_func("tvm.contrib.nvcc.get_compute_version")
+@tvm_ffi.register_global_func("tvm.support.nvcc.get_compute_version")
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
@@ -1060,7 +1060,7 @@ def have_cudagraph():
         return False
 
 
-@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_bf16")
+@tvm_ffi.register_global_func("tvm.support.nvcc.supports_bf16")
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 
@@ -1076,7 +1076,7 @@ def have_bf16(compute_version):
     return False
 
 
-@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_fp8")
+@tvm_ffi.register_global_func("tvm.support.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
 
@@ -1094,7 +1094,7 @@ def have_fp8(compute_version):
     return False
 
 
-@tvm_ffi.register_global_func("tvm.contrib.nvcc.supports_fp4")
+@tvm_ffi.register_global_func("tvm.support.nvcc.supports_fp4")
 def have_fp4(compute_version):
     """Whether fp4 support is provided in the specified compute capability or not
 

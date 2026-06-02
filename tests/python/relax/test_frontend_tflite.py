@@ -3697,6 +3697,7 @@ _tfl_stablehlo_reduce_window_opts = _get_tflite_schema_module("StablehloReduceWi
 _tfl_stablehlo_scatter_opts = _get_tflite_schema_module("StablehloScatterOptions")
 _tfl_stablehlo_sort_opts = _get_tflite_schema_module("StablehloSortOptions")
 _tfl_stablehlo_while_opts = _get_tflite_schema_module("StablehloWhileOptions")
+_tfl_stablehlo_rng_opts = _get_tflite_schema_module("StablehloRngBitGeneratorOptions")
 _tfl_call_options = _get_tflite_schema_module("CallOptions")
 _tfl_call_once_options = _get_tflite_schema_module("CallOnceOptions")
 _tfl_dimension_metadata = _get_tflite_schema_module("DimensionMetadata")
@@ -3721,6 +3722,7 @@ _tfl_fc_weights_format = _get_tflite_schema_enum("FullyConnectedOptionsWeightsFo
 _tfl_padding = _get_tflite_schema_enum("Padding")
 _tfl_sparse_index_vector = _get_tflite_schema_enum("SparseIndexVector")
 _tfl_tensor_type = _get_tflite_schema_enum("TensorType")
+_tfl_rng_algorithm = _get_tflite_schema_enum("RngAlgorithm")
 
 _tfl_lstm_options = _get_tflite_schema_module("LSTMOptions")
 _tfl_sequence_rnn_options = _get_tflite_schema_module("SequenceRNNOptions")
@@ -4064,13 +4066,20 @@ def _get_builtin_operator(builtin_name):
     return getattr(_tfl_builtin_operator, builtin_name)
 
 
-def _run_no_input_module(mod):
+def _run_module(mod, *inputs):
     tgt = tvm.target.Target("c")
     ex = tvm.compile(mod, tgt)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    vm.set_input("main")
+    vm.set_input("main", *inputs)
     vm.invoke_stateful("main")
-    return vm.get_outputs("main").numpy()
+    outputs = vm.get_outputs("main")
+    if hasattr(outputs, "numpy"):
+        return outputs.numpy()
+    return tuple(output.numpy() for output in outputs)
+
+
+def _run_no_input_module(mod):
+    return _run_module(mod)
 
 
 def _build_tflite_call_model(
@@ -5864,13 +5873,19 @@ def _build_tflite_hashtable_size_uninitialized_model():
     )
 
 
-def _build_tflite_embedding_lookup_sparse_model(combiner, indices_data, dense_shape_data):
+def _build_tflite_embedding_lookup_sparse_model(
+    combiner, indices_data, dense_shape_data, weights_data=None
+):
     builder = flatbuffers.Builder(4096)
 
     ids_data = np.array([1, 3, 0], dtype=np.int32)
     indices_data = np.array(indices_data, dtype=np.int32)
     dense_shape_data = np.array(dense_shape_data, dtype=np.int32)
-    weights_data = np.array([1.0, 2.0, 4.0], dtype=np.float32)
+    weights_data = (
+        np.array([1.0, 2.0, 4.0], dtype=np.float32)
+        if weights_data is None
+        else np.array(weights_data, dtype=np.float32)
+    )
     params_data = np.array(
         [
             [[0.00, 0.01], [0.10, 0.11], [0.20, 0.21]],
@@ -5935,6 +5950,36 @@ def _build_tflite_embedding_lookup_sparse_model(combiner, indices_data, dense_sh
     return _finish_tflite_model(
         builder,
         subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_hashtable_lookup_model(*, value_shape, value_type=None):
+    """Build a model containing one HASHTABLE_LOOKUP operator."""
+    builder = flatbuffers.Builder(1024)
+
+    value_type = _tfl_tensor_type.FLOAT32 if value_type is None else value_type
+
+    lookup_tensor = _build_tensor(builder, 0, [4], tensor_type=_tfl_tensor_type.INT32)
+    key_tensor = _build_tensor(builder, 1, [3], tensor_type=_tfl_tensor_type.INT32)
+    value_tensor = _build_tensor(builder, 2, value_shape, tensor_type=value_type)
+    output_tensor = _build_tensor(builder, 3, [4, *value_shape[1:]], tensor_type=value_type)
+    hits_tensor = _build_tensor(builder, 4, [4], tensor_type=_tfl_tensor_type.UINT8)
+
+    hashtable_lookup = _build_operator(builder, 0, [0, 1, 2], [3, 4])
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[lookup_tensor, key_tensor, value_tensor, output_tensor, hits_tensor],
+        operators=[hashtable_lookup],
+        inputs=[0, 1, 2],
+        outputs=[3, 4],
+    )
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("HASHTABLE_LOOKUP"))]
+    buffers = [_build_buffer(builder) for _ in range(5)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
         operator_codes=operator_codes,
         buffers=buffers,
     )
@@ -6050,6 +6095,30 @@ def test_embedding_lookup_sparse_mean():
     np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
 
 
+def test_embedding_lookup_sparse_mean_negative_weights():
+    from tflite.CombinerType import CombinerType
+
+    mod = _load_model_from_buffer(
+        _build_tflite_embedding_lookup_sparse_model(
+            CombinerType.MEAN,
+            indices_data=[[0, 0], [0, 1], [2, 0]],
+            dense_shape_data=[3, 2],
+            weights_data=[1.0, -2.0, 0.0],
+        )
+    )
+
+    (output,) = (_run_no_input_module(mod),)
+    expected = np.array(
+        [
+            [[5.0, 5.01], [5.1, 5.11], [5.2, 5.21]],
+            [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            [[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(output, expected, rtol=1e-5, atol=1e-5, equal_nan=True)
+
+
 def test_embedding_lookup_sparse_sqrtn():
     from tflite.CombinerType import CombinerType
 
@@ -6094,6 +6163,53 @@ def test_embedding_lookup_sparse_indices_3d():
     expected[0, 0] = np.array([[1.00, 1.01], [1.10, 1.11], [1.20, 1.21]], dtype=np.float32)
     expected[2, 0] = np.array([[6.00, 6.06], [6.60, 6.66], [7.20, 7.26]], dtype=np.float32)
     np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5)
+
+
+def test_hashtable_lookup_1d_value():
+    mod = _load_model_from_buffer(_build_tflite_hashtable_lookup_model(value_shape=[3]))
+
+    output, hits = _run_module(
+        mod,
+        np.array([1234, -292, -11, 0], dtype=np.int32),
+        np.array([-11, 0, 1234], dtype=np.int32),
+        np.array([0.0, 0.1, 0.4], dtype=np.float32),
+    )
+
+    np.testing.assert_allclose(output, np.array([0.4, 0.0, 0.0, 0.1], dtype=np.float32))
+    np.testing.assert_array_equal(hits, np.array([1, 0, 1, 1], dtype=np.uint8))
+
+
+def test_hashtable_lookup_2d_value():
+    mod = _load_model_from_buffer(_build_tflite_hashtable_lookup_model(value_shape=[3, 2]))
+
+    output, hits = _run_module(
+        mod,
+        np.array([1234, -292, -11, 0], dtype=np.int32),
+        np.array([-11, 0, 1234], dtype=np.int32),
+        np.array([[0.0, 0.1], [1.0, 1.1], [2.0, 2.1]], dtype=np.float32),
+    )
+
+    np.testing.assert_allclose(
+        output,
+        np.array(
+            [
+                [2.0, 2.1],
+                [0.0, 0.0],
+                [0.0, 0.1],
+                [1.0, 1.1],
+            ],
+            dtype=np.float32,
+        ),
+    )
+    np.testing.assert_array_equal(hits, np.array([1, 0, 1, 1], dtype=np.uint8))
+
+
+def test_hashtable_lookup_string_value_unsupported():
+    string_type = _get_string_tensor_type()
+    with pytest.raises(ValueError, match="unknown dtype `string`"):
+        _load_model_from_buffer(
+            _build_tflite_hashtable_lookup_model(value_shape=[3], value_type=string_type)
+        )
 
 
 def _get_stablehlo_builtin_operator(builtin_name):
@@ -7111,6 +7227,240 @@ def test_stablehlo_options_missing_payload_unsupported():
         tvm.error.OpNotImplemented,
         match="StablehloCustomCallOptions is required but missing from the operator",
     ):
+        _load_model_from_buffer(buf)
+
+
+def _build_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type, const_state=None):
+    """Build a STABLEHLO_RNG_BIT_GENERATOR model.
+
+    When ``const_state`` is provided, the uint64 initial state is embedded as a
+    constant tensor (no graph input); otherwise it is a graph input.
+    """
+    builder = flatbuffers.Builder(1024)
+
+    _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsStart(builder)
+    _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsAddAlgorithm(builder, algorithm)
+    rng_opts = _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsEnd(builder)
+
+    rng_builtin = _get_stablehlo_builtin_operator("STABLEHLO_RNG_BIT_GENERATOR")
+    rng_code = _build_operator_code(builder, rng_builtin)
+
+    main_tensors = [
+        _build_tensor(builder, 0, [state_len], tensor_type=_tfl_tensor_type.UINT64),
+        _build_tensor(builder, 1, [state_len], tensor_type=_tfl_tensor_type.UINT64),
+        _build_tensor(builder, 2, list(out_shape), tensor_type=out_tensor_type),
+    ]
+    rng_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1, 2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloRngBitGeneratorOptions,
+        builtin_options2=rng_opts,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=main_tensors,
+        operators=[rng_op],
+        inputs=[] if const_state is not None else [0],
+        outputs=[1, 2],
+    )
+
+    state_data = None
+    if const_state is not None:
+        state_data = np.array(const_state, dtype="uint64").tobytes()
+    buffers = [
+        _build_buffer(builder, data=state_data),
+        _build_buffer(builder),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        operator_codes=[rng_code],
+        buffers=buffers,
+    )
+
+
+def _run_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type, init_state):
+    """Import, compile, and execute an RNG model, returning (output_state, output)."""
+    buf = _build_stablehlo_rng_model(algorithm, state_len, out_shape, out_tensor_type)
+    mod = _load_model_from_buffer(buf)
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    result = vm["main"](tvm.runtime.tensor(np.array(init_state, dtype="uint64")))
+    return result[0].numpy(), result[1].numpy()
+
+
+# Expected vectors are taken verbatim from the TFLite runtime kernel test
+# (tensorflow/lite/kernels/rng_bit_generator_test.cc), guaranteeing bit-exact parity.
+_RNG_THREEFRY_EXPECTED = {
+    "int32": [43444564, -2144348869, -315321645, -549236733, 1672743891, -54463903],
+    "uint32": [43444564, 2150618427, 3979645651, 3745730563, 1672743891, 4240503393],
+    "int64": [
+        -9209908263526143660,
+        -2358953802017238317,
+        -233920680524772397,
+        2658481902456610144,
+        -2022031683723149139,
+        -2324041912354448873,
+    ],
+    "uint64": [
+        9236835810183407956,
+        16087790271692313299,
+        18212823393184779219,
+        2658481902456610144,
+        16424712389986402477,
+        16122702161355102743,
+    ],
+}
+_RNG_THREEFRY_STATE = {"int32": [1, 5], "uint32": [1, 5], "int64": [1, 8], "uint64": [1, 8]}
+_RNG_PHILOX_EXPECTED = {
+    "int32": [-263854262, 1366700262, 495645701, -1243243882, 89414891, 1917262711],
+    "uint32": [4031113034, 1366700262, 495645701, 3051723414, 89414891, 1917262711],
+    "int64": [
+        5869932932755744586,
+        -5339691813646437371,
+        8234580641674714347,
+        2641225993340350124,
+        1962472297844690804,
+        -3580856229565614135,
+    ],
+    "uint64": [
+        5869932932755744586,
+        13107052260063114245,
+        8234580641674714347,
+        2641225993340350124,
+        1962472297844690804,
+        14865887844143937481,
+    ],
+}
+_RNG_PHILOX_STATE = {
+    "int32": [1, 4, 3],
+    "uint32": [1, 4, 3],
+    "int64": [1, 5, 3],
+    "uint64": [1, 5, 3],
+}
+
+
+@pytest.mark.parametrize(
+    "out_dtype,out_tensor_type",
+    [
+        ("int32", _tfl_tensor_type.INT32),
+        ("uint32", _tfl_tensor_type.UINT32),
+        ("int64", _tfl_tensor_type.INT64),
+        ("uint64", _tfl_tensor_type.UINT64),
+    ],
+)
+def test_stablehlo_rng_bit_generator_threefry(out_dtype, out_tensor_type):
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR THREEFRY matches the runtime kernel bit-exactly."""
+    state, output = _run_stablehlo_rng_model(
+        _tfl_rng_algorithm.THREEFRY, 2, [2, 3], out_tensor_type, [1, 2]
+    )
+    assert output.flatten().tolist() == _RNG_THREEFRY_EXPECTED[out_dtype]
+    assert state.tolist() == _RNG_THREEFRY_STATE[out_dtype]
+
+
+@pytest.mark.parametrize(
+    "out_dtype,out_tensor_type",
+    [
+        ("int32", _tfl_tensor_type.INT32),
+        ("uint32", _tfl_tensor_type.UINT32),
+        ("int64", _tfl_tensor_type.INT64),
+        ("uint64", _tfl_tensor_type.UINT64),
+    ],
+)
+def test_stablehlo_rng_bit_generator_philox(out_dtype, out_tensor_type):
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR PHILOX matches the runtime kernel bit-exactly."""
+    state, output = _run_stablehlo_rng_model(
+        _tfl_rng_algorithm.PHILOX, 3, [2, 3], out_tensor_type, [1, 2, 3]
+    )
+    assert output.flatten().tolist() == _RNG_PHILOX_EXPECTED[out_dtype]
+    assert state.tolist() == _RNG_PHILOX_STATE[out_dtype]
+
+
+def test_stablehlo_rng_bit_generator_default_matches_philox():
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR DEFAULT resolves to the PHILOX algorithm."""
+    state, output = _run_stablehlo_rng_model(
+        _tfl_rng_algorithm.DEFAULT, 3, [2, 3], _tfl_tensor_type.INT32, [1, 2, 3]
+    )
+    assert output.flatten().tolist() == _RNG_PHILOX_EXPECTED["int32"]
+    assert state.tolist() == _RNG_PHILOX_STATE["int32"]
+
+
+def test_stablehlo_rng_bit_generator_deterministic():
+    """Re-running the imported RNG kernel yields identical bit-exact output."""
+    buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [3, 3], _tfl_tensor_type.INT32)
+    mod = _load_model_from_buffer(buf)
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    init = tvm.runtime.tensor(np.array([7, 8, 9], dtype="uint64"))
+    first = vm["main"](init)
+    second = vm["main"](init)
+    np.testing.assert_equal(first[1].numpy(), second[1].numpy())
+    np.testing.assert_equal(first[0].numpy(), second[0].numpy())
+
+
+def test_stablehlo_rng_bit_generator_constant_state():
+    """A constant uint64 initial state imports and stays bit-exact (no graph input)."""
+    buf = _build_stablehlo_rng_model(
+        _tfl_rng_algorithm.THREEFRY, 2, [2, 3], _tfl_tensor_type.INT32, const_state=[1, 2]
+    )
+    mod = _load_model_from_buffer(buf)
+    assert len(mod["main"].params) == 0
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    result = vm["main"]()
+    assert result[1].numpy().flatten().tolist() == _RNG_THREEFRY_EXPECTED["int32"]
+    assert result[0].numpy().tolist() == _RNG_THREEFRY_STATE["int32"]
+
+
+def test_stablehlo_rng_bit_generator_unsupported_output_dtype():
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects non-integer output dtypes."""
+    buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [2, 3], _tfl_tensor_type.FLOAT32)
+    with pytest.raises(tvm.error.OpNotImplemented, match="output dtype float32 is not supported"):
+        _load_model_from_buffer(buf)
+
+
+def test_stablehlo_rng_bit_generator_threefry_invalid_state_unsupported():
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects a u64[3] state for THREEFRY."""
+    buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.THREEFRY, 3, [2, 3], _tfl_tensor_type.INT32)
+    with pytest.raises(tvm.error.OpNotImplemented, match="THREEFRY requires a u64.2. state"):
+        _load_model_from_buffer(buf)
+
+
+def test_stablehlo_rng_bit_generator_non_uint64_state_unsupported():
+    """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects a non-uint64 initial state."""
+    builder = flatbuffers.Builder(1024)
+    _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsStart(builder)
+    _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsAddAlgorithm(
+        builder, _tfl_rng_algorithm.PHILOX
+    )
+    rng_opts = _tfl_stablehlo_rng_opts.StablehloRngBitGeneratorOptionsEnd(builder)
+    rng_code = _build_operator_code(
+        builder, _get_stablehlo_builtin_operator("STABLEHLO_RNG_BIT_GENERATOR")
+    )
+    tensors = [
+        _build_tensor(builder, 0, [2], tensor_type=_tfl_tensor_type.INT64),
+        _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT64),
+        _build_tensor(builder, 2, [2, 3], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    rng_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1, 2],
+        builtin_options2_type=_tfl_builtin_options2.StablehloRngBitGeneratorOptions,
+        builtin_options2=rng_opts,
+    )
+    subgraph = _build_subgraph(
+        builder, tensors=tensors, operators=[rng_op], inputs=[0], outputs=[1, 2]
+    )
+    buffers = [_build_buffer(builder) for _ in range(3)]
+    buf = _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[rng_code], buffers=buffers
+    )
+    with pytest.raises(tvm.error.OpNotImplemented, match="requires a uint64 initial state"):
         _load_model_from_buffer(buf)
 
 

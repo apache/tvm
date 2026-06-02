@@ -133,6 +133,7 @@ declare global {
 
 const HASH_ALGORITHM = "SHA-256";
 const DEFAULT_FETCH_OPTIONS: RequestInit = { method: "GET" };
+const COS_HASH_META_CACHE = "tvmjs-cos-hash-meta";
 let crossOriginFallbackWarningLogged = false;
 
 const GLOBAL_HASH_CACHE = new Map<
@@ -194,6 +195,7 @@ class CrossOriginStorage {
     await writableStream.write(blob);
     await writableStream.close();
     this.hashCache.set(url, hash);
+    await this.persistHashEntry(url, hash);
   }
 
   async delete(_request: RequestLike): Promise<void> {
@@ -224,12 +226,54 @@ class CrossOriginStorage {
     throw new Error("CrossOriginStorage: Unsupported request type.");
   }
 
+  private async persistHashEntry(
+    url: string,
+    hash: CrossOriginHashDescriptor,
+  ): Promise<void> {
+    try {
+      if (typeof caches === "undefined") {
+        return;
+      }
+      const store = await caches.open(COS_HASH_META_CACHE);
+      await store.put(url, new Response(JSON.stringify(hash)));
+    } catch {
+      // best-effort: ignore storage errors
+    }
+  }
+
+  private async loadPersistedHashEntry(
+    url: string,
+  ): Promise<CrossOriginHashDescriptor | null> {
+    try {
+      if (typeof caches === "undefined") {
+        return null;
+      }
+      const store = await caches.open(COS_HASH_META_CACHE);
+      const response = await store.match(url);
+      if (!response) {
+        return null;
+      }
+      return JSON.parse(await response.text()) as CrossOriginHashDescriptor;
+    } catch {
+      return null;
+    }
+  }
+
   private async resolveHashDescriptor(
     url: string,
   ): Promise<CrossOriginHashDescriptor | null> {
     const cached = this.hashCache.get(url);
     if (cached) {
       return cached;
+    }
+    // Check persistent store before falling back to network-based hash extraction.
+    // This covers non-LFS files (JSON configs, tokenizers) and non-HuggingFace URLs
+    // (e.g. GitHub raw .wasm files) whose hashes were computed from blob content on a
+    // previous visit and persisted to the Cache API.
+    const persisted = await this.loadPersistedHashEntry(url);
+    if (persisted) {
+      this.hashCache.set(url, persisted);
+      return persisted;
     }
     const hashValue = await this.getFileHash(url);
     if (!hashValue) {
@@ -240,6 +284,9 @@ class CrossOriginStorage {
       value: hashValue,
     };
     this.hashCache.set(url, descriptor);
+    // Persist pointer-derived hashes so subsequent visits skip the LFS pointer
+    // network request (especially important for models with many shards).
+    await this.persistHashEntry(url, descriptor);
     return descriptor;
   }
 

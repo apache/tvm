@@ -249,6 +249,7 @@ class OperatorConverter:
             "HASHTABLE": self.convert_hashtable,
             "HASHTABLE_FIND": self.convert_hashtable_find,
             "HASHTABLE_IMPORT": self.convert_hashtable_import,
+            "HASHTABLE_LOOKUP": self.convert_hashtable_lookup,
             "HASHTABLE_SIZE": self.convert_hashtable_size,
             "IF": self.convert_if,
             "L2_NORMALIZATION": self.convert_l2_normalization,
@@ -376,6 +377,7 @@ class OperatorConverter:
             "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
             "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
+            "STABLEHLO_RNG_BIT_GENERATOR": self._convert_stablehlo_rng_bit_generator,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
             "STABLEHLO_SELECT": functools.partial(
@@ -756,6 +758,88 @@ class OperatorConverter:
             "HASHTABLE_FIND requires TensorType.STRING support in Relax TFLite frontend"
         )
 
+    def convert_hashtable_lookup(self, op):
+        """Convert TFLite HASHTABLE_LOOKUP for non-string value tensors."""
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 3 or len(output_tensors) != 2:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP expects lookup, key, and value inputs with two outputs"
+            )
+
+        lookup_tensor, key_tensor, value_tensor = input_tensors
+        output_tensor, hits_tensor = output_tensors
+
+        if (
+            lookup_tensor.tensor.Type() != TensorType.INT32
+            or key_tensor.tensor.Type() != TensorType.INT32
+        ):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires int32 lookup and key tensors"
+            )
+        if self._is_tflite_string_type(value_tensor.tensor.Type()):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP with TensorType.STRING values is not supported"
+            )
+        if value_tensor.tensor.Type() != output_tensor.tensor.Type():
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP output dtype must match the value tensor dtype"
+            )
+        if hits_tensor.tensor.Type() != TensorType.UINT8:
+            raise tvm.error.OpNotImplemented("HASHTABLE_LOOKUP hits output must be uint8")
+
+        lookup_shape = to_int_list(self.get_tensor_shape(lookup_tensor))
+        key_shape = to_int_list(self.get_tensor_shape(key_tensor))
+        value_shape = to_int_list(self.get_tensor_shape(value_tensor))
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        hits_shape = to_int_list(self.get_tensor_shape(hits_tensor))
+
+        if len(lookup_shape) != 1 or len(key_shape) != 1 or len(value_shape) < 1:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires rank-1 lookup/key and rank>=1 value tensors"
+            )
+        if key_shape[0] != value_shape[0]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires key and value tensors to agree on row count"
+            )
+        if key_shape[0] == 0:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP requires a non-empty key/value table"
+            )
+        if output_shape != [lookup_shape[0]] + value_shape[1:]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP output shape must match lookup count and value tail shape"
+            )
+        if hits_shape != [lookup_shape[0]]:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_LOOKUP hits output shape must match lookup count"
+            )
+
+        lookup = self.get_tensor_expr(lookup_tensor)
+        key = self.get_tensor_expr(key_tensor)
+        value = self.get_tensor_expr(value_tensor)
+
+        positions = relax.op.bucketize(lookup, key, out_int32=True, right=False)
+        candidate_keys = relax.op.take(key, positions, axis=0, mode="clip")
+        in_range = relax.op.less(positions, relax.const(key_shape[0], "int32"))
+        found = relax.op.logical_and(in_range, relax.op.equal(candidate_keys, lookup))
+
+        gathered_values = relax.op.take(value, positions, axis=0, mode="clip")
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+        zero_values = relax.op.zeros(output_shape, output_dtype)
+
+        if len(value_shape) > 1:
+            found_values = relax.op.expand_dims(found, axis=list(range(1, len(value_shape))))
+            found_values = relax.op.broadcast_to(found_values, output_shape)
+        else:
+            found_values = found
+
+        output = relax.op.where(found_values, gathered_values, zero_values)
+        hits = relax.op.astype(found, "uint8")
+        return relax.Tuple([output, hits])
+
     def convert_hashtable_size(self, op):
         """Convert HASHTABLE_SIZE for a statically imported TFLite hashtable."""
         input_tensors = self.get_input_tensors(op)
@@ -919,6 +1003,8 @@ class OperatorConverter:
             TensorType.FLOAT32: np.float32,
             TensorType.INT32: np.int32,
             TensorType.INT64: np.int64,
+            TensorType.UINT32: np.uint32,
+            TensorType.UINT64: np.uint64,
             TensorType.BOOL: np.bool_,
         }[tensor_wrapper.tensor.Type()]
 
@@ -959,6 +1045,10 @@ class OperatorConverter:
             return "int32"
         if tensor_type == TensorType.INT64:
             return "int64"
+        if tensor_type == TensorType.UINT32:
+            return "uint32"
+        if tensor_type == TensorType.UINT64:
+            return "uint64"
         if tensor_type == TensorType.BOOL:
             return "bool"
         raise NotImplementedError(f"Tensor type {tensor_type!s} is currently not supported")
@@ -2206,6 +2296,72 @@ class OperatorConverter:
 
         target = call_target_name or "<empty>"
         raise tvm.error.OpNotImplemented(f"STABLEHLO_CUSTOM_CALL target {target} is not supported")
+
+    def _convert_stablehlo_rng_bit_generator(self, op):
+        """Convert STABLEHLO_RNG_BIT_GENERATOR to a bit-exact call_tir kernel."""
+        from tflite.RngAlgorithm import RngAlgorithm
+        from tflite.StablehloRngBitGeneratorOptions import StablehloRngBitGeneratorOptions
+
+        op_name = "STABLEHLO_RNG_BIT_GENERATOR"
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 2:
+            raise tvm.error.OpNotImplemented(f"{op_name} expects one input and two outputs")
+
+        opts = self._get_stablehlo_options(op, StablehloRngBitGeneratorOptions)
+        algorithm_enum = opts.Algorithm()
+        # DEFAULT resolves to PHILOX in the TFLite runtime kernel.
+        if algorithm_enum == RngAlgorithm.THREEFRY:
+            algorithm = "threefry"
+        elif algorithm_enum in (RngAlgorithm.PHILOX, RngAlgorithm.DEFAULT):
+            algorithm = "philox"
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} algorithm {algorithm_enum} is not supported"
+            )
+
+        state_tensor = input_tensors[0]
+        if self.get_tensor_type_str(state_tensor.tensor.Type()) != "uint64":
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a uint64 initial state")
+        state_shape = self._get_static_tensor_shape(state_tensor, op_name)
+        if len(state_shape) != 1:
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a 1-D initial state")
+        state_len = int(state_shape[0])
+        # State-length constraints mirror the TFLite runtime kernel.
+        if algorithm == "threefry" and state_len != 2:
+            raise tvm.error.OpNotImplemented(f"{op_name} THREEFRY requires a u64[2] state")
+        if algorithm == "philox" and state_len not in (2, 3):
+            raise tvm.error.OpNotImplemented(f"{op_name} PHILOX requires a u64[2] or u64[3] state")
+
+        out_state_tensor, out_tensor = output_tensors
+        if self.get_tensor_type_str(out_state_tensor.tensor.Type()) != "uint64":
+            raise tvm.error.OpNotImplemented(f"{op_name} output state must be uint64")
+        out_state_shape = self._get_static_tensor_shape(out_state_tensor, op_name)
+        if list(out_state_shape) != list(state_shape):
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} output state shape must match the initial state"
+            )
+        out_dtype = self.get_tensor_type_str(out_tensor.tensor.Type())
+        if out_dtype not in ("int32", "int64", "uint32", "uint64"):
+            raise tvm.error.OpNotImplemented(f"{op_name} output dtype {out_dtype} is not supported")
+        out_shape = tuple(self._get_static_tensor_shape(out_tensor, op_name))
+
+        prim_func = _build_stablehlo_rng_bit_generator_primfunc(
+            algorithm, state_len, out_dtype, out_shape
+        )
+        module_builder = self.conversion_state["module_builder"]
+        func_name = f"tflite_stablehlo_rng_{algorithm}_{out_state_tensor.tensor_idx}"
+        gv = module_builder.add_func(prim_func, func_name)
+        state_expr = self.get_tensor_expr(state_tensor)
+        call = relax.call_tir(
+            gv,
+            [state_expr],
+            [
+                relax.TensorStructInfo(tuple(state_shape), "uint64"),
+                relax.TensorStructInfo(out_shape, out_dtype),
+            ],
+        )
+        return self.bb.normalize(call)
 
     def _convert_stablehlo_while(self, op):
         """Convert STABLEHLO_WHILE to a recursive Relax private function."""
@@ -6276,6 +6432,8 @@ class OperatorConverter:
 
         count_shape = output_prefix_shape
         count_base = relax.const(np.zeros(count_shape, dtype=np.float32), "float32")
+        bucket_count_updates = relax.const(np.ones(ids_shape, dtype=np.float32), "float32")
+        bucket_counts = relax.op.scatter_nd(count_base, bucket_indices, bucket_count_updates, "add")
         if combiner == CombinerType.MEAN:
             denominator_updates = weights
         elif combiner == CombinerType.SQRTN:
@@ -6292,10 +6450,11 @@ class OperatorConverter:
         broadcast_shape = count_shape + [1] * len(embedding_tail_shape)
         denominator = relax.op.reshape(denominator, broadcast_shape)
         denominator = relax.op.broadcast_to(denominator, output_shape)
-        safe_denominator = relax.op.maximum(denominator, relax.const(1e-12, "float32"))
-        normalized = relax.op.divide(summed_lookup, safe_denominator)
+        normalized = relax.op.divide(summed_lookup, denominator)
+        bucket_counts = relax.op.reshape(bucket_counts, broadcast_shape)
+        bucket_counts = relax.op.broadcast_to(bucket_counts, output_shape)
         return relax.op.where(
-            relax.op.greater(denominator, relax.const(0.0, "float32")), normalized, value_base
+            relax.op.greater(bucket_counts, relax.const(0.0, "float32")), normalized, value_base
         )
 
     def convert_batch_matmul(self, op):
@@ -7462,6 +7621,162 @@ class OperatorConverter:
         )
 
 
+# Constants for the Random123 counter-based PRNGs used by STABLEHLO_RNG_BIT_GENERATOR,
+# matching tensorflow/lite/kernels/rng_util.cc.
+_STABLEHLO_RNG_THREEFRY_PARITY = 0x1BD11BDA
+_STABLEHLO_RNG_PHILOX_MUL_A = 0xD2511F53
+_STABLEHLO_RNG_PHILOX_MUL_B = 0xCD9E8D57
+_STABLEHLO_RNG_PHILOX_WEYL_A = 0x9E3779B9
+_STABLEHLO_RNG_PHILOX_WEYL_B = 0xBB67AE85
+
+
+def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype, out_shape):
+    """Build a bit-exact TIR kernel for STABLEHLO_RNG_BIT_GENERATOR.
+
+    Mirrors the TFLite runtime kernel (tensorflow/lite/kernels/rng_bit_generator.cc),
+    implementing the Random123 Threefry2x32 (20 rounds) and Philox4x32 (10 rounds)
+    counter-based PRNGs. The kernel reinterprets the uint64 state as uint32 words,
+    advances a 64-bit block counter, and packs the generated words into the output
+    tensor. The updated state keeps the key unchanged and only advances the counter,
+    which is the only behaviour the runtime relies on.
+    """
+    from tvm.script.parser import tirx as T
+
+    total = 1
+    for dim in out_shape:
+        total *= int(dim)
+    is_64bit = out_dtype in ("int64", "uint64")
+    block_words = 2 if algorithm == "threefry" else 4
+    out_word_count = total * (2 if is_64bit else 1)
+    num_blocks = (out_word_count + block_words - 1) // block_words
+    writes_per_block = block_words // (2 if is_64bit else 1)
+    parity = _STABLEHLO_RNG_THREEFRY_PARITY
+    mul_a, mul_b = _STABLEHLO_RNG_PHILOX_MUL_A, _STABLEHLO_RNG_PHILOX_MUL_B
+    weyl_a, weyl_b = _STABLEHLO_RNG_PHILOX_WEYL_A, _STABLEHLO_RNG_PHILOX_WEYL_B
+
+    def _u32(value):
+        return T.Cast("uint32", value)
+
+    def _u64(value):
+        return T.Cast("uint64", value)
+
+    def _store_value(words, write_index):
+        # Pack the generated uint32 words into one output element, reinterpreting
+        # the bit pattern into the (possibly signed) output dtype.
+        if is_64bit:
+            low = _u64(words[2 * write_index])
+            high = _u64(words[2 * write_index + 1])
+            return T.reinterpret(out_dtype, low | (high << T.uint64(32)))
+        return T.reinterpret(out_dtype, words[write_index])
+
+    if algorithm == "threefry":
+
+        @T.prim_func(private=True, s_tir=True)
+        def kernel(
+            initial_state: T.Buffer((state_len,), "uint64"),
+            output_state: T.Buffer((state_len,), "uint64"),
+            output: T.Buffer(out_shape, out_dtype),
+        ):
+            # A single opaque structured block keeps the imperative kernel as a
+            # well-formed block-structured PrimFunc, as required by the Relax
+            # pipeline (e.g. HasReshapePattern).
+            with T.sblock("rng_bit_generator"):
+                state_key = initial_state[0]
+                state_counter = initial_state[1]
+                key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))
+                key_1 = _u32(state_key >> T.uint64(32))
+                output_state[0] = state_key
+                output_state[1] = state_counter + T.uint64(num_blocks)
+                out_flat = T.decl_buffer((total,), out_dtype, data=output.data)
+                keys = T.decl_buffer((3,), "uint32", scope="local")
+                rotations = T.decl_buffer((8,), "uint32", scope="local")
+                ctr = T.decl_buffer((2,), "uint32", scope="local")
+                keys[0] = key_0
+                keys[1] = key_1
+                keys[2] = key_0 ^ key_1 ^ T.uint32(parity)
+                rotations[0] = T.uint32(13)
+                rotations[1] = T.uint32(15)
+                rotations[2] = T.uint32(26)
+                rotations[3] = T.uint32(6)
+                rotations[4] = T.uint32(17)
+                rotations[5] = T.uint32(29)
+                rotations[6] = T.uint32(16)
+                rotations[7] = T.uint32(24)
+                for block in T.serial(num_blocks):
+                    counter = state_counter + _u64(block)
+                    ctr[0] = _u32(counter & T.uint64(0xFFFFFFFF)) + key_0
+                    ctr[1] = _u32(counter >> T.uint64(32)) + key_1
+                    for group in T.serial(5):
+                        for step in T.serial(4):
+                            rot = rotations[(group * 4 + step) % 8]
+                            ctr[0] = ctr[0] + ctr[1]
+                            ctr[1] = (ctr[1] << rot) | (ctr[1] >> (T.uint32(32) - rot))
+                            ctr[1] = ctr[1] ^ ctr[0]
+                        ctr[0] = ctr[0] + keys[(group + 1) % 3]
+                        ctr[1] = ctr[1] + keys[(group + 2) % 3] + _u32(group + 1)
+                    for write_index in T.serial(writes_per_block):
+                        element = block * writes_per_block + write_index
+                        if element < total:
+                            out_flat[element] = _store_value(ctr, write_index)
+
+        return kernel
+
+    @T.prim_func(private=True, s_tir=True)
+    def kernel(
+        initial_state: T.Buffer((state_len,), "uint64"),
+        output_state: T.Buffer((state_len,), "uint64"),
+        output: T.Buffer(out_shape, out_dtype),
+    ):
+        with T.sblock("rng_bit_generator"):
+            state_key = initial_state[0]
+            state_counter = initial_state[1]
+            key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))
+            key_1 = _u32(state_key >> T.uint64(32))
+            output_state[0] = state_key
+            output_state[1] = state_counter + T.uint64(num_blocks)
+            out_flat = T.decl_buffer((total,), out_dtype, data=output.data)
+            ctr = T.decl_buffer((4,), "uint32", scope="local")
+            keys = T.decl_buffer((2,), "uint32", scope="local")
+            high_ctr = T.decl_buffer((2,), "uint32", scope="local")
+            if state_len == 3:
+                # PHILOX u64[3]: the third state word feeds the high counter and
+                # is passed through to the output state unchanged.
+                high_state = initial_state[2]
+                output_state[2] = high_state
+                high_ctr[0] = _u32(high_state & T.uint64(0xFFFFFFFF))
+                high_ctr[1] = _u32(high_state >> T.uint64(32))
+            else:
+                high_ctr[0] = key_0
+                high_ctr[1] = key_1
+            for block in T.serial(num_blocks):
+                counter = state_counter + _u64(block)
+                ctr[0] = _u32(counter & T.uint64(0xFFFFFFFF))
+                ctr[1] = _u32(counter >> T.uint64(32))
+                ctr[2] = high_ctr[0]
+                ctr[3] = high_ctr[1]
+                keys[0] = key_0
+                keys[1] = key_1
+                for _round in T.serial(10):
+                    prod_0 = T.uint64(mul_a) * _u64(ctr[0])
+                    prod_1 = T.uint64(mul_b) * _u64(ctr[2])
+                    new_0 = _u32(prod_1 >> T.uint64(32)) ^ ctr[1] ^ keys[0]
+                    new_1 = _u32(prod_1 & T.uint64(0xFFFFFFFF))
+                    new_2 = _u32(prod_0 >> T.uint64(32)) ^ ctr[3] ^ keys[1]
+                    new_3 = _u32(prod_0 & T.uint64(0xFFFFFFFF))
+                    ctr[0] = new_0
+                    ctr[1] = new_1
+                    ctr[2] = new_2
+                    ctr[3] = new_3
+                    keys[0] = keys[0] + T.uint32(weyl_a)
+                    keys[1] = keys[1] + T.uint32(weyl_b)
+                for write_index in T.serial(writes_per_block):
+                    element = block * writes_per_block + write_index
+                    if element < total:
+                        out_flat[element] = _store_value(ctr, write_index)
+
+    return kernel
+
+
 # pylint: disable=no-else-return
 def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_tensor_type):
     """Prepare sparse indices and dense matrix from TFLite sparse parameters."""
@@ -7708,6 +8023,8 @@ def _decode_type(n):
         7: "int16",
         8: "complex64",
         9: "int8",
+        12: "uint64",
+        15: "uint32",
     }
     return _tflite_m[n]
 
