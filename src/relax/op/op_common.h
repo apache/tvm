@@ -387,6 +387,36 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   return lhs_vdevice;
 }
 
+/*! \brief Result of binary broadcast shape inference without diagnostic context. */
+struct BinaryBroadcastShapeInferResult {
+  enum class Status {
+    /*! \brief Broadcast output shape is known. */
+    kSuccess,
+    /*! \brief Shapes may be broadcastable but cannot be proved symbolically. */
+    kUnknown,
+    /*! \brief Concrete shapes are not broadcastable. */
+    kConflict,
+  };
+
+  /*! \brief Inference status. */
+  Status status = Status::kUnknown;
+  /*! \brief Broadcasted shape if status is kSuccess. */
+  ffi::Optional<ffi::Array<PrimExpr>> shape;
+  /*! \brief Human-readable conflict description if status is kConflict. */
+  ffi::Optional<ffi::String> message;
+};
+
+/*!
+ * \brief Infer the output shape for binary broadcast operators.
+ * \param analyzer The arithmetic analyzer used to prove shape equality.
+ * \param x1_shape The shape of the first operand.
+ * \param x2_shape The shape of the second operand.
+ * \return Inference status and broadcasted shape, or a conflict message.
+ */
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::Analyzer* analyzer,
+                                                          const ffi::Array<PrimExpr>& x1_shape,
+                                                          const ffi::Array<PrimExpr>& x2_shape);
+
 /*!
  * \brief Infer the output shape for binary broadcast operators.
  * \param call The context Call to the operator.

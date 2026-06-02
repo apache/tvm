@@ -22,6 +22,7 @@
 #include <tvm/ffi/cast.h>
 
 #include <algorithm>
+#include <sstream>
 
 namespace tvm {
 namespace relax {
@@ -108,10 +109,10 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
   return tensor_sinfo;
 }
 
-ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
-    const Call& call, const BlockBuilder& ctx, const ffi::Array<PrimExpr>& x1_shape,
-    const ffi::Array<PrimExpr>& x2_shape) {
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::Analyzer* analyzer,
+                                                          const ffi::Array<PrimExpr>& x1_shape,
+                                                          const ffi::Array<PrimExpr>& x2_shape) {
+  BinaryBroadcastShapeInferResult result;
   int x1_ndim = x1_shape.size();
   int x2_ndim = x2_shape.size();
   int max_ndim = std::max(x1_ndim, x2_ndim);
@@ -132,20 +133,45 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
     } else if (analyzer->CanProveEqual(dim0, dim1)) {
       output_shape.push_back(dim0);
     } else if (int_dim0 && int_dim1 && int_dim0->value != int_dim1->value) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In " << call->op << ", the first input shape at dim " << x1_ndim - i
-                       << " is " << dim0 << " and the second input shape at dim " << x2_ndim - i
-                       << " is " << dim1 << ", which are not broadcastable.");
+      result.status = BinaryBroadcastShapeInferResult::Status::kConflict;
+      result.message = [&]() {
+        std::ostringstream os;
+        os << "the first input shape at dim " << x1_ndim - i << " is " << dim0
+           << " and the second input shape at dim " << x2_ndim - i << " is " << dim1
+           << ", which are not broadcastable.";
+        return ffi::String(os.str());
+      }();
+      return result;
     } else {
-      // Use simple fallback when shape mismatch.
-      return std::nullopt;
+      result.status = BinaryBroadcastShapeInferResult::Status::kUnknown;
+      return result;
     }
   }
   auto& longer_shape = (x1_ndim > x2_ndim) ? x1_shape : x2_shape;
   for (; i <= max_ndim; ++i) {
     output_shape.push_back(longer_shape[max_ndim - i]);
   }
-  return ffi::Array<PrimExpr>(output_shape.rbegin(), output_shape.rend());
+  result.status = BinaryBroadcastShapeInferResult::Status::kSuccess;
+  result.shape = ffi::Array<PrimExpr>(output_shape.rbegin(), output_shape.rend());
+  return result;
+}
+
+ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
+    const Call& call, const BlockBuilder& ctx, const ffi::Array<PrimExpr>& x1_shape,
+    const ffi::Array<PrimExpr>& x2_shape) {
+  auto infer_result = InferBinaryBroadcastShape(ctx->GetAnalyzer(), x1_shape, x2_shape);
+  if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kConflict) {
+    TVM_FFI_ICHECK(infer_result.message.has_value());
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "In " << call->op << ", " << infer_result.message.value());
+  } else if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kSuccess) {
+    TVM_FFI_ICHECK(infer_result.shape.has_value());
+    return infer_result.shape.value();
+  } else {
+    // Unknown status, use simple fallback when shape mismatch.
+    return std::nullopt;
+  }
+  TVM_FFI_UNREACHABLE();
 }
 
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,

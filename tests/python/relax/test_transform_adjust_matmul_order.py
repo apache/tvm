@@ -42,7 +42,13 @@ class Base:
 
 
 class TestLHS(Base):
-    """Prefer (x*A)*B instead of x*(A*B)"""
+    """Prefer (x*A)*B instead of x*(A*B)
+
+    LHS first - (x*A)*B:
+        ops = 1*16*2 + 1*2*32 = 96
+    RHS first - x*(A*B):
+        ops = 16*2*32 + 1*16*32 = 1536
+    """
 
     @I.ir_module
     class Before:
@@ -70,7 +76,13 @@ class TestLHS(Base):
 
 
 class TestRHS(Base):
-    """Prefer A*(B*x) instead of (A*B)*x"""
+    """Prefer A*(B*x) instead of (A*B)*x
+
+    LHS first - (A*B)*x:
+        ops = 32*2*16 + 32*16*1 = 1536
+    RHS first - A*(B*x):
+        ops = 2*16*1 + 32*2*1 = 96
+    """
 
     @I.ir_module
     class Before:
@@ -166,6 +178,13 @@ class TestLHSDynamic(Base):
 
     This case appears when evaluating LoRA-tuned models with a dynamic
     rank.
+
+    LHS first - (x*A)*B:
+        ops = 1*16*lora_r + 1*lora_r*32 = 48*lora_r
+    RHS first - x*(A*B):
+        ops = 16*lora_r*32 + 1*16*32 = 512*lora_r + 512
+
+    48*lora_r can be proved to be less than 512*lora_r + 512, so the LHS first is preferred.
     """
 
     @I.ir_module
@@ -195,7 +214,15 @@ class TestLHSDynamic(Base):
 
 
 class TestRHSDynamic(Base):
-    """Prefer A*(B*x) instead of (A*B)*x"""
+    """Prefer A*(B*x) instead of (A*B)*x
+
+    LHS first - (A*B)*x:
+        ops = 32*lora_r*16 + 32*16*1 = 512*lora_r + 512
+    RHS first - A*(B*x):
+        ops = lora_r*16*1 + 32*lora_r*1 = 48*lora_r
+
+    48*lora_r can be proved to be less than 512*lora_r + 512, so the RHS first is preferred.
+    """
 
     @I.ir_module
     class Before:
@@ -238,15 +265,16 @@ class TestIdempotentRHSDynamic(Base):
 
 
 class TestDynamicWithBatchSymbolic1(Base):
-    """Keep existing order when batch_size and lora_r are both symbolic.
+    """When both batch_size and lora_r are symbolic and it cannot be proven which
+    is cheaper, LHS or RHS, maintain the existing order.
 
-    Before computes `x @ (A @ B)` with
+    `Before` computes `x * (A * B)` with
     `x: [batch_size, 1, 16]`, `A: [16, lora_r]`, `B: [lora_r, 32]`.
 
-    RHS first (fuse A@B once, no batch on inner matmul):
+    RHS first - x * (A * B):
         16*lora_r*32 + batch_size*1*16*32 = 512*(lora_r + batch_size)
 
-    LHS first (both matmuls scale with batch_size):
+    LHS first - (x * A) * B:
         batch_size*1*16*lora_r + batch_size*1*lora_r*32 = 48*batch_size*lora_r
 
     When `batch_size` and `lora_r` are known at compile-time:
@@ -349,15 +377,16 @@ class TestDynamicWithBatchConcrete1RHSFirst(Base):
 
 
 class TestDynamicWithBatchSymbolic2(Base):
-    """Keep existing order when batch_size and lora_r are both symbolic.
+    """When both batch_size and lora_r are symbolic and it cannot be proven which
+    is cheaper, LHS or RHS, maintain the existing order.
 
-    Before computes `(A @ B) @ x` with
+    `Before` computes `(A * B) * x` with
     `A: [32, lora_r]`, `B: [lora_r, 16]`, `x: [batch_size, 16, 1]`.
 
-    LHS first (fuse A@B once, no batch on inner matmul):
+    LHS first - (A * B) * x:
         32*lora_r*16 + batch_size*32*16*1 = 512*(lora_r + batch_size)
 
-    RHS first (both matmuls scale with batch_size):
+    RHS first - A * (B * x):
         batch_size*lora_r*16*1 + batch_size*32*lora_r*1 = 48*batch_size*lora_r
 
     When `batch_size` and `lora_r` are known at compile-time:
@@ -516,6 +545,11 @@ class TestRHSPermuteDims(Base):
     """Prefer (x*A)*B instead of x*(A*B)
 
     Like `TestRHS`, but the weights on the RHS are transposed.
+
+    Before: x * (BT * AT)
+        ops = 16*2*32 + 1*16*32 = 1536
+    After: (x * BT) * AT
+        ops = 1*16*2 + 1*2*32 = 96
     """
 
     @I.ir_module
@@ -551,6 +585,13 @@ class TestRHSPermuteDimsDynamic(Base):
 
     Like `TestRHSPermuteDims`, but the weights on the RHS have a
     dynamic shape.
+
+    Before: x * (BT * AT)
+        ops = 16*lora_r*32 + 1*16*32 = 512*lora_r + 512
+    After: (x * BT) * AT
+        ops = 1*16*lora_r + 1*lora_r*32 = 48*lora_r
+
+    48*lora_r can be proved to be less than 512*lora_r + 512, so the After is preferred.
     """
 
     @I.ir_module
@@ -596,15 +637,15 @@ class TestRHSPermuteDimsWithDynamicBatch(Base):
         ops_left_to_right = (batch_size + lora_r)*4096*4096
         ops_right_to_left = (4096 + 4096)*batch_size*lora_r
 
-    Without an upper bound on `lora_r`, we cannot prove which of these
-    is the preferred execution order.  With the upper bound, TVM can
-    determine the preferred order using the following arithmethic
-    reasoning.
+    Without an upper bound on batch_size and`lora_r`, we cannot prove which
+    of these is the preferred execution order.
 
-        (batch_size + lora_r)*4096*4096 < (4096 + 4096)*batch_size*lora_r
-        (batch_size + lora_r)*2048 < batch_size*lora_r
-        1/batch_size + 1/lora_r < 1/2048
+    With the upper bound, TVM can determine the preferred order using
+    the following arithmetic reasoning.
 
+        (batch_size + lora_r)*4096*4096 > (4096 + 4096)*batch_size*lora_r
+        (batch_size + lora_r)*2048 > batch_size*lora_r
+        1/batch_size + 1/lora_r > 1/2048
     """
 
     @I.ir_module
@@ -615,7 +656,12 @@ class TestRHSPermuteDimsWithDynamicBatch(Base):
             A: R.Tensor([4096, "lora_r"]),
             B: R.Tensor(["lora_r", 4096]),
         ) -> R.Tensor(["batch_size", 4096]):
-            R.func_attr({"tir_var_upper_bound": {"lora_r": 2048}})
+            R.func_attr(
+                {
+                    "tir_var_upper_bound": {"lora_r": 2048, "batch_size": 2048},
+                }
+            )
+            lora_r = T.int64()  # noqa: F841
             batch_size = T.int64()
             linear_weight: R.Tensor([4096, 4096]) = R.matmul(A, B)
             matmul_weight: R.Tensor([4096, 4096]) = R.permute_dims(linear_weight)
@@ -630,7 +676,11 @@ class TestRHSPermuteDimsWithDynamicBatch(Base):
             A: R.Tensor([4096, "lora_r"]),
             B: R.Tensor(["lora_r", 4096]),
         ) -> R.Tensor(["batch_size", 4096]):
-            R.func_attr({"tir_var_upper_bound": {"lora_r": 2048}})
+            R.func_attr(
+                {
+                    "tir_var_upper_bound": {"lora_r": 2048, "batch_size": 2048},
+                }
+            )
             lora_r = T.int64()
             batch_size = T.int64()
             B_transpose = R.permute_dims(B)
@@ -645,6 +695,11 @@ class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
 
     Like `TestRHSPermuteDims`, but the weights on the RHS have a
     dynamic shape.
+
+    Before: x * (BT * AT)
+        ops = 32*lora_r*32 + 1*32*32 = 1024*lora_r + 1024
+    After: (x * BT) * AT
+        ops = 1*32*lora_r + 1*lora_r*32 = 64*lora_r
     """
 
     @I.ir_module
@@ -674,6 +729,76 @@ class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
             A_transpose = R.permute_dims(A)
             x: R.Tensor([32]) = R.matmul(x, A_transpose)
             return x
+
+
+class TestBatchedBroadcastPreferLHSFirst(Base):
+    """Use broadcasted batch prefix per matmul, not independent prefix products.
+
+    Example with broadcast batch axes: A:[2,1,1], B:[2,1,2], C:[2,2,3].
+
+    LHS first: (A * B) * C
+        ops = 2*1*1*2 + 2*1*2*3 = 16
+    RHS first: A * (B * C)
+        ops = 2*1*2*3 + 2*1*1*3 = 18
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([2, 1, 1]),
+            B: R.Tensor([2, 1, 2]),
+            C: R.Tensor([2, 2, 3]),
+        ) -> R.Tensor([2, 1, 3]):
+            out: R.Tensor([2, 1, 3]) = R.matmul(A, R.matmul(B, C))
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([2, 1, 1]),
+            B: R.Tensor([2, 1, 2]),
+            C: R.Tensor([2, 2, 3]),
+        ) -> R.Tensor([2, 1, 3]):
+            temp: R.Tensor([2, 1, 2]) = R.matmul(A, B)
+            out: R.Tensor([2, 1, 3]) = R.matmul(temp, C)
+            return out
+
+
+class TestBatchedSharedPrefixPreferLHSFirst(Base):
+    """All operands share a nontrivial batch prefix [2, 3].
+
+    Shapes: A:[2,3,4,5], B:[2,3,5,6], C:[2,3,6,7]
+
+    LHS first:
+        ops = 6*4*5*6 + 6*4*6*7 = 1728
+    RHS first:
+        ops = 6*5*6*7 + 6*4*5*7 = 2100
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([2, 3, 4, 5]),
+            B: R.Tensor([2, 3, 5, 6]),
+            C: R.Tensor([2, 3, 6, 7]),
+        ) -> R.Tensor([2, 3, 4, 7]):
+            out: R.Tensor([2, 3, 4, 7]) = R.matmul(A, R.matmul(B, C))
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([2, 3, 4, 5]),
+            B: R.Tensor([2, 3, 5, 6]),
+            C: R.Tensor([2, 3, 6, 7]),
+        ) -> R.Tensor([2, 3, 4, 7]):
+            temp: R.Tensor([2, 3, 4, 6]) = R.matmul(A, B)
+            out: R.Tensor([2, 3, 4, 7]) = R.matmul(temp, C)
+            return out
 
 
 class TestAdjustMatmulOrderAttentionBlock:

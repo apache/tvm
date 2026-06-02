@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../op/op_common.h"
 #include "../op/tensor/linear_algebra.h"
 #include "../op/tensor/manipulate.h"
 
@@ -41,6 +42,27 @@ namespace tvm {
 namespace relax {
 
 namespace {
+
+ffi::Array<PrimExpr> GetBatchPrefix(const ffi::Array<PrimExpr>& shape) {
+  if (shape.size() <= 2) return {};
+  return {shape.begin(), shape.end() - 2};
+}
+
+PrimExpr ProductDims(const ffi::Array<PrimExpr>& dims) {
+  PrimExpr product = IntImm(DataType::Int(64), 1);
+  for (const auto& dim : dims) product = product * dim;
+  return product;
+}
+
+ffi::Optional<ffi::Array<PrimExpr>> InferBatchedMatmulBroadcastPrefix(
+    arith::Analyzer* analyzer, const ffi::Array<PrimExpr>& x1, const ffi::Array<PrimExpr>& x2) {
+  auto infer_result = InferBinaryBroadcastShape(analyzer, x1, x2);
+  if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kSuccess) {
+    return infer_result.shape;
+  }
+  return std::nullopt;
+}
+
 std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
@@ -170,11 +192,13 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     };
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
+      if (shape_a.size() < 2 || shape_b.size() < 2) return expr;
       expr_a = permute_last_two_dims(expr_a);
       expr_b = permute_last_two_dims(expr_b);
       transpose_shape_last_two_dims(shape_a);
       transpose_shape_last_two_dims(shape_b);
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
+      if (shape_b.size() < 2 || shape_c.size() < 2) return expr;
       expr_b = permute_last_two_dims(expr_b);
       expr_c = permute_last_two_dims(expr_c);
       transpose_shape_last_two_dims(shape_b);
@@ -215,44 +239,49 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     PrimExpr size_M = shape_c[shape_c.size() - 2];  // row of C and col of B
     PrimExpr size_B = shape_c[shape_c.size() - 1];  // col of C
 
-    auto calculate_batch = [](ffi::Array<PrimExpr>& shape) {
-      PrimExpr batch = 1;
-      for (size_t i = 0; i < shape.size() - 2; ++i) {
-        batch *= shape[i];
-      }
-      return batch;
-    };
+    arith::Analyzer analyzer;
+    auto prefix_a = GetBatchPrefix(shape_a);
+    auto prefix_b = GetBatchPrefix(shape_b);
+    auto prefix_c = GetBatchPrefix(shape_c);
 
-    PrimExpr batch_A = calculate_batch(shape_a);
-    PrimExpr batch_B = calculate_batch(shape_b);
-    PrimExpr batch_C = calculate_batch(shape_c);
+    auto opt_prefix_ab = InferBatchedMatmulBroadcastPrefix(&analyzer, prefix_a, prefix_b);
+    if (!opt_prefix_ab) return expr;
+    auto opt_prefix_bc = InferBatchedMatmulBroadcastPrefix(&analyzer, prefix_b, prefix_c);
+    if (!opt_prefix_bc) return expr;
+    auto opt_prefix_outer_lhs =
+        InferBatchedMatmulBroadcastPrefix(&analyzer, opt_prefix_ab.value(), prefix_c);
+    if (!opt_prefix_outer_lhs) return expr;
+    auto opt_prefix_outer_rhs =
+        InferBatchedMatmulBroadcastPrefix(&analyzer, prefix_a, opt_prefix_bc.value());
+    if (!opt_prefix_outer_rhs) return expr;
+
+    PrimExpr batch_ab = ProductDims(opt_prefix_ab.value());
+    PrimExpr batch_bc = ProductDims(opt_prefix_bc.value());
+    PrimExpr batch_outer_lhs = ProductDims(opt_prefix_outer_lhs.value());
+    PrimExpr batch_outer_rhs = ProductDims(opt_prefix_outer_rhs.value());
 
     // Compare naive matmul FLOPs for two evaluation orders of
     //   matmul(A, matmul(B, C))  vs  matmul(matmul(A, B), C)
     //
-    // Matrix dims (last two axes of each operand):
-    //   A: [N, R]   B: [R, M]   C: [M, B_last]
-    // Batch prefixes (product of all leading axes):
-    //   batch_A, batch_B, batch_C
+    // Matrix dims (last two axes): A [N, R], B [R, M], C [M, B_last]
+    // Each matmul uses the broadcasted batch prefix of its operands.
     //
     // LHS first — matmul(matmul(A, B), C):
-    //   inner  matmul(A, B): batch_A * batch_B * N * R * M
-    //   outer  matmul(., C): batch_A * batch_B * batch_C * N * M * B_last
-    //   total: batch_A * batch_B * N * M * (R + batch_C * B_last)
-    PrimExpr ops_with_lhs_first = (size_R + batch_C * size_B) * size_N * size_M * batch_A * batch_B;
+    //   batch_ab * N * R * M + batch_outer_lhs * N * M * B_last
+    PrimExpr ops_with_lhs_first =
+        batch_ab * size_N * size_R * size_M + batch_outer_lhs * size_N * size_M * size_B;
     // RHS first — matmul(A, matmul(B, C)):
-    //   inner  matmul(B, C): batch_B * batch_C * R * M * B_last
-    //   outer  matmul(A, .): batch_A * batch_B * batch_C * N * R * B_last
-    //   total: batch_B * batch_C * R * B_last * (M + batch_A * N)
-    PrimExpr ops_with_rhs_first = (size_M + batch_A * size_N) * size_R * size_B * batch_B * batch_C;
+    //   batch_bc * R * M * B_last + batch_outer_rhs * N * R * B_last
+    PrimExpr ops_with_rhs_first =
+        batch_bc * size_R * size_M * size_B + batch_outer_rhs * size_N * size_R * size_B;
 
-    arith::Analyzer analyzer;
     analyzer.rewrite_simplify.SetEnabledExtensions(static_cast<arith::RewriteSimplifier::Extension>(
         analyzer.rewrite_simplify.GetEnabledExtensions() |
         arith::RewriteSimplifier::Extension::kComparisonOfProductAndSum));
     With<arith::ConstraintContext> func_attr_constraint(&analyzer, symbolic_var_constraints);
     With<arith::ConstraintContext> analyzer_constraint(
-        &analyzer, size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
+        &analyzer, batch_ab > 0 && batch_bc > 0 && batch_outer_lhs > 0 && batch_outer_rhs > 0 &&
+                       size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
 
     if (analyzer.CanProve(ops_with_lhs_first < ops_with_rhs_first)) {
       return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
