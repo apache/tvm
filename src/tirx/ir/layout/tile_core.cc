@@ -20,6 +20,7 @@
 /*
  * Core TileLayout and Iter methods, basic queries, and reflection registration.
  */
+#include "tile_internal.h"
 #include "utils.h"
 
 namespace tvm {
@@ -144,6 +145,43 @@ PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(PrimExpr coord) const {
   return Apply(SplitCoord(coord, GetShardShape()));
+}
+
+ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>& coord,
+                                                      const ffi::Array<PrimExpr>& shape) const {
+  TVM_FFI_ICHECK_EQ(coord.size(), shape.size())
+      << "ValueError: The size of coord and shape should be equal";
+  // Group-first path: if this layout can be regrouped by ``shape`` (the input
+  // coord's shape), each input dim ``d`` corresponds to a contiguous sub-range
+  // of the grouped shard given by ``seps[d]..seps[d+1]``. Splitting
+  // ``coord[d]`` against just that sub-range's *local* extents keeps the
+  // symbolic form small (local mod/divs) and avoids the cross-dim noise of the
+  // flatten+split-against-shard-shape round-trip. Equivalent numerical output,
+  // much friendlier for arith.Analyzer downstream.
+  if (auto grouped_opt = TryGroup(ffi::GetRef<TileLayout>(this), shape); grouped_opt.has_value()) {
+    auto& [grouped, seps] = *grouped_opt;
+    ffi::Array<PrimExpr> per_shard_coords;
+    per_shard_coords.reserve(grouped->shard.size());
+    for (size_t i = 0; i < grouped->shard.size(); ++i) {
+      per_shard_coords.push_back(IntImm(DataType::Int(32), 0));
+    }
+    for (size_t d = 0; d < shape.size(); ++d) {
+      int64_t start = seps[d];
+      int64_t end = seps[d + 1];
+      if (start == end) continue;  // input dim collapsed to empty group
+      ffi::Array<PrimExpr> extents;
+      for (int64_t i = start; i < end; ++i) {
+        extents.push_back(grouped->shard[i]->extent);
+      }
+      auto split = SplitCoord(coord[d], extents);
+      for (int64_t i = start, j = 0; i < end; ++i, ++j) {
+        per_shard_coords.Set(i, split[j]);
+      }
+    }
+    return grouped->Apply(per_shard_coords);
+  }
+  // Fallback: flatten across input shape then split against shard shape.
+  return LayoutNode::Apply(coord, shape);
 }
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) const {

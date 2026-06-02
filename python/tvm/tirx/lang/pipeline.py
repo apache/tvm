@@ -24,12 +24,12 @@ from tvm.script import tirx as Tx
 
 
 @Tx.meta_class
-class RingState:
+class PipelineState:
     """Tracks stage and phase for a software-pipelined ring buffer.
 
     This class does not know anything about full/empty barriers. Use it when
     the kernel manually waits/signals barriers, or when the stage/phase drives
-    a non-``Pipe`` ring.
+    a ring not wrapped in a ``Pipeline``.
 
     Parameters
     ----------
@@ -63,49 +63,6 @@ class RingState:
 
 
 @Tx.meta_class
-class _PipeEndpoint:
-    """Standard producer or consumer endpoint for a Pipe."""
-
-    def __init__(self, pipe, is_producer):
-        self.pipe = pipe
-        self.is_producer = is_producer
-        self.state = RingState(pipe.stages, 1 if is_producer else 0)
-
-    @property
-    def stage(self):
-        return self.state.stage
-
-    @property
-    def phase(self):
-        return self.state.phase
-
-    @Tx.inline
-    def wait(self):
-        """Producer: wait for empty slot. Consumer: wait for full data."""
-        if self.is_producer:
-            self.pipe.empty.wait(self.stage, self.phase)
-        else:
-            self.pipe.full.wait(self.stage, self.phase)
-
-    @Tx.inline
-    def signal(self, **kwargs):
-        """Producer: signal full. Consumer: signal empty."""
-        if self.is_producer:
-            self.pipe.full.arrive(self.stage, **kwargs)
-        else:
-            self.pipe.empty.arrive(self.stage, **kwargs)
-
-    @Tx.inline
-    def advance(self):
-        """Move to the next pipeline stage."""
-        self.state.advance()
-
-    def snapshot(self):
-        """Freeze current (stage, phase) for deferred use."""
-        return (self.stage, self.phase)
-
-
-@Tx.meta_class
 class MBarrier:
     """Mbarrier wrapper with regular ``mbarrier.arrive``.
 
@@ -124,6 +81,14 @@ class MBarrier:
         thread regardless of which scope_id vars the caller declared.
         Override only when you want a different CTA-local thread to do
         the init.
+
+        Note: the default deliberately avoids ``Tx.warp_id()`` /
+        ``Tx.lane_id()``. Those introduce deferred ``cta->warp`` /
+        ``warp->thread`` ScopeIdDefs that the verifier cannot pin down
+        unless the kernel header declares the full warp/lane chain (e.g. a
+        single-CTA DSMEM kernel that only declares ``thread_id``). It also
+        avoids the synccheck false-deadlock on kernels that declare a
+        second warp-scope id. The generated CUDA is equivalent.
     """
 
     def __init__(self, pool, depth, phase_offset=0, leader=None):
@@ -140,6 +105,8 @@ class MBarrier:
 
     @Tx.inline
     def wait(self, stage, phase):
+        # Blocks: ``mbarrier.try_wait`` loops internally until the phase flips,
+        # so this returns only once the barrier has completed.
         Tx.ptx.mbarrier.try_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
 
     @Tx.inline
@@ -162,7 +129,12 @@ class MBarrier:
         return self.buf.ptr_to(idx)
 
     def remote_view(self, rank):
-        """Create a view of this barrier mapped to another CTA's shared memory."""
+        """Create a view of this barrier mapped to another CTA's shared memory.
+
+        Arrive-only: the returned view is built with ``object.__new__`` and
+        never copies ``self.leader``, so calling ``.init()`` on it would fail.
+        Use it solely to ``arrive`` on a remote CTA's mbarrier.
+        """
         from tvm.ir import PointerType, PrimType
         from tvm.tirx import Var as TIRVar
 
@@ -186,6 +158,8 @@ class TMABar(MBarrier):
 
     @Tx.inline
     def arrive(self, stage, tx_count=None, cta_id=None, pred=None):
+        # NOTE: this arrive() kwarg set intentionally differs from
+        # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         # ``tx_count``: TMA byte count for ``mbarrier.arrive.expect_tx``.
         # ``cta_id`` / ``pred``: forwarded to the underlying
         # ``mbarrier.arrive`` (cluster path) when set; otherwise the
@@ -209,19 +183,31 @@ class TCGen05Bar(MBarrier):
 
     @Tx.inline
     def arrive(self, stage, cta_group=1, cta_mask=None):
+        # NOTE: this arrive() kwarg set intentionally differs from
+        # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         if cta_mask is None and cta_group == 1:
             Tx.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
         else:
             Tx.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)
 
 
-@Tx.meta_class
-class Pipe:
-    """Full+empty barrier pair for a software-pipelined data flow.
+# Barrier-type tags accepted by Pipeline's ``full=`` / ``empty=`` arguments.
+_BAR_KINDS = {"tma": TMABar, "tcgen05": TCGen05Bar, "mbar": MBarrier}
 
-    Wraps a full barrier (signaled when data is ready) and an optional
-    empty barrier (signaled when a slot is consumed) into a single object.
-    Provides factory methods for common barrier type combinations.
+
+@Tx.meta_class
+class Pipeline:
+    """A full/empty mbarrier pair for a software-pipelined data flow.
+
+    Pass barrier-type tags and ``Pipeline`` constructs and ``init``\\ s the
+    barriers itself. Tags: ``"tma"`` (TMABar), ``"tcgen05"`` (TCGen05Bar),
+    ``"mbar"`` (MBarrier). The barrier type and arrival count of each event
+    stay explicit at the call site -- e.g. ``Pipeline(pool, n, full="tma",
+    empty="tcgen05", init_empty=NUM_CONSUMER)``.
+
+    Both signals are required: a ``Pipeline`` is a *pair*. For a one-way event
+    (a pure "X happened" signal with no slot to recycle) use a bare barrier
+    (``TMABar``/``TCGen05Bar``/``MBarrier``) directly -- it has no empty side.
 
     Parameters
     ----------
@@ -229,17 +215,14 @@ class Pipe:
         Shared memory pool allocator.
     stages : int
         Number of pipeline stages (barrier slots).
-    full_type : type
-        Barrier class for the full signal (TMABar, TCGen05Bar, or MBarrier).
-    empty_type : type or None
-        Barrier class for the empty signal, or None for one-way pipes.
-    init_full : int
-        Expected arrival count for the full barrier.
-    init_empty : int or None
-        Expected arrival count for the empty barrier.
+    full, empty : str
+        Barrier-type tag for the full / empty signal (see above).
+    init_full, init_empty : int
+        Expected arrival count for the full / empty barrier.
+    empty_phase_offset : int
+        XORed into the empty barrier's phase bit on every wait / arrive.
     leader : PrimExpr, optional
-        Propagated to the underlying MBarrier / TMABar / TCGen05Bar.
-        Defaults to ``Tx.cuda.thread_rank() == 0`` when omitted.
+        Propagated to both barriers; defaults to thread 0 of the CTA.
     """
 
     def __init__(
@@ -247,69 +230,15 @@ class Pipe:
         pool,
         stages,
         *,
-        full_type=MBarrier,
-        empty_type=None,
+        full,
+        empty,
         init_full=1,
         init_empty=1,
         empty_phase_offset=0,
         leader=None,
     ):
-        self.full = full_type(pool, stages, leader=leader)
-        if empty_type is not None:
-            self.empty = empty_type(pool, stages, phase_offset=empty_phase_offset, leader=leader)
-        else:
-            self.empty = None
         self.stages = stages
+        self.full = _BAR_KINDS[full](pool, stages, leader=leader)
         self.full.init(init_full)
-        if self.empty is not None:
-            self.empty.init(init_empty)
-
-    @classmethod
-    def tma(cls, pool, stages, *, empty_count=1, empty_phase_offset=0, leader=None):
-        """TMA -> consumer: full=TMABar, empty=TCGen05Bar."""
-        return cls(
-            pool,
-            stages,
-            full_type=TMABar,
-            empty_type=TCGen05Bar,
-            init_full=1,
-            init_empty=empty_count,
-            empty_phase_offset=empty_phase_offset,
-            leader=leader,
-        )
-
-    @classmethod
-    def tcgen05(cls, pool, stages, *, empty_count=None, empty_phase_offset=0, leader=None):
-        """TCGen05 -> consumer: full=TCGen05Bar, empty=MBarrier (if empty_count given)."""
-        return cls(
-            pool,
-            stages,
-            full_type=TCGen05Bar,
-            empty_type=MBarrier if empty_count is not None else None,
-            init_full=1,
-            init_empty=empty_count,
-            empty_phase_offset=empty_phase_offset,
-            leader=leader,
-        )
-
-    @classmethod
-    def mbar(cls, pool, stages, *, full_count, empty_count=None, empty_phase_offset=0, leader=None):
-        """Thread -> thread: full=MBarrier, empty=MBarrier (if empty_count given)."""
-        return cls(
-            pool,
-            stages,
-            full_type=MBarrier,
-            empty_type=MBarrier if empty_count is not None else None,
-            init_full=full_count,
-            init_empty=empty_count,
-            empty_phase_offset=empty_phase_offset,
-            leader=leader,
-        )
-
-    def producer(self):
-        """Create a standard producer endpoint for this pipe."""
-        return _PipeEndpoint(self, is_producer=True)
-
-    def consumer(self):
-        """Create a standard consumer endpoint for this pipe."""
-        return _PipeEndpoint(self, is_producer=False)
+        self.empty = _BAR_KINDS[empty](pool, stages, phase_offset=empty_phase_offset, leader=leader)
+        self.empty.init(init_empty)

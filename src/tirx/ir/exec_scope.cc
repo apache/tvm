@@ -29,10 +29,6 @@ namespace tirx {
 
 std::string ScopeKindToString(ScopeKind kind) {
   switch (kind) {
-    case ScopeKind::kWorld:
-      return "world";
-    case ScopeKind::kKernel:
-      return "kernel";
     case ScopeKind::kCluster:
       return "cluster";
     case ScopeKind::kCta:
@@ -48,8 +44,6 @@ std::string ScopeKindToString(ScopeKind kind) {
 }
 
 ScopeKind StringToScopeKind(const ffi::String& name) {
-  if (name == "world") return ScopeKind::kWorld;
-  if (name == "kernel") return ScopeKind::kKernel;
   if (name == "cluster") return ScopeKind::kCluster;
   if (name == "cta") return ScopeKind::kCta;
   if (name == "warpgroup") return ScopeKind::kWarpgroup;
@@ -104,14 +98,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /******** Definition of Execution Scope ********/
-bool ScopeNameHigher(const ffi::String& a, const ffi::String& b) {
-  return ScopeKindHigher(StringToScopeKind(a), StringToScopeKind(b));
+//
+// "kernel" is retained as a structural label for the ``kKernelCluster`` /
+// ``kKernelCta`` ScopeBinding parent string, even though ``ScopeKind::kKernel``
+// no longer exists. Treat it as the virtual root: wider than every real
+// ScopeKind. Real ScopeKinds compare via ``ScopeKindHigher``.
+static constexpr int kRootScopeRank = -1;  // wider than any real ScopeKind
+static int ScopeNameRank(const ffi::String& name) {
+  if (name == "kernel") return kRootScopeRank;
+  return static_cast<int>(StringToScopeKind(name));
 }
 
-ExecScope::ExecScope(ScopeKind kind, ffi::Array<ScopeIdDef> scope_id_def) {
+bool ScopeNameHigher(const ffi::String& a, const ffi::String& b) {
+  return ScopeNameRank(a) < ScopeNameRank(b);
+}
+
+ExecScope::ExecScope(ScopeKind kind) {
   auto n = ffi::make_object<ExecScopeNode>();
   n->kind = kind;
-  n->scope_id_def = std::move(scope_id_def);
   data_ = std::move(n);
 }
 

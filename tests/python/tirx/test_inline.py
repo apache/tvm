@@ -203,26 +203,26 @@ def test_recursive_inline():
     # fmt: off
     @Tx.prim_func(private=True)
     def func():
-        with Tx.kernel():
-            for x in Tx.serial(10):
+        Tx.device_entry()
+        for x in Tx.serial(10):
 
-                @Tx.inline
-                def add(x, c):
-                    if c > 0:
-                        add(x, c - 1)
-                    Tx.evaluate(x)
+            @Tx.inline
+            def add(x, c):
+                if c > 0:
+                    add(x, c - 1)
+                Tx.evaluate(x)
 
-                add(x, 3)
+            add(x, 3)
 
     @Tx.prim_func(private=True)
     def expected():
-        with Tx.kernel():
-            for x in range(10):
-                Tx.evaluate(x)
-                Tx.evaluate(x)
-                Tx.evaluate(x)
-                Tx.evaluate(x)
-    # fmt: on
+        Tx.device_entry()
+        for x in range(10):
+            Tx.evaluate(x)
+            Tx.evaluate(x)
+            Tx.evaluate(x)
+            Tx.evaluate(x)
+        # fmt: on
 
     assert_structural_equal(func, expected)
 

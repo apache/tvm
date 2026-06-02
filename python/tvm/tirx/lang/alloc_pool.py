@@ -174,7 +174,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
 
 
 # ---------------------------------------------------------------------------
-# TMEMRegion
+# TMEMStages
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +184,7 @@ def _meta_class(cls):
 
 
 @_meta_class
-class TMEMRegion:
+class TMEMStages:
     """Parse-time staged view over a TMEM buffer.
 
     Parameters
@@ -214,9 +214,9 @@ class TMEMRegion:
 
     def __getitem__(self, item):
         if isinstance(item, tuple):
-            assert len(item) == 2, "TMEMRegion expects region[stage] or region[stage, start:stop]"
+            assert len(item) == 2, "TMEMStages expects region[stage] or region[stage, start:stop]"
             stage, col_slice = item
-            assert isinstance(col_slice, slice), "TMEMRegion tuple indexing requires a slice"
+            assert isinstance(col_slice, slice), "TMEMStages tuple indexing requires a slice"
             base = self._stage_base(stage)
             start = 0 if col_slice.start is None else col_slice.start
             stop = self.width if col_slice.stop is None else col_slice.stop
@@ -248,9 +248,11 @@ class TMEMPool:
         # tcgen05 alloc/dealloc are warp-uniform PTX instructions: every lane
         # in the chosen warp must participate, and exactly one warp in the
         # CTA must execute them. The pool emits its own
-        # ``if thread_rank() // 32 == target_warp: with Tx.warp(): tcgen05.alloc(...)``
-        # guard, using ``Tx.cuda.thread_rank()`` (cooperative_groups thread
-        # rank) so callers don't have to declare the CTA's thread layout.
+        # ``if warp_id() == target_warp: with Tx.warp(): tcgen05.alloc(...)``
+        # guard, using the cta->warp scope id ``Tx.warp_id()``.
+        # NOTE: synccheck currently false-deadlocks on kernels that declare a
+        # second warp-scope id (cpusim binds only one warp var); the generated
+        # CUDA is equivalent to ``thread_rank() // 32 == target_warp``.
         self.pool = pool
         self.total_cols = total_cols
         self.cta_group = cta_group
@@ -260,6 +262,7 @@ class TMEMPool:
         self.offset = 0
         self.max_offset = 0
         self._committed = False
+        self._deallocated = False
         self._addr_buf = pool.alloc([1], "uint32", align=4) if tmem_addr is None else tmem_addr
 
     def _addr_slot(self):
@@ -273,7 +276,8 @@ class TMEMPool:
         return self._addr_slot()
 
     def _emit_warp_guard(self, Tx, target_warp, emit):
-        with Tx.If(Tx.cuda.thread_rank() // 32 == target_warp):
+        warp_id = Tx.warp_id()
+        with Tx.If(warp_id == target_warp):
             with Tx.Then():
                 with Tx.warp():
                     emit()
@@ -300,7 +304,35 @@ class TMEMPool:
         )
         return total_bits // (32 * rows)
 
-    def alloc(self, shape, dtype="float32", *, layout=None, cols=None):
+    def alloc(self, shape, dtype="float32", *, layout=None, cols=None, datapath=None):
+        """Allocate a TMEM buffer.
+
+        Parameters
+        ----------
+        shape, dtype, cols
+            Standard buffer shape / dtype / column count.
+        layout
+            Explicit ``TileLayout``. Mutually exclusive with ``datapath``.
+        datapath : str | None
+            Optional tcgen05 datapath letter (``"D"`` for M=128 full datapath,
+            ``"F"`` for M=64 non-``.ws`` scattered). When provided, the buffer's
+            layout is derived from ``tmem_datapath_layout(datapath, *shape)``
+            so the row index reflects the *physical* TMEM lane occupation
+            (PTX ISA §9.7.16.10.5). The downstream ``.16x*b`` / ``.32x32b``
+            dispatches structurally check this layout to catch mismatched
+            atoms (e.g. a ``.16x*b`` M=128 read against a Layout F buffer).
+            Defaults to ``None``, which means Layout D's identity row→lane
+            mapping — keep this for shape ``(128, X)`` buffers that hold
+            an M=128 MMA accumulator.
+        """
+        from tvm.tirx.layout import tmem_datapath_layout
+
+        if layout is not None and datapath is not None:
+            raise ValueError("TMEMPool.alloc: pass at most one of layout= and datapath=")
+        if datapath is not None:
+            assert len(shape) == 2, "TMEMPool.alloc: datapath= requires a 2-D shape"
+            layout = tmem_datapath_layout(datapath, shape[0], shape[1])
+
         ir = _get_ir()
         cols = self._resolve_cols(shape, dtype, cols, layout)
         col_start = self.offset
@@ -311,7 +343,7 @@ class TMEMPool:
             layout = _default_tmem_layout(shape[0], shape[1])
         res = ir.decl_buffer(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
         self.offset = col_end
-        self.max_offset = self.offset if self.offset > self.max_offset else self.max_offset
+        self.max_offset = max(self.max_offset, self.offset)
         return res
 
     def alloc_sf(self, shape, dtype, *, sf_per_mma, sf_reuse=1):
@@ -343,25 +375,7 @@ class TMEMPool:
 
     def move_base_to(self, col):
         self.offset = col
-        self.max_offset = self.offset if self.offset > self.max_offset else self.max_offset
-
-    def region(self, buf, col_start, width, stages=1, stride=None):
-        """Create a staged region view over *buf*.
-
-        Parameters
-        ----------
-        buf : Buffer
-            TMEM buffer returned by ``alloc()``.
-        col_start : int
-            First column of stage 0 (in *buf*'s column units).
-        width : int
-            Columns per stage.
-        stages : int
-            Pipeline depth.
-        stride : int or None
-            Column distance between consecutive stages (default = *width*).
-        """
-        return TMEMRegion(buf, col_start, width, stages, stride)
+        self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self):
         assert not self._committed, "TMEMPool.commit() can only be called once"
@@ -380,6 +394,9 @@ class TMEMPool:
         self._committed = True
 
     def dealloc(self):
+        assert self._committed, "TMEMPool.dealloc() called before commit()"
+        assert not self._deallocated, "TMEMPool.dealloc() can only be called once"
+        self._deallocated = True
         from tvm.script import tirx as Tx
 
         def emit_dealloc():
@@ -428,7 +445,7 @@ class SMEMPool:
         shape,
         dtype="float32",
         strides=None,
-        scope="global",
+        scope="shared.dyn",
         align=0,
         buffer_type="",
         axis_separators=None,
@@ -440,20 +457,21 @@ class SMEMPool:
         res = ir.decl_buffer(
             shape,
             dtype,
-            self.ptr,
-            strides,
-            None,
-            self.offset,
-            scope,
-            align,
-            0,
-            buffer_type,
-            axis_separators,
-            layout,
+            data=self.ptr,
+            strides=strides,
+            byte_offset=self.offset,
+            scope=scope,
+            align=align,
+            buffer_type=buffer_type,
+            axis_separators=axis_separators,
+            layout=layout,
         )
-        self.offset += functools.reduce(lambda x, y: x * y, shape) * (DataType(dtype).bits // 8)
+        # Advance in bits then round up to bytes so sub-byte dtypes (e.g.
+        # float4_e2m1fn = 4 bits) still bump the cursor instead of leaving it
+        # at 0 (bits // 8) and silently overlapping the next allocation.
+        self.offset += (_shape_product(shape) * DataType(dtype).bits + 7) // 8
         if self._owns_buffer:
-            self.max_offset = self.offset if self.offset > self.max_offset else self.max_offset
+            self.max_offset = max(self.max_offset, self.offset)
         return res
 
     def alloc_mma(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
@@ -480,7 +498,7 @@ class SMEMPool:
     def move_base_to(self, offset):
         self.offset = offset
         if self._owns_buffer:
-            self.max_offset = self.offset if self.offset > self.max_offset else self.max_offset
+            self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
         """Emit pool size annotation into the IR.

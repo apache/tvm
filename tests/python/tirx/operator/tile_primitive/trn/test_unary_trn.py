@@ -27,11 +27,18 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
+    def _postorder(node):
+        if isinstance(node, tvm.tirx.ExecScopeStmt):
+            return node.body
+        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "tirx.device_entry":
+            return node.body
+        return node
+
     return ir_transform(
         stmt,
         preorder=lambda _node: None,
-        postorder=lambda node: node.body,
-        only_enable=["tirx.ExecScopeStmt"],
+        postorder=_postorder,
+        only_enable=["tirx.ExecScopeStmt", "tirx.AttrStmt"],
     )
 
 
@@ -57,19 +64,19 @@ def test_simple_unary(op_type):
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-            B_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            if op_type == "memset":
-                tx_func(B_sbuf, Tx.float32(0.0))
-            else:
-                tx_func(B_sbuf, A_sbuf)
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        if op_type == "memset":
+            tx_func(B_sbuf, Tx.float32(0.0))
+        else:
+            tx_func(B_sbuf, A_sbuf)
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             A_sbuf = Tx.alloc_buffer((128, 512), scope="trn.sbuf")
             B_sbuf = Tx.alloc_buffer((128, 512), scope="trn.sbuf")
             for b_loop in Tx.serial(0, 1):
@@ -82,7 +89,7 @@ def test_simple_unary(op_type):
                             )
                         elif op_type == "memset":
                             Tx.nki.memset(B_sbuf[p_loop, f_loop], 0.0)
-        # fmt: on
+                # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
@@ -101,22 +108,22 @@ def test_unary_in_a_loop(op_type):
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-            B_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            A_sbuf_view = A_sbuf.view(128, 8, 512)
-            B_sbuf_view = B_sbuf.view(128, 4, 512)
-            for i in range(4):
-                if op_type == "memset":
-                    Tx_func(B_sbuf_view[:, i, :], Tx.float32(0.0))
-                else:
-                    Tx_func(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf_view = A_sbuf.view(128, 8, 512)
+        B_sbuf_view = B_sbuf.view(128, 4, 512)
+        for i in range(4):
+            if op_type == "memset":
+                Tx_func(B_sbuf_view[:, i, :], Tx.float32(0.0))
+            else:
+                Tx_func(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             A_sbuf = Tx.alloc_buffer((128, 4096), scope="trn.sbuf")
             B_sbuf = Tx.alloc_buffer((128, 2048), scope="trn.sbuf")
             A_sbuf_view = Tx.decl_buffer((128, 4096), data=A_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
@@ -129,7 +136,7 @@ def test_unary_in_a_loop(op_type):
                             Tx.nki.reciprocal(B_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop])  # noqa: E501
                         elif op_type == "memset":
                             Tx.nki.memset(B_sbuf[p_loop, i * 512 + f_loop], 0.0)
-        # fmt: on
+                # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
@@ -143,22 +150,22 @@ def test_unary_complex1():
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            Tx.memset(A_sbuf, Tx.float32(0.0))
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        Tx.memset(A_sbuf, Tx.float32(0.0))
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             A_sbuf = Tx.alloc_buffer((128, 8192), scope="trn.sbuf")
             for b_loop in Tx.serial(0, 16):
                 Tx.attr(0, "tensorized_nki_instruction", 1)
                 for p_loop in Tx.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in Tx.serial(0, 512, annotations={"nki_dim":"F"}):
                         Tx.nki.memset(A_sbuf[p_loop, b_loop * 512 + f_loop], Tx.float32(0.0))
-        # fmt: on
+                # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
@@ -179,17 +186,17 @@ def test_unary_with_bias_scale(op_type):
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-            B_sbuf = Tx.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
-            C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            tx_func(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale)
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = Tx.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
+        C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        tx_func(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale)
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             A_sbuf = Tx.alloc_buffer((128, 4096), scope="trn.sbuf")
             B_sbuf = Tx.alloc_buffer((128, 4), scope="trn.sbuf")
             C_sbuf = Tx.alloc_buffer((128, 4096), scope="trn.sbuf")
@@ -198,7 +205,7 @@ def test_unary_with_bias_scale(op_type):
                 for p_loop in Tx.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in Tx.serial(0, 512, annotations={"nki_dim":"F"}):
                         Tx.nki.activation(C_sbuf[p_loop, b_loop * 512  + f_loop], A_sbuf[p_loop, b_loop * 512 + f_loop], op_type, B_sbuf[p_loop, b_loop//2], Tx.float32(2.0))  # noqa: E501
-        # fmt: off
+                # fmt: off
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)
@@ -218,16 +225,16 @@ def test_unary_with_bias_scale_2(op_type):
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-            C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            tx_func(C_sbuf, A_sbuf, bias=bias, scale=scale)
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        tx_func(C_sbuf, A_sbuf, bias=bias, scale=scale)
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             const_bias = Tx.alloc_buffer((128, 512), scope="trn.sbuf")
             with Tx.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in Tx.serial(128, annotations={"nki_dim": "P"}):
@@ -240,7 +247,7 @@ def test_unary_with_bias_scale_2(op_type):
                 for p_loop in Tx.serial(128, annotations={"nki_dim": "P"}):
                     for f_loop in Tx.serial(512, annotations={"nki_dim": "F"}):
                         Tx.nki.activation(C_sbuf[p_loop, b_loop * 512 + f_loop], A_sbuf[p_loop, b_loop * 512 + f_loop], op_type, const_bias[p_loop, f_loop], Tx.float32(2.0))  # noqa: E501
-        # fmt: off
+                # fmt: off
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
@@ -260,19 +267,19 @@ def test_unary_with_guard():
     # fmt: off
     @Tx.prim_func
     def unary() -> None:
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-            B_sbuf = Tx.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
-            C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-            for i in range(4):
-                for j in range(4):
-                    Tx.sqrt(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = Tx.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
+        C_sbuf = Tx.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        for i in range(4):
+            for j in range(4):
+                Tx.sqrt(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
 
     @Tx.prim_func
     def expected():
         Tx.func_attr({"global_symbol": "unary"})
 
-        with Tx.kernel():
+        with Tx.thread():
             A_sbuf = Tx.alloc_buffer((128, 4096), scope="trn.sbuf")
             B_sbuf = Tx.alloc_buffer((128, 4), scope="trn.sbuf")
             C_sbuf = Tx.alloc_buffer((128, 4096), scope="trn.sbuf")
@@ -282,7 +289,7 @@ def test_unary_with_guard():
                     for f_loop in Tx.serial(0, 512, annotations={"nki_dim":"F"}):
                         if b_loop // 2 - i < 1 and b_loop % 2 * 512 + f_loop < j * 256 + 256:
                             Tx.nki.activation(C_sbuf[p_loop, b_loop * 512 + f_loop], A_sbuf[p_loop, b_loop * 512 + f_loop], "sqrt", B_sbuf[p_loop, b_loop // 2], Tx.float32(2.0))  # noqa: E501
-         # fmt: off
+                 # fmt: off
     with target:
         mod = tvm.IRModule({"main": unary})
         mod = tvm.tirx.transform.LowerTIRx()(mod)

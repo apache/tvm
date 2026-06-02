@@ -28,7 +28,8 @@ from .registry import DispatchContext
 from .cuda.copy import *
 from .cuda.reduction import *
 from .cuda.copy_async import *
-from .cuda.permute_dims import *
+from .cuda.permute_layout import *
+from .cuda.gemm import *
 from .cuda.gemm_async import *
 from .cuda.elementwise import *
 from .trn import *

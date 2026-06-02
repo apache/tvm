@@ -40,10 +40,16 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
     prod *= extent_i;
     while (shape_idx < shape.size() &&
            analyzer.CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
-      PrimExpr c = floordiv(prod, shape[shape_idx]);
+      // Simplify ``c``, ``floordiv(extent_i, c)`` and ``stride_i * c`` —
+      // without this, splitting an iter whose extent contains a symbolic
+      // dim that algebraically cancels (e.g. ``floordiv(batch_size,
+      // batch_size) == 1``) leaves dead ``a // a`` factors in the new
+      // iter's stride that ``int(stride)`` can't unwrap downstream.
+      PrimExpr c = analyzer.Simplify(floordiv(prod, shape[shape_idx]));
       TVM_FFI_ICHECK(analyzer.CanProveEqual(floormod(extent_i, c), 0))
           << "layout " << layout << " can not be grouped by shape " << shape;
-      new_shard.push_back(Iter(floordiv(extent_i, c), stride_i * c, layout->shard[i]->axis));
+      new_shard.push_back(Iter(analyzer.Simplify(floordiv(extent_i, c)),
+                               analyzer.Simplify(stride_i * c), layout->shard[i]->axis));
       extent_i = c;
       prod = c;
       shape_idx++;
@@ -53,7 +59,7 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
     if (!is_one(extent_i)) {
       TVM_FFI_ICHECK(shape_idx < shape.size())
           << "layout " << layout << " can not be grouped by shape " << shape;
-      new_shard.push_back(Iter(extent_i, stride_i, layout->shard[i]->axis));
+      new_shard.push_back(Iter(extent_i, analyzer.Simplify(stride_i), layout->shard[i]->axis));
     }
   }
 
@@ -63,6 +69,47 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
   auto* n = layout.CopyOnWrite();
   n->shard = new_shard;
   return {ffi::GetRef<TileLayout>(n), seps};
+}
+
+std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
+    TileLayout layout, const ffi::Array<PrimExpr>& shape) {
+  // Same algorithm as Group but returns std::nullopt instead of ICHECK-failing
+  // on regroup impossibility. Used by Apply(coord, shape) to opportunistically
+  // pick the group-first path with a fallback to flatten+split.
+  arith::Analyzer analyzer;
+  size_t shape_idx = 0;
+  PrimExpr prod = 1;
+
+  std::vector<Iter> new_shard;
+  std::vector<int64_t> seps{0};
+
+  for (size_t i = 0; i < layout->shard.size(); ++i) {
+    auto extent_i = layout->shard[i]->extent;
+    auto stride_i = layout->shard[i]->stride;
+    prod *= extent_i;
+    while (shape_idx < shape.size() &&
+           analyzer.CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
+      PrimExpr c = analyzer.Simplify(floordiv(prod, shape[shape_idx]));
+      if (!analyzer.CanProveEqual(floormod(extent_i, c), 0)) return std::nullopt;
+      new_shard.push_back(Iter(analyzer.Simplify(floordiv(extent_i, c)),
+                               analyzer.Simplify(stride_i * c), layout->shard[i]->axis));
+      extent_i = c;
+      prod = c;
+      shape_idx++;
+      seps.push_back(new_shard.size());
+    }
+    extent_i = analyzer.Simplify(extent_i);
+    if (!is_one(extent_i)) {
+      if (shape_idx >= shape.size()) return std::nullopt;
+      new_shard.push_back(Iter(extent_i, analyzer.Simplify(stride_i), layout->shard[i]->axis));
+    }
+  }
+
+  if (shape_idx != shape.size()) return std::nullopt;
+
+  auto* n = layout.CopyOnWrite();
+  n->shard = new_shard;
+  return std::make_pair(ffi::GetRef<TileLayout>(n), seps);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

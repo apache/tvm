@@ -162,50 +162,50 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         A = Tx.match_buffer(A_ptr, shape, dtype)
         B = Tx.match_buffer(B_ptr, shape, dtype)
 
-        with Tx.kernel():
-            cbx = Tx.cta_id_in_cluster([CLUSTER_N])
-            Tx.cta_id([CLUSTER_N])
-            tid = Tx.thread_id([1])
+        Tx.device_entry()
+        cbx = Tx.cta_id_in_cluster([CLUSTER_N])
+        Tx.cta_id([CLUSTER_N])
+        tid = Tx.thread_id([1])
 
-            with Tx.cta():
-                pool = Tx.SMEMPool()
-                # src_smem: CTA 0 writes here, dispatch reads from here
-                src_raw = pool.alloc([src_phys], dtype, align=128)
-                src_smem = Tx.decl_buffer(
-                    list(shape), dtype, src_raw.data,
-                    elem_offset=0, scope="shared.dyn", layout=src_layout,
-                )
-                # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
-                dst_raw = pool.alloc([dst_phys], dtype, align=128)
-                dst_smem = Tx.decl_buffer(
-                    list(shape), dtype, dst_raw.data,
-                    elem_offset=0, scope="shared.dyn", layout=dst_layout,
-                )
-                mbar = MBarrier(pool, 1)
-                pool.commit()
+        with Tx.cta():
+            pool = Tx.SMEMPool()
+                    # src_smem: CTA 0 writes here, dispatch reads from here
+            src_raw = pool.alloc([src_phys], dtype, align=128)
+            src_smem = Tx.decl_buffer(
+                list(shape), dtype, src_raw.data,
+                elem_offset=0, scope="shared.dyn", layout=src_layout,
+            )
+                    # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
+            dst_raw = pool.alloc([dst_phys], dtype, align=128)
+            dst_smem = Tx.decl_buffer(
+                list(shape), dtype, dst_raw.data,
+                elem_offset=0, scope="shared.dyn", layout=dst_layout,
+            )
+            mbar = MBarrier(pool, 1)
+            pool.commit()
 
-                mbar.init(1)
-                Tx.ptx.fence.mbarrier_init()
-                Tx.cuda.cluster_sync()
+            mbar.init(1)
+            Tx.ptx.fence.mbarrier_init()
+            Tx.cuda.cluster_sync()
 
-                if Tx.filter(tid, 0, 1):
-                    with Tx.thread():
-                        if cbx == 0:
-                            Tx.copy(src_smem[r], A[r])
-                            Tx.ptx.fence.proxy_async("shared::cta")
+            if tid == 0:
+                with Tx.thread():
+                    if cbx == 0:
+                        Tx.copy(src_smem[r], A[r])
+                        Tx.ptx.fence.proxy_async("shared::cta")
 
-                            Tx.copy_async(
-                                dst_smem[r], src_smem[r],
-                                dispatch="dsmem",
-                                mbar=mbar.ptr_to([0]),
-                                remote_cta_id=Tx.int32(1),
-                            )
-                        else:
-                            Tx.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
-                            mbar.wait(0, 0)
+                        Tx.copy_async(
+                            dst_smem[r], src_smem[r],
+                            dispatch="dsmem",
+                            mbar=mbar.ptr_to([0]),
+                            remote_cta_id=Tx.int32(1),
+                        )
+                    else:
+                        Tx.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
+                        mbar.wait(0, 0)
 
-                            Tx.copy(B[r], dst_smem[r])
-    # fmt: on
+                        Tx.copy(B[r], dst_smem[r])
+        # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     dev = tvm.cuda(0)

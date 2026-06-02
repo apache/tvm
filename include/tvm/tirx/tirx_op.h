@@ -57,79 +57,6 @@ constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
 }  // namespace callback
 
 /*!
- * \brief The context information of the kernel required by op schedule.
- */
-class ScheduleContextNode : public ffi::Object {
- public:
-  /*! \brief The target of the kernel. */
-  Target target;
-  /*! \brief The exec scope of the operator */
-  ExecScope exec_scope;
-  /*! \brief The kernel launch parameters. */
-  ffi::Map<ffi::String, IterVar> launch_params;
-  /*! \brief A map from loop variables to their ranges. */
-  ffi::Map<Var, Range> var_range_map;
-  /*! \brief Whether the schedule context is only used for buffer allocation. */
-  bool alloc_only;
-  /*! \brief Callback to be handled when the operator is scheduled. */
-  ffi::Map<ffi::String, ffi::ObjectRef> callbacks;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScheduleContextNode>()
-        .def_ro("target", &ScheduleContextNode::target)
-        .def_ro("exec_scope", &ScheduleContextNode::exec_scope)
-        .def_ro("launch_params", &ScheduleContextNode::launch_params)
-        .def_ro("var_range_map", &ScheduleContextNode::var_range_map)
-        .def_ro("alloc_only", &ScheduleContextNode::alloc_only)
-        .def_ro("callbacks", &ScheduleContextNode::callbacks);
-  }
-
-  /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(Buffer buffer);
-
-  /*! \brief Add an initialization statement to be inserted.
-   *  \param stmt The statement to be inserted.
-   *  \param host Whether the statement is a host statement.
-   *  If True, the statement will be added to the host code (before the kernel).
-   *  If False, the statement will be added to the kernel body (at the beginning of the kernel).
-   */
-  void AddInitStmt(Stmt stmt, bool host = false);
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ScheduleContext", ScheduleContextNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to ScheduleContextNode.
- */
-class ScheduleContext : public ffi::ObjectRef {
- public:
-  /*!
-   * \brief Constructor.
-   * \param target The target of the kernel.
-   * \param exec_scope The exec scope of the operator.
-   * \param launch_params The kernel launch parameters.
-   * \param var_range_map: A map from loop variables to their ranges.
-   * \param alloc_only Whether the schedule context is only used for buffer allocation.
-   * \param callbacks The callbacks to be handled when the operator is scheduled.
-   */
-  TVM_DLL ScheduleContext(Target target, ExecScope exec_scope,
-                          ffi::Map<ffi::String, IterVar> launch_params = {},
-                          ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
-                          ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {});
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleContext, ffi::ObjectRef, ScheduleContextNode);
-};
-
-/*!
- * \brief The type of the function that schedules a TIRX operator.
- * \param op The operator.
- * \param args The arguments.
- * \param context The schedule context.
- */
-using FOpScheduler = ffi::TypedFunction<Stmt(tvm::Op, ffi::Array<ffi::ObjectRef>, ScheduleContext)>;
-
-/*!
  * \brief The context information of the kernel required by op dispatch.
  */
 class DispatchContextNode : public ffi::Object {
@@ -219,13 +146,6 @@ class DispatchContext : public ffi::ObjectRef {
  * Tx.cast(BufferRegion dst, BufferRegion src)
  */
 TVM_DLL const Op& cast();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.permute_dims(BufferRegion buffer, List order)
- */
-TVM_DLL const Op& permute_dims();
 
 /*!
  * \brief See pesudo code below:

@@ -178,10 +178,9 @@ ffi::Array<Iter> SplitterGen(const Iter& iter, const Axis& axis_outer, const Axi
 }
 
 // register thread axes
-TVM_REGISTER_AXIS("pid").set_attr<bool>("thread", true).set_scope("world").set_subscope("kernel");
-TVM_REGISTER_AXIS("bx").set_attr<bool>("thread", true).set_scope("kernel").set_subscope("cta");
-TVM_REGISTER_AXIS("by").set_attr<bool>("thread", true).set_scope("kernel").set_subscope("cta");
-TVM_REGISTER_AXIS("bz").set_attr<bool>("thread", true).set_scope("kernel").set_subscope("cta");
+TVM_REGISTER_AXIS("bx").set_attr<bool>("thread", true).set_scope("thread").set_subscope("cta");
+TVM_REGISTER_AXIS("by").set_attr<bool>("thread", true).set_scope("thread").set_subscope("cta");
+TVM_REGISTER_AXIS("bz").set_attr<bool>("thread", true).set_scope("thread").set_subscope("cta");
 TVM_REGISTER_AXIS("cbx").set_attr<bool>("thread", true).set_scope("cluster").set_subscope("cta");
 TVM_REGISTER_AXIS("cby").set_attr<bool>("thread", true).set_scope("cluster").set_subscope("cta");
 TVM_REGISTER_AXIS("cbz").set_attr<bool>("thread", true).set_scope("cluster").set_subscope("cta");

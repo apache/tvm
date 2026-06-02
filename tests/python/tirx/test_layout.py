@@ -41,7 +41,6 @@ from tvm.tirx.layout import (
     TileLayout,
     laneid,
     m,
-    pid,
     tid_in_wg,
     tx,
     warpid,
@@ -57,7 +56,6 @@ from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
 
 
 def test_axis():
-    assert Axis.pid == Axis.get("pid")
     assert Axis.bx == Axis.get("bx")
     assert Axis.by == Axis.get("by")
     assert Axis.bz == Axis.get("bz")
@@ -76,7 +74,6 @@ def test_axis():
     assert Axis.TCol == Axis.get("TCol")
     assert Axis.TLane == Axis.get("TLane")
 
-    assert Axis.pid.is_thread()
     assert Axis.bx.is_thread()
     assert Axis.by.is_thread()
     assert Axis.bz.is_thread()
@@ -95,9 +92,7 @@ def test_axis():
     assert Axis.TCol.is_memory()
     assert Axis.TLane.is_memory()
 
-    assert Axis.pid.get_scope().name == "world"
-    assert Axis.pid.get_subscope().name == "kernel"
-    assert Axis.bx.get_scope().name == "kernel"
+    assert Axis.bx.get_scope().name == "thread"
     assert Axis.bx.get_subscope().name == "cta"
 
 
@@ -269,13 +264,6 @@ def test_verify_well_formed():
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[(2, 8, 2, 4, 2) : (2 @ wgid, 4 @ laneid, 1 @ wgid, 1 @ laneid, 1)])
-        with pytest.raises(Exception):
-            layout.verify_well_formed()
-
-        layout = TileLayout(
-            S[(2, 8, 2, 4, 2) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid, 1)]
-            + R[4 : 1 @ pid]
-        )
         with pytest.raises(Exception):
             layout.verify_well_formed()
 
@@ -976,9 +964,9 @@ def test_shard_layout():
 
     def case_replicate():
         layout = TileLayout(S[(64, 128) : (128, 1)])
-        layout_rep = TileLayout(S[2 : 2 @ pid] + R[2 : 1 @ pid])
+        layout_rep = TileLayout(S[2 : 2 @ warpid] + R[2 : 1 @ warpid])
         res = layout.tile(layout_rep, [2, 1], [64, 128])
-        layout_expected = TileLayout(S[(2, 8192) : (2 @ pid, 1)] + R[2 : 1 @ pid])
+        layout_expected = TileLayout(S[(2, 8192) : (2 @ warpid, 1)] + R[2 : 1 @ warpid])
         assert_structural_equal(res.canonicalize(), layout_expected.canonicalize())
 
         outer = layout.is_tile_inner(res, [128, 128], [64, 128])

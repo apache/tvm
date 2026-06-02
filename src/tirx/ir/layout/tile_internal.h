@@ -34,6 +34,11 @@ namespace tirx {
 std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
                                                   const ffi::Array<PrimExpr>& shape);
 
+// Same as Group but returns std::nullopt instead of fatal-checking when the
+// layout cannot be regrouped by ``shape``.
+std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
+    TileLayout layout, const ffi::Array<PrimExpr>& shape);
+
 // Compute a tiled logical shape, either inner or outer tiling.
 ffi::Array<PrimExpr> TileShape(ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> factor,
                                bool is_inner);

@@ -44,7 +44,7 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
-from .stmt import TilePrimitiveCall, ExecScopeStmt
+from .stmt import TilePrimitiveCall, ExecScopeStmt, ScopeIdDefStmt
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
@@ -55,7 +55,8 @@ from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
 from .op import continue_loop, break_loop
-from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
+from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
+from .op import tvm_throw_last_error
 from .op import (
     tvm_load_matrix_sync,
     tvm_store_matrix_sync,

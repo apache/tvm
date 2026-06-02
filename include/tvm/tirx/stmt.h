@@ -993,6 +993,36 @@ class ExecScopeStmt : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecScopeStmtNode);
 };
 
+/*!
+ * \brief Standalone statement that declares a scope-id binding (e.g. cta_id,
+ * warp_id, lane_id). Carries a ``ScopeIdDef`` value.
+ *
+ * Unlike legacy ``ExecScopeStmt::scope_id_def`` (an array payload), each
+ * declaration is a flat stmt within the device-region body. The declared
+ * ``Var``\ s are visible in subsequent stmts in the same enclosing scope
+ * (the AttrStmt ``kDeviceEntry`` body), analogous to ``BindNode``.
+ */
+class ScopeIdDefStmtNode : public StmtNode {
+ public:
+  /*! \brief The scope-id definition (Vars + extents + binding). */
+  ScopeIdDef def;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScopeIdDefStmtNode>().def_ro("def", &ScopeIdDefStmtNode::def);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ScopeIdDefStmt", ScopeIdDefStmtNode, StmtNode);
+};
+
+/*! \brief Managed reference to ScopeIdDefStmtNode. */
+class ScopeIdDefStmt : public Stmt {
+ public:
+  TVM_DLL ScopeIdDefStmt(ScopeIdDef def, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefStmtNode);
+};
+
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
 /*! \brief Mark stores/loads with their bounds. */
@@ -1269,6 +1299,14 @@ constexpr const char* irregular_loop_mark = "irregular_loop_mark";
  * \brief Mark the kernel as persistent.
  */
 constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
+
+/*!
+ * \brief Mark the device-region entry within a PrimFunc body. The
+ * ``AttrStmt`` so-keyed has a body that is the device-side region; anything
+ * before the marker (within the PrimFunc body) is host code. Value is
+ * ``IntImm("bool", 1)`` -- a boolean marker, similar to ``kPersistentKernel``.
+ */
+constexpr const char* kDeviceEntry = "tirx.device_entry";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

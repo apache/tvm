@@ -29,10 +29,7 @@
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ScheduleContextNode::RegisterReflection();
-  DispatchContextNode::RegisterReflection();
-}
+TVM_FFI_STATIC_INIT_BLOCK() { DispatchContextNode::RegisterReflection(); }
 
 /********************* Utils **********************/
 
@@ -46,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 #define TIRX_DEFINE_OP(OpName) TIRX_DEFINE_BUILTIN_FUNC(OpName).set_attr<bool>("TIsTIRxOp", true)
 
-/********************* ScheduleContext **********************/
+/********************* Context utils **********************/
 template <typename Key, typename Value>
 Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
                       const Value& defaultValue) {
@@ -57,47 +54,6 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
     return defaultValue;
   }
   return Downcast<Value>((*it).second);
-}
-
-void ScheduleContextNode::AddAllocBuffer(Buffer buffer) {
-  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Buffer>());
-  buffers.push_back(buffer);
-  callbacks.Set(callback::kPrivateAlloc, buffers);
-}
-
-void ScheduleContextNode::AddInitStmt(Stmt stmt, bool host) {
-  auto tag = host ? callback::kHostInitStmt : callback::kDeviceInitStmt;
-  auto stmts = getOrSetDefault(callbacks, tag, ffi::Array<Stmt>());
-  stmts.push_back(stmt);
-  callbacks.Set(tag, stmts);
-}
-
-ScheduleContext::ScheduleContext(Target target, ExecScope exec_scope,
-                                 ffi::Map<ffi::String, IterVar> launch_params,
-                                 ffi::Map<Var, Range> var_range_map, bool alloc_only,
-                                 ffi::Map<ffi::String, ffi::ObjectRef> callbacks) {
-  auto n = ffi::make_object<ScheduleContextNode>();
-  n->target = std::move(target);
-  n->exec_scope = std::move(exec_scope);
-  n->launch_params = std::move(launch_params);
-  n->var_range_map = std::move(var_range_map);
-  n->alloc_only = alloc_only;
-  n->callbacks = std::move(callbacks);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.ScheduleContext",
-           [](Target target, ExecScope exec_scope, ffi::Map<ffi::String, IterVar> launch_params,
-              ffi::Map<Var, Range> var_range_map, bool alloc_only,
-              ffi::Map<ffi::String, ffi::ObjectRef> callbacks) {
-             return ScheduleContext(target, exec_scope, launch_params, var_range_map, alloc_only,
-                                    callbacks);
-           })
-      .def_method("tirx.ScheduleContextAddAllocBuffer", &ScheduleContextNode::AddAllocBuffer)
-      .def_method("tirx.ScheduleContextAddInitStmt", &ScheduleContextNode::AddInitStmt);
 }
 
 /********************* DispatchContext **********************/
@@ -212,7 +168,6 @@ TIRX_DEFINE_DISPATCH_OP(select);
 TIRX_DEFINE_DISPATCH_OP(cast);
 TIRX_DEFINE_DISPATCH_OP(fma);
 TIRX_DEFINE_DISPATCH_OP(silu);
-TIRX_DEFINE_DISPATCH_OP(permute_dims);
 
 /********************* Compose Ops **********************/
 #define TIRX_DEFINE_COMPOSE_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsComposeOp", true)
