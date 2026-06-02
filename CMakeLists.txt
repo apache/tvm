@@ -5,6 +5,7 @@ project(tvm C CXX)
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
 include(cmake/utils/Linker.cmake)
+include(cmake/utils/Library.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindNCCL.cmake)
 include(cmake/utils/FindOpenCL.cmake)
@@ -526,16 +527,7 @@ if(TVM_VISIBILITY_FLAG)
   set_property(TARGET tvm_runtime_extra APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 endif()
 
-set_target_properties(tvm_runtime_extra PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-
-install(TARGETS tvm_runtime_extra DESTINATION lib${LIB_SUFFIX})
-if(TVM_BUILD_PYTHON_MODULE)
-  install(TARGETS tvm_runtime_extra DESTINATION "lib")
-endif()
+tvm_configure_target_library(tvm_runtime_extra RUNTIME_MODULE)
 
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
@@ -591,6 +583,25 @@ target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
 target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+# Work around a GNU ld (binutils) relaxation bug that miscompiles
+# R_X86_64_GOTPCRELX relocations inside very large statically-linked archives.
+# When the full LLVM static libraries are linked into libtvm_compiler.so, the
+# library is large enough that ld can relax an indirect GOT call (LLVM built
+# with -fno-plt emits these) into a direct call with an incorrect displacement.
+# The call then targets read-only data instead of the intended function and
+# crashes at runtime with a SIGSEGV inside llvm::X86Subtarget during code
+# generation. Disabling linker relaxation keeps the GOT-indirect sequences and
+# avoids the miscompilation; it is harmless when LLVM is linked dynamically.
+# See binutils bug ld/25754.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${USE_LLVM}" MATCHES ${IS_FALSE_PATTERN})
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--no-relax")
+  # LLVM's --system-libs reports -lxml2, but TVM calls no libxml2 symbols. The
+  # manylinux toolchain does not default to --as-needed, so set it explicitly:
+  # the unused libxml2 is then not recorded as a NEEDED dependency, so auditwheel
+  # does not vendor it (and its deps) into the wheel.
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--as-needed")
+endif()
 
 # Place runtime/compiler/allvisible artifacts under build/lib/ to mirror the
 # tvm-ffi layout and make tvm_ffi.libinfo.load_lib_ctypes(package="tvm") able
@@ -840,22 +851,18 @@ endif()
 # Note: NCCL, NVSHMEM, RCCL target_link_libraries are handled in the inline
 # libtvm_runtime_extra assembly block above.
 
+# Keep the core shared libraries relocatable. A relative rpath
+# ($ORIGIN / @loader_path) is correct in any build because the sibling runtime
+# DSOs are installed next to each other, so apply it unconditionally rather than
+# only when building the Python wheel. (tvm_runtime_extra already gets its rpath
+# where it is defined above.)
+tvm_configure_target_library(tvm_compiler)
+tvm_configure_target_library(tvm_runtime)
+
 # Python package installation configuration
 # This section ensures that all necessary files are installed for the Python wheel
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
-
-  # Set RPATH for tvm_compiler and tvm_runtime to find each other relatively
-  # (libtvm_compiler.so links against libtvm_runtime.so).
-  if(APPLE)
-    # macOS uses @loader_path
-    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "@loader_path")
-    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "@loader_path")
-  elseif(LINUX)
-    # Linux uses $ORIGIN
-    set_target_properties(tvm_compiler PROPERTIES INSTALL_RPATH "\$ORIGIN")
-    set_target_properties(tvm_runtime PROPERTIES INSTALL_RPATH "\$ORIGIN")
-  endif()
 
   # Install compiled shared libraries into <project>/lib so that
   # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find
@@ -865,11 +872,25 @@ if(TVM_BUILD_PYTHON_MODULE)
 
   # Install third-party compiled dependencies into the same lib/ dir.
   if(TARGET fpA_intB_gemm)
+    tvm_configure_target_library(fpA_intB_gemm)
     install(TARGETS fpA_intB_gemm DESTINATION "lib")
   endif()
   if(TARGET flash_attn)
+    tvm_configure_target_library(flash_attn)
     install(TARGETS flash_attn DESTINATION "lib")
   endif()
+
+  # Install prebuilt extra runtime libraries into the same lib/ dir. This is how
+  # the separately-built CUDA runtime (libtvm_runtime_cuda.so) is bundled: the
+  # publishing flow builds it in a CUDA-enabled environment and passes its path
+  # via TVM_PACKAGE_EXTRA_LIBS, so it ships through the normal CMake install
+  # rather than a post-build wheel rewrite.
+  foreach(_extra_lib IN LISTS TVM_PACKAGE_EXTRA_LIBS)
+    if(NOT EXISTS "${_extra_lib}")
+      message(FATAL_ERROR "TVM_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
+    endif()
+    install(FILES "${_extra_lib}" DESTINATION "lib")
+  endforeach()
 
   # Install minimal header files needed by Python extensions
   install(
