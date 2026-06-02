@@ -22,9 +22,11 @@
  * \brief Canonicalize ShapeExpr by replacing composite PrimExpr dimensions with symbolic vars.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/expr.h>
 
 #include <string>
 #include <unordered_map>
@@ -69,7 +71,7 @@ class ShapeExprCanonicalizer : public ExprMutator {
     }
 
     std::string base_name = "shape_expr_symbol_" + std::to_string(symbol_counter_++);
-    tir::Var sym_var(base_name, expr.dtype());
+    tir::Var sym_var(base_name, expr->dtype);
     expr_to_var_.emplace(expr, sym_var);
 
     PrimStructInfo target_sinfo(sym_var);

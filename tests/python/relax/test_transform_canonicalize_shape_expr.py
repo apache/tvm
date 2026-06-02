@@ -40,7 +40,7 @@ def test_canonicalize_shape_expr_removes_composite_dims():
     def _visit(expr):
         if isinstance(expr, relax.ShapeExpr):
             for dim in expr.values:
-                if not isinstance(dim, (tir.IntImm, tir.Var)):
+                if not isinstance(dim, tir.IntImm | tir.Var):
                     composite_dims.append(dim)
 
     relax.analysis.post_order_visit(mod["main"], _visit)
