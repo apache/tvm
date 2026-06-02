@@ -67,6 +67,10 @@ if(USE_CUDA)
 
   add_library(tvm_runtime_cuda_objs OBJECT ${RUNTIME_CUDA_SRCS} ${VM_CUDA_BUILTIN_SRC_CC})
   target_link_libraries(tvm_runtime_cuda_objs PUBLIC tvm_ffi_header)
+  # These sources compile into tvm_runtime_cuda.dll, so their TVM_RUNTIME_DLL /
+  # TVM_FFI_DLL symbols must be dllexport on MSVC (e.g. GetCudaDeviceCount in
+  # cuda_device_api.cc). Mirror tvm_runtime_objs; a no-op on non-MSVC platforms.
+  target_compile_definitions(tvm_runtime_cuda_objs PRIVATE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
   set_target_properties(tvm_runtime_cuda_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
   if(TVM_VISIBILITY_FLAG)
     target_compile_options(tvm_runtime_cuda_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
@@ -74,15 +78,7 @@ if(USE_CUDA)
   add_library(tvm_runtime_cuda SHARED $<TARGET_OBJECTS:tvm_runtime_cuda_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_cuda)
   target_link_libraries(tvm_runtime_cuda PUBLIC tvm_runtime ${CUDA_CUDART_LIBRARY} ${CUDA_CUDA_LIBRARY})
-  set_target_properties(tvm_runtime_cuda PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  install(TARGETS tvm_runtime_cuda DESTINATION lib${LIB_SUFFIX})
-  if(TVM_BUILD_PYTHON_MODULE)
-    install(TARGETS tvm_runtime_cuda DESTINATION "lib")
-  endif()
+  tvm_configure_target_library(tvm_runtime_cuda RUNTIME_MODULE)
 
   if(USE_NVTX)
     message(STATUS "Build with NVTX support")
@@ -102,7 +98,7 @@ if(USE_CUDA AND USE_CUDNN)
   add_library(tvm_cudnn_objs OBJECT ${CONTRIB_CUDNN_SRCS})
   target_link_libraries(tvm_cudnn_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_cudnn_objs ${CUDA_CUDNN_LIBRARY})
-endif(USE_CUDNN)
+endif(USE_CUDA AND USE_CUDNN)
 
 if(USE_CUDA AND USE_CUDNN_FRONTEND)
   message(STATUS "Build with cuDNN Frontend support")
