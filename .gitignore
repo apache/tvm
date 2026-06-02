@@ -181,6 +181,7 @@ cscope*
 perf
 .bash_history
 *.json
+!.claude/commands/tir-bench/baseline.json
 *.params
 *.ro
 *.onnx
@@ -290,3 +291,7 @@ python/bin/
 python/typing_extensions.py
 python/*.dist-info/
 pytest-of-bohanhou/
+
+# tir-bench run artifacts (regenerable; see .claude/commands/tir-bench.md)
+.tir-bench/
+.tir-bench-*/

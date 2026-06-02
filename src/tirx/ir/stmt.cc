@@ -53,6 +53,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
   ExecScopeStmtNode::RegisterReflection();
+  ScopeIdDefStmtNode::RegisterReflection();
 }
 
 // Bind
@@ -642,11 +643,22 @@ ExecScopeStmt::ExecScopeStmt(ExecScope exec_scope, Stmt body, Span span) {
   data_ = std::move(node);
 }
 
+// ScopeIdDefStmt
+ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) {
+  TVM_FFI_ICHECK(def.defined());
+  ffi::ObjectPtr<ScopeIdDefStmtNode> node = ffi::make_object<ScopeIdDefStmtNode>();
+  node->def = std::move(def);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.ExecScopeStmt", [](ExecScope exec_scope, Stmt body, Span span) {
     return ExecScopeStmt(exec_scope, body, span);
   });
+  refl::GlobalDef().def("tirx.ScopeIdDefStmt",
+                        [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
 }
 
 // BlockRealize

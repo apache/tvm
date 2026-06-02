@@ -85,7 +85,16 @@ from tvm.tirx.expr import (
     Sub,
 )
 from tvm.tirx.generic import cast
-from tvm.tirx.layout import ComposeLayout, Iter, Layout, R, S, SwizzleLayout, TileLayout
+from tvm.tirx.layout import (
+    ComposeLayout,
+    Iter,
+    Layout,
+    R,
+    S,
+    SwizzleLayout,
+    TileLayout,
+    wg_local_layout,
+)
 
 from . import _ffi_api, frame, utils
 from .external_kernel import call_kernel
@@ -571,11 +580,6 @@ def _scope_guards(args: tuple[Any, ...]) -> list[PrimExpr]:
     )
 
 
-def kernel(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``kernel``-level execution scope."""
-    return _ffi_api.Kernel(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def cluster(*guards: Any) -> frame.ExecScopeFrame:
     """Open a ``cluster``-level execution scope."""
     return _ffi_api.Cluster(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -599,6 +603,31 @@ def warp(*guards: Any) -> frame.ExecScopeFrame:
 def thread(*guards: Any) -> frame.ExecScopeFrame:
     """Open a ``thread``-level execution scope."""
     return _ffi_api.Thread(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def device_entry() -> None:
+    """Mark the device-region entry within the enclosing PrimFunc body.
+
+    Flat marker (no ``with``). Subsequent statements in the function body
+    accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
+    the wrapping is closed by the PrimFunc frame at function end.
+
+    Anything written before this marker is host code (e.g. ``Tx.match_buffer``);
+    anything after is device code.
+
+    Example::
+
+        @Tx.prim_func
+        def kernel(...):
+            A = Tx.match_buffer(...)
+            Tx.device_entry()           # device region starts here
+            bx = Tx.cta_id([SM_COUNT])  # standalone scope-id def
+            ...
+    """
+    attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
+    attr_frame.__enter__()
+    # No return: the frame is registered on the IRBuilder stack; the
+    # PrimFunc frame's exit drains it.
 
 
 def elected():
@@ -888,6 +917,28 @@ def alloc_buffer(
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
     _ffi_api.AddToParent(tir.AllocBuffer(buf, norm_annotations))  # type: ignore[attr-defined] # pylint: disable=no-member
     return buf
+
+
+def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
+    """Warpgroup-wide ``(128, elem_per_thread)`` register tile in local scope.
+
+    Sugar for the recurring pattern::
+
+        Tx.alloc_buffer(
+            (128, elem_per_thread), dtype,
+            layout=wg_local_layout(elem_per_thread),
+            scope="local",
+        )
+
+    Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
+    owns one row of ``elem_per_thread`` contiguous elements.
+    """
+    return alloc_buffer(
+        (128, elem_per_thread),
+        dtype,
+        layout=wg_local_layout(elem_per_thread),
+        scope="local",
+    )
 
 
 def sblock_alloc_buffer(
@@ -1815,6 +1866,89 @@ alloc_shared = functools.partial(alloc_buffer, scope="shared")
 alloc_local = functools.partial(alloc_buffer, scope="local")
 smem = alloc_shared
 tmem = functools.partial(alloc_buffer, scope="tmem")
+
+
+def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
+    """Allocate a register fragment for ``tcgen05.{ld,st}`` atoms.
+
+    Sizes the per-thread storage, allocates ``local`` scope memory, and returns
+    a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
+    Pass the result to ``Tx.copy_async`` (with a ``(128, W)``-shaped TMEM
+    buffer) to trigger the corresponding dispatch path.
+
+    Parameters
+    ----------
+    instr_shape : str
+        ``"32x32b"`` (M=128 fragment, 128 row warpgroup tile, layout
+        ``(128, K):(1@tid_in_wg, 1)``); or ``"16x64b"`` / ``"16x128b"`` /
+        ``"16x256b"`` (M=64 fragments, 64 row warpgroup tile with the
+        per-shape per-lane register decomposition).
+    tensor_shape : tuple[int, int]
+        Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
+        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes.
+    dtype : str
+        ``"float32"``, ``"float16"``, or ``"bfloat16"``.
+
+    Returns
+    -------
+    Buffer
+        2-D view of shape ``tensor_shape`` whose layout matches
+        ``tcgen05_atom_layout(instr_shape, tensor_shape, dtype)``.
+
+    Examples
+    --------
+    M=128 readback (existing dispatch):
+        ``frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
+        ``Tx.copy_async(frag[:, :], tmem[:, 0:64])``
+
+    M=64 readback (.16x64b dispatch):
+        ``frag = Tx.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
+        ``Tx.copy_async(frag[:, :], tmem[0:64, 0:64])``
+    """
+    from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
+
+    rows, cols = tensor_shape
+    bits = DataType(dtype).bits
+    # Per-warpgroup total bits = 64 rows x K cols x bits. Divided across 128
+    # threads gives per-thread bits; convert to element count.
+    per_thread_bits = (rows * cols * bits) // 128
+    if per_thread_bits % bits != 0:
+        raise ValueError(
+            f"alloc_tcgen05_ldst_frag tensor_shape={tensor_shape} dtype={dtype!r} "
+            f"does not evenly divide across 128 threads"
+        )
+    per_thread_elems = per_thread_bits // bits
+
+    layout = tcgen05_atom_layout(instr_shape, tensor_shape, dtype)
+    flat = alloc_local((per_thread_elems,), dtype)
+    return flat.view(rows, cols, layout=layout)
+
+
+def alloc_cast_frag(src, dtype):
+    """Allocate a register frag holding ``src`` value-cast to ``dtype``.
+
+    Inherits ``src``'s logical shape and its ``(lane, register)`` layout — only
+    the element dtype changes — so ``Tx.cast(dst, src)`` is a per-thread
+    element-wise cast with no cross-lane movement. ``.permute(...)`` the result
+    to the axis order a downstream consumer (e.g. ``stmatrix`` via
+    ``Tx.copy(dispatch="ldstmatrix")``) expects.
+
+    Parameters
+    ----------
+    src : Buffer
+        Source register frag (e.g. from ``alloc_tcgen05_ldst_frag``).
+    dtype : str
+        Destination element dtype.
+
+    Returns
+    -------
+    Buffer
+        Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
+    """
+    rows, cols = src.shape
+    per_thread_elems = (rows * cols) // 128
+    flat = alloc_local((per_thread_elems,), dtype)
+    return flat.view(rows, cols, layout=src.layout)
 
 
 if TYPE_CHECKING:
@@ -3507,6 +3641,7 @@ trunc = _op_wrapper(_tir_op.trunc)
 truncdiv = _op_wrapper(_tir_op.truncdiv)
 truncmod = _op_wrapper(_tir_op.truncmod)
 tvm_access_ptr = _op_wrapper(_tir_op.tvm_access_ptr)
+ptr_byte_offset = _op_wrapper(_tir_op.ptr_byte_offset)
 tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
 tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
 tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
@@ -3726,6 +3861,7 @@ __all__ = [
     "sblock_attr",
     "alloc_buffer",
     "sblock_alloc_buffer",
+    "wg_reg_tile",
     "axis",
     "serial",
     "parallel",
@@ -3830,6 +3966,7 @@ __all__ = [
     "truncdiv",
     "truncmod",
     "tvm_access_ptr",
+    "ptr_byte_offset",
     "tvm_throw_last_error",
     "tvm_stack_alloca",
     "tvm_stack_make_shape",
@@ -3964,9 +4101,11 @@ __all__ += [
     "TileLayout",
     "Var",
     "add_to_parent",
+    "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
+    "alloc_tcgen05_ldst_frag",
     "cluster",
     "cluster_id",
     "cta",
@@ -3975,7 +4114,7 @@ __all__ += [
     "cta_id_in_pair",
     "cuda",
     "decl_scalar",
-    "kernel",
+    "device_entry",
     "lane_id",
     "local_scalar",
     "nki",

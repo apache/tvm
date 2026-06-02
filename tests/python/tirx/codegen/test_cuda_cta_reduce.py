@@ -44,18 +44,18 @@ def test_cta_sum_4_warps():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([NUM_WARPS])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([NUM_WARPS])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, mod = _build_and_run(func, N)
     expected = np.float32(N * (N + 1) / 2)  # sum(1..128)
@@ -72,18 +72,18 @@ def test_cta_sum_8_warps():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([NUM_WARPS])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([NUM_WARPS])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, _ = _build_and_run(func, N)
     expected = np.float32(N * (N + 1) / 2)
@@ -99,18 +99,18 @@ def test_cta_max_4_warps():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([NUM_WARPS])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_max(val, NUM_WARPS, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([NUM_WARPS])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_max(val, NUM_WARPS, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, _ = _build_and_run(func, N)
     np.testing.assert_allclose(result, np.full(N, float(N)))
@@ -125,18 +125,18 @@ def test_cta_min_4_warps():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([NUM_WARPS])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_min(val, NUM_WARPS, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([NUM_WARPS])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_min(val, NUM_WARPS, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, _ = _build_and_run(func, N)
     np.testing.assert_allclose(result, np.full(N, 1.0))
@@ -151,18 +151,18 @@ def test_cta_sum_1_warp():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([NUM_WARPS])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([NUM_WARPS])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, _ = _build_and_run(func, N)
     expected = np.float32(32 * 33 / 2)
@@ -178,18 +178,18 @@ def test_cta_sum_all_warp_counts(num_warps):
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (N,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([num_warps])
-            lane_id = Tx.lane_id([32])
-            tid = Tx.thread_id([N])
-            with Tx.cta():
-                scratch = Tx.alloc_buffer((num_warps,), "float32", scope="shared")
-                with Tx.thread():
-                    val: Tx.f32 = Tx.float32(tid + 1)
-                    val = Tx.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))
-                    out[tid] = val
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([num_warps])
+        lane_id = Tx.lane_id([32])
+        tid = Tx.thread_id([N])
+        with Tx.cta():
+            scratch = Tx.alloc_buffer((num_warps,), "float32", scope="shared")
+            with Tx.thread():
+                val: Tx.f32 = Tx.float32(tid + 1)
+                val = Tx.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))
+                out[tid] = val
+        # fmt: on
 
     result, _ = _build_and_run(func, N)
     expected = np.float32(N * (N + 1) / 2)

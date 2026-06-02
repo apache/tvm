@@ -23,7 +23,7 @@ import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
 from tvm.tirx import Buffer, BufferRegion, PrimExpr
 from tvm.tirx.expr import FloatImm
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
+from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
 from tvm.tirx.predicate import Predicate
 
 from . import _ffi_api, frame
@@ -1325,39 +1325,57 @@ def reshape(buffer: Buffer, shape: list[PrimExpr]):
     )
 
 
-def permute_dims(
-    buffer: BufferRegion | Buffer,
-    order: list[PrimExpr | int],
+def permute_layout(
+    dst: BufferRegion | Buffer,
+    src: BufferRegion | Buffer,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     **kwargs,
 ):
-    """Permute the tensor dimensions with given order.
+    """Move data so the buffer's bytes are arranged under a different layout.
 
+    Logical shape is preserved (``dst.shape == src.shape``); only the
+    byte placement changes (``dst.layout != src.layout``). ``dst`` and
+    ``src`` may alias the same SMEM (in-place) or be two distinct buffers.
 
     Parameters
     ----------
-    buffer : Union[BufferRegion, Buffer]
-        The tensor to be permuted.
-
-    order : List[Union[PrimExpr, int]]
-        The permuting order.
-
+    dst : Union[BufferRegion, Buffer]
+        Destination view (carries the target layout).
+    src : Union[BufferRegion, Buffer]
+        Source view (carries the current layout).
     workspace : Dict[str, Buffer]
-        The workspace of the operator.
-
-    config : Dict[str, Any]
-        The scheduler configuration.
+        Optional workspace for the operator.
+    dispatch : Optional[str]
+        Force a specific dispatch variant by name.
     """
+
+    # Promote Buffer to BufferRegion covering the full extent, matching the
+    # convention used by ``Tx.<dynamic>`` fallback registration.
+    from tvm.tirx import Buffer as _TBuffer
+
+    def _to_region(b):
+        if isinstance(b, _TBuffer):
+            slices = [slice(None) for _ in range(len(b.shape))]
+            return b[slices]
+        return b
+
     config = kwargs or {}
     return f_insert(
-        tirx_op.PermuteDims(buffer, order, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.PermuteLayout(
+            _to_region(dst),
+            _to_region(src),
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+        )
     )
 
 
 __all__ = [
     "SMEMPool",
     "TMEMPool",
+    "TMEMStages",
     "add",
     "binary_chain",
     "binary_reduce",
@@ -1379,7 +1397,7 @@ __all__ = [
     "min",
     "minimum",
     "mul",
-    "permute_dims",
+    "permute_layout",
     "reciprocal",
     "reduce_negate",
     "select",

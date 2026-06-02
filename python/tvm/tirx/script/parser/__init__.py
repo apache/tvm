@@ -24,14 +24,24 @@ from tvm.tirx.script.builder import ir as _tir
 
 from . import operation as _operation
 from . import parser as _parser
-from .entry import Buffer, Ptr
+from .entry import Buffer, Ptr, constexpr
 
 if TYPE_CHECKING:
     # pylint: disable=invalid-name
     # Define prim_func and make it type check as static method
     # so most tvmscript won't trigger pylint error here.
     prim_func = staticmethod
+    jit = staticmethod
 else:
-    from .entry import inline, macro, prim_func
+    from .entry import inline, jit, macro, prim_func
 
-__all__ = _tir.__all__ + ["Buffer", "Ptr", "bool", "prim_func", "inline", "macro"]
+__all__ = _tir.__all__ + [
+    "Buffer",
+    "Ptr",
+    "bool",
+    "constexpr",
+    "inline",
+    "jit",
+    "macro",
+    "prim_func",
+]

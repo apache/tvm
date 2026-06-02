@@ -403,6 +403,30 @@ class Layout(Object):
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
+    def broadcast(self, num: int, position: int = -1, axis: '"Axis" | str' = "m") -> "Layout":
+        """Insert a stride-0 broadcast dim of extent ``num`` at ``position``.
+
+        ``position`` follows Python list-insert semantics (negative indices
+        count from the end; ``-1`` appends after the last shard dim).  The
+        new dim has stride 0 — accessing along it doesn't move the byte
+        offset, so the same physical element is "seen" ``num`` times.
+
+        Useful for layouts where a consumer reads the same SMEM datum
+        multiple times (e.g. ``sf_reuse`` over MMA-K steps).
+        """
+        if isinstance(self, TileLayout):
+            if isinstance(axis, str):
+                axis = Axis.get(axis)
+            new_iter = Iter(num, 0, axis)
+            shard = list(self.shard)
+            insert_at = position if position >= 0 else len(shard) + 1 + position
+            shard.insert(insert_at, new_iter)
+            return TileLayout.from_iters(shard, self.replica, self.offset)
+        elif isinstance(self, ComposeLayout):
+            return ComposeLayout(self.swizzle, self.tile_layout.broadcast(num, position, axis))
+        else:
+            raise ValueError(f"broadcast not supported for {type(self)}")
+
     def pack(self, num: int) -> "Layout":
         """Pack the layout, where num contiguous elements in the layout are packed into a single element.
 
@@ -449,7 +473,6 @@ class Layout(Object):
 # deferred until first access — keeps `import tvm.tirx.layout` runtime-safe
 # (compiler-side FFI need not be present, matching apache's discipline).
 _AXIS_NAMES = (
-    "pid",
     "bx",
     "by",
     "bz",
@@ -543,6 +566,94 @@ except NameError:  # pragma: no cover
     __all__ = []  # type: ignore[var-annotated]
 __all__ += list(_AXIS_NAMES)
 __all__ += ["R", "S"]
+__all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
+
+
+# ============================================================================
+# TMEM datapath layouts (PTX ISA §9.7.16.10.5)
+# ============================================================================
+#
+# ``tcgen05.mma`` writes its output matrix C into TMEM using one of several
+# **datapath layouts** depending on the MMA's M dimension and ``.ws`` mode.
+# Each layout determines *which* physical TMEM lanes (rows) the matrix
+# occupies; the leak in the original ``_default_tmem_layout`` was that it
+# always used the identity ``(rows, cols) : (1@TLane, 1@TCol)`` mapping,
+# which is correct only for Layout D (M=128 full datapath). For Layout F
+# (M=64 non-``.ws``) the MMA writes scattered lanes
+# ``{0..15, 32..47, 64..79, 96..111}`` — half of each warp's 32-lane
+# partition — and the readback path (``.16x*b`` M=64 atom) has the matching
+# scatter built into the PTX. To keep the buffer's logical row indexing in
+# sync with the physical scatter, the buffer's TileLayout must encode the
+# scatter directly.
+#
+# We surface this via the factory below. Callers pass the datapath letter
+# (``"D"`` / ``"F"``) and the logical ``(rows, cols)``; the factory returns
+# the appropriate TileLayout. ``tmem_pool.alloc(..., datapath="F")`` plumbs
+# this into the buffer's layout so the dispatch can structurally verify
+# atom ↔ datapath compatibility instead of silently accepting mismatches.
+#
+# Supported today:
+#   - ``"D"``: M=128, ``.cta_group::1``, full datapath. Identity row→lane.
+#   - ``"F"``: M=64, non-``.ws``, half datapath (4x1 lane utilization).
+#     Logical row r → physical lane (r // 16) * 32 + (r % 16).
+#
+# Layouts A / B / C / E / G are reserved for future expansion.
+
+
+_TMEM_DATAPATH_ROWS = {"D": 128, "F": 64}
+
+
+def tmem_datapath_layout(datapath: str, rows: int, cols: int) -> "TileLayout":
+    """Return the ``TileLayout`` for a tcgen05 MMA datapath.
+
+    See PTX ISA §9.7.16.10.5 for the datapath enumeration. The returned
+    layout is shape-compatible with a buffer of ``(rows, cols)`` and
+    encodes the logical-row → physical-TMEM-lane mapping that the
+    corresponding MMA writes to (and that the matching ``.16x*b`` /
+    ``.32x32b`` atom expects to read).
+
+    Parameters
+    ----------
+    datapath : str
+        One of ``"D"`` (M=128, ``.cta_group::1``, full datapath) or
+        ``"F"`` (M=64, non-``.ws``, half datapath). Other layouts are not
+        yet supported by this factory.
+    rows : int
+        Logical row count of the TMEM buffer. Must match the datapath's M
+        dimension: 128 for D, 64 for F.
+    cols : int
+        Logical column count.
+
+    Returns
+    -------
+    TileLayout
+        Buffer-shape-compatible layout for ``(rows, cols)``.
+    """
+    if datapath not in _TMEM_DATAPATH_ROWS:
+        raise ValueError(
+            f"tmem_datapath_layout: unknown datapath {datapath!r}; "
+            f"supported: {sorted(_TMEM_DATAPATH_ROWS)}"
+        )
+    expected = _TMEM_DATAPATH_ROWS[datapath]
+    if rows != expected:
+        raise ValueError(
+            f"tmem_datapath_layout: datapath={datapath!r} expects rows={expected}, got {rows}"
+        )
+    tlane = Axis.get("TLane")
+    tcol = Axis.get("TCol")
+    if datapath == "D":
+        # M=128, identity row→lane: row r ∈ [0, 128) → physical lane r.
+        return TileLayout(S[(rows, cols) : (1 @ tlane, 1 @ tcol)])
+    # Layout F: M=64 scattered. Logical row r = wid * 16 + intra (wid ∈ [0,4),
+    # intra ∈ [0,16)) → physical lane wid * 32 + intra, i.e.
+    # ``r // 16`` is the warp selector and ``r % 16`` is the within-slab lane.
+    # ``TileLayout`` decomposes a scalar row index via ``SplitCoord``
+    # (src/tirx/ir/layout/utils.cc), which uses row-major ordering: with
+    # shape ``(s0, s1)`` the FIRST iter receives ``coord // s1`` (the high
+    # bits) and the SECOND receives ``coord % s1`` (the low bits). So we
+    # pin the warp selector to iter 0 (extent 4, TLane stride 32) and the
+    # within-slab lane to iter 1 (extent 16, TLane stride 1).
+    return TileLayout(S[(4, 16, cols) : (32 @ tlane, 1 @ tlane, 1 @ tcol)])
 
 
 def wg_local_layout(cols, rows=128):
@@ -552,6 +663,242 @@ def wg_local_layout(cols, rows=128):
     so each thread owns one row and contiguous ``cols`` local elements.
     """
     return TileLayout(S[(rows, cols) : (1 @ Axis.tid_in_wg, 1)])
+
+
+# Allowed (.shape, .num) combinations for tcgen05.ld/st atoms.
+# Source: PTX ISA Table 49 (tcgen05-num-shapes-ld).
+_TCGEN05_ATOM_REPS = {
+    "32x32b": (1, 2, 4, 8, 16, 32, 64, 128),
+    "16x64b": (1, 2, 4, 8, 16, 32, 64, 128),
+    "16x128b": (1, 2, 4, 8, 16, 32, 64),
+    "16x256b": (1, 2, 4, 8, 16, 32),
+}
+
+
+# Per-warp fp32-column factor for each instr_shape. For .16x*b atoms the
+# warpgroup fragment is 64 rows x (factor * rep) fp32 cols; for .32x32b the
+# fragment is 128 rows x (factor * rep) fp32 cols with factor=1.
+_TCGEN05_COL_FACTOR_FP32 = {"32x32b": 1, "16x64b": 2, "16x128b": 4, "16x256b": 8}
+
+# Allowed fragment row counts per warpgroup for each instr_shape. ``.32x32b``
+# is fixed at M=128; ``.16x*b`` natively covers M=64 (one 16-row slab per
+# warp, using lanes 0..15 of each warp's 32-lane TMEM partition) and can be
+# extended to M=128 by issuing the atom twice with row offsets 0 and 16
+# (covering lanes 0..15 + 16..31, i.e. the warp's full slab). The M=128
+# variant doubles per-thread registers and treats the extra slab as the
+# highest m-bit.
+_TCGEN05_FRAG_ROWS = {
+    "32x32b": (128,),
+    "16x64b": (64, 128),
+    "16x128b": (64, 128),
+    "16x256b": (64, 128),
+}
+
+
+def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) -> "TileLayout":
+    """Register-side ``TileLayout`` for ``tcgen05.ld``/``tcgen05.st`` ``.16x*`` atoms.
+
+    Describes the per-warpgroup register tile that ``Tx.copy_async`` produces
+    when reading a TMEM fragment via ``tcgen05.{ld,st}.<instr_shape>.xN``.
+    ``rep`` (the ``.xN`` qualifier) is inferred from ``tensor_shape``.
+
+    Fragment row count is determined by ``instr_shape``: ``.32x32b`` covers an
+    M=128 fragment (128 rows per warpgroup), and ``.16x{64,128,256}b`` covers
+    an M=64 fragment (64 rows per warpgroup).
+
+    TMEM is kept **dense** for 16-bit dtypes: two 16-bit elements per 32-bit
+    TMEM cell (matching the existing ``.32x32b`` convention). The PTX op is
+    issued with the plain ``.b32`` form (no ``.pack::16b`` qualifier), and
+    the returned layout describes the per-thread register file with two
+    packed 16-bit elements per 32-bit register.
+
+    Parameters
+    ----------
+    instr_shape : str
+        The PTX atom's ``.shape`` qualifier. One of ``"32x32b"``, ``"16x64b"``,
+        ``"16x128b"``, ``"16x256b"``.
+    tensor_shape : tuple[int, int]
+        The logical fragment shape in **element units**. Must be
+        ``(frag_rows, K)`` where ``frag_rows`` is ``128`` for ``.32x32b`` and
+        ``64`` for the other shapes, and ``K`` is divisible by the per-warp
+        column factor for the chosen instr_shape and dtype::
+
+            K must be a power-of-two multiple of (factor_fp32 * elem_per_32b)
+
+        where ``factor_fp32`` is ``1`` / ``2`` / ``4`` / ``8`` for ``.32x32b`` /
+        ``.16x64b`` / ``.16x128b`` / ``.16x256b``, and ``elem_per_32b`` is
+        ``1`` for fp32 and ``2`` for fp16/bf16. The inferred rep must be in PTX
+        Table 49's supported set for the chosen instr_shape.
+    dtype : str | tvm.DataType
+        Element dtype. ``"float32"``, ``"float16"``, or ``"bfloat16"``.
+
+    Returns
+    -------
+    TileLayout
+        A ``(64, K)``-shaped tile layout. The factory builds it as a sequence
+        of fine-grained iters describing the per-(lane, register) destination
+        position; ``.group([(64, K)])[0]`` flattens to two iters.
+
+    Examples
+    --------
+    ``tcgen05_atom_layout("16x64b", (64, 64), "float32")`` → ``.16x64b.x32`` (rep=32, fp32).
+
+    ``tcgen05_atom_layout("16x128b", (64, 256), "float16")`` → ``.16x128b.x32`` (rep=32,
+    fp16; two fp16 elements packed per 32-bit register and per 32-bit TMEM cell).
+    """
+    if instr_shape not in _TCGEN05_ATOM_REPS:
+        raise ValueError(
+            f"tcgen05_atom_layout instr_shape must be one of "
+            f"{list(_TCGEN05_ATOM_REPS)}, got {instr_shape!r}"
+        )
+    bits = tvm.runtime.DataType(dtype).bits
+    if bits not in (16, 32):
+        raise ValueError(
+            f"tcgen05_atom_layout dtype must be a 32-bit or 16-bit type, got {dtype} ({bits} bits)"
+        )
+    if len(tensor_shape) != 2:
+        raise ValueError(
+            f"tcgen05_atom_layout tensor_shape must be 2-D (rows, cols), got {tensor_shape!r}"
+        )
+    rows, cols = tensor_shape
+    allowed_rows = _TCGEN05_FRAG_ROWS[instr_shape]
+    if rows not in allowed_rows:
+        raise ValueError(
+            f"tcgen05_atom_layout {instr_shape!r} expects rows ∈ {allowed_rows}, got {rows}"
+        )
+
+    elem_per_32b = 32 // bits
+    col_factor_elem = _TCGEN05_COL_FACTOR_FP32[instr_shape] * elem_per_32b
+    if cols % col_factor_elem != 0:
+        raise ValueError(
+            f"tcgen05_atom_layout cols={cols} not divisible by the per-rep column "
+            f"factor {col_factor_elem} for instr_shape={instr_shape!r} dtype={dtype}; "
+            f"valid cols are k * {col_factor_elem} for k in "
+            f"{_TCGEN05_ATOM_REPS[instr_shape]}"
+        )
+    rep = cols // col_factor_elem
+    if rep not in _TCGEN05_ATOM_REPS[instr_shape]:
+        raise ValueError(
+            f"tcgen05_atom_layout inferred rep={rep} (from cols={cols}) is not in "
+            f"the PTX Table 49 supported set for {instr_shape}: "
+            f"{_TCGEN05_ATOM_REPS[instr_shape]}"
+        )
+
+    laneid = Axis.laneid
+    wid = Axis.wid_in_wg
+    N = rep
+    shape = instr_shape
+    # All m-strides below are written in fp32-reg units; we multiply by
+    # elem_per_32b at the end and prepend a C_pack iter for the 16-bit case
+    # (each fp32 reg packs ``elem_per_32b`` elements at adjacent col positions).
+
+    if shape == "32x32b":
+        # M=128 fragment, simple thread-rows layout:
+        #   (rows=128, cols=K) : (1@tid_in_wg, 1)
+        # Each of 128 warpgroup threads owns one row; cols are contiguous in
+        # the per-thread storage. For 16-bit dtypes the K cols are packed two
+        # per 32-bit register (handled by the per-thread storage element count
+        # naturally — m-stride 1 in element units).
+        iters = [
+            Iter(rows, 1, Axis.tid_in_wg),
+            Iter(cols, 1, "m"),
+        ]
+        return TileLayout.from_iters(iters, [], {})
+
+    # Iter lists are written high-to-low: ``TileLayout`` decomposes a flat
+    # coordinate via ``SplitCoord`` (src/tirx/ir/layout/utils.cc) using
+    # row-major ordering, where the FIRST iter receives the *high* bits and
+    # the LAST iter receives the *low* bits. So R_w (highest-stride row
+    # contribution) comes first in row_iters_fp32 and R_t1/t2 (lowest)
+    # comes last; same for col.
+    if shape == "16x64b":
+        # Per-warp tile (fp32 view): (16 rows, 2N cols). Per-lane regs = N.
+        # Lane (t0, t1, t2): t0 = laneid & 1, t1 = (laneid >> 1) & 1, t2 = laneid >> 2.
+        #   Row = t2 + 8*t0 + 16*wid_in_wg
+        #   Col (fp32) = t1 + 2*r,   r ∈ [0, N)
+        row_iters_fp32 = [
+            (4, 1, wid),  # R_w:  wid_in_wg       → R bits 4..5
+            (2, 1, laneid),  # R_t0: laneid bit 0    → R bit 3
+            (8, 4, laneid),  # R_t2: laneid bits 2..4 → R bits 0..2
+        ]
+        col_iters_fp32 = [
+            (N, 1, "m"),  # C_r:  register slot   → C bits 1..
+            (2, 2, laneid),  # C_t1: laneid bit 1    → C bit 0
+        ]
+        m_used_M64 = N
+    elif shape == "16x128b":
+        # Per-warp tile (fp32 view): (16 rows, 4N cols). Per-lane regs = 2N.
+        # Lane (t0, t1): t0 = laneid & 3, t1 = laneid >> 2.
+        # Reg r = ra + 2*rb, ra ∈ {0,1}, rb ∈ [0, N).
+        #   Row = t1 + 8*ra + 16*wid_in_wg
+        #   Col (fp32) = t0 + 4*rb
+        row_iters_fp32 = [
+            (4, 1, wid),  # R_w
+            (2, 1, "m"),  # R_ra: reg bit 0        → R bit 3
+            (8, 4, laneid),  # R_t1: laneid bits 2..4 → R bits 0..2
+        ]
+        col_iters_fp32 = [
+            (N, 2, "m"),  # C_rb: reg bits 1..     → C bits 2..
+            (4, 1, laneid),  # C_t0: laneid bits 0..1 → C bits 0..1
+        ]
+        m_used_M64 = 2 * N
+    else:  # 16x256b
+        # Per-warp tile (fp32 view): (16 rows, 8N cols). Per-lane regs = 4N.
+        # Lane (t0, t1) as for 16x128b. Reg r = v0p + 2*va + 4*vb.
+        #   Row = t1 + 8*va + 16*wid_in_wg
+        #   Col (fp32) = v0p + 2*t0 + 8*vb
+        row_iters_fp32 = [
+            (4, 1, wid),  # R_w
+            (2, 2, "m"),  # R_va: reg bit 1 → R bit 3
+            (8, 4, laneid),  # R_t1
+        ]
+        col_iters_fp32 = [
+            (N, 4, "m"),  # C_vb:  reg bits 2.. → C bits 3..
+            (4, 1, laneid),  # C_t0
+            (2, 1, "m"),  # C_v0p: reg bit 0  → C bit 0
+        ]
+        m_used_M64 = 4 * N
+
+    if rows == 128:
+        # M=128 covers both 16-row half-slabs of each warp's 32-lane TMEM
+        # partition (the M=64 atom covers only lanes 0..15; the high half
+        # 16..31 needs a second PTX issue with row offset 16). We surface
+        # the combined fragment as a single (128, K) tile by inserting a
+        # v_slab iter right *after* R_w (i.e. as the next-highest row bit).
+        # v_slab claims one m-bit at the next free offset
+        # (stride = m_used_M64) so reg indices [0, m_used_M64) hold the
+        # low slab and [m_used_M64, 2*m_used_M64) hold the high slab — the
+        # split the dispatch uses when emitting the two PTX calls. The
+        # inserted iter also doubles wid_in_wg's row stride from 16 to 32,
+        # so the four warps now tile rows 0..31 / 32..63 / 64..95 / 96..127.
+        new_row_iters = []
+        for ext, stride, axis in row_iters_fp32:
+            new_row_iters.append((ext, stride, axis))
+            if axis is wid:
+                new_row_iters.append((2, m_used_M64, "m"))
+        row_iters_fp32 = new_row_iters
+
+    def _scale(iters):
+        out = []
+        for ext, stride, axis in iters:
+            if axis == "m":
+                out.append((ext, stride * elem_per_32b, axis))
+            else:
+                out.append((ext, stride, axis))
+        return out
+
+    row_iters = _scale(row_iters_fp32)
+    col_iters = _scale(col_iters_fp32)
+
+    # For the 16-bit packed variant each fp32 register holds two adjacent
+    # column elements (low / high halves). Add a C_pack iter of extent
+    # ``elem_per_32b`` and m-stride 1 at the *low* end of the col axis —
+    # i.e. as the LAST col iter under SplitCoord's high-to-low ordering.
+    if elem_per_32b > 1:
+        col_iters.append((elem_per_32b, 1, "m"))
+
+    iters = [Iter(ext, stride, axis) for ext, stride, axis in row_iters + col_iters]
+    return TileLayout.from_iters(iters, [], {})
 
 
 # ------------------------------------------------------------------

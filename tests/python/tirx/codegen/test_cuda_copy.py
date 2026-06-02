@@ -41,25 +41,25 @@ def test_copy_128b():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (4,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                src_buf = Tx.alloc_buffer((4,), "float32", scope="shared")
-                dst_buf = Tx.alloc_buffer((4,), "float32", scope="shared")
-                with Tx.thread():
-                    if lane < 4:
-                        src_buf[lane] = Tx.float32(lane + 1)
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        Tx.cuda.copy_128b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane < 4:
-                        out[lane] = dst_buf[lane]
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            src_buf = Tx.alloc_buffer((4,), "float32", scope="shared")
+            dst_buf = Tx.alloc_buffer((4,), "float32", scope="shared")
+            with Tx.thread():
+                if lane < 4:
+                    src_buf[lane] = Tx.float32(lane + 1)
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    Tx.cuda.copy_128b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane < 4:
+                    out[lane] = dst_buf[lane]
+        # fmt: on
 
     out_np = np.zeros(4, dtype="float32")
     result, mod = _build_and_run(func, out_np)
@@ -74,25 +74,25 @@ def test_copy_64b():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (2,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                src_buf = Tx.alloc_buffer((2,), "float32", scope="shared")
-                dst_buf = Tx.alloc_buffer((2,), "float32", scope="shared")
-                with Tx.thread():
-                    if lane < 2:
-                        src_buf[lane] = Tx.float32(lane + 10)
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        Tx.cuda.copy_64b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane < 2:
-                        out[lane] = dst_buf[lane]
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            src_buf = Tx.alloc_buffer((2,), "float32", scope="shared")
+            dst_buf = Tx.alloc_buffer((2,), "float32", scope="shared")
+            with Tx.thread():
+                if lane < 2:
+                    src_buf[lane] = Tx.float32(lane + 10)
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    Tx.cuda.copy_64b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane < 2:
+                    out[lane] = dst_buf[lane]
+        # fmt: on
 
     out_np = np.zeros(2, dtype="float32")
     result, mod = _build_and_run(func, out_np)
@@ -107,25 +107,25 @@ def test_copy_32b():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (1,), "float32")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                src_buf = Tx.alloc_buffer((1,), "float32", scope="shared")
-                dst_buf = Tx.alloc_buffer((1,), "float32", scope="shared")
-                with Tx.thread():
-                    if lane == 0:
-                        src_buf[0] = Tx.float32(42)
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        Tx.cuda.copy_32b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        out[0] = dst_buf[0]
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            src_buf = Tx.alloc_buffer((1,), "float32", scope="shared")
+            dst_buf = Tx.alloc_buffer((1,), "float32", scope="shared")
+            with Tx.thread():
+                if lane == 0:
+                    src_buf[0] = Tx.float32(42)
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    Tx.cuda.copy_32b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    out[0] = dst_buf[0]
+        # fmt: on
 
     out_np = np.zeros(1, dtype="float32")
     result, mod = _build_and_run(func, out_np)
@@ -140,25 +140,25 @@ def test_copy_16b():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (1,), "float16")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                src_buf = Tx.alloc_buffer((1,), "float16", scope="shared")
-                dst_buf = Tx.alloc_buffer((1,), "float16", scope="shared")
-                with Tx.thread():
-                    if lane == 0:
-                        src_buf[0] = Tx.float16(7)
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        Tx.cuda.copy_16b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        out[0] = dst_buf[0]
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            src_buf = Tx.alloc_buffer((1,), "float16", scope="shared")
+            dst_buf = Tx.alloc_buffer((1,), "float16", scope="shared")
+            with Tx.thread():
+                if lane == 0:
+                    src_buf[0] = Tx.float16(7)
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    Tx.cuda.copy_16b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    out[0] = dst_buf[0]
+        # fmt: on
 
     out_np = np.zeros(1, dtype="float16")
     result, mod = _build_and_run(func, out_np)
@@ -173,25 +173,25 @@ def test_copy_8b():
     @Tx.prim_func
     def func(out_ptr: Tx.handle):
         out = Tx.match_buffer(out_ptr, (1,), "uint8")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                src_buf = Tx.alloc_buffer((1,), "uint8", scope="shared")
-                dst_buf = Tx.alloc_buffer((1,), "uint8", scope="shared")
-                with Tx.thread():
-                    if lane == 0:
-                        src_buf[0] = Tx.uint8(255)
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        Tx.cuda.copy_8b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
-                Tx.cuda.cta_sync()
-                with Tx.thread():
-                    if lane == 0:
-                        out[0] = dst_buf[0]
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            src_buf = Tx.alloc_buffer((1,), "uint8", scope="shared")
+            dst_buf = Tx.alloc_buffer((1,), "uint8", scope="shared")
+            with Tx.thread():
+                if lane == 0:
+                    src_buf[0] = Tx.uint8(255)
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    Tx.cuda.copy_8b(dst_buf.ptr_to([0]), src_buf.ptr_to([0]))
+            Tx.cuda.cta_sync()
+            with Tx.thread():
+                if lane == 0:
+                    out[0] = dst_buf[0]
+        # fmt: on
 
     out_np = np.zeros(1, dtype="uint8")
     result, mod = _build_and_run(func, out_np)
@@ -211,18 +211,18 @@ def test_codegen_function_names(num_bytes, func_suffix):
     @Tx.prim_func
     def func(dummy_ptr: Tx.handle):
         dummy = Tx.match_buffer(dummy_ptr, (16,), "uint8")
-        with Tx.kernel():
-            cta_id = Tx.cta_id([1])
-            warp_id = Tx.warp_id([1])
-            lane = Tx.lane_id([32])
-            with Tx.cta():
-                a = Tx.alloc_buffer((16,), "uint8", scope="shared")
-                b = Tx.alloc_buffer((16,), "uint8", scope="shared")
-                with Tx.thread():
-                    if lane == 0:
-                        copy_fn(b.ptr_to([0]), a.ptr_to([0]))
-                        dummy[0] = Tx.uint8(0)
-    # fmt: on
+        Tx.device_entry()
+        cta_id = Tx.cta_id([1])
+        warp_id = Tx.warp_id([1])
+        lane = Tx.lane_id([32])
+        with Tx.cta():
+            a = Tx.alloc_buffer((16,), "uint8", scope="shared")
+            b = Tx.alloc_buffer((16,), "uint8", scope="shared")
+            with Tx.thread():
+                if lane == 0:
+                    copy_fn(b.ptr_to([0]), a.ptr_to([0]))
+                    dummy[0] = Tx.uint8(0)
+        # fmt: on
 
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=TARGET, tir_pipeline="tirx")

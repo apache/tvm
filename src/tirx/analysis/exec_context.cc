@@ -584,14 +584,6 @@ bool ScopeSwitch(const ActiveSet& A, ScopeKind scope_kind, ExecSplit* out, std::
       AddCtaAxes(A, &out->inter);
       return true;
     }
-    case ScopeKind::kKernel:
-      out->inter["laneid"] = laneid;
-      out->inter["warpid"] = warpid;
-      AddCtaAxes(A, &out->inter);
-      return true;
-    case ScopeKind::kWorld:
-      *err = "scope_switch(world) is not a valid ExecContext transition";
-      return false;
   }
   *err = "unknown ScopeKind";
   return false;
@@ -606,7 +598,7 @@ ExecContext ExecContext::AtKernelEntry(
     const std::vector<std::pair<std::string, int64_t>>& cta_axes) {
   ExecContext ctx;
   ctx.A = InitialActiveSet(lane_ext, warp_ext, cta_ext, cta_axes);
-  ctx.scope_kind = ScopeKind::kKernel;
+  ctx.scope_kind = ScopeKind::kThread;
   std::string err;
   bool ok = ScopeSwitch(ctx.A, ctx.scope_kind, &ctx.split, &err);
   (void)ok;

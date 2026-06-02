@@ -274,6 +274,15 @@ TVM_DLL const Op& prefetch();
 TVM_DLL const Op& tvm_access_ptr();
 
 /*!
+ * \brief Cast a handle to a typed pointer after adding a byte offset.
+ *
+ *  DType* ptr_byte_offset(void* data, int byte_offset, Expr dtype) {
+ *    return reinterpret_cast<DType*>(reinterpret_cast<char*>(data) + byte_offset);
+ *  }
+ */
+TVM_DLL const Op& ptr_byte_offset();
+
+/*!
  * \brief Create a function local static handle that iniitalizes to nullptr.
  *  can be used to cache function local static resources.
  */

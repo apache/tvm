@@ -224,33 +224,9 @@ inline Doc ExecScopeStmtDoc(tirx::ExecScopeStmt stmt, AccessPath p, IRDocsifier 
                             ffi::Array<ExprDoc> call_args) {
   With<TIRFrame> frame(d, stmt);
   tirx::ExecScope exec_scope = stmt->exec_scope;
-  AccessPath scope_p = p->Attr("exec_scope");
   ffi::Array<ExprDoc> scope_call_args = call_args;
-
-  for (auto scope_id_def : exec_scope->scope_id_def) {
-    ffi::Array<ExprDoc> lhs;
-    for (auto scope_id : scope_id_def->def_ids) {
-      lhs.push_back(DefineVar(scope_id, *frame, d));
-    }
-    ffi::Array<ExprDoc> rhs_args;
-    if (scope_id_def->scope != tirx::ScopeBinding::kClusterCtaPair &&
-        scope_id_def->extents.has_value()) {
-      rhs_args.push_back(d->AsDoc<ExprDoc>(scope_id_def->extents.value(),
-                                           scope_p->Attr("scope_id_def")->Attr("extents")));
-    }
-    ffi::Array<ffi::String> kwarg_keys;
-    ffi::Array<ExprDoc> kwarg_vals;
-    if (scope_id_def->preferred_extents.defined()) {
-      kwarg_keys.push_back("preferred");
-      kwarg_vals.push_back(
-          d->AsDoc<ExprDoc>(scope_id_def->preferred_extents.value(),
-                            scope_p->Attr("scope_id_def")->Attr("preferred_extents")));
-    }
-    ExprDoc rhs =
-        TIR(d, ScopeIdApiName(scope_id_def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
-    (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, std::nullopt));
-  }
-
+  // ScopeIdDefStmts (formerly payload) are now standalone statements within
+  // the body and print via their own dispatch.
   AsDocBody(stmt->body, p->Attr("body"), frame->get(), d);
   return ScopeDoc(std::nullopt, TIR(d, exec_scope->name())->Call(scope_call_args), (*frame)->stmts);
 }

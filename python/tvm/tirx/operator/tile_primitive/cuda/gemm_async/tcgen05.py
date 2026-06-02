@@ -30,7 +30,16 @@ from tvm.arith.analyzer import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as Tx
 from tvm.tirx import PrimFunc
-from tvm.tirx.layout import ComposeLayout, Iter, R, S, TCol, TileLayout, TLane
+from tvm.tirx.layout import (
+    ComposeLayout,
+    Iter,
+    R,
+    S,
+    TCol,
+    TileLayout,
+    TLane,
+    tmem_datapath_layout,
+)
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import KernelReplacePoint
 from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt, TilePrimitiveCall
@@ -290,6 +299,25 @@ def _choose_mma_tile(M, N, cta_group, MMA_N_MIN):
         )
 
     return M_mma, N_mma
+
+
+def _layout_matches_datapath_f(tmem_buf) -> bool:
+    """Return True if ``tmem_buf.layout`` structurally equals Layout F (M=64
+    scattered) over the buffer's full (64, X) shape — i.e. the buffer was
+    allocated via ``tmem_pool.alloc((64, X), datapath="F")``.
+
+    Used by the C-operand layout check to accept M=64 MMA writes into Layout
+    F C buffers (the canonical pairing for M=64 outputs that are read back
+    via ``.16x*b`` M=64; see PTX ISA §9.7.16.10.5).
+    """
+    if tmem_buf.layout is None or int(tmem_buf.shape[0]) != 64:
+        return False
+    try:
+        expected = tmem_datapath_layout("F", 64, tmem_buf.shape[1]).canonicalize()
+        tvm.ir.assert_structural_equal(tmem_buf.layout.canonicalize(), expected)
+        return True
+    except (AssertionError, ValueError):
+        return False
 
 
 def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
@@ -628,11 +656,23 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
 
     # Check C's sliced layout, allow offset.
-    # 4x1 layout: (M, N):(1@TLane, 1@TCol)
+    # 4x1 layout (Layout D, M=128 identity): (M, N):(1@TLane, 1@TCol)
     # 2x2 layout: (M, 2, N//2):(1@TLane, 64@TLane, 1@TCol)
+    # Layout F (M=64 scatter): the full TMEM buffer is shape (64, X) with the
+    # scattered row→lane mapping from tmem_datapath_layout("F", 64, X). When
+    # the user allocates with ``tmem_pool.alloc(..., datapath="F")`` and slices
+    # the full row range, the slice layout structurally matches Layout F over
+    # (M=64, N) — assert against that base instead of the Layout D identity.
     if is_2x2:
         N_half = N // 2
         base = TileLayout(S[(M, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)])
+    elif (
+        M == 64
+        and int(C_buffer.shape[0]) == 64
+        and C_buffer.layout is not None
+        and _layout_matches_datapath_f(C_buffer)
+    ):
+        base = tmem_datapath_layout("F", 64, N)
     else:
         base = TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)])
     expected_c_layout = TileLayout.from_iters(

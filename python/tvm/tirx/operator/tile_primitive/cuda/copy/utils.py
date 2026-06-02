@@ -18,14 +18,11 @@
 
 from collections.abc import Iterable
 
-import tvm
-from tvm.script import tirx as Tx
-from tvm.tirx import Buffer, PrimFunc
-from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx import Buffer
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.stmt import TilePrimitiveCall
 
-from ..common import get_st_extent, get_vec_len, match_scope, validate_copy_op
+from ..common import match_scope, validate_copy_op
 
 
 def _is_valid_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
@@ -102,88 +99,3 @@ def _scope_allowed(
 
 def _is_valid_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
     return (validate_copy_op(op_call, sctx), "validate_copy_op failed")
-
-
-def _vec_len_possible(op_call: TilePrimitiveCall, sctx: DispatchContext):
-    op_call = TilePrimitiveCall.downcast(op_call)
-    dst_buffer_region, src_buffer_region = (op_call.dst, op_call.src)
-    if sctx.is_cta:
-        tx = sctx.launch_params["threadIdx.x"].dom.extent
-    elif sctx.is_thread:
-        tx = 1
-    else:
-        return (False, f"unsupported exec_scope {sctx.scope_kind} for vec_len")
-    vec_len = op_call.config.get("vec_len", None)
-    if vec_len is None:
-        vec_len = get_vec_len(
-            dst_buffer_region,
-            src_buffer_region,
-            [
-                128 // tvm.runtime.DataType(src_buffer_region.buffer.dtype).bits,
-                64 // tvm.runtime.DataType(src_buffer_region.buffer.dtype).bits,
-                32 // tvm.runtime.DataType(src_buffer_region.buffer.dtype).bits,
-                1,
-            ],
-            thread_cnt=tx,
-        )
-    if vec_len is None:
-        return (False, "no valid vector length; check alignment/extents/thread-count")
-    return (True, None)
-
-
-def copy_default_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
-    """Schedule copy operation
-    The implementation serves as a fallback for copy operations that uses a single thread
-    to move data element by element.
-    """
-    op_call = TilePrimitiveCall.downcast(op_call)
-    dst_buffer_region, src_buffer_region = (op_call.dst, op_call.src)
-    src: Buffer = src_buffer_region.buffer
-    dst: Buffer = dst_buffer_region.buffer
-    src_st, src_extent = get_st_extent(src_buffer_region)
-    dst_st, dst_extent = get_st_extent(dst_buffer_region)
-
-    def copy(dst, src):
-        dst_indices = [i for i in range(len(dst.shape)) if dst_extent[i] != 1]
-        src_indices = [i for i in range(len(src.shape)) if src_extent[i] != 1]
-        assert len(dst_indices) == len(src_indices)
-        copy_extents = [dst_extent[i] for i in dst_indices]
-
-        def get_dst_coord(lvs):
-            if isinstance(lvs, tvm.tirx.Var):
-                lvs = [lvs]
-            coord = [dst_st[i] for i in range(len(dst.shape))]
-            for i, lv in enumerate(lvs):
-                coord[dst_indices[i]] += lv
-            return coord
-
-        def get_src_coord(lvs):
-            if isinstance(lvs, tvm.tirx.Var):
-                lvs = [lvs]
-            coord = [src_st[i] for i in range(len(src.shape))]
-            for i, lv in enumerate(lvs):
-                coord[src_indices[i]] += lv
-            return coord
-
-        with Tx.grid(*copy_extents) as lvs:
-            Tx.buffer_store(dst, src[tuple(get_src_coord(lvs))], get_dst_coord(lvs))
-
-    if sctx.is_cta:
-        tx = sctx.launch_params["threadIdx.x"].dom.extent
-        assert "threadIdx.y" not in sctx.launch_params and "threadIdx.z" not in sctx.launch_params
-
-        @Tx.prim_func(check_well_formed=False)
-        def impl():
-            for tid_x in Tx.thread_binding(tx, "threadIdx.x"):
-                if tid_x == 0:
-                    copy(dst, src)
-            if dst.scope().startswith("shared"):
-                Tx.tvm_storage_sync("shared")
-    elif sctx.is_thread:
-
-        @Tx.prim_func(check_well_formed=False)
-        def impl():
-            copy(dst, src)
-    else:
-        fail(f"unsupported exec_scope {sctx.scope_kind}")
-    return impl

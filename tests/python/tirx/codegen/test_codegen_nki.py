@@ -41,22 +41,22 @@ def test_nki_add_1():
     @Tx.prim_func
     def func(A: Tx.Buffer((128, 512)), B: Tx.Buffer((128, 512))):
         Tx.func_attr({"num_inputs": 1})
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-            B_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-            with Tx.attr(0, "tensorized_nki_instruction", 1):
-                for i in range(0, 128):
-                    for j in range(0, 512):
-                        Tx.nki.load(A_sbuf[i, j], A[i, j])
-            with Tx.attr(0, "tensorized_nki_instruction", 1):
-                for i in range(0, 128):
-                    for j in range(0, 512):
-                        Tx.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], Tx.float32(1.0), "add")
-            with Tx.attr(0, "tensorized_nki_instruction", 1):
-                for i in range(0, 128):
-                    for j in range(0, 512):
-                        Tx.nki.store(B[i, j], B_sbuf[i, j])
-    # fmt: on
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        with Tx.attr(0, "tensorized_nki_instruction", 1):
+            for i in range(0, 128):
+                for j in range(0, 512):
+                    Tx.nki.load(A_sbuf[i, j], A[i, j])
+        with Tx.attr(0, "tensorized_nki_instruction", 1):
+            for i in range(0, 128):
+                for j in range(0, 512):
+                    Tx.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], Tx.float32(1.0), "add")
+        with Tx.attr(0, "tensorized_nki_instruction", 1):
+            for i in range(0, 128):
+                for j in range(0, 512):
+                    Tx.nki.store(B[i, j], B_sbuf[i, j])
+        # fmt: on
     src = lower_and_get_source(func)
     print(src)
     expected = """# Function: func_kernel
@@ -95,24 +95,24 @@ def test_nki_add_2():
     @Tx.prim_func
     def func(A: Tx.Buffer((128, 2048)), B: Tx.Buffer((128, 2048))):
         Tx.func_attr({"num_inputs": 1})
-        with Tx.kernel():
-            A_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-            B_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-            for k in range(0, 4):
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for i in range(0, 128):
-                        for j in range(0, 512):
-                            Tx.nki.load(A_sbuf[i, j], A[i, 512*k+j])
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for i in range(0, 128):
-                        for j in range(0, 512):
-                            Tx.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], Tx.float32(1.0), "add")
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for i in range(0, 128):
-                        for j in range(0, 512):
-                            Tx.nki.store(B[i, 512*k+j], B_sbuf[i, j])
+        Tx.device_entry()
+        A_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = Tx.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        for k in range(0, 4):
+            with Tx.attr(0, "tensorized_nki_instruction", 1):
+                for i in range(0, 128):
+                    for j in range(0, 512):
+                        Tx.nki.load(A_sbuf[i, j], A[i, 512*k+j])
+            with Tx.attr(0, "tensorized_nki_instruction", 1):
+                for i in range(0, 128):
+                    for j in range(0, 512):
+                        Tx.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], Tx.float32(1.0), "add")
+            with Tx.attr(0, "tensorized_nki_instruction", 1):
+                for i in range(0, 128):
+                    for j in range(0, 512):
+                        Tx.nki.store(B[i, 512*k+j], B_sbuf[i, j])
 
-    # fmt: on
+        # fmt: on
     src = lower_and_get_source(func)
     print(src)
     expected = """# Function: func_kernel
@@ -175,7 +175,7 @@ def test_nki_matmul_1():
         result: Tx.buffer((M, N), "float16"),
     ):
         Tx.func_attr({"num_inputs": 2})
-        with Tx.kernel():
+        with Tx.thread():
             result_tiles = Tx.alloc_buffer(
                 (TILE_M, NUM_BLOCK_M, TILES_IN_BLOCK_M, TILES_IN_BLOCK_N, TILE_N),
                 "float32",

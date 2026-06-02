@@ -22,8 +22,8 @@ See the @register_dispatch blocks in each submodule for detailed documentation
 with before/after IR examples.
 """
 
-from .cp_async import *
 from .dsmem import *
+from .ldgsts import *
 from .tcgen05_cp import *
 from .tcgen05_ldst import *
 from .tma import *

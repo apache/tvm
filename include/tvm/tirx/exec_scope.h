@@ -38,13 +38,10 @@ namespace tirx {
  * \brief The target execution scope kind of an ExecScopeStmt.
  *
  * Replaces the string-keyed name of ExecScope. One value per user-facing
- * `with T.<kind>():` construct, plus ``kWorld`` for the cross-kernel root
- * scope used by axe-layout's ``pid`` axis. Ordered from coarsest to finest;
- * smaller integer = wider scope, so ``ScopeKindHigher`` is a plain ``<``.
+ * `with T.<kind>():` construct. Ordered from coarsest to finest; smaller
+ * integer = wider scope, so ``ScopeKindHigher`` is a plain ``<``.
  */
 enum class ScopeKind : int {
-  kWorld = 0,
-  kKernel = 1,
   kCluster = 2,
   kCta = 3,
   kWarpgroup = 4,
@@ -52,7 +49,7 @@ enum class ScopeKind : int {
   kThread = 6,
 };
 
-/*! \brief Convert a ScopeKind to its string name (e.g. kKernel -> "kernel"). */
+/*! \brief Convert a ScopeKind to its string name (e.g. kThread -> "thread"). */
 TVM_DLL std::string ScopeKindToString(ScopeKind kind);
 
 /*! \brief Parse a string name to a ScopeKind. FATAL if unknown. */
@@ -73,8 +70,8 @@ TVM_DLL ScopeKind StringToScopeKind(const ffi::String& name);
  *   kClusterCtaPair         -> hardware CTA pair id (cluster CTA rank % 2)
  *
  * Multi-axis (flat-thread) bindings -- linearize across two ActiveSet
- * axes; ``T.filter(var, lo, hi)`` cannot narrow them as a contiguous box
- * range, so they fall back to plain predicate semantics:
+ * axes; a flat ``lo <= var and var < hi`` predicate cannot narrow them as a
+ * contiguous box range, so they fall back to plain predicate semantics:
  *   kCtaThread       -> threadIdx.x within a CTA          (laneid * warpid)
  *   kWarpgroupThread -> threadIdx.x within a warpgroup    (laneid * wid_in_wg)
  */
@@ -212,19 +209,15 @@ TVM_DLL bool ScopeNameHigher(const ffi::String& a, const ffi::String& b);
 /******** Definition of Execution Scope ********/
 class ExecScopeNode : public ffi::Object {
  public:
-  ffi::Array<ScopeIdDef> scope_id_def;
-
   /*! \brief scope identity; one of the closed ScopeKind values. */
-  ScopeKind kind = ScopeKind::kKernel;
+  ScopeKind kind = ScopeKind::kThread;
 
   /*! \brief Human-readable name derived from ``kind`` (for printing / errors). */
   ffi::String name() const { return ScopeKindToString(kind); }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExecScopeNode>()
-        .def_ro("kind", &ExecScopeNode::kind)
-        .def_ro("scope_id_def", &ExecScopeNode::scope_id_def);
+    refl::ObjectDef<ExecScopeNode>().def_ro("kind", &ExecScopeNode::kind);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -234,10 +227,9 @@ class ExecScopeNode : public ffi::Object {
 class ExecScope : public ffi::ObjectRef {
  public:
   /*! \brief Construct from a ScopeKind (canonical). */
-  TVM_DLL explicit ExecScope(ScopeKind kind, ffi::Array<ScopeIdDef> scope_id_def = {});
+  TVM_DLL explicit ExecScope(ScopeKind kind);
   /*! \brief Construct from a name string (FATALs on unknown name). */
-  TVM_DLL explicit ExecScope(const ffi::String& name, ffi::Array<ScopeIdDef> scope_id_def = {})
-      : ExecScope(StringToScopeKind(name), std::move(scope_id_def)) {}
+  TVM_DLL explicit ExecScope(const ffi::String& name) : ExecScope(StringToScopeKind(name)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecScope, ffi::ObjectRef, ExecScopeNode);
 };

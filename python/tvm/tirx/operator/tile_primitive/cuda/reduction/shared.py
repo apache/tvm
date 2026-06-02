@@ -44,7 +44,7 @@ After (scheduled PrimFunc, group_size=8, spatial_par=4):
 (B) Thread scope -- sequential loop (_emit_reduction_shared_thread):
 
 Before:
-    if Tx.filter(tid, 65, 66):
+    if tid == 65:
         with Tx.thread():
             Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 

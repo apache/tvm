@@ -47,7 +47,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
     sctx : DispatchContext
         The dispatch context. Only ``sctx.scope_kind`` is consulted; the
         caller is responsible for having narrowed into the desired scope via an
-        ``if Tx.filter(...):`` guard before reaching here.
+        ``if`` guard with a canonical thread-filter predicate before reaching here.
     inner_impl : Tx.inline
         The body to execute inside the selected thread.
     macro : bool
@@ -83,7 +83,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
         def impl():
             warp_id = Tx.warp_id_in_wg([4])
             Tx.lane_id([32])
-            if Tx.filter(warp_id, 0, 1):
+            if warp_id == 0:
                 with Tx.warp():
                     if Tx.ptx.elect_sync():
                         with Tx.thread():
