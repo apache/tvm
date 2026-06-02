@@ -39,6 +39,7 @@ ALLOW_EXTENSION = {
     "mjs",
     "ts",
     "sh",
+    "bat",
     "py",
     # configurations
     "cfg",

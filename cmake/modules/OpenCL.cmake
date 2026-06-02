@@ -46,15 +46,7 @@ if(USE_OPENCL)
   add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
   target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime ${_opencl_libs})
-  set_target_properties(tvm_runtime_opencl PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  install(TARGETS tvm_runtime_opencl DESTINATION lib${LIB_SUFFIX})
-  if(TVM_BUILD_PYTHON_MODULE)
-    install(TARGETS tvm_runtime_opencl DESTINATION "lib")
-  endif()
+  tvm_configure_target_library(tvm_runtime_opencl RUNTIME_MODULE)
 
   if(USE_OPENCL_ENABLE_HOST_PTR)
     add_definitions(-DOPENCL_ENABLE_HOST_PTR)

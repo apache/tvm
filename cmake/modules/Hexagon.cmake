@@ -346,13 +346,5 @@ elseif(USE_HEXAGON)
   add_library(tvm_runtime_hexagon SHARED $<TARGET_OBJECTS:tvm_runtime_hexagon_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_hexagon)
   target_link_libraries(tvm_runtime_hexagon PUBLIC tvm_runtime)
-  set_target_properties(tvm_runtime_hexagon PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  )
-  install(TARGETS tvm_runtime_hexagon DESTINATION lib${LIB_SUFFIX})
-  if(TVM_BUILD_PYTHON_MODULE)
-    install(TARGETS tvm_runtime_hexagon DESTINATION "lib")
-  endif()
+  tvm_configure_target_library(tvm_runtime_hexagon RUNTIME_MODULE)
 endif()
