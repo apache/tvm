@@ -1824,7 +1824,7 @@ class Split(OnnxOpConverter):
             axis = attr.get("axis", 0)
             num_outputs = attr["tvm_custom"]["num_outputs"]
             indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
-        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, axis)
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -1847,7 +1847,7 @@ class Split(OnnxOpConverter):
             axis = attr.get("axis", 0)
             num_outputs = attr.get("num_outputs", attr["tvm_custom"]["num_outputs"])
             indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
-        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, axis)
 
 
 def get_prim_value_list(values):
