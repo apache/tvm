@@ -224,6 +224,7 @@ class OperatorConverter:
             "DIV": functools.partial(self._convert_elemwise, relax_op=_op.divide),
             "ELU": self.convert_elu,
             "EMBEDDING_LOOKUP": self.convert_embedding_lookup,
+            "EMBEDDING_LOOKUP_SPARSE": self.convert_embedding_lookup_sparse,
             "EQUAL": functools.partial(
                 self._convert_elemwise, relax_op=_op.equal, comparison_op=True
             ),
@@ -6338,6 +6339,123 @@ class OperatorConverter:
         else:
             indices = self.get_tensor_expr(indices_tensor)
         return relax.op.take(params, indices, axis=0)
+
+    def convert_embedding_lookup_sparse(self, op):
+        """Convert TFLite EMBEDDING_LOOKUP_SPARSE."""
+        from tflite.CombinerType import CombinerType
+        from tflite.EmbeddingLookupSparseOptions import EmbeddingLookupSparseOptions
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 5, "EMBEDDING_LOOKUP_SPARSE should have 5 input tensors"
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "EMBEDDING_LOOKUP_SPARSE should have 1 output tensor"
+
+        ids_tensor, indices_tensor, dense_shape_tensor, weights_tensor, params_tensor = (
+            input_tensors
+        )
+        output_tensor = output_tensors[0]
+
+        for tensor in input_tensors:
+            assert not tensor.qnn_params, "Quantized input is not expected."
+
+        assert ids_tensor.tensor.Type() == TensorType.INT32
+        assert indices_tensor.tensor.Type() == TensorType.INT32
+        assert dense_shape_tensor.tensor.Type() == TensorType.INT32
+        assert weights_tensor.tensor.Type() == TensorType.FLOAT32
+        assert params_tensor.tensor.Type() == TensorType.FLOAT32
+        assert output_tensor.tensor.Type() == TensorType.FLOAT32
+
+        ids_shape = to_int_list(self.get_tensor_shape(ids_tensor))
+        indices_shape = to_int_list(self.get_tensor_shape(indices_tensor))
+        dense_shape_shape = to_int_list(self.get_tensor_shape(dense_shape_tensor))
+        weights_shape = to_int_list(self.get_tensor_shape(weights_tensor))
+        params_shape = to_int_list(self.get_tensor_shape(params_tensor))
+
+        assert len(ids_shape) == 1, "EMBEDDING_LOOKUP_SPARSE ids must be rank 1"
+        assert len(indices_shape) == 2, "EMBEDDING_LOOKUP_SPARSE indices must be rank 2"
+        assert len(dense_shape_shape) == 1, "EMBEDDING_LOOKUP_SPARSE dense_shape must be rank 1"
+        assert len(weights_shape) == 1, "EMBEDDING_LOOKUP_SPARSE weights must be rank 1"
+        assert len(params_shape) >= 2, "EMBEDDING_LOOKUP_SPARSE params must be rank >= 2"
+        assert indices_shape[0] == ids_shape[0], (
+            "EMBEDDING_LOOKUP_SPARSE ids and indices must agree on lookup count"
+        )
+        assert weights_shape[0] == ids_shape[0], (
+            "EMBEDDING_LOOKUP_SPARSE ids and weights must agree on lookup count"
+        )
+
+        if self.has_expr(dense_shape_tensor.tensor_idx):
+            raise tvm.error.OpNotImplemented(
+                "TFLite EMBEDDING_LOOKUP_SPARSE with runtime dense_shape is not supported."
+            )
+
+        dense_shape = to_int_list(self.get_tensor_value(dense_shape_tensor))
+        lookup_rank = indices_shape[1]
+        assert len(dense_shape) == lookup_rank, (
+            "EMBEDDING_LOOKUP_SPARSE dense_shape length must match indices width"
+        )
+        assert lookup_rank >= 1, "EMBEDDING_LOOKUP_SPARSE indices width must be positive"
+        if not self.has_expr(ids_tensor.tensor_idx):
+            ids_value = self.get_tensor_value(ids_tensor)
+            if np.any(ids_value < 0):
+                raise tvm.error.OpNotImplemented(
+                    "TFLite EMBEDDING_LOOKUP_SPARSE with negative ids is not supported."
+                )
+
+        params = self.get_tensor_expr(params_tensor)
+        ids = self.get_tensor_expr(ids_tensor)
+        weights = self.get_tensor_expr(weights_tensor)
+        indices = self.get_tensor_expr(indices_tensor)
+
+        ids = relax.op.astype(ids, "int32")
+        lookup = relax.op.take(params, ids, axis=0)
+
+        embedding_tail_shape = params_shape[1:]
+        output_prefix_shape = dense_shape[:-1]
+        output_shape = output_prefix_shape + embedding_tail_shape
+
+        # Aggregation buckets are defined by every sparse index dimension except the last one.
+        bucket_indices = relax.op.strided_slice(indices, axes=[1], begin=[0], end=[lookup_rank - 1])
+
+        weight_expand_shape = [ids_shape[0]] + [1] * len(embedding_tail_shape)
+        weighted_lookup = relax.op.multiply(lookup, relax.op.reshape(weights, weight_expand_shape))
+
+        value_base = relax.const(np.zeros(output_shape, dtype=np.float32), "float32")
+        summed_lookup = relax.op.scatter_nd(value_base, bucket_indices, weighted_lookup, "add")
+
+        op_options = op.BuiltinOptions()
+        sparse_options = EmbeddingLookupSparseOptions()
+        sparse_options.Init(op_options.Bytes, op_options.Pos)
+        combiner = sparse_options.Combiner()
+        if combiner == CombinerType.SUM:
+            return summed_lookup
+
+        count_shape = output_prefix_shape
+        count_base = relax.const(np.zeros(count_shape, dtype=np.float32), "float32")
+        bucket_count_updates = relax.const(np.ones(ids_shape, dtype=np.float32), "float32")
+        bucket_counts = relax.op.scatter_nd(count_base, bucket_indices, bucket_count_updates, "add")
+        if combiner == CombinerType.MEAN:
+            denominator_updates = weights
+        elif combiner == CombinerType.SQRTN:
+            denominator_updates = relax.op.multiply(weights, weights)
+        else:
+            raise tvm.error.OpNotImplemented(
+                f"Unsupported TFLite EMBEDDING_LOOKUP_SPARSE combiner value {combiner}"
+            )
+
+        denominator = relax.op.scatter_nd(count_base, bucket_indices, denominator_updates, "add")
+        if combiner == CombinerType.SQRTN:
+            denominator = relax.op.sqrt(denominator)
+
+        broadcast_shape = count_shape + [1] * len(embedding_tail_shape)
+        denominator = relax.op.reshape(denominator, broadcast_shape)
+        denominator = relax.op.broadcast_to(denominator, output_shape)
+        normalized = relax.op.divide(summed_lookup, denominator)
+        bucket_counts = relax.op.reshape(bucket_counts, broadcast_shape)
+        bucket_counts = relax.op.broadcast_to(bucket_counts, output_shape)
+        return relax.op.where(
+            relax.op.greater(bucket_counts, relax.const(0.0, "float32")), normalized, value_base
+        )
 
     def convert_batch_matmul(self, op):
         """batch_matmul implementation."""
