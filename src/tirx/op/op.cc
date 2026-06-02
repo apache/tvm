@@ -96,6 +96,15 @@ Type GetType(const PrimExpr& expr) {
           << "to be a type annotation, but found " << type_annotation->op;
       return PointerType(PrimType(type_annotation->dtype));
     }
+    if (access->op.same_as(builtin::ptr_byte_offset())) {
+      TVM_FFI_ICHECK_EQ(access->args.size(), 3U);
+      auto type_annotation = Downcast<Call>(access->args[2]);
+      static auto builtin_op = Op::Get("tirx.type_annotation");
+      TVM_FFI_ICHECK(type_annotation->op.same_as(builtin_op))
+          << "Expected the third argument of builtin ptr_byte_offset() "
+          << "to be a type annotation, but found " << type_annotation->op;
+      return PointerType(PrimType(type_annotation->dtype));
+    }
   }
 
   if (auto* address_of = expr.as<tirx::CallNode>()) {

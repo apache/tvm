@@ -28,11 +28,7 @@ def test_exec_scope_create():
     wg = ExecScope("warpgroup")
     cta = ExecScope("cta")
     cluster = ExecScope("cluster")
-    kernel = ExecScope("kernel")
-    world = ExecScope("world")
 
-    assert is_trivial_scope(world, "world")
-    assert is_trivial_scope(kernel, "kernel")
     assert is_trivial_scope(thread, "thread")
     assert is_trivial_scope(warp, "warp")
     assert is_trivial_scope(wg, "warpgroup")

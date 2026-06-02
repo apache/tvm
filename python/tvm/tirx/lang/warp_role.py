@@ -99,7 +99,7 @@ class WarpgroupRole:
 
     Generates (range of wg_ids, e.g. ``wg_id_val=(0, 2)``)::
 
-        if Tx.filter(<wg_id_var>, 0, 2):
+        if 0 <= <wg_id_var> and <wg_id_var> < 2:
             with Tx.warpgroup():
                 Tx.ptx.setmaxnreg(<increase>, <regs>)
                 <user code>
@@ -126,7 +126,7 @@ class WarpgroupRole:
     def __enter__(self):
         if isinstance(self.wg_id_val, tuple):
             start, stop = self.wg_id_val
-            self._if_frame = Tx.If(Tx.filter(self.wg_id_var, start, stop))
+            self._if_frame = Tx.If(start <= self.wg_id_var and self.wg_id_var < stop)
         else:
             self._if_frame = Tx.If(self.wg_id_var == self.wg_id_val)
         self._if_frame.__enter__()

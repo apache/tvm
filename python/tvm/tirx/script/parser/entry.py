@@ -211,6 +211,164 @@ def inline(*args, definition_depth: int | None = None, defining_var_table=None) 
 setattr(inline, "dispatch_token", "tir.inline")
 
 
+class TIRJit:
+    """Top-level kernel decorator with constexpr params + ``.specialize()``.
+
+    Parses the function body lazily: parsing is deferred until ``.specialize()``
+    supplies concrete values for the params annotated as ``Tx.constexpr``. The
+    return type of ``.specialize()`` is a ``tvm.tirx.PrimFunc``, identical in
+    type to what ``@Tx.prim_func`` produces today.
+
+    Constexpr params are removed from the resulting PrimFunc's parameter list;
+    their values are baked into the IR (e.g. into ``Tx.Buffer((M, K), ...)``
+    shape annotations and into the body).
+    """
+
+    def __init__(
+        self,
+        func: Callable,
+        check_well_formed: bool = True,
+        is_stir: bool = False,
+        persistent: bool = False,
+        private: bool = False,
+    ) -> None:
+        self.func = func
+        self.check_well_formed = check_well_formed
+        self.is_stir = is_stir
+        self.persistent = persistent  # pylint: disable=unused-private-member
+        self.private = private  # pylint: disable=unused-private-member
+        # Resolved closure vars (computed once; the function itself is the
+        # capture point, so this never changes between specializations).
+        self._closure_vars: dict[str, Any] = utils.inspect_function_capture(func)
+        # Detect which params are marked Tx.constexpr. With PEP 563
+        # (``from __future__ import annotations``), each annotation is a
+        # string; we eval them one-by-one so a constexpr probe is not
+        # blocked by sibling annotations that reference yet-undefined names
+        # (e.g. ``A: Tx.Buffer((N,), ...)`` referencing constexpr ``N``).
+        raw_anns = getattr(func, "__annotations__", {}) or {}
+        eval_globals = {**func.__globals__, **self._closure_vars}
+        sig = inspect.signature(func)
+        constexpr_names: set[str] = set()
+        constexpr_defaults: dict[str, Any] = {}
+        for name, param in sig.parameters.items():
+            ann = raw_anns.get(name)
+            if isinstance(ann, str):
+                try:
+                    ann = eval(ann, eval_globals)  # pylint: disable=eval-used
+                except Exception:  # pylint: disable=broad-except
+                    ann = None
+            if ann is constexpr:
+                constexpr_names.add(name)
+                if param.default is not inspect.Parameter.empty:
+                    constexpr_defaults[name] = param.default
+        self.constexpr_names: frozenset[str] = frozenset(constexpr_names)
+        self.constexpr_defaults: dict[str, Any] = constexpr_defaults
+        self._cache: dict[tuple, PrimFunc] = {}
+
+    def specialize(self, **constexpr_kwargs) -> PrimFunc:
+        """Build a concrete PrimFunc by binding the constexpr params.
+
+        Parameters
+        ----------
+        **constexpr_kwargs
+            One value per ``Tx.constexpr``-annotated parameter. All such
+            parameters must be supplied; passing names that are not
+            constexpr-annotated is an error.
+
+        Returns
+        -------
+        PrimFunc
+            A concrete TIRx PrimFunc, identical in type to the output of
+            ``@Tx.prim_func``.
+        """
+        extra = constexpr_kwargs.keys() - self.constexpr_names
+        if extra:
+            raise TypeError(
+                f"{self.func.__name__}.specialize() got unexpected arg(s): "
+                f"{sorted(extra)} (constexpr params are: {sorted(self.constexpr_names)})"
+            )
+        effective = {**self.constexpr_defaults, **constexpr_kwargs}
+        missing = self.constexpr_names - effective.keys()
+        if missing:
+            raise TypeError(
+                f"{self.func.__name__}.specialize() missing constexpr arg(s) "
+                f"(no default provided): {sorted(missing)}"
+            )
+
+        try:
+            cache_key = tuple(sorted(effective.items()))
+            cached = self._cache.get(cache_key)
+        except TypeError as err:
+            raise TypeError(
+                f"{self.func.__name__}.specialize(): all constexpr values must "
+                f"be hashable (got: {effective!r})"
+            ) from err
+        if cached is not None:
+            return cached
+
+        extra_vars = {**self._closure_vars, **effective}
+        prim_func = parse(
+            self.func,
+            extra_vars,
+            check_well_formed=self.check_well_formed,
+            s_tir=self.is_stir,
+        )
+        setattr(prim_func, "__name__", self.func.__name__)
+        self._cache[cache_key] = prim_func
+        return prim_func
+
+
+def jit(
+    func: Callable | None = None,
+    private: bool = False,
+    check_well_formed: bool = True,
+    is_stir: bool = False,
+    persistent: bool = False,
+) -> "TIRJit | Callable":
+    """Decorator: capture the kernel and defer parsing until ``.specialize()``.
+
+    Use ``@Tx.jit`` (instead of ``@Tx.prim_func``) when the kernel takes
+    compile-time parameters annotated with ``Tx.constexpr``. The resulting
+    object exposes ``.specialize(**constexpr_kwargs)``, which returns a
+    ``tvm.tirx.PrimFunc``.
+
+    Example::
+
+        from tvm.script import tirx as Tx
+
+        @Tx.jit
+        def add(
+            A: Tx.Buffer((N,), "float32"),
+            B: Tx.Buffer((N,), "float32"),
+            *,
+            N: Tx.constexpr,
+        ):
+            with Tx.thread():
+                ...
+
+        kernel = add.specialize(N=1024)  # returns a PrimFunc
+    """
+
+    def decorator_wrapper(func: Callable) -> TIRJit:
+        if not inspect.isfunction(func):
+            raise TypeError(f"Expect a function, but got: {func}")
+        return TIRJit(
+            func,
+            check_well_formed=check_well_formed,
+            is_stir=is_stir,
+            persistent=persistent,
+            private=private,
+        )
+
+    if func is not None:
+        return decorator_wrapper(func)
+    setattr(decorator_wrapper, "dispatch_token", "tirx")
+    return decorator_wrapper
+
+
+setattr(jit, "dispatch_token", "tirx")
+
+
 class TIRMacro(ScriptMacro):
     """Specialization of the ScriptMacro class for TIR.
 
@@ -342,5 +500,22 @@ class PtrProxy:
         return self(*keys)
 
 
+class _ConstexprProxy:
+    """Sentinel marker for compile-time (specialization-time) parameters.
+
+    Used as a parameter annotation in ``@Tx.jit`` decorated functions to mark
+    a parameter as constexpr — its value is supplied to ``.specialize(**kwargs)``
+    rather than at call time, and it is removed from the generated PrimFunc's
+    runtime parameter list.
+    """
+
+    def __or__(self, other):
+        return self
+
+    def __ror__(self, other):
+        return self
+
+
 Buffer = BufferProxy()  # pylint: disable=invalid-name
 Ptr = PtrProxy()  # pylint: disable=invalid-name
+constexpr = _ConstexprProxy()  # pylint: disable=invalid-name

@@ -671,10 +671,11 @@ def create_test_statements():
     # TilePrimitiveCall — extract the TilePrimitiveCall from the kernel body, then wrap in an SBlock
     @Tx.prim_func
     def op_call(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        with Tx.kernel():
-            Tx.add(A, B, 1.0)
+        Tx.device_entry()
+        Tx.add(A, B, 1.0)
 
-    # op_call.body is ExecScopeStmt, op_call.body.body is TilePrimitiveCall
+        # op_call.body is ExecScopeStmt, op_call.body.body is TilePrimitiveCall
+
     op_call_stmt = op_call.body.body
     op_call_block = tir.SBlock([], [], [], "op_call_block", op_call_stmt)
 
@@ -1093,8 +1094,8 @@ def test_op_call_config_visited():
 
     @Tx.prim_func
     def op_call_with_config(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        with Tx.kernel():
-            Tx.add(A, B, 1.0)
+        Tx.device_entry()
+        Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
     assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
@@ -1125,8 +1126,8 @@ def test_op_call_config_mutated():
 
     @Tx.prim_func
     def op_call_with_config(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        with Tx.kernel():
-            Tx.add(A, B, 1.0)
+        Tx.device_entry()
+        Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
     assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)

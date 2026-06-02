@@ -16,4 +16,4 @@
 # under the License.
 """Re-export from canonical location."""
 
-from tvm.tirx.lang.alloc_pool import TMEMPool, TMEMRegion  # noqa: F401
+from tvm.tirx.lang.alloc_pool import TMEMPool, TMEMStages  # noqa: F401

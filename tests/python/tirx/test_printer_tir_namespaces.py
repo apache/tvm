@@ -60,10 +60,12 @@ def test_printer_ptx_more():
         's = Tx.handle()\nr = Tx.handle()\nTx.ptx.ldmatrix("void", Tx.bool(True), 1, ".b16", s, r)',
     )
     _assert_print(
-        tir.op.ptx_stmatrix(s, r, num=1, trans=False),
+        # New API: (trans, num, dtype, smem_ptr, *src_handles).
+        # .x1.b16 has 1 src register, so 1 src handle.
+        tir.op.ptx_stmatrix(False, 1, ".b16", s, r),
         (
             "s = Tx.handle()\nr = Tx.handle()\nTx.ptx.stmatrix("
-            '1, Tx.bool(False), "m8n8", "b16", "shared", s, r)'
+            'Tx.bool(False), 1, ".b16", "m8n8", "shared", s, r)'
         ),
     )
     _assert_print(tir.op.ptx_setmaxnreg(True, 64), "Tx.ptx.setmaxnreg(Tx.bool(True), 64)")
@@ -357,8 +359,8 @@ def test_printer_ptx_mma_and_wgmma():
     a = tir.Var("a", "handle")
     tir.Var("b", "handle")
     _assert_print(
-        tir.op.ptx_mma("m8n8k4", "row", "row", "fp16", "fp16", "fp16", "fp16", r, r, r, 0, False),
-        'r = Tx.handle()\nTx.ptx.mma("void", "m8n8k4", "row", "row", "fp16", "fp16", "fp16", "fp16", r, r, r, 0, Tx.bool(False))',  # noqa: E501
+        tir.op.ptx_mma("m8n8k4", "row", "row", "fp16", "fp16", "fp16", "fp16", [r], [r], [r]),
+        'r = Tx.handle()\nTx.ptx.mma("void", "m8n8k4", "row", "row", "fp16", "fp16", "fp16", "fp16", 1, 1, 1, 0, Tx.bool(True), r, r, r, Tx.bool(False))',  # noqa: E501
     )
     _assert_print(
         tir.op.ptx_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),

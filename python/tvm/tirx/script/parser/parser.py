@@ -34,6 +34,7 @@ from tvm.tirx.script import builder as T
 from tvm.tirx.script.builder.ir import name_meta_class_value
 from tvm.tirx.stmt import BufferRegion
 
+from .entry import constexpr as _constexpr_sentinel
 from .entry import inline
 
 
@@ -241,9 +242,9 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
     Check the value of given annotation (argument name) in the prim_func decorator.
     Returns the value of the annotation if present, otherwise giving the default value.
     """
-    # look for the named argument in the prim_func decorator
+    # look for the named argument in the prim_func / jit decorator
     for dec in node.decorator_list:
-        if not isinstance(dec, doc.Call) or dec.func.attr != "prim_func":
+        if not isinstance(dec, doc.Call) or dec.func.attr not in ("prim_func", "jit"):
             continue
         for keyword in dec.keywords:
             if keyword.arg == annotation:
@@ -633,12 +634,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         self.report_error(arg, "Type annotation required for function parameters.")
                     try:
                         ann = self.eval_expr(arg.annotation)
-                        if callable(ann):
+                        if callable(ann) and ann is not _constexpr_sentinel:
                             ann = ann()
                     except Exception:  # pylint: disable=broad-except
                         ann = func_annotation.get(arg.arg, None)
                         if ann is None:
                             raise
+                    if ann is _constexpr_sentinel:
+                        # Tx.constexpr param: value was bound in extra_vars by
+                        # TIRJit.specialize() and lives in an outer var_table
+                        # frame; do not register a runtime PrimFunc param.
+                        continue
                     param = T.arg(arg.arg, ann)
                     self.var_table.add(arg.arg, param)
                 self.visit_body(node.body)

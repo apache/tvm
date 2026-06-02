@@ -200,12 +200,11 @@ void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call) { AddToParent(op_ca
 ExecScopeFrame ExecScopeBlock(ffi::String exec_scope_name, ffi::Array<PrimExpr> guards) {
   ffi::ObjectPtr<ExecScopeFrameNode> n = ffi::make_object<ExecScopeFrameNode>();
   TVM_FFI_ICHECK(!exec_scope_name.empty()) << "InternalError: exec_scope_name must not be empty";
-  n->exec_scope = tvm::tirx::ExecScope(exec_scope_name, {});
+  n->exec_scope = tvm::tirx::ExecScope(exec_scope_name);
   n->guards = std::move(guards);
   return ExecScopeFrame(n);
 }
 
-ExecScopeFrame Kernel(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("kernel", guards); }
 ExecScopeFrame Cluster(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("cluster", guards); }
 ExecScopeFrame WarpGroup(ffi::Array<PrimExpr> guards) {
   return ExecScopeBlock("warpgroup", guards);
@@ -216,12 +215,6 @@ ExecScopeFrame Thread(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("thre
 
 ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
                                    ffi::String name, ffi::String cur) {
-  ffi::Optional<ExecScopeFrame> es_frame = IRBuilder::Current()->FindFrame<ExecScopeFrame>();
-  TVM_FFI_ICHECK(es_frame.defined())
-      << "InternalError: " << name << " must be called inside an execution scope, "
-      << "but no ExecScopeFrame was found";
-  auto exec_scope = es_frame.value()->exec_scope;
-  TVM_FFI_ICHECK(exec_scope.defined()) << "InternalError: ExecScopeFrame has no exec_scope";
   // Determine the number of Vars to introduce. Deferred form (extents=None)
   // is always 1-axis; the verifier closure fills the extent at LowerTIRx.
   size_t n_vars = extents.has_value() ? extents.value().size() : 1;
@@ -233,9 +226,11 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   for (size_t i = 0; i < n_vars; ++i) {
     scope_ids.push_back(tvm::tirx::Var(""));
   }
-  const_cast<tvm::tirx::ExecScopeNode*>(exec_scope.value().as<tvm::tirx::ExecScopeNode>())
-      ->scope_id_def.push_back(tvm::tirx::ScopeIdDef(
-          scope_ids, extents, tvm::tirx::StringPairToScopeBinding(parent, cur)));
+  // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
+  // The def is visible to all subsequent stmts within the same enclosing
+  // scope (PrimFunc body, AttrStmt body, ExecScope body, etc.).
+  tvm::tirx::ScopeIdDef def(scope_ids, extents, tvm::tirx::StringPairToScopeBinding(parent, cur));
+  AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
 
@@ -252,36 +247,23 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
         << "\"";
     TVM_FFI_ICHECK(extents.has_value())
         << "ValueError: preferred=... requires explicit extents (deferred form is incompatible)";
-    ffi::Optional<ExecScopeFrame> es_frame = IRBuilder::Current()->FindFrame<ExecScopeFrame>();
-    TVM_FFI_ICHECK(es_frame.defined())
-        << "InternalError: T.cta_id must be called inside an execution "
-           "scope, but no ExecScopeFrame was found";
-    auto exec_scope = es_frame.value()->exec_scope;
-    TVM_FFI_ICHECK(exec_scope.defined()) << "InternalError: ExecScopeFrame has no exec_scope";
     ffi::Array<tvm::tirx::Var> scope_ids;
     for (size_t i = 0; i < extents.value().size(); ++i) {
       scope_ids.push_back(tvm::tirx::Var(""));
     }
-    const_cast<tvm::tirx::ExecScopeNode*>(exec_scope.value().as<tvm::tirx::ExecScopeNode>())
-        ->scope_id_def.push_back(tvm::tirx::ScopeIdDef(
-            scope_ids, extents, tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred));
+    tvm::tirx::ScopeIdDef def(scope_ids, extents,
+                              tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred);
+    AddToParent(tvm::tirx::ScopeIdDefStmt(def));
     return scope_ids;
   }
   return ScopeId(extents, parent, "T.cta_id", "cta");
 }
 
 ffi::Array<tvm::tirx::Var> CtaIdInPair() {
-  ffi::Optional<ExecScopeFrame> es_frame = IRBuilder::Current()->FindFrame<ExecScopeFrame>();
-  TVM_FFI_ICHECK(es_frame.defined())
-      << "InternalError: T.cta_id_in_pair must be called inside an execution "
-         "scope, but no ExecScopeFrame was found";
-  auto exec_scope = es_frame.value()->exec_scope;
-  TVM_FFI_ICHECK(exec_scope.defined()) << "InternalError: ExecScopeFrame has no exec_scope";
   ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::Var("")};
-  const_cast<tvm::tirx::ExecScopeNode*>(exec_scope.value().as<tvm::tirx::ExecScopeNode>())
-      ->scope_id_def.push_back(
-          tvm::tirx::ScopeIdDef(scope_ids, ffi::Array<PrimExpr>{IntImm(DataType::Int(32), 2)},
-                                tvm::tirx::ScopeBinding::kClusterCtaPair));
+  tvm::tirx::ScopeIdDef def(scope_ids, ffi::Array<PrimExpr>{IntImm(DataType::Int(32), 2)},
+                            tvm::tirx::ScopeBinding::kClusterCtaPair);
+  AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
 
@@ -682,6 +664,34 @@ AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
   return AttrFrame(n);
 }
 
+AttrFrame DeviceEntry() {
+  // Flat marker: open an AttrFrame keyed ``tirx.device_entry`` with
+  // ``Bool(true)`` value. Subsequent stmts within the enclosing PrimFunc
+  // body accumulate into this frame's body. The Python wrapper auto-calls
+  // ``__enter__`` so users write a flat ``Tx.device_entry()`` (no ``with``).
+  // To close the AttrFrame at function end, register a callback on the
+  // enclosing PrimFuncFrame: ``IRBuilderFrameNode::ExitWithScope`` runs
+  // callbacks before popping itself, so the AttrFrame is closed and its
+  // emitted ``AttrStmt`` lands in the PrimFunc's body sequence.
+  AttrFrame frame = Attr(IntImm(DataType::Int(32), 0), ffi::String(tvm::tirx::attr::kDeviceEntry),
+                         IntImm(DataType::Bool(), 1));
+  IRBuilder builder = IRBuilder::Current();
+  ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
+  TVM_FFI_ICHECK(pf_frame.defined())
+      << "Tx.device_entry() must be called inside a @Tx.prim_func body";
+  // Capture the AttrFrame by ObjectRef value so the lambda holds a strong
+  // reference while the callback runs. Without this, the only reference is
+  // the IRBuilder frame stack; ``ExitWithScope`` pops itself first and the
+  // AttrFrameNode would be destroyed mid-method (before the body-wrapping
+  // AddToParent runs).
+  AttrFrame frame_ref = frame;
+  pf_frame.value()->callbacks.push_back([frame_ref]() {
+    const_cast<IRBuilderFrameNode*>(static_cast<const IRBuilderFrameNode*>(frame_ref.get()))
+        ->ExitWithScope();
+  });
+  return frame;
+}
+
 WhileFrame While(PrimExpr condition) {
   ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>();
   n->condition = condition;
@@ -954,7 +964,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Block", Block)
       .def("script.ir_builder.tirx.ExecScopeBlock", ExecScopeBlock)
       .def("script.ir_builder.tirx.TilePrimitiveCall", TilePrimitiveCall)
-      .def("script.ir_builder.tirx.Kernel", Kernel)
       .def("script.ir_builder.tirx.Cluster", Cluster)
       .def("script.ir_builder.tirx.CTA", CTA)
       .def("script.ir_builder.tirx.WarpGroup", WarpGroup)
@@ -1006,6 +1015,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Assert", Assert)
       .def("script.ir_builder.tirx.Bind", Bind)
       .def("script.ir_builder.tirx.Attr", Attr)
+      .def("script.ir_builder.tirx.DeviceEntry", DeviceEntry)
       .def("script.ir_builder.tirx.While", While)
       .def("script.ir_builder.tirx.Break", Break)
       .def("script.ir_builder.tirx.Continue", Continue)

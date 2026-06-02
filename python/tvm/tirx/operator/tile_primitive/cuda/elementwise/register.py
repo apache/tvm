@@ -15,70 +15,47 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Register every elementwise op x 3 schedules.
+"""Register each op in ``ALL_OPS`` for both dispatch variants (``reg``, ``smem``).
 
-Loops over ``ALL_OPS`` once; no per-arity buckets, no per-op code.
+Mirrors copy PR-640's two-variant model: scope-pair drives the dispatch
+selection, the underlying algorithm (induced vs synthesized) follows.
 """
 
 from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
-from ._common import match_all_scope
-from .schedule_collective_reg import emit_tile_local, validate_tile_local
-from .schedule_collective_smem import emit_shared, validate_shared
-from .schedule_thread import emit_per_thread, validate_per_thread
-from .schema import ALL_OPS, OpSpec
+from .ops import ALL_OPS
+from .reg import emit_reg, is_reg_ewise
+from .smem import emit_smem, is_smem_ewise
 
 
-def _register_per_thread(spec: OpSpec) -> None:
+def _register_reg(spec) -> None:
     @register_dispatch(
         spec.name,
         "cuda",
-        variant="per_thread",
+        variant="reg",
         priority=10,
-        when=[
-            predicate("storage_scope", match_all_scope, expected_scope=["local"]),
-            predicate("per_thread_valid", validate_per_thread(spec)),
-        ],
+        when=[predicate(f"{spec.name}_reg", is_reg_ewise(spec))],
     )
     def _dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _spec=spec) -> PrimFunc:
-        return emit_per_thread(op, _spec, sctx)
+        return emit_reg(op, _spec, sctx)
 
 
-def _register_tile_local(spec: OpSpec) -> None:
+def _register_smem(spec) -> None:
     @register_dispatch(
         spec.name,
         "cuda",
-        variant="tile_local",
+        variant="smem",
         priority=10,
-        when=[
-            predicate("storage_scope", match_all_scope, expected_scope=["local"]),
-            predicate("tile_local_valid", validate_tile_local(spec)),
-        ],
+        when=[predicate(f"{spec.name}_smem", is_smem_ewise(spec))],
     )
     def _dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _spec=spec) -> PrimFunc:
-        return emit_tile_local(op, _spec, sctx)
-
-
-def _register_shared(spec: OpSpec) -> None:
-    @register_dispatch(
-        spec.name,
-        "cuda",
-        variant="shared_distributed",
-        priority=10,
-        when=[
-            predicate("storage_scope", match_all_scope, expected_scope=["shared*"]),
-            predicate("shared_valid", validate_shared(spec)),
-        ],
-    )
-    def _dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _spec=spec) -> PrimFunc:
-        return emit_shared(op, _spec, sctx)
+        return emit_smem(op, _spec, sctx)
 
 
 for _spec in ALL_OPS.values():
-    _register_per_thread(_spec)
-    _register_tile_local(_spec)
-    _register_shared(_spec)
+    _register_reg(_spec)
+    _register_smem(_spec)
 
 
 __all__: list[str] = []

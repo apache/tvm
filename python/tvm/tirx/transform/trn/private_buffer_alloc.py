@@ -59,13 +59,26 @@ class PrivateAllocCollector(StmtVisitor):
         super().visit_for_(op)
 
     def visit_op_call_(self, op: TilePrimitiveCall):
+        # Mirror tile_primitive_dispatch.cc: at the device-region root,
+        # dispatchers see scope_kind="kernel" so trn dispatchers that key
+        # off "kernel" continue to fire at the entry.
+        from tvm.tirx.exec_scope import ExecScope
+
+        if not self.exec_scope_stack_:
+            # Inside AttrStmt(kDeviceEntry) with no inner ExecScope.
+            # Provide a placeholder ExecScope (not load-bearing for trn).
+            scope_kind = "kernel"
+            exec_scope = ExecScope("thread")
+        else:
+            scope_kind = self.exec_scope_stack_[-1].name
+            exec_scope = self.exec_scope_stack_[-1]
         sctx = DispatchContext(
             target=self.target,
-            exec_scope=self.exec_scope_stack_[-1],
+            exec_scope=exec_scope,
             launch_params=self.launch_params,
             var_range_map=self.var_range_map,
             alloc_only=True,
-            scope_kind=self.exec_scope_stack_[-1].name,
+            scope_kind=scope_kind,
         )
         op = TilePrimitiveCall.downcast(op)
         private_buf_refs = op.get_private_buffers(self.buffer_dict, sctx)
@@ -85,18 +98,22 @@ class PrivateAllocMutator(StmtMutator):
         self.added_workspace = added_workspace
         self.is_outer_block = True
 
-    def visit_exec_scope_stmt_(self, op: ExecScopeStmt):
-        is_outer_block = self.is_outer_block
-        self.is_outer_block = False
-        op = super().visit_exec_scope_stmt_(op)
-        if is_outer_block:
-            body = op.body
-            for stmt in self.init_stmts:
-                body = seek_kernel_replace_point(stmt, body)
-            for buffer in reversed(self.alloc_buffers):
-                body = SeqStmt([AllocBuffer(buffer), body])
-            return ExecScopeStmt(op.exec_scope, body)
-        return op
+    def visit_attr_(self, op: AttrStmt):
+        # AttrStmt(kDeviceEntry) marks the device-region root: inject the
+        # collected init stmts + alloc_buffers into its body.
+        if op.attr_key == "tirx.device_entry":
+            is_outer_block = self.is_outer_block
+            self.is_outer_block = False
+            op = super().visit_attr_(op)
+            if is_outer_block:
+                body = op.body
+                for stmt in self.init_stmts:
+                    body = seek_kernel_replace_point(stmt, body)
+                for buffer in reversed(self.alloc_buffers):
+                    body = SeqStmt([AllocBuffer(buffer), body])
+                return AttrStmt(op.node, op.attr_key, op.value, body)
+            return op
+        return super().visit_attr_(op)
 
     def visit_op_call_(self, op):
         if op not in self.added_workspace:

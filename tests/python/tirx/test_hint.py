@@ -34,7 +34,7 @@ def test_hint_statement():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -64,7 +64,7 @@ def test_hint_context_manager():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -92,7 +92,7 @@ def test_hint_with_attrs():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -122,7 +122,7 @@ def test_hint_printer_roundtrip_statement():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -144,7 +144,7 @@ def test_hint_printer_roundtrip_context_manager():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -166,7 +166,7 @@ def test_hint_printer_roundtrip_with_attrs():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -210,7 +210,7 @@ def test_hint_keyword_arg_on_tx_op_roundtrip():
     def func(A_ptr: T.handle, B_ptr: T.handle):
         A = T.match_buffer(A_ptr, [10], "float32", scope="global")
         B = T.match_buffer(B_ptr, [10], "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             Tx.add(B, A, T.float32(1), hint="use_fast_math")
 
     code = func.script()
@@ -226,7 +226,7 @@ def test_hint_no_message():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([1, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])
@@ -259,7 +259,7 @@ def test_hint_access_buffer_region():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         A = T.match_buffer(A_ptr, (128, 64), "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             bx, by, bz = T.cta_id([2, 1, 1])
             warp_id = T.warp_id([1])
             lane_id = T.lane_id([32])

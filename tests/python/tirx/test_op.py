@@ -97,7 +97,7 @@ def test_tx_dynamic_op_in_prim_func():
     def func(A_ptr: T.handle, B_ptr: T.handle):
         A = T.match_buffer(A_ptr, [64], "float32", scope="global")
         B = T.match_buffer(B_ptr, [64], "float16", scope="global")
-        with T.kernel():
+        with T.thread():
             Tx.copy_and_cast(B, A)
 
     # Walk IR to find TilePrimitiveCall with op="tirx.copy_and_cast"
@@ -119,7 +119,7 @@ def test_tx_dynamic_op_with_workspace():
         A = T.match_buffer(A_ptr, [64], "float32", scope="global")
         B = T.match_buffer(B_ptr, [64], "float32", scope="global")
         W = T.match_buffer(W_ptr, [64], "float32", scope="shared")
-        with T.kernel():
+        with T.thread():
             Tx.custom_with_ws(B, A, workspace={"tmp": W})
 
     found = [False]
@@ -140,7 +140,7 @@ def test_tx_existing_op_not_overridden():
     def func(A_ptr: T.handle, B_ptr: T.handle):
         A = T.match_buffer(A_ptr, [64], "float32", scope="global")
         B = T.match_buffer(B_ptr, [64], "float32", scope="global")
-        with T.kernel():
+        with T.thread():
             Tx.copy(B, A)
 
     found = [False]
@@ -179,17 +179,6 @@ def test_buffer_replacer_no_shared_default():
     assert len(r2.buffer_map) == 0
 
 
-def test_permute_dims_buffer_property():
-    """Regression test for F2: PermuteDims.buffer should return args[0], not recurse."""
-    from tvm.tirx.operator.tile_primitive.ops import PermuteDims
-
-    A = decl_buffer((64, 64), "float32", scope="global")
-    pd = PermuteDims(A[0:64, 0:64], [1, 0])
-    # This would stack overflow before the fix
-    buf = pd.buffer
-    assert buf is not None
-
-
 def test_gemm_async_partial_scale_factor():
     """Regression test for F7: gemm_async must reject partial scale factors."""
     from tvm.tirx.script.builder.tirx import gemm_async
@@ -219,5 +208,4 @@ if __name__ == "__main__":
     test_tx_existing_op_not_overridden()
     test_opcall_downcast_tolerant()
     test_buffer_replacer_no_shared_default()
-    test_permute_dims_buffer_property()
     test_gemm_async_partial_scale_factor()

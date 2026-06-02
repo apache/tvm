@@ -881,6 +881,17 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     return call_intrin("handle", "tirx.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
 
 
+def ptr_byte_offset(data, byte_offset, dtype):
+    """Cast ``data + byte_offset`` to ``dtype*``.
+
+    ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
+    needs an explicitly typed local pointer derived from a byte-addressed base.
+    """
+    if isinstance(dtype, str):
+        dtype = type_annotation(dtype)
+    return call_intrin("handle", "tirx.ptr_byte_offset", data, byte_offset, dtype)
+
+
 def tvm_throw_last_error():
     """Throw TVMGetLastError()
 
@@ -2203,22 +2214,26 @@ def likely(cond, span=None):
     return _ffi_api.likely(cond, span)  # type: ignore
 
 
-def filter(*args, span=None):  # pylint: disable=redefined-builtin
-    """Thread-set filter predicate (Phase 3 v3 exec-scope refactor).
+def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
+    """Thread-set filter escape hatch.
 
-    Two call forms:
-      - Range: ``filter(var, lo, hi)`` — true iff ``var`` in ``[lo, hi)``.
-      - Predicate: ``filter(var, cond_expr)`` — true iff ``cond_expr`` holds
-        (typical use ``var == k``).
+    Use this wrapper only when the predicate is *not* in the canonical
+    thread-filter grammar (see ``src/tirx/analysis/filter_canonical.h``).
+    Canonical predicates -- pure conjunctions of ``scopeid_var <op> const``
+    comparisons plus bare ``Tx.ptx.elect_sync()`` calls -- are recognized by
+    the lowering pass directly from ``if cond:``, so the wrapper is redundant
+    for them.
 
-    ``var`` must be a ``ScopeIdDef``-declared Var visible at the call site.
-    Returns a Bool PrimExpr, intended to be used as ``if T.filter(...):``.
+    When wrapped: ``var`` (a ``ScopeIdDef``-declared scope identifier) tells
+    the compiler which active-set axis to collapse to a singleton when the
+    opaque predicate evaluates true; ``pred`` is preserved verbatim and
+    evaluated at runtime.
+
+    The legacy three-argument range form ``filter(var, lo, hi)`` has been
+    removed -- write ``lo <= var and var < hi`` (or ``var == lo`` when
+    ``hi == lo + 1``) at the call site instead.
     """
-    if len(args) not in (2, 3):
-        raise ValueError(
-            f"Tx.filter expects (var, lo, hi) or (var, cond_expr); got {len(args)} args"
-        )
-    return call_intrin("bool", "tirx.filter", *args, span=span)
+    return call_intrin("bool", "tirx.filter", var, pred, span=span)
 
 
 def selector(var, pred, span=None):
@@ -4644,15 +4659,27 @@ def ptx_mma(
     a_type,
     b_type,
     c_type,
-    d_ptr,
-    a_ptr,
-    b_ptr,
-    c_ptr=0,
+    d_ptrs,
+    a_ptrs,
+    b_ptrs,
+    c_ptrs=None,
     saturate=False,
     bit_op=None,
 ):
-    """TVM intrinsic for ptx tensor core mma instructions
+    """TVM intrinsic for ptx tensor core mma instructions.
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-for-mma
+
+    Each per-thread register of every operand is addressed by its OWN pointer
+    (one ``void*`` per b32/f32 register), so the register fragments need not be
+    contiguous in the register file. ``d_ptrs`` / ``a_ptrs`` / ``b_ptrs`` /
+    ``c_ptrs`` are lists of one pointer per 32-bit register (b32 for
+    fp16/bf16/tf32/int8 multiplicands, f32/f64 for the accumulator), enumerated
+    in the fixed PTX register order (see the gemm dispatch /
+    ``tests/python/tirx-base/test_tir_ptx_mma.py``).
+
+    Within one b32 register the packed elements (e.g. 2 fp16 along k_pack)
+    must stay contiguous (stride 1); only the b32 registers themselves may be
+    scattered.
 
     Parameters
     ----------
@@ -4677,48 +4704,44 @@ def ptx_mma(
     c_type : str
         The data type of accumulator fragment C.
 
-    d_ptr : PrimExpr
-        The pointer to the result fragment D.
+    d_ptrs : List[PrimExpr]
+        One pointer per result-fragment D register, in PTX order.
 
-    a_ptr : PrimExpr
-        The pointer to the multiplicand fragment A.
+    a_ptrs : List[PrimExpr]
+        One pointer per multiplicand-A register, in PTX order.
 
-    b_ptr : PrimExpr
-        The pointer to the multiplicand fragment B.
+    b_ptrs : List[PrimExpr]
+        One pointer per multiplicand-B register, in PTX order.
 
-    c_ptr : PrimExpr
-        The pointer to the accumulator fragment C.
-        If it's IntImm(0), it means the accumulator is not used.
+    c_ptrs : Optional[List[PrimExpr]]
+        One pointer per accumulator-C register, in PTX order. ``None`` (the
+        default) means the accumulator is not used (beta == 0): codegen feeds
+        a literal 0 for each C slot.
 
     saturate : bool
         The optional saturation at the output.
 
     bit_op : Optional[Literal["xor", "and"]]
-        The 1-bit operator. If it's None, it means the bit operator is not used.
+        The 1-bit operator (for the b1 subbyte form). ``None`` means unused.
 
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    if bit_op is None:
-        return call_intrin(
-            "",
-            "tirx.ptx_mma",
-            shape,
-            a_layout,
-            b_layout,
-            d_type,
-            a_type,
-            b_type,
-            c_type,
-            d_ptr,
-            a_ptr,
-            b_ptr,
-            c_ptr,
-            saturate,
-        )
-    return call_intrin(
+    d_ptrs = list(d_ptrs)
+    a_ptrs = list(a_ptrs)
+    b_ptrs = list(b_ptrs)
+    has_c = c_ptrs is not None
+    c_ptrs = list(c_ptrs) if has_c else []
+
+    # Encode group register counts as leading attrs so codegen can slice the
+    # flat pointer tail. ``no_c_ptr`` mirrors the legacy IntImm(0) sentinel.
+    no_c_ptr = not has_c
+    # Flattened pointer list: D regs, A regs, B regs, then C regs (if any).
+    ptrs = [*d_ptrs, *a_ptrs, *b_ptrs, *c_ptrs]
+
+    base = [
         "",
         "tirx.ptx_mma",
         shape,
@@ -4728,13 +4751,17 @@ def ptx_mma(
         a_type,
         b_type,
         c_type,
-        d_ptr,
-        a_ptr,
-        b_ptr,
-        c_ptr,
+        len(d_ptrs),
+        len(a_ptrs),
+        len(b_ptrs),
+        len(c_ptrs),
+        no_c_ptr,
+        *ptrs,
         saturate,
-        bit_op,
-    )
+    ]
+    if bit_op is None:
+        return call_intrin(*base)
+    return call_intrin(*base, bit_op)
 
 
 def ptx_mma_legacy(*all_args, operator=None):
@@ -5008,38 +5035,49 @@ def ptx_ldmatrix_legacy(*all_args):
     )
 
 
-def ptx_stmatrix(
-    smem_ptr, local_ptr, *, num, trans=False, shape="m8n8", ptx_type="b16", space="shared"
-):
-    """TVM intrinsic for ``stmatrix.sync.aligned.shape.num{.trans}{.ss}.type``.
+def ptx_stmatrix(trans, num, dtype, smem_ptr, *src_handles, shape="m8n8", space="shared"):
+    """TVM intrinsic for ``stmatrix.sync.aligned.shape.x{num}{.trans}.space.{dtype}``.
 
-    Stores 1/2/4 matrices from registers into shared memory.
-
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-stmatrix
+    Mirrors :func:`ptx_ldmatrix`: each source register is a separate operand.
+    Pass ``Tx.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for each
+    source — the slots may be non-contiguous.
 
     Parameters
     ----------
+    trans : bool
+        Apply the ``.trans`` modifier (required for ``shape == "m16n8"``).
+    num : int
+        One of 1, 2, 4 — number of m8n8 fragments per warp.
+    dtype : str
+        ``".b16"`` (4 bytes per fragment register) or ``".b8"`` (2 bytes per).
     smem_ptr : PrimExpr
         Destination pointer in shared memory.
+    *src_handles : PrimExpr
+        ``num`` pointer-to-uint32 sources.
+    shape : str, keyword-only, default "m8n8"
+        ``"m8n8"`` or ``"m16n8"``.
+    space : str, keyword-only, default "shared"
+        ``"shared"`` or ``"shared::cta"``.
 
-    local_ptr : PrimExpr
-        Source pointer in register memory.
-
-    num : int
-        Number of 8x8 matrices. One of 1, 2, 4.
-
-    trans : bool
-        Store in column-major (transposed) form.
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-stmatrix
     """
     _choice("num", num, _LDMATRIX_NUM)
+    _choice("dtype", dtype, _LDMATRIX_DTYPE)
     if shape not in ("m8n8", "m16n8"):
         raise ValueError(f"Unsupported stmatrix shape {shape!r}")
-    if ptx_type not in ("b16", "b8"):
-        raise ValueError(f"Unsupported stmatrix type {ptx_type!r}")
     if space not in ("shared", "shared::cta"):
         raise ValueError(f"Unsupported stmatrix state space {space!r}")
+    if shape == "m16n8" and not trans:
+        raise ValueError("stmatrix .m16n8 requires .trans")
+    n_regs = int(num)
+    if len(src_handles) != n_regs:
+        dtype_bare = dtype.lstrip(".") if isinstance(dtype, str) else dtype
+        raise ValueError(
+            f"stmatrix .x{int(num)}.{dtype_bare} expects {n_regs} source "
+            f"handles, got {len(src_handles)}"
+        )
     return call_intrin(
-        "", "tirx.ptx_stmatrix", num, trans, shape, ptx_type, space, smem_ptr, local_ptr
+        "", "tirx.ptx_stmatrix", trans, num, dtype, shape, space, smem_ptr, *src_handles
     )
 
 

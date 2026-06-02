@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .collective import *
-from .scalar import *
+from .fallback import *
+from .gmem_smem import *
+from .ld_stmatrix import *
+from .reg import *
 from .utils import (
     _is_valid_copy,
     _is_valid_smem_tmem_copy,
     _scope_allowed,
     _single_thread_exec,
-    copy_default_impl,
 )
-from .vectorized import *

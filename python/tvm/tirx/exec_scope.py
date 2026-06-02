@@ -57,8 +57,6 @@ class ScopeIdDef(Object):
 
 
 _SCOPE_KIND_TO_NAME = {
-    0: "world",
-    1: "kernel",
     2: "cluster",
     3: "cta",
     4: "warpgroup",
@@ -67,10 +65,29 @@ _SCOPE_KIND_TO_NAME = {
 }
 
 
+# Mirror of ``enum class ScopeBinding`` in tvm/tirx/exec_scope.h. Maps the
+# ``int`` value of ``ScopeIdDef.scope`` back to the ``(parent, cur)`` pair
+# that ``ScopeIdDef.__init__`` accepts — needed when Python code wants to
+# rebuild a ``ScopeIdDef`` from an existing one (e.g. a StmtMutator
+# walking and rewriting extents).
+_SCOPE_BINDING_TO_PARENT_CUR = {
+    0: ("kernel", "cluster"),
+    1: ("kernel", "cta"),
+    2: ("cluster", "cta"),
+    3: ("cta", "warpgroup"),
+    4: ("cta", "warp"),
+    5: ("warpgroup", "warp"),
+    6: ("warp", "thread"),
+    7: ("cta", "thread"),
+    8: ("warpgroup", "thread"),
+    9: ("cluster", "cta_pair"),
+}
+
+
 @register_object("tirx.ExecScope")
 class ExecScope(Object):
-    """An execution scope, identified by one of {world, kernel, cluster, cta, warpgroup,
-    warp, thread}. The ctor FATALs on any other name."""
+    """An execution scope, identified by one of {cluster, cta, warpgroup, warp,
+    thread}. The ctor FATALs on any other name."""
 
     kind: int
     scope_id_def: list[ScopeIdDef]

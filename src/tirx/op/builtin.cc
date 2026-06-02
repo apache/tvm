@@ -70,10 +70,13 @@ TIR_DEFINE_BUILTIN_FUNC(likely)
                                static_cast<int64_t>(CallEffectKind::kExprAnnotation))
     .set_attr<TVectorizable>("TVectorizable", true);
 
-// tirx.filter: thread-set filter predicate used as IfThenElse condition.
-// Variadic: (var, lo, hi) range form or (var, cond) predicate form; multi-var
-// conjunctions are desugared into nested IfThenElse at parse time.
-TIR_DEFINE_BUILTIN_FUNC(filter).set_attr<TCallEffectKind>(
+// tirx.filter: escape hatch for non-canonical thread-set filter predicates
+// used as an IfThenElse condition. (var, cond) -- ``var`` names the
+// active-set axis the compiler should collapse to a singleton if it cannot
+// statically analyze ``cond``. Canonical predicates (see
+// ``analysis/filter_canonical.h``) should appear bare in ``if`` conditions
+// without this wrapper.
+TIR_DEFINE_BUILTIN_FUNC(filter).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(selector).set_num_inputs(2).set_attr<TCallEffectKind>(
@@ -178,6 +181,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_access_ptr)
     .set_num_inputs(5)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
+
+TIR_DEFINE_BUILTIN_FUNC(ptr_byte_offset)
+    .set_num_inputs(3)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_static_handle)
     .set_num_inputs(0)

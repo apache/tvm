@@ -670,7 +670,7 @@ def create_test_statements():
     # OpCall
     @T.prim_func(s_tir=True)
     def op_call(A: T.Buffer((10,), "int32"), B: T.Buffer((10,), "int32")):
-        with T.kernel():
+        with T.thread():
             T.add(A, B, 1.0)
 
     return {

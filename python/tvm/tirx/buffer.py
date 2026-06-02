@@ -436,7 +436,15 @@ class Buffer(Object, Scriptable):
             The buffer with permuted dimensions.
         """
         new_shape = [self.shape[d] for d in dims]
-        new_layout = self.layout.permute_dims(list(dims))
+        # Permute *logical* dims, not the layout's fine-grained shard iters: a
+        # tcgen05/atom layout maps several shard iters to each logical axis, so
+        # group by the current shape first and permute whole groups. ``group``
+        # returns a regrouped layout (degenerate extent-1 iters folded away)
+        # plus seps over *that* layout — permute the regrouped one, not
+        # ``self.layout``. For a simple layout (one shard iter per axis) this
+        # reduces to ``permute_dims(dims)``.
+        grouped, seps = self.layout.group(list(self.shape))
+        new_layout = grouped.permute_by_groups(seps, list(dims))
         return tvm.tirx.script.builder.decl_buffer(
             new_shape,
             self.dtype,
