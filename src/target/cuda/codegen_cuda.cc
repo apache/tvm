@@ -45,12 +45,6 @@
 namespace tvm {
 namespace codegen {
 
-namespace {
-
-constexpr const char* kEntryClusterSyncAttr = "tirx.entry_cluster_sync";
-
-}  // namespace
-
 std::string GetFP8Type(DataType type) {
   std::stringstream stream;
   int32_t lanes = type.lanes();
@@ -277,18 +271,6 @@ void CodeGenCUDA::VisitStmt_(const WhileNode* op) {
   this->EndScope(while_scope);
   PrintIndent();
   stream << "}\n";
-}
-
-void CodeGenCUDA::PreFunctionBody(const PrimFunc& f) {
-  if (!f->HasNonzeroAttr(kEntryClusterSyncAttr)) {
-    return;
-  }
-  AddUtilFunction("tvm_builtin_cuda_cluster_sync",
-                  "\n__forceinline__ __device__ void tvm_builtin_cuda_cluster_sync() {\n"
-                  "    asm(\"barrier.cluster.arrive.aligned;\");\n"
-                  "    asm(\"barrier.cluster.wait.aligned;\");\n"
-                  "}\n");
-  stream << "  tvm_builtin_cuda_cluster_sync();\n";
 }
 
 void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {

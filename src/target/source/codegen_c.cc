@@ -30,6 +30,7 @@
 #include <iomanip>
 
 #include "../../arith/pattern_match.h"
+#include "../../tirx/ir/buffer_common.h"
 #include "codegen_params.h"
 
 namespace tvm {
@@ -42,6 +43,7 @@ void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 void CodeGenC::InitFuncState(const PrimFunc& f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
+  pointer_offset_vars_.clear();
   CodeGenSourceBase::ClearFuncState();
   ReserveKeywordsAsUnique();
 }
@@ -395,6 +397,16 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, DataType t) {
   }
 }
 
+void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value) {
+  if (value == nullptr) return;
+  auto* call = value->as<tirx::CallNode>();
+  if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
+  std::optional<DataType> value_dtype = tirx::GetPointerType(GetType(*value));
+  if (!value_dtype.has_value()) return;
+  RegisterHandleType(var.get(), value_dtype.value());
+  pointer_offset_vars_.insert(var.get());
+}
+
 void CodeGenC::PrintVecElemLoad(const std::string& vec, DataType t, int i,
                                 std::ostream& os) {  // NOLINT(*)
   os << vec << ".s" << std::hex << i << std::dec;
@@ -708,7 +720,15 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (load) {
         TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
             << "CodeGenC only supports flat memory allocations.";
-        os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
+        const VarNode* data = load->buffer->data.get();
+        if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype) &&
+            !IsVolatile(data)) {
+          os << "(" << GetVarID(data) << " + ";
+          this->PrintExpr(load->indices[0], os);
+          os << ")";
+        } else {
+          os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
+        }
       } else {
         auto* var = op->args[0].as<tirx::VarNode>();
         TVM_FFI_ICHECK(var)
@@ -738,6 +758,15 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
+    } else if (op->op.same_as(builtin::ptr_byte_offset())) {
+      TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
+      os << "((";
+      PrintType(op->args[2].dtype(), os);
+      os << "*)(((char*)";
+      this->PrintExpr(op->args[0], os);
+      os << ") + ";
+      this->PrintExpr(op->args[1], os);
+      os << "))";
     } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       os << "((void*)((char*)";
@@ -949,6 +978,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     let_binding_[op->var] = op;
   }
+  RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
@@ -1073,6 +1103,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
 }
 
 void CodeGenC::VisitStmt_(const BindNode* op) {
+  RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));

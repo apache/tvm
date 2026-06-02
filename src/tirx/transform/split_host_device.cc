@@ -38,12 +38,6 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-
-constexpr const char* kEntryClusterSyncAttr = "tirx.entry_cluster_sync";
-
-}  // namespace
-
 class HostDeviceSplitter : public StmtMutator {
  public:
   explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply,
@@ -122,10 +116,6 @@ class HostDeviceSplitter : public StmtMutator {
     auto persistent = cur_func_->GetAttr<bool>(tirx::attr::kPersistentKernel);
     if (persistent.has_value()) {
       device_func = WithAttr(std::move(device_func), tirx::attr::kPersistentKernel, persistent);
-    }
-    auto entry_cluster_sync = cur_func_->GetAttr<bool>(kEntryClusterSyncAttr);
-    if (entry_cluster_sync.has_value()) {
-      device_func = WithAttr(std::move(device_func), kEntryClusterSyncAttr, entry_cluster_sync);
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);

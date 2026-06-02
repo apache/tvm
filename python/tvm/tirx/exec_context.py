@@ -194,7 +194,7 @@ class LaneBinding:
 
 
 def initial_A(*, lane_ext: int = 32, warp_ext: int, cta_ext: int = 1) -> ActiveSet:
-    """Build A at T.kernel() entry: all threads active, offsets all zero."""
+    """Build A at PrimFunc device entry: all threads active, offsets all zero."""
     return ActiveSet.from_axes(
         [
             ("laneid", AxisRange(lane_ext, 0)),

@@ -240,6 +240,36 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_SCRIPT_REPR(tirx::ExecScopeStmtNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ScopeIdDefStmt>(
+        "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
+          // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
+          // (or the appropriate API name for the binding). Mirrors the loop
+          // in ``ExecScopeStmtDoc`` that handled the legacy payload form.
+          TVM_FFI_ICHECK(!d->frames.empty());
+          tirx::ScopeIdDef def = stmt->def;
+          AccessPath def_p = p->Attr("def");
+          ffi::Array<ExprDoc> lhs;
+          for (auto scope_id : def->def_ids) {
+            lhs.push_back(DefineVar(scope_id, d->frames.back(), d));
+          }
+          ffi::Array<ExprDoc> rhs_args;
+          if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
+            rhs_args.push_back(d->AsDoc<ExprDoc>(def->extents.value(), def_p->Attr("extents")));
+          }
+          ffi::Array<ffi::String> kwarg_keys;
+          ffi::Array<ExprDoc> kwarg_vals;
+          if (def->preferred_extents.defined()) {
+            kwarg_keys.push_back("preferred");
+            kwarg_vals.push_back(d->AsDoc<ExprDoc>(def->preferred_extents.value(),
+                                                   def_p->Attr("preferred_extents")));
+          }
+          ExprDoc rhs = TIR(d, ScopeIdApiName(def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
+          return AssignDoc(TupleDoc(lhs), rhs, std::nullopt);
+        });
+
+TVM_SCRIPT_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::ExecScope>(
         "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
           Doc doc =

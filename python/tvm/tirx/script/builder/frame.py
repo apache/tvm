@@ -40,7 +40,9 @@ class ExecScopeFrame(TIRFrame):
 
     When exiting this frame, it produces an ExecScopeStmt wrapping the body.
     To narrow execution to a subset of the scope, wrap the ``with`` in an
-    ``if T.filter(var, lo, hi):`` guard.
+    ``if`` guard with a canonical thread-filter predicate -- e.g.
+    ``if lo <= var and var < hi:`` -- recognized by the lowering pass (see
+    ``src/tirx/analysis/filter_canonical.h``).
     """
 
 

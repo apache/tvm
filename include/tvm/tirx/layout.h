@@ -66,8 +66,8 @@ class LayoutNode : public ffi::Object {
   /*! \brief Apply layout on the input coordinate and get the mapped output */
   virtual ffi::Map<ffi::String, PrimExpr> Apply(ffi::Array<PrimExpr> coord) const = 0;
   virtual ffi::Map<ffi::String, PrimExpr> Apply(PrimExpr coord) const = 0;
-  ffi::Map<ffi::String, PrimExpr> Apply(const ffi::Array<PrimExpr>& coord,
-                                        const ffi::Array<PrimExpr>& shape) const;
+  virtual ffi::Map<ffi::String, PrimExpr> Apply(const ffi::Array<PrimExpr>& coord,
+                                                const ffi::Array<PrimExpr>& shape) const;
 
   /*! \brief Turn the layout to canonical form */
   virtual Layout Canonicalize() const = 0;
@@ -337,6 +337,12 @@ class TileLayoutNode : public LayoutNode {
   /*! \brief Apply the input coordinate and get the mapped output */
   ffi::Map<ffi::String, PrimExpr> Apply(ffi::Array<PrimExpr> coord) const final;
   ffi::Map<ffi::String, PrimExpr> Apply(PrimExpr coord) const final;
+  /*! \brief Group-first override: if this layout can be regrouped by ``shape``,
+   *  split each ``coord[d]`` against its group's local extents (cleaner
+   *  symbolic form than flatten+split-against-shard-shape). Otherwise fall
+   *  back to flatten+split. */
+  ffi::Map<ffi::String, PrimExpr> Apply(const ffi::Array<PrimExpr>& coord,
+                                        const ffi::Array<PrimExpr>& shape) const final;
 
   /*! \brief Turn the layout to canonical form */
   Layout Canonicalize() const final;
