@@ -2562,6 +2562,7 @@ class Split(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
         splits = attr.get("split", None)
         if splits is not None and len(splits) > 1:
             indices = []
@@ -2571,13 +2572,13 @@ class Split(OnnxOpConverter):
                 indices.append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            axis = attr.get("axis", 0)
             num_outputs = attr["tvm_custom"]["num_outputs"]
             indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
-        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, axis)
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
         splits = inputs[1]
         splits_rank = None
         if splits is not None:
@@ -2594,10 +2595,9 @@ class Split(OnnxOpConverter):
                 raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
         else:
-            axis = attr.get("axis", 0)
             num_outputs = attr.get("num_outputs", attr["tvm_custom"]["num_outputs"])
             indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
-        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, axis)
 
 
 def get_prim_value_list(values):
