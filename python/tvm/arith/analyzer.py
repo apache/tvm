@@ -128,6 +128,46 @@ class Analyzer(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Analyzer)
 
+    def get_smtlib2(self, expr: tirx.PrimExpr = None) -> str:
+        """Get the current Z3 problem in SMT-LIB2 format.
+
+        Parameters
+        ----------
+        expr : Optional[PrimExpr]
+            The expression to prove. If provided, its negation is added to the problem.
+        """
+        return _ffi_api.AnalyzerGetSMTLIB2(self, expr)
+
+    def set_z3_timeout_ms(self, timeout_ms: int) -> None:
+        """Set Z3 timeout in milliseconds.
+
+        Parameters
+        ----------
+        timeout_ms : int
+            The timeout in milliseconds.
+        """
+        _ffi_api.AnalyzerSetZ3TimeoutMs(self, timeout_ms)
+
+    def set_z3_rlimit(self, rlimit: int) -> None:
+        """Set Z3 resource limit.
+
+        Parameters
+        ----------
+        rlimit : int
+            The resource limit.
+        """
+        _ffi_api.AnalyzerSetZ3RLimit(self, rlimit)
+
+    def get_z3_stats(self) -> str:
+        """Get Z3 solver statistics.
+
+        Returns
+        -------
+        stats : str
+            The Z3 statistics.
+        """
+        return _ffi_api.AnalyzerGetZ3Stats(self)
+
     def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
