@@ -64,22 +64,13 @@ github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 os.environ["TVM_BUILD_DOC"] = "1"
 
 
-def git_describe_version(original_version):
-    """Get git describe version."""
-    ver_py = tvm_path.joinpath("version.py")
-    libver = {"__file__": ver_py}
-    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
-    _, gd_version = libver["git_describe_version"]()
-    if gd_version != original_version:
-        print(f"Use git describe based version {gd_version}")
-    return gd_version
-
-
 # Version information.
 import tvm
 from tvm import te, testing, topi
 
-version = git_describe_version(tvm.__version__)
+# The version is derived from the Git tag by setuptools_scm at build time and exposed
+# as tvm.__version__ (see [tool.setuptools_scm] in pyproject.toml).
+version = tvm.__version__
 release = version
 
 

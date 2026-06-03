@@ -323,8 +323,10 @@ def find_include_path(name=None, search_path=None, optional=False):
     return include_found
 
 
-# current version
-# We use the version of the incoming release for code
-# that is under development.
-# The following line is set by version.py
-__version__ = "0.25.dev0"
+# The version is written by setuptools_scm into _version.py at build time
+# (see [tool.setuptools_scm] in pyproject.toml). The fallback keeps a source
+# checkout with no build run importable.
+try:
+    from ._version import version as __version__
+except ImportError:  # pragma: no cover - source tree without a build
+    __version__ = "0.25.dev0"

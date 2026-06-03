@@ -167,7 +167,9 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
           submodules: recursive
-          fetch-depth: 1
+          # Full history + tags so setuptools_scm can derive the wheel version from
+          # the most recent Git tag during the build (shallow clones break it).
+          fetch-depth: 0
           fetch-tags: true
 
       # Land the sidecar where -DTVM_PACKAGE_EXTRA_LIBS / cibuildwheel's /project
@@ -178,22 +180,6 @@ jobs:
         with:
           name: tvm-cuda-runtime-${{ matrix.arch }}
           path: build-wheel-cuda/lib
-
-      # Provide a known host Python (3.10) for the version-stamp step below; the wheel
-      # builds themselves use cibuildwheel's own interpreters.
-      - name: Set up Python (host)
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.10"
-
-      # Stamp the version from the git tag (git describe) so the wheel version comes
-      # from the ref being built, not the hardcoded value in pyproject.toml. version.py
-      # rewrites pyproject.toml (and libinfo.py etc.) in place; on a non-tag ref it
-      # falls back to the in-repo __version__. Runs on the host before cibuildwheel
-      # reads pyproject.
-      - name: Stamp wheel version from git
-        shell: bash
-        run: python version.py --git-describe
 
       - name: Build TVM wheel
         uses: ./.github/actions/build-wheel-for-publish
