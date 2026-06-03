@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
 
+# --- TVM version (no dependency on version.py) ---
+# When built via scikit-build-core the version is resolved by setuptools_scm and
+# passed in as SKBUILD_PROJECT_VERSION_FULL; bake it into the C++ TVM_VERSION macro.
+# A bare `cmake` build (no scikit-build-core) leaves the checked-in default in
+# include/tvm/runtime/base.h untouched. An explicit -DTVM_VERSION always wins.
+if(NOT DEFINED TVM_VERSION AND DEFINED SKBUILD_PROJECT_VERSION_FULL)
+  set(TVM_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
+endif()
+if(DEFINED TVM_VERSION)
+  message(STATUS "TVM_VERSION=${TVM_VERSION}")
+  add_compile_definitions(TVM_VERSION="${TVM_VERSION}")
+endif()
+
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
