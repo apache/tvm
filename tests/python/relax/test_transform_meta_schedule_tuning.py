@@ -34,6 +34,8 @@
 
 import tempfile
 
+import tvm_ffi
+
 import tvm
 import tvm.s_tir.meta_schedule as ms
 import tvm.testing
@@ -114,7 +116,7 @@ def test_ms_tuning_irmodule():
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
 
             out_mod = application_pass(mod)
-            assert not tvm.ir.structural_equal(mod, out_mod)
+            assert not tvm_ffi.structural_equal(mod, out_mod)
 
 
 def test_ms_tuning_primfunc():
@@ -141,7 +143,7 @@ def test_ms_tuning_primfunc():
 
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
             out_mod = application_pass(mod)
-            assert not tvm.ir.structural_equal(mod, out_mod)
+            assert not tvm_ffi.structural_equal(mod, out_mod)
 
     with tempfile.TemporaryDirectory() as work_dir:
         with target, PassContext(opt_level=0):

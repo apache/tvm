@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+import tvm_ffi
+
 import tvm
 import tvm.script
 import tvm.testing
@@ -31,8 +33,8 @@ def _check_equal(x, y):
     tvm.ir.assert_structural_equal(x, y)
     tvm.ir.assert_structural_equal(y, x)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars=True)
-    yhash = tvm.ir.structural_hash(y, map_free_vars=True)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars=True)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars=True)
     assert xhash == yhash
 
 

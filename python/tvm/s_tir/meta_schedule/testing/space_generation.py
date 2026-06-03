@@ -21,7 +21,9 @@ from typing import Literal
 
 # isort: on
 
-from tvm.ir import IRModule, structural_equal
+import tvm_ffi
+
+from tvm.ir import IRModule
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Trace
@@ -51,7 +53,7 @@ def structural_equal_no_gs(mod1: IRModule, mod2: IRModule) -> bool:
             stripped_mod[global_var] = func.without_attr("global_symbol")
         return stripped_mod
 
-    return structural_equal(remove_global_symbols(mod1), remove_global_symbols(mod2))
+    return tvm_ffi.structural_equal(remove_global_symbols(mod1), remove_global_symbols(mod2))
 
 
 def generate_design_space(

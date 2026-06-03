@@ -19,6 +19,7 @@
 """Tests analysis functions of struct info"""
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -708,7 +709,7 @@ def test_prim_struct_info_lca(test_case):
     lhs, rhs, expected = map(_normalize_sinfo, test_case)
 
     lca = rx.analysis.struct_info_lca(lhs, rhs)
-    assert tvm.ir.structural_equal(lca, expected), (
+    assert tvm_ffi.structural_equal(lca, expected), (
         f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
     )
 

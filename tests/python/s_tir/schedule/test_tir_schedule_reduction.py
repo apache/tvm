@@ -19,6 +19,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -293,12 +294,12 @@ def test_reduction_decompose_with_different_for_kind():
 def test_decompose_reduction_ref_hash_check():
     mod = tvm.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
     mod_bak = mod
-    hash_before = tvm.ir.structural_hash(mod_bak)
+    hash_before = tvm_ffi.structural_hash(mod_bak)
     s = tvm.s_tir.Schedule(mod["main"], debug_mask="all")
     C = s.get_sblock("update")
     i, j, k = s.get_loops(C)
     s.decompose_reduction(C, k)
-    hash_after = tvm.ir.structural_hash(mod_bak)
+    hash_after = tvm_ffi.structural_hash(mod_bak)
     assert hash_before == hash_after
 
 

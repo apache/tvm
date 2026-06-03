@@ -19,7 +19,9 @@
 # TODO: combine reduction rule and general reduction rule into one file.
 from collections.abc import Mapping
 
-from tvm import arith, ir, s_tir, tirx
+import tvm_ffi
+
+from tvm import arith, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -39,7 +41,7 @@ def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
         return None
     if not isinstance(buffer_store.value, tirx.Add):
         return None
-    if not ir.structural_equal(
+    if not tvm_ffi.structural_equal(
         buffer_store.value.a,
         tirx.BufferLoad(buffer_store.buffer, block.body.indices),
         map_free_vars=True,

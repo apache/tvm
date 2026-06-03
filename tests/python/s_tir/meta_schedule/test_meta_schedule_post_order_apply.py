@@ -21,6 +21,7 @@ import math
 import sys
 
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 import tvm
@@ -255,7 +256,7 @@ def test_meta_schedule_post_order_apply():
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 1
-    assert not tvm.ir.structural_equal(schs[0].mod, mod)
+    assert not tvm_ffi.structural_equal(schs[0].mod, mod)
     _check_correct(schs[0])
 
 
@@ -275,7 +276,7 @@ def test_meta_schedule_post_order_apply_double():
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 2
     for sch in schs:
-        assert not tvm.ir.structural_equal(sch.mod, mod)
+        assert not tvm_ffi.structural_equal(sch.mod, mod)
         _check_correct(sch)
 
 
@@ -295,7 +296,7 @@ def test_meta_schedule_post_order_apply_multiple():
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
     for sch in schs:
-        assert not tvm.ir.structural_equal(sch.mod, mod)
+        assert not tvm_ffi.structural_equal(sch.mod, mod)
         _check_correct(sch)
 
 

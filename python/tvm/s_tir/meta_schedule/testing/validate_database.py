@@ -26,6 +26,7 @@ from statistics import mean
 from typing import Any
 
 import numpy as np  # type: ignore
+import tvm_ffi
 from tvm_ffi import get_global_func, register_global_func
 
 import tvm
@@ -197,10 +198,10 @@ class OriginalModule:
         self.mod = mod
 
     def __eq__(self, __o: "OriginalModule") -> bool:  # type: ignore
-        return tvm.ir.structural_equal(self.mod, __o.mod)
+        return tvm_ffi.structural_equal(self.mod, __o.mod)
 
     def __hash__(self) -> int:
-        return tvm.ir.structural_hash(self.mod)
+        return tvm_ffi.structural_hash(self.mod)
 
 
 def initializer() -> None:

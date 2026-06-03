@@ -19,6 +19,7 @@
 from pathlib import Path
 
 import cloudpickle
+import tvm_ffi
 
 import tvm
 from tvm import relax
@@ -294,7 +295,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
             "model_name": model_name,
             "relax_func_name": relax_func_name,
             "prim_func_name": prim_func_name,
-            "func_hash": tvm.ir.structural_hash(func),
+            "func_hash": tvm_ffi.structural_hash(func),
             "weight": weight,
             "sample_number": sample_number,
             "dym_var_dict": f"pickle.loads({cloudpickle.dumps(dym_var_dict)})"

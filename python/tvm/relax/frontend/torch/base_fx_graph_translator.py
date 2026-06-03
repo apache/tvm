@@ -26,7 +26,8 @@ import operator
 from collections.abc import Callable
 from functools import reduce
 
-import tvm
+import tvm_ffi
+
 from tvm import relax, tirx
 
 
@@ -2537,7 +2538,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         data_shape = self.shape_of(data)
         mask_shape = self.shape_of(mask)
-        shapes_equal = tvm.ir.structural_equal(data_shape, mask_shape)
+        shapes_equal = tvm_ffi.structural_equal(data_shape, mask_shape)
 
         if not shapes_equal:
             mask = self.block_builder.emit(relax.op.broadcast_to(mask, data_shape))

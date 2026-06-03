@@ -58,7 +58,7 @@ Subroutine Cache Hash Collision
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``SubroutineMixin._get_subroutine()`` in ``python/tvm/relax/frontend/nn/subroutine.py``
-used ``ir.structural_hash`` as the sole cache lookup key without a subsequent
+used ``tvm_ffi.structural_hash`` as the sole cache lookup key without a subsequent
 ``structural_equal`` verification. If two different ``arg_sinfo`` values produced the
 same 64-bit hash, the cache would return a previously compiled function with
 mismatched parameter shapes, leading to silently incorrect compiled output.

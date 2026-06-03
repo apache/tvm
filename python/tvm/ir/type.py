@@ -18,7 +18,6 @@
 
 import tvm_ffi
 
-import tvm
 from tvm.runtime import Scriptable
 
 from . import _ffi_api
@@ -31,7 +30,7 @@ class Type(Node, Scriptable):
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
-        return bool(tvm.ir.structural_equal(self, other))
+        return bool(tvm_ffi.structural_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)

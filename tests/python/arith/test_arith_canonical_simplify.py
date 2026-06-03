@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F841
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import te, tirx
@@ -38,7 +40,7 @@ class CanonicalChecker:
     def verify(self, data, expected):
         res = self.analyzer.canonical_simplify(data)
         expected = self._convert(expected)
-        assert tvm.ir.structural_equal(res, expected), (
+        assert tvm_ffi.structural_equal(res, expected), (
             f"\ndata={data}\nres={res}\nexpected={expected}"
         )
 
