@@ -109,9 +109,7 @@ def default_tir_pipeline():
         passes.extend(
             [
                 s_tir.transform.MergeSharedMemoryAllocations(),
-                tirx.transform.AnnotateDeviceRegions(),
                 tirx.transform.SplitHostDevice(),
-                tirx.transform.LowerDeviceKernelLaunch(),
                 tirx.transform.MakePackedAPI(),
                 tirx.transform.FP8StorageLegalize(),
                 tirx.transform.BF16StorageLegalize(),
