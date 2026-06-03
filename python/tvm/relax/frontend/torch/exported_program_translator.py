@@ -1645,7 +1645,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
             ),
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
-            "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
+            "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
