@@ -28,8 +28,12 @@
 // we will avoid defining extra C APIs here
 #include <tvm/ffi/c_api.h>
 
-// TVM version
+// TVM version. Overridable at build time via -DTVM_VERSION="..." (scikit-build-core
+// passes the setuptools_scm-resolved version through CMake). The literal below is the
+// fallback for a bare build with no override.
+#ifndef TVM_VERSION
 #define TVM_VERSION "0.25.dev0"
+#endif
 
 // TVM ships two shared libraries: libtvm_compiler and libtvm_runtime.
 // Each exposes its own DLL macro pair.  The two families are defined

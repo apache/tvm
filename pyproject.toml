@@ -16,13 +16,14 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.11"]
+requires = ["scikit-build-core>=0.11", "setuptools-scm>=8"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "tvm"
-# Note: Call version.py to update the version before building the wheel
-version = "0.25.dev0"
+# The version is derived from the most recent Git tag by setuptools_scm at build
+# time (see [tool.setuptools_scm]); no manual version stamping is required.
+dynamic = ["version"]
 description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
 license = "Apache-2.0"
@@ -88,6 +89,10 @@ build-dir = "build/{wheel_tag}"
 wheel.packages = ["python/tvm"]
 wheel.install-dir = "tvm"
 
+# Derive the project version from the Git tag via setuptools_scm
+# (configured under [tool.setuptools_scm]).
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+
 # Source distribution configuration
 sdist.include = [
   # Build files
@@ -135,6 +140,17 @@ TVM_BUILD_PYTHON_MODULE = "ON"
 USE_CUDA = "OFF"
 BUILD_TESTING = "OFF"
 
+[tool.setuptools_scm]
+# Version comes from the most recent Git tag (vMAJOR.MINOR.devN or vMAJOR.MINOR.PATCH).
+# guess-next-dev reproduces the previous version.py behaviour for vMAJOR.MINOR.devN
+# tags (e.g. v0.25.dev0 + N commits -> 0.25.devN). local_scheme = "no-local-version"
+# drops the +g<hash> local segment: PyPI/TestPyPI reject local versions on upload, and
+# this matches the public version the old version.py stamped.
+version_file = "python/tvm/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.25.dev0"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
@@ -158,7 +174,6 @@ include = [
   "ci/scripts/**/*.py",
   "conftest.py",
   "jvm/**/*.py",
-  "version.py",
   "web/tests/**/*.py",
 ]
 line-length = 100

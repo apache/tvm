@@ -32,7 +32,7 @@ The release manager role in TVM means you are responsible for a few different th
 
   - Cutting a release branch
   - Informing the community of timing
-  - Making code changes in that branch with necessary version updates
+  - Making any necessary code changes in that branch (versions are derived from Git tags, so there are no manual version-number edits)
 
 - Running the voting process for a release
 
@@ -46,6 +46,30 @@ The release manager role in TVM means you are responsible for a few different th
   - Announcing the release
 
 
+Versioning
+----------
+
+TVM's version is derived automatically from the most recent Git tag by
+`setuptools_scm <https://setuptools-scm.readthedocs.io/>`_ at build time (configured
+under ``[tool.setuptools_scm]`` in ``pyproject.toml``). There are **no version numbers
+to edit by hand** in ``pyproject.toml``, ``python/tvm/libinfo.py`` or
+``include/tvm/runtime/base.h``; releasing is driven entirely by pushing Git tags:
+
+- ``main`` carries a ``vMAJOR.MINOR.devN`` tag (e.g. ``v0.7.dev0``). Commits after it
+  are versioned ``0.7.devN`` where ``N`` is the number of commits since the tag. This
+  is why the next dev tag must be pushed on ``main`` when a release branch is cut:
+  without it, follow-up commits would keep deriving their version from the previous
+  cycle's tag.
+- A release branch (e.g. ``v0.6``) is tagged ``v0.6.0.rc0`` for a candidate (wheel
+  version ``0.6.0rc0``) and ``v0.6.0`` for the formal release (wheel version
+  ``0.6.0``). Release wheels are built on the exact tag, so the version is the tag
+  itself.
+
+The legacy ``version.py`` stamping script has been removed. ``web/package.json`` (npm,
+a separate ecosystem) is no longer auto-stamped; bump it by hand when starting a new dev
+cycle or cutting a release. ``docs/conf.py`` reads ``tvm.__version__`` directly.
+
+
 Prepare the Release Notes
 -------------------------
 
@@ -57,7 +81,9 @@ It is recommended to open a GitHub issue to collect feedbacks for the release no
 Prepare the Release Candidate
 -----------------------------
 
-There may be some code changes necessary to the release branch before the release. Ensure all version numbers are up to date
+There may be some code changes necessary on the release branch before the release (for
+example cherry-picked fixes). Version numbers are derived from the release tags (see
+`Versioning`_), so there are no version numbers to update by hand.
 
 
 Prepare the GPG Key
@@ -86,38 +112,46 @@ The last step is to update the KEYS file with your code signing key https://www.
 Cut a Release Candidate
 -----------------------
 
-To cut a release candidate branch for v0.6 release:
+To cut a release candidate for the ``v0.6`` release:
 
-- Need push two commits in one pull request: the first commit need update version number from 0.6.dev0 to 0.6.0, second commit in same one pull request updating version number from 0.6.0 to 0.7.dev0. For this title of pull request, need specify: `[Dont Squash]`;
-- After merged, cut a branch on first version number commit. Branches should be named with the base release version without the patch. For example, to cut a candidate for ``v0.6.0``, the branch should be ``v0.6`` and a tag named ``v0.6.0.rc0`` pushed to the HEAD of that branch once cut.
+#. On the ``main`` commit that should be the last one included in the release, push the
+   **next** dev-cycle tag ``v0.7.dev0``. This tag is what makes subsequent ``main``
+   commits versioned ``0.7.devN`` (see `Versioning`_), so it must be pushed *before*
+   branching.
+#. Cut the release branch off that same commit. Branches are named with the base
+   release version without the patch, e.g. ``v0.6`` for the ``v0.6.0`` release.
+#. Push the first release-candidate tag ``v0.6.0.rc0`` on the release branch. CI then
+   builds the candidate wheel (version ``0.6.0rc0``) for PyPI/TestPyPI testing. Keep
+   this tag on a ``v0.6`` branch commit that is **not** also the ``v0.7.dev0``-tagged
+   branch point: when two tags share one commit, which one ``setuptools_scm`` picks is
+   fragile, so put the candidate tag on a release-prep commit on the branch.
 
 .. code-block:: bash
 
 	git clone https://github.com/apache/tvm.git
 	cd tvm/
 
-	# Update version numbers of first commit
-	# ...
-	git add .
-	git commit -m "Bump version numbers to v0.6.0"
+	# 1. Tag the next dev cycle on main (drives main's 0.7.devN version),
+	#    on the last commit to be included in the release.
+	git checkout <last-commit-for-release>
+	git tag v0.7.dev0
+	git push origin refs/tags/v0.7.dev0
 
-	# Update version numbers of second commit
-	# ...
-	git add .
-	git commit -m "Bump version numbers to v0.7.dev0"
-
-	# After pull request merged
-	# cut branch on first commit
-	git checkout <first-commit-id>
-
-	# Replace v0.6 with the relevant version
+	# 2. Cut the release branch off that same commit.
 	git branch v0.6
 	git push --set-upstream origin v0.6
 
+	# 3. Tag the first release candidate on the release branch. Keep this tag on a
+	#    release-prep commit, NOT the v0.7.dev0-tagged branch point, so the two tags
+	#    never share a commit.
+	git checkout v0.6
+	# ... make any release-prep commits (release notes, etc.) here ...
 	git tag v0.6.0.rc0
 	git push origin refs/tags/v0.6.0.rc0
 
-Make sure the version numbers in the source code are correct (example: https://github.com/apache/tvm/pull/14300). Run ``python3 version.py`` to update the version. Version numbers should be updated immediately after a release candidate branch is pushed.
+The wheel/distribution version is derived from these tags by ``setuptools_scm`` at build
+time, so no source files need editing and you no longer run ``version.py`` to stamp the
+version (see `Versioning`_).
 
 Go to the GitHub repositories "releases" tab and click "Draft a new release",
 
@@ -170,12 +204,13 @@ Create GPG signature as well as the hash of the file,
 Update TVM Version on ``main``
 ------------------------------
 
-After cutting a release candidate, make sure to update the version numbers throughout ``main``. For example if we are
-releasing ``v0.10.0`` we want to bump the version numbers throughout the codebase from ``v0.10.dev0`` to ``v0.11.dev0``. An
-example of how to do this can be found here: `https://github.com/apache/tvm/pull/12190 <https://github.com/apache/tvm/pull/12190>`_.
-Tag the commit on ``main`` immediately after the last one included in the release branch with the dev tag (e.g. ``v0.11.dev0``)
-for the next release. This tag is necessary so that the nightly packages built from ``main`` have the correct version
-number.
+The next dev-cycle tag pushed on ``main`` during the cut (step 1 above, e.g. ``v0.7.dev0``)
+is what gives ``main`` its ``0.7.devN`` version — ``setuptools_scm`` derives it from that
+tag, so there are **no source version numbers to bump** (the old two-commit ``[Dont Squash]``
+bump and the ``python version.py`` stamping step are no longer needed). Make sure that tag
+sits on the ``main`` commit immediately after the last one included in the release branch;
+it is required so that nightly/dev packages built from ``main`` carry the correct
+``0.7.devN`` version.
 
 Upload the Release Candidate
 ----------------------------
@@ -276,4 +311,4 @@ Send out an announcement email to announce@apache.org, and dev@tvm.apache.org. T
 
 Patch Releases
 --------------
-Patch releases should be reserved for critical bug fixes. Patch releases must go through the same process as normal releases, with the option at the release manager's discretion of a shortened release candidate voting window of 24 hours to ensure that fixes are delivered quickly. Each patch release should bump the version numbers on the release base branch (e.g. ``v0.11``) and tags created for release candidates (e.g. ``v0.11.1.rc0``).
+Patch releases should be reserved for critical bug fixes. Patch releases must go through the same process as normal releases, with the option at the release manager's discretion of a shortened release candidate voting window of 24 hours to ensure that fixes are delivered quickly. A patch release is cut purely by tagging the release base branch (e.g. ``v0.11``): push ``v0.11.1.rc0`` for the candidate and ``v0.11.1`` for the formal patch release; no source version numbers need bumping.
