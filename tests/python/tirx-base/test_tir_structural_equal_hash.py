@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm
@@ -24,11 +25,11 @@ from tvm.script import tirx as T
 
 
 def consistent_equal(x, y, map_free_vars=False):
-    struct_equal0 = tvm.ir.structural_equal(x, y, map_free_vars)
-    struct_equal1 = tvm.ir.structural_equal(y, x, map_free_vars)
+    struct_equal0 = tvm_ffi.structural_equal(x, y, map_free_vars)
+    struct_equal1 = tvm_ffi.structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     if struct_equal0 != struct_equal1:
         raise ValueError(
@@ -45,8 +46,8 @@ def consistent_equal(x, y, map_free_vars=False):
 
 
 def get_sequal_mismatch(x, y, map_free_vars=False):
-    mismatch_0 = tvm.ir.base.get_first_structural_mismatch(x, y, map_free_vars)
-    mismatch_1 = tvm.ir.base.get_first_structural_mismatch(y, x, map_free_vars)
+    mismatch_0 = tvm_ffi.get_first_structural_mismatch(x, y, map_free_vars)
+    mismatch_1 = tvm_ffi.get_first_structural_mismatch(y, x, map_free_vars)
 
     if mismatch_0 is None and mismatch_1 is None:
         return None
@@ -411,7 +412,7 @@ def test_nan_values_are_equivalent():
         return T.float32("nan")
 
     tvm.ir.assert_structural_equal(func_1, func_2)
-    assert tvm.ir.structural_hash(func_1) == tvm.ir.structural_hash(func_2)
+    assert tvm_ffi.structural_hash(func_1) == tvm_ffi.structural_hash(func_2)
 
 
 def test_all_nan_values_are_equivalent():
@@ -433,7 +434,7 @@ def test_all_nan_values_are_equivalent():
     float_2 = T.float32(nan_with_payload)
 
     tvm.ir.assert_structural_equal(float_1, float_2)
-    assert tvm.ir.structural_hash(float_1) == tvm.ir.structural_hash(float_2)
+    assert tvm_ffi.structural_hash(float_1) == tvm_ffi.structural_hash(float_2)
 
 
 if __name__ == "__main__":

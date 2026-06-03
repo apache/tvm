@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name, unused-argument, not-callable
 import numpy as np
+import tvm_ffi
 from scipy import special
 
 import tvm
@@ -388,5 +389,5 @@ def test_structural():
     ]
     for mod in Modules:
         after = generate_take_op.PassReplaceWithTakeOpPrimFuncs()(mod)
-        assert not tvm.ir.structural_equal(after["main"], mod["main"])
+        assert not tvm_ffi.structural_equal(after["main"], mod["main"])
     print("Passed Structural")

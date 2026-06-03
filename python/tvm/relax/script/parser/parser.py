@@ -20,8 +20,10 @@ import functools
 import numbers
 from typing import Any
 
+import tvm_ffi
+
 from tvm import relax, tirx
-from tvm.ir import GlobalVar, structural_equal
+from tvm.ir import GlobalVar
 from tvm.relax import Expr, StructInfo
 from tvm.relax.script import builder as R
 from tvm.relax.script.builder.frame import BindingBlockFrame
@@ -87,7 +89,7 @@ def bind_assign_value(
     if isinstance(value, relax.Expr):
         var = R.emit(value, anno_sinfo)
     elif isinstance(value, MatchCastPair):
-        if anno_sinfo is not None and not structural_equal(anno_sinfo, value.struct_info):
+        if anno_sinfo is not None and not tvm_ffi.structural_equal(anno_sinfo, value.struct_info):
             self.report_error(
                 node, "Cannot specify inconsistent annotation for a match cast pair. "
             )

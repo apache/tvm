@@ -17,7 +17,8 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Optimize Layout Transform pass."""
 
-from tvm.ir import structural_equal
+import tvm_ffi
+
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr
@@ -78,7 +79,7 @@ class OptimizeLayoutTransform:
                 if "remove_pad" == self.mod[arg2].attrs["operator_name"]:
                     arg2 = matches[self.input]
             if hasattr(arg1.struct_info, "shape") and hasattr(arg2.struct_info, "shape"):
-                if structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
+                if tvm_ffi.structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
                     return arg2
             return expr
 

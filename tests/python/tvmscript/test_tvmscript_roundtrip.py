@@ -20,6 +20,7 @@ import sys
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -2491,7 +2492,7 @@ def test_void_ptr_vs_handle():
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)
 
-    assert not tvm.ir.structural_equal(void_ptr, handle)
+    assert not tvm_ffi.structural_equal(void_ptr, handle)
 
 
 def void_ptr():

@@ -47,6 +47,7 @@ from typing import Any
 
 import numpy as _np
 import onnx.onnx_ml_pb2
+import tvm_ffi
 
 import tvm
 from tvm import TVMError, relax, tirx, topi
@@ -661,7 +662,7 @@ class Equal(OnnxOpConverter):
             rhs = get_prim_expr_list(inputs[1])
             if len(lhs) != len(rhs):
                 raise ValueError("Cannot compare two tensors with different shapes")
-            output = [tvm.ir.structural_equal(l, r) for l, r in zip(lhs, rhs)]
+            output = [tvm_ffi.structural_equal(l, r) for l, r in zip(lhs, rhs)]
             return relax.const(output, "bool")
         return relax.op.equal(inputs[0], inputs[1])
 

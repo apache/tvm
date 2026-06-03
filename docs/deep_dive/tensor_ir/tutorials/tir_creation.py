@@ -53,6 +53,7 @@ If not already acquainted, please refer to :ref:`tirx-learning` initially.
 # format of the ir_module and in TVMScript:
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 from tvm.script import ir as I
@@ -126,7 +127,7 @@ class ConciseModule:
 ######################################################################
 # We can use the following code to verify that the two modules are equivalent:
 
-print(tvm.ir.structural_equal(MyModule, ConciseModule))
+print(tvm_ffi.structural_equal(MyModule, ConciseModule))
 
 ######################################################################
 # Interactive with Python Variables
@@ -165,7 +166,7 @@ class ConciseModuleFromPython:
 ######################################################################
 # Check the equivalence:
 
-print(tvm.ir.structural_equal(ConciseModule, ConciseModuleFromPython))
+print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
 
 ######################################################################

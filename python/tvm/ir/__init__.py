@@ -29,8 +29,6 @@ from .base import (
     assert_structural_equal,
     load_json,
     save_json,
-    structural_equal,
-    structural_hash,
 )
 from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelaxExpr
 from .function import BaseFunc, CallingConv

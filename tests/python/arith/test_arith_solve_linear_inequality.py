@@ -18,6 +18,7 @@ import random
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import arith, ir, testing, tirx
@@ -99,10 +100,10 @@ def test_dual_variable():
 
     # solution as conditions
     solution = arith._ffi_api.SolveInequalitiesAsCondition(variables, ranges, problem)
-    assert ir.structural_equal(solution[0], x >= (y + 10))
-    assert ir.structural_equal(solution[1], x <= (20 - y))
-    assert ir.structural_equal(solution[2], y >= 0)
-    assert ir.structural_equal(solution[3], y <= 5)
+    assert tvm_ffi.structural_equal(solution[0], x >= (y + 10))
+    assert tvm_ffi.structural_equal(solution[1], x <= (20 - y))
+    assert tvm_ffi.structural_equal(solution[2], y >= 0)
+    assert tvm_ffi.structural_equal(solution[3], y <= 5)
 
     # solve and get the ranges
     solution = arith.solve_linear_inequalities(problem, variables, ranges)
@@ -110,22 +111,22 @@ def test_dual_variable():
     assert solution.ranges[y].min == 0
     assert solution.ranges[y].extent == 6
     # y + 10 <= x <= 20 - y
-    assert ir.structural_equal(solution.ranges[x].min, y + 10)
+    assert tvm_ffi.structural_equal(solution.ranges[x].min, y + 10)
     assert solution.ranges[x].extent == 11  # max(10 - 2y)
 
     # deskew the solved ranges to be starting from zero
     solution = arith.solve_linear_inequalities(problem, variables, ranges, deskew_range=True)
     [x_new, y_new] = solution.dst.variables
     [rel] = solution.dst.relations
-    assert ir.structural_equal(rel, (y_new * 2) + x_new <= 10)
-    assert ir.structural_equal(solution.dst.ranges[x_new].min, T.int32(0))
-    assert ir.structural_equal(solution.dst.ranges[x_new].extent, T.int32(11))
-    assert ir.structural_equal(solution.dst.ranges[y_new].min, T.int32(0))
-    assert ir.structural_equal(solution.dst.ranges[y_new].extent, T.int32(6))
-    assert ir.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
-    assert ir.structural_equal(solution.src_to_dst[y], y_new)
-    assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
-    assert ir.structural_equal(solution.dst_to_src[y_new], y)
+    assert tvm_ffi.structural_equal(rel, (y_new * 2) + x_new <= 10)
+    assert tvm_ffi.structural_equal(solution.dst.ranges[x_new].min, T.int32(0))
+    assert tvm_ffi.structural_equal(solution.dst.ranges[x_new].extent, T.int32(11))
+    assert tvm_ffi.structural_equal(solution.dst.ranges[y_new].min, T.int32(0))
+    assert tvm_ffi.structural_equal(solution.dst.ranges[y_new].extent, T.int32(6))
+    assert tvm_ffi.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
+    assert tvm_ffi.structural_equal(solution.src_to_dst[y], y_new)
+    assert tvm_ffi.structural_equal(solution.dst_to_src[x_new], x - y - 10)
+    assert tvm_ffi.structural_equal(solution.dst_to_src[y_new], y)
 
 
 def test_equal():
@@ -163,7 +164,7 @@ def test_multi_equal():
     assert solution.ranges[x].min == 6
     assert solution.ranges[x].extent == 1
     assert len(solution.relations) == 3
-    assert ir.structural_equal(solution.relations[0], x == z * y)
+    assert tvm_ffi.structural_equal(solution.relations[0], x == z * y)
 
     assert isinstance(solution.relations[1], tvm.tirx.LE)
     assert solution.relations[1].b == 0
@@ -172,9 +173,9 @@ def test_multi_equal():
     # (z*y - 6) <= 0 && (6 - z*y) <= 0
     ana = tvm.arith.Analyzer()
     assert ana.simplify(solution.relations[1].a + solution.relations[2].a) == 0
-    assert ir.structural_equal(solution.relations[1].a, (z * y - 6)) or ir.structural_equal(
-        solution.relations[2].a, (z * y - 6)
-    )
+    assert tvm_ffi.structural_equal(
+        solution.relations[1].a, (z * y - 6)
+    ) or tvm_ffi.structural_equal(solution.relations[2].a, (z * y - 6))
 
     solution = arith.solve_linear_inequalities(problem, [x, y, z], deskew_range=True)
     assert solution.src_to_dst[y] == y

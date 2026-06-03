@@ -20,6 +20,7 @@ import functools
 import math
 
 import pytest
+import tvm_ffi
 
 import tvm.testing
 from tvm import relax as rx
@@ -239,7 +240,7 @@ def test_shape_pattern():
     shape = [32, 32]
     pattern = wildcard().has_shape(shape)
     assert isinstance(pattern, ShapePattern)
-    tvm.ir.structural_equal(pattern.shape, shape)
+    tvm_ffi.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
     n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
@@ -1478,7 +1479,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         arg = matches[pattern_arg]
         shape_expr = matches[pattern_shape_expr]
 
-        if tvm.ir.structural_equal(arg.struct_info.shape, shape_expr):
+        if tvm_ffi.structural_equal(arg.struct_info.shape, shape_expr):
             return arg
         else:
             return expr
@@ -1755,7 +1756,9 @@ def test_iterative_rewrite_with_removed_intermediates():
         if pat_unwrap_concat_split in matches:
             args = matches[pat_args]
 
-            if len(args) == 2 and tvm.ir.structural_equal(args[0].struct_info, args[1].struct_info):
+            if len(args) == 2 and tvm_ffi.structural_equal(
+                args[0].struct_info, args[1].struct_info
+            ):
                 return args
 
         elif pat_add_self in matches:

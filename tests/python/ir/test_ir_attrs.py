@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import tvm_ffi
+
 import tvm
 
 
@@ -36,9 +38,9 @@ def test_attrs_equal():
     dattr1 = tvm.ir.make_node("ir.DictAttrs", y=[10, 20], x=1)
     dattr2 = tvm.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm.ir.assert_structural_equal(dattr0, dattr1)
-    assert not tvm.ir.structural_equal(dattr0, dattr2)
-    assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))
-    assert not tvm.ir.structural_equal([1, 2], tvm.runtime.convert(1))
+    assert not tvm_ffi.structural_equal(dattr0, dattr2)
+    assert not tvm_ffi.structural_equal({"x": 1}, tvm.runtime.convert(1))
+    assert not tvm_ffi.structural_equal([1, 2], tvm.runtime.convert(1))
 
 
 if __name__ == "__main__":

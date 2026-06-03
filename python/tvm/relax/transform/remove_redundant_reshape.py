@@ -17,8 +17,9 @@
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax Remove Redundant Reshape ops"""
 
+import tvm_ffi
+
 from tvm import IRModule, relax
-from tvm.ir import structural_equal
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr
 from tvm.relax.dpl import is_op, rewrite_call, wildcard
@@ -73,7 +74,9 @@ class RemoveRedundantReshape:
 
             elif self.no_op_reshape in matches:
                 output_shape = matches[self.no_op_reshape].args[1]
-                if arg.struct_info.shape and structural_equal(arg.struct_info.shape, output_shape):
+                if arg.struct_info.shape and tvm_ffi.structural_equal(
+                    arg.struct_info.shape, output_shape
+                ):
                     return arg
             return expr
 

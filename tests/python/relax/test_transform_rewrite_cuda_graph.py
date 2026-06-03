@@ -17,6 +17,7 @@
 # ruff: noqa: E501, F841
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -703,7 +704,7 @@ def test_transform_is_no_op_when_disabled():
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
         AfterWhenDisabled = relax.transform.RewriteCUDAGraph()(Before)
 
-    assert not tvm.ir.structural_equal(Before, AfterWhenEnabled)
+    assert not tvm_ffi.structural_equal(Before, AfterWhenEnabled)
     tvm.ir.assert_structural_equal(Before, AfterWhenDisabled)
 
 

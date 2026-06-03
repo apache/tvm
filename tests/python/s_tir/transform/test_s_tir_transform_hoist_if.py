@@ -17,6 +17,7 @@
 # ruff: noqa: E741, F401
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import s_tir
@@ -478,7 +479,7 @@ def test_hoisting_block_scope_2():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_5():
@@ -496,7 +497,7 @@ def test_hoisting_block_scope_5():
 
     stmt = Module["main"].body
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
     mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([], new_stmt))
     stmt = new_stmt
@@ -533,7 +534,7 @@ def test_hoisting_block_scope_6():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_7():
@@ -561,7 +562,7 @@ def test_hoisting_block_scope_7():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 if __name__ == "__main__":

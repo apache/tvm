@@ -30,7 +30,7 @@ class GlobalInfo(Object):
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
-        return tvm.ir.structural_equal(self, other)
+        return tvm_ffi.structural_equal(self, other)
 
     def __ne__(self, other):
         return not self.__eq__(other)

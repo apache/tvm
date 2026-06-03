@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -27,8 +28,8 @@ def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     assert xhash == yhash
 
@@ -95,7 +96,7 @@ def test_prim_struct_info_with_expr():
     sinfo = rx.PrimStructInfo(value=n + 1)
 
     _check_equal(sinfo, rx.PrimStructInfo(value=n + 1))
-    assert not tvm.ir.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
+    assert not tvm_ffi.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
 
     # can turn into str
     str(sinfo)

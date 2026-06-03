@@ -21,6 +21,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -40,7 +41,7 @@ def _infer_scalar_add(x, y):  # pylint: disable=invalid-name
 
 def _infer_test_sym(a, b):  # pylint: disable=invalid-name
     def _var_equal(a, b):  # pylint: disable=invalid-name
-        return tvm.ir.structural_equal(a, b, map_free_vars=True)
+        return tvm_ffi.structural_equal(a, b, map_free_vars=True)
 
     assert isinstance(a, nn.Tensor)
     assert isinstance(b, nn.Tensor)
