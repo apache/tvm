@@ -16,12 +16,15 @@
 # under the License.
 """Post-install checks for a built TVM wheel.
 
-Run by cibuildwheel against the installed wheel (``test-command`` in
-``[tool.cibuildwheel]``). These assert the two wheel-specific things the standard
-``tests/python/all-platform-minimal-test`` suite cannot: that LLVM is enabled (its
-LLVM test merely *skips* when LLVM is absent), and that the CUDA runtime library
-got bundled (when ``TVM_WHEEL_EXPECT_CUDA_RUNTIME=1``). The functional LLVM
-compile / ndarray ops are covered by that all-platform suite.
+These live in ``tests/python/all-platform-minimal-test`` so the standard suite and
+the cibuildwheel ``test-command`` run a single pytest invocation. The assertions
+here are wheel-specific things the rest of the suite cannot check -- that LLVM is
+enabled (the other LLVM test merely *skips* when LLVM is absent) and that the CUDA
+runtime library got bundled -- so each is gated behind a ``TVM_WHEEL_EXPECT_*`` env
+var and SKIPS unless that var is set. cibuildwheel sets the vars (see
+``CIBW_TEST_ENVIRONMENT`` in ``.github/actions/build-wheel-for-publish``); ordinary
+source-build CI (e.g. ``main.yml``) leaves them unset, so these tests skip there and
+never fail a non-wheel / non-LLVM / non-CUDA build.
 """
 
 import glob
@@ -34,8 +37,11 @@ import tvm
 
 
 def test_llvm_enabled():
-    """Every TVM wheel ships with LLVM enabled. The all-platform suite only skips
-    (does not fail) when LLVM is absent, so assert presence here."""
+    """Every published TVM wheel ships with LLVM enabled. Only assert this when
+    validating a wheel (``TVM_WHEEL_EXPECT_LLVM=1``); skip otherwise so source
+    builds with LLVM off do not fail."""
+    if os.environ.get("TVM_WHEEL_EXPECT_LLVM") != "1":
+        pytest.skip("LLVM enablement only asserted during wheel validation")
     assert tvm.runtime.enabled("llvm"), "wheel was not built with LLVM enabled"
 
 
