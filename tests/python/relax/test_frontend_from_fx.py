@@ -3527,6 +3527,28 @@ def test_extended_unary_ops():
     verify_model(Trunc(), input_info, {}, expected_trunc)
 
 
+def test_pow_integer():
+    input_info = [([4], "int64")]
+
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(4)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((4,), dtype="int64")) -> R.Tensor((4,), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="int64") = R.multiply(inp_0, inp_0)
+                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, inp_0)
+                lv2: R.Tensor((4,), dtype="int64") = R.multiply(lv1, inp_0)
+                gv: R.Tensor((4,), dtype="int64") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(Pow(), input_info, {}, expected)
+
+
 def test_interpolate():
     input_info = [([1, 3, 10, 10], "float32")]
 

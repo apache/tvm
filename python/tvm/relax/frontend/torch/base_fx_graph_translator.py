@@ -22,6 +22,7 @@
 
 import abc
 import math
+import operator
 from collections.abc import Callable
 from functools import reduce
 
@@ -522,6 +523,27 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
+
+    def _pow(self, node: fx.Node) -> relax.Var:
+        lhs, rhs = self.retrieve_args(node)
+        # torch integer pow returns an integer tensor, but relax.op.power legalizes to
+        # TOPI power which requires floating-point inputs. Decompose an integer base with
+        # a constant non-negative integer exponent into repeated multiplication instead.
+        if (
+            isinstance(lhs, relax.Expr)
+            and isinstance(lhs.struct_info, relax.TensorStructInfo)
+            and "int" in lhs.struct_info.dtype
+            and isinstance(rhs, int)
+            and not isinstance(rhs, bool)
+            and rhs >= 0
+        ):
+            if rhs == 0:
+                return self.block_builder.emit(relax.op.ones_like(lhs))
+            result = lhs
+            for _ in range(rhs - 1):
+                result = self.block_builder.emit(relax.op.multiply(result, lhs))
+            return result
+        return self._binary_op(relax.op.power, operator.pow)(node)
 
     def _div(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

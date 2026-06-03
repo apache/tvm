@@ -1085,6 +1085,28 @@ def test_logical_not():
     verify_model(LogicalNot(), example_args, {}, expected)
 
 
+def test_pow_integer():
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(4)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(input: R.Tensor((4,), dtype="int64")) -> R.Tuple(R.Tensor((4,), dtype="int64")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="int64") = R.multiply(input, input)
+                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, input)
+                lv2: R.Tensor((4,), dtype="int64") = R.multiply(lv1, input)
+                gv: R.Tuple(R.Tensor((4,), dtype="int64")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.tensor([-1, 1, 2, 3], dtype=torch.int64),)
+    verify_model(Pow(), example_args, {}, expected)
+
+
 def test_logsoftmax():
     class LogSoftmax(Module):
         def __init__(self):
