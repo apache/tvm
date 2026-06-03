@@ -19,6 +19,7 @@
 import inspect
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -81,7 +82,7 @@ class BaseCompare:
             with analyzer.constraint_scope(test_case.constraint):
                 after = analyzer.rewrite_simplify(test_case.before)
 
-            assert tvm.ir.structural_equal(after, test_case.expected), (
+            assert tvm_ffi.structural_equal(after, test_case.expected), (
                 f"Rewrite didn't match expected.\n"
                 f"Before   = {test_case.before}\n"
                 f"After    = {after}\n"

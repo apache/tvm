@@ -48,18 +48,18 @@ def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
 
     This function does not remap variable bindings, it will not
     return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
-    Use py:func:`tvm.ir.structural_equal` to handle structural variable remapping.
+    Use py:func:`tvm_ffi.structural_equal` to handle structural variable remapping.
 
     Due to the restriction of not remapping variables, this function can run
     faster than StructuralEqual and can be used as a utility function during arithmetic
     simplifications.
 
-    Always consider py:func:`tvm.ir.structural_equal` first, which handles
+    Always consider py:func:`tvm_ffi.structural_equal` first, which handles
     the structural remapping.
 
     See Also
     --------
-    tvm.ir.structural_equal
+    tvm_ffi.structural_equal
     """
     return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
 
