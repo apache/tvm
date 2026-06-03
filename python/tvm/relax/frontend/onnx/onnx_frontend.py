@@ -1133,6 +1133,9 @@ class Cast(OnnxOpConverter):
                 else:
                     return relax.op.astype(x_sanitized, to_type)
 
+                if bits == 64:
+                    return relax.op.astype(x_sanitized, to_type)
+
                 temp_dtype = "int64" if bits >= 32 else "int32"
                 t = relax.op.astype(x_sanitized, temp_dtype)
                 if bits == 32:

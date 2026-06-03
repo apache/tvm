@@ -863,6 +863,20 @@ def test_cast(from_type, to_type):
     check_correctness(model, opset=13)
 
 
+@pytest.mark.parametrize("to_type", [TensorProto.INT64, TensorProto.UINT64])
+def test_cast_float_to_64bit_int_dynamic(to_type):
+    cast_node = helper.make_node("Cast", ["a"], ["b"], to=to_type)
+    graph = helper.make_graph(
+        [cast_node],
+        "cast_float_to_64bit_int_dynamic_test",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 8])],
+        outputs=[helper.make_tensor_value_info("b", to_type, [1, 8])],
+    )
+    model = helper.make_model(graph, producer_name="cast_float_to_64bit_int_dynamic_test")
+    inputs = {"a": np.array([[0.0, 1.2, 2.8, 7.9, 15.1, 31.7, 63.4, 127.9]], dtype=np.float32)}
+    check_correctness(model, inputs=inputs, opset=13, check_dtypes=True)
+
+
 def test_cast_nan_inf_to_int8():
     vals = np.array([300.0, np.nan, np.inf, -np.inf, 50.0, -50.0], dtype=np.float32)
     node = helper.make_node("Cast", inputs=["a"], outputs=["b"], to=TensorProto.INT8)
