@@ -21,6 +21,12 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def test_public_api_surface():
+    assert hasattr(tvm.tirx.transform, "SplitHostDevice")
+    assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
+    assert not hasattr(tvm.tirx.transform, "LowerDeviceKernelLaunch")
+
+
 def test_ssa_across_entire_module():
     """The host and device functions should not share TIR vars
 
@@ -38,13 +44,7 @@ def test_ssa_across_entire_module():
                 for j in range(16):
                     T.evaluate(i)
 
-    after = tvm.ir.transform.Sequential(
-        [
-            tvm.tirx.transform.AnnotateDeviceRegions(),
-            tvm.tirx.transform.SplitHostDevice(),
-            tvm.tirx.transform.LowerDeviceKernelLaunch(),
-        ]
-    )(before)
+    after = tvm.tirx.transform.SplitHostDevice()(before)
     loop_var = after["main"].body.loop_var
     param_var = after["main_kernel"].params[0]
 
@@ -67,13 +67,16 @@ def test_split_host_device():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            Expected.main_kernel(n)
+            T.call_packed("main_kernel", n)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(s_tir=True)
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
                     "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "main_kernel",
                     "tirx.noalias": True,
                     "tirx.is_global_func": True,
                 }
@@ -100,10 +103,10 @@ def test_split_host_device_on_cpu():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            err: T.let[T.int32] = Expected.main_kernel(n)
-            assert err == 0, "Error executing compute kernel"
+            kernel_error_code: T.let[T.int32] = T.call_extern("int32", "main_kernel", n)
+            assert kernel_error_code == 0, "Error executing compute kernel"
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(s_tir=True)
         def main_kernel(n: T.int32) -> T.int32:
             T.func_attr(
                 {
@@ -139,13 +142,16 @@ def test_split_host_device_without_func_host_attribute():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            Expected.main_kernel(n)
+            T.call_packed("main_kernel", n)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(s_tir=True)
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
                     "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "main_kernel",
                     "tirx.noalias": True,
                     "tirx.is_global_func": True,
                 }
@@ -201,13 +207,16 @@ def test_split_host_device_name_collision():
         @T.prim_func(s_tir=True)
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            Expected.main_kernel_1(n)
+            T.call_packed("main_kernel_1", n)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.prim_func(s_tir=True)
         def main_kernel_1(n: T.int32):
             T.func_attr(
                 {
                     "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "main_kernel_1",
                     "tirx.noalias": True,
                     "tirx.is_global_func": True,
                 }
@@ -234,7 +243,7 @@ def test_dynamic_launch_thread():
     if the only use of a variable occurred in the extent of a
     `T.launch_thread` statement.
 
-    While the lowering pass `LowerDeviceKernelLaunch` will hoist the
+    While the launch-lowering stage will hoist the
     computation of the extent from the device kernel to the host
     function, the IRModule must be well-defined at all stages of
     lowering.  Even if a variable is only used as part of a thread
@@ -313,6 +322,296 @@ def test_size_var():
     after = tvm.tirx.transform.SplitHostDevice()(Module)
     assert len(after["main_kernel"].params) == 3
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.SizeVar)
+
+
+def test_thread_extent_region_extracted_as_device_kernel():
+    """A bare thread_extent is annotated and extracted as a device kernel."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.call_packed("main_kernel", A.data, 16)
+
+        @T.prim_func(s_tir=True)
+        def main_kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": ["threadIdx.x"],
+                    "global_symbol": "main_kernel",
+                    "tirx.noalias": True,
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_device_scope_region_extracted_as_device_kernel():
+    """A bare device_scope is annotated and extracted as a device kernel."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(0, "device_scope", 0)
+            A[0] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.call_packed("main_kernel", A.data)
+
+        @T.prim_func(s_tir=True)
+        def main_kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "main_kernel",
+                    "tirx.noalias": True,
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            T.attr(0, "device_scope", 0)
+            A[0] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_lower_device_kernel_launch():
+    """Kernel calls are lowered using the public SplitHostDevice pass."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda")})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "kernel",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_externally_visible_kernel_launch():
+    """Kernel launch lowering preserves a pre-defined global_symbol."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel_by_another_name", A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": [],
+                    "global_symbol": "kernel_by_another_name",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_collect_launch_parameter():
+    """Thread launch extents are appended to the host launch call."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "global_symbol": "kernel",
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data, 16)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": ["threadIdx.x"],
+                    "global_symbol": "kernel",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_same_device_different_target():
+    """Same-device calls with different codegen are lowered to extern calls."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("c")})
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_extern("kernel", A.data, dtype="void")
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("c"),
+                    "global_symbol": "kernel",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A[0] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_bind_before_thread_extent():
+    """Bind-defined thread extents are inlined into launch arguments."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32"), n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data, n)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32"), n: T.int32):
+            T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            v: T.let[T.int32] = n + 1
+            i = T.launch_thread("threadIdx.x", v)
+            A[i] = 0.0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer(16, "float32"), n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data, n, n + 1)
+
+        @T.prim_func(s_tir=True)
+        def kernel(A_data: T.handle("float32"), n: T.int32):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tirx.kernel_launch_params": ["threadIdx.x"],
+                    "global_symbol": "kernel",
+                    "tirx.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            v: T.let[T.int32] = n + 1
+            i = T.launch_thread("threadIdx.x", v)
+            A[i] = 0.0
+
+    After = tvm.tirx.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
