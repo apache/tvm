@@ -163,19 +163,11 @@ TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 TVM_DLL Pass LowerCustomDatatypes();
 
 /*!
- * \brief Annotate locations that should be run on the device
+ * \brief Annotate, split, and lower host/device functions.
  *
- * Insert `AttrStmt` nodes specifying a target on which regions within
- * the PrimFunc should be executed.  Only modifies functions that have
- * a `tvm::attr::kTarget` attribute, and where that target defines a
- * host.
- *
- * \return The pass.
- */
-TVM_DLL Pass AnnotateDeviceRegions();
-
-/*!
- * \brief Split the function into a host function and device functions.
+ * This pass first annotates device regions within host functions,
+ * then splits them into host and device-side PrimFuncs, and finally
+ * lowers host-to-device calls into the device kernel launch ABI.
  *
  * The resulting host-side function will keep the same
  * `tvm::attr::kTarget` attribute (e.g. `T.target("cuda",
@@ -189,23 +181,6 @@ TVM_DLL Pass AnnotateDeviceRegions();
  * \return The pass.
  */
 TVM_DLL Pass SplitHostDevice();
-
-/*!
- * \brief Lower cross-device function calls.
- *
- * Prior to this pass, host to device calls are represented as
- * subroutine calls, with environment parameters (e.g. env_thread)
- * specified internally.  The device function is an internal function,
- * without a `tvm::attr::kGlobalSymbol` attribute.
- *
- * After this pass, host to device calls are represented as
- * tvm_call_packed built-in.  The device function is an
- * externally-exposed function, with a non-empty
- * `tvm::attr::kGlobalSymbol` attribute.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerDeviceKernelLaunch();
 
 /*!
  * \brief skip assert stmt.

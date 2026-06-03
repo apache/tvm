@@ -339,12 +339,7 @@ def test_multi_thread_extent_blocks():
     # PR #19605 that triggers the scoping bug.
     target = tvm.target.Target("llvm")
     mod_with_target = tvm.IRModule({"main": After["main"].with_attr({"target": target})})
-    split = tvm.transform.Sequential(
-        [
-            tvm.tirx.transform.AnnotateDeviceRegions(),
-            tvm.tirx.transform.SplitHostDevice(),
-        ]
-    )
+    split = tvm.tirx.transform.SplitHostDevice()
     # If kernel #1 referenced an undefined buf_dyn_shmem, this
     # would raise during well-formedness checking inside SplitHostDevice.
     split(mod_with_target)
