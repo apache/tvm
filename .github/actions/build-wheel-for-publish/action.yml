@@ -129,16 +129,20 @@ runs:
         # env overrides replace rather than merge, so there is no shared base block.
         CIBW_ENVIRONMENT_MACOS: >-
           CMAKE_PREFIX_PATH="/opt/llvm"
-          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} ${{ inputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }}"
         CIBW_ENVIRONMENT_LINUX: >-
           CMAKE_PREFIX_PATH="/opt/llvm"
           LIBRARY_PATH="/opt/llvm/lib"
-          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} ${{ inputs.include_cuda_runtime == '1' && '-DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so' || '' }}"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so"
         CIBW_ENVIRONMENT_WINDOWS: >-
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
           PATH="C:/opt/llvm/Library/bin;$PATH"
-          CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library ${{ inputs.cmake_defines }} ${{ inputs.include_cuda_runtime == '1' && format('-DTVM_PACKAGE_EXTRA_LIBS={0}', env.TVM_CUDA_EXTRA_LIB) || '' }}"
-        # Tells tests/python/wheel to assert the CUDA runtime is bundled
-        # (only on the CUDA wheels; the value is "0" for CPU wheels).
+          CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=${{ env.TVM_CUDA_EXTRA_LIB }}"
+        # Turns the wheel-specific assertions in
+        # tests/python/all-platform-minimal-test/test_validate_runtime_library.py
+        # ON (they skip unless these are set). Every published wheel is LLVM-enabled,
+        # so TVM_WHEEL_EXPECT_LLVM is always "1"; the CUDA runtime is only bundled on
+        # the CUDA wheels, so TVM_WHEEL_EXPECT_CUDA_RUNTIME is "0" for CPU wheels.
         CIBW_TEST_ENVIRONMENT: >-
+          TVM_WHEEL_EXPECT_LLVM="1"
           TVM_WHEEL_EXPECT_CUDA_RUNTIME="${{ inputs.include_cuda_runtime }}"
