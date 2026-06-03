@@ -18,9 +18,11 @@
 
 import tvm_ffi
 from tvm_ffi import get_global_func, register_object
+from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
-from tvm.runtime import Object, _ffi_node_api
+from tvm.runtime import Object
 
+from ..base import __version__
 from . import _ffi_api, json_compact
 
 
@@ -141,7 +143,7 @@ def load_json(json_str) -> Object:
     """
 
     json_str = json_compact.upgrade_json(json_str)
-    return _ffi_node_api.LoadJSON(json_str)
+    return from_json_graph_str(json_str)
 
 
 def save_json(node) -> str:
@@ -157,7 +159,7 @@ def save_json(node) -> str:
     json_str : str
         Saved json string.
     """
-    return _ffi_node_api.SaveJSON(node)
+    return to_json_graph_str(node, {"tvm_version": __version__})
 
 
 def structural_equal(lhs, rhs, map_free_vars=False):

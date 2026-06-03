@@ -19,7 +19,8 @@
 #ifndef TVM_RUNTIME_DISCO_PROTOCOL_H_
 #define TVM_RUNTIME_DISCO_PROTOCOL_H_
 
-#include <tvm/ffi/function.h>
+#include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/support/io.h>
@@ -233,10 +234,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     return result;
   } else if (auto opt_obj = this->data.as<ffi::ObjectRef>()) {
     ffi::ObjectRef obj = opt_obj.value();
-    const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
-    TVM_FFI_CHECK(f.has_value(), ValueError)
-        << "Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
-    std::string result = (*f)(obj).cast<std::string>();
+    std::string result = ffi::json::Stringify(ffi::ToJSONGraph(obj));
     result.push_back('0');
     return result;
   }
@@ -251,9 +249,7 @@ inline ffi::ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::strin
   json_str.pop_back();
   ffi::ObjectPtr<DiscoDebugObject> result = ffi::make_object<DiscoDebugObject>();
   if (control_bit == '0') {
-    const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
-    TVM_FFI_CHECK(f.has_value(), ValueError) << "Cannot deserialize object in non-debugging mode";
-    result->data = (*f)(json_str);
+    result->data = ffi::FromJSONGraph(ffi::json::Parse(json_str));
   } else if (control_bit == '1') {
     support::BytesInStream mstrm(json_str);
     support::Base64InStream b64strm(&mstrm);
