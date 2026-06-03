@@ -234,7 +234,19 @@ test-command = "pytest -vvs {project}/tests/python/all-platform-minimal-test"
 repair-wheel-command = "auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so --exclude 'libcuda.so.*' --exclude 'libcudart.so.*' --exclude 'libnvrtc.so.*' --exclude 'libnvrtc-builtins.so.*' -w {dest_dir} {wheel}"
 
 [tool.cibuildwheel.macos]
-repair-wheel-command = '''bash -c 'set -euo pipefail; r="$(mktemp -d)"; delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib --require-archs {delocate_archs} -w "$r" -v "{wheel}"; python -m pip install -q wheel; u="$(mktemp -d)"; python -m wheel unpack "$r"/*.whl -d "$u"; find "$u" -type f \( -name "*.dylib" -o -name "*.so" \) -print0 | xargs -0 -n1 codesign --force --sign -; python -m wheel pack "$u"/*/ -d "{dest_dir}"' '''
+# delocate breaks libtvm_runtime.dylib's ad-hoc signature (it links the excluded
+# libtvm_ffi.dylib) and arm64 dyld kills an unsigned Mach-O, so re-sign + repack.
+repair-wheel-command = '''
+set -euo pipefail
+DELOCATE_TMP_DIR="$(mktemp -d)"
+delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib --require-archs {delocate_archs} -w "$DELOCATE_TMP_DIR" -v {wheel}
+python -m pip install -q wheel
+TMP_DIR="$(mktemp -d)"
+python -m wheel unpack "$DELOCATE_TMP_DIR"/*.whl -d "$TMP_DIR"
+find "$TMP_DIR" -type f \( -name "*.dylib" -o -name "*.so" \) -exec codesign --force --sign - {} +
+python -m wheel pack "$TMP_DIR"/*/ -d {dest_dir}
+rm -rf "$DELOCATE_TMP_DIR" "$TMP_DIR"
+'''
 
 [tool.cibuildwheel.windows]
 before-build = 'python -m pip install "delvewheel>=1.12.0"'
