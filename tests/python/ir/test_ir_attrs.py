@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import pytest
 import tvm_ffi
 
 import tvm
@@ -41,6 +42,19 @@ def test_attrs_equal():
     assert not tvm_ffi.structural_equal(dattr0, dattr2)
     assert not tvm_ffi.structural_equal({"x": 1}, tvm.runtime.convert(1))
     assert not tvm_ffi.structural_equal([1, 2], tvm.runtime.convert(1))
+
+
+def test_assert_structural_equal_reports_mismatch():
+    dattr0 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 30])
+
+    with pytest.raises(ValueError) as err:
+        tvm.ir.assert_structural_equal(dattr0, dattr1)
+
+    message = str(err.value)
+    assert "StructuralEqual check failed" in message
+    assert "caused by lhs at" in message
+    assert "and rhs at" in message
 
 
 if __name__ == "__main__":
