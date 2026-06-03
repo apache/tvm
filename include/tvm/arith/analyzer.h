@@ -26,6 +26,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/with_context.h>
 
@@ -295,7 +296,7 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -554,8 +555,8 @@ class ConstraintContext {
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
-      : analyzer_(analyzer), constraint_(constraint) {}
+  ConstraintContext(Analyzer* analyzer, PrimExpr constraint, bool is_assume = false)
+      : analyzer_(analyzer), constraint_(constraint), is_assume_(is_assume) {}
   // enter the scope.
   void EnterWithScope();
   // exit the scope.
@@ -566,6 +567,7 @@ class ConstraintContext {
   PrimExpr constraint_;
   /*! \brief functions to be called in recovery */
   std::vector<std::function<void()>> recovery_functions_;
+  bool is_assume_;
 };
 
 /*!
@@ -622,6 +624,103 @@ class IntSetAnalyzer {
   Impl* impl_;
 };
 
+class Z3Prover {
+ public:
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_range The range of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param expr The bound expression.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+
+  /*!
+   * \brief Whether can we prove expr is always true.
+   *
+   * \param expr The expression.
+   * \return Whether we can prove it.
+   */
+  TVM_DLL bool CanProve(const PrimExpr& expr);
+
+  /*!
+   * \brief Update the internal state to enter constraint.
+   *
+   * \param constraint A constraint expression.
+   * \param is_assume Whether the constraint comes from an assumption.
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
+
+  /*!
+   * \brief Get the SMTLIB2 representation of the current context.
+   *
+   * \param expr The optional expression to check.
+   * \return The SMTLIB2 string.
+   */
+  ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+
+  /*!
+   * \brief Get statistics about Z3 prover.
+   *
+   * \return The statistics string.
+   */
+  ffi::String GetStats();
+
+  /*!
+   * \brief Set timeout in milliseconds for Z3 prover.
+   *
+   * \param timeout_ms The timeout in milliseconds.
+   */
+  void SetTimeoutMs(unsigned timeout_ms);
+
+  /*!
+   * \brief Set resource limitation for Z3 prover.
+   *
+   * \param rlimit the resource limitation.
+   */
+  void SetRLimit(unsigned rlimit);
+
+  /*!
+   * \brief Get the Z3 model for the given expression if satisfiable.
+   *
+   * \param expr The expression to get the model for.
+   * \return The model as a string.
+   */
+  ffi::String GetModel(const PrimExpr& expr);
+
+  /*!
+   * \brief Count the number of integer values that satisfy the current constraints.
+   *
+   * This method uses Z3's model enumeration to count how many distinct values of
+   * the given variable satisfy all current constraints.
+   *
+   * \param var The variable to count satisfying values for.
+   * \param max_count Maximum number of solutions to enumerate.
+   * \param min_consecutive Minimum consecutive count requirement.
+   * \return The number of distinct values that satisfy the constraints, or a negative error code.
+   */
+  TVM_DLL int64_t CountSatisfyingValues(const Var& var, int64_t max_count = 2048,
+                                        int64_t min_consecutive = 1);
+
+ private:
+  friend class Analyzer;
+  explicit Z3Prover(Analyzer* parent);
+  TVM_DLL ~Z3Prover();
+  void CopyFrom(const Z3Prover& other);
+  class Impl;
+  Impl* impl_;
+};
+
 /*!
  * \brief Analyzer that contains bunch of sub-analyzers.
  *
@@ -651,6 +750,8 @@ class TVM_DLL Analyzer {
   IntSetAnalyzer int_set;
   /*! \brief sub-analyzer transitive comparisons */
   TransitiveComparisonAnalyzer transitive_comparisons;
+  /*! \brief sub-analyzer using Z3 */
+  Z3Prover z3_prover;
   /*! \brief constructor */
   Analyzer();
   /*!
@@ -785,6 +886,8 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
 };
 
 }  // namespace arith

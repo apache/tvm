@@ -39,7 +39,8 @@ Analyzer::Analyzer()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {}
+      int_set(this),
+      z3_prover(this) {}
 
 void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   PrimExpr new_expr = expr;
@@ -52,6 +53,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
   this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->z3_prover.Bind(var, expr, allow_override);
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -62,6 +64,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
     this->transitive_comparisons.Bind(var, range, allow_override);
+    this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -128,9 +131,11 @@ void ConstraintContext::EnterWithScope() {
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
-  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
+  recovery_functions_.push_back(
+      analyzer_->rewrite_simplify.EnterConstraint(constraint_, is_assume_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_, is_assume_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -230,7 +235,28 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
+  if (z3_prover.CanProve(simplified)) {
+    return true;
+  }
   return false;
+}
+
+std::function<void()> Analyzer::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
+  std::vector<std::function<void()>> recovery_functions;
+  recovery_functions.push_back(this->const_int_bound.EnterConstraint(constraint));
+  recovery_functions.push_back(this->modular_set.EnterConstraint(constraint));
+  recovery_functions.push_back(this->rewrite_simplify.EnterConstraint(constraint, is_assume));
+  recovery_functions.push_back(this->int_set.EnterConstraint(constraint));
+  recovery_functions.push_back(this->transitive_comparisons.EnterConstraint(constraint));
+  recovery_functions.push_back(this->z3_prover.EnterConstraint(constraint, is_assume));
+  return [recovery_functions]() {
+    for (auto it = recovery_functions.rbegin(); it != recovery_functions.rend(); ++it) {
+      auto& func = *it;
+      if (func) {
+        func();
+      }
+    }
+  };
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
@@ -344,6 +370,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           int64_t flags = args[0].cast<int64_t>();
           self->rewrite_simplify.SetEnabledExtensions(
               static_cast<RewriteSimplifier::Extension>(flags));
+        });
+      } else if (name == "get_smtlib2") {
+        return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+          auto expr = args[0].cast<ffi::Optional<PrimExpr>>();
+          *ret = self->z3_prover.GetSMTLIB2(expr);
+        });
+      } else if (name == "get_z3_stats") {
+        return ffi::Function(
+            [self](ffi::PackedArgs args, ffi::Any* ret) { *ret = self->z3_prover.GetStats(); });
+      } else if (name == "set_z3_timeout_ms") {
+        return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+          unsigned timeout_ms = args[0].cast<unsigned>();
+          self->z3_prover.SetTimeoutMs(timeout_ms);
+        });
+      } else if (name == "set_z3_rlimit") {
+        return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+          unsigned rlimit = args[0].cast<unsigned>();
+          self->z3_prover.SetRLimit(rlimit);
         });
       }
       return ffi::Function();

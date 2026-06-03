@@ -123,8 +123,52 @@ class Analyzer:
         self._enter_constraint_context = _mod("enter_constraint_context")
         self._can_prove_equal = _mod("can_prove_equal")
         self._can_prove = _mod("can_prove")
+        self._get_smtlib2 = _mod("get_smtlib2")
+        self._set_z3_timeout_ms = _mod("set_z3_timeout_ms")
+        self._set_z3_rlimit = _mod("set_z3_rlimit")
+        self._get_z3_stats = _mod("get_z3_stats")
         self._get_enabled_extensions = _mod("get_enabled_extensions")
         self._set_enabled_extensions = _mod("set_enabled_extensions")
+
+    def get_smtlib2(self, expr: tirx.PrimExpr = None) -> str:
+        """Get the current Z3 problem in SMT-LIB2 format.
+
+        Parameters
+        ----------
+        expr : Optional[PrimExpr]
+            The expression to prove. If provided, its negation is added to the problem.
+        """
+        return self._get_smtlib2(expr)
+
+    def set_z3_timeout_ms(self, timeout_ms: int) -> None:
+        """Set Z3 timeout in milliseconds.
+
+        Parameters
+        ----------
+        timeout_ms : int
+            The timeout in milliseconds.
+        """
+        self._set_z3_timeout_ms(timeout_ms)
+
+    def set_z3_rlimit(self, rlimit: int) -> None:
+        """Set Z3 resource limit.
+
+        Parameters
+        ----------
+        rlimit : int
+            The resource limit.
+        """
+        self._set_z3_rlimit(rlimit)
+
+    def get_z3_stats(self) -> str:
+        """Get Z3 solver statistics.
+
+        Returns
+        -------
+        stats : str
+            The Z3 statistics.
+        """
+        return self._get_z3_stats()
 
     def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
