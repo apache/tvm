@@ -1138,13 +1138,20 @@ class Cast(OnnxOpConverter):
 
                 temp_dtype = "int64" if bits >= 32 else "int32"
                 t = relax.op.astype(x_sanitized, temp_dtype)
-                mask_val = (1 << bits) - 1
-                mask = relax.const(mask_val, temp_dtype)
-                uw = relax.op.bitwise_and(t, mask)
+                if bits == 32:
+                    two_pow = relax.const(1 << bits, temp_dtype)
+                    uw = relax.op.floor_mod(t, two_pow)
+                else:
+                    mask_val = (1 << bits) - 1
+                    mask = relax.const(mask_val, temp_dtype)
+                    uw = relax.op.bitwise_and(t, mask)
                 if signed:
                     half = 1 << (bits - 1)
                     half_c = relax.const(half, temp_dtype)
-                    two_pow = relax.const(1 << bits, temp_dtype)
+                    if bits == 32:
+                        two_pow = relax.const(1 << bits, temp_dtype)
+                    else:
+                        two_pow = relax.op.add(mask, relax.const(1, temp_dtype))
                     wrapped = relax.op.where(
                         relax.op.greater_equal(uw, half_c),
                         relax.op.subtract(uw, two_pow),
