@@ -394,5 +394,35 @@ def test_modular_set():
     )
 
 
+def test_relax_deep_variable_dependency_chain():
+    """Regression test for exponential variable-relaxation blowup.
+
+    When a variable's interval bound references another variable that is also in
+    the domain map, the evaluator relaxes it transitively. A diamond-shaped
+    chain -- where each variable's bound references the next one in *both* its
+    min and its max -- used to be re-expanded along every path, costing
+    O(2^depth) and hanging indefinitely. The relaxation is now memoized per
+    variable, so this completes in linear time.
+    """
+    ck = IntSetChecker()
+    n = 64  # 2^64 expansions without memoization; trivially fast with it.
+    xs = [tvm.tirx.Var(f"x{i}", "int32") for i in range(n + 1)]
+    dmap = {xs[i]: tvm.arith.IntervalSet(xs[i + 1] - 1, xs[i + 1] + 1) for i in range(n)}
+    dmap[xs[n]] = tvm.arith.IntervalSet(0, 100)
+    # x0 relaxes through the whole chain: [0 - n, 100 + n].
+    ck.verify(xs[0], dmap, (-n, 100 + n))
+
+
+def test_relax_cyclic_variable_dependency():
+    """A cyclic variable dependency must terminate (and stay symbolic)."""
+    ana = tvm.arith.Analyzer()
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    # x depends on y and y depends on x: relaxation must not loop forever.
+    dmap = {x: tvm.arith.IntervalSet(y, y), y: tvm.arith.IntervalSet(x, x)}
+    res = ana.int_set(x, dmap)
+    assert res is not None
+
+
 if __name__ == "__main__":
     tvm.testing.main()
