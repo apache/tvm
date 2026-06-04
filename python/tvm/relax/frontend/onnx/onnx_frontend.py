@@ -1105,6 +1105,63 @@ class Cast(OnnxOpConverter):
             return relax.const(output, to_type)
         if isinstance(inputs[0], relax.PrimValue):
             return relax.PrimValue(inputs[0].value.astype(to_type))
+
+        try:
+            np_dst = _np.dtype(str(to_type))
+        except Exception:
+            return relax.op.astype(inputs[0], to_type)
+
+        if np_dst.kind in ("i", "u"):
+            src = inputs[0]
+            src_dtype = getattr(getattr(src, "struct_info", None), "dtype", None) or getattr(
+                src, "dtype", None
+            )
+            if src_dtype is not None and _relax_dtype_is_floating_point(src_dtype):
+                x_sanitized = bb.emit(
+                    relax.op.where(
+                        relax.op.logical_not(relax.op.isfinite(src)),
+                        relax.const(0.0, src_dtype),
+                        src,
+                    )
+                )
+                dst_str = str(to_type)
+                if dst_str.startswith("uint"):
+                    signed = False
+                    bits = int(dst_str[4:])
+                elif dst_str.startswith("int"):
+                    signed = True
+                    bits = int(dst_str[3:])
+                else:
+                    return relax.op.astype(x_sanitized, to_type)
+
+                if bits == 64:
+                    return relax.op.astype(x_sanitized, to_type)
+
+                temp_dtype = "int64" if bits >= 32 else "int32"
+                t = relax.op.astype(x_sanitized, temp_dtype)
+                if bits == 32:
+                    two_pow = relax.const(1 << bits, temp_dtype)
+                    uw = relax.op.floor_mod(t, two_pow)
+                else:
+                    mask_val = (1 << bits) - 1
+                    mask = relax.const(mask_val, temp_dtype)
+                    uw = relax.op.bitwise_and(t, mask)
+                if signed:
+                    half = 1 << (bits - 1)
+                    half_c = relax.const(half, temp_dtype)
+                    if bits == 32:
+                        two_pow = relax.const(1 << bits, temp_dtype)
+                    else:
+                        two_pow = relax.op.add(mask, relax.const(1, temp_dtype))
+                    wrapped = relax.op.where(
+                        relax.op.greater_equal(uw, half_c),
+                        relax.op.subtract(uw, two_pow),
+                        uw,
+                    )
+                else:
+                    wrapped = uw
+                return relax.op.astype(wrapped, to_type)
+
         return relax.op.astype(inputs[0], to_type)
 
 
