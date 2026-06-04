@@ -3504,9 +3504,9 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
 @pytest.mark.parametrize("pad", [0, 2])
 @pytest.mark.parametrize("output_pad", [0, 1])
 def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
-    def _verify_conv_transpose(input_shape, weight_shape):
+    def _verify_conv_transpose(input_shape, weight_shape, group=1):
         nd = len(weight_shape) - 2
-        output_shape = [input_shape[0], weight_shape[0]] + [
+        output_shape = [input_shape[0], weight_shape[1] * group] + [
             (input_shape[i] - 1) * stride
             - 2 * pad
             + dilation * (weight_shape[i] - 1)
@@ -3523,7 +3523,7 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
             dilations=[dilation] * nd,
             pads=[pad] * nd * 2,
             output_padding=[output_pad] * nd,
-            group=input_shape[1] // weight_shape[1],
+            group=group,
         )
         graph = helper.make_graph(
             [conv_node],
@@ -3540,14 +3540,38 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
         check_correctness(model, atol=1e-4)
 
     # ConvTranspose1D
-    _verify_conv_transpose([3, 4, 32], [4, 4, 3])
-    _verify_conv_transpose([3, 4, 32], [4, 2, 3])  # group=2
+    _verify_conv_transpose([3, 4, 32], [4, 6, 3])
+    _verify_conv_transpose([3, 4, 32], [4, 3, 3], group=2)
     # ConvTranspose2D
-    _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
-    _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
+    _verify_conv_transpose([3, 4, 32, 32], [4, 6, 3, 3])
+    _verify_conv_transpose([3, 4, 32, 32], [4, 3, 3, 3], group=2)
     # ConvTranspose3D
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 4, 3, 3, 3])
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 6, 3, 3, 3])
+    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 3, 3, 3, 3], group=2)
+
+
+def test_conv_transpose_invalid_bias_channel_count():
+    conv_node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "w", "b"],
+        outputs=["y"],
+        pads=[0, 0, 0, 0],
+        group=2,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_transpose_invalid_bias_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 4, 5, 5]),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, [4, 3, 3, 3]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [5]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 6, 7, 7])],
+    )
+
+    model = helper.make_model(graph, producer_name="conv_transpose_invalid_bias_test")
+    with pytest.raises(ValueError, match="ConvTranspose bias length"):
+        from_onnx(model, opset=14, keep_params_in_input=True)
 
 
 @pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
