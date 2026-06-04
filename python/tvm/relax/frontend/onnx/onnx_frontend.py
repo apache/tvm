@@ -4532,7 +4532,7 @@ class Sign(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
         x = inputs[0]
-        x_dtype = getattr(getattr(x, "struct_info", None), "dtype", None) or getattr(x, "dtype", None)
+        x_dtype = x.struct_info.dtype if isinstance(x.struct_info, relax.TensorStructInfo) else None
         y = relax.op.sign(x)
         if x_dtype is not None and _relax_dtype_is_floating_point(x_dtype):
             return relax.op.where(relax.op.isnan(x), x, y)
