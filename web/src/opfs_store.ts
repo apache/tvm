@@ -17,14 +17,22 @@
  * under the License.
  */
 
+export type OPFSAccessMode = "async" | "sync" | "auto";
+
+type OPFSEffectiveAccessMode = "async" | "sync";
+type OPFSSyncAccessHandleMode = "read-only" | "readwrite";
+
 interface OPFSWritableFileStream extends WritableStream<Uint8Array> {
-  write(data: Blob | BufferSource | string): Promise<void>;
+  write(value: Blob | BufferSource | string): Promise<void>;
   close(): Promise<void>;
 }
 
 interface OPFSFileHandle {
   getFile(): Promise<Blob>;
   createWritable(): Promise<OPFSWritableFileStream>;
+  createSyncAccessHandle?: (options?: {
+    mode?: OPFSSyncAccessHandleMode;
+  }) => Promise<OPFSSyncAccessHandle>;
 }
 
 interface OPFSDirectoryHandle {
@@ -48,15 +56,40 @@ interface OPFSStoreMetadata {
   contentType?: string;
 }
 
+interface OPFSStoredEntry {
+  payloadHandle: OPFSFileHandle;
+  metadata: OPFSStoreMetadata;
+}
+
+interface OPFSSyncAccessHandle {
+  getSize(): number;
+  read(buffer: BufferSource, options?: { at?: number }): number;
+  write(buffer: BufferSource, options?: { at?: number }): number;
+  truncate(size: number): void;
+  flush(): void;
+  close(): void;
+}
+
+type OPFSGlobalScope = typeof globalThis & {
+  DedicatedWorkerGlobalScope?: new () => object;
+  FileSystemFileHandle?: {
+    prototype?: {
+      createSyncAccessHandle?: unknown;
+    };
+  };
+};
+
 const HASH_ALGORITHM = "SHA-256";
 const OPFS_STORE_ROOT_DIRECTORY = "tvmjs-opfs-store";
 
 export class OPFSStore {
   private readonly scope: string;
+  private accessMode: OPFSEffectiveAccessMode;
   private directoryPromise?: Promise<OPFSDirectoryHandle>;
 
-  constructor(scope: string) {
+  constructor(scope: string, accessMode: OPFSAccessMode = "async") {
     this.scope = scope;
+    this.accessMode = OPFSStore.resolveAccessMode(accessMode);
   }
 
   static isAvailable(): boolean {
@@ -64,45 +97,46 @@ export class OPFSStore {
     return storage !== undefined && typeof storage.getDirectory === "function";
   }
 
+  private static resolveAccessMode(
+    accessMode: OPFSAccessMode,
+  ): OPFSEffectiveAccessMode {
+    if (accessMode !== "auto") {
+      return accessMode;
+    }
+    return OPFSStore.isDedicatedWorkerWithSyncAccessHandle()
+      ? "sync"
+      : "async";
+  }
+
   async has(url: string): Promise<boolean> {
-    return (await this.read(url)) !== undefined;
+    return (await this.getExistingEntry(url)) !== undefined;
   }
 
   async read(url: string): Promise<Response | undefined> {
-    const directory = await this.getScopedDirectory();
-    const baseName = await this.hashUrl(url);
-    const dataHandle = await this.getFileHandleIfExists(
-      directory,
-      `${baseName}.bin`,
-      false,
-    );
-    if (dataHandle === undefined) {
+    const entry = await this.getExistingEntry(url);
+    if (entry === undefined) {
       return undefined;
     }
-    const dataBlob = await dataHandle.getFile();
-    const metadataHandle = await this.getFileHandleIfExists(
-      directory,
-      `${baseName}.meta.json`,
-      false,
-    );
-    let metadata: OPFSStoreMetadata | undefined = undefined;
-    if (metadataHandle !== undefined) {
-      metadata = await this.readMetadata(metadataHandle);
-      if (metadata?.url !== undefined && metadata.url !== url) {
-        throw new Error("OPFSStore: metadata URL does not match key URL.");
-      }
-    }
+    const payload = await this.readPayload(entry.payloadHandle);
     const headers =
-      metadata?.contentType !== undefined
-        ? { "content-type": metadata.contentType }
+      entry.metadata.contentType !== undefined
+        ? { "content-type": entry.metadata.contentType }
         : undefined;
-    return new Response(dataBlob, headers ? { headers } : undefined);
+    return new Response(payload, headers ? { headers } : undefined);
+  }
+
+  async readArrayBuffer(url: string): Promise<ArrayBuffer | undefined> {
+    const entry = await this.getExistingEntry(url);
+    if (entry === undefined) {
+      return undefined;
+    }
+    return this.readPayload(entry.payloadHandle);
   }
 
   async write(url: string, response: Response): Promise<void> {
     const directory = await this.getScopedDirectory();
     const baseName = await this.hashUrl(url);
-    const dataHandle = await directory.getFileHandle(`${baseName}.bin`, {
+    const payloadHandle = await directory.getFileHandle(`${baseName}.bin`, {
       create: true,
     });
     const metadataHandle = await directory.getFileHandle(
@@ -113,17 +147,8 @@ export class OPFSStore {
       url,
       contentType: response.headers.get("content-type") ?? undefined,
     };
-    const writable = await dataHandle.createWritable();
-    if (response.body !== null) {
-      await response.body.pipeTo(writable);
-    } else {
-      await writable.write(await response.arrayBuffer());
-      await writable.close();
-    }
-    await this.writeFile(
-      metadataHandle,
-      new TextEncoder().encode(JSON.stringify(metadata)),
-    );
+    await this.writePayload(payloadHandle, response);
+    await this.writeMetadata(metadataHandle, metadata);
   }
 
   async remove(url: string): Promise<void> {
@@ -133,11 +158,52 @@ export class OPFSStore {
     await this.removeEntryIfExists(directory, `${baseName}.meta.json`);
   }
 
+  private async getExistingEntry(
+    url: string,
+  ): Promise<OPFSStoredEntry | undefined> {
+    const directory = await this.getScopedDirectory();
+    const baseName = await this.hashUrl(url);
+    const payloadHandle = await this.getFileHandleIfExists(
+      directory,
+      `${baseName}.bin`,
+      false,
+    );
+    if (payloadHandle === undefined) {
+      return undefined;
+    }
+    const metadataHandle = await this.getFileHandleIfExists(
+      directory,
+      `${baseName}.meta.json`,
+      false,
+    );
+    if (metadataHandle === undefined) {
+      return undefined;
+    }
+    const metadata = await this.readMetadata(metadataHandle);
+    if (metadata === undefined) {
+      return undefined;
+    }
+    if (metadata.url !== url) {
+      throw new Error("OPFSStore: metadata URL does not match key URL.");
+    }
+    return { payloadHandle, metadata };
+  }
+
   private static getStorageManager(): OPFSStorageManager | undefined {
     if (typeof navigator === "undefined") {
       return undefined;
     }
     return navigator.storage as unknown as OPFSStorageManager;
+  }
+
+  private static isDedicatedWorkerWithSyncAccessHandle(): boolean {
+    const scope = globalThis as OPFSGlobalScope;
+    return (
+      typeof scope.DedicatedWorkerGlobalScope === "function" &&
+      globalThis instanceof scope.DedicatedWorkerGlobalScope &&
+      typeof scope.FileSystemFileHandle?.prototype?.createSyncAccessHandle ===
+        "function"
+    );
   }
 
   private async getScopedDirectory(): Promise<OPFSDirectoryHandle> {
@@ -196,13 +262,102 @@ export class OPFSStore {
     }
   }
 
-  private async writeFile(
+  private async writeMetadata(
     handle: OPFSFileHandle,
-    data: Blob | BufferSource | string,
+    metadata: OPFSStoreMetadata,
   ): Promise<void> {
     const writable = await handle.createWritable();
-    await writable.write(data);
+    await writable.write(new TextEncoder().encode(JSON.stringify(metadata)));
     await writable.close();
+  }
+
+  private async readPayload(handle: OPFSFileHandle): Promise<ArrayBuffer> {
+    const syncHandle = await this.openSyncAccessHandle(handle, "read-only");
+    return syncHandle !== undefined
+      ? this.readPayloadWithSyncHandle(syncHandle)
+      : (await handle.getFile()).arrayBuffer();
+  }
+
+  private async writePayload(
+    handle: OPFSFileHandle,
+    response: Response,
+  ): Promise<void> {
+    const syncHandle = await this.openSyncAccessHandle(handle, "readwrite");
+    if (syncHandle !== undefined) {
+      await this.writePayloadWithSyncHandle(syncHandle, response);
+      return;
+    }
+    await this.writePayloadWithWritable(handle, response);
+  }
+
+  private async writePayloadWithWritable(
+    handle: OPFSFileHandle,
+    response: Response,
+  ): Promise<void> {
+    const writable = await handle.createWritable();
+    if (response.body !== null) {
+      await response.body.pipeTo(writable);
+    } else {
+      await writable.write(await response.arrayBuffer());
+      await writable.close();
+    }
+  }
+
+  private readPayloadWithSyncHandle(
+    syncHandle: OPFSSyncAccessHandle,
+  ): ArrayBuffer {
+    try {
+      const size = syncHandle.getSize();
+      const payload = new ArrayBuffer(size);
+      syncHandle.read(payload, { at: 0 });
+      return payload;
+    } finally {
+      syncHandle.close();
+    }
+  }
+
+  private async writePayloadWithSyncHandle(
+    syncHandle: OPFSSyncAccessHandle,
+    response: Response,
+  ): Promise<void> {
+    try {
+      syncHandle.truncate(0);
+      let offset = 0;
+      if (response.body !== null) {
+        const reader = response.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+            syncHandle.write(value, { at: offset });
+            offset += value.byteLength;
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } else {
+        const payload = await response.arrayBuffer();
+        syncHandle.write(payload, { at: 0 });
+      }
+      syncHandle.flush();
+    } finally {
+      syncHandle.close();
+    }
+  }
+
+  private async openSyncAccessHandle(
+    handle: OPFSFileHandle,
+    mode: OPFSSyncAccessHandleMode,
+  ): Promise<OPFSSyncAccessHandle | undefined> {
+    if (this.accessMode === "async") {
+      return undefined;
+    }
+    if (typeof handle.createSyncAccessHandle !== "function") {
+      throw this.createSyncUnavailableError();
+    }
+    return await handle.createSyncAccessHandle({ mode });
   }
 
   private async getFileHandleIfExists(
@@ -258,5 +413,13 @@ export class OPFSStore {
       return name === "NotFoundError";
     }
     return false;
+  }
+
+  private createSyncUnavailableError(): Error {
+    const err = new Error(
+      "OPFSStore: createSyncAccessHandle unavailable; sync OPFS access requires a supported dedicated worker context.",
+    );
+    err.name = "NotSupportedError";
+    return err;
   }
 }

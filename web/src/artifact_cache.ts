@@ -17,7 +17,9 @@
  * under the License.
  */
 
-import { OPFSStore } from "./opfs_store";
+import { OPFSStore, type OPFSAccessMode } from "./opfs_store";
+
+export type { OPFSAccessMode } from "./opfs_store";
 
 export interface TensorCacheEntry {
   name: string;
@@ -91,6 +93,7 @@ export interface TensorCacheAccessOptions {
   cacheScope?: string;
   cacheType?: ArtifactCacheType;
   artifactCache?: ArtifactCacheTemplate;
+  opfsAccessMode?: OPFSAccessMode;
 }
 
 type StoreType = string | undefined;
@@ -603,8 +606,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
 export class ArtifactOPFSCache implements ArtifactCacheTemplate {
   private readonly store: OPFSStore;
 
-  constructor(scope: string) {
-    this.store = new OPFSStore(scope);
+  constructor(scope: string, accessMode: OPFSAccessMode = "async") {
+    this.store = new OPFSStore(scope, accessMode);
   }
 
   static isAvailable(): boolean {
@@ -617,6 +620,13 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     signal?: AbortSignal,
   ): Promise<any> {
     await this.addToCache(url, storetype, signal);
+    if (storetype?.toLowerCase() === "arraybuffer") {
+      const cachedData = await this.store.readArrayBuffer(url);
+      if (cachedData === undefined) {
+        throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+      }
+      return cachedData;
+    }
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
       throw new Error("ArtifactOPFSCache failed to fetch: " + url);
@@ -821,7 +831,7 @@ export function createArtifactCache(
     }
   }
   if (cacheType === "opfs") {
-    return new ArtifactOPFSCache(scope);
+    return new ArtifactOPFSCache(scope, options.opfsAccessMode);
   }
   return new ArtifactCache(scope);
 }
