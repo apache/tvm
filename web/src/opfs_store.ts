@@ -84,11 +84,13 @@ const OPFS_STORE_ROOT_DIRECTORY = "tvmjs-opfs-store";
 
 export class OPFSStore {
   private readonly scope: string;
+  private readonly requestedAccessMode: OPFSAccessMode;
   private accessMode: OPFSEffectiveAccessMode;
   private directoryPromise?: Promise<OPFSDirectoryHandle>;
 
   constructor(scope: string, accessMode: OPFSAccessMode = "async") {
     this.scope = scope;
+    this.requestedAccessMode = accessMode;
     this.accessMode = OPFSStore.resolveAccessMode(accessMode);
   }
 
@@ -117,12 +119,12 @@ export class OPFSStore {
     if (entry === undefined) {
       return undefined;
     }
+    if (this.accessMode === "async") {
+      const blob = await entry.payloadHandle.getFile();
+      return new Response(blob, this.getResponseInit(entry.metadata));
+    }
     const payload = await this.readPayload(entry.payloadHandle);
-    const headers =
-      entry.metadata.contentType !== undefined
-        ? { "content-type": entry.metadata.contentType }
-        : undefined;
-    return new Response(payload, headers ? { headers } : undefined);
+    return new Response(payload, this.getResponseInit(entry.metadata));
   }
 
   async readArrayBuffer(url: string): Promise<ArrayBuffer | undefined> {
@@ -262,6 +264,12 @@ export class OPFSStore {
     }
   }
 
+  private getResponseInit(metadata: OPFSStoreMetadata): ResponseInit | undefined {
+    return metadata.contentType !== undefined
+      ? { headers: { "content-type": metadata.contentType } }
+      : undefined;
+  }
+
   private async writeMetadata(
     handle: OPFSFileHandle,
     metadata: OPFSStoreMetadata,
@@ -309,7 +317,7 @@ export class OPFSStore {
     try {
       const size = syncHandle.getSize();
       const payload = new ArrayBuffer(size);
-      syncHandle.read(payload, { at: 0 });
+      syncHandle.read(new Uint8Array(payload), { at: 0 });
       return payload;
     } finally {
       syncHandle.close();
@@ -339,7 +347,7 @@ export class OPFSStore {
         }
       } else {
         const payload = await response.arrayBuffer();
-        syncHandle.write(payload, { at: 0 });
+        syncHandle.write(new Uint8Array(payload), { at: 0 });
       }
       syncHandle.flush();
     } finally {
@@ -357,7 +365,19 @@ export class OPFSStore {
     if (typeof handle.createSyncAccessHandle !== "function") {
       throw this.createSyncUnavailableError();
     }
-    return await handle.createSyncAccessHandle({ mode });
+    try {
+      return await handle.createSyncAccessHandle({ mode });
+    } catch (err) {
+      const isLockContention =
+        err &&
+        typeof err === "object" &&
+        "name" in err &&
+        (err as { name?: unknown }).name === "NoModificationAllowedError";
+      if (this.requestedAccessMode === "auto" && isLockContention) {
+        return undefined;
+      }
+      throw err;
+    }
   }
 
   private async getFileHandleIfExists(
