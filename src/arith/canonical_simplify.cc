@@ -1419,10 +1419,17 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
       // Case 1. 0 <= xn < d
       divisible.CopyOnWrite()->DivideBy(gcd);
       return Rewriter::VisitExpr(divisible->Normalize() < make_zero(dtype));
-    } else if (extra->args.size() == 1 &&
+    } else if (extra->args.size() == 1 && extra->args[0]->scale == 1 &&
                extra->args[0]->upper_factor != ConstIntBoundNode::kPosInf &&
                extra->args[0]->upper_factor % (gcd * extra->args[0]->lower_factor) == 0) {
-      // Case 2. xn == yn % m, where m % d == 0
+      // Case 2. xn == ((yn % m) // L), scale = +1, m % (d*L) == 0.
+      // S + xn < 0 with S divisible by d  ⇔  S/d + xn // d < 0, because
+      // xn % d ∈ [0, d) lets us drop the remainder via the Case 1 argument,
+      // and xn // d = (yn // (d*L)) % (m/(d*L)).
+      // The scale must be +1: with scale = -1 the equivalence becomes ≤
+      // rather than <, so the rewrite would strengthen the predicate and
+      // silently drop the boundary S/d == xn // d (e.g. row > col where
+      // row and col are independent projections of the same lane id).
       divisible.CopyOnWrite()->DivideBy(gcd);
       const auto split_expr = extra->args[0];
       int64_t lower_factor = gcd * extra->args[0]->lower_factor;
