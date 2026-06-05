@@ -49,6 +49,18 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+
+bool IsOp(const CallNode* call, const Op& compat_op, const char* canonical_name) {
+  if (call->op.same_as(compat_op)) {
+    return true;
+  }
+  const auto* op_node = call->op.as<OpNode>();
+  return op_node != nullptr && op_node->name == canonical_name;
+}
+
+}  // namespace
+
 // Rewrite Rule
 //
 // There is no special warp memory in most GPUs.
@@ -117,13 +129,14 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
  private:
   /// Visitor implementation
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::ptx_ldmatrix()) && op->args[3].as<VarNode>() == buffer_) {
+    if (IsOp(op, builtin::ptx_ldmatrix(), "tirx.ptx.ldmatrix") &&
+        op->args[3].as<VarNode>() == buffer_) {
       UpdatePattern(op->args[4]);
     } else if (op->op.same_as(builtin::mma_fill()) && op->args[1].as<VarNode>() == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value;
-    } else if (op->op.same_as(builtin::ptx_ldmatrix_legacy()) &&
+    } else if (IsOp(op, builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy") &&
                op->args[3].as<VarNode>() == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
@@ -295,11 +308,11 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::ptx_mma())) {
+    if (IsOp(op, builtin::ptx_mma(), "tirx.ptx.mma")) {
       return RewriteIndicesAt(op, {6, 8, 10});
     }
 
-    if (op->op.same_as(builtin::ptx_ldmatrix())) {
+    if (IsOp(op, builtin::ptx_ldmatrix(), "tirx.ptx.ldmatrix")) {
       return RewriteIndicesAt(op, {3});
     }
 
@@ -312,10 +325,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     }
 
     // Legacy variants: (ptr_var, offset) pairs in apache positions.
-    if (op->op.same_as(builtin::ptx_mma_legacy())) {
+    if (IsOp(op, builtin::ptx_mma_legacy(), "tirx.ptx.mma_legacy")) {
       return RewriteIndicesAt(op, {6, 8, 10});
     }
-    if (op->op.same_as(builtin::ptx_ldmatrix_legacy())) {
+    if (IsOp(op, builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy")) {
       // args: trans, num, type, local_ptr, local_offset, smem_ptr_call, smem_offset
       // Only local_ptr is a raw warp buffer Var; smem_ptr is an
       // access_ptr Call wrapping a shared-scope var.
