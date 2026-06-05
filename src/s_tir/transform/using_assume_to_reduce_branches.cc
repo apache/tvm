@@ -115,7 +115,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
  public:
   using Parent = IRMutatorWithAnalyzer;
-  explicit ParseAssumeAndOvercompute(Analyzer* analyzer) : Parent(analyzer) {}
+  explicit ParseAssumeAndOvercompute(AnalyzerObj* analyzer) : Parent(analyzer) {}
 
  private:
   using Parent::VisitExpr_;
@@ -380,7 +380,7 @@ Pass UseAssumeToReduceBranches() {
 
           if (assume_checker.has_assume) {
             // Leverage from assume and eliminate the branch
-            ParseAssumeAndOvercompute func_analyzer_mutator(&analyzer);
+            ParseAssumeAndOvercompute func_analyzer_mutator(analyzer.get());
             n->body = func_analyzer_mutator(std::move(n->body));
           }
         }

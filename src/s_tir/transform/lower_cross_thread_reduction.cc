@@ -109,7 +109,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
-                      const SBlock& scope_block, arith::Analyzer* analyzer) {
+                      const SBlock& scope_block, arith::AnalyzerObj* analyzer) {
   const auto* block = realize->block.as<SBlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
@@ -548,7 +548,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Step 1. If the block is not a reduction block, cross-thread reduction is not needed.
     if (!IsReductionBlock(ffi::GetRef<SBlockRealize>(realize), loop_range_map_,
-                          ffi::GetRef<SBlock>(block_stack_.back()), &analyzer_)) {
+                          ffi::GetRef<SBlock>(block_stack_.back()), analyzer_.get())) {
       return {};
     }
 

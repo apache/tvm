@@ -61,8 +61,9 @@ IndexMap IndexMap::FromFunc(int ndim,
 std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
                                                   const ffi::Array<Range>& initial_ranges,
                                                   arith::IterMapLevel check_level,
-                                                  arith::Analyzer* analyzer) {
+                                                  arith::AnalyzerObj* analyzer) {
   TVM_FFI_ICHECK(analyzer != nullptr);
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   if (self->inverse_index_map.defined()) {
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
@@ -96,7 +97,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   // Unpack the output indices into linear combinations of the initial
   // indices.
   auto padded_iter_map = DetectIterMap(self->final_indices, input_iters, /*predicate=*/1,
-                                       /*check_level=*/check_level, analyzer,
+                                       /*check_level=*/check_level, analyzer_ref,
                                        /*simplify_trivial_iterators=*/false);
   TVM_FFI_ICHECK(padded_iter_map->errors.empty())
       << "Could not parse mapping as sum of iterators.  "
@@ -124,41 +125,57 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   padding_predicate = arith::NormalizeIterMapToExpr(padding_predicate);
   padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
 
-  auto output_ranges = self->MapRanges(initial_ranges, analyzer);
+  auto output_ranges = self->MapRanges(initial_ranges, analyzer_ref);
   {
     TVM_FFI_ICHECK_EQ(output_ranges.size(), output_vars.size());
 
     arith::Analyzer analyzer;
     for (size_t i = 0; i < output_vars.size(); ++i) {
-      analyzer.Bind(output_vars[i], output_ranges[i]);
+      analyzer->Bind(output_vars[i], output_ranges[i]);
     }
 
     // Additional simplification steps required to unwrap nested floordiv/floormod
-    padding_predicate = analyzer.Simplify(padding_predicate, 10);
+    padding_predicate = analyzer->Simplify(padding_predicate, 10);
   }
 
   return {IndexMap(output_vars, inverse_exprs), padding_predicate};
 }
 
-std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
-                                                             arith::Analyzer* analyzer) const {
-  TVM_FFI_ICHECK(analyzer != nullptr);
-  return IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::NoCheck, analyzer);
+std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(
+    ffi::Array<Range> initial_ranges) const {
+  arith::Analyzer analyzer;
+  return NonSurjectiveInverse(initial_ranges, analyzer);
 }
 
-IndexMap IndexMap::Inverse(ffi::Array<Range> initial_ranges, arith::Analyzer* analyzer) const {
-  TVM_FFI_ICHECK(analyzer != nullptr);
+std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(
+    ffi::Array<Range> initial_ranges, const arith::Analyzer& analyzer) const {
+  return IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::NoCheck, analyzer.get());
+}
+
+IndexMap IndexMap::Inverse(ffi::Array<Range> initial_ranges) const {
+  arith::Analyzer analyzer;
+  return Inverse(initial_ranges, analyzer);
+}
+
+IndexMap IndexMap::Inverse(ffi::Array<Range> initial_ranges,
+                           const arith::Analyzer& analyzer) const {
+  arith::AnalyzerObj* analyzer_ptr = analyzer.get();
   auto [inverse, padding_predicate] =
-      IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::Bijective, analyzer);
-  TVM_FFI_ICHECK(analyzer->CanProve(!padding_predicate))
+      IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::Bijective, analyzer_ptr);
+  TVM_FFI_ICHECK(analyzer_ptr->CanProve(!padding_predicate))
       << "Bijective inverse should not contain padding, but inverse of " << *this << " over range "
       << initial_ranges << " resulted in a padding predicate of " << padding_predicate;
   return inverse;
 }
 
+ffi::Array<PrimExpr> IndexMapNode::MapIndices(const ffi::Array<PrimExpr>& indices) const {
+  arith::Analyzer analyzer;
+  return MapIndices(indices, analyzer);
+}
+
 ffi::Array<PrimExpr> IndexMapNode::MapIndices(const ffi::Array<PrimExpr>& indices,
-                                              arith::Analyzer* analyzer) const {
-  TVM_FFI_ICHECK(analyzer != nullptr);
+                                              const arith::Analyzer& analyzer) const {
+  arith::AnalyzerObj* analyzer_ptr = analyzer.get();
   TVM_FFI_ICHECK_EQ(indices.size(), initial_indices.size());
 
   ffi::Map<Var, PrimExpr> vmap;
@@ -170,14 +187,19 @@ ffi::Array<PrimExpr> IndexMapNode::MapIndices(const ffi::Array<PrimExpr>& indice
   ffi::Array<PrimExpr> output = final_indices.Map([&](PrimExpr index) {
     PrimExpr result = SubstituteWithDataTypeLegalization(
         std::move(index), [&](const Var& var) { return vmap.Get(var); });
-    return analyzer->Simplify(result);
+    return analyzer_ptr->Simplify(result);
   });
   return output;
 }
 
+ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges) const {
+  arith::Analyzer analyzer;
+  return MapRanges(ranges, analyzer);
+}
+
 ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
-                                          arith::Analyzer* analyzer) const {
-  TVM_FFI_ICHECK(analyzer != nullptr);
+                                          const arith::Analyzer& analyzer) const {
+  arith::AnalyzerObj* analyzer_ptr = analyzer.get();
   TVM_FFI_ICHECK_EQ(ranges.size(), initial_indices.size());
 
   ffi::Map<Var, Range> input_iters;
@@ -217,8 +239,9 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
 
     for (const auto& final_index : final_indices) {
       auto int_set = arith::EvalSet(final_index, dom_map);
-      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
-                                            analyzer->Simplify(int_set.max() - int_set.min() + 1)));
+      output.push_back(
+          Range::FromMinExtent(analyzer_ptr->Simplify(int_set.min()),
+                               analyzer_ptr->Simplify(int_set.max() - int_set.min() + 1)));
     }
   }
   auto output_dtype = [&]() {
@@ -239,9 +262,13 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   return output;
 }
 
+ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape) const {
+  arith::Analyzer analyzer;
+  return MapShape(shape, analyzer);
+}
+
 ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
-                                            arith::Analyzer* analyzer) const {
-  TVM_FFI_ICHECK(analyzer != nullptr);
+                                            const arith::Analyzer& analyzer) const {
   TVM_FFI_ICHECK_EQ(shape.size(), initial_indices.size());
 
   ffi::Array<Range> ranges;
@@ -271,7 +298,7 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
     size_1d *= shape[i];
     orig_shape.push_back(PrimExpr(static_cast<int>((shape[i]))));
   }
-  auto dst_shape = MapShape(orig_shape, &analyzer);
+  auto dst_shape = MapShape(orig_shape, analyzer);
 
   std::vector<int64_t> dst_shape_int;
   for (size_t i = 0; i < dst_shape.size(); ++i) {
@@ -295,7 +322,7 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
       src_indices.push_back(PrimExpr(static_cast<int>((src_linear_index / div_factor))));
       src_linear_index %= div_factor;
     }
-    auto dst_indices = MapIndices(src_indices, &analyzer);
+    auto dst_indices = MapIndices(src_indices, analyzer);
 
     // Convert an N-d coordinate to a linear coordinate
     // (z, y, x) -> z * height * width + y * width + x
@@ -434,26 +461,34 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return IndexMap(initial_indices, final_indices, inverse_index_map);
            })
       .def("tirx.IndexMapMapIndices",
-           [](IndexMap map, ffi::Array<PrimExpr> indices) {
-             arith::Analyzer analyzer;
-             return map->MapIndices(indices, &analyzer);
+           [](IndexMap map, ffi::Array<PrimExpr> indices,
+              ffi::Optional<arith::Analyzer> opt_analyzer) {
+             arith::Analyzer analyzer =
+                 opt_analyzer.has_value() ? opt_analyzer.value() : arith::Analyzer();
+             return map->MapIndices(indices, analyzer);
            })
       .def("tirx.IndexMapMapShape",
-           [](IndexMap map, ffi::Array<PrimExpr> shape) {
-             arith::Analyzer analyzer;
-             return map->MapShape(shape, &analyzer);
+           [](IndexMap map, ffi::Array<PrimExpr> shape,
+              ffi::Optional<arith::Analyzer> opt_analyzer) {
+             arith::Analyzer analyzer =
+                 opt_analyzer.has_value() ? opt_analyzer.value() : arith::Analyzer();
+             return map->MapShape(shape, analyzer);
            })
       .def("tirx.IndexMapInverse",
-           [](IndexMap map, ffi::Array<Range> initial_ranges) {
-             arith::Analyzer analyzer;
-             return map.Inverse(initial_ranges, &analyzer);
+           [](IndexMap map, ffi::Array<Range> initial_ranges,
+              ffi::Optional<arith::Analyzer> opt_analyzer) {
+             arith::Analyzer analyzer =
+                 opt_analyzer.has_value() ? opt_analyzer.value() : arith::Analyzer();
+             return map.Inverse(initial_ranges, analyzer);
            })
       .def("tirx.IndexMapMapTensor",
            [](IndexMap map, runtime::Tensor arr) { return map->MapTensor(arr); })
       .def("tirx.IndexMapNonSurjectiveInverse",
-           [](IndexMap forward, ffi::Array<Range> initial_ranges) {
-             arith::Analyzer analyzer;
-             auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
+           [](IndexMap forward, ffi::Array<Range> initial_ranges,
+              ffi::Optional<arith::Analyzer> opt_analyzer) {
+             arith::Analyzer analyzer =
+                 opt_analyzer.has_value() ? opt_analyzer.value() : arith::Analyzer();
+             auto result = forward.NonSurjectiveInverse(initial_ranges, analyzer);
              return ffi::Array<ffi::ObjectRef>{result.first, result.second};
            });
 }

@@ -51,7 +51,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
     return pdiff[0] == 0;
   }
   tvm::arith::Analyzer ana;
-  diff = ana.Simplify(diff);
+  diff = ana->Simplify(diff);
   if (const int64_t* pdiff = tirx::as_const_int(diff)) {
     return pdiff[0] == 0;
   }

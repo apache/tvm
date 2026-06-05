@@ -135,7 +135,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(store->indices, &analyzer);
+        auto new_indices = index_map->MapIndices(store->indices, analyzer);
         n->buffer = buffer_map_[store->buffer];
         n->indices = std::move(new_indices);
       } else if (store->buffer.scope() == "m16n8k8.matrixA" ||
@@ -154,7 +154,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(load->indices, &analyzer);
+        auto new_indices = index_map->MapIndices(load->indices, analyzer);
         n->buffer = buffer_map_[load->buffer];
         n->indices = std::move(new_indices);
       } else if (load->buffer.scope() == "m16n8k8.matrixA" ||

@@ -125,7 +125,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       TVM_FFI_ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
       // -2 for reduction and concat axes
       for (size_t i = 0; i < rhs_dim - 2; ++i) {
-        if (!ana.CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
+        if (!ana->CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
           return false;
         }
       }

@@ -89,8 +89,8 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
 
   template <class T>
   void CheckBounds(const T* node, size_t i) {
-    auto ind_bounds = analyzer_.int_set(node->indices[i]);
-    auto shape_bounds = analyzer_.int_set(node->buffer->shape[i]);
+    auto ind_bounds = analyzer_->int_set(node->indices[i]);
+    auto shape_bounds = analyzer_->int_set(node->buffer->shape[i]);
     // We would expect that
     // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
@@ -102,8 +102,8 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
     // has the problem that some valid access patterns maybe be valid but not provably valid. We
     // prefer that this analysis is conservative and only shows errors that are provable. This leads
     // us to the following check: are the bounds of the index outside the bounds of the shape.
-    if (analyzer_.CanProve(ind_bounds.max() >= shape_bounds.min()) ||
-        analyzer_.CanProve(ind_bounds.min() < 0)) {
+    if (analyzer_->CanProve(ind_bounds.max() >= shape_bounds.min()) ||
+        analyzer_->CanProve(ind_bounds.min() < 0)) {
       errors.push_back({node->buffer, i, node->indices[i], ind_bounds, shape_bounds});
     }
   }

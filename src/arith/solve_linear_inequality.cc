@@ -92,15 +92,15 @@ class NormalizeComparisons : public ExprMutator {
   PrimExpr Make(const PrimExpr& a, const PrimExpr& b) {
     // rewrite LT to LE for ints
     if (std::is_same<T, LT>::value && (a.dtype().is_int() || a.dtype().is_uint())) {
-      return LE(analyzer_.Simplify(a - b + 1), make_zero(a.dtype()));
+      return LE(analyzer_->Simplify(a - b + 1), make_zero(a.dtype()));
     }
-    return T(analyzer_.Simplify(a - b), make_zero(a.dtype()));
+    return T(analyzer_->Simplify(a - b), make_zero(a.dtype()));
   }
   arith::Analyzer analyzer_;
 };
 
 void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_ineq,
-                   Analyzer* analyzer) {
+                   AnalyzerObj* analyzer) {
   if (analyzer->CanProve(new_ineq) ||
       std::find_if(inequality_set->begin(), inequality_set->end(), [&](const PrimExpr& e) {
         return ffi::StructuralEqual()(e, new_ineq);
@@ -128,7 +128,8 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
 void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ineq_set,
                         std::vector<PrimExpr>* next_ineq_set, std::vector<PrimExpr>* rest,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
-                        std::vector<std::pair<int64_t, PrimExpr>>* coef_neg, Analyzer* analyzer) {
+                        std::vector<std::pair<int64_t, PrimExpr>>* coef_neg,
+                        AnalyzerObj* analyzer) {
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
@@ -188,7 +189,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lo
 
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve) {
   arith::Analyzer analyzer;
-  analyzer.Bind(system_to_solve->ranges);
+  analyzer->Bind(system_to_solve->ranges);
 
   // The algorithm consists in doing the following things for each variable v
   // - Take formulas from `current_ineq_set_to_solve` and
@@ -213,9 +214,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(&current_ineq_set_to_solve,
-                  NormalizeComparisons()(analyzer.Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
-                  &analyzer);
+    AddInequality(
+        &current_ineq_set_to_solve,
+        NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
+        analyzer.get());
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
@@ -231,15 +233,15 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // Add bounds from vranges
     if (system_to_solve->ranges.count(v)) {
       const Range& range = system_to_solve->ranges[v];
-      PrimExpr range_lbound = analyzer.Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_lbound = analyzer->Simplify(range->min, kSimplifyRewriteCanonicalRewrite);
       PrimExpr range_ubound =
-          analyzer.Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
+          analyzer->Simplify(range->min + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
 
     ClassifyByPolarity(v, current_ineq_set_to_solve, &next_ineq_set_to_solve, &rest, &coef_pos,
-                       &coef_neg, &analyzer);
+                       &coef_neg, analyzer.get());
 
     // Combine each positive inequality with each negative one (by adding them together)
     int64_t gcd_x, gcd_y;
@@ -255,8 +257,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
         new_ineq =
-            NormalizeComparisons()(analyzer.Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
-        AddInequality(&next_ineq_set_to_solve, new_ineq, &analyzer);
+            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
+        AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }
 
@@ -280,17 +282,17 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
     for (const auto& pos : coef_pos) {
       PrimExpr bound = make_const(v.dtype(), -coef_lcm / pos.first) * pos.second;
-      bound = analyzer.Simplify(bound, kSimplifyRewriteCanonicalRewrite);
+      bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
                       [&bound, &analyzer](const PrimExpr& o) {
-                        return analyzer.CanProve(o - bound <= 0);
+                        return analyzer->CanProve(o - bound <= 0);
                       })) {
         continue;
       }
       // Erase all worse bounds
       for (auto iter = upper_bounds.begin(); iter != upper_bounds.end();) {
-        if (analyzer.CanProve(*iter - bound >= 0)) {
+        if (analyzer->CanProve(*iter - bound >= 0)) {
           iter = upper_bounds.erase(iter);
         } else {
           ++iter;
@@ -301,17 +303,17 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     }
     for (const auto& neg : coef_neg) {
       PrimExpr bound = make_const(v.dtype(), -coef_lcm / neg.first) * neg.second;
-      bound = analyzer.Simplify(bound, kSimplifyRewriteCanonicalRewrite);
+      bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
                       [&bound, &analyzer](const PrimExpr& o) {
-                        return analyzer.CanProve(o - bound >= 0);
+                        return analyzer->CanProve(o - bound >= 0);
                       })) {
         continue;
       }
       // Erase all worse bounds
       for (auto iter = lower_bounds.begin(); iter != lower_bounds.end();) {
-        if (analyzer.CanProve(*iter - bound <= 0)) {
+        if (analyzer->CanProve(*iter - bound <= 0)) {
           iter = lower_bounds.erase(iter);
         } else {
           ++iter;
@@ -340,7 +342,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   // Everything that is left goes to res.relations
   ffi::Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
-    PrimExpr e_simp = analyzer.Simplify(e, kSimplifyRewriteCanonicalRewrite);
+    PrimExpr e_simp = analyzer->Simplify(e, kSimplifyRewriteCanonicalRewrite);
     if (is_const_int(e_simp, 0)) {
       // contradiction detected
       other_conditions = {const_false()};
@@ -385,7 +387,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // This order is needed to compute new ranges.
   for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
     arith::Analyzer analyzer;
-    analyzer.Bind(vranges);
+    analyzer->Bind(vranges);
 
     const Var& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
@@ -397,7 +399,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       // The MSVC compiler optimization must be disabled for the expression `bnd->equal[0]` which
       // triggers an internal compiler error.
       Range best_range(bnd->equal[0],
-                       analyzer.Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
+                       analyzer->Simplify(bnd->equal[0] + 1, kSimplifyRewriteCanonicalRewrite));
       res_ranges.Set(var, best_range);
       vranges.Set(var, best_range);
     } else {
@@ -408,7 +410,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       auto best_range = bnd.FindBestRange(vranges);
 
       if (best_range.defined()) {
-        if (analyzer.CanProveGreaterEqual(-best_range->extent, 0)) {
+        if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
                                 /*relations=*/{tirx::make_zero(DataType::Bool())});
@@ -421,10 +423,10 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 
   // Add the original conditions to the resulting conditions
   arith::Analyzer analyzer;
-  analyzer.Bind(vranges);
+  analyzer->Bind(vranges);
   for (const PrimExpr& old_cond :
        AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
-    if (!analyzer.CanProve(old_cond)) {
+    if (!analyzer->CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
     }
@@ -459,7 +461,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   for (std::pair<Var, Range> vr : inequalities->ranges) {
     vranges.Set(vr.first, vr.second);
   }
-  analyzer.Bind(vranges);
+  analyzer->Bind(vranges);
 
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
@@ -490,7 +492,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
       } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
         res_src_to_dst.Set(var, best_range->min);
-      } else if (analyzer.CanProveGreaterEqual(-best_range->extent, 0)) {
+      } else if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
         // range.extent <= 0 implies the input inequality system is unsolvable
         return IntConstraintsTransform(inequalities,
                                        IntConstraints(
@@ -504,7 +506,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
         // Note that we are substituting old with new, so best_range contains new var,
         // that is we have to substitute new with old in best_range here
         res_dst_to_src.Set(new_var,
-                           analyzer.Simplify(var - Substitute(best_range->min, res_dst_to_src)));
+                           analyzer->Simplify(var - Substitute(best_range->min, res_dst_to_src)));
 
         // Add the new var to the resulting axis
         auto range = Range(make_zero(new_var.dtype()), best_range->extent);
@@ -512,7 +514,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
         res_ranges.Set(new_var, range);
 
         vranges.Set(new_var, range);
-        analyzer.Bind(new_var, range);
+        analyzer->Bind(new_var, range);
       }
     }
   }
@@ -520,7 +522,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   // Add the original conditions (with variables substituted) to the resulting conditions
   for (const PrimExpr& old_cond :
        AsConditions(inequalities->variables, solved_bounds, solved_other_relations)) {
-    PrimExpr new_cond = analyzer.Simplify(Substitute(old_cond, res_src_to_dst));
+    PrimExpr new_cond = analyzer->Simplify(Substitute(old_cond, res_src_to_dst));
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(new_cond);

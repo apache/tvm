@@ -115,8 +115,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
     ffi::Map<ffi::String, IterVar>::iterator it = thread_tag2iter_var_map_.find(thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
-      TVM_FFI_ICHECK(ana.CanProveEqual(dom->min, new_iter_var->dom->min));
-      TVM_FFI_CHECK(ana.CanProveEqual(dom->extent, new_iter_var->dom->extent), ValueError)
+      TVM_FFI_ICHECK(ana->CanProveEqual(dom->min, new_iter_var->dom->min));
+      TVM_FFI_CHECK(ana->CanProveEqual(dom->extent, new_iter_var->dom->extent), ValueError)
           << "All loops that are bound to `" << thread_tag
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";

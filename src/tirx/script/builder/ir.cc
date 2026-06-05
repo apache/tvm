@@ -507,7 +507,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, DataType
                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                      \
                   ffi::Optional<PrimExpr> step) {                                             \
     PrimExpr min = start;                                                                     \
-    PrimExpr extent = arith::Analyzer().Simplify(stop - start);                               \
+    PrimExpr extent = arith::Analyzer()->Simplify(stop - start);                              \
     ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                        \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                           \
     n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                              \
@@ -536,7 +536,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
   using namespace tvm::tirx;
   PrimExpr min = start;
-  PrimExpr extent = arith::Analyzer().Simplify(stop - start);
+  PrimExpr extent = arith::Analyzer()->Simplify(stop - start);
   ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
   DataType dtype = DataType(min.dtype().code(), bits, 1);
@@ -638,7 +638,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
         Range(tvm::tirx::make_zero(extent.dtype()), extent);
-  } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
+  } else if (!arith::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
     TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
                                  << iter_var->dom->extent << " vs " << extent;
   }

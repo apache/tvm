@@ -55,6 +55,7 @@ namespace tvm {
 namespace relax {
 
 using tvm::arith::Analyzer;
+using tvm::arith::AnalyzerObj;
 
 /*!
  * \brief Match the attributes of an object.
@@ -476,10 +477,10 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
     sorted_condition = sorted_condition && constraint;
   }
 
-  return analyzer_.Simplify(sorted_condition);
+  return analyzer_->Simplify(sorted_condition);
 }
 
-static bool ShapeEqual(Analyzer* analyzer, const ffi::Array<PrimExpr>& lhs,
+static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
@@ -491,7 +492,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   // no need to jump, as var.shape == value.shape
   if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
-      return ShapeEqual(&analyzer_, op->shape, shape_expr->values) &&
+      return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
     }
   }
@@ -564,7 +565,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = UnwrapBindings(expr0, var2val_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
-    return ShapeEqual(&analyzer_, op->fields, shape_expr->values);
+    return ShapeEqual(analyzer_.get(), op->fields, shape_expr->values);
   return false;
 }
 

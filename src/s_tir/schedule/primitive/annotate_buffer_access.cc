@@ -96,13 +96,13 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var->var);
   }
-  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, &analyzer);
+  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, analyzer);
   TVM_FFI_ICHECK_EQ(new_indices.size() % 2, 0) << "The size of new_indices should be even.";
   ffi::Array<Range> new_ranges;
   for (size_t i = 0; i < new_indices.size(); i += 2) {
     // (begin, end) represents a region
     new_ranges.push_back(Range::FromMinExtent(
-        new_indices[i], analyzer.Simplify(new_indices[i + 1] - new_indices[i])));
+        new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
   BufferRegion new_region(buffer, new_ranges);

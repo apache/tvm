@@ -450,7 +450,7 @@ bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) 
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   return IsAffineBinding(/*realize=*/GetSBlockRealize(self, block_sref),
                          /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
-                         /*analyzer=*/&analyzer);
+                         /*analyzer=*/analyzer.get());
 }
 
 /*!
@@ -632,7 +632,7 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
       /*predicate=*/Substitute(realize->predicate && extra_predicate, binding),
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
-      /*analyzer=*/&analyzer);
+      /*analyzer=*/analyzer.get());
   TVM_FFI_ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
   Region region;
@@ -905,7 +905,7 @@ class CacheReadRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_.Simplify(region[i]->min - offset[i]->min),
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
                                            region[i]->extent));
       }
       return ret;
@@ -1019,7 +1019,7 @@ class CacheReadRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_.Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
     }
     return ret;
   }
@@ -1162,7 +1162,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_.Simplify(region[i]->min - offset[i]->min),
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
                                            region[i]->extent));
       }
       return ret;
@@ -1289,7 +1289,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_.Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
     }
     return ret;
   }
@@ -1990,8 +1990,8 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     block_iter_vars.push_back(iter_var);
     block_shape.push_back(iter_var->dom->extent);
   }
-  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, &analyzer);
-  ffi::Array<PrimExpr> new_shape = index_map->MapShape(block_shape, &analyzer);
+  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, analyzer);
+  ffi::Array<PrimExpr> new_shape = index_map->MapShape(block_shape, analyzer);
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
@@ -2323,10 +2323,10 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   ffi::Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, buffer, block);
   // Simplify the indices if possible
   for (const IterVar& iter : block->iter_vars) {
-    analyzer.Bind(iter->var, iter->dom);
+    analyzer->Bind(iter->var, iter->dom);
   }
   original_indices.MutateByApply(
-      [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
+      [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, analyzer.get()); });
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var> covered;

@@ -370,7 +370,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         : is_reshape_(false), src_buffer_(src_buffer), dst_buffer_(dst_buffer) {}
 
     void VisitStmt_(const ForNode* loop) final {
-      ana_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      ana_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
       if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<SBlockRealizeNode>())) {
@@ -408,7 +408,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
       ffi::Map<tirx::Var, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
-        ana_.Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
+        ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }
 
@@ -441,13 +441,13 @@ bool HasReshapePattern(const PrimFunc& func) {
         for (int i = 0; i < ndim; ++i) {
           idx = idx * buffer->shape[i] + indices[i];
         }
-        idx = ana_.Simplify(idx);
+        idx = ana_->Simplify(idx);
         return arith::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
             /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
-            /*analyzer=*/&ana_,
+            /*analyzer=*/ana_,
             /*simplify_trivial_iterators=*/true)[0];
       };
 
@@ -458,9 +458,9 @@ bool HasReshapePattern(const PrimFunc& func) {
         }
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
-                this->ana_.CanProveEqual(block->iter_vars[i]->dom->min,
-                                         IntImm(DataType::Int(64), /*value=*/0)) &&
-                this->ana_.CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
+                this->ana_->CanProveEqual(block->iter_vars[i]->dom->min,
+                                          IntImm(DataType::Int(64), /*value=*/0)) &&
+                this->ana_->CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
             return false;
           }
         }
@@ -497,7 +497,7 @@ bool HasReshapePattern(const PrimFunc& func) {
             /*input_iters=*/{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
             /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
-            /*analyzer=*/&this->ana_,
+            /*analyzer=*/this->ana_,
             /*simplify_trivial_iterators=*/true);
         TVM_FFI_ICHECK_EQ(simplify_res.size(), 1);
 
@@ -512,7 +512,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       PrimExpr src_idx = f_calc_flattened_idx(src_buffer_, buffer_load->indices);
       PrimExpr dst_idx = f_calc_flattened_idx(dst_buffer_, buffer_store->indices);
       // Check if we can prove the equality of flattened indices.
-      if (ana_.CanProveEqual(src_idx, dst_idx)) {
+      if (ana_->CanProveEqual(src_idx, dst_idx)) {
         this->is_reshape_ = true;
         return;
       }

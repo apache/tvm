@@ -41,7 +41,7 @@ namespace tirx {
  */
 class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
  public:
-  explicit SymbolicMatcher(arith::Analyzer* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
+  explicit SymbolicMatcher(arith::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
       : analyzer_(analyzer), var_remap_(var_remap) {}
 
   void Match(const ffi::Array<PrimExpr>& params, const ffi::Array<PrimExpr>& args) {
@@ -153,7 +153,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     }
   }
 
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
   PrimExpr must_prove_ = const_true();
 };
@@ -1091,7 +1091,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
     tirx::SymbolicMatcher symbolic_var_matcher =
-        tirx::SymbolicMatcher(&analyzer, &symbolic_var_remap);
+        tirx::SymbolicMatcher(analyzer.get(), &symbolic_var_remap);
   };
 
   /*! \brief The IRModule */

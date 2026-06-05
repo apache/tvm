@@ -258,7 +258,7 @@ class VecAllocAccess : public StmtExprMutator {
       // var_lanes_.  Typically, this will be a 1-d index into a flat
       // memory space.
       ffi::Array<PrimExpr> shape = node->buffer->shape;
-      shape.Set(shape.size() - 1, analyzer_.Simplify(shape[shape.size() - 1] * var_lanes_));
+      shape.Set(shape.size() - 1, analyzer_->Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
       // FlattenBuffer, implement by appending a
@@ -273,7 +273,7 @@ class VecAllocAccess : public StmtExprMutator {
         if (i != strides.size() - 1) {
           stride *= var_lanes_;
         }
-        strides.push_back(analyzer_.Simplify(stride));
+        strides.push_back(analyzer_->Simplify(stride));
       }
 
       // Copy everything into the new buffer.
@@ -288,7 +288,7 @@ class VecAllocAccess : public StmtExprMutator {
     // variable.
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
-                analyzer_.Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
+                analyzer_->Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
 
     auto writer = node.CopyOnWrite();
     writer->buffer = buf;
@@ -358,11 +358,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (is_vec_a || is_vec_b) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
-        if (a_ramp && b.dtype().is_scalar() && analyzer_.CanProve(b > 0)) {
+        if (a_ramp && b.dtype().is_scalar() && analyzer_->CanProve(b > 0)) {
           PrimExpr lanes = a_ramp->lanes;
           return Ramp(a_ramp->base * b, a_ramp->stride * b, lanes);
         }
-        if (b_ramp && a.dtype().is_scalar() && analyzer_.CanProve(a > 0)) {
+        if (b_ramp && a.dtype().is_scalar() && analyzer_->CanProve(a > 0)) {
           PrimExpr lanes = b_ramp->lanes;
           return Ramp(b_ramp->base * a, b_ramp->stride * a, lanes);
         }
@@ -412,8 +412,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       const RampNode* base_ramp = base.as<RampNode>();
       int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
       int base_ramp_lanes = static_cast<int>(Downcast<IntImm>(base_ramp->lanes)->value);
-      if (analyzer_.CanProve(base_ramp->stride ==
-                             stride * make_const(stride.dtype(), base_ramp_lanes))) {
+      if (analyzer_->CanProve(base_ramp->stride ==
+                              stride * make_const(stride.dtype(), base_ramp_lanes))) {
         return Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
       }
     }

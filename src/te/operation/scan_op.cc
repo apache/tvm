@@ -55,7 +55,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
   TVM_FFI_ICHECK_EQ(init.size(), state_placeholder.size());
   arith::Analyzer analyzer;
   auto prove_equal = [&](PrimExpr lhs, PrimExpr rhs) {
-    return is_zero(analyzer.Simplify(lhs - rhs));
+    return is_zero(analyzer->Simplify(lhs - rhs));
   };
 
   for (size_t i = 0; i < init.size(); ++i) {

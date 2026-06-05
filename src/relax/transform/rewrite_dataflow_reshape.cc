@@ -144,7 +144,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     };
     auto inp_count = product(inp_sinfo->GetShape().value());
     auto res_count = product(res_sinfo->GetShape().value());
-    if (!arith::Analyzer().CanProveEqual(inp_count, res_count)) {
+    if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }
 

@@ -76,7 +76,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
   ffi::Array<PrimExpr> out_shape;
   arith::Analyzer analyzer;
   for (size_t i = 0; i < n; ++i) {
-    out_shape.push_back(analyzer.Simplify((x->shape[i] - 1) * (strides[i] + 1)));
+    out_shape.push_back(analyzer->Simplify((x->shape[i] - 1) * (strides[i] + 1)));
   }
 
   return tvm::te::compute(

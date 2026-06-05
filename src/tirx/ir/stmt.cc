@@ -556,14 +556,14 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
       << source->region.size() << " vs. " << buffer->shape.size();
   size_t offset = source->region.size() - buffer->shape.size();
   for (size_t i = 0; i < offset; ++i) {
-    TVM_FFI_ICHECK(analyzer.CanProve(source->region[i]->extent == 1))
+    TVM_FFI_ICHECK(analyzer->CanProve(source->region[i]->extent == 1))
         << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
   }
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& buffer_shape = buffer->shape[i];
     if (!buffer_shape->IsInstance<VarNode>()) {
-      TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == buffer_shape))
+      TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == buffer_shape))
           << "The dimension mismatched between source region and target buffer shape, got "
           << source_range->extent << " vs. " << buffer_shape << ".";
     }

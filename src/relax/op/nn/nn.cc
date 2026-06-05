@@ -423,7 +423,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
     }
   }
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   for (int i = 1; i < static_cast<int>(axis_lengths.size()); ++i) {
     for (int d = 0; d < n_axis; ++d) {
       if (analyzer->CanProve(axis_lengths[0][d] != axis_lengths[i][d])) {
@@ -634,7 +634,7 @@ StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " expects that data must be float, but got " << data_sinfo->dtype);
   }
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape != nullptr && channel_axis != -1 &&
       analyzer->CanProve(floormod(data_shape->values[channel_axis], attrs->num_groups) != 0)) {
@@ -745,7 +745,7 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
     }
   }
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
     if (input_sinfo[i]->dtype != data_sinfo->dtype) {
       ctx->ReportFatal(Diagnostic::Error(call)
@@ -929,7 +929,7 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
   }
 
   if (pred_shape_value.defined() && label_shape_value.defined()) {
-    arith::Analyzer* analyzer = ctx->GetAnalyzer();
+    arith::Analyzer analyzer = ctx->GetAnalyzer();
     for (size_t i = 0; i < pred_shape_value.value().size(); ++i) {
       if (analyzer->CanProve(pred_shape_value.value()[i] != label_shape_value.value()[i])) {
         ctx->ReportFatal(Diagnostic::Error(call)
@@ -1067,7 +1067,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
                      << wgt_sinfo->ndim);
   }
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   ffi::Optional<PrimExpr> N;
   ffi::Optional<PrimExpr> C;
   ffi::Array<PrimExpr> output_shape;  // N, d1, d2, ..., dk

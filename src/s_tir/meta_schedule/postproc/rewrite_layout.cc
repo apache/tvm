@@ -74,7 +74,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
                                           /*indices=*/subst_indices,              //
                                           /*loops=*/loop_stack_,                  //
                                           /*predicate=*/cur_realize_->predicate,  //
-                                          /*analyzer=*/&analyzer_);
+                                          /*analyzer=*/analyzer_.get());
       int buffer_index = GetReadBufferIndex(cur_realize_->block, buffer);
       TVM_FFI_ICHECK(buffer_index != -1);
       buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);

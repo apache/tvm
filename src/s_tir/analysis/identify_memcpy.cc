@@ -44,7 +44,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
-                                                            arith::Analyzer* analyzer) {
+                                                            arith::AnalyzerObj* analyzer) {
   ffi::Map<Var, arith::IntSet> loop_intervals;
   ffi::Map<Var, Range> loop_ranges;
   PrimExpr total_loop_iterations = 1;
@@ -106,8 +106,9 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // for i in T.serial(16):
   //     B[i] = A[T.abs(i-8)]
 
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, const_true(),
-                                           arith::IterMapLevel::Bijective, analyzer);
+                                           arith::IterMapLevel::Bijective, analyzer_ref);
   if (src_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
                                                  << "arith::DetectIterMap(src) returned "
@@ -117,7 +118,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
         .str();
   }
   auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, const_true(),
-                                           arith::IterMapLevel::Bijective, analyzer);
+                                           arith::IterMapLevel::Bijective, analyzer_ref);
   if (dst_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
                                                  << "arith::DetectIterMap(dst) returned "
@@ -276,8 +277,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   return MemCpyDetails{src_region, dst_region};
 }
 
-std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* analyzer) {
-  auto result = IdentifyMemCpyImpl(loop, analyzer);
+std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const arith::Analyzer& analyzer) {
+  auto result = IdentifyMemCpyImpl(loop, analyzer.get());
   if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
     return *ptr;
   } else {
@@ -299,7 +300,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       using IRVisitorWithAnalyzer::VisitStmt_;
       void VisitStmt_(const ForNode* op) override {
         For loop = ffi::GetRef<For>(op);
-        auto result = IdentifyMemCpyImpl(loop, &(Visitor::analyzer_));
+        auto result = IdentifyMemCpyImpl(loop, Visitor::analyzer_.get());
         if (auto* ptr = std::get_if<MemCpyDetails>(&result)) {
           output->push_back(ffi::Array{ptr->source, ptr->dest});
         } else if (auto* ptr = std::get_if<std::string>(&result)) {

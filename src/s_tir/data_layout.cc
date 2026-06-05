@@ -417,7 +417,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           factor = factor * dst_unpacked_axes[k]->dom->extent.as<IntImm>().value();
         }
       }
-      ana.Simplify(factor);
+      ana->Simplify(factor);
       index_rule->push_back(factor);
       shape_rule->push_back(factor);
     }
@@ -450,7 +450,7 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
   for (PrimExpr rule : transform_rule) {
-    result.push_back(ana.Simplify(tirx::Substitute(rule, bind_map)));
+    result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
   }
   return result;
 }
@@ -517,7 +517,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ana.Simplify(tirx::Substitute(rule, bind_map)));
+      result.push_back(ana->Simplify(tirx::Substitute(rule, bind_map)));
     }
   }
 

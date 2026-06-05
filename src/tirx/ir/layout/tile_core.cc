@@ -75,7 +75,7 @@ bool VerifyCompactness(const std::vector<Iter>& iters) {
   PrimExpr stride_to_find = 1;
   for (size_t i = 0; i < iters.size(); ++i) {
     auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
-      return analyzer.CanProveEqual(iter->stride, stride_to_find);
+      return analyzer->CanProveEqual(iter->stride, stride_to_find);
     });
     if (iter == iters.end()) return false;
     stride_to_find *= (*iter)->extent;
@@ -140,7 +140,7 @@ PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
   for (const auto& [axis, off] : offset) {
     if (filter(axis)) result += off;
   }
-  return analyzer.Simplify(result);
+  return analyzer->Simplify(result);
 }
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(PrimExpr coord) const {
@@ -192,18 +192,18 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
   for (size_t i = 0; i < shard.size(); ++i) {
     auto it = result.find(shard[i]->axis->name);
     if (it == result.end()) {
-      result[shard[i]->axis->name] = analyzer.Simplify(coord[i] * shard[i]->stride);
+      result[shard[i]->axis->name] = analyzer->Simplify(coord[i] * shard[i]->stride);
     } else {
-      result[shard[i]->axis->name] = analyzer.Simplify(it->second + coord[i] * shard[i]->stride);
+      result[shard[i]->axis->name] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
     }
   }
   // Add offset to the result
   for (const auto& [axis, off] : offset) {
     auto it = result.find(axis->name);
     if (it == result.end()) {
-      result[axis->name] = analyzer.Simplify(off);
+      result[axis->name] = analyzer->Simplify(off);
     } else {
-      result[axis->name] = analyzer.Simplify(it->second + off);
+      result[axis->name] = analyzer->Simplify(it->second + off);
     }
   }
   return result;

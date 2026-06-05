@@ -184,7 +184,7 @@ inline tvm::te::Tensor pad(
         output_shape.push_back(t->shape[i]);
       } else {
         output_shape.push_back(
-            analyzer.Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
+            analyzer->Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
       }
     }
   } else {
@@ -213,7 +213,7 @@ inline tvm::te::Tensor pad(
         indices.push_back(ovars[i]);
       }
       if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
-        sel.push_back(analyzer.Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
+        sel.push_back(analyzer->Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
       }
       if (pad_mode == "edge") {
         pad_idx.push_back(

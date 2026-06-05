@@ -80,9 +80,10 @@ class SplitExprCollector {
                                         const ffi::Map<Var, Range>& input_iters,  //
                                         const PrimExpr& predicate,                //
                                         arith::IterMapLevel check_level,          //
-                                        arith::Analyzer* analyzer) {
+                                        arith::AnalyzerObj* analyzer) {
+    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
-                                                    predicate, check_level, analyzer);
+                                                    predicate, check_level, analyzer_ref);
     const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
@@ -130,7 +131,7 @@ class SplitExprCollector {
 
 ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::Analyzer* analyzer) {
+                                        arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
@@ -250,7 +251,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "s_tir.schedule.SuggestIndexMap",
       [](Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
         arith::Analyzer analyzer;
-        return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);
+        return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
       });
 }
 

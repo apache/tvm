@@ -34,7 +34,7 @@ namespace tirx {
  *
  * Applies the same behavior as the tirx.transform.StmtSimplify pass.
  */
-PrimFunc StmtSimplify(PrimFunc func, arith::Analyzer* analyzer);
+PrimFunc StmtSimplify(PrimFunc func, arith::AnalyzerObj* analyzer);
 
 }  // namespace tirx
 }  // namespace tvm

@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <thread>
 #include <unordered_map>

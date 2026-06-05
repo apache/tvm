@@ -284,7 +284,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   std::vector<PrimExpr> rest;
 
   Analyzer analyzer_problem;
-  analyzer_problem.Bind(system_to_solve->ranges);
+  analyzer_problem->Bind(system_to_solve->ranges);
 
   size_t num_vars = system_to_solve->variables.size();
 
@@ -303,7 +303,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     if (const tirx::EQNode* eq = equation.as<tirx::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
-          analyzer_problem.Simplify(eq->a - eq->b), system_to_solve->variables);
+          analyzer_problem->Simplify(eq->a - eq->b), system_to_solve->variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
         for (size_t j = 0; j < coeffs.size() - 1; ++j) {
@@ -348,7 +348,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 
   // Simplify right hand sides
   for (PrimExpr r : Uy) {
-    r = analyzer_problem.Simplify(r);
+    r = analyzer_problem->Simplify(r);
   }
 
   // Create the relations of the existence of a solution
@@ -362,7 +362,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       // is a divisor of the Ub[j]
       new_relation = (floormod(Uy[j], std::abs(S[j][j])) == 0);
     }
-    new_relation = analyzer_problem.Simplify(new_relation);
+    new_relation = analyzer_problem->Simplify(new_relation);
     if (tirx::is_const_int(new_relation, 0)) {
       // unable to solve the system.
       return IntConstraintsTransform(system_to_solve,
@@ -390,7 +390,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   for (size_t j = 0; j < num_vars; ++j) {
     if (j >= S.size() || S[j][j] == 0) {
       // The j-th variable can take any integer value, create a tvm variable for it
-      PrimExpr to_old = analyzer_problem.Simplify(V_inv_x[j]);
+      PrimExpr to_old = analyzer_problem->Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
       if (const VarNode* v_old = to_old.as<VarNode>()) {
         name_hint += "_" + v_old->name_hint;
@@ -404,12 +404,12 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       // S^{-1}_{nxm} Uy_{mxn}
       if (S[j][j] >= 0) {
         PrimExpr a = tirx::make_const(Uy[j].dtype(), S[j][j]);
-        solution_for_V_inv_x.push_back(analyzer_problem.Simplify(floordiv(Uy[j], a)));
+        solution_for_V_inv_x.push_back(analyzer_problem->Simplify(floordiv(Uy[j], a)));
       } else {
         // This is required because some simplifiers
         // have problems with dividing by negative numbers
         PrimExpr a = tirx::make_const(Uy[j].dtype(), -S[j][j]);
-        solution_for_V_inv_x.push_back(analyzer_problem.Simplify(floordiv(-Uy[j], a)));
+        solution_for_V_inv_x.push_back(analyzer_problem->Simplify(floordiv(-Uy[j], a)));
       }
     }
   }
@@ -420,7 +420,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     for (size_t j = 0; j < num_vars; ++j) {
       e = e + tirx::make_const(e.dtype(), V[i][j]) * solution_for_V_inv_x[j];
     }
-    e = analyzer_problem.Simplify(e);
+    e = analyzer_problem->Simplify(e);
     old_to_new_map.Set(system_to_solve->variables[i], e);
   }
 
@@ -428,7 +428,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   ffi::Map<Var, Range> new_ranges =
       InferRange(new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
   Analyzer analyzer_solution;
-  analyzer_solution.Bind(new_ranges);
+  analyzer_solution->Bind(new_ranges);
 
   // We have to transform ranges of the old variables into relations over new variables because
   // new ranges are not enough usually.
@@ -436,9 +436,9 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     if (system_to_solve->ranges.find(old_var) != system_to_solve->ranges.end()) {
       const Range& old_range = system_to_solve->ranges.at(old_var);
       PrimExpr express_by_new_vars = old_to_new_map.at(old_var);
-      PrimExpr lower_cond = analyzer_solution.Simplify(old_range->min <= express_by_new_vars);
+      PrimExpr lower_cond = analyzer_solution->Simplify(old_range->min <= express_by_new_vars);
       PrimExpr upper_cond =
-          analyzer_solution.Simplify(express_by_new_vars < old_range->min + old_range->extent);
+          analyzer_solution->Simplify(express_by_new_vars < old_range->min + old_range->extent);
       if (!tirx::is_const_int(lower_cond, 1)) {
         new_relations.push_back(lower_cond);
       }

@@ -332,7 +332,7 @@ struct ReadWriteAtImpl {
         dst_(dst),
         annotations_(annotations),
         block_sref_reuse_(),
-        analyzer_(std::make_unique<arith::Analyzer>()) {
+        analyzer_(arith::Analyzer()) {
     loop_ = TVM_SREF_TO_FOR(loop_sref);
   }
 
@@ -343,7 +343,7 @@ struct ReadWriteAtImpl {
   const Buffer& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
-  std::unique_ptr<arith::Analyzer> analyzer_;
+  arith::Analyzer analyzer_;
 };
 
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,

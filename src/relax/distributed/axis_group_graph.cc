@@ -31,7 +31,7 @@
 namespace tvm {
 namespace tirx {
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            arith::Analyzer* analyzer) {
+                            const arith::Analyzer& analyzer) {
   if (index.as<VarNode>()) {
     return Downcast<Var>(index);
   }
@@ -128,7 +128,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
   for (int i = 1; i <= std::min(x1_ndim, x2_ndim); ++i) {
     const PrimExpr& dim0 = x1_shape->values[x1_ndim - i];
     const PrimExpr& dim1 = x2_shape->values[x2_ndim - i];
-    if (analyzer.CanProveEqual(dim0, dim1)) {
+    if (analyzer->CanProveEqual(dim0, dim1)) {
       // join batch dim
       axis_group_graph->JoinAxis({tensor_list[0].get(), x1_ndim - i},
                                  {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
@@ -136,11 +136,11 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
       axis_group_graph->JoinAxis({tensor_list[1].get(), x2_ndim - i},
                                  {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
-    } else if (analyzer.CanProveEqual(dim0, 1)) {
+    } else if (analyzer->CanProveEqual(dim0, 1)) {
       axis_group_graph->JoinAxis({tensor_list[1].get(), x2_ndim - i},
                                  {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
-    } else if (analyzer.CanProveEqual(dim1, 1)) {
+    } else if (analyzer->CanProveEqual(dim1, 1)) {
       axis_group_graph->JoinAxis({tensor_list[0].get(), x1_ndim - i},
                                  {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
@@ -242,18 +242,18 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
     const PrimExpr& dim0 = x1_shape_prefix[x1_prefix_ndim - i];
     const PrimExpr& dim1 = x2_shape_prefix[x2_prefix_ndim - i];
     // join batch dim
-    if (analyzer.CanProveEqual(dim0, dim1)) {
+    if (analyzer->CanProveEqual(dim0, dim1)) {
       axis_group_graph->JoinAxis({x1.get(), x1_prefix_ndim - i},
                                  {x3.get(), std::max(x1_prefix_ndim, x2_prefix_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
       axis_group_graph->JoinAxis({x2.get(), x2_prefix_ndim - i},
                                  {x3.get(), std::max(x1_prefix_ndim, x2_prefix_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
-    } else if (analyzer.CanProveEqual(dim0, 1)) {
+    } else if (analyzer->CanProveEqual(dim0, 1)) {
       axis_group_graph->JoinAxis({x2.get(), x2_prefix_ndim - i},
                                  {x3.get(), std::max(x1_prefix_ndim, x2_prefix_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
-    } else if (analyzer.CanProveEqual(dim1, 1)) {
+    } else if (analyzer->CanProveEqual(dim1, 1)) {
       axis_group_graph->JoinAxis({x1.get(), x1_prefix_ndim - i},
                                  {x3.get(), std::max(x1_prefix_ndim, x2_prefix_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
@@ -320,10 +320,10 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   PrimExpr old_shape_product = 1, new_shape_product = 1;
   arith::Analyzer analyzer_;
   while (i > 0 && j > 0) {
-    if (analyzer_.CanProve(new_shape_product > old_shape_product)) {
+    if (analyzer_->CanProve(new_shape_product > old_shape_product)) {
       i--;
       old_shape_product *= old_shape_values[i];
-    } else if (analyzer_.CanProve(new_shape_product < old_shape_product)) {
+    } else if (analyzer_->CanProve(new_shape_product < old_shape_product)) {
       j--;
       new_shape_product *= new_shape_values[j];
     } else {

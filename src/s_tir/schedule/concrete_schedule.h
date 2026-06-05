@@ -48,7 +48,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
-  std::unique_ptr<arith::Analyzer> analyzer_;
+  arith::Analyzer analyzer_;
   /*! \brief The value of random state for sampling. */
   LinearCongruentialEngine::TRandState rand_state_;
 

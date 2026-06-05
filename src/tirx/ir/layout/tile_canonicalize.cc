@@ -62,7 +62,7 @@ TileLayout FuseContiguousShardIters(TileLayout layout) {
     PrimExpr extent = shard[cur]->extent;
     size_t next = cur + 1;
     while (next < shard.size() && shard[next]->axis.same_as(shard[cur]->axis) &&
-           ana.CanProveEqual(shard[next]->extent * shard[next]->stride, shard[next - 1]->stride)) {
+           ana->CanProveEqual(shard[next]->extent * shard[next]->stride, shard[next - 1]->stride)) {
       extent *= shard[next]->extent;
       ++next;
     }

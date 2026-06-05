@@ -219,11 +219,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // of shape inference.  In many cases, knowning that the
         // shape variable is non-negative allows for simpler
         // expressions for dynamic shapes.
-        analyzer_.MarkGlobalNonNegValue(shape_var);
+        analyzer_->MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
         TVM_FFI_ICHECK(old_shape_expr.same_as(shape_expr) ||
-                       analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+                       analyzer_->CanProveEqual(old_shape_expr, shape_expr))
             << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
             << shape_expr;
       }
@@ -307,7 +307,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  arith::Analyzer* GetAnalyzer() final { return &analyzer_; }
+  arith::Analyzer GetAnalyzer() final { return analyzer_; }
 
  protected:
   /*!
@@ -855,7 +855,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), &analyzer_);
+      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), analyzer_);
     }
   }
 

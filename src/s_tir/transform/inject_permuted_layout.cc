@@ -45,14 +45,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   static PrimFunc Transform(PrimFunc func) {
     Analyzer analyzer;
 
-    auto new_body = PermutedLayoutInjector(func, &analyzer)(func->body);
+    auto new_body = PermutedLayoutInjector(func, analyzer.get())(func->body);
     auto func_node = func.CopyOnWrite();
     func_node->body = new_body;
     return func;
   }
 
  private:
-  explicit PermutedLayoutInjector(PrimFunc func, Analyzer* analyzer)
+  explicit PermutedLayoutInjector(PrimFunc func, AnalyzerObj* analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     buffer_map_.insert(func->buffer_map.begin(), func->buffer_map.end());
   }

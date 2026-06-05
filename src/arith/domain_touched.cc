@@ -125,7 +125,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
       if (args[i].as<RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
-        (*bounds)[i].emplace_back(analyzer_.int_set(args[i]));
+        (*bounds)[i].emplace_back(analyzer_->int_set(args[i]));
       }
     }
   }

@@ -134,7 +134,7 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(out_dtype, output_ndim);
   }
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr x1_reduction_length = x1_shape->values[x1_sinfo->ndim - 1];
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
   if (analyzer->CanProve(x1_reduction_length != x2_reduction_length)) {

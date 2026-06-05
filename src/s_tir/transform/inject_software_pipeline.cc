@@ -374,7 +374,7 @@ class PipelineRewriter : public StmtExprMutator {
     // to ensure the epilogue interval do not overlap the prologue interval.
     PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
     ffi::Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
-    if (max_stage_ > 1 && !analyzer_.CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
+    if (max_stage_ > 1 && !analyzer_->CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
       if (is_const_int(epigogue_start)) {
         epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
       } else {
@@ -609,7 +609,7 @@ class PipelineRewriter : public StmtExprMutator {
 
   // Determine where to insert async_wait and the corresponding wait count.
   void PopulateWaitCounts(const std::vector<RewrittenSBlockInfo>& new_blocks,
-                          arith::Analyzer* ana_normalized,
+                          arith::AnalyzerObj* ana_normalized,
                           const std::unordered_map<const BufferNode*, int>& buffer_to_commit_group,
                           std::map<int, AsyncStateLocal>* async_states_local) {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
@@ -714,7 +714,7 @@ class PipelineRewriter : public StmtExprMutator {
             // Here, new_blocks[i].access_index corresponds to "consumer_head".
             // The difference of producer_head and consumer_head is precisely the number of
             // async commit groups that can still be in flight after this wait.
-            sum += analyzer_.Simplify(producer_head.value() - new_blocks[i].access_index);
+            sum += analyzer_->Simplify(producer_head.value() - new_blocks[i].access_index);
           } else {
             // The precise count cannot be determined, give up.
             return PrimExpr(0);
@@ -727,7 +727,7 @@ class PipelineRewriter : public StmtExprMutator {
 
       if (!pending_wait.valid()) {
         pending_wait = {static_cast<int>(i), wait_count};
-      } else if (analyzer_.CanProve(wait_count < pending_wait.wait_count)) {
+      } else if (analyzer_->CanProve(wait_count < pending_wait.wait_count)) {
         // Coalesce multiple wait_queue if the later one allows fewer in-flight ops.
         pending_wait = {pending_wait.insert_before, wait_count};
       }
@@ -739,7 +739,7 @@ class PipelineRewriter : public StmtExprMutator {
   ffi::Array<Stmt> CompletePipelineLoopStatements(
       const std::vector<RewrittenSBlockInfo>& blocks,
       const std::map<int, AsyncStateLocal>& async_states_local,
-      arith::Analyzer* ana_normalized) const {
+      arith::AnalyzerObj* ana_normalized) const {
     std::vector<RewrittenSBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
     for (const auto& [stage_id, state] : async_states_local) {
@@ -826,22 +826,22 @@ class PipelineRewriter : public StmtExprMutator {
 
     auto make_nop = []() { return SBlockRealize({}, const_true(), MakeSBlock(Evaluate(0), {})); };
 
-    if (analyzer_.CanProve(extent <= 0)) {
+    if (analyzer_->CanProve(extent <= 0)) {
       return make_nop();
     }
-    bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);
+    bool is_unit_loop = analyzer_->CanProveEqual(extent, 1);
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
-      analyzer_.Bind(Downcast<Var>(new_loop_var), Range(start, end));
+      analyzer_->Bind(Downcast<Var>(new_loop_var), Range(start, end));
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
     arith::Analyzer ana_normalized;
     if (!is_unit_loop) {
-      ana_normalized.Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
+      ana_normalized->Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
     }
 
     std::vector<RewrittenSBlockInfo> new_blocks;
@@ -853,12 +853,12 @@ class PipelineRewriter : public StmtExprMutator {
     for (const SBlock& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       PrimExpr skewed_loop_var = new_loop_var - stage;
-      PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
+      PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
       if (extra_loop_lower_bound.defined()) {
-        inbound = analyzer_.Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
+        inbound = analyzer_->Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
       }
-      if (analyzer_.CanProve(!inbound)) {
+      if (analyzer_->CanProve(!inbound)) {
         continue;
       }
       SBlock new_block = Downcast<SBlock>(
@@ -910,10 +910,10 @@ class PipelineRewriter : public StmtExprMutator {
 
         local_state.producer_head = normalized_access_index;
 
-        if (!local_state.predicate || ana_normalized.CanProve(local_state.predicate.value())) {
+        if (!local_state.predicate || ana_normalized->CanProve(local_state.predicate.value())) {
           local_state.predicate = inbound;
         } else if (local_state.predicate) {
-          local_state.predicate = ana_normalized.Simplify(local_state.predicate.value() & inbound);
+          local_state.predicate = ana_normalized->Simplify(local_state.predicate.value() & inbound);
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
@@ -933,8 +933,10 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    PopulateWaitCounts(new_blocks, &ana_normalized, buffer_to_commit_group, &async_states_local);
-    auto stmts = CompletePipelineLoopStatements(new_blocks, async_states_local, &ana_normalized);
+    PopulateWaitCounts(new_blocks, ana_normalized.get(), buffer_to_commit_group,
+                       &async_states_local);
+    auto stmts =
+        CompletePipelineLoopStatements(new_blocks, async_states_local, ana_normalized.get());
 
     Stmt new_loop{nullptr};
 
@@ -958,7 +960,7 @@ class PipelineRewriter : public StmtExprMutator {
       const int stage_id = kv.first;
       const AsyncStateLocal& state = kv.second;
 
-      if (state.predicate && ana_normalized.CanProve(state.predicate.value()) &&
+      if (state.predicate && ana_normalized->CanProve(state.predicate.value()) &&
           async_states[stage_id].producer_head) {
         // Advance the "global" producer head if it is still valid and we know exactly how much we
         // can increment

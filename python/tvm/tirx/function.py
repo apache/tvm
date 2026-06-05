@@ -456,35 +456,39 @@ class IndexMap(Object):
 
         return True
 
-    def map_indices(self, indices: list[PrimExpr]) -> list[PrimExpr]:
+    def map_indices(self, indices: list[PrimExpr], analyzer=None) -> list[PrimExpr]:
         """Apply the index map to a set of indices
 
         Parameters
         ----------
         indices : List[PrimExpr]
             The indices to be mapped
+        analyzer : Optional[tvm.arith.Analyzer]
+            The analyzer to use while simplifying mapped indices.
 
         Returns
         -------
         result : List[PrimExpr]
             The mapped indices
         """
-        return _ffi_api.IndexMapMapIndices(self, indices)
+        return _ffi_api.IndexMapMapIndices(self, indices, analyzer)
 
-    def map_shape(self, shape: list[PrimExpr]) -> list[PrimExpr]:
+    def map_shape(self, shape: list[PrimExpr], analyzer=None) -> list[PrimExpr]:
         """Apply the index map to a buffer shape
 
         Parameters
         ----------
         shape : List[PrimExpr]
             The buffer shape to be mapped
+        analyzer : Optional[tvm.arith.Analyzer]
+            The analyzer to use while simplifying mapped shape expressions.
 
         Returns
         -------
         result : List[PrimExpr]
             The mapped shape
         """
-        return _ffi_api.IndexMapMapShape(self, shape)
+        return _ffi_api.IndexMapMapShape(self, shape, analyzer)
 
     def map_tensor(self, arr_src: Tensor) -> Tensor:
         """Apply thie index map to transform the layout of the input Tensor
@@ -501,7 +505,7 @@ class IndexMap(Object):
         """
         return _ffi_api.IndexMapMapTensor(self, arr_src)
 
-    def inverse(self, shape: list[Range | PrimExpr]) -> "IndexMap":
+    def inverse(self, shape: list[Range | PrimExpr], analyzer=None) -> "IndexMap":
         """Return the inverse of the map
 
         Throws an error if the function is not bijective.
@@ -513,6 +517,8 @@ class IndexMap(Object):
             The region over which the inverse should be determined.
             Used for validating that the mapping is bijective over
             this range.
+        analyzer : Optional[tvm.arith.Analyzer]
+            The analyzer to use while deriving and validating the inverse.
 
         Returns
         -------
@@ -522,9 +528,11 @@ class IndexMap(Object):
         """
 
         shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
-        return _ffi_api.IndexMapInverse(self, shape)
+        return _ffi_api.IndexMapInverse(self, shape, analyzer)
 
-    def non_surjective_inverse(self, shape: list[Range | PrimExpr]) -> tuple["IndexMap", PrimExpr]:
+    def non_surjective_inverse(
+        self, shape: list[Range | PrimExpr], analyzer=None
+    ) -> tuple["IndexMap", PrimExpr]:
         """Return the inverse of the map
 
         Can be applied to transformations that introduce padding.
@@ -535,6 +543,8 @@ class IndexMap(Object):
 
             The region over which the inverse should be determined.
             Used for determining the predicate.
+        analyzer : Optional[tvm.arith.Analyzer]
+            The analyzer to use while deriving the inverse and padding predicate.
 
         Returns
         -------
@@ -555,4 +565,4 @@ class IndexMap(Object):
         """
 
         shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
-        return _ffi_api.IndexMapNonSurjectiveInverse(self, shape)
+        return _ffi_api.IndexMapNonSurjectiveInverse(self, shape, analyzer)

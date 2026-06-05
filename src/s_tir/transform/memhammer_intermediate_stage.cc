@@ -293,7 +293,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
             TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
             for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
               TVM_FFI_ICHECK(
-                  analyzer.CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
+                  analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
             }
           }
         }

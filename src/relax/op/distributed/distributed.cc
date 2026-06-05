@@ -160,7 +160,7 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
   TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
@@ -188,7 +188,7 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_sinfo->GetShape();
   TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";

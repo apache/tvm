@@ -59,7 +59,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
   auto n = ishape.size();
   ffi::Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {
-    oshape.push_back(i == static_cast<size_t>(axis) ? analyzer.Simplify(indexdiv(ishape[i], 32))
+    oshape.push_back(i == static_cast<size_t>(axis) ? analyzer->Simplify(indexdiv(ishape[i], 32))
                                                     : ishape[i]);
   }
 

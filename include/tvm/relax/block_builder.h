@@ -255,7 +255,7 @@ class BlockBuilderNode : public ffi::Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer* GetAnalyzer() = 0;
+  virtual arith::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);

@@ -351,8 +351,8 @@ class RollingBufferRewriter : public StmtExprMutator {
               std::make_pair(var, arith::IntSet::Interval(0, 0))};
           auto iter_value = realize->iter_values[i];
           arith::Analyzer analyzer;
-          auto term_2 = analyzer.int_set(iter_value, dmap).min();
-          condition = analyzer.Simplify(
+          auto term_2 = analyzer->int_set(iter_value, dmap).min();
+          condition = analyzer->Simplify(
               And(condition, Or(LT(var, 1), GE(term_2, info_->axis_overlaps[i]))));
         }
       }
