@@ -740,10 +740,12 @@ if __name__ == "__main__":
 
     # Find the code to run for the command from the user
     user_command = body.lstrip("@tvm-bot").strip()
+    logging.info(f"user_command='{user_command}'")
     command_to_run = None
     for command in [Merge, Rerun]:
         if user_command in command.triggers:
             command_to_run = command
+            logging.info(f"Found command to run: {command.__name__}")
             break
 
     if command_to_run is None:
