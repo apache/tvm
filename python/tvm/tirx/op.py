@@ -4953,7 +4953,7 @@ def ptx_ldmatrix(trans, num, dtype, smem_ptr, *dst_handles):
     """TVM intrinsic for ldmatrix.sync.aligned.m8n8.x{num}{.trans}.shared.{dtype}.
 
     Mirrors the PTX ISA destination form: each output register is a separate
-        operand. Pass ``T.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for
+    operand. Pass ``T.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for
     each destination — the slots may be non-contiguous.
 
     Parameters
