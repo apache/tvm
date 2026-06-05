@@ -30,6 +30,7 @@ from tvm.arith.analyzer import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
+from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import (
     ComposeLayout,
     Iter,
@@ -41,7 +42,6 @@ from tvm.tirx.layout import (
     tmem_datapath_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import KernelReplacePoint
 from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt, TilePrimitiveCall
 
 from ..common import get_st_extent, smem_desc_add_16B_offset
@@ -717,7 +717,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # Descriptors with identical construction parameters are cached and reused
     # across dispatch calls via sctx.shared_state.
     B_base = [0] * len(B_buffer.shape)
-    krp = KernelReplacePoint(workspace={}, config={})
+    krp = Evaluate(tirx_op.tvm_kernel_replace_point())
 
     def _make_lo_uniform(desc):
         """Shuffle the lower 32 bits of the descriptor to ensure warp-uniformity."""

@@ -36,7 +36,7 @@ from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
 )
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
-from tvm.tirx.stmt import DeclBuffer, TilePrimitiveCall
+from tvm.tirx.stmt import DeclBuffer
 from tvm.tirx.stmt_functor import StmtExprVisitor
 
 # ===========================================================================
@@ -159,7 +159,7 @@ def _build_expected_host_init(dtype, encode_args):
         + [IntImm("int32", v) for v in encode_args[1:]]
     )
     encode_call = tvm.tirx.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), call_args)
-    replace_point = TilePrimitiveCall(op=tvm.ir.Op.get("tirx.tile.tvm_kernel_replace_point"))
+    replace_point = tvm.tirx.Evaluate(tvm.tirx.op.tvm_kernel_replace_point())
     return tvm.tirx.SeqStmt(
         [tvm.tirx.Bind(A_tensormap, stack_alloca), tvm.tirx.Evaluate(encode_call), replace_point]
     )

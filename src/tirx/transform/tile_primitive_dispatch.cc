@@ -294,8 +294,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
 
    private:
-    Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
-      if (op->op == tirx::tvm_kernel_replace_point()) {
+    Stmt VisitStmt_(const EvaluateNode* op) final {
+      const auto* call = op->value.as<CallNode>();
+      if (call != nullptr && call->op.same_as(tirx::builtin::tvm_kernel_replace_point())) {
         return body_;
       }
       return StmtExprMutator::VisitStmt_(op);

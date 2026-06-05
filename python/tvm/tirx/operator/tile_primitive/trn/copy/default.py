@@ -18,7 +18,6 @@
 """Implementation of copy operator dispatchs."""
 
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -100,7 +99,7 @@ def transpose_schedule(
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for rhs_f_loop in T.serial(0, rhs_f_size, annotations={nki_dim: "F"}):
                         T.evaluate(T.nki.identity(identity_tensor[p_loop, rhs_f_loop], p_size))
-            Tx.tvm_kernel_replace_point()
+            T.tvm_kernel_replace_point()
 
         sctx.add_init_stmt(identity_init.body)
     else:

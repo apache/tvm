@@ -100,6 +100,29 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert fma.op.name == "tirx.fma"
 
 
+def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
+    assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
+    assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()
+    assert hasattr(T, "tvm_kernel_replace_point")
+    assert not hasattr(Tx, "tvm_kernel_replace_point")
+
+    @T.prim_func(check_well_formed=False)
+    def marker():
+        T.tvm_kernel_replace_point()
+
+    calls = _expr_calls(marker)
+    assert [call.op.name for call in calls] == ["tirx.tvm_kernel_replace_point"]
+    assert _tile_calls(marker) == []
+
+    code = marker.script()
+    assert "T.tvm_kernel_replace_point()" in code
+    assert "tvm_kernel_replace_point" in code
+    assert "T.tile.tvm_kernel_replace_point" not in code
+    assert "Tx.tvm_kernel_replace_point" not in code
+    reparsed = tvm.script.from_source(code)
+    assert_structural_equal(marker, reparsed)
+
+
 def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
     @T.prim_func(check_well_formed=False)
     def tile_aliases(a: T.handle, b: T.handle):
@@ -141,7 +164,6 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     for op_name, namespace in expected:
         assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
-        assert _op_attr(op_name, "TTilePrimitiveKind") is None
 
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
@@ -183,7 +205,6 @@ def test_registered_tirx_ops_have_exactly_one_category():
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
     categories = {"builtin", "tile_primitive", "device_intrin"}
-    tile_kinds = {"dispatch", "compose", "async", "marker"}
     device_namespaces = {"cuda", "ptx", "nvshmem", "nki", "metal", "webgpu"}
     flat_tile_only_names = {
         "tirx.add",
@@ -214,7 +235,6 @@ def test_registered_tirx_ops_have_exactly_one_category():
     lingering_flat_tile = []
     for op_name in sorted(name for name in Op.list_op_names() if name.startswith("tirx.")):
         category = _op_attr(op_name, "TIRxOpCategory")
-        tile_kind = _op_attr(op_name, "TTilePrimitiveKind")
         device_namespace = _op_attr(op_name, "TDeviceIntrinsicNamespace")
 
         if category is None:
@@ -229,10 +249,8 @@ def test_registered_tirx_ops_have_exactly_one_category():
         if category == "tile_primitive":
             if not op_name.startswith("tirx.tile."):
                 lingering_flat_tile.append(op_name)
-            assert tile_kind in tile_kinds, op_name
             assert device_namespace is None, op_name
         elif category == "device_intrin":
-            assert tile_kind is None, op_name
             assert device_namespace in device_namespaces, op_name
             printer_name = _op_attr(op_name, "TScriptPrinterName")
             assert printer_name is not None, op_name
@@ -240,7 +258,6 @@ def test_registered_tirx_ops_have_exactly_one_category():
             assert _has_path(T, printer_name), op_name
         else:
             assert category == "builtin"
-            assert tile_kind is None, op_name
             assert device_namespace is None, op_name
 
     assert not missing

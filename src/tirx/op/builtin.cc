@@ -266,6 +266,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered)
 TIR_DEFINE_BUILTIN_FUNC(tvm_storage_sync)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(tvm_kernel_replace_point)
+    .set_num_inputs(0)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
 TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 

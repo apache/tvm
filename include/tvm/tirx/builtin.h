@@ -501,6 +501,11 @@ TVM_DLL const Op& tvm_call_trace_packed_lowered();
 TVM_DLL const Op& tvm_storage_sync();
 
 /*!
+ * \brief Marker where a transform should replace generated kernel initialization.
+ */
+TVM_DLL const Op& tvm_kernel_replace_point();
+
+/*!
  * \brief See pseudo code
  *
  *  Type tvm_warp_shuffle(mask, Type value, warp_id, width, warp_size) {

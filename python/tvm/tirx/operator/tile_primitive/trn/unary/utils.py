@@ -19,7 +19,6 @@
 
 from tvm.arith.analyzer import Analyzer
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx import BufferRegion, FloatImm
 
 from ...common import MapOpType
@@ -110,7 +109,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
                 for p_loop in T.serial(0, shape[0], annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, shape[1], annotations={nki_dim: "F"}):
                         T.evaluate(T.nki.memset(bias_buffer[p_loop, f_loop], bias))
-            Tx.tvm_kernel_replace_point()
+            T.tvm_kernel_replace_point()
 
         sctx.add_init_stmt(const_bias_init.body)
     else:

@@ -33,18 +33,16 @@ TVM_FFI_STATIC_INIT_BLOCK() { DispatchContextNode::RegisterReflection(); }
 
 /********************* Utils **********************/
 
-#define TIRX_DEFINE_TILE_FUNC(OpName)                                                          \
-  const Op& OpName() {                                                                         \
-    static const Op& op = Op::Get("tirx.tile." #OpName);                                       \
-    return op;                                                                                 \
-  }                                                                                            \
-  TVM_REGISTER_OP("tirx.tile." #OpName)                                                        \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), /*plevel=*/9)  \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"), /*plevel=*/9) \
-      .set_attr<bool>("TIsTIRxOp", true)
+#define TIRX_DEFINE_TILE_FUNC(OpName)                                                         \
+  const Op& OpName() {                                                                        \
+    static const Op& op = Op::Get("tirx.tile." #OpName);                                      \
+    return op;                                                                                \
+  }                                                                                           \
+  TVM_REGISTER_OP("tirx.tile." #OpName)                                                       \
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), /*plevel=*/9) \
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"), /*plevel=*/9)
 
-#define TIRX_DEFINE_TILE_OP(OpName, Kind) \
-  TIRX_DEFINE_TILE_FUNC(OpName).set_attr<TTilePrimitiveKind>("TTilePrimitiveKind", Kind)
+#define TIRX_DEFINE_TILE_OP(OpName) TIRX_DEFINE_TILE_FUNC(OpName)
 
 /********************* Context utils **********************/
 template <typename Key, typename Value>
@@ -142,53 +140,37 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.DispatchContextSharedStateGet", &DispatchContextNode::SharedStateGet);
 }
 
-/********************* Dispatch Ops **********************/
-#define TIRX_DEFINE_DISPATCH_OP(OpName) \
-  TIRX_DEFINE_TILE_OP(OpName, ffi::String("dispatch")).set_attr<bool>("TIsDispatchOp", true)
-
-TIRX_DEFINE_DISPATCH_OP(zero);
-TIRX_DEFINE_DISPATCH_OP(sqrt);
-TIRX_DEFINE_DISPATCH_OP(exp);
-TIRX_DEFINE_DISPATCH_OP(exp2);
-TIRX_DEFINE_DISPATCH_OP(add);
-TIRX_DEFINE_DISPATCH_OP(sub);
-TIRX_DEFINE_DISPATCH_OP(mul);
-TIRX_DEFINE_DISPATCH_OP(fdiv);
-TIRX_DEFINE_DISPATCH_OP(minimum);
-TIRX_DEFINE_DISPATCH_OP(maximum);
-TIRX_DEFINE_DISPATCH_OP(copy);
-TIRX_DEFINE_DISPATCH_OP(fill);
-TIRX_DEFINE_DISPATCH_OP(gemm);
-TIRX_DEFINE_DISPATCH_OP(reciprocal);
-TIRX_DEFINE_DISPATCH_OP(sum);
-TIRX_DEFINE_DISPATCH_OP(max);
-TIRX_DEFINE_DISPATCH_OP(min);
-TIRX_DEFINE_DISPATCH_OP(memset);
-TIRX_DEFINE_DISPATCH_OP(reduce_negate);
-TIRX_DEFINE_DISPATCH_OP(binary_reduce);
-TIRX_DEFINE_DISPATCH_OP(unary_reduce);
-TIRX_DEFINE_DISPATCH_OP(binary_chain);
-TIRX_DEFINE_DISPATCH_OP(select);
-TIRX_DEFINE_DISPATCH_OP(cast);
-TIRX_DEFINE_DISPATCH_OP(fma);
-TIRX_DEFINE_DISPATCH_OP(silu);
-TIRX_DEFINE_DISPATCH_OP(permute_layout);
-
-/********************* Compose Ops **********************/
-#define TIRX_DEFINE_COMPOSE_OP(OpName) \
-  TIRX_DEFINE_TILE_OP(OpName, ffi::String("compose")).set_attr<bool>("TIsComposeOp", true)
-
-TIRX_DEFINE_COMPOSE_OP(compose_op);
-
-/********************* Async Ops **********************/
-#define TIRX_DEFINE_ASYNC_OP(OpName) \
-  TIRX_DEFINE_TILE_OP(OpName, ffi::String("async")).set_attr<bool>("TIsAsyncOp", true)
-
-TIRX_DEFINE_ASYNC_OP(copy_async);
-TIRX_DEFINE_ASYNC_OP(gemm_async);
-
-/********************* Misc Ops **********************/
-TIRX_DEFINE_TILE_OP(tvm_kernel_replace_point, ffi::String("marker"));
+/********************* Tile Ops **********************/
+TIRX_DEFINE_TILE_OP(zero);
+TIRX_DEFINE_TILE_OP(sqrt);
+TIRX_DEFINE_TILE_OP(exp);
+TIRX_DEFINE_TILE_OP(exp2);
+TIRX_DEFINE_TILE_OP(add);
+TIRX_DEFINE_TILE_OP(sub);
+TIRX_DEFINE_TILE_OP(mul);
+TIRX_DEFINE_TILE_OP(fdiv);
+TIRX_DEFINE_TILE_OP(minimum);
+TIRX_DEFINE_TILE_OP(maximum);
+TIRX_DEFINE_TILE_OP(copy);
+TIRX_DEFINE_TILE_OP(fill);
+TIRX_DEFINE_TILE_OP(gemm);
+TIRX_DEFINE_TILE_OP(reciprocal);
+TIRX_DEFINE_TILE_OP(sum);
+TIRX_DEFINE_TILE_OP(max);
+TIRX_DEFINE_TILE_OP(min);
+TIRX_DEFINE_TILE_OP(memset);
+TIRX_DEFINE_TILE_OP(reduce_negate);
+TIRX_DEFINE_TILE_OP(binary_reduce);
+TIRX_DEFINE_TILE_OP(unary_reduce);
+TIRX_DEFINE_TILE_OP(binary_chain);
+TIRX_DEFINE_TILE_OP(select);
+TIRX_DEFINE_TILE_OP(cast);
+TIRX_DEFINE_TILE_OP(fma);
+TIRX_DEFINE_TILE_OP(silu);
+TIRX_DEFINE_TILE_OP(permute_layout);
+TIRX_DEFINE_TILE_OP(compose_op);
+TIRX_DEFINE_TILE_OP(copy_async);
+TIRX_DEFINE_TILE_OP(gemm_async);
 
 }  // namespace tirx
 }  // namespace tvm

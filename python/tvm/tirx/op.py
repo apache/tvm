@@ -729,6 +729,11 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
     return call_intrin("void", "tirx.tvm_storage_sync", storage_scope, is_load, num_blocks)
 
 
+def tvm_kernel_replace_point():
+    """Mark where a transform should replace generated kernel initialization."""
+    return call_intrin("void", "tirx.tvm_kernel_replace_point")
+
+
 def tvm_global_barrier_kinit():
     """Initialize the global barrier.
 

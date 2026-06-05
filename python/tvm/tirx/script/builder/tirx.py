@@ -1201,11 +1201,6 @@ def compose_op(
     return _ffi_api.ComposeOp(workspace, config, dispatch)  # pylint: disable=no-member
 
 
-def tvm_kernel_replace_point():
-    """A placeholder for the kernel replace point, used in TIRx op scheduling."""
-    return f_insert(tirx_op.KernelReplacePoint(workspace={}, config={}))
-
-
 @ScopedOp
 def binary_reduce(
     binary_output: BufferRegion | Buffer,
@@ -1671,7 +1666,6 @@ __all__ = [
     "sub",
     "sum",
     "thread",
-    "tvm_kernel_replace_point",
     "unary_reduce",
     "warp",
     "warpgroup",

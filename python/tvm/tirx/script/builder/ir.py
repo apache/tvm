@@ -3732,6 +3732,7 @@ tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
 tvm_storage_sync = _tir_op.tvm_storage_sync
+tvm_kernel_replace_point = _op_wrapper(_tir_op.tvm_kernel_replace_point)
 tvm_global_barrier_kinit = _tir_op.tvm_global_barrier_kinit
 tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
 tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
@@ -4063,6 +4064,7 @@ __all__ = [
     "tvm_fill_fragment",
     "tvm_store_matrix_sync",
     "tvm_storage_sync",
+    "tvm_kernel_replace_point",
     "tvm_global_barrier_kinit",
     "tvm_warp_shuffle",
     "tvm_warp_shuffle_up",

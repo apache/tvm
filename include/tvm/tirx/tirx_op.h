@@ -231,13 +231,6 @@ TVM_DLL const Op& compose_op();
 
 TVM_DLL const Op& permute_layout();
 
-/*!
- * \brief See pesudo code below:
- *
- *  tvm_kernel_replace_point()
- */
-TVM_DLL const Op& tvm_kernel_replace_point();
-
 }  // namespace tirx
 }  // namespace tvm
 

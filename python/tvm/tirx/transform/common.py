@@ -16,12 +16,15 @@
 # under the License.
 
 
+from tvm.ir import Op
 from tvm.tirx import (
     AllocBuffer,
     BufferLoad,
     BufferRegion,
     BufferStore,
+    Call,
     DeclBuffer,
+    Evaluate,
     PrimExpr,
     Stmt,
     TilePrimitiveCall,
@@ -174,17 +177,11 @@ class KernelReplacePointSearcher(StmtMutator):
         super().__init__()
         self.body = body
 
-    def visit_op_call_(self, op: TilePrimitiveCall):
-        # Deferred import: tile_primitive's class bodies call Op.get() (FFI),
-        # not runtime-safe. Only reached in compiler mode.
-        from tvm.tirx.operator.tile_primitive.ops import (  # pylint: disable=import-outside-toplevel
-            KernelReplacePoint,
-        )
-
-        op = TilePrimitiveCall.downcast(op)
-        if isinstance(op, KernelReplacePoint):
+    def visit_evaluate_(self, op: Evaluate):
+        value = op.value
+        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.tvm_kernel_replace_point")):
             return self.body
-        return super().visit_op_call_(op)
+        return super().visit_evaluate_(op)
 
 
 def seek_kernel_replace_point(stmt: Stmt, body: Stmt) -> Stmt:

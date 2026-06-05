@@ -90,13 +90,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
           }
 
-          static const auto& tirx_op_map = Op::GetAttrMap<bool>("TIsTIRxOp");
-          static const auto& dispatch_op_map = Op::GetAttrMap<bool>("TIsDispatchOp");
-          static const auto& compose_op_map = Op::GetAttrMap<bool>("TIsComposeOp");
-          static const auto& async_op_map = Op::GetAttrMap<bool>("TIsAsyncOp");
           static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
-          TVM_FFI_ICHECK(tirx_op_map.get(op, false))
-              << "Only TIRX ops can be used in tirx::TilePrimitiveCall";
+          bool is_tile_primitive = category_map.get(op, ffi::String("")) == "tile_primitive";
+          TVM_FFI_ICHECK(is_tile_primitive)
+              << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
           ffi::String name = op_names.get(op, op->name);
           // Per-call execution scope is printed as a namespace prefix on the op,
           // e.g. ``T.warp.copy(...)``. ``warpgroup`` prints as ``wg``. The
@@ -123,13 +120,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             if (ns.has_value()) {
               return TIRx(d, ns.value())->Attr(op_name);
             }
-            if (category_map.get(op, ffi::String("")) == "tile_primitive") {
-              return TIRx(d, "tile")->Attr(op_name);
-            }
-            return TIRx(d, op_name);
+            return TIRx(d, "tile")->Attr(op_name);
           };
-          if (dispatch_op_map.get(op, false) || async_op_map.get(op, false)) {
-            // Dispatch ops
+          if (!op.same_as(tirx::compose_op())) {
             // Trim trailing None args (e.g. optional bias=None, scale=None)
             size_t n_args = op_call->args.size();
             while (n_args > 0 &&
@@ -160,8 +153,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             return OpCallDoc(scoped_callee(name), args,
                              d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
                              d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
-          } else if (compose_op_map.get(op, false)) {
-            // Compose ops
+          } else {
             With<TIRFrame> f(d, op_call);
             ffi::Array<tirx::Stmt> stmts;
             for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
@@ -191,13 +183,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
             return ScopeDoc(std::nullopt, scoped_callee("compose_op")->Call({}, kw_keys, kw_values),
                             (*f)->stmts);
-          } else {
-            // Misc ops
-            ffi::Array<Doc> args;
-            for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
-              args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
-            }
-            return OpCallDoc(scoped_callee(name), args, {}, {}, std::nullopt);
           }
         });
 TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);

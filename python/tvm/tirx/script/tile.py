@@ -106,7 +106,6 @@ warp = _builder.ScopeNamespace("warp", "warp")
 thread = _builder.ScopeNamespace("thread", "thread")
 
 compose_op = _builder.compose_op
-tvm_kernel_replace_point = _builder.tvm_kernel_replace_point
 
 __all__ = [
     *_SCOPED_TILE_OP_NAMES,
@@ -114,7 +113,6 @@ __all__ = [
     "compose_op",
     "cta",
     "thread",
-    "tvm_kernel_replace_point",
     "warp",
     "warpgroup",
     "wg",

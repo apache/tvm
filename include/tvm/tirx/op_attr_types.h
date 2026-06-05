@@ -93,17 +93,6 @@ using TScriptDtypePrintLocation = int64_t;
 using TIRxOpCategory = ffi::String;
 
 /*!
- * \brief Tile primitive subcategory.
- *
- * Expected values:
- * - "dispatch"
- * - "compose"
- * - "async"
- * - "marker"
- */
-using TTilePrimitiveKind = ffi::String;
-
-/*!
  * \brief Device intrinsic namespace.
  *
  * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".

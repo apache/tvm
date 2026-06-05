@@ -49,7 +49,6 @@ from dataclasses import dataclass
 import tvm
 from tvm.arith import Analyzer
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, Layout, S, SwizzleLayout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
@@ -1237,7 +1236,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
                 oob_fill_kind,
             )
-            Tx.tvm_kernel_replace_point()
+            T.tvm_kernel_replace_point()
         # fmt: on
 
         sctx.add_init_stmt(create_tensor_map.body, host=True)
@@ -1255,7 +1254,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
             def prefetch_tensor_map():
                 if warp_id_in_cta == 0:
                     T.ptx.prefetch_tensormap(T.address_of(tensor_map))
-                Tx.tvm_kernel_replace_point()
+                T.tvm_kernel_replace_point()
             # fmt: on
 
             sctx.add_init_stmt(prefetch_tensor_map.body)

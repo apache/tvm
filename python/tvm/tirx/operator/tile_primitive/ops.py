@@ -21,50 +21,6 @@ from tvm.ir import Op
 from tvm.tirx import PrimExpr
 from tvm.tirx.stmt import TilePrimitiveCall
 
-_DISPATCH_OPS = {
-    "zero",
-    "sqrt",
-    "exp",
-    "exp2",
-    "reciprocal",
-    "add",
-    "sub",
-    "mul",
-    "fdiv",
-    "maximum",
-    "minimum",
-    "copy",
-    "fill",
-    "gemm",
-    "sum",
-    "max",
-    "min",
-    "memset",
-    "reduce_negate",
-    "binary_reduce",
-    "unary_reduce",
-    "binary_chain",
-    "select",
-    "cast",
-    "fma",
-    "silu",
-}
-_COMPOSE_OPS = {"compose_op"}
-_ASYNC_OPS = {"copy_async", "gemm_async"}
-_MARKER_OPS = {"tvm_kernel_replace_point"}
-
-
-def _tile_primitive_kind(op_name: str) -> str:
-    if op_name in _DISPATCH_OPS:
-        return "dispatch"
-    if op_name in _COMPOSE_OPS:
-        return "compose"
-    if op_name in _ASYNC_OPS:
-        return "async"
-    if op_name in _MARKER_OPS:
-        return "marker"
-    return "dispatch"
-
 
 def get_tirx_op(op_name: str):
     assert isinstance(op_name, str)
@@ -452,22 +408,6 @@ class Select(BinaryOp):
 
     op = get_tirx_op("select")
     predicate = ArgProperty(3)
-
-
-class KernelReplacePoint(TilePrimitiveCall):
-    """A placeholder for kernel replacement points in TIR scheduling."""
-
-    op = get_tirx_op("tvm_kernel_replace_point")
-
-    @property
-    def srcs(self) -> list[PrimExpr]:
-        """Get the source expressions (inputs) of the operator."""
-        return []
-
-    @property
-    def dsts(self) -> list[PrimExpr]:
-        """Get the destination expressions (outputs) of the operator."""
-        return []
 
 
 ### Compose Ops ###

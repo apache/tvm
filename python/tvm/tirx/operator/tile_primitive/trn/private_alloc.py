@@ -18,7 +18,6 @@
 from typing import Any
 
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx import Buffer, FloatImm, Stmt
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import (
@@ -62,7 +61,7 @@ def alloc_const_bias_trn(
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(0, max_inst_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
-        Tx.tvm_kernel_replace_point()
+        T.tvm_kernel_replace_point()
 
     buffer_dict[("const_bias", bias.value)] = (new_buffer, const_bias_init.body)
     return {"const_bias": ("const_bias", bias.value)}
@@ -112,7 +111,7 @@ def alloc_identity_trn(
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):
                 for rhs_f_loop in T.serial(0, par_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.identity(new_buffer[p_loop, rhs_f_loop], par_size))
-        Tx.tvm_kernel_replace_point()
+        T.tvm_kernel_replace_point()
 
     buffer_dict["identity"] = (new_buffer, identity_init.body)
     return {"identity": "identity"}

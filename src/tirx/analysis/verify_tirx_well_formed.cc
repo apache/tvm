@@ -27,6 +27,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tirx_op.h>
@@ -60,9 +61,9 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
 
   void VisitStmt_(const tirx::TilePrimitiveCallNode* op,
                   ffi::reflection::AccessPath path) override {
-    static const tvm::OpAttrMap<bool>& tirx_op_map_ = Op::GetAttrMap<bool>("TIsTIRxOp");
-    Verify(tirx_op_map_.count(op->op))
-        << "TIRxError: TilePrimitiveCall at " << path << " has unknown TIRX op " << op->op;
+    static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
+    Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
+        << "TIRxError: TilePrimitiveCall at " << path << " has non-tile op " << op->op;
   }
 };
 
