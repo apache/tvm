@@ -60,7 +60,7 @@ import operator
 import tvm
 from tvm.arith import Analyzer
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, SwizzleLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
@@ -378,7 +378,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
         return cached
 
     desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
-    encode_call = Tx.ptx.tcgen05.encode_matrix_descriptor(
+    encode_call = T.ptx.tcgen05.encode_matrix_descriptor(
         desc_buf.data, s_buf.ptr_to([0] * len(s_buf.shape)), ldo, sdo, swizzle
     )
     wrap = SeqStmt([AllocBuffer(desc_buf), Evaluate(encode_call)])
@@ -410,17 +410,17 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     t_addr = t_buf.allocated_addr
     from tvm.tirx.operator.tile_primitive.cuda.common import smem_desc_add_16B_offset
 
-    # Flatten the N-D middle iteration into a single Tx.unroll. Each iteration's
+    # Flatten the N-D middle iteration into a single T.unroll. Each iteration's
     # per-dim index is (flat // stride) % extent, summed into the t/s offsets.
     # Works uniformly for n_mid ∈ {0, 1, 2, ...}; total == 1 (no middle dims) is
-    # special-cased to avoid a degenerate Tx.unroll(1).
+    # special-cased to avoid a degenerate T.unroll(1).
     total = functools.reduce(operator.mul, [n for n, _, _ in middle_iters], 1)
 
     # fmt: off
     if total == 1:
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def impl():
-            Tx.ptx.tcgen05.cp(
+            T.ptx.tcgen05.cp(
                 t_addr[0] + t_col0,
                 smem_desc_add_16B_offset(desc_buf[0], init_off_16B),
                 shape="32x128b", cta_group=cta_group, multicast="warpx4",
@@ -437,11 +437,11 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
                 s_off = s_off + idx * s_step
             return t_off, s_off
 
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def impl():
-            for flat in Tx.unroll(total):
-                t_off, s_off = Tx.meta_var(compute_offsets(flat))
-                Tx.ptx.tcgen05.cp(
+            for flat in T.unroll(total):
+                t_off, s_off = T.meta_var(compute_offsets(flat))
+                T.ptx.tcgen05.cp(
                     t_addr[0] + t_col0 + t_off,
                     smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off),
                     shape="32x128b", cta_group=cta_group, multicast="warpx4",

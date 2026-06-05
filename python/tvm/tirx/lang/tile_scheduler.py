@@ -16,33 +16,33 @@
 # under the License.
 """Reusable tile scheduler helpers for TIR tests/kernels.
 
-These classes emit TIR via @Tx.inline. Decorate with @Tx.meta_class so that
-instances are automatically treated as meta values inside @Tx.prim_func.
+These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
+instances are automatically treated as meta values inside @T.prim_func.
 """
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 
-@Tx.meta_class
+@T.meta_class
 class BaseTileScheduler:
     """Base class for tile schedulers with common state and macros."""
 
     def __init__(self, prefix: str):
-        self.m_idx = Tx.local_scalar("int32")
-        self.n_idx = Tx.local_scalar("int32")
-        self.linear_idx = Tx.local_scalar("int32")
+        self.m_idx = T.local_scalar("int32")
+        self.n_idx = T.local_scalar("int32")
+        self.linear_idx = T.local_scalar("int32")
 
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, linear_idx):
         # To be implemented by subclasses
         pass
 
-    @Tx.inline
+    @T.inline
     def init(self, linear_init):
         self.linear_idx = linear_init
         self.update_current_m_n_idx(linear_init)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self, step):
         self.linear_idx = self.linear_idx + step
         self.update_current_m_n_idx(self.linear_idx)
@@ -96,7 +96,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
     ----------
     prefix : str
         Prefix for TIR variable names
-    num_m_tiles : int | Tx.ExprLike
+    num_m_tiles : int | T.ExprLike
         Total number of tiles in M dimension (can be runtime expression)
     num_n_tiles : int
         Total number of tiles in N dimension
@@ -114,13 +114,13 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
     Attributes
     ----------
-    m_idx : Tx.local_scalar
+    m_idx : T.local_scalar
         Current M tile index (output)
-    n_idx : Tx.local_scalar
+    n_idx : T.local_scalar
         Current N tile index (output)
-    work_idx : Tx.local_scalar
+    work_idx : T.local_scalar
         Global work item index for this cluster
-    tile_count : Tx.local_scalar
+    tile_count : T.local_scalar
         Number of tiles processed by this cluster so far
 
     Usage
@@ -133,8 +133,8 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
     scheduler.init(cluster_id)  # cluster_id = cta_idx // CLUSTER_SIZE
 
     while scheduler.valid():
-        m = Tx.meta_var(scheduler.m_idx)  # current M tile
-        n = Tx.meta_var(scheduler.n_idx)  # current N tile
+        m = T.meta_var(scheduler.m_idx)  # current M tile
+        n = T.meta_var(scheduler.n_idx)  # current N tile
         # ... process tile (m, n) ...
         scheduler.next_tile()
     ```
@@ -220,7 +220,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
         # Rename internal state for clarity
         self.work_idx = self.linear_idx  # alias: global work item index
-        self.tile_count = Tx.local_scalar("int32")
+        self.tile_count = T.local_scalar("int32")
         self.tile_idx = self.tile_count  # alias for backward compatibility
 
         is_static_m = isinstance(num_m_tiles, int)
@@ -234,10 +234,8 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
             self._FULL_GROUPS = self._M_TILE_ROWS // l2_group_size
         else:
             # Dynamic expressions for runtime M
-            self._M_TILE_ROWS = Tx.truncdiv(
-                self._num_m_tiles + self._cluster_m - 1, self._cluster_m
-            )
-            self._FULL_GROUPS = Tx.truncdiv(self._M_TILE_ROWS, self._l2_group_size)
+            self._M_TILE_ROWS = T.truncdiv(self._num_m_tiles + self._cluster_m - 1, self._cluster_m)
+            self._FULL_GROUPS = T.truncdiv(self._M_TILE_ROWS, self._l2_group_size)
 
         self._TAIL_ROWS = self._M_TILE_ROWS - self._FULL_GROUPS * l2_group_size
         self._TOTAL_TILES = self._M_TILE_ROWS * n_tile_cols * cluster_m * cluster_n
@@ -248,7 +246,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
             self._M_BLOCKS = (
                 self._M_TILE_ROWS // l2_group_size
                 if is_static_m
-                else Tx.truncdiv(self._M_TILE_ROWS, l2_group_size)
+                else T.truncdiv(self._M_TILE_ROWS, l2_group_size)
             )
             self._BLOCK_SIZE = l2_group_size * l2_group_size  # tiles per block
             self._FULL_BLOCK_TILES = self._M_BLOCKS * self._N_BLOCKS * self._BLOCK_SIZE
@@ -257,19 +255,19 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
             self._RESIDUAL_M = self._M_TILE_ROWS - self._M_BLOCKS * l2_group_size
 
     # fmt: off
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, work_idx):
         """Convert global work index to (m_idx, n_idx) tile coordinates."""
-        CLUSTER_M = Tx.meta_var(self._cluster_m)
-        CLUSTER_N = Tx.meta_var(self._cluster_n)
+        CLUSTER_M = T.meta_var(self._cluster_m)
+        CLUSTER_N = T.meta_var(self._cluster_n)
 
         # Extract hierarchical cluster-local offsets
-        cluster_m_offset = Tx.meta_var(work_idx % CLUSTER_M)
-        t = Tx.meta_var(work_idx // CLUSTER_M)
-        cluster_n_offset = Tx.meta_var(t % CLUSTER_N)
-        tile_linear = Tx.meta_var(t // CLUSTER_N)
+        cluster_m_offset = T.meta_var(work_idx % CLUSTER_M)
+        t = T.meta_var(work_idx // CLUSTER_M)
+        cluster_n_offset = T.meta_var(t % CLUSTER_N)
+        tile_linear = T.meta_var(t // CLUSTER_N)
 
-        @Tx.inline
+        @T.inline
         def set_tile_coords(tile_row, tile_col):
             self.m_idx = tile_row * CLUSTER_M + cluster_m_offset
             self.n_idx = tile_col * CLUSTER_N + cluster_n_offset
@@ -299,59 +297,59 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         else:
             self._gm_emit_full_and_tail(tile_linear, set_tile_coords)
 
-    @Tx.inline
+    @T.inline
     def _gm_emit_zero(self, set_tile_coords):
         set_tile_coords(0, 0)
 
-    @Tx.inline
+    @T.inline
     def _gm_emit_full_only(self, tile_linear, set_tile_coords):
-        FULL_GROUPS = Tx.meta_var(self._FULL_GROUPS)
-        GROUP_SIZE = Tx.meta_var(self._l2_group_size)
-        GROUP_SPAN = Tx.meta_var(self._l2_group_size * self._N_TILE_COLS)
+        FULL_GROUPS = T.meta_var(self._FULL_GROUPS)
+        GROUP_SIZE = T.meta_var(self._l2_group_size)
+        GROUP_SPAN = T.meta_var(self._l2_group_size * self._N_TILE_COLS)
         if (FULL_GROUPS > 0) & (tile_linear < FULL_GROUPS * GROUP_SPAN):
-            group_id: Tx.let = tile_linear // GROUP_SPAN
-            within_group: Tx.let = tile_linear % GROUP_SPAN
-            tile_row: Tx.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
-            tile_col: Tx.let = within_group // GROUP_SIZE
+            group_id: T.let = tile_linear // GROUP_SPAN
+            within_group: T.let = tile_linear % GROUP_SPAN
+            tile_row: T.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
+            tile_col: T.let = within_group // GROUP_SIZE
             set_tile_coords(tile_row, tile_col)
         else:
             set_tile_coords(0, 0)
 
-    @Tx.inline
+    @T.inline
     def _gm_emit_tail_only(self, tile_linear, set_tile_coords):
-        FULL_GROUPS = Tx.meta_var(self._FULL_GROUPS)
-        TAIL_ROWS = Tx.meta_var(self._TAIL_ROWS)
-        GROUP_SIZE = Tx.meta_var(self._l2_group_size)
-        GROUP_SPAN = Tx.meta_var(self._l2_group_size * self._N_TILE_COLS)
+        FULL_GROUPS = T.meta_var(self._FULL_GROUPS)
+        TAIL_ROWS = T.meta_var(self._TAIL_ROWS)
+        GROUP_SIZE = T.meta_var(self._l2_group_size)
+        GROUP_SPAN = T.meta_var(self._l2_group_size * self._N_TILE_COLS)
         if TAIL_ROWS > 0:
-            rem: Tx.let = tile_linear - FULL_GROUPS * GROUP_SPAN
-            tile_row: Tx.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
-            tile_col: Tx.let = rem // TAIL_ROWS
+            rem: T.let = tile_linear - FULL_GROUPS * GROUP_SPAN
+            tile_row: T.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
+            tile_col: T.let = rem // TAIL_ROWS
             set_tile_coords(tile_row, tile_col)
         else:
             set_tile_coords(0, 0)
 
-    @Tx.inline
+    @T.inline
     def _gm_emit_full_and_tail(self, tile_linear, set_tile_coords):
-        FULL_GROUPS = Tx.meta_var(self._FULL_GROUPS)
-        TAIL_ROWS = Tx.meta_var(self._TAIL_ROWS)
-        GROUP_SIZE = Tx.meta_var(self._l2_group_size)
-        GROUP_SPAN = Tx.meta_var(self._l2_group_size * self._N_TILE_COLS)
+        FULL_GROUPS = T.meta_var(self._FULL_GROUPS)
+        TAIL_ROWS = T.meta_var(self._TAIL_ROWS)
+        GROUP_SIZE = T.meta_var(self._l2_group_size)
+        GROUP_SPAN = T.meta_var(self._l2_group_size * self._N_TILE_COLS)
         if (FULL_GROUPS > 0) & (tile_linear < FULL_GROUPS * GROUP_SPAN):
-            group_id: Tx.let = tile_linear // GROUP_SPAN
-            within_group: Tx.let = tile_linear % GROUP_SPAN
-            tile_row: Tx.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
-            tile_col: Tx.let = within_group // GROUP_SIZE
+            group_id: T.let = tile_linear // GROUP_SPAN
+            within_group: T.let = tile_linear % GROUP_SPAN
+            tile_row: T.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
+            tile_col: T.let = within_group // GROUP_SIZE
             set_tile_coords(tile_row, tile_col)
         elif TAIL_ROWS > 0:
-            rem: Tx.let = tile_linear - FULL_GROUPS * GROUP_SPAN
-            tile_row: Tx.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
-            tile_col: Tx.let = rem // TAIL_ROWS
+            rem: T.let = tile_linear - FULL_GROUPS * GROUP_SPAN
+            tile_row: T.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
+            tile_col: T.let = rem // TAIL_ROWS
             set_tile_coords(tile_row, tile_col)
         else:
             set_tile_coords(0, 0)
 
-    @Tx.inline
+    @T.inline
     def _update_serpentine(self, tile_linear, set_tile_coords):
         """CUTLASS-style 2D block swizzle with serpentine traversal.
 
@@ -365,52 +363,52 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
         This maximizes L2 reuse for both A and B matrices.
         """
-        S = Tx.meta_var(self._l2_group_size)  # swizzle_size
-        M_BLOCKS = Tx.meta_var(self._M_BLOCKS)
-        N_BLOCKS = Tx.meta_var(self._N_BLOCKS)
-        BLOCK_SIZE = Tx.meta_var(self._BLOCK_SIZE)  # S * S
-        FULL_BLOCK_TILES = Tx.meta_var(self._FULL_BLOCK_TILES)
-        M_TILE_ROWS = Tx.meta_var(self._M_TILE_ROWS)
-        Tx.meta_var(self._N_TILE_COLS)
-        RESIDUAL_N = Tx.meta_var(self._RESIDUAL_N)
-        RESIDUAL_M = Tx.meta_var(self._RESIDUAL_M)
+        S = T.meta_var(self._l2_group_size)  # swizzle_size
+        M_BLOCKS = T.meta_var(self._M_BLOCKS)
+        N_BLOCKS = T.meta_var(self._N_BLOCKS)
+        BLOCK_SIZE = T.meta_var(self._BLOCK_SIZE)  # S * S
+        FULL_BLOCK_TILES = T.meta_var(self._FULL_BLOCK_TILES)
+        M_TILE_ROWS = T.meta_var(self._M_TILE_ROWS)
+        T.meta_var(self._N_TILE_COLS)
+        RESIDUAL_N = T.meta_var(self._RESIDUAL_N)
+        RESIDUAL_M = T.meta_var(self._RESIDUAL_M)
 
         # Check if we're in the full block region
         if (M_BLOCKS > 0) & (N_BLOCKS > 0) & (tile_linear < FULL_BLOCK_TILES):
             # Which block (in linear order along columns of blocks)
-            block_linear: Tx.let = tile_linear // BLOCK_SIZE
-            within_block: Tx.let = tile_linear % BLOCK_SIZE
+            block_linear: T.let = tile_linear // BLOCK_SIZE
+            within_block: T.let = tile_linear % BLOCK_SIZE
 
             # Block column and row
-            block_col: Tx.let = block_linear // M_BLOCKS
-            block_row_raw: Tx.let = block_linear % M_BLOCKS
+            block_col: T.let = block_linear // M_BLOCKS
+            block_row_raw: T.let = block_linear % M_BLOCKS
 
             # Serpentine: odd columns go bottom-to-top
-            block_row: Tx.let = Tx.Select(
+            block_row: T.let = T.Select(
                 block_col % 2 == 0,
                 block_row_raw,
                 M_BLOCKS - 1 - block_row_raw
             )
 
             # Position within block (row-major within block)
-            local_row: Tx.let = within_block // S
-            local_col: Tx.let = within_block % S
+            local_row: T.let = within_block // S
+            local_col: T.let = within_block % S
 
-            tile_row: Tx.let = block_row * S + local_row
-            tile_col: Tx.let = block_col * S + local_col
+            tile_row: T.let = block_row * S + local_row
+            tile_col: T.let = block_col * S + local_col
             set_tile_coords(tile_row, tile_col)
 
         elif RESIDUAL_N > 0:
             # Residual tiles in the rightmost partial column of blocks
             # These are tiles where n >= N_BLOCKS * S
-            rem: Tx.let = tile_linear - FULL_BLOCK_TILES
+            rem: T.let = tile_linear - FULL_BLOCK_TILES
 
             # First handle the right residual strip (full M height, partial N width)
-            right_strip_tiles: Tx.let = M_TILE_ROWS * RESIDUAL_N
+            right_strip_tiles: T.let = M_TILE_ROWS * RESIDUAL_N
             if rem < right_strip_tiles:
                 # Row-major within the right strip
-                tile_row: Tx.let = rem // RESIDUAL_N
-                tile_col: Tx.let = N_BLOCKS * S + (rem % RESIDUAL_N)
+                tile_row: T.let = rem // RESIDUAL_N
+                tile_col: T.let = N_BLOCKS * S + (rem % RESIDUAL_N)
                 set_tile_coords(tile_row, tile_col)
             elif RESIDUAL_M > 0:
                 # Bottom residual strip (already covered in right strip overlap)
@@ -422,11 +420,11 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
         elif RESIDUAL_M > 0:
             # Bottom residual strip only (no right residual)
-            rem: Tx.let = tile_linear - FULL_BLOCK_TILES
-            bottom_strip_tiles: Tx.let = RESIDUAL_M * (N_BLOCKS * S)
+            rem: T.let = tile_linear - FULL_BLOCK_TILES
+            bottom_strip_tiles: T.let = RESIDUAL_M * (N_BLOCKS * S)
             if rem < bottom_strip_tiles:
-                tile_row: Tx.let = M_BLOCKS * S + (rem % RESIDUAL_M)
-                tile_col: Tx.let = rem // RESIDUAL_M
+                tile_row: T.let = M_BLOCKS * S + (rem % RESIDUAL_M)
+                tile_col: T.let = rem // RESIDUAL_M
                 set_tile_coords(tile_row, tile_col)
             else:
                 set_tile_coords(0, 0)
@@ -434,7 +432,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
             # Fallback
             set_tile_coords(0, 0)
 
-    @Tx.inline
+    @T.inline
     def init(self, cluster_id):
         """Initialize scheduler for a given cluster.
 
@@ -447,14 +445,14 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         self.tile_count = 0
         self.update_current_m_n_idx(cluster_id)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self):
         """Advance to the next tile for this cluster."""
         self.linear_idx = self.linear_idx + self._num_clusters
         self.tile_count = self.tile_count + 1
         self.update_current_m_n_idx(self.linear_idx)
 
-    @Tx.inline
+    @T.inline
     def next_tile_stride(self, stride: int):
         """Advance by a custom stride (for non-standard scheduling)."""
         self.linear_idx = self.linear_idx + stride
@@ -486,8 +484,8 @@ class GroupMajor3D(BaseTileScheduler):
     ):
         super().__init__(prefix)
         self._step = step
-        self.tile_idx = Tx.local_scalar("int32")
-        self.k_idx = Tx.local_scalar("int32")
+        self.tile_idx = T.local_scalar("int32")
+        self.k_idx = T.local_scalar("int32")
 
         # ---- constants / primexprs baked once ----
         self._G = group_rows
@@ -501,9 +499,9 @@ class GroupMajor3D(BaseTileScheduler):
             self._GROUP_SIZE = group_rows * n_tiles * k_tiles
             self._TOTAL = m_tiles * n_tiles * k_tiles
         else:
-            self._GROUPS = Tx.truncdiv(m_tiles, group_rows)
+            self._GROUPS = T.truncdiv(m_tiles, group_rows)
             self._FINAL_ROWS = m_tiles - self._GROUPS * group_rows
-            self._SAFE_FINAL_ROWS = Tx.max(self._FINAL_ROWS, 1)
+            self._SAFE_FINAL_ROWS = T.max(self._FINAL_ROWS, 1)
             self._GROUP_SIZE = self._G * self._N * self._K
             self._TOTAL = m_tiles * n_tiles * k_tiles
 
@@ -513,21 +511,21 @@ class GroupMajor3D(BaseTileScheduler):
         self._HAS_TAIL = self._FINAL_ROWS > 0
 
     # fmt: off
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, linear_idx):
         # full-group formulas
-        full_m: Tx.let = Tx.floordiv(linear_idx, self._GROUP_SIZE) * self._G + Tx.floormod(
+        full_m: T.let = T.floordiv(linear_idx, self._GROUP_SIZE) * self._G + T.floormod(
             linear_idx, self._G
         )
-        full_n: Tx.let = Tx.floormod(Tx.floordiv(linear_idx, self._G), self._N)
-        full_k: Tx.let = Tx.floordiv(Tx.floormod(linear_idx, self._GROUP_SIZE), self._G * self._N)
+        full_n: T.let = T.floormod(T.floordiv(linear_idx, self._G), self._N)
+        full_k: T.let = T.floordiv(T.floormod(linear_idx, self._GROUP_SIZE), self._G * self._N)
 
         # tail formulas (relative to FULL_BOUND)
         # Use _SAFE_FINAL_ROWS (max(FINAL_ROWS, 1)) to avoid divide-by-zero when there is no tail
-        rem: Tx.let = linear_idx - self._FULL_BOUND
-        tail_m: Tx.let = self._GROUPS * self._G + Tx.floormod(rem, self._SAFE_FINAL_ROWS)
-        tail_n: Tx.let = Tx.floordiv(rem, self._SAFE_FINAL_ROWS) % self._N
-        tail_k: Tx.let = Tx.floordiv(rem, self._SAFE_FINAL_ROWS * self._N)
+        rem: T.let = linear_idx - self._FULL_BOUND
+        tail_m: T.let = self._GROUPS * self._G + T.floormod(rem, self._SAFE_FINAL_ROWS)
+        tail_n: T.let = T.floordiv(rem, self._SAFE_FINAL_ROWS) % self._N
+        tail_k: T.let = T.floordiv(rem, self._SAFE_FINAL_ROWS * self._N)
 
         # choose phase
         if self._HAS_FULL & (linear_idx < self._FULL_BOUND):
@@ -543,19 +541,19 @@ class GroupMajor3D(BaseTileScheduler):
             self.n_idx = 0
             self.k_idx = 0
 
-    @Tx.inline
+    @T.inline
     def init(self, linear_init):
         self.linear_idx = linear_init
         self.tile_idx = 0
         self.update_current_m_n_idx(linear_init)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self):
         self.linear_idx = self.linear_idx + self._step
         self.tile_idx = self.tile_idx + 1
         self.update_current_m_n_idx(self.linear_idx)
 
-    @Tx.inline
+    @T.inline
     def next_tile_stride(self, stride: int):
         self.linear_idx = self.linear_idx + stride
         self.tile_idx = self.tile_idx + 1
@@ -581,13 +579,13 @@ class RankAwareGroupMajorTileScheduler(BaseTileScheduler):
         self._group_size = group_size
         self._world_size = world_size
 
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, linear_idx):
-        my_rank: Tx.let = Tx.nvshmem.my_pe()
-        remote_m_clusters: Tx.let = self._m_clusters - self._m_clusters // self._world_size
-        group_rows: Tx.let = (remote_m_clusters // self._group_size) * self._group_size
-        final_rows: Tx.let = remote_m_clusters - group_rows
-        group_repeat: Tx.let = self._group_size * self._n_clusters
+        my_rank: T.let = T.nvshmem.my_pe()
+        remote_m_clusters: T.let = self._m_clusters - self._m_clusters // self._world_size
+        group_rows: T.let = (remote_m_clusters // self._group_size) * self._group_size
+        final_rows: T.let = remote_m_clusters - group_rows
+        group_repeat: T.let = self._group_size * self._n_clusters
         if linear_idx < group_rows * self._n_clusters and group_rows > 0:
             self.m_idx = (
                 (linear_idx // group_repeat) * self._group_size
@@ -596,7 +594,7 @@ class RankAwareGroupMajorTileScheduler(BaseTileScheduler):
             ) % self._m_clusters
             self.n_idx = (linear_idx % group_repeat) // self._group_size
         elif linear_idx < remote_m_clusters * self._n_clusters:
-            remainder_idx: Tx.let = linear_idx - group_rows * self._n_clusters
+            remainder_idx: T.let = linear_idx - group_rows * self._n_clusters
             self.m_idx = (
                 group_rows
                 + remainder_idx % final_rows
@@ -604,7 +602,7 @@ class RankAwareGroupMajorTileScheduler(BaseTileScheduler):
             ) % self._m_clusters
             self.n_idx = remainder_idx // final_rows
         else:
-            remainder_idx: Tx.let = linear_idx - remote_m_clusters * self._n_clusters
+            remainder_idx: T.let = linear_idx - remote_m_clusters * self._n_clusters
             self.m_idx = (
                 remote_m_clusters
                 + remainder_idx % (self._m_clusters // self._world_size)
@@ -612,7 +610,7 @@ class RankAwareGroupMajorTileScheduler(BaseTileScheduler):
             ) % self._m_clusters
             self.n_idx = remainder_idx // (self._m_clusters // self._world_size)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self, stride: int):
         self.linear_idx = self.linear_idx + stride
         self.update_current_m_n_idx(self.linear_idx)
@@ -630,24 +628,24 @@ class IndexedTripleTileScheduler(BaseTileScheduler):
         self.h_indices = h_indices
         self.q_indices = q_indices
         self.tiles_indptr = tiles_indptr
-        self.q_idx = Tx.local_scalar("int32")
-        self.h_idx = Tx.local_scalar("int32")
-        self.b_idx = Tx.local_scalar("int32")
-        self.linear_lim = Tx.local_scalar("int32")
+        self.q_idx = T.local_scalar("int32")
+        self.h_idx = T.local_scalar("int32")
+        self.b_idx = T.local_scalar("int32")
+        self.linear_lim = T.local_scalar("int32")
 
-    @Tx.inline
+    @T.inline
     def _load(self):
         self.q_idx = self.q_indices[self.linear_idx]
         self.h_idx = self.h_indices[self.linear_idx]
         self.b_idx = self.b_indices[self.linear_idx]
 
-    @Tx.inline
+    @T.inline
     def init(self, sm):
         self.linear_idx = self.tiles_indptr[sm]
         self.linear_lim = self.tiles_indptr[sm + 1]
         self._load()
 
-    @Tx.inline
+    @T.inline
     def next_tile(self):
         self.linear_idx = self.linear_idx + 1
         self._load()
@@ -690,29 +688,29 @@ class FlashAttentionLinearScheduler(BaseTileScheduler):
         self._total_tasks = num_batches * num_heads * num_m_blocks
 
         # Output indices
-        self.batch_idx = Tx.local_scalar("int32")
-        self.head_idx = Tx.local_scalar("int32")
-        self.m_block_idx = Tx.local_scalar("int32")
+        self.batch_idx = T.local_scalar("int32")
+        self.head_idx = T.local_scalar("int32")
+        self.m_block_idx = T.local_scalar("int32")
 
     # fmt: off
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, linear_idx):
         """Convert linear index to (batch, head, m_block) coordinates."""
-        NUM_HEADS = Tx.meta_var(self._num_heads)
-        NUM_M_BLOCKS = Tx.meta_var(self._num_m_blocks)
-        HEAD_M_PRODUCT = Tx.meta_var(NUM_HEADS * NUM_M_BLOCKS)
+        NUM_HEADS = T.meta_var(self._num_heads)
+        NUM_M_BLOCKS = T.meta_var(self._num_m_blocks)
+        HEAD_M_PRODUCT = T.meta_var(NUM_HEADS * NUM_M_BLOCKS)
 
         self.batch_idx = linear_idx // HEAD_M_PRODUCT
         self.head_idx = (linear_idx % HEAD_M_PRODUCT) // NUM_M_BLOCKS
         self.m_block_idx = linear_idx % NUM_M_BLOCKS
 
-    @Tx.inline
+    @T.inline
     def init(self, cta_id):
         """Initialize scheduler with CTA ID."""
         self.linear_idx = cta_id
         self.update_current_m_n_idx(cta_id)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self):
         """Advance to next tile by striding by num_ctas."""
         self.linear_idx = self.linear_idx + self._num_ctas
@@ -770,30 +768,30 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
         self._num_hb_quotient = self._num_hb // l2_swizzle
 
         # Output indices
-        self.batch_idx = Tx.local_scalar("int32")
-        self.head_idx = Tx.local_scalar("int32")
-        self.m_block_idx = Tx.local_scalar("int32")
+        self.batch_idx = T.local_scalar("int32")
+        self.head_idx = T.local_scalar("int32")
+        self.m_block_idx = T.local_scalar("int32")
 
     # fmt: off
-    @Tx.inline
+    @T.inline
     def update_current_m_n_idx(self, linear_idx):
         """Convert linear index to (batch, head, m_block) with LPT + L2 swizzle."""
-        L2_SWIZZLE = Tx.meta_var(self._l2_swizzle)
-        L2_MAJOR = Tx.meta_var(self._l2_major)
-        NUM_HB_QUOTIENT = Tx.meta_var(self._num_hb_quotient)
-        NUM_HB = Tx.meta_var(self._num_hb)
-        NUM_HEADS = Tx.meta_var(self._num_heads)
-        NUM_M_BLOCKS = Tx.meta_var(self._num_m_blocks)
+        L2_SWIZZLE = T.meta_var(self._l2_swizzle)
+        L2_MAJOR = T.meta_var(self._l2_major)
+        NUM_HB_QUOTIENT = T.meta_var(self._num_hb_quotient)
+        NUM_HB = T.meta_var(self._num_hb)
+        NUM_HEADS = T.meta_var(self._num_heads)
+        NUM_M_BLOCKS = T.meta_var(self._num_m_blocks)
 
         # L2 swizzle decomposition
-        bidhb: Tx.let = linear_idx // L2_MAJOR
-        l2_mod: Tx.let = linear_idx % L2_MAJOR
+        bidhb: T.let = linear_idx // L2_MAJOR
+        l2_mod: T.let = linear_idx % L2_MAJOR
 
         # Handle residual section (last partial swizzle group)
-        num_hb_remainder: Tx.let = Tx.max(NUM_HB % L2_SWIZZLE, 1)
-        m_block_raw: Tx.let = Tx.Select(bidhb < NUM_HB_QUOTIENT, l2_mod // L2_SWIZZLE, l2_mod // num_hb_remainder)  # noqa: E501
-        bidhb_residual: Tx.let = Tx.Select(bidhb < NUM_HB_QUOTIENT, l2_mod % L2_SWIZZLE, l2_mod % num_hb_remainder)  # noqa: E501
-        bidhb_actual: Tx.let = bidhb * L2_SWIZZLE + bidhb_residual
+        num_hb_remainder: T.let = T.max(NUM_HB % L2_SWIZZLE, 1)
+        m_block_raw: T.let = T.Select(bidhb < NUM_HB_QUOTIENT, l2_mod // L2_SWIZZLE, l2_mod // num_hb_remainder)  # noqa: E501
+        bidhb_residual: T.let = T.Select(bidhb < NUM_HB_QUOTIENT, l2_mod % L2_SWIZZLE, l2_mod % num_hb_remainder)  # noqa: E501
+        bidhb_actual: T.let = bidhb * L2_SWIZZLE + bidhb_residual
 
         self.batch_idx = bidhb_actual // NUM_HEADS
         self.head_idx = bidhb_actual % NUM_HEADS
@@ -801,13 +799,13 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
         # LPT: Reverse block order so high-work blocks are processed first
         self.m_block_idx = (NUM_M_BLOCKS - 1) - m_block_raw
 
-    @Tx.inline
+    @T.inline
     def init(self, cta_id):
         """Initialize scheduler with CTA ID."""
         self.linear_idx = cta_id
         self.update_current_m_n_idx(cta_id)
 
-    @Tx.inline
+    @T.inline
     def next_tile(self):
         """Advance to next tile by striding by num_ctas."""
         self.linear_idx = self._total_tasks

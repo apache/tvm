@@ -59,6 +59,27 @@ from .operator.intrinsics._common import TCGEN05_LDST_SHAPES as _TCGEN05_LDST_SH
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
+_DEVICE_INTRIN_PREFIX_TO_NAMESPACE = {
+    "cuda_": "cuda",
+    "ptx_": "ptx",
+    "nvshmem_": "nvshmem",
+    "nki_": "nki",
+}
+
+
+def _canonical_device_intrin_name(func_name: str) -> str:
+    """Return the canonical registry name for statically registered device intrinsics."""
+
+    if not isinstance(func_name, str) or not func_name.startswith("tirx."):
+        return func_name
+    basename = func_name[len("tirx.") :]
+    if "." in basename:
+        return func_name
+    for prefix, namespace in _DEVICE_INTRIN_PREFIX_TO_NAMESPACE.items():
+        if basename.startswith(prefix):
+            return f"tirx.{namespace}.{basename[len(prefix) :]}"
+    return func_name
+
 
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
@@ -218,6 +239,8 @@ def call_intrin(dtype, func_name, *args, attrs=None, span=None):
     call : PrimExpr
         The call expression.
     """
+    if isinstance(func_name, str):
+        func_name = _canonical_device_intrin_name(func_name)
     return Call(dtype, func_name, args, attrs=attrs, span=span)
 
 
@@ -1523,6 +1546,31 @@ def exp10(x):
     return call_intrin(x.dtype, "tirx.exp10", x)
 
 
+def fma(x, y, z):
+    """Take fused multiply-add of input x, y, z.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        First input argument.
+
+    y : PrimExpr
+        Second input argument.
+
+    z : PrimExpr
+        Third input argument.
+
+    Returns
+    -------
+    out : PrimExpr
+        The result of x * y + z.
+    """
+    x = tir.convert(x)
+    y = tir.convert(y)
+    z = tir.convert(z)
+    return call_intrin(x.dtype, "tirx.fma", x, y, z)
+
+
 def erf(x):
     """Take gauss error function of the input x.
 
@@ -2220,7 +2268,7 @@ def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
     Use this wrapper only when the predicate is *not* in the canonical
     thread-filter grammar (see ``src/tirx/analysis/filter_canonical.h``).
     Canonical predicates -- pure conjunctions of ``scopeid_var <op> const``
-    comparisons plus bare ``Tx.ptx.elect_sync()`` calls -- are recognized by
+    comparisons plus bare ``T.ptx.elect_sync()`` calls -- are recognized by
     the lowering pass directly from ``if cond:``, so the wrapper is redundant
     for them.
 
@@ -3322,7 +3370,7 @@ def cuda_thread_rank():
     referencing user-declared scope_id vars. For example, the idiomatic
     mbarrier.init leader predicate is::
 
-        Tx.cuda.thread_rank() == 0
+        T.cuda.thread_rank() == 0
 
     Returns
     -------
@@ -3918,7 +3966,7 @@ def ptx_cp_async_bulk_shared_to_cluster(dst_ptr, src_ptr, size, mbar):
 
     mbar : PrimExpr
         Mbarrier address in shared::cluster space for completion signaling,
-        usually produced by ``Tx.ptx.map_shared_rank``.
+        usually produced by ``T.ptx.map_shared_rank``.
 
     Returns
     -------
@@ -4900,7 +4948,7 @@ def ptx_ldmatrix(trans, num, dtype, smem_ptr, *dst_handles):
     """TVM intrinsic for ldmatrix.sync.aligned.m8n8.x{num}{.trans}.shared.{dtype}.
 
     Mirrors the PTX ISA destination form: each output register is a separate
-    operand. Pass ``Tx.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for
+        operand. Pass ``T.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for
     each destination — the slots may be non-contiguous.
 
     Parameters
@@ -5039,7 +5087,7 @@ def ptx_stmatrix(trans, num, dtype, smem_ptr, *src_handles, shape="m8n8", space=
     """TVM intrinsic for ``stmatrix.sync.aligned.shape.x{num}{.trans}.space.{dtype}``.
 
     Mirrors :func:`ptx_ldmatrix`: each source register is a separate operand.
-    Pass ``Tx.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for each
+    Pass ``T.address_of(buf[idx])`` (or ``buf.ptr_to([idx])``) for each
     source — the slots may be non-contiguous.
 
     Parameters

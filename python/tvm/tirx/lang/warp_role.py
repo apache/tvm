@@ -35,28 +35,31 @@ Example::
         # MMA compute code
 """
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 
 class WarpRole:
     """A warp-level role that guards a block of code by warp_id comparison
-    and wraps it in ``Tx.warp()`` with optional register budget.
+    with optional register budget.
 
     Generates::
 
         if <warp_id_var> == <warp_id_val>:
-            with Tx.warp():
-                Tx.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
-                <user code>
+            T.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
+            <user code>
+
+    The ``if`` guard narrows the active set to the single warp; individual
+    tile-primitive calls inside ``<user code>`` carry their own exec scope via
+    a scope-namespace prefix (e.g. ``Tx.warp.copy(...)``).
 
     Parameters
     ----------
     warp_id_var : Var
-        The warp_id variable (from ``Tx.warp_id(...)``).
+        The warp_id variable (from ``T.warp_id(...)``).
     warp_id_val : int
         Which warp index this role corresponds to.
     regs : int, optional
-        Register budget (passed to ``Tx.ptx.setmaxnreg``).
+        Register budget (passed to ``T.ptx.setmaxnreg``).
         If None, no setmaxnreg is emitted.
     increase : bool
         Direction for ``setmaxnreg`` (default False = decrease).
@@ -69,18 +72,15 @@ class WarpRole:
         self.increase = increase
 
     def __enter__(self):
-        self._if_frame = Tx.If(self.warp_id_var == self.warp_id_val)
+        self._if_frame = T.If(self.warp_id_var == self.warp_id_val)
         self._if_frame.__enter__()
-        self._then_frame = Tx.Then()
+        self._then_frame = T.Then()
         self._then_frame.__enter__()
-        self._warp_frame = Tx.warp()
-        self._warp_frame.__enter__()
         if self.regs is not None:
-            Tx.evaluate(Tx.ptx.setmaxnreg(self.increase, self.regs))
+            T.evaluate(T.ptx.setmaxnreg(self.increase, self.regs))
         return self
 
     def __exit__(self, *exc):
-        self._warp_frame.__exit__(*exc)
         self._then_frame.__exit__(*exc)
         self._if_frame.__exit__(*exc)
         return False
@@ -88,26 +88,28 @@ class WarpRole:
 
 class WarpgroupRole:
     """A warpgroup-level role that guards by wg_id comparison,
-    wraps in ``Tx.warpgroup()``, with optional register budget.
+    with optional register budget.
 
     Generates (single wg_id)::
 
         if <wg_id_var> == <wg_id_val>:
-            with Tx.warpgroup():
-                Tx.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
-                <user code>
+            T.ptx.setmaxnreg(<increase>, <regs>)  # if regs specified
+            <user code>
 
     Generates (range of wg_ids, e.g. ``wg_id_val=(0, 2)``)::
 
         if 0 <= <wg_id_var> and <wg_id_var> < 2:
-            with Tx.warpgroup():
-                Tx.ptx.setmaxnreg(<increase>, <regs>)
-                <user code>
+            T.ptx.setmaxnreg(<increase>, <regs>)
+            <user code>
+
+    The ``if`` guard narrows the active set to the target warpgroup(s);
+    individual tile-primitive calls inside ``<user code>`` carry their own exec
+    scope via a scope-namespace prefix (e.g. ``Tx.wg.copy(...)``).
 
     Parameters
     ----------
     wg_id_var : Var
-        The warpgroup_id variable (from ``Tx.warpgroup_id(...)``).
+        The warpgroup_id variable (from ``T.warpgroup_id(...)``).
     wg_id_val : int or tuple[int, int]
         Which warpgroup index (int) or range ``(start, stop)`` this role
         corresponds to.
@@ -126,20 +128,17 @@ class WarpgroupRole:
     def __enter__(self):
         if isinstance(self.wg_id_val, tuple):
             start, stop = self.wg_id_val
-            self._if_frame = Tx.If(start <= self.wg_id_var and self.wg_id_var < stop)
+            self._if_frame = T.If(start <= self.wg_id_var and self.wg_id_var < stop)
         else:
-            self._if_frame = Tx.If(self.wg_id_var == self.wg_id_val)
+            self._if_frame = T.If(self.wg_id_var == self.wg_id_val)
         self._if_frame.__enter__()
-        self._then_frame = Tx.Then()
+        self._then_frame = T.Then()
         self._then_frame.__enter__()
-        self._wg_frame = Tx.warpgroup()
-        self._wg_frame.__enter__()
         if self.regs is not None:
-            Tx.evaluate(Tx.ptx.setmaxnreg(self.increase, self.regs))
+            T.evaluate(T.ptx.setmaxnreg(self.increase, self.regs))
         return self
 
     def __exit__(self, *exc):
-        self._wg_frame.__exit__(*exc)
         self._then_frame.__exit__(*exc)
         self._if_frame.__exit__(*exc)
         return False

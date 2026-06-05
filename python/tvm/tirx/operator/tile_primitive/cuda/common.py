@@ -24,7 +24,7 @@ from enum import Enum
 
 from tvm.arith.analyzer import Analyzer
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -70,7 +70,7 @@ __forceinline__ __device__ uint64_t {func_name}(uint64_t desc_base, int32_t offs
     return desc.desc_;
 }}
 """
-    return Tx.cuda.func_call(
+    return T.cuda.func_call(
         func_name, desc_val, offset, source_code=source_code, return_type="uint64"
     )
 
@@ -205,41 +205,41 @@ def copy_vec_load_impl(
 
     if sctx.is_cta:
         # fmt: off
-        @Tx.prim_func
+        @T.prim_func
         def impl():
             """Implement copy operation with vectorized loads/stores."""
-            for s in Tx.serial(0, n_elements // (tx * vec_len)):
-                for tid_x in Tx.thread_binding(tx, "threadIdx.x"):
+            for s in T.serial(0, n_elements // (tx * vec_len)):
+                for tid_x in T.thread_binding(tx, "threadIdx.x"):
                     if inst_type == CopyInstType.NORMAL:
-                        for vec in Tx.vectorized(vec_len):
-                            fused = Tx.meta_var((s * tx + tid_x) * vec_len + vec)
-                            dst_indices = Tx.meta_var(get_indices(fused, dst_st, dst_extent))
-                            src_indices = Tx.meta_var(get_indices(fused, src_st, src_extent))
+                        for vec in T.vectorized(vec_len):
+                            fused = T.meta_var((s * tx + tid_x) * vec_len + vec)
+                            dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
+                            src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                             dst[tuple(dst_indices)] = src[tuple(src_indices)]
                     elif inst_type == CopyInstType.CP_ASYNC:
-                        fused = Tx.meta_var((s * tx + tid_x) * vec_len)
-                        dst_indices = Tx.meta_var(get_indices(fused, dst_st, dst_extent))
-                        src_indices = Tx.meta_var(get_indices(fused, src_st, src_extent))
-                        Tx.evaluate(Tx.ptx.cp_async(dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+                        fused = T.meta_var((s * tx + tid_x) * vec_len)
+                        dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
+                        src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
+                        T.evaluate(T.ptx.cp_async(dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
             if dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL:
-                Tx.tvm_storage_sync("shared")
+                T.tvm_storage_sync("shared")
         # fmt: on
     elif sctx.is_thread:
         # fmt: off
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def impl():
-            for s in Tx.serial(0, n_elements // (vec_len)):
+            for s in T.serial(0, n_elements // (vec_len)):
                 if inst_type == CopyInstType.NORMAL:
-                    for vec in Tx.vectorized(vec_len):
-                        fused = Tx.meta_var(s * vec_len + vec)
-                        dst_indices = Tx.meta_var(get_indices(fused, dst_st, dst_extent))
-                        src_indices = Tx.meta_var(get_indices(fused, src_st, src_extent))
+                    for vec in T.vectorized(vec_len):
+                        fused = T.meta_var(s * vec_len + vec)
+                        dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
+                        src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                         dst[tuple(dst_indices)] = src[tuple(src_indices)]
                 elif inst_type == CopyInstType.CP_ASYNC:
-                    fused = Tx.meta_var(s * vec_len)
-                    dst_indices = Tx.meta_var(get_indices(fused, dst_st, dst_extent))
-                    src_indices = Tx.meta_var(get_indices(fused, src_st, src_extent))
-                    Tx.evaluate(Tx.ptx.cp_async(dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+                    fused = T.meta_var(s * vec_len)
+                    dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
+                    src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
+                    T.evaluate(T.ptx.cp_async(dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
         # fmt: on
     else:
         fail(f"unsupported exec_scope {sctx.scope_kind}")

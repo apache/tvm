@@ -96,6 +96,7 @@ TVM_REGISTER_OP("tirx.round")
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
 TVM_REGISTER_OP("tirx.ctpop")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 TVM_REGISTER_OP("tirx.tanh")

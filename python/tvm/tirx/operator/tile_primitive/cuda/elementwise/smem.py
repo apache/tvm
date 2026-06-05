@@ -31,7 +31,7 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 from __future__ import annotations
 
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
@@ -159,7 +159,7 @@ def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFu
 
 def _tid_expr(sctx: DispatchContext):
     """Per-scope tid expr. ``thread`` scope returns 0; collective scopes use
-    ``_axis_decl`` (Tx.lane_id / Tx.thread_id_in_wg / threadIdx.x)."""
+    ``_axis_decl`` (T.lane_id / T.thread_id_in_wg / threadIdx.x)."""
     if sctx.scope_kind == "thread":
         return 0
     axis_name = _TID_AXIS_FOR_SCOPE[sctx.scope_kind]
@@ -197,18 +197,18 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
-        for s in Tx.serial(0, n_outer):
+        for s in T.serial(0, n_outer):
             # First lane's fused index for this thread, this chunk.
-            fused0 = Tx.meta_var(s * vec_chunk * thread_cnt + tid * vec_chunk)
+            fused0 = T.meta_var(s * vec_chunk * thread_cnt + tid * vec_chunk)
             # Predicate the call (skip the trailing partial chunk).
             if fused0 + vec_chunk <= total:
-                dst_lane_indices = Tx.meta_var(
+                dst_lane_indices = T.meta_var(
                     [get_indices(fused0 + k, dst_st, dst_ext) for k in range(vec_chunk)]
                 )
-                src_args = Tx.meta_var(
+                src_args = T.meta_var(
                     [
                         srcs[i].scalar
                         if srcs[i].is_scalar
@@ -226,7 +226,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
                         for i in range(len(srcs))
                     ]
                 )
-                Tx.evaluate(vec_impl.emit(dst_buf, dst_lane_indices, src_args, extras))
+                T.evaluate(vec_impl.emit(dst_buf, dst_lane_indices, src_args, extras))
         sync()
 
     return impl
@@ -245,18 +245,18 @@ def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
-        for s in Tx.serial(0, n_outer):
-            for vec in Tx.vectorized(vec_chunk):
-                fused = Tx.meta_var(s * vec_chunk * thread_cnt + tid * vec_chunk + vec)
+        for s in T.serial(0, n_outer):
+            for vec in T.vectorized(vec_chunk):
+                fused = T.meta_var(s * vec_chunk * thread_cnt + tid * vec_chunk + vec)
                 if fused < total:
-                    dst_idx = Tx.meta_var(get_indices(fused, dst_st, dst_ext))
-                    src_vals = Tx.meta_var(
+                    dst_idx = T.meta_var(get_indices(fused, dst_st, dst_ext))
+                    src_vals = T.meta_var(
                         [fetch_src_value(src, fused, dst_idx, dst_st, dst_ext) for src in srcs]
                     )
-                    dst_buf[tuple(dst_idx)] = Tx.cast(
+                    dst_buf[tuple(dst_idx)] = T.cast(
                         compute(src_vals, extras, dst_dtype), dst_dtype
                     )
         sync()

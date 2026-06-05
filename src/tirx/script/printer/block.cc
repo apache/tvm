@@ -233,18 +233,10 @@ TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::ExecScopeStmt>("",
-                                       [](tirx::ExecScopeStmt stmt, AccessPath p, IRDocsifier d)
-                                           -> Doc { return ExecScopeStmtDoc(stmt, p, d, {}); });
-
-TVM_SCRIPT_REPR(tirx::ExecScopeStmtNode, ReprPrintTIR);
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::ScopeIdDefStmt>(
         "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
           // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
-          // (or the appropriate API name for the binding). Mirrors the loop
-          // in ``ExecScopeStmtDoc`` that handled the legacy payload form.
+          // (or the appropriate API name for the binding).
           TVM_FFI_ICHECK(!d->frames.empty());
           tirx::ScopeIdDef def = stmt->def;
           AccessPath def_p = p->Attr("def");

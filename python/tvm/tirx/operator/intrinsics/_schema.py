@@ -25,9 +25,7 @@ callable), it:
   ``__forceinline__ __device__ <ret> <name><sig> { <body> }``,
 * registers a codegen function under the op name so
   ``call_intrin("", "tirx.<op_name>", *args)`` resolves to a call to that
-  helper, and
-* registers the op with TVM's Op registry (``TCallEffectKind=Opaque``) so
-  it doesn't need a C++ ``TIR_DEFINE_BUILTIN_FUNC`` entry.
+  helper. TVM Op registration is static C++ only.
 
 Args passed to the codegen are split into ``(forward_args, attr_args)``:
 the trailing ``n_attrs`` are attrs (consumed by the ``helper_name`` /
@@ -144,37 +142,3 @@ def device_intrinsic(
 
     codegen.__name__ = f"codegen_{op_name}"
     register_codegen(op_name)(codegen)
-    _ensure_op_registered(f"tirx.{op_name}")
-
-
-# ---------------------------------------------------------------------------
-# Dynamic Op registration — ensures op_name has a TVM Op (with default
-# TCallEffectKind=Opaque) so call_intrin can resolve it without requiring a
-# C++ TIR_DEFINE_BUILTIN_FUNC entry.
-# ---------------------------------------------------------------------------
-
-import tvm_ffi  # noqa: E402
-
-_ir_register_op = tvm_ffi.get_global_func("ir.RegisterOp")
-_ir_register_op_attr = tvm_ffi.get_global_func("ir.RegisterOpAttr")
-# CallEffectKind enum (include/tvm/tir/op_attr_types.h): Opaque = 4.
-_CALL_EFFECT_KIND_OPAQUE = 4
-_registered_attrs: set = set()
-
-
-def _ensure_op_registered(op_name: str) -> None:
-    """Register ``op_name`` if not already in TVM's Op registry, plus a
-    default ``TCallEffectKind=Opaque`` attribute. Both calls are no-ops when
-    the op / attribute is already registered (the C++-side registrations win
-    by plevel)."""
-    try:
-        _ir_register_op(op_name, "")
-    except Exception:
-        pass
-    if op_name in _registered_attrs:
-        return
-    try:
-        _ir_register_op_attr(op_name, "TCallEffectKind", _CALL_EFFECT_KIND_OPAQUE, 10)
-        _registered_attrs.add(op_name)
-    except Exception:
-        pass

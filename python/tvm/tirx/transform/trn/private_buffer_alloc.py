@@ -23,7 +23,6 @@ from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.stmt import (
     AllocBuffer,
     AttrStmt,
-    ExecScopeStmt,
     For,
     SeqStmt,
     Stmt,
@@ -38,16 +37,10 @@ class PrivateAllocCollector(StmtVisitor):
     def __init__(self, target: Target):
         super().__init__()
         self.target = target
-        self.exec_scope_stack_ = []
         self.launch_params = {}
         self.var_range_map = {}
         self.buffer_dict = {}
         self.private_buf_refs = {}
-
-    def visit_exec_scope_stmt_(self, op: ExecScopeStmt):
-        self.exec_scope_stack_.append(op.exec_scope)
-        super().visit_exec_scope_stmt_(op)
-        self.exec_scope_stack_.pop()
 
     def visit_attr_(self, op: AttrStmt):
         if op.attr_key == "thread_extent":
@@ -59,19 +52,9 @@ class PrivateAllocCollector(StmtVisitor):
         super().visit_for_(op)
 
     def visit_op_call_(self, op: TilePrimitiveCall):
-        # Mirror tile_primitive_dispatch.cc: at the device-region root,
-        # dispatchers see scope_kind="kernel" so trn dispatchers that key
-        # off "kernel" continue to fire at the entry.
-        from tvm.tirx.exec_scope import ExecScope
-
-        if not self.exec_scope_stack_:
-            # Inside AttrStmt(kDeviceEntry) with no inner ExecScope.
-            # Provide a placeholder ExecScope (not load-bearing for trn).
-            scope_kind = "kernel"
-            exec_scope = ExecScope("thread")
-        else:
-            scope_kind = self.exec_scope_stack_[-1].name
-            exec_scope = self.exec_scope_stack_[-1]
+        # Scope is a per-call field on the node; read it directly.
+        exec_scope = op.scope
+        scope_kind = op.scope.name
         sctx = DispatchContext(
             target=self.target,
             exec_scope=exec_scope,
@@ -120,9 +103,7 @@ class PrivateAllocMutator(StmtMutator):
             return op
         new_workspace = dict(op.workspace)
         new_workspace.update(self.added_workspace[op])
-        op = TilePrimitiveCall(
-            *op.args, op=op.op, workspace=new_workspace, config=op.config, dispatch=op.dispatch
-        )
+        op = TilePrimitiveCall.downcast(op).with_workspace(new_workspace)
         return op
 
 

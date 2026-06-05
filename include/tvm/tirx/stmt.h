@@ -953,52 +953,10 @@ class SBlockRealize : public Stmt {
 };
 
 /*!
- * \brief A statement that annotates the execution scope for its body.
- *
- *  ExecScopeStmt represents a hardware execution scope (e.g. cta, warp, thread)
- *  that wraps a body statement. This decouples the execution scope concept from
- *  SBlock, making the IR structure cleaner.
- *
- *  Example:
- *  \code
- *    with T.cta():
- *      ...
- *  \endcode
- */
-class ExecScopeStmtNode : public StmtNode {
- public:
-  /*! \brief The execution scope. */
-  ExecScope exec_scope;
-  /*! \brief The body statement under this execution scope. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExecScopeStmtNode>()
-        .def_ro("exec_scope", &ExecScopeStmtNode::exec_scope)
-        .def_ro("body", &ExecScopeStmtNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ExecScopeStmt", ExecScopeStmtNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ExecScopeStmtNode.
- * \sa ExecScopeStmtNode
- */
-class ExecScopeStmt : public Stmt {
- public:
-  TVM_DLL ExecScopeStmt(ExecScope exec_scope, Stmt body, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecScopeStmt, Stmt, ExecScopeStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecScopeStmtNode);
-};
-
-/*!
  * \brief Standalone statement that declares a scope-id binding (e.g. cta_id,
  * warp_id, lane_id). Carries a ``ScopeIdDef`` value.
  *
- * Unlike legacy ``ExecScopeStmt::scope_id_def`` (an array payload), each
- * declaration is a flat stmt within the device-region body. The declared
+ * Each declaration is a flat stmt within the device-region body. The declared
  * ``Var``\ s are visible in subsequent stmts in the same enclosing scope
  * (the AttrStmt ``kDeviceEntry`` body), analogous to ``BindNode``.
  */

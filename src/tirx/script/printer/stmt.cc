@@ -94,9 +94,40 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           static const auto& dispatch_op_map = Op::GetAttrMap<bool>("TIsDispatchOp");
           static const auto& compose_op_map = Op::GetAttrMap<bool>("TIsComposeOp");
           static const auto& async_op_map = Op::GetAttrMap<bool>("TIsAsyncOp");
+          static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
           TVM_FFI_ICHECK(tirx_op_map.get(op, false))
               << "Only TIRX ops can be used in tirx::TilePrimitiveCall";
           ffi::String name = op_names.get(op, op->name);
+          // Per-call execution scope is printed as a namespace prefix on the op,
+          // e.g. ``T.warp.copy(...)``. ``warpgroup`` prints as ``wg``. The
+          // default ``thread`` scope prints through the explicit tile namespace,
+          // e.g. ``T.tile.copy(...)``, so canonical script only needs the full
+          // TIRx dialect import. ``Tx`` remains a handwritten shorthand for
+          // ``T.tile`` and ``T.<scope>`` tile calls.
+          auto scope_ns = [](tirx::ScopeKind k) -> ffi::Optional<ffi::String> {
+            switch (k) {
+              case tirx::ScopeKind::kWarp:
+                return ffi::String("warp");
+              case tirx::ScopeKind::kWarpgroup:
+                return ffi::String("wg");
+              case tirx::ScopeKind::kCta:
+                return ffi::String("cta");
+              case tirx::ScopeKind::kCluster:
+                return ffi::String("cluster");
+              default:  // kThread -> no prefix
+                return std::nullopt;
+            }
+          };
+          auto scoped_callee = [&](const ffi::String& op_name) -> ExprDoc {
+            ffi::Optional<ffi::String> ns = scope_ns(op_call->scope->kind);
+            if (ns.has_value()) {
+              return TIRx(d, ns.value())->Attr(op_name);
+            }
+            if (category_map.get(op, ffi::String("")) == "tile_primitive") {
+              return TIRx(d, "tile")->Attr(op_name);
+            }
+            return TIRx(d, op_name);
+          };
           if (dispatch_op_map.get(op, false) || async_op_map.get(op, false)) {
             // Dispatch ops
             // Trim trailing None args (e.g. optional bias=None, scale=None)
@@ -126,7 +157,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             if (op_call->dispatch.has_value()) {
               disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
             }
-            return OpCallDoc(TIRx(d, name), args,
+            return OpCallDoc(scoped_callee(name), args,
                              d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
                              d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
           } else if (compose_op_map.get(op, false)) {
@@ -158,7 +189,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               kw_values.push_back(
                   d->AsDoc<ExprDoc>(kv.second, p->Attr("config")->MapItem(kv.first)));
             }
-            return ScopeDoc(std::nullopt, TIRx(d, "compose_op")->Call({}, kw_keys, kw_values),
+            return ScopeDoc(std::nullopt, scoped_callee("compose_op")->Call({}, kw_keys, kw_values),
                             (*f)->stmts);
           } else {
             // Misc ops
@@ -166,7 +197,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
               args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
             }
-            return OpCallDoc(TIRx(d, name), args, {}, {}, std::nullopt);
+            return OpCallDoc(scoped_callee(name), args, {}, {}, std::nullopt);
           }
         });
 TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
@@ -739,13 +770,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::IfThenElse>(  //
         "", [](tirx::IfThenElse stmt, AccessPath p, IRDocsifier d) -> Doc {
-          if (!stmt->else_case.defined()) {
-            if (auto exec_scope_stmt = stmt->then_case.as<tirx::ExecScopeStmtNode>()) {
-              ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-              return ExecScopeStmtDoc(ffi::GetRef<tirx::ExecScopeStmt>(exec_scope_stmt),
-                                      p->Attr("then_case"), d, {cond});
-            }
-          }
           ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
           ffi::Array<StmtDoc> then_branch;
           ffi::Array<StmtDoc> else_branch;

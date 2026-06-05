@@ -25,7 +25,7 @@ Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 from math import prod
 
 import tvm
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
@@ -294,14 +294,14 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # Step 10: emit one ldmatrix/stmatrix per mm, per warp.
 
     def _get_warp_idx_in_T():
-        # Tx.warp_id_in_wg() / Tx.warp_id() must be called from inside a
-        # @Tx.prim_func body — wrap so the prim_func parser calls us at parse
+        # T.warp_id_in_wg() / T.warp_id() must be called from inside a
+        # @T.prim_func body — wrap so the prim_func parser calls us at parse
         # time (Python `if` here is plain control flow, not TIR-intercepted).
         if r_lane_axis == "laneid":
             return 0
         if r_lane_axis == "tid_in_wg":
-            return Tx.warp_id_in_wg()
-        return Tx.warp_id()  # "tx"
+            return T.warp_id_in_wg()
+        return T.warp_id()  # "tx"
 
     def _seg4_coord(laneid_expr):
         # num=1: seg 4 trivially extent-1, pass 0. num>1: use lane//8 (tile
@@ -373,7 +373,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     def _resolve_s_off(laneid_var, warp_var):
         # Build the placeholder→runtime-var map and substitute. Keep this in a
-        # regular Python helper — the @Tx.prim_func parser intercepts dict
+        # regular Python helper — the @T.prim_func parser intercepts dict
         # literals when written directly in the body.
         vmap = {lane_ph: laneid_var}
         if warp_ph is not None:
@@ -405,10 +405,10 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         return logical_off
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         r_local = r_buf.local(m_total, layout=TileLayout(S[(m_total,)]))
-        laneid = Tx.lane_id()
+        laneid = T.lane_id()
         warp_idx_in_T = _get_warp_idx_in_T()
         # Resolve s_off_template by substituting placeholders → actual
         # scope-id vars (via _resolve_s_off helper to keep the dict literal
@@ -416,7 +416,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         # without swizzle we keep using the per-iter s.apply directly.
         if swizzle_pattern is not None:
             _setup_swizzle(_resolve_s_off(laneid, warp_idx_in_T))
-        for mm in Tx.unroll(m_outer):
+        for mm in T.unroll(m_outer):
             tile_off = s.apply(
                 warp_idx_in_T, 0, 0, mm, _seg4_coord(laneid), 0, shape=apply_shape,
             )[s_mem_axis]
@@ -430,9 +430,9 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
                 for i in range(num)
             ]
             if direction == "ld":
-                Tx.ptx.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
+                T.ptx.ldmatrix(trans, num, ".b16", smem_ptr, *handles)
             else:
-                Tx.ptx.stmatrix(
+                T.ptx.stmatrix(
                     trans, num, ".b16", smem_ptr, *handles,
                     shape="m8n8", space="shared",
                 )

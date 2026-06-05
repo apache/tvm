@@ -30,7 +30,7 @@ vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 import tvm
 from tvm.arith import Analyzer
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
@@ -410,15 +410,15 @@ def _axis_decl(axis_name: str, sctx: DispatchContext):
     if axis_name == "tx":
         return sctx.launch_params["threadIdx.x"].var
     if axis_name == "laneid":
-        return Tx.lane_id()
+        return T.lane_id()
     if axis_name == "wid_in_wg":
-        return Tx.warp_id_in_wg()
+        return T.warp_id_in_wg()
     if axis_name == "tid_in_wg":
-        return Tx.thread_id_in_wg()
+        return T.thread_id_in_wg()
     if axis_name == "warpid":
-        return Tx.warp_id()
+        return T.warp_id()
     if axis_name == "wgid":
-        return Tx.warpgroup_id()
+        return T.warpgroup_id()
     raise ValueError(f"unsupported thread axis {axis_name}")
 
 
@@ -463,7 +463,7 @@ _POINTER_OFFSET_SRC = (
 
 
 def _ptr_off(base_ptr, off):
-    return Tx.cuda.func_call(
+    return T.cuda.func_call(
         "tvm_builtin_pointer_offset",
         base_ptr,
         off,
@@ -504,7 +504,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     # Build the per-thread S offset OUTSIDE the impl using placeholder Vars
     # (one per thread axis). Inside the impl we'll declare the real scope_ids
-    # via Tx.lane_id/Tx.thread_id_in_wg/... and substitute them in.
+    # via T.lane_id/T.thread_id_in_wg/... and substitute them in.
     placeholders = _make_thread_placeholders(r_p)
     s_off_template = _s_thread_offset(r_p, s_p, placeholders)
 
@@ -515,7 +515,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     for _ax, val in r_p.offset.items():
         r_off_base = r_off_base + val
 
-    copy_op = getattr(Tx.cuda, f"copy_{vec_bits}b")
+    copy_op = getattr(T.cuda, f"copy_{vec_bits}b")
 
     total_outer = 1
     for a in outer:
@@ -556,13 +556,13 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # fmt: off
     s_zero_indices = [0] * len(s_buf.shape)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         s_off = _substitute_axes(s_off_template, placeholders, sctx)
         _setup_swizzle(s_off)
         r_local = r_buf.local(*per_thread_r_shape)
         # Keep as a serial TIR loop and let ptxas unroll downstream. An
-        # explicit ``Tx.unroll`` materializes the per-iter scratch
+        # explicit ``T.unroll`` materializes the per-iter scratch
         # (ds/dr/s_ptr/r_ptr, swizzle ``v_<n>[]`` signed-strides) as N
         # copies of each buffer declaration; on kernels with many R↔S copy
         # sites and large ``total_outer`` (FA4 writeback) this floods the

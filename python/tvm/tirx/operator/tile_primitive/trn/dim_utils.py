@@ -20,7 +20,7 @@
 from collections import namedtuple
 
 from tvm.arith.analyzer import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion
 
 # Represents the part of data iter covered by the buffer region
@@ -34,14 +34,14 @@ def normalize_and_group(layout, shape):
 
     Parameters
     ----------
-    layout : Union[Tx.TrainiumLayout, Tx.TileLayout]
+    layout : Union[T.TrainiumLayout, T.TileLayout]
         The layout to normalize
     shape : List[int]
         The shape to normalize with
 
     Returns
     -------
-    Tuple[Union[Tx.TrainiumLayout, Tx.TileLayout], List[int]] :
+    Tuple[Union[T.TrainiumLayout, T.TileLayout], List[int]] :
         Normalized layout and separators
 
     Raises
@@ -49,7 +49,7 @@ def normalize_and_group(layout, shape):
     ValueError :
         If layout is not a valid layout type
     """
-    if isinstance(layout, Tx.TileLayout):
+    if isinstance(layout, T.TileLayout):
         return layout.canonicalize().group(shape)
     else:
         raise ValueError("Invalid layout")

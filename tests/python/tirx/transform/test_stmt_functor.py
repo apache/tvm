@@ -22,7 +22,8 @@ import tvm
 import tvm.testing
 from tvm import tirx as tir
 from tvm.ir import Range
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.expr import EQ, GT, LT, Add, IntImm, Mul, Sub, Var
 from tvm.tirx.stmt_functor import StmtExprMutator, StmtExprVisitor, StmtMutator, StmtVisitor
 
@@ -657,8 +658,8 @@ def create_test_statements():
     if_then_else = tir.IfThenElse(tir.LT(x, int_imm), evaluate_stmt, evaluate_stmt)
 
     # Break and continue statements inside a for loop
-    @Tx.prim_func
-    def func(A: Tx.Buffer((10,), "int32")):
+    @T.prim_func
+    def func(A: T.Buffer((10,), "int32")):
         for x in range(10):
             A[x] = x + 1
             if x == 5:
@@ -666,15 +667,15 @@ def create_test_statements():
             continue
 
     # DeclBuffer
-    buffer_decl = tir.DeclBuffer(Tx.buffer((10,), "int32"), evaluate_stmt)
+    buffer_decl = tir.DeclBuffer(T.buffer((10,), "int32"), evaluate_stmt)
 
     # TilePrimitiveCall — extract the TilePrimitiveCall from the kernel body, then wrap in an SBlock
-    @Tx.prim_func
-    def op_call(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        Tx.device_entry()
+    @T.prim_func
+    def op_call(A: T.Buffer((10,), "int32"), B: T.Buffer((10,), "int32")):
+        T.device_entry()
         Tx.add(A, B, 1.0)
 
-        # op_call.body is ExecScopeStmt, op_call.body.body is TilePrimitiveCall
+        # op_call.body is the tirx.device_entry AttrStmt, op_call.body.body is TilePrimitiveCall
 
     op_call_stmt = op_call.body.body
     op_call_block = tir.SBlock([], [], [], "op_call_block", op_call_stmt)
@@ -1009,7 +1010,7 @@ class NegateIntImmMutator(StmtExprMutator):
 
 
 def test_mutator_transformation():
-    """Test that mutator actually transforms the ASTx."""
+    """Test that mutator actually transforms the AST."""
     evaluate_stmt = create_test_statements()["evaluate"]
     mutator = NegateIntImmMutator()
     result = mutator.visit_stmt(evaluate_stmt)
@@ -1092,9 +1093,9 @@ def test_op_call_config_visited():
         def visit_var_(self, op):
             self.vars.add(op.name)
 
-    @Tx.prim_func
-    def op_call_with_config(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        Tx.device_entry()
+    @T.prim_func
+    def op_call_with_config(A: T.Buffer((10,), "int32"), B: T.Buffer((10,), "int32")):
+        T.device_entry()
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
@@ -1124,9 +1125,9 @@ def test_op_call_config_mutated():
     """
     from tvm.tirx.stmt_functor import substitute
 
-    @Tx.prim_func
-    def op_call_with_config(A: Tx.Buffer((10,), "int32"), B: Tx.Buffer((10,), "int32")):
-        Tx.device_entry()
+    @T.prim_func
+    def op_call_with_config(A: T.Buffer((10,), "int32"), B: T.Buffer((10,), "int32")):
+        T.device_entry()
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body

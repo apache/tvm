@@ -27,7 +27,7 @@ consecutive fused-index slots. Layout / partition algorithm lives in
 
 import tvm
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
@@ -136,7 +136,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # [outer x thread x vec] coord scheme below.
 
     vec_bits = vec_len * elem_bits
-    copy_op = getattr(Tx.cuda, f"copy_{vec_bits}b")
+    copy_op = getattr(T.cuda, f"copy_{vec_bits}b")
 
     # Partition guarantees ``prod(s_p.shard.extents) == prod(g_p.shard.extents)
     # == n_elements`` (the total transfer count). Express the per-thread
@@ -263,7 +263,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     v0 = _IntImm("int32", 0)
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         tid = _decl_tid()
         _setup_swizzle(tid)
@@ -272,7 +272,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
         # misaligned vector ops.
         #
         # Use a serial TIR loop and let ptxas unroll downstream. Mirrors
-        # the reg.py rationale in commit ac7ecf70f0: explicit ``Tx.unroll``
+        # the reg.py rationale in commit ac7ecf70f0: explicit ``T.unroll``
         # materializes the per-iter scratch (s_lin/g_lin/s_off/s_ptr/g_ptr)
         # as N copies of each ``alignas(64)`` declaration. For large
         # ``total_outer`` (e.g. thread-scope fp32 swizzled copies of 32x256

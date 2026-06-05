@@ -49,6 +49,9 @@ class TilePrimitiveCallNode : public StmtNode {
   // Optional dispatch variant name registered via @register_dispatch.
   ffi::Optional<ffi::String> dispatch{std::nullopt};
 
+  // Cooperation scope of this call. Default thread (an unscoped call).
+  ExecScope scope = ExecScope(ScopeKind::kThread);
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TilePrimitiveCallNode>()
@@ -56,7 +59,8 @@ class TilePrimitiveCallNode : public StmtNode {
         .def_ro("args", &TilePrimitiveCallNode::args)
         .def_ro("workspace", &TilePrimitiveCallNode::workspace)
         .def_ro("config", &TilePrimitiveCallNode::config)
-        .def_ro("dispatch", &TilePrimitiveCallNode::dispatch);
+        .def_ro("dispatch", &TilePrimitiveCallNode::dispatch)
+        .def_ro("scope", &TilePrimitiveCallNode::scope);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TilePrimitiveCall", TilePrimitiveCallNode, StmtNode);
@@ -71,7 +75,8 @@ class TilePrimitiveCall : public Stmt {
   TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
                             ffi::Map<ffi::String, Buffer> workspace = {},
                             ffi::Map<ffi::String, ffi::Any> config = {},
-                            ffi::Optional<ffi::String> dispatch = std::nullopt);
+                            ffi::Optional<ffi::String> dispatch = std::nullopt,
+                            ExecScope scope = ExecScope(ScopeKind::kThread));
 
   static bool IsValidOpCallArgType(const ffi::Any& arg);
 

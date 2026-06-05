@@ -32,7 +32,7 @@ import operator
 
 from tvm.arith.analyzer import Analyzer
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion
 from tvm.tirx.layout import Axis, Iter, TileLayout
 
@@ -351,16 +351,16 @@ def fetch_src_value(src, fused, dst_indices, dst_start, dst_extent):
 
 
 def emit_scope_sync(scope_kind: str):
-    """Returns an ``@Tx.inline`` sync helper matched to the exec scope."""
+    """Returns an ``@T.inline`` sync helper matched to the exec scope."""
 
-    @Tx.inline
+    @T.inline
     def sync():
         if scope_kind == "cta":
-            Tx.cuda.cta_sync()
+            T.cuda.cta_sync()
         elif scope_kind == "warpgroup":
-            Tx.cuda.warpgroup_sync(8)
+            T.cuda.warpgroup_sync(8)
         elif scope_kind == "warp":
-            Tx.cuda.warp_sync()
+            T.cuda.warp_sync()
 
     return sync
 

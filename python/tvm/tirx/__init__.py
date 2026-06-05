@@ -44,7 +44,7 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
-from .stmt import TilePrimitiveCall, ExecScopeStmt, ScopeIdDefStmt
+from .stmt import TilePrimitiveCall, ScopeIdDefStmt
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 

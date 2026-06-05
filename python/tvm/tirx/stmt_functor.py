@@ -53,7 +53,6 @@ class StmtFunctor:
             "tirx.Evaluate": self.visit_evaluate_,
             "tirx.SBlock": self.visit_block_,
             "tirx.SBlockRealize": self.visit_block_realize_,
-            "tirx.ExecScopeStmt": self.visit_exec_scope_stmt_,
             "tirx.ScopeIdDefStmt": self.visit_scope_id_def_stmt_,
             "tirx.TilePrimitiveCall": self.visit_op_call_,
             "tirx.AllocBuffer": self.visit_alloc_buffer_,
@@ -171,10 +170,6 @@ class StmtFunctor:
 
     def visit_block_realize_(self, op):
         """Visitor for BlockRealize nodes."""
-        return self.visit_stmt_default_(op)
-
-    def visit_exec_scope_stmt_(self, op):
-        """Visitor for ExecScopeStmt nodes."""
         return self.visit_stmt_default_(op)
 
     def visit_scope_id_def_stmt_(self, op):
@@ -338,10 +333,6 @@ class StmtVisitor(StmtFunctor):
         _visit_array(op.iter_values, lambda x: self.visit_expr(x))
         self.visit_expr(op.predicate)
         self.visit_stmt(op.block)
-
-    def visit_exec_scope_stmt_(self, op):
-        """Visitor implementation for ExecScopeStmt."""
-        self.visit_stmt(op.body)
 
     def visit_scope_id_def_stmt_(self, op):
         """Visitor implementation for ScopeIdDefStmt.
@@ -794,15 +785,6 @@ class StmtMutator(StmtFunctor):
 
         return tvm.tirx.SBlockRealize(iter_values, predicate, block)
 
-    def visit_exec_scope_stmt_(self, op):
-        """Mutator implementation for ExecScopeStmt."""
-        body = self.visit_stmt(op.body)
-
-        if body is op.body:
-            return op
-
-        return tvm.tirx.ExecScopeStmt(op.exec_scope, body, op.span)
-
     def visit_scope_id_def_stmt_(self, op):
         """Mutator implementation for ScopeIdDefStmt.
 
@@ -873,7 +855,12 @@ class StmtMutator(StmtFunctor):
             return op
 
         return tvm.tirx.TilePrimitiveCall(
-            *new_args, op=op.op, workspace=op.workspace, config=new_config, dispatch=op.dispatch
+            *new_args,
+            op=op.op,
+            workspace=op.workspace,
+            config=new_config,
+            dispatch=op.dispatch,
+            scope=op.scope,
         )
 
     def visit_buffer_region_(self, op):

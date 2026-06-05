@@ -2112,8 +2112,6 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) { EmitDebugLocation(op); }
 
-void CodeGenLLVM::VisitStmt_(const ExecScopeStmtNode* op) { VisitStmt(op->body); }
-
 void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);
   MakeValue(op->value);

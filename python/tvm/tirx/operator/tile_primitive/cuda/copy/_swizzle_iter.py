@@ -69,7 +69,7 @@ from dataclasses import dataclass
 
 import tvm
 from tvm import arith
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, SwizzleLayout
 
@@ -270,7 +270,7 @@ def try_recognize(
 
 
 def emit_init(pattern: SwizzlePattern, s_off_resolved):
-    """Emit at thread setup (call from inside the @Tx.prim_func body):
+    """Emit at thread setup (call from inside the @T.prim_func body):
 
       1. ``base_off = swizzle.apply(s_off_resolved)`` — runtime, per-thread,
          computed once.
@@ -296,7 +296,7 @@ def emit_init(pattern: SwizzlePattern, s_off_resolved):
     if n == 0:
         return None, base_off
 
-    signed_strides = Tx.alloc_buffer([n], "int32", scope="local")
+    signed_strides = T.alloc_buffer([n], "int32", scope="local")
     q = tvm.tirx.floordiv(s_off_resolved, C)
 
     def _sigma_bit(bit_pos: int):
@@ -308,27 +308,29 @@ def emit_init(pattern: SwizzlePattern, s_off_resolved):
         return _IntImm("int32", 1) - row_bit * _IntImm("int32", 2)
 
     for j, (bj, stride) in enumerate(zip(pattern.bit_positions, pattern.iter_strides_elems)):
-        T = stride  # = 2^(bj + p) elements
+        stride_pow = stride  # = 2^(bj + p) elements
         if 0 <= bj < sw:
             # Case 1.A (inner): signed_stride = sigma_(at + bj) · T.
-            value = _sigma_bit(at + bj) * _IntImm("int32", T)
+            value = _sigma_bit(at + bj) * _IntImm("int32", stride_pow)
         elif sw <= bj < at:
             # Case 1.B (mid): signed_stride = +T.
-            value = _IntImm("int32", T)
+            value = _IntImm("int32", stride_pow)
         elif at <= bj < at + sw:
             # Case 1.C (outer): signed_stride = T + sigma_(bj - at) · T_sec.
             # Invariant: bj >= at, so T_sec = T >> at = 2^(bj - at + p)
             # = T(bj - at) is well-defined (no underflow).
-            T_sec = T >> at
-            value = _IntImm("int32", T) + _sigma_bit(bj - at) * _IntImm("int32", T_sec)
+            stride_sec = stride_pow >> at
+            value = _IntImm("int32", stride_pow) + _sigma_bit(bj - at) * _IntImm(
+                "int32", stride_sec
+            )
         else:  # bj >= at + sw, Case 1.D (above)
             # No swizzle effect at this bit; signed_stride = +T.
-            value = _IntImm("int32", T)
+            value = _IntImm("int32", stride_pow)
         # NB: Buffer.__setitem__ syntax (``signed_strides[j] = value``) is
         # intercepted by the TIRx script parser but not by raw Python when
-        # this function is called from outside an @Tx.inline body. Use the
+        # this function is called from outside an @T.inline body. Use the
         # low-level buffer_store builder instead.
-        Tx.buffer_store(signed_strides, value, [_IntImm("int32", j)])
+        T.buffer_store(signed_strides, value, [_IntImm("int32", j)])
 
     return signed_strides, base_off
 

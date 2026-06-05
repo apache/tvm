@@ -176,7 +176,7 @@ class Scriptable:
         extra_config : Optional[dict] = None
             Dialect-specific configuration passed through to PrinterConfig.extra_config.
             Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
-            ``{"tirx.prefix": "Tx"}``.
+            ``{"tirx.prefix": "T"}``.
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -192,10 +192,10 @@ class Scriptable:
             The TVM Script of the given TVM IR
 
         """
-        # Auto-switch to tirx (`Tx`/`tirx`) flavor only when explicitly
+        # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
         # printing a PrimFunc / IRModule that has no s_tir-tagged content.
         # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
-        # flavor — they have no enclosing function to indicate tirx vs s_tir.
+        # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
@@ -224,7 +224,7 @@ class Scriptable:
                 if any_prim and not any_s_tir:
                     switch_to_tirx = True
             if switch_to_tirx:
-                merged_extra["tirx.prefix"] = "Tx"
+                merged_extra["tirx.prefix"] = "T"
 
         return _script(
             self,

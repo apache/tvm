@@ -24,41 +24,14 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
-#include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
+
+#include <cstdlib>
+#include <vector>
 
 namespace tvm {
 namespace tirx {
 namespace transform {
-
-namespace {
-
-/*!
- * \brief Strip ExecScopeStmt wrappers from lowered TIRX output.
- *
- * ExecScopeStmt is required while lowering TIRX ops and resolving scope IDs/slices.
- * After those passes finish, the wrappers are no longer needed and should not be
- * present in the final LowerTIRx output.
- */
-class ExecScopeStripper : public StmtExprMutator {
- public:
-  static Stmt Strip(const Stmt& stmt) { return ExecScopeStripper()(stmt); }
-
- private:
-  Stmt VisitStmt_(const ExecScopeStmtNode* op) final { return VisitStmt(op->body); }
-};
-
-Pass LowerTIRxStripExecScope() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = ExecScopeStripper::Strip(n->body);
-    return f;
-  };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxStripExecScope", {});
-}
-
-}  // namespace
 
 Pass LowerTIRx() {
   std::vector<tvm::transform::Pass> passes = {TilePrimitiveDispatch()};
@@ -66,7 +39,6 @@ Pass LowerTIRx() {
     passes.push_back(tvm::transform::PrintIR());
   }
   passes.push_back(LowerTIRxCleanup());
-  passes.push_back(LowerTIRxStripExecScope());
   return tvm::transform::Sequential(passes, "tirx.LowerTIRx");
 }
 

@@ -16,14 +16,14 @@
 # under the License.
 """Reusable pipeline state and mbarrier helpers for SM100 kernels.
 
-These classes emit TIR via @Tx.inline. Decorate with @Tx.meta_class so that
-instances are automatically treated as meta values inside @Tx.prim_func.
+These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
+instances are automatically treated as meta values inside @T.prim_func.
 """
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 
-@Tx.meta_class
+@T.meta_class
 class PipelineState:
     """Tracks stage and phase for a software-pipelined ring buffer.
 
@@ -40,18 +40,18 @@ class PipelineState:
     """
 
     def __init__(self, depth: int, phase=None):
-        self.stage = Tx.local_scalar("int32")
-        self.phase = Tx.local_scalar("int32")
+        self.stage = T.local_scalar("int32")
+        self.phase = T.local_scalar("int32")
         self.depth = depth
         if phase is not None:
             self.init(phase)
 
-    @Tx.inline
+    @T.inline
     def init(self, phase):
         self.stage = 0
         self.phase = phase
 
-    @Tx.inline
+    @T.inline
     def advance(self):
         if self.depth > 1:
             self.stage = self.stage + 1
@@ -62,7 +62,7 @@ class PipelineState:
             self.phase = self.phase ^ 1
 
 
-@Tx.meta_class
+@T.meta_class
 class MBarrier:
     """Mbarrier wrapper with regular ``mbarrier.arrive``.
 
@@ -76,14 +76,14 @@ class MBarrier:
         XORed into the phase bit on every ``wait`` / ``arrive``.
     leader : PrimExpr, optional
         Boolean predicate selecting the single thread that runs
-        ``mbarrier.init``. Defaults to ``Tx.cuda.thread_rank() == 0`` --
+        ``mbarrier.init``. Defaults to ``T.cuda.thread_rank() == 0`` --
         thread 0 of the enclosing CTA, which always picks exactly one
         thread regardless of which scope_id vars the caller declared.
         Override only when you want a different CTA-local thread to do
         the init.
 
-        Note: the default deliberately avoids ``Tx.warp_id()`` /
-        ``Tx.lane_id()``. Those introduce deferred ``cta->warp`` /
+        Note: the default deliberately avoids ``T.warp_id()`` /
+        ``T.lane_id()``. Those introduce deferred ``cta->warp`` /
         ``warp->thread`` ScopeIdDefs that the verifier cannot pin down
         unless the kernel header declares the full warp/lane chain (e.g. a
         single-CTA DSMEM kernel that only declares ``thread_id``). It also
@@ -95,21 +95,21 @@ class MBarrier:
         self.buf = pool.alloc((depth,), "uint64", align=8)
         self.depth = depth
         self.phase_offset = phase_offset
-        self.leader = leader if leader is not None else (Tx.cuda.thread_rank() == 0)
+        self.leader = leader if leader is not None else (T.cuda.thread_rank() == 0)
 
-    @Tx.inline
+    @T.inline
     def init(self, count):
         if self.leader:
-            for i in Tx.unroll(self.depth):
-                Tx.ptx.mbarrier.init(self.buf.ptr_to([i]), count)
+            for i in T.unroll(self.depth):
+                T.ptx.mbarrier.init(self.buf.ptr_to([i]), count)
 
-    @Tx.inline
+    @T.inline
     def wait(self, stage, phase):
         # Blocks: ``mbarrier.try_wait`` loops internally until the phase flips,
         # so this returns only once the barrier has completed.
-        Tx.ptx.mbarrier.try_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
+        T.ptx.mbarrier.try_wait(self.buf.ptr_to([stage]), phase ^ self.phase_offset)
 
-    @Tx.inline
+    @T.inline
     def arrive(self, stage, cta_id=None, pred=None):
         # Default: local-CTA arrive — emits the simple
         # ``mbarrier.arrive.shared.b64`` form. To arrive on a remote
@@ -120,10 +120,10 @@ class MBarrier:
         # silently ``mapa`` ed across the cluster) and a per-call cost
         # of ~3 PTX ops on every single-CTA kernel.
         if cta_id is None:
-            Tx.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
+            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
         else:
             actual_pred = True if pred is None else pred
-            Tx.ptx.mbarrier.arrive(self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred)
+            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred)
 
     def ptr_to(self, idx):
         return self.buf.ptr_to(idx)
@@ -138,10 +138,10 @@ class MBarrier:
         from tvm.ir import PointerType, PrimType
         from tvm.tirx import Var as TIRVar
 
-        expr = Tx.reinterpret("handle", Tx.ptx.map_shared_rank(self.buf.ptr_to([0]), rank))
+        expr = T.reinterpret("handle", T.ptx.map_shared_rank(self.buf.ptr_to([0]), rank))
         ptr = TIRVar("remote_mbar_ptr", PointerType(PrimType("uint64")))
-        Tx.Bind(expr, var=ptr)
-        buf = Tx.decl_buffer([self.depth], "uint64", data=ptr, scope="shared")
+        T.Bind(expr, var=ptr)
+        buf = T.decl_buffer([self.depth], "uint64", data=ptr, scope="shared")
         remote = object.__new__(type(self))
         remote.buf = buf
         remote.depth = self.depth
@@ -156,7 +156,7 @@ class TMABar(MBarrier):
     (matching MBarrier.arrive defaults).
     """
 
-    @Tx.inline
+    @T.inline
     def arrive(self, stage, tx_count=None, cta_id=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
@@ -166,36 +166,36 @@ class TMABar(MBarrier):
         # arrive is local-CTA only. See ``MBarrier.arrive`` for the
         # full default-local rationale.
         if tx_count is not None:
-            Tx.ptx.mbarrier.arrive.expect_tx(self.buf.ptr_to([stage]), tx_count)
+            T.ptx.mbarrier.arrive.expect_tx(self.buf.ptr_to([stage]), tx_count)
         elif cta_id is None:
-            Tx.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
+            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]))
         else:
             actual_pred = True if pred is None else pred
-            Tx.ptx.mbarrier.arrive(self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred)
+            T.ptx.mbarrier.arrive(self.buf.ptr_to([stage]), cta_id=cta_id, pred=actual_pred)
 
 
 class TCGen05Bar(MBarrier):
     """Barrier signaled by ``tcgen05`` commit.
 
     The caller is responsible for ensuring only one thread issues the
-    commit, e.g. by wrapping the call in ``if Tx.ptx.elect_sync():``.
+    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():``.
     """
 
-    @Tx.inline
+    @T.inline
     def arrive(self, stage, cta_group=1, cta_mask=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         if cta_mask is None and cta_group == 1:
-            Tx.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
+            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
         else:
-            Tx.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)
+            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)
 
 
 # Barrier-type tags accepted by Pipeline's ``full=`` / ``empty=`` arguments.
 _BAR_KINDS = {"tma": TMABar, "tcgen05": TCGen05Bar, "mbar": MBarrier}
 
 
-@Tx.meta_class
+@T.meta_class
 class Pipeline:
     """A full/empty mbarrier pair for a software-pipelined data flow.
 

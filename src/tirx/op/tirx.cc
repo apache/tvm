@@ -33,15 +33,18 @@ TVM_FFI_STATIC_INIT_BLOCK() { DispatchContextNode::RegisterReflection(); }
 
 /********************* Utils **********************/
 
-#define TIRX_DEFINE_BUILTIN_FUNC(OpName)            \
-  const Op& OpName() {                              \
-    static const Op& op = Op::Get("tirx." #OpName); \
-    return op;                                      \
-  }                                                 \
-  TVM_REGISTER_OP("tirx." #OpName)                  \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), /*plevel=*/9)
+#define TIRX_DEFINE_TILE_FUNC(OpName)                                                          \
+  const Op& OpName() {                                                                         \
+    static const Op& op = Op::Get("tirx.tile." #OpName);                                       \
+    return op;                                                                                 \
+  }                                                                                            \
+  TVM_REGISTER_OP("tirx.tile." #OpName)                                                        \
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), /*plevel=*/9)  \
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"), /*plevel=*/9) \
+      .set_attr<bool>("TIsTIRxOp", true)
 
-#define TIRX_DEFINE_OP(OpName) TIRX_DEFINE_BUILTIN_FUNC(OpName).set_attr<bool>("TIsTIRxOp", true)
+#define TIRX_DEFINE_TILE_OP(OpName, Kind) \
+  TIRX_DEFINE_TILE_FUNC(OpName).set_attr<TTilePrimitiveKind>("TTilePrimitiveKind", Kind)
 
 /********************* Context utils **********************/
 template <typename Key, typename Value>
@@ -140,7 +143,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Dispatch Ops **********************/
-#define TIRX_DEFINE_DISPATCH_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsDispatchOp", true)
+#define TIRX_DEFINE_DISPATCH_OP(OpName) \
+  TIRX_DEFINE_TILE_OP(OpName, ffi::String("dispatch")).set_attr<bool>("TIsDispatchOp", true)
 
 TIRX_DEFINE_DISPATCH_OP(zero);
 TIRX_DEFINE_DISPATCH_OP(sqrt);
@@ -168,20 +172,23 @@ TIRX_DEFINE_DISPATCH_OP(select);
 TIRX_DEFINE_DISPATCH_OP(cast);
 TIRX_DEFINE_DISPATCH_OP(fma);
 TIRX_DEFINE_DISPATCH_OP(silu);
+TIRX_DEFINE_DISPATCH_OP(permute_layout);
 
 /********************* Compose Ops **********************/
-#define TIRX_DEFINE_COMPOSE_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsComposeOp", true)
+#define TIRX_DEFINE_COMPOSE_OP(OpName) \
+  TIRX_DEFINE_TILE_OP(OpName, ffi::String("compose")).set_attr<bool>("TIsComposeOp", true)
 
 TIRX_DEFINE_COMPOSE_OP(compose_op);
 
 /********************* Async Ops **********************/
-#define TIRX_DEFINE_ASYNC_OP(OpName) TIRX_DEFINE_OP(OpName).set_attr<bool>("TIsAsyncOp", true)
+#define TIRX_DEFINE_ASYNC_OP(OpName) \
+  TIRX_DEFINE_TILE_OP(OpName, ffi::String("async")).set_attr<bool>("TIsAsyncOp", true)
 
 TIRX_DEFINE_ASYNC_OP(copy_async);
 TIRX_DEFINE_ASYNC_OP(gemm_async);
 
 /********************* Misc Ops **********************/
-TIRX_DEFINE_OP(tvm_kernel_replace_point);
+TIRX_DEFINE_TILE_OP(tvm_kernel_replace_point, ffi::String("marker"));
 
 }  // namespace tirx
 }  // namespace tvm

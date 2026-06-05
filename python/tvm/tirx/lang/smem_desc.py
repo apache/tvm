@@ -17,25 +17,25 @@
 
 """SMEM matrix descriptor helper for tcgen05 / wgmma."""
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx.operator.tile_primitive.cuda.common import smem_desc_add_16B_offset
 
 
-@Tx.meta_class
+@T.meta_class
 class SmemDescriptor:
     """Encoded once via :meth:`init`, reused via :meth:`add_16B_offset`."""
 
     def __init__(self):
-        self._buf = Tx.alloc_local([1], "uint64")
+        self._buf = T.alloc_local([1], "uint64")
 
     @property
     def desc(self):
         return self._buf[0]
 
-    @Tx.inline
+    @T.inline
     def init(self, smem_ptr, ldo, sdo, swizzle):
-        Tx.ptx.tcgen05.encode_matrix_descriptor(
-            Tx.address_of(self._buf[0]), smem_ptr, ldo, sdo, swizzle
+        T.ptx.tcgen05.encode_matrix_descriptor(
+            T.address_of(self._buf[0]), smem_ptr, ldo, sdo, swizzle
         )
 
     def add_16B_offset(self, offset):
@@ -50,6 +50,6 @@ __forceinline__ __device__ void {func_name}(uint64_t* desc) {{
     d->lo = __shfl_sync(0xffffffff, d->lo, 0);
 }}
 """
-        return Tx.cuda.func_call(
-            func_name, Tx.address_of(self._buf[0]), source_code=source_code, return_type="void"
+        return T.cuda.func_call(
+            func_name, T.address_of(self._buf[0]), source_code=source_code, return_type="void"
         )

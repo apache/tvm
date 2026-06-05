@@ -38,6 +38,9 @@ else:
 __all__ = _tir.__all__ + [
     "Buffer",
     "Ptr",
+    "SMEMPool",
+    "TMEMPool",
+    "TMEMStages",
     "bool",
     "constexpr",
     "inline",

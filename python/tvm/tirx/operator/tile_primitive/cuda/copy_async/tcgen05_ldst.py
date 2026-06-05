@@ -25,7 +25,7 @@ Callers that want sync semantics should issue the matching wait after the copy.
 import tvm
 from tvm.arith import Analyzer
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import (
     S,
@@ -113,7 +113,7 @@ def _classify_tmem_datapath(tmem_buf):
 
 
 # Compatibility matrix between the TMEM buffer's datapath layout and the
-# tcgen05 ld/st atom requested by ``Tx.copy_async``:
+# tcgen05 ld/st atom requested by ``T.copy_async``:
 #
 #   datapath x atom              | accepted? | rationale
 #   ---------------------------- | --------- | --------------------------------
@@ -279,15 +279,14 @@ def _emit_32x32b_path(
     # assert analyzer.can_prove_equal(local_st[1], 0)
     assert analyzer.can_prove_equal(local_extent[1], width)
 
-    op = Tx.ptx.tcgen05.ld if direction == "tmem2local" else Tx.ptx.tcgen05.st
+    op = T.ptx.tcgen05.ld if direction == "tmem2local" else T.ptx.tcgen05.st
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
-        with Tx.warp():
-            local_storage = local_buf.view(local_buf.shape[1] * elem_per_32b, layout=TileLayout(S[num * elem_per_32b]))  # noqa: E501
-            local_32b = local_storage.view("uint32")
-            op(tmem_buf.allocated_addr[0], *[local_32b[local_st[1] // elem_per_32b+i] for i in range(num)], shape="32x32b", num=num, row=0, col=offset_32b)  # noqa: E501
+        local_storage = local_buf.view(local_buf.shape[1] * elem_per_32b, layout=TileLayout(S[num * elem_per_32b]))  # noqa: E501
+        local_32b = local_storage.view("uint32")
+        op(tmem_buf.allocated_addr[0], *[local_32b[local_st[1] // elem_per_32b+i] for i in range(num)], shape="32x32b", num=num, row=0, col=offset_32b)  # noqa: E501
     # fmt: on
     return impl
 
@@ -394,7 +393,7 @@ def _emit_16xnb_path(
     local_col_off_elems = local_col_off
 
     is_load = direction == "tmem2local"
-    op = Tx.ptx.tcgen05.ld if is_load else Tx.ptx.tcgen05.st
+    op = T.ptx.tcgen05.ld if is_load else T.ptx.tcgen05.st
     # We intentionally do *not* emit ``.pack::16b`` / ``.unpack::16b`` for
     # 16-bit dtypes. That qualifier would store one 16-bit element per 32-bit
     # TMEM cell (LOW half only, HIGH half wasted) — fine for some CUTLASS
@@ -405,21 +404,20 @@ def _emit_16xnb_path(
     # the layout factory's iters describe that packing.
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
-        with Tx.warp():
-            # Per-thread 1-D flat view of the local storage, then a uint32 view
-            # for the register-pointer arguments of the PTX builtin.
-            local_storage = local_buf.view(per_thread_elems, layout=TileLayout(S[per_thread_elems]))
-            local_32b = local_storage.view("uint32")
-            local_reg_base = local_col_off_elems // elem_per_32b
-            for slab in range(n_slabs):
-                reg_base = slab * regs_per_thread_per_slab
-                op(
-                    tmem_buf.allocated_addr[0],
-                    *[local_32b[local_reg_base + reg_base + i] for i in range(regs_per_thread_per_slab)],  # noqa: E501
-                    shape=shape, num=num, row=slab * 16, col=col_off_32b,
-                )
+        # Per-thread 1-D flat view of the local storage, then a uint32 view
+        # for the register-pointer arguments of the PTX builtin.
+        local_storage = local_buf.view(per_thread_elems, layout=TileLayout(S[per_thread_elems]))
+        local_32b = local_storage.view("uint32")
+        local_reg_base = local_col_off_elems // elem_per_32b
+        for slab in range(n_slabs):
+            reg_base = slab * regs_per_thread_per_slab
+            op(
+                tmem_buf.allocated_addr[0],
+                *[local_32b[local_reg_base + reg_base + i] for i in range(regs_per_thread_per_slab)],  # noqa: E501
+                shape=shape, num=num, row=slab * 16, col=col_off_32b,
+            )
     # fmt: on
     return impl
 
@@ -429,9 +427,9 @@ def _emit_16xnb_path(
 # When: one buffer is in tmem (tensor memory, Blackwell SM100+) and the other
 # is in local scope, at warpgroup exec scope.
 #
-# Emits: Tx.ptx.tcgen05.ld / Tx.ptx.tcgen05.st (async). The caller is
-# responsible for issuing the matching ``Tx.ptx.tcgen05.wait.ld`` /
-# ``Tx.ptx.tcgen05.wait.st`` when synchronization is required.
+# Emits: T.ptx.tcgen05.ld / T.ptx.tcgen05.st (async). The caller is
+# responsible for issuing the matching ``T.ptx.tcgen05.wait.ld`` /
+# ``T.ptx.tcgen05.wait.st`` when synchronization is required.
 @register_dispatch(
     "copy_async",
     "cuda",

@@ -22,12 +22,104 @@ from collections.abc import Callable
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
 from tvm.tirx import Buffer, BufferRegion, PrimExpr
+from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
 from tvm.tirx.predicate import Predicate
 
 from . import _ffi_api, frame
 from .ir import decl_buffer, meta_class
+
+
+def _normalize_scope(scope) -> ExecScope:
+    """Normalize a scope selector to an ``ExecScope``.
+
+    Accepts an ``ExecScope`` (passed through), a scope-name ``str``
+    (e.g. ``"warp"``, normalized via the FFI ctor / ``StringToScopeKind``),
+    or an ``int`` ``ScopeKind`` value. ``None`` resolves to the default
+    ``thread`` scope, keeping the default in one place.
+    """
+    if scope is None:
+        return ExecScope("thread")
+    if isinstance(scope, ExecScope):
+        return scope
+    if isinstance(scope, str):
+        return ExecScope(scope)
+    if isinstance(scope, int):
+        return ExecScope(_SCOPE_KIND_TO_NAME[scope])
+    raise TypeError(f"Cannot interpret {scope!r} as an execution scope")
+
+
+class ScopedOp:
+    """Make a tile-primitive op callable at the default ``thread`` scope.
+
+    A bare ``Tx.copy(...)`` emits a call at ``thread`` scope. To cooperate at a
+    wider scope, reach the op through a scope namespace -- ``Tx.warp.copy(...)``,
+    ``Tx.wg.sum(...)``, ``Tx.cta.fill(...)`` (see :class:`ScopeNamespace`).
+
+    The wrapped ``fn`` must accept a keyword-only ``scope`` parameter that it
+    threads into the constructed ``TilePrimitiveCall``.
+    """
+
+    def __init__(self, fn):
+        self._fn = fn
+        functools.update_wrapper(self, fn)
+
+    def __call__(self, *args, **kwargs):
+        return self._fn(*args, scope=ExecScope("thread"), **kwargs)
+
+    def _bind(self, scope: ExecScope):
+        """Return a callable that emits this op at ``scope``.
+
+        Used by :class:`ScopeNamespace`; not part of the user-facing surface.
+        """
+        return lambda *args, **kwargs: self._fn(*args, scope=scope, **kwargs)
+
+
+class ScopeNamespace:
+    """Bind a cooperation scope to every tile primitive reached through it.
+
+    ``Tx.cluster`` / ``Tx.cta`` / ``Tx.wg`` (warpgroup) / ``Tx.warp`` are the
+    instances exposed on the ``Tx`` surface. Attribute access resolves a
+    tile-primitive op name against the public ``Tx`` surface (registered and
+    dynamic ops alike) and binds this namespace's scope, so
+    ``Tx.warp.copy(dst, src)`` emits a copy at warp scope and
+    ``Tx.cta.sum(out, x)`` reduces at CTA scope. A bare ``Tx.copy(...)`` (no
+    namespace prefix) stays at the default ``thread`` scope.
+    """
+
+    def __init__(self, scope, label: str):
+        self._scope = _normalize_scope(scope)
+        self._label = label
+
+    def __repr__(self):
+        return f"<Tx.{self._label}: {self._scope.name}-scope tile primitives>"
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        from tvm.tirx.script import tile as _tile_script
+
+        op = getattr(_tile_script, name)
+        if not isinstance(op, ScopedOp):
+            # AttributeError (not TypeError) so hasattr()/getattr(..., default)
+            # degrade gracefully on a scope namespace.
+            raise AttributeError(
+                f"'Tx.{self._label}.{name}' is not a tile primitive; the "
+                f"'Tx.{self._label}.' scope prefix applies only to tile primitives"
+            )
+        return op._bind(self._scope)
+
+
+# Scope-prefix namespaces: ``Tx.warp.copy(...)`` / ``Tx.wg.sum(...)`` /
+# ``Tx.cta.fill(...)`` / ``Tx.cluster.copy(...)``. ``wg`` == warpgroup. A bare
+# ``Tx.copy(...)`` (no prefix) runs at the default ``thread`` scope.
+cluster = ScopeNamespace("cluster", "cluster")
+cta = ScopeNamespace("cta", "cta")
+wg = ScopeNamespace("warpgroup", "wg")
+warpgroup = ScopeNamespace("warpgroup", "warpgroup")  # full-name alias of ``wg``
+warp = ScopeNamespace("warp", "warp")
+thread = ScopeNamespace("thread", "thread")
 
 
 def _is_buffer_or_region(x):
@@ -50,11 +142,13 @@ def _wrap_elem_in_tuple(e):
 f_insert = _ffi_api.TilePrimitiveCall  # pylint: disable=no-member
 
 
+@ScopedOp
 def zero(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Zero out all elements in src and store to dst.
@@ -78,9 +172,12 @@ def zero(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    return f_insert(tirx_op.Zero(dst, src, workspace=workspace, config=config, dispatch=dispatch))
+    return f_insert(
+        tirx_op.Zero(dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
+    )
 
 
+@ScopedOp
 def sqrt(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer | None = None,
@@ -88,6 +185,7 @@ def sqrt(
     scale: FloatImm | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Sqrt all elements in src and store to dst.
@@ -127,16 +225,27 @@ def sqrt(
     if bias is not None and isinstance(bias, Buffer):
         bias = _to_region(bias)
     return f_insert(
-        tirx_op.Sqrt(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Sqrt(
+            dst,
+            src,
+            bias,
+            scale,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def add(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer | FloatImm,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Add data from src1 and src2, store to dst.
@@ -164,16 +273,20 @@ def add(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.Add(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Add(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def sub(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Sub data from src2 to src1, store to dst.
@@ -201,16 +314,20 @@ def sub(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.Sub(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Sub(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def mul(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer | FloatImm,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Multiply data from src1 and src2, store to dst.
@@ -238,16 +355,20 @@ def mul(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.Mul(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Mul(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def fdiv(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """(Float) Div data from src2 to src1, store to dst.
@@ -274,10 +395,13 @@ def fdiv(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.FDiv(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.FDiv(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def fma(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
@@ -285,6 +409,7 @@ def fma(
     bias: BufferRegion | Buffer | PrimExpr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Fused multiply-add: dst = src * scale + bias.
@@ -316,12 +441,27 @@ def fma(
     if isinstance(bias, Buffer):
         bias = _to_region(bias)
     return f_insert(
-        tirx_op.FMA(dst, src, scale, bias, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.FMA(
+            dst,
+            src,
+            scale,
+            bias,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def cast(
-    dst, src=None, workspace: dict[str, Buffer] | None = None, dispatch: str | None = None, **kwargs
+    dst,
+    src=None,
+    workspace: dict[str, Buffer] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
 ):
     """Cast — overloaded.
 
@@ -344,14 +484,18 @@ def cast(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    return f_insert(tirx_op.Cast(dst, src, workspace=workspace, config=config, dispatch=dispatch))
+    return f_insert(
+        tirx_op.Cast(dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
+    )
 
 
+@ScopedOp
 def copy(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Copy data from src to dst.
@@ -372,14 +516,18 @@ def copy(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    return f_insert(tirx_op.Copy(dst, src, workspace=workspace, config=config, dispatch=dispatch))
+    return f_insert(
+        tirx_op.Copy(dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
+    )
 
 
+@ScopedOp
 def copy_async(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     if workspace is None:
@@ -388,10 +536,13 @@ def copy_async(
     dst = _to_region(dst)
     src = _to_region(src)
     return f_insert(
-        tirx_op.CopyAsync(dst, src, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.CopyAsync(
+            dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def gemm_async(
     C: BufferRegion | Buffer,
     A: BufferRegion | Buffer,
@@ -403,6 +554,7 @@ def gemm_async(
     accum: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """General matrix multiplication asynchronously.
@@ -461,20 +613,32 @@ def gemm_async(
                 workspace=workspace,
                 config=config,
                 dispatch=dispatch,
+                scope=scope,
             )
         )
     return f_insert(
         tirx_op.GemmAsync(
-            C, A, B, transA, transB, accum, workspace=workspace, config=config, dispatch=dispatch
+            C,
+            A,
+            B,
+            transA,
+            transB,
+            accum,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def fill(
     dst: BufferRegion | Buffer,
     value: PrimExpr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Fill the buffer region with the value.
@@ -494,9 +658,12 @@ def fill(
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    return f_insert(tirx_op.Fill(dst, value, workspace=workspace, config=config, dispatch=dispatch))
+    return f_insert(
+        tirx_op.Fill(dst, value, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
+    )
 
 
+@ScopedOp
 def gemm(
     D: BufferRegion | Buffer,
     A: BufferRegion | Buffer,
@@ -508,6 +675,7 @@ def gemm(
     beta: PrimExpr = 0.0,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """General matrix multiplication.
@@ -563,10 +731,12 @@ def gemm(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def sum(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
@@ -574,6 +744,7 @@ def sum(
     accum: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """
@@ -603,10 +774,20 @@ def sum(
     src = _to_region(src)
     axes = _wrap_elem_in_tuple(axes)
     return f_insert(
-        tirx_op.Sum(dst, src, axes, accum, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Sum(
+            dst,
+            src,
+            axes,
+            accum,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def max(
     dst,
     src=None,
@@ -614,6 +795,7 @@ def max(
     accum: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Max — overloaded.
@@ -633,10 +815,20 @@ def max(
     src = _to_region(src)
     axes = _wrap_elem_in_tuple(axes)
     return f_insert(
-        tirx_op.Max(dst, src, axes, accum, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Max(
+            dst,
+            src,
+            axes,
+            accum,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def min(
     dst,
     src=None,
@@ -644,6 +836,7 @@ def min(
     accum: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Min — overloaded.
@@ -662,15 +855,26 @@ def min(
     src = _to_region(src)
     axes = _wrap_elem_in_tuple(axes)
     return f_insert(
-        tirx_op.Min(dst, src, axes, accum, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Min(
+            dst,
+            src,
+            axes,
+            accum,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def reciprocal(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Reciprocal all elements in src and store to dst.
@@ -700,15 +904,19 @@ def reciprocal(
     dst = _to_region(dst)
     src = _to_region(src)
     return f_insert(
-        tirx_op.Reciprocal(dst, src, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Reciprocal(
+            dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def silu(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute SiLU (x * sigmoid(x)) for all elements in src and store to dst.
@@ -734,14 +942,18 @@ def silu(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    return f_insert(tirx_op.SiLU(dst, src, workspace=workspace, config=config, dispatch=dispatch))
+    return f_insert(
+        tirx_op.SiLU(dst, src, workspace=workspace, config=config, dispatch=dispatch, scope=scope)
+    )
 
 
+@ScopedOp
 def memset(
     dst: BufferRegion | Buffer,
     value: PrimExpr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Set all elements in dst to value.
@@ -762,16 +974,20 @@ def memset(
     config = kwargs or {}
     dst = _to_region(dst)
     return f_insert(
-        tirx_op.Memset(dst, value, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Memset(
+            dst, value, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def maximum(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer | FloatImm,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Maximum all elements in src1 and src2 and store to dst.
@@ -799,16 +1015,20 @@ def maximum(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.Maximum(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Maximum(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def minimum(
     dst: BufferRegion | Buffer,
     src1: BufferRegion | Buffer | FloatImm,
     src2: BufferRegion | Buffer | FloatImm,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Minimum all elements in src1 and src2 and store to dst.
@@ -836,10 +1056,13 @@ def minimum(
     if isinstance(src2, Buffer):
         src2 = _to_region(src2)
     return f_insert(
-        tirx_op.Minimum(dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Minimum(
+            dst, src1, src2, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+        )
     )
 
 
+@ScopedOp
 def exp(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer | None = None,
@@ -847,6 +1070,7 @@ def exp(
     scale: FloatImm | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Exponentiate all elements in src and store to dst.
@@ -884,10 +1108,20 @@ def exp(
     if bias is not None and isinstance(bias, Buffer):
         bias = _to_region(bias)
     return f_insert(
-        tirx_op.Exp(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Exp(
+            dst,
+            src,
+            bias,
+            scale,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
+@ScopedOp
 def exp2(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer | None = None,
@@ -895,6 +1129,7 @@ def exp2(
     scale: FloatImm | None = None,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute base-2 exponential (2^x) of all elements in src and store to dst.
@@ -932,7 +1167,16 @@ def exp2(
     if bias is not None and isinstance(bias, Buffer):
         bias = _to_region(bias)
     return f_insert(
-        tirx_op.Exp2(dst, src, bias, scale, workspace=workspace, config=config, dispatch=dispatch)
+        tirx_op.Exp2(
+            dst,
+            src,
+            bias,
+            scale,
+            workspace=workspace,
+            config=config,
+            dispatch=dispatch,
+            scope=scope,
+        )
     )
 
 
@@ -962,6 +1206,7 @@ def tvm_kernel_replace_point():
     return f_insert(tirx_op.KernelReplacePoint(workspace={}, config={}))
 
 
+@ScopedOp
 def binary_reduce(
     binary_output: BufferRegion | Buffer,
     reduce_output: BufferRegion | Buffer,
@@ -972,6 +1217,7 @@ def binary_reduce(
     reduce_axes: int | tuple[int] = -1,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Combine a binary operation with a reduction operation.
@@ -1033,10 +1279,12 @@ def binary_reduce(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def unary_reduce(
     unary_output: BufferRegion | Buffer,
     reduce_output: BufferRegion | Buffer,
@@ -1048,6 +1296,7 @@ def unary_reduce(
     reduce_axes: int | tuple[int] = -1,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Combine a unary operation with a reduction operation.
@@ -1114,10 +1363,12 @@ def unary_reduce(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def binary_chain(
     output: BufferRegion | Buffer,
     data: BufferRegion | Buffer,
@@ -1128,6 +1379,7 @@ def binary_chain(
     reverse1: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Chain multiple binary operations together.
@@ -1194,10 +1446,12 @@ def binary_chain(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def reduce_negate(
     output: BufferRegion | Buffer,
     input: BufferRegion | Buffer,
@@ -1206,6 +1460,7 @@ def reduce_negate(
     accum: bool = False,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Negate the result of a reduction operation.
@@ -1253,15 +1508,18 @@ def reduce_negate(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
+@ScopedOp
 def select(
     dst: BufferRegion | Buffer,
     true_value: BufferRegion | Buffer | FloatImm,
     false_value: BufferRegion | Buffer | FloatImm,
     pred: Predicate | Callable[..., PrimExpr],
+    scope: ExecScope | None = None,
 ):
     """Select between two values based on a predicate.
 
@@ -1286,7 +1544,7 @@ def select(
         false_value = _to_region(false_value)
     if not isinstance(pred, Predicate):
         pred = Predicate(pred)
-    return f_insert(tirx_op.Select(dst, true_value, false_value, pred))
+    return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 
 def reshape(buffer: Buffer, shape: list[PrimExpr]):
@@ -1325,11 +1583,13 @@ def reshape(buffer: Buffer, shape: list[PrimExpr]):
     )
 
 
+@ScopedOp
 def permute_layout(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
+    scope: ExecScope | None = None,
     **kwargs,
 ):
     """Move data so the buffer's bytes are arranged under a different layout.
@@ -1368,21 +1628,26 @@ def permute_layout(
             workspace=workspace,
             config=config,
             dispatch=dispatch,
+            scope=scope,
         )
     )
 
 
 __all__ = [
     "SMEMPool",
+    "ScopeNamespace",
+    "ScopedOp",
     "TMEMPool",
     "TMEMStages",
     "add",
     "binary_chain",
     "binary_reduce",
     "cast",
+    "cluster",
     "compose_op",
     "copy",
     "copy_async",
+    "cta",
     "exp",
     "exp2",
     "fdiv",
@@ -1405,7 +1670,11 @@ __all__ = [
     "sqrt",
     "sub",
     "sum",
+    "thread",
     "tvm_kernel_replace_point",
     "unary_reduce",
+    "warp",
+    "warpgroup",
+    "wg",
     "zero",
 ]

@@ -44,6 +44,14 @@ bool IsBitwiseAndCall(const CallNode* call) {
   return call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2;
 }
 
+bool IsPtxElectSyncCall(const CallNode* call) {
+  if (call->op.same_as(tirx::builtin::ptx_elect_sync())) return true;
+  if (auto op = call->op.as<Op>()) {
+    return op.value()->name == "tirx.ptx.elect_sync";
+  }
+  return false;
+}
+
 // Strip implicit Cast wrappers from a predicate. Bool-vs-int mixing in the
 // Python frontend can insert ``Cast<uint32>(bool_expr)`` (e.g. when an
 // ``elect_sync()`` uint32 result is combined with a bool comparison via
@@ -191,7 +199,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
 bool TryParseElectSyncAtom(const PrimExpr& expr, FilterAtom* out) {
   const auto* call = expr.as<CallNode>();
   if (call == nullptr) return false;
-  if (!call->op.same_as(tirx::builtin::ptx_elect_sync())) return false;
+  if (!IsPtxElectSyncCall(call)) return false;
   out->kind = FilterAtomKind::kElectSync;
   out->scopeid_var = Var();
   out->lo = 0;

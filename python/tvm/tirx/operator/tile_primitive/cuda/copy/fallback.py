@@ -20,7 +20,7 @@
 import warnings
 
 import tvm
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
@@ -75,14 +75,14 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
                 coord[src_indices[k]] += lv
             return coord
 
-        with Tx.grid(*copy_extents) as lvs:
-            Tx.buffer_store(dst_buf, src_buf[tuple(_src_coord(lvs))], _dst_coord(lvs))
+        with T.grid(*copy_extents) as lvs:
+            T.buffer_store(dst_buf, src_buf[tuple(_src_coord(lvs))], _dst_coord(lvs))
 
     scope_kind = sctx.scope_kind
 
     if scope_kind == "thread":
 
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def impl():
             _copy_body(dst, src)
 
@@ -96,7 +96,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
     elif scope_kind == "cta":
         first_tid += 32 * int(sctx.intra["warpid"][1])
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         tid = _axis_decl(tid_axis_name, sctx)
         if tid == first_tid:

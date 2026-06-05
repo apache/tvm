@@ -208,7 +208,7 @@ def codegen_cuda_printf(fmt, *args):
     if isinstance(fmt, tvm.tirx.StringImm):
         fmt = fmt.value
     if not isinstance(fmt, str):
-        raise ValueError("Tx.cuda.printf format must be a string literal")
+        raise ValueError("T.cuda.printf format must be a string literal")
     fmt_literal = json.dumps(fmt)
     arg_dtypes = [str(arg.dtype) for arg in args]
     signature = "|".join([fmt, *arg_dtypes])
@@ -232,7 +232,7 @@ def codegen_cuda_printf(fmt, *args):
             return "int"
         if dtype == "handle":
             return "void*"
-        raise ValueError(f"Unsupported Tx.cuda.printf argument dtype: {dtype}")
+        raise ValueError(f"Unsupported T.cuda.printf argument dtype: {dtype}")
 
     params = ", ".join(f"{c_type(dtype)} arg{i}" for i, dtype in enumerate(arg_dtypes))
     call_args = ", ".join(f"arg{i}" for i in range(len(args)))

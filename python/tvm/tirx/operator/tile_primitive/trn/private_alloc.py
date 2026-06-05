@@ -17,7 +17,8 @@
 
 from typing import Any
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx import Buffer, FloatImm, Stmt
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import (
@@ -53,14 +54,14 @@ def alloc_const_bias_trn(
             return {"const_bias": ("const_bias", bias.value)}
     else:
         new_shape = (par_size, max_inst_size)
-    new_buffer = Tx.buffer(new_shape, dtype=bias.dtype, scope="trn.sbuf", buffer_name="const_bias")
+    new_buffer = T.buffer(new_shape, dtype=bias.dtype, scope="trn.sbuf", buffer_name="const_bias")
 
-    @Tx.prim_func
+    @T.prim_func
     def const_bias_init():
-        with Tx.attr(0, "tensorized_nki_instruction", 1):
-            for p_loop in Tx.serial(0, par_size, annotations={"nki_dim": "P"}):
-                for f_loop in Tx.serial(0, max_inst_size, annotations={nki_dim: "F"}):
-                    Tx.evaluate(Tx.nki.memset(new_buffer[p_loop, f_loop], bias))
+        with T.attr(0, "tensorized_nki_instruction", 1):
+            for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
+                for f_loop in T.serial(0, max_inst_size, annotations={nki_dim: "F"}):
+                    T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
         Tx.tvm_kernel_replace_point()
 
     buffer_dict[("const_bias", bias.value)] = (new_buffer, const_bias_init.body)
@@ -101,16 +102,16 @@ def alloc_identity_trn(
             return {"identity": "identity"}
     else:
         new_shape = (par_size, par_size)
-    new_buffer = Tx.buffer(
+    new_buffer = T.buffer(
         new_shape, dtype=op.srcs[0].buffer.dtype, scope="trn.sbuf", buffer_name="identity"
     )
 
-    @Tx.prim_func
+    @T.prim_func
     def identity_init():
-        with Tx.attr(0, "tensorized_nki_instruction", 1):
-            for p_loop in Tx.serial(0, par_size, annotations={nki_dim: "P"}):
-                for rhs_f_loop in Tx.serial(0, par_size, annotations={nki_dim: "F"}):
-                    Tx.evaluate(Tx.nki.identity(new_buffer[p_loop, rhs_f_loop], par_size))
+        with T.attr(0, "tensorized_nki_instruction", 1):
+            for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):
+                for rhs_f_loop in T.serial(0, par_size, annotations={nki_dim: "F"}):
+                    T.evaluate(T.nki.identity(new_buffer[p_loop, rhs_f_loop], par_size))
         Tx.tvm_kernel_replace_point()
 
     buffer_dict["identity"] = (new_buffer, identity_init.body)
@@ -123,7 +124,7 @@ def alloc_acc_psum_trn(
     if "acc_psum" in op.workspace or op.dsts[0].buffer.scope() == "trn.psum":
         return {}
     par_size = op.dsts[0].buffer.layout.size("P")
-    acc_psum = Tx.buffer(
+    acc_psum = T.buffer(
         (8, par_size, 512),
         "float32",
         scope="trn.psum",

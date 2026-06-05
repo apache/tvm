@@ -20,7 +20,7 @@
 from dataclasses import dataclass
 
 from tvm.arith.analyzer import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import (
@@ -524,7 +524,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     )
 
     # Emit one mma per (m, n) output tile, accumulating over K. The tile / init /
-    # K loops use Tx.unroll: the UnrollLoop pass fully expands them in TIR (their
+    # K loops use T.unroll: the UnrollLoop pass fully expands them in TIR (their
     # bounds are compile-time constants), so the local-buffer indices resolve to
     # static register slots -- mma register operands must be constant.
     #
@@ -548,23 +548,23 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     n_rN = inst.n // 4
     n_kHi = inst.k // (4 * inst.k_pack)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         d_local = D.local(*d_shape, layout=D_reg)
         c_local = C.local(*c_shape, layout=C_reg)
         a_local = A.local(*a_shape, layout=A_reg)
         b_local = B.local(*b_shape, layout=B_reg)
-        for m in Tx.unroll(M_tiles):
-            for n in Tx.unroll(N_tiles):
+        for m in T.unroll(M_tiles):
+            for n in T.unroll(N_tiles):
                 # Initialize D[m, n]: copy C (beta==1) or clear to 0 (beta==0).
-                for rM in Tx.unroll(n_rM):
-                    for rN in Tx.unroll(n_rN):
+                for rM in T.unroll(n_rM):
+                    for rN in T.unroll(n_rN):
                         if use_c:
                             d_local[m, n, rM, rN] = c_local[m, n, rM, rN]
                         else:
-                            d_local[m, n, rM, rN] = Tx.float32(0)
+                            d_local[m, n, rM, rN] = T.float32(0)
                 # Accumulate over K in place: d = a·b + d.
-                for k in Tx.unroll(K_tiles):
+                for k in T.unroll(K_tiles):
                     # D: 4 f32 in PTX order c_id = 2*rM + rN.
                     d_ptrs = [
                         d_local.ptr_to([m, n, rM, rN]) for rM in range(n_rM) for rN in range(n_rN)
@@ -578,7 +578,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
                     # B: b32 regs in PTX order b32 = kHi.
                     b_ptrs = [b_local.ptr_to([k, n, kHi, 0]) for kHi in range(n_kHi)]
                     # Accumulate in place into D's own regs: c = d.
-                    Tx.ptx.mma(
+                    T.ptx.mma(
                         shape_str,
                         "row",
                         "col",

@@ -17,7 +17,7 @@
 
 """Shared helpers for reduction schedules."""
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -48,7 +48,7 @@ def generate_intermediate_buffer(
         assert sctx.alloc_only, (
             "Partial reduce buffer must be specified in workspace. Run tvm.tirx.transform.trn.TrnPrivateBufferAlloc first."  # noqa: E501
         )
-        intermediate_buffer = Tx.buffer(
+        intermediate_buffer = T.buffer(
             intermediate_shape,
             dtype=dst_buffer_region.buffer.dtype,
             scope="trn.sbuf",
@@ -73,8 +73,8 @@ def reduction_trn(
     Returns:
         Optional[PrimFunc]: The scheduled function, or None if not applicable.
     """
-    if not (sctx.is_trn() and sctx.scope_kind == "kernel"):
-        fail("requires Trainium target and kernel exec_scope")
+    if not (sctx.is_trn() and sctx.scope_kind == "thread"):
+        fail("requires Trainium target and thread exec_scope")
 
     dst_buffer_region, src_buffer_region, axes, accum = op.args[:4]
     assert not accum, "Accumulation is not supported for reduction on Trainium"
@@ -109,10 +109,10 @@ def reduction_trn(
 
     # Get partition size and extents
     p_size = src.layout.size("P")
-    f_var = Tx.Var("F", "int32")
-    p_var = Tx.Var("P", "int32")
-    spatial_b_var = Tx.Var("sB", "int32")
-    reduction_b_var = Tx.Var("rB", "int32")
+    f_var = T.Var("F", "int32")
+    p_var = T.Var("P", "int32")
+    spatial_b_var = T.Var("sB", "int32")
+    reduction_b_var = T.Var("rB", "int32")
     inst_gen.bind_inst_iter(src_buffer_region, f_var, inst_repr.size, inst_repr.stride, True)
     inst_gen.bind_inst_iter(src_buffer_region, p_var, p_size, 1, False)
     reduction_b_extent = inst_gen.fill_in_block_dim(src_buffer_region, reduction_b_var, axes)
@@ -129,38 +129,38 @@ def reduction_trn(
     # fmt: off
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
-        @Tx.prim_func
+        @T.prim_func
         def impl():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
                             if inst_gen.make_guard(src_buffer_region):
-                                src_indices = Tx.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
-                                dst_indices = Tx.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
-                                Tx.evaluate(Tx.nki.tensorreduce(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, negate, -1))  # noqa: E501
+                                src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
+                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
+                                T.evaluate(T.nki.tensorreduce(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, negate, -1))  # noqa: E501
         return impl
     # Two-stage reduction implementation
     else:
-        @Tx.prim_func
+        @T.prim_func
         def two_stage_reduction():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                for reduction_b_loop in Tx.serial(0, reduction_b_extent):
-                    with Tx.attr(0, "tensorized_nki_instruction", 1):
-                        for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                            for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                for reduction_b_loop in T.serial(0, reduction_b_extent):
+                    with T.attr(0, "tensorized_nki_instruction", 1):
+                        for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                            for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
                                 if inst_gen.make_guard(src_buffer_region):
-                                    src_indices = Tx.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
-                                    Tx.evaluate(Tx.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
+                                    src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
+                                    T.evaluate(T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map(src_buffer_region, {p_var: p_loop, f_var: 0, spatial_b_var: b_loop, reduction_b_var: f_loop})  # noqa: E501
                             inst_gen.set_bind_map(dst_buffer_region, {p_var: p_loop, spatial_b_var: b_loop})  # noqa: E501
                             if inst_gen.make_guard(src_buffer_region):
-                                dst_indices = Tx.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
-                                Tx.evaluate(Tx.nki.tensorreduce(dst[dst_indices], intermediate_buffer[p_loop, f_loop], opcode, negate, -1))  # noqa: E501
+                                dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))  # noqa: E501
+                                T.evaluate(T.nki.tensorreduce(dst[dst_indices], intermediate_buffer[p_loop, f_loop], opcode, negate, -1))  # noqa: E501
         return two_stage_reduction
     # fmt: on

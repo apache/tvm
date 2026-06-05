@@ -160,7 +160,12 @@ class BufferReplacer(StmtExprMutator):
         for arg in op.args:
             args.append(arg)
         return TilePrimitiveCall(
-            *args, op=op.op, workspace=new_workspace, config=new_config, dispatch=op.dispatch
+            *args,
+            op=op.op,
+            workspace=new_workspace,
+            config=new_config,
+            dispatch=op.dispatch,
+            scope=op.scope,
         )
 
 

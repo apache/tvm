@@ -19,15 +19,15 @@
 
 PTX op family: ``{add,sub,mul}.<rm>.ftz.f32x2``. Each call processes 2 f32s
 per operand. The old ``_make_binary_packed_f32x2_factory`` (240+ lines, 8
-``@Tx.prim_func`` shape combos per op) collapses to one ``emit`` per op
+``@T.prim_func`` shape combos per op) collapses to one ``emit`` per op
 because operand-shape branching is now Python-level (outside any
-``@Tx.prim_func``).
+``@T.prim_func``).
 """
 
 from __future__ import annotations
 
 from tvm.ir.expr import PrimExpr
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 from ..ops import VecImpl
 
@@ -70,15 +70,15 @@ def _f32x2_applies(op_name):
 
 
 def _emit_binary_f32x2_for(op_name):
-    op_func = getattr(Tx.ptx, f"{op_name}_f32x2")
+    op_func = getattr(T.ptx, f"{op_name}_f32x2")
 
     def emit(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
         a_arg, b_arg = src_args
         rm = extras.get("rounding_mode", "rz")
         return op_func(
-            Tx.address_of(dst_buf[tuple(dst_lane_indices[0])]),
-            Tx.cuda.make_float2(_lane(a_arg, 0), _lane(a_arg, 1)),
-            Tx.cuda.make_float2(_lane(b_arg, 0), _lane(b_arg, 1)),
+            T.address_of(dst_buf[tuple(dst_lane_indices[0])]),
+            T.cuda.make_float2(_lane(a_arg, 0), _lane(a_arg, 1)),
+            T.cuda.make_float2(_lane(b_arg, 0), _lane(b_arg, 1)),
             rounding=rm,
             ftz=True,
         )

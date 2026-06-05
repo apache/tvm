@@ -82,7 +82,7 @@ class VecImpl:
     #   dst_ptr: typed ptr to ``vec_len`` consecutive dst elements
     #   src_ptrs[i]: typed ptr to ``vec_len`` consecutive src[i] elements,
     #                OR a scalar Expr if src[i].is_scalar.
-    # Runs in Python at @Tx.prim_func build time — branching on src kind is a
+    # Runs in Python at @T.prim_func build time -- branching on src kind is a
     # normal Python ``if``, not a TVMScript shape limitation. This is what
     # collapses the old 4x2 shape-explosion in schema.py's factories.
     emit: Callable
