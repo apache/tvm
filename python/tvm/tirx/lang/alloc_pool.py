@@ -248,8 +248,8 @@ class TMEMPool:
         # tcgen05 alloc/dealloc are warp-uniform PTX instructions: every lane
         # in the chosen warp must participate, and exactly one warp in the
         # CTA must execute them. The pool emits its own
-        # ``if warp_id() == target_warp: with Tx.warp(): tcgen05.alloc(...)``
-        # guard, using the cta->warp scope id ``Tx.warp_id()``.
+        # ``if warp_id() == target_warp: tcgen05.alloc(...)``
+        # guard, using the cta->warp scope id ``T.warp_id()``.
         # NOTE: synccheck currently false-deadlocks on kernels that declare a
         # second warp-scope id (cpusim binds only one warp var); the generated
         # CUDA is equivalent to ``thread_rank() // 32 == target_warp``.
@@ -275,12 +275,13 @@ class TMEMPool:
     def addr(self):
         return self._addr_slot()
 
-    def _emit_warp_guard(self, Tx, target_warp, emit):
-        warp_id = Tx.warp_id()
-        with Tx.If(warp_id == target_warp):
-            with Tx.Then():
-                with Tx.warp():
-                    emit()
+    def _emit_warp_guard(self, target_warp, emit):
+        from tvm.script import tirx as T
+
+        warp_id = T.warp_id()
+        with T.If(warp_id == target_warp):
+            with T.Then():
+                emit()
 
     def _resolve_cols(self, shape, dtype, cols, layout=None):
         if cols is not None:
@@ -379,33 +380,33 @@ class TMEMPool:
 
     def commit(self):
         assert not self._committed, "TMEMPool.commit() can only be called once"
-        from tvm.script import tirx as Tx
+        from tvm.script import tirx as T
 
         def emit_alloc():
             _emit_stmt(
-                Tx.ptx.tcgen05.alloc(
-                    Tx.address_of(self.addr), n_cols=self.total_cols, cta_group=self.cta_group
+                T.ptx.tcgen05.alloc(
+                    T.address_of(self.addr), n_cols=self.total_cols, cta_group=self.cta_group
                 )
             )
             if self.sync_after_alloc:
-                _emit_stmt(Tx.cuda.warp_sync())
+                _emit_stmt(T.cuda.warp_sync())
 
-        self._emit_warp_guard(Tx, self.alloc_warp, emit_alloc)
+        self._emit_warp_guard(self.alloc_warp, emit_alloc)
         self._committed = True
 
     def dealloc(self):
         assert self._committed, "TMEMPool.dealloc() called before commit()"
         assert not self._deallocated, "TMEMPool.dealloc() can only be called once"
         self._deallocated = True
-        from tvm.script import tirx as Tx
+        from tvm.script import tirx as T
 
         def emit_dealloc():
-            _emit_stmt(Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=self.cta_group))
+            _emit_stmt(T.ptx.tcgen05.relinquish_alloc_permit(cta_group=self.cta_group))
             _emit_stmt(
-                Tx.ptx.tcgen05.dealloc(self.addr, n_cols=self.total_cols, cta_group=self.cta_group)
+                T.ptx.tcgen05.dealloc(self.addr, n_cols=self.total_cols, cta_group=self.cta_group)
             )
 
-        self._emit_warp_guard(Tx, self.dealloc_warp, emit_dealloc)
+        self._emit_warp_guard(self.dealloc_warp, emit_dealloc)
 
 
 # ---------------------------------------------------------------------------

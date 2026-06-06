@@ -47,7 +47,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_lwp", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", int64_t);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.ptx_ldg32", bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tirx.ptx.ldg32", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", bool);
 
 /*!

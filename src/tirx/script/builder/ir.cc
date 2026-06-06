@@ -197,22 +197,6 @@ SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call) { AddToParent(op_call); }
 
-ExecScopeFrame ExecScopeBlock(ffi::String exec_scope_name, ffi::Array<PrimExpr> guards) {
-  ffi::ObjectPtr<ExecScopeFrameNode> n = ffi::make_object<ExecScopeFrameNode>();
-  TVM_FFI_ICHECK(!exec_scope_name.empty()) << "InternalError: exec_scope_name must not be empty";
-  n->exec_scope = tvm::tirx::ExecScope(exec_scope_name);
-  n->guards = std::move(guards);
-  return ExecScopeFrame(n);
-}
-
-ExecScopeFrame Cluster(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("cluster", guards); }
-ExecScopeFrame WarpGroup(ffi::Array<PrimExpr> guards) {
-  return ExecScopeBlock("warpgroup", guards);
-}
-ExecScopeFrame CTA(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("cta", guards); }
-ExecScopeFrame Warp(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("warp", guards); }
-ExecScopeFrame Thread(ffi::Array<PrimExpr> guards) { return ExecScopeBlock("thread", guards); }
-
 ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
                                    ffi::String name, ffi::String cur) {
   // Determine the number of Vars to introduce. Deferred form (extents=None)
@@ -678,7 +662,7 @@ AttrFrame DeviceEntry() {
   IRBuilder builder = IRBuilder::Current();
   ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
   TVM_FFI_ICHECK(pf_frame.defined())
-      << "Tx.device_entry() must be called inside a @Tx.prim_func body";
+      << "T.device_entry() must be called inside a @T.prim_func body";
   // Capture the AttrFrame by ObjectRef value so the lambda holds a strong
   // reference while the callback runs. Without this, the only reference is
   // the IRBuilder frame stack; ``ExitWithScope`` pops itself first and the
@@ -962,13 +946,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
       .def("script.ir_builder.tirx.MatchBuffer", MatchBuffer)
       .def("script.ir_builder.tirx.Block", Block)
-      .def("script.ir_builder.tirx.ExecScopeBlock", ExecScopeBlock)
       .def("script.ir_builder.tirx.TilePrimitiveCall", TilePrimitiveCall)
-      .def("script.ir_builder.tirx.Cluster", Cluster)
-      .def("script.ir_builder.tirx.CTA", CTA)
-      .def("script.ir_builder.tirx.WarpGroup", WarpGroup)
-      .def("script.ir_builder.tirx.Warp", Warp)
-      .def("script.ir_builder.tirx.Thread", Thread)
       .def("script.ir_builder.tirx.ClusterId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent) {
              return ClusterId(extents, parent);

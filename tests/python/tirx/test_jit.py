@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F821
-"""Tests for ``@Tx.jit`` + ``Tx.constexpr``."""
+"""Tests for ``@T.jit`` + ``T.constexpr``."""
 
 from __future__ import annotations
 
@@ -23,26 +23,26 @@ import pytest
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 
 def test_int_constexpr_specializes_loop_bound():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def add(
-        A: Tx.Buffer((N,), "int32"),
-        B: Tx.Buffer((N,), "int32"),
-        C: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
+        B: T.Buffer((N,), "int32"),
+        C: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
         for i in range(N):
             C[i] = A[i] + B[i]
 
-    @Tx.prim_func(private=True)
+    @T.prim_func(private=True)
     def expected(
-        A: Tx.Buffer((128,), "int32"),
-        B: Tx.Buffer((128,), "int32"),
-        C: Tx.Buffer((128,), "int32"),
+        A: T.Buffer((128,), "int32"),
+        B: T.Buffer((128,), "int32"),
+        C: T.Buffer((128,), "int32"),
     ):
         for i in range(128):
             C[i] = A[i] + B[i]
@@ -51,24 +51,24 @@ def test_int_constexpr_specializes_loop_bound():
 
 
 def test_constexpr_in_2d_buffer_shape():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def matadd(
-        A: Tx.Buffer((M, K), "int32"),
-        B: Tx.Buffer((M, K), "int32"),
-        C: Tx.Buffer((M, K), "int32"),
+        A: T.Buffer((M, K), "int32"),
+        B: T.Buffer((M, K), "int32"),
+        C: T.Buffer((M, K), "int32"),
         *,
-        M: Tx.constexpr,
-        K: Tx.constexpr,
+        M: T.constexpr,
+        K: T.constexpr,
     ):
         for m in range(M):
             for k in range(K):
                 C[m, k] = A[m, k] + B[m, k]
 
-    @Tx.prim_func(private=True)
+    @T.prim_func(private=True)
     def expected(
-        A: Tx.Buffer((4, 8), "int32"),
-        B: Tx.Buffer((4, 8), "int32"),
-        C: Tx.Buffer((4, 8), "int32"),
+        A: T.Buffer((4, 8), "int32"),
+        B: T.Buffer((4, 8), "int32"),
+        C: T.Buffer((4, 8), "int32"),
     ):
         for m in range(4):
             for k in range(8):
@@ -78,21 +78,21 @@ def test_constexpr_in_2d_buffer_shape():
 
 
 def test_constexpr_in_body_expression():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def scaled_copy(
-        A: Tx.Buffer((N,), "int32"),
-        B: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
+        B: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
-        SCALE: Tx.constexpr,
+        N: T.constexpr,
+        SCALE: T.constexpr,
     ):
         for i in range(N):
             B[i] = A[i] * SCALE
 
-    @Tx.prim_func(private=True)
+    @T.prim_func(private=True)
     def expected(
-        A: Tx.Buffer((16,), "int32"),
-        B: Tx.Buffer((16,), "int32"),
+        A: T.Buffer((16,), "int32"),
+        B: T.Buffer((16,), "int32"),
     ):
         for i in range(16):
             B[i] = A[i] * 3
@@ -101,11 +101,11 @@ def test_constexpr_in_body_expression():
 
 
 def test_specialize_cache_returns_same_instance():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
         for i in range(N):
             A[i] = 0
@@ -116,11 +116,11 @@ def test_specialize_cache_returns_same_instance():
 
 
 def test_specialize_different_args_produce_different_funcs():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
         for i in range(N):
             A[i] = 0
@@ -129,12 +129,12 @@ def test_specialize_different_args_produce_different_funcs():
 
 
 def test_specialize_missing_constexpr_raises():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
-        SCALE: Tx.constexpr,
+        N: T.constexpr,
+        SCALE: T.constexpr,
     ):
         for i in range(N):
             A[i] = SCALE
@@ -144,11 +144,11 @@ def test_specialize_missing_constexpr_raises():
 
 
 def test_specialize_extra_kwarg_raises():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
         for i in range(N):
             A[i] = 0
@@ -158,22 +158,22 @@ def test_specialize_extra_kwarg_raises():
 
 
 def test_jit_kernel_with_nested_inline_helper():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
-        @Tx.inline
+        @T.inline
         def double(x):
             A[x] = A[x] * 2
 
         for i in range(N):
             double(i)
 
-    @Tx.prim_func(private=True)
+    @T.prim_func(private=True)
     def expected(
-        A: Tx.Buffer((4,), "int32"),
+        A: T.Buffer((4,), "int32"),
     ):
         for i in range(4):
             A[i] = A[i] * 2
@@ -182,19 +182,19 @@ def test_jit_kernel_with_nested_inline_helper():
 
 
 def test_constexpr_default_value():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
-        SCALE: Tx.constexpr = 7,
+        N: T.constexpr,
+        SCALE: T.constexpr = 7,
     ):
         for i in range(N):
             A[i] = SCALE
 
-    @Tx.prim_func(private=True)
+    @T.prim_func(private=True)
     def expected(
-        A: Tx.Buffer((8,), "int32"),
+        A: T.Buffer((8,), "int32"),
     ):
         for i in range(8):
             A[i] = 7
@@ -206,11 +206,11 @@ def test_constexpr_default_value():
 
 
 def test_specialize_returns_primfunc():
-    @Tx.jit(private=True)
+    @T.jit(private=True)
     def k(
-        A: Tx.Buffer((N,), "int32"),
+        A: T.Buffer((N,), "int32"),
         *,
-        N: Tx.constexpr,
+        N: T.constexpr,
     ):
         for i in range(N):
             A[i] = 0

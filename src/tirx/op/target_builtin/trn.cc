@@ -27,6 +27,8 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
+#include <string>
+
 namespace tvm {
 namespace tirx {
 namespace builtin {
@@ -85,6 +87,65 @@ TIRX_DEFINE_BUILTIN_FUNC(nki_scalar_tensor_scalar)
 
 TIRX_DEFINE_BUILTIN_FUNC(nki_affine_select)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+namespace {
+
+void RegisterNKIIntrinsic(const char* flat_name) {
+  std::string flat(flat_name);
+  std::string prefix = "nki_";
+  std::string suffix = flat;
+  if (suffix.rfind(prefix, 0) == 0) {
+    suffix = suffix.substr(prefix.size());
+  }
+
+  std::string flat_op_name = "tirx." + flat;
+  std::string canonical_op_name = "tirx.nki." + suffix;
+  ffi::String namespace_attr("nki");
+  ffi::String printer_name("nki." + suffix);
+  int64_t effect = static_cast<int64_t>(CallEffectKind::kOpaque);
+
+  auto register_one = [&](const std::string& op_name) {
+    OpRegEntry::RegisterOrGet(op_name)
+        .set_name()
+        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"),
+                                  /*plevel=*/15)
+        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr,
+                                             /*plevel=*/15)
+        .set_attr<TCallEffectKind>("TCallEffectKind", effect, /*plevel=*/15)
+        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
+  };
+
+  register_one(flat_op_name);
+  register_one(canonical_op_name);
+}
+
+const char* kNKIIntrinsics[] = {
+    "nki_activation",
+    "nki_activation_reduce",
+    "nki_affine_select",
+    "nki_identity",
+    "nki_load",
+    "nki_matmul",
+    "nki_memset",
+    "nki_reciprocal",
+    "nki_scalar_tensor_scalar",
+    "nki_scalar_tensor_tensor",
+    "nki_store",
+    "nki_tensor_copy",
+    "nki_tensorreduce",
+    "nki_tensorscalar",
+    "nki_tensorscalar_reduce",
+    "nki_tensortensor",
+};
+
+const bool kNKIIntrinsicAliasesRegistered = []() {
+  for (const char* op_name : kNKIIntrinsics) {
+    RegisterNKIIntrinsic(op_name);
+  }
+  return true;
+}();
+
+}  // namespace
 
 }  // namespace builtin
 }  // namespace tirx

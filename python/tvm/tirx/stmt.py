@@ -815,39 +815,6 @@ class SBlockRealize(Stmt):
         )  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.ExecScopeStmt")
-class ExecScopeStmt(Stmt):
-    """ExecScopeStmt node.
-
-    A statement that annotates the execution scope (e.g. cta, warp, thread)
-    for its body. This decouples the execution scope concept from SBlock.
-
-    Parameters
-    ----------
-    exec_scope : ExecScope
-        The execution scope.
-
-    body : Stmt
-        The body statement under this execution scope.
-
-    span : Optional[Span]
-        The location of this statement in the source code.
-    """
-
-    exec_scope: ExecScope
-    body: Stmt
-    span: Span | None
-
-    def __init__(self, exec_scope: ExecScope, body: Stmt, span: Span | None = None) -> None:
-        body = _normalize_legacy_stmt(body)
-        self.__init_handle_by_constructor__(
-            _ffi_api.ExecScopeStmt,  # type: ignore
-            exec_scope,
-            body,
-            span,
-        )  # type: ignore
-
-
 @tvm_ffi.register_object("tirx.ScopeIdDefStmt")
 class ScopeIdDefStmt(Stmt):
     """ScopeIdDefStmt node.
@@ -975,12 +942,16 @@ class TilePrimitiveCall(Stmt):
 
     dispatch : Optional[str]
         The explicit variant name to dispatch to.
+
+    scope : ExecScope
+        The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
     """
 
     args: list[PrimExpr]
     workspace: dict[str, Buffer]
     config: dict[str, Any]
     dispatch: str | None
+    scope: ExecScope
     _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
 
     def __init__(
@@ -990,11 +961,14 @@ class TilePrimitiveCall(Stmt):
         workspace: dict[str, Buffer] | None = None,
         config: dict[str, Any] | None = None,
         dispatch: str | None = None,
+        scope: ExecScope | None = None,
     ) -> None:
         if workspace is None:
             workspace = {}
         if config is None:
             config = {}
+        if scope is None:
+            scope = ExecScope("thread")
         if op is None:
             assert self.__class__ != TilePrimitiveCall, (
                 "Directly instantiating TilePrimitiveCall needs to specify the op"
@@ -1007,7 +981,8 @@ class TilePrimitiveCall(Stmt):
             args,
             workspace,
             config,
-            dispatch,  # pylint: disable=no-member
+            dispatch,
+            scope,  # pylint: disable=no-member
         )
 
     def __init_subclass__(cls, **kwargs):
@@ -1026,6 +1001,41 @@ class TilePrimitiveCall(Stmt):
             instance,  # pylint: disable=no-member
         )
         return new_instance
+
+    def replace(self, **changes: Any) -> "TilePrimitiveCall":
+        """Return a copy of this call with selected fields replaced.
+
+        Every field that is not overridden in ``changes`` is preserved from
+        ``self`` (including ``scope``), so rebuilds never silently drop fields.
+        The returned node is downcast to the registered subclass for ``op``.
+
+        Parameters
+        ----------
+        **changes : Any
+            Field overrides; any of ``op``, ``args``, ``workspace``, ``config``,
+            ``dispatch``, ``scope``.
+
+        Returns
+        -------
+        new_call : TilePrimitiveCall
+            A new call with the requested fields replaced.
+        """
+        unknown = set(changes) - {"op", "args", "workspace", "config", "dispatch", "scope"}
+        if unknown:
+            raise TypeError(f"Unknown field(s) for TilePrimitiveCall.replace: {sorted(unknown)}")
+        new_call = TilePrimitiveCall(
+            *changes.get("args", self.args),
+            op=changes.get("op", self.op),
+            workspace=changes.get("workspace", self.workspace),
+            config=changes.get("config", self.config),
+            dispatch=changes.get("dispatch", self.dispatch),
+            scope=changes.get("scope", self.scope),
+        )
+        return TilePrimitiveCall.downcast(new_call)
+
+    def with_workspace(self, workspace: dict[str, Buffer]) -> "TilePrimitiveCall":
+        """Return a copy with ``workspace`` replaced, preserving all other fields."""
+        return self.replace(workspace=workspace)
 
     @property
     def srcs(self) -> list[PrimExpr]:

@@ -568,43 +568,6 @@ def sblock(name: str = "", no_realize: bool = False, exec_scope: str = "") -> fr
     return _ffi_api.Block(name, no_realize, exec_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def _scope_guards(args: tuple[Any, ...]) -> list[PrimExpr]:
-    if not args:
-        return []
-    if len(args) == 1:
-        return [args[0]]
-    raise ValueError(
-        "Exec scope guards expect no args or one predicate expression. "
-        "Use `with Tx.scope((0 <= var) & (var < hi))` for structural predicates, "
-        "or `with Tx.scope(Tx.filter(var, opaque_selector))` when a selector annotation is needed."
-    )
-
-
-def cluster(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``cluster``-level execution scope."""
-    return _ffi_api.Cluster(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def cta(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``cta``-level execution scope."""
-    return _ffi_api.CTA(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def warpgroup(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``warpgroup``-level execution scope."""
-    return _ffi_api.WarpGroup(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def warp(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``warp``-level execution scope."""
-    return _ffi_api.Warp(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def thread(*guards: Any) -> frame.ExecScopeFrame:
-    """Open a ``thread``-level execution scope."""
-    return _ffi_api.Thread(_scope_guards(guards))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def device_entry() -> None:
     """Mark the device-region entry within the enclosing PrimFunc body.
 
@@ -612,16 +575,16 @@ def device_entry() -> None:
     accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
     the wrapping is closed by the PrimFunc frame at function end.
 
-    Anything written before this marker is host code (e.g. ``Tx.match_buffer``);
+    Anything written before this marker is host code (e.g. ``T.match_buffer``);
     anything after is device code.
 
     Example::
 
-        @Tx.prim_func
+        @T.prim_func
         def kernel(...):
-            A = Tx.match_buffer(...)
-            Tx.device_entry()           # device region starts here
-            bx = Tx.cta_id([SM_COUNT])  # standalone scope-id def
+            A = T.match_buffer(...)
+            T.device_entry()           # device region starts here
+            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
             ...
     """
     attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -631,17 +594,16 @@ def device_entry() -> None:
 
 
 def elected():
-    """Stub that rejects the removed ``Tx.elected()`` sugar.
+    """Stub that rejects the removed ``T.elected()`` sugar.
 
     Write the explicit form instead::
 
-        if Tx.ptx.elect_sync():
-            with Tx.thread():
-                ...
+        if T.ptx.elect_sync():
+            ...                         # thread is the default scope
     """
     raise RuntimeError(
-        "Tx.elected() is no longer available. Write explicitly: "
-        "`if Tx.ptx.elect_sync(): with Tx.thread():`"
+        "T.elected() is no longer available. Write explicitly: "
+        "`if T.ptx.elect_sync(): ...` (thread is the default scope)"
     )
 
 
@@ -924,7 +886,7 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
 
     Sugar for the recurring pattern::
 
-        Tx.alloc_buffer(
+        T.alloc_buffer(
             (128, elem_per_thread), dtype,
             layout=wg_local_layout(elem_per_thread),
             scope="local",
@@ -1532,7 +1494,7 @@ class LetAnnotation:
         """Resolve to a tir.Var."""
         if self.type_spec is not None:
             if isinstance(self.type_spec, Var):
-                return self.type_spec  # Already a Var (e.g. Tx.handle(...))
+                return self.type_spec  # Already a Var (e.g. T.handle(...))
             elif callable(self.type_spec):
                 return self.type_spec()  # e.g. T.int32() -> Var
             elif isinstance(self.type_spec, Type):
@@ -1551,8 +1513,8 @@ let = LetAnnotation()  # Singleton for T.let (no subscript)
 class LocalVectorAnnotation:
     """Marker for local vector/tensor allocation via type annotation subscript.
 
-    Created when a DtypeConstructor is subscripted, e.g. ``Tx.float32[N]`` or
-    ``Tx.float32[M, N]``.  The parser's ``visit_ann_assign`` recognises this
+    Created when a DtypeConstructor is subscripted, e.g. ``T.float32[N]`` or
+    ``T.float32[M, N]``.  The parser's ``visit_ann_assign`` recognises this
     object and lowers it to ``T.alloc_local(shape=..., dtype=...)``.
     """
 
@@ -1568,10 +1530,10 @@ class DtypeConstructor:
 
     Replaces the plain functions previously returned by ``func_gen``.
 
-    * ``Tx.float32()``        — same FFI call as before (returns ``Var``).
-    * ``Tx.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
-    * ``Tx.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
-    * ``x: Tx.float32``       — parser calls this object, gets a ``Var``.
+    * ``T.float32()``        — same FFI call as before (returns ``Var``).
+    * ``T.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
+    * ``T.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
+    * ``x: T.float32``       — parser calls this object, gets a ``Var``.
     """
 
     def __init__(self, ffi_name: str, dtype_str: str):
@@ -1898,11 +1860,11 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
     Examples
     --------
     M=128 readback (existing dispatch):
-        ``frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
+        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
         ``Tx.copy_async(frag[:, :], tmem[:, 0:64])``
 
     M=64 readback (.16x64b dispatch):
-        ``frag = Tx.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
+        ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
         ``Tx.copy_async(frag[:, :], tmem[0:64, 0:64])``
     """
     from tvm.tirx.layout import tcgen05_atom_layout  # local import to avoid cycle
@@ -3017,10 +2979,20 @@ def _dtype_forward(func):
     return wrapped
 
 
+def _ptx_ldg32(reg, guard, addr, local_addr):
+    if isinstance(addr, Buffer):
+        addr = addr[0]
+    return _tir_op.call_intrin(reg.dtype, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
+
+
+_ptx_ldg32.__tir_op_name__ = "ptx.ldg32"
+
+
 class PTXNamespace:
     """The PTX instruction submodule."""
 
     def __init__(self):
+        self.ldg32 = _ptx_ldg32
         self.ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
         # Apache-compatible variant. Same lowered intrinsic as
         # ``ldmatrix`` but accepts the historical ``(trans, num, dtype,
@@ -3393,6 +3365,7 @@ class CUDANamespace:
         self.cta_sum = _op_wrapper(_tir_op.cuda_cta_sum)
         self.cta_max = _op_wrapper(_tir_op.cuda_cta_max)
         self.cta_min = _op_wrapper(_tir_op.cuda_cta_min)
+        self.copy_bytes = _op_wrapper(_tir_op.cuda_copy_bytes)
         self.copy_128b = _op_wrapper(_tir_op.cuda_copy_128b)
         self.copy_64b = _op_wrapper(_tir_op.cuda_copy_64b)
         self.copy_32b = _op_wrapper(_tir_op.cuda_copy_32b)
@@ -3440,6 +3413,85 @@ class CUDANamespace:
         self.hmin2 = _op_wrapper(_tir_op.cuda_hmin2)
         self.hmax2 = _op_wrapper(_tir_op.cuda_hmax2)
         self.fp8x4_e4m3_from_float4 = _op_wrapper(_tir_op.cuda_fp8x4_e4m3_from_float4)
+        setattr(self, "__shfl_sync", self._shfl_sync)
+        setattr(self, "__shfl_up_sync", self._shfl_up_sync)
+        setattr(self, "__shfl_down_sync", self._shfl_down_sync)
+        setattr(self, "__shfl_xor_sync", self._shfl_xor_sync)
+        setattr(self, "__activemask", self._activemask)
+
+    @staticmethod
+    def _shfl_sync(mask, var, lane, width):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_sync", mask, var, lane, width)
+
+    @staticmethod
+    def _shfl_up_sync(mask, var, delta, width):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
+
+    @staticmethod
+    def _shfl_down_sync(mask, var, delta, width):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
+
+    @staticmethod
+    def _shfl_xor_sync(mask, var, lane_mask, width):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(
+            var.dtype, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width
+        )
+
+    @staticmethod
+    def _activemask():
+        return _tir_op.call_intrin("uint32", "tirx.cuda.__activemask")
+
+
+class MetalNamespace:
+    """The Metal intrinsics submodule."""
+
+    @staticmethod
+    def simd_shuffle(var, lane):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle", var, lane)
+
+    @staticmethod
+    def simd_shuffle_up(var, delta):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle_up", var, delta)
+
+    @staticmethod
+    def simd_shuffle_down(var, delta):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle_down", var, delta)
+
+
+class WebGPUNamespace:
+    """The WebGPU intrinsics submodule."""
+
+    @staticmethod
+    def subgroup_shuffle(var, lane):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle", var, lane)
+
+    @staticmethod
+    def subgroup_shuffle_up(var, delta):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle_up", var, delta)
+
+    @staticmethod
+    def subgroup_shuffle_down(var, delta):
+        if isinstance(var, Buffer):
+            var = var[0]
+        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 
 
 class NVSHMEMNamespace:
@@ -3524,6 +3576,8 @@ class NKINamespace:
 
 ptx = PTXNamespace()
 cuda = CUDANamespace()
+metal = MetalNamespace()
+webgpu = WebGPUNamespace()
 nvshmem = NVSHMEMNamespace()
 nki = NKINamespace()
 
@@ -3534,11 +3588,23 @@ nki = NKINamespace()
 # This keeps parser and printer consistent using a single registration source.
 #
 def _register_tir_namespace_printer_names():
+    def register_printer_name(op_name, script_name):
+        try:
+            ir.Op.get(op_name)
+        except Exception:
+            return
+        try:
+            _register_op_attr(op_name, "TScriptPrinterName", script_name, level=20)
+        except Exception:
+            pass
+
     def visit(ns_obj, dotted_prefix):
         # If the namespace object itself maps to an op via __call__
         call_op = getattr(ns_obj, "__tir_call_op_name__", None)
         if call_op:
-            _register_op_attr(f"tirx.{call_op}", "TScriptPrinterName", dotted_prefix, level=20)
+            flat_name = f"tirx.{call_op}"
+            for op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
+                register_printer_name(op_name, dotted_prefix)
         # Walk attributes to find wrapped ops and sub-namespaces
         for name in dir(ns_obj):
             if name.startswith("_"):
@@ -3554,13 +3620,16 @@ def _register_tir_namespace_printer_names():
             # Wrapped op (callable with attached __tir_op_name__)
             op_name = getattr(val, "__tir_op_name__", None)
             if callable(val) and op_name:
-                _register_op_attr(
-                    f"tirx.{op_name}", "TScriptPrinterName", f"{dotted_prefix}.{name}", level=20
-                )
+                flat_name = f"tirx.{op_name}"
+                script_name = f"{dotted_prefix}.{name}"
+                for full_op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
+                    register_printer_name(full_op_name, script_name)
 
     try:
         visit(ptx, "ptx")
         visit(cuda, "cuda")
+        visit(metal, "metal")
+        visit(webgpu, "webgpu")
         visit(nvshmem, "nvshmem")
         visit(nki, "nki")
     except Exception:
@@ -3601,6 +3670,7 @@ ceildiv = _op_wrapper(_tir_op.ceildiv)
 floordiv = _op_wrapper(_tir_op.floordiv)
 floormod = _op_wrapper(_tir_op.floormod)
 fmod = _op_wrapper(_tir_op.fmod)
+fma = _op_wrapper(_tir_op.fma)
 hypot = _op_wrapper(_tir_op.hypot)
 if_then_else = _op_wrapper(_tir_op.if_then_else)
 infinity = _op_wrapper(_tir_op.infinity)
@@ -3662,6 +3732,7 @@ tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
 tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
 tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
 tvm_storage_sync = _tir_op.tvm_storage_sync
+tvm_kernel_replace_point = _op_wrapper(_tir_op.tvm_kernel_replace_point)
 tvm_global_barrier_kinit = _tir_op.tvm_global_barrier_kinit
 tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
 tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
@@ -3923,6 +3994,7 @@ __all__ = [
     "floordiv",
     "floormod",
     "fmod",
+    "fma",
     "filter",
     "selector",
     "hypot",
@@ -3992,6 +4064,7 @@ __all__ = [
     "tvm_fill_fragment",
     "tvm_store_matrix_sync",
     "tvm_storage_sync",
+    "tvm_kernel_replace_point",
     "tvm_global_barrier_kinit",
     "tvm_warp_shuffle",
     "tvm_warp_shuffle_up",
@@ -4098,6 +4171,7 @@ __all__ += [
     "S",
     "ScopeIdDef",
     "SwizzleLayout",
+    "TensorMap",
     "TileLayout",
     "Var",
     "add_to_parent",
@@ -4106,9 +4180,7 @@ __all__ += [
     "alloc_scalar",
     "alloc_shared",
     "alloc_tcgen05_ldst_frag",
-    "cluster",
     "cluster_id",
-    "cta",
     "cta_id",
     "cta_id_in_cluster",
     "cta_id_in_pair",
@@ -4117,6 +4189,8 @@ __all__ += [
     "device_entry",
     "lane_id",
     "local_scalar",
+    "meta_class",
+    "metal",
     "nki",
     "nvshmem",
     "ptx",
@@ -4125,15 +4199,13 @@ __all__ += [
     "shared_scalar",
     "smem",
     "static_assert",
-    "thread",
     "thread_id",
     "thread_id_in_wg",
     "tmem",
-    "warp",
     "warp_id",
     "warp_id_in_wg",
-    "warpgroup",
     "warpgroup_id",
+    "webgpu",
 ]
 
 # Shorthand dtype aliases

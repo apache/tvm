@@ -25,7 +25,7 @@ import tvm
 from tvm.arith import Analyzer
 from tvm.ir import assert_structural_equal
 from tvm.ir.type import PointerType, PrimType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as Tx_builder
 from tvm.tirx import Var
@@ -1424,7 +1424,7 @@ def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
             with Tx_builder.prim_func():
-                pool = Tx.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
+                pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
                 buf = pool.alloc_mma(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout
 

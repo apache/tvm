@@ -22,7 +22,7 @@ import operator
 
 from tvm.arith.analyzer import Analyzer
 from tvm.ir import assert_structural_equal
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -110,8 +110,8 @@ def get_pf_dim_from_buffer_region(
 def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
-    if not (sctx.is_trn() and sctx.scope_kind == "kernel"):
-        fail("requires Trainium target and kernel exec_scope")
+    if not (sctx.is_trn() and sctx.scope_kind == "thread"):
+        fail("requires Trainium target and thread exec_scope")
 
     # Extract arguments
     (
@@ -199,12 +199,12 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     inst_repr = inst_gen.find_max_inst_size_from_one_region(B_buffer_region, [rhs_f_dim])
     inst_repr = inst_gen.fit_inst_tile_to_region(inst_repr, C_buffer_region, [acc_f_dim])
     inst_repr.bound_inst_size(512, analyzer)
-    rhs_f = Tx.Var("rhs_f", "int32")
-    lhs_f = Tx.Var("lhs_f", "int32")
-    p = Tx.Var("p", "int32")
-    reduction_b = Tx.Var("reduction_b", "int32")
-    lhs_b = Tx.Var("lhs_b", "int32")
-    rhs_b = Tx.Var("rhs_b", "int32")
+    rhs_f = T.Var("rhs_f", "int32")
+    lhs_f = T.Var("lhs_f", "int32")
+    p = T.Var("p", "int32")
+    reduction_b = T.Var("reduction_b", "int32")
+    lhs_b = T.Var("lhs_b", "int32")
+    rhs_b = T.Var("rhs_b", "int32")
     lhs_f_size = C.layout.size("P")
     inst_gen.bind_inst_iter(
         B_buffer_region, rhs_f, inst_repr.size, inst_repr.stride, is_free_dim=True
@@ -218,29 +218,29 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # FIXME: we need to lower the guard to things like matmul(lhs[...][lhs_guard], rhs[...][rhs_guard], mask=p_guard)  # noqa: E501
     # so we need to separate the guard for lhs_f, rhs_f and p
     # fmt: off
-    @Tx.inline
+    @T.inline
     def matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc, C_as_output, max_psum_slots):  # noqa: E501
-        with Tx.attr(0, "tensorized_nki_instruction", 1):
-            for p_loop in Tx.serial(0, p_size, annotations={"nki_dim": "P"}):
-                for lhs_f_loop in Tx.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
-                    for rhs_f_loop in Tx.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):  # noqa: E501
-                        b_idx = Tx.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
+        with T.attr(0, "tensorized_nki_instruction", 1):
+            for p_loop in T.serial(0, p_size, annotations={"nki_dim": "P"}):
+                for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
+                    for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):
+                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(A_buffer_region, {lhs_b: lhs_b_loop, lhs_f: lhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(B_buffer_region, {rhs_b: rhs_b_loop, rhs_f: rhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
-                        lhs_indices = Tx.meta_var(inst_gen.generate_indices(A_buffer_region))
-                        rhs_indices = Tx.meta_var(inst_gen.generate_indices(B_buffer_region))
-                        C_indices = Tx.meta_var(inst_gen.generate_indices(C_buffer_region))
+                        lhs_indices = T.meta_var(inst_gen.generate_indices(A_buffer_region))
+                        rhs_indices = T.meta_var(inst_gen.generate_indices(B_buffer_region))
+                        C_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
                         if inst_gen.make_guard(A_buffer_region) and inst_gen.make_guard(B_buffer_region):  # noqa: E501
                             if C_as_output:
-                                Tx.evaluate(Tx.nki.matmul(acc[C_indices], A[lhs_indices], B[rhs_indices]))  # noqa: E501
+                                T.evaluate(T.nki.matmul(acc[C_indices], A[lhs_indices], B[rhs_indices]))  # noqa: E501
                             else:
-                                Tx.evaluate(Tx.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
+                                T.evaluate(T.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
 
     if C.scope() == "trn.psum":
-        @Tx.prim_func
+        @T.prim_func
         def impl_C_psum():
-            for lhs_b_loop, rhs_b_loop, reduction_b_loop in Tx.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
+            for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
         return impl_C_psum
 
@@ -253,7 +253,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
     if "acc_psum" not in op.workspace:
         assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.transform.trn.TrnPrivateBufferAlloc first."  # noqa: E501
-        acc_psum = Tx.buffer(
+        acc_psum = T.buffer(
                 acc_psum_shape,
                 "float32",
                 scope="trn.psum",
@@ -267,19 +267,19 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
         max_psum_slots = acc_psum.shape[0]
 
-    @Tx.prim_func
+    @T.prim_func
     def impl_C_sbuf():
-        for lhs_b_loop, rhs_b_loop in Tx.grid(lhs_b_extent, rhs_b_extent):
-            for reduction_b_loop in Tx.serial(0, reduction_b_extent):
+        for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
+            for reduction_b_loop in T.serial(0, reduction_b_extent):
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc_psum, False, max_psum_slots)  # noqa: E501
-            with Tx.attr(0, "tensorized_nki_instruction", 1):
-                for lhs_f_loop in Tx.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
-                    for rhs_f_loop in Tx.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
-                        b_idx = Tx.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
+            with T.attr(0, "tensorized_nki_instruction", 1):
+                for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
+                    for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
+                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
                         if inst_gen.make_guard(C_buffer_region):
-                            acc_indices = Tx.meta_var(inst_gen.generate_indices(C_buffer_region))
-                            Tx.evaluate(Tx.nki.tensor_copy(C[acc_indices], acc_psum[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
+                            acc_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
+                            T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
     return impl_C_sbuf
 
@@ -294,7 +294,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         predicate(
             "exec_scope",
             lambda op, sctx: (
-                sctx.scope_kind == "kernel",
+                sctx.scope_kind == "thread",
                 f"unsupported exec_scope {sctx.scope_kind}",
             ),
         )

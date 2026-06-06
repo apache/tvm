@@ -17,7 +17,7 @@
 
 """Implementation of BinaryReduce dispatch."""
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import BinaryReduce
@@ -73,10 +73,10 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         binary_input1, binary_input2 = binary_input2, binary_input1
 
     # Generate intermediate buffer for reduction if needed
-    p_var = Tx.Var("P", "int32")
-    f_var = Tx.Var("F", "int32")
-    reduction_b_var = Tx.Var("rB", "int32")
-    spatial_b_var = Tx.Var("sB", "int32")
+    p_var = T.Var("P", "int32")
+    f_var = T.Var("F", "int32")
+    reduction_b_var = T.Var("rB", "int32")
+    spatial_b_var = T.Var("sB", "int32")
     p_size = binary_output.buffer.layout.size("P")
     inst_gen.bind_inst_iter(binary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(binary_output, f_var, inst_repr.size, inst_repr.stride, True)
@@ -100,49 +100,49 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     if reduction_b_extent == 1:
         # Direct implementation without intermediate buffer
         # fmt: off
-        @Tx.prim_func
+        @T.prim_func
         def impl():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
-                            src_1_indices = Tx.meta_var(inst_gen.generate_indices(binary_input1))
-                            vec_dst_idx = Tx.meta_var(inst_gen.generate_indices(binary_output))
-                            reduce_dst_idx = Tx.meta_var(inst_gen.generate_indices(reduce_output))
+                            src_1_indices = T.meta_var(inst_gen.generate_indices(binary_input1))
+                            vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))
+                            reduce_dst_idx = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(binary_output):
                                 if CONST is None:
-                                    src_2_indices = Tx.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
-                                    Tx.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                                    src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
+                                    T.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                 else:
-                                    Tx.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                                    T.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
         # fmt: on
     else:
         # Implementation with intermediate buffer
         # fmt: off
-        @Tx.prim_func
+        @T.prim_func
         def impl():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                for reduction_b_loop in Tx.serial(0, reduction_b_extent):
-                    with Tx.attr(0, "tensorized_nki_instruction", 1):
-                        for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                            for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                for reduction_b_loop in T.serial(0, reduction_b_extent):
+                    with T.attr(0, "tensorized_nki_instruction", 1):
+                        for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                            for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
                                 if inst_gen.make_guard(binary_output):
-                                    src_1_indices = Tx.meta_var(inst_gen.generate_indices(binary_input1))  # noqa: E501
-                                    vec_dst_idx = Tx.meta_var(inst_gen.generate_indices(binary_output))  # noqa: E501
+                                    src_1_indices = T.meta_var(inst_gen.generate_indices(binary_input1))  # noqa: E501
+                                    vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))  # noqa: E501
                                     if CONST is None:
-                                        src_2_indices = Tx.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
-                                        Tx.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                                        src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
+                                        T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                     else:
-                                        Tx.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
+                                        T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
                             if inst_gen.make_guard(reduce_output):
-                                dst_2_indices = Tx.meta_var(inst_gen.generate_indices(reduce_output))  # noqa: E501
-                                Tx.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1)  # noqa: E501
+                                dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
+                                T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1)  # noqa: E501
         # fmt: on
 
     return impl
@@ -158,7 +158,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         predicate(
             "exec_scope",
             lambda op, sctx: (
-                sctx.scope_kind == "kernel",
+                sctx.scope_kind == "thread",
                 f"unsupported exec_scope {sctx.scope_kind}",
             ),
         )

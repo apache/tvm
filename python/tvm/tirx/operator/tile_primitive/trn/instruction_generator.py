@@ -26,7 +26,7 @@ from operator import mul
 import tvm
 from tvm.arith.analyzer import Analyzer
 from tvm.ir import Range
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, PrimExpr, Var
 from tvm.tirx.expr_functor import ExprMutator
 from tvm.tirx.layout import Iter
@@ -42,13 +42,13 @@ class LogicalIterDim:
 
     @staticmethod
     def default():
-        return LogicalIterDim(1, 1, Tx.int32(0))
+        return LogicalIterDim(1, 1, T.int32(0))
 
 
 LogicalIterList = tuple[tuple[tuple[LogicalIterDim]]]
 
 
-def to_int_list(intimm_list: list[Tx.IntImm]):
+def to_int_list(intimm_list: list[T.IntImm]):
     return [int(i) for i in intimm_list]
 
 
@@ -532,7 +532,7 @@ class InstructionGenerator:
         ]
         axes = self.generate_axes(buffer_region)
         guard = reduce(
-            Tx.And,
+            T.And,
             [axes[i] < r.extent for i, r in enumerate(buffer_region.region) if i in relaxed_dims],
             True,
         )

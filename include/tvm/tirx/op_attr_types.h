@@ -83,6 +83,23 @@ enum class ScriptDtypePrintLocation : int {
 using TScriptDtypePrintLocation = int64_t;
 
 /*!
+ * \brief Broad TIRx op category.
+ *
+ * Expected values:
+ * - "builtin"
+ * - "tile_primitive"
+ * - "device_intrin"
+ */
+using TIRxOpCategory = ffi::String;
+
+/*!
+ * \brief Device intrinsic namespace.
+ *
+ * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
+ */
+using TDeviceIntrinsicNamespace = ffi::String;
+
+/*!
  * \brief The effect type of the call.
  */
 enum class CallEffectKind : int {

@@ -33,6 +33,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/target_builtin/cuda.h>
 #include <tvm/tirx/target_builtin/trn.h>
@@ -43,8 +44,10 @@
 
 namespace tvm {
 
-#define TVM_TIR_REGISTER_OP(OpName) \
-  TVM_REGISTER_OP("tirx." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+#define TVM_TIR_REGISTER_OP(OpName)                               \
+  TVM_REGISTER_OP("tirx." OpName)                                 \
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", OpName) \
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
 
 #define TVM_TIRX_REGISTER_OP(OpName) TVM_TIR_REGISTER_OP(OpName)
 

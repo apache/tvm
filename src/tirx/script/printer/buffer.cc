@@ -222,7 +222,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
       PrimExpr addr = buffer->allocated_addr[0];
       AccessPath addr_p = buffer_p->Attr("allocated_addr")->ArrayItem(0);
       if (const auto* bl = addr.as<tirx::BufferLoadNode>()) {
-        // Ensure the buffer variable is defined (may emit a Tx.Buffer(...) statement).
+        // Ensure the buffer variable is defined (may emit a T.Buffer(...) statement).
         d->AsDoc<ExprDoc>(bl->buffer, addr_p->Attr("buffer"));
         // Get the variable name bound to this buffer.
         ffi::Optional<ExprDoc> buf_var = d->GetVarDoc(bl->buffer);

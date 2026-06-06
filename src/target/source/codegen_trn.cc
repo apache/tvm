@@ -356,22 +356,26 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenTrainium does not support inter-function calls, "
       << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
-  if (op->op.same_as(builtin::nki_matmul())) {
+  const auto* op_node = op->op.as<OpNode>();
+  auto is_op = [&](const Op& compat, const char* canonical_name) {
+    return op->op.same_as(compat) || (op_node != nullptr && op_node->name == canonical_name);
+  };
+  if (is_op(builtin::nki_matmul(), "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
     std::string accum = is_one(op->args[3]) ? " += " : " = ";
     os << PrintExpr(op->args[0]) << accum;
     ctx_.is_matmul_input = true;
     os << "nisa.nc_matmul(" << PrintExpr(op->args[1]) << "," << PrintExpr(op->args[2]);
-  } else if (op->op.same_as(builtin::nki_load())) {
+  } else if (is_op(builtin::nki_load(), "tirx.nki.load")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2);
     os << PrintExpr(op->args[0]) << " = nl.load(" << PrintExpr(op->args[1]);
-  } else if (op->op.same_as(builtin::nki_store())) {
+  } else if (is_op(builtin::nki_store(), "tirx.nki.store")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2);
     os << "nl.store(" << PrintExpr(op->args[0]) << ", " << PrintExpr(op->args[1]);
-  } else if (op->op.same_as(builtin::nki_tensor_copy())) {
+  } else if (is_op(builtin::nki_tensor_copy(), "tirx.nki.tensor_copy")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2);
     os << PrintExpr(op->args[0]) << " = nisa.tensor_copy(" << PrintExpr(op->args[1]);
-  } else if (op->op.same_as(builtin::nki_activation())) {
+  } else if (is_op(builtin::nki_activation(), "tirx.nki.activation")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
     // nki_activation(result, data, opcode, bias, scale)
     TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<StringImmNode>()->value));
@@ -379,17 +383,17 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     os << PrintExpr(op->args[0]) << " = nisa.activation(op=" << nki_op
        << ", data=" << PrintExpr(op->args[1]) << ",";
     os << "bias=" << PrintExpr(op->args[3]) << ", scale=" << PrintExpr(op->args[4]);
-  } else if (op->op.same_as(builtin::nki_reciprocal())) {
+  } else if (is_op(builtin::nki_reciprocal(), "tirx.nki.reciprocal")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2);
     os << PrintExpr(op->args[0]) << " = nisa.reciprocal(" << PrintExpr(op->args[1]);
-  } else if (op->op.same_as(builtin::nki_tensortensor())) {
+  } else if (is_op(builtin::nki_tensortensor(), "tirx.nki.tensortensor")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
     // nki_tensortensor(result, data1, data2, opcode)
     TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<StringImmNode>()->value));
     std::string nki_op = opcode_map_[op->args[3].as<StringImmNode>()->value];
     os << PrintExpr(op->args[0]) << " = nisa.tensor_tensor(" << PrintExpr(op->args[1]) << ", ";
     os << PrintExpr(op->args[2]) << ", op=" << nki_op;
-  } else if (op->op.same_as(builtin::nki_tensorscalar())) {
+  } else if (is_op(builtin::nki_tensorscalar(), "tirx.nki.tensorscalar")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
     // nki_tensorscalar(result, operand0, operand1, opcode, reverse)
     TVM_FFI_ICHECK(opcode_map_.count(op->args[3].as<StringImmNode>()->value));
@@ -398,13 +402,13 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     os << PrintExpr(op->args[0]) << " = nisa.tensor_scalar(" << PrintExpr(op->args[1])
        << ", operand0=";
     os << PrintExpr(op->args[2]) << ", op0=" << nki_op << ", reverse0=" << PrintBool(reverse);
-  } else if (op->op.same_as(builtin::nki_memset())) {
+  } else if (is_op(builtin::nki_memset(), "tirx.nki.memset")) {
     TVM_FFI_ICHECK_GE(op->args.size(), 2);
     // result, value
     os << PrintExpr(op->args[0]) << " = " << PrintExpr(op->args[1]);
     TVM_FFI_ICHECK(!ctx_.mask.defined()) << "memset cannot have mask";
     return;
-  } else if (op->op.same_as(builtin::nki_tensorreduce())) {
+  } else if (is_op(builtin::nki_tensorreduce(), "tirx.nki.tensorreduce")) {
     TVM_FFI_ICHECK(op->args.size() >= 5)
         << "nki_tensorreduce expects at least 5 arguments, but got " << op->args.size();
     // nki_tensorreduce(result, data, opcode, negate, *axes)
@@ -414,7 +418,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     Array<PrimExpr> axes(op->args.begin() + 4, op->args.end());
     os << PrintExpr(op->args[0]) << " = nisa.tensor_reduce(data=" << PrintExpr(op->args[1])
        << ", op=" << nki_op << ", negate=" << PrintBool(negate) << ", axis=" << axes;
-  } else if (op->op.same_as(builtin::nki_activation_reduce())) {
+  } else if (is_op(builtin::nki_activation_reduce(), "tirx.nki.activation_reduce")) {
     TVM_FFI_ICHECK(op->args.size() == 7)
         << "nki_activation_reduce expects 7 arguments, but got " << op->args.size();
     // nki_activation_reduce(reduce_res, act_res, data, opcode, reduce_opcode, bias, scale)
@@ -426,7 +430,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
        << ", op=" << nki_op;
     os << ", reduce_op=" << reduce_nki_op << ", reduce_res=" << PrintExpr(op->args[0])
        << ", bias=" << PrintExpr(op->args[5]) << ", scale=" << PrintExpr(op->args[6]);
-  } else if (op->op.same_as(builtin::nki_tensorscalar_reduce())) {
+  } else if (is_op(builtin::nki_tensorscalar_reduce(), "tirx.nki.tensorscalar_reduce")) {
     TVM_FFI_ICHECK(op->args.size() == 7)
         << "nki_tensorscalar_reduce expects 7 arguments, but got " << op->args.size();
     // nki_tensorscalar_reduce(reduce_res, tensorscalar_res, operand0, operand1, opcode,
@@ -440,7 +444,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
        << ", op0=" << nki_op << ", operand0=" << PrintExpr(op->args[3])
        << ", reduce_op=" << reduce_nki_op << ", reduce_res=" << PrintExpr(op->args[0])
        << ", reverse0=" << PrintBool(reverse);
-  } else if (op->op.same_as(builtin::nki_identity())) {
+  } else if (is_op(builtin::nki_identity(), "tirx.nki.identity")) {
     // nki_identity(result, size)
     TVM_FFI_ICHECK_EQ(op->args.size(), 2);
     auto identity_np_name = name_supply_->FreshName("identity_np");
@@ -450,7 +454,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
       os << ' ';
     }
     os << PrintExpr(op->args[0]) << " = nl.load(" << identity_np_name;
-  } else if (op->op.same_as(builtin::nki_scalar_tensor_tensor())) {
+  } else if (is_op(builtin::nki_scalar_tensor_tensor(), "tirx.nki.scalar_tensor_tensor")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8);
     // nki_scalar_tensor_tensor(result, data, operand0, operand1, opcode0, opcode1, reverse0,
     // reverse1)
@@ -464,7 +468,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
        << ", operand0=" << PrintExpr(op->args[2]) << ", op0=" << nki_op0
        << ", reverse0=" << PrintBool(reverse0) << ", operand1=" << PrintExpr(op->args[3])
        << ", op1=" << nki_op1 << ", reverse1=" << PrintBool(reverse1);
-  } else if (op->op.same_as(builtin::nki_scalar_tensor_scalar())) {
+  } else if (is_op(builtin::nki_scalar_tensor_scalar(), "tirx.nki.scalar_tensor_scalar")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8);
     // nki_scalar_tensor_scalar(result, data, operand0, operand1, opcode0, opcode1, reverse0,
     // reverse1)
@@ -478,7 +482,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
        << ", operand0=" << PrintExpr(op->args[2]) << ", op0=" << nki_op0
        << ", reverse0=" << PrintBool(reverse0) << ", operand1=" << PrintExpr(op->args[3])
        << ", op1=" << nki_op1 << ", reverse1=" << PrintBool(reverse1);
-  } else if (op->op.same_as(builtin::nki_affine_select())) {
+  } else if (is_op(builtin::nki_affine_select(), "tirx.nki.affine_select")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
     // nki_affine_select(result, pred, true_value, false_value)
     os << PrintExpr(op->args[0]) << " = nisa.affine_select(pred=" << PrintExpr(op->args[1])

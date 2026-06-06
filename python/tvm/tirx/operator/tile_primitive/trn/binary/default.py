@@ -17,7 +17,7 @@
 
 """Implementation of binary operator dispatches."""
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import FloatImm, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -32,8 +32,8 @@ def binary_trn(
     op: TilePrimitiveCall, binary_op: MapOpType, sctx: DispatchContext
 ) -> PrimFunc | None:
     """Generate a binary operation schedule for Trainium."""
-    if not (sctx.is_trn() and sctx.scope_kind == "kernel"):
-        fail("requires Trainium target and kernel exec_scope")
+    if not (sctx.is_trn() and sctx.scope_kind == "thread"):
+        fail("requires Trainium target and thread exec_scope")
 
     assert binary_op in binary_map_ops, f"Unsupported binary operation {binary_op}"
 
@@ -53,9 +53,9 @@ def binary_trn(
     dst, src1 = _dst.buffer, _src1.buffer
     src2 = None if CONST is not None else _src2.buffer
 
-    p_var = Tx.Var("P", "int32")
-    b_var = Tx.Var("B", "int32")
-    f_var = Tx.Var("F", "int32")
+    p_var = T.Var("P", "int32")
+    b_var = T.Var("B", "int32")
+    f_var = T.Var("F", "int32")
     p_size = dst.layout.size("P")
     inst_size_limit = op.config.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
@@ -66,26 +66,26 @@ def binary_trn(
     opcode = binary_map_ops[binary_op]
 
     # Select appropriate NKI function based on instruction type
-    _func = Tx.nki.tensortensor if inst_types[0] == InstType.TENSOR_TENSOR else Tx.nki.tensorscalar
+    _func = T.nki.tensortensor if inst_types[0] == InstType.TENSOR_TENSOR else T.nki.tensorscalar
 
     def func(*args):
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
 
     # Define the implementation function
-    @Tx.prim_func
+    @T.prim_func
     def impl():
-        for b_loop in Tx.serial(0, b_extent):
-            with Tx.attr(0, "tensorized_nki_instruction", 1):
-                for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                    for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+        for b_loop in T.serial(0, b_extent):
+            with T.attr(0, "tensorized_nki_instruction", 1):
+                for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                    for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})
 
                         if inst_gen.make_guard(_dst):
-                            dst_indices = Tx.meta_var(inst_gen.generate_indices(_dst))
-                            src1_indices = Tx.meta_var(inst_gen.generate_indices(_src1))
+                            dst_indices = T.meta_var(inst_gen.generate_indices(_dst))
+                            src1_indices = T.meta_var(inst_gen.generate_indices(_src1))
                             if CONST is None:
-                                src2_indices = Tx.meta_var(inst_gen.generate_indices(_src2))
-                                Tx.evaluate(
+                                src2_indices = T.meta_var(inst_gen.generate_indices(_src2))
+                                T.evaluate(
                                     func(
                                         dst[tuple(dst_indices)],
                                         src1[tuple(src1_indices)],
@@ -94,7 +94,7 @@ def binary_trn(
                                     )
                                 )
                             else:
-                                Tx.evaluate(
+                                T.evaluate(
                                     func(
                                         dst[tuple(dst_indices)],
                                         src1[tuple(src1_indices)],
