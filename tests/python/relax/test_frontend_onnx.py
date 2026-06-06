@@ -771,6 +771,35 @@ def test_unary(op_name: str):
     verify_unary(op_name, [8, 8, 8], input_dtype=input_dtype, output_dtype=output_dtype)
 
 
+def test_sign_nan_preserve():
+    sign_node = helper.make_node("Sign", ["x"], ["y"])
+    graph = helper.make_graph(
+        [sign_node],
+        "sign_nan_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4])],
+    )
+    model = helper.make_model(graph, producer_name="sign_nan_test")
+    model.ir_version = 8
+    for opset_import in model.opset_import:
+        if opset_import.domain in ["", "ai.onnx"]:
+            opset_import.version = 18
+            break
+    x = np.array([np.nan, 9.0, -9.0, np.nan], dtype=np.float32)
+
+    ort_out = onnxruntime.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run([], {"x": x})[0]
+
+    tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
+    out_np = (tvm_out[0] if isinstance(tvm_out, list | tuple) else tvm_out).numpy()
+
+    np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ort_out))
+    np.testing.assert_allclose(
+        out_np[~np.isnan(ort_out)], ort_out[~np.isnan(ort_out)], rtol=1e-7, atol=1e-5
+    )
+
+
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
 def test_softmax_family_opset11_default_axis_semantics(op_name: str):
     verify_unary(op_name, [2, 3, 4], opset=11)
