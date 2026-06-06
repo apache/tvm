@@ -1062,6 +1062,34 @@ def test_logaddexp():
     verify_model(LogAddExp(), example_args, {}, expected)
 
 
+def test_logical_and():
+    class LogicalAnd(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_and(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_and(lv, lv1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="bool")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 3, 10, 10, dtype=torch.float32),
+        torch.randn(1, 3, 10, 10, dtype=torch.float32),
+    )
+    verify_model(LogicalAnd(), example_args, {}, expected)
+
+
 def test_logical_not():
     class LogicalNot(Module):
         def forward(self, input):

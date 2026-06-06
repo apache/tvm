@@ -3527,6 +3527,31 @@ def test_extended_unary_ops():
     verify_model(Trunc(), input_info, {}, expected_trunc)
 
 
+def test_logical_and():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalAnd(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_and(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_and(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalAnd(), input_info, {}, expected)
+
+
 def test_pow_integer():
     input_info = [([4], "int64")]
 
