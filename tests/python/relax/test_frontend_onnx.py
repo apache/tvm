@@ -780,6 +780,11 @@ def test_sign_nan_preserve():
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4])],
     )
     model = helper.make_model(graph, producer_name="sign_nan_test")
+    model.ir_version = 8
+    for opset_import in model.opset_import:
+        if opset_import.domain in ["", "ai.onnx"]:
+            opset_import.version = 18
+            break
     x = np.array([np.nan, 9.0, -9.0, np.nan], dtype=np.float32)
 
     ort_out = onnxruntime.InferenceSession(
@@ -787,7 +792,7 @@ def test_sign_nan_preserve():
     ).run([], {"x": x})[0]
 
     tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
-    out_np = (tvm_out[0] if isinstance(tvm_out, (list, tuple)) else tvm_out).numpy()
+    out_np = (tvm_out[0] if isinstance(tvm_out, list | tuple) else tvm_out).numpy()
 
     np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ort_out))
     np.testing.assert_allclose(
