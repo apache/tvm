@@ -23,19 +23,19 @@
  *
  * This file:
  *  - Registers node.AsRepr (for backward Python compatibility) via ffi::ReprPrint.
- *  - Registers __ffi_repr__ hooks for ffi::reflection::AccessPath and AccessStep
- *    so that ffi.ReprPrint formats them as concise "<root>.field[idx]" strings.
+ *
+ * Note: __ffi_repr__ hooks for ffi::reflection::AccessPath and AccessStep are
+ * registered by tvm-ffi itself (src/ffi/extra/reflection_extra.cc, landed in
+ * apache/tvm-ffi#598). The duplicate registrations that previously lived here
+ * were removed when bumping tvm-ffi to 59da4c0 to avoid a double-registration
+ * abort at library load time.
  *
  * Note: tvm::Dump() has been removed (zero in-tree callers). Use
  * tvm::ffi::ReprPrint(any) directly from gdb instead.
  */
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-
-#include <sstream>
 
 namespace tvm {
 
@@ -45,51 +45,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // Python's tvm.runtime._ffi_node_api sets __object_repr__ = AsRepr via init_ffi_api.
   refl::GlobalDef().def("node.AsRepr",
                         [](ffi::Any obj) -> ffi::String { return ffi::ReprPrint(obj); });
-  // Register __ffi_repr__ for ffi::reflection::AccessPath/AccessStep so that ffi.ReprPrint
-  // uses the concise "<root>.field[idx]" format.
-  //
-  // AccessStep: format one step fragment (e.g. ".field", "[0]", "[key]?").
-  refl::TypeAttrDef<ffi::reflection::AccessStepObj>().def(
-      refl::type_attr::kRepr,
-      [](ffi::reflection::AccessStep step, ffi::Function fn_repr) -> ffi::String {
-        using ffi::reflection::AccessKind;
-        std::ostringstream os;
-        switch (step->kind) {
-          case AccessKind::kAttr:
-            os << "." << step->key.cast<ffi::String>();
-            break;
-          case AccessKind::kArrayItem:
-            os << "[" << step->key.cast<int64_t>() << "]";
-            break;
-          case AccessKind::kMapItem:
-            os << "[" << fn_repr(step->key).cast<ffi::String>() << "]";
-            break;
-          case AccessKind::kAttrMissing:
-            os << "." << step->key.cast<ffi::String>() << "?";
-            break;
-          case AccessKind::kArrayItemMissing:
-            os << "[" << step->key.cast<int64_t>() << "]?";
-            break;
-          case AccessKind::kMapItemMissing:
-            os << "[" << fn_repr(step->key).cast<ffi::String>() << "]?";
-            break;
-        }
-        return os.str();
-      });
-  // ffi::reflection::AccessPath: recurse through parent via fn_repr rather than walking the
-  // linked list manually.  Root (no step) emits "<root>"; each non-root node
-  // prepends its parent's repr and appends the current step's repr.
-  refl::TypeAttrDef<ffi::reflection::AccessPathObj>().def(
-      refl::type_attr::kRepr,
-      [](ffi::reflection::AccessPath path, ffi::Function fn_repr) -> ffi::String {
-        if (!path->step.has_value()) {
-          // Root node: no parent, no step.
-          return "<root>";
-        }
-        std::ostringstream os;
-        os << fn_repr(path->parent.value()).cast<ffi::String>();
-        os << fn_repr(path->step.value()).cast<ffi::String>();
-        return os.str();
-      });
 }
 }  // namespace tvm
