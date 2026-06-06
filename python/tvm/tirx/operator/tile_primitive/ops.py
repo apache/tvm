@@ -19,12 +19,12 @@
 
 from tvm.ir import Op
 from tvm.tirx import PrimExpr
-from tvm.tirx.stmt import TilePrimitiveCall, _ffi_api, normalize_const_arg
+from tvm.tirx.stmt import TilePrimitiveCall
 
 
 def get_tirx_op(op_name: str):
     assert isinstance(op_name, str)
-    return Op.get("tirx." + op_name)
+    return Op.get("tirx.tile." + op_name)
 
 
 class ArgProperty:
@@ -410,22 +410,6 @@ class Select(BinaryOp):
     predicate = ArgProperty(3)
 
 
-class KernelReplacePoint(TilePrimitiveCall):
-    """A placeholder for kernel replacement points in TIR scheduling."""
-
-    op = get_tirx_op("tvm_kernel_replace_point")
-
-    @property
-    def srcs(self) -> list[PrimExpr]:
-        """Get the source expressions (inputs) of the operator."""
-        return []
-
-    @property
-    def dsts(self) -> list[PrimExpr]:
-        """Get the destination expressions (outputs) of the operator."""
-        return []
-
-
 ### Compose Ops ###
 class BinaryReduce(TilePrimitiveCall):
     """Combine a binary operation with a reduction operation.
@@ -551,30 +535,6 @@ class ComposeOp(TilePrimitiveCall):
         )
 
 
-def _register_permute_layout_op():
-    """Register tirx.permute_layout dynamically (Python-only, no C++ rebuild).
-
-    Mirrors the TIRX_DEFINE_DISPATCH_OP macro: marks the op as a TIRx op
-    and a dispatch op so the well-formed verifier and printer accept it.
-    """
-
-    tirx_name = "tirx.permute_layout"
-    try:
-        return Op.get(tirx_name)
-    except Exception:
-        from tvm.ir import _ffi_api as ir_ffi
-        from tvm.ir.op import register_op_attr
-
-        ir_ffi.RegisterOp(tirx_name, "Permute the physical layout of a buffer in-place.")
-        register_op_attr(tirx_name, "TIsTIRxOp", True)
-        register_op_attr(tirx_name, "TIsDispatchOp", True)
-        register_op_attr(tirx_name, "TScriptPrinterName", "permute_layout")
-        return Op.get(tirx_name)
-
-
-_register_permute_layout_op()
-
-
 class PermuteLayout(TilePrimitiveCall):
     """Move data so the buffer's bytes are arranged under a different layout.
 
@@ -605,25 +565,3 @@ class PermuteLayout(TilePrimitiveCall):
     @property
     def dsts(self) -> list[PrimExpr]:
         return [self.dst]
-
-
-class GenericOp(TilePrimitiveCall):
-    """Generic operator for dynamically-resolved TIRx ops."""
-
-    def __init__(self, *args, op_name=None, workspace=None, config=None, dispatch=None):
-        workspace = workspace or {}
-        config = config or {}
-        tirx_name = f"tirx.{op_name}"
-        try:
-            resolved_op = Op.get(tirx_name)
-        except Exception:
-            from tvm.ir import _ffi_api as ir_ffi
-            from tvm.ir.op import register_op_attr
-
-            ir_ffi.RegisterOp(tirx_name, f"Dynamic tirx op: {op_name}")
-            register_op_attr(tirx_name, "TIsTIRxOp", True)
-            resolved_op = Op.get(tirx_name)
-        args = list(map(normalize_const_arg, args))
-        self.__init_handle_by_constructor__(
-            _ffi_api.TilePrimitiveCall, resolved_op, args, workspace, config, dispatch
-        )

@@ -30,7 +30,8 @@ except ImportError:
 import tvm
 import tvm.testing
 from tvm.ir.type import PointerType, PrimType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TCol, TileLayout, TLane, tcgen05_atom_layout
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 from tvm.tirx.operator.tile_primitive.cuda.gemm_async import sf_tmem_layout
@@ -210,68 +211,61 @@ def test_gemm_tcgen05_cta_group_1(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cta_id = Tx.cta_id([1])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
-        Tx.cuda.cta_sync()
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
+        T.cuda.cta_sync()
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-                Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
+            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], dispatch="tcgen05")  # noqa: E501
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], dispatch="tcgen05")  # noqa: E501
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        C_reg = Tx.alloc_local(width, dtype=C_dtype)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
+            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -322,81 +316,75 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     c_layout = tmem_datapath_layout("F", 64, N)
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_layout_f(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
+    @T.prim_func
+    def gemm_layout_f(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([4])
-        cta_id  = Tx.cta_id([1])
-        wg_id   = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
-        lane_id = Tx.lane_id([32])
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        cta_id  = T.cta_id([1])
+        wg_id   = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
+        lane_id = T.lane_id([32])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=64, cta_group=1)
-        Tx.cuda.cta_sync()
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=64, cta_group=1)
+        T.cuda.cta_sync()
         # Layout F C operand — the path under test.
-        tmem = Tx.decl_buffer((64, N), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=c_layout)  # noqa: E501
+        tmem = T.decl_buffer((64, N), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=c_layout)  # noqa: E501
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem[:, :], A[:, :], **tma_args)
-                Tx.copy_async(B_smem[:, :], B[:, :], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), (M * K + N * K) * 2)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[:, :], A[:, :], **tma_args)
+            Tx.copy_async(B_smem[:, :], B[:, :], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), (M * K + N * K) * 2)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.gemm_async(tmem[0:64, 0:N], A_smem[:, :], B_smem[:, :], dispatch="tcgen05")
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
-        Tx.ptx.tcgen05.fence.after_thread_sync()
+            Tx.gemm_async(tmem[0:64, 0:N], A_smem[:, :], B_smem[:, :], dispatch="tcgen05")
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence.after_thread_sync()
 
         # Read back via .16x256b M=64 (the canonical pairing).
-        reg = Tx.alloc_local(32, dtype="float32")
+        reg = T.alloc_local(32, dtype="float32")
         reg_view = reg.view(64, N, layout=tcgen05_atom_layout("16x256b", (64, N), "float32"))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(reg_view[:, :], tmem[0:64, 0:N])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
+            Tx.wg.copy_async(reg_view[:, :], tmem[0:64, 0:N])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
 
         # Per-(reg -> row, col) decomposition for .16x256b M=64 fp32 (BT=64 -> rep=8):
         #   r = v0p + 2*va + 4*vb,   v0p in {0,1}, va in {0,1}, vb in [0, 8)
         #   row = (lane_id >> 2) + 8*va + 16*warp_id
         #   col = v0p + ((lane_id & 3) << 1) + 8*vb
-        for vb in Tx.unroll(8):
-            for va in Tx.unroll(2):
-                for v0p in Tx.unroll(2):
-                    r: Tx.let = v0p + 2 * va + 4 * vb
-                    row: Tx.let = (lane_id >> 2) + 8 * va + 16 * warp_id
-                    col: Tx.let = v0p + ((lane_id & 3) << 1) + 8 * vb
+        for vb in T.unroll(8):
+            for va in T.unroll(2):
+                for v0p in T.unroll(2):
+                    r: T.let = v0p + 2 * va + 4 * vb
+                    row: T.let = (lane_id >> 2) + 8 * va + 16 * warp_id
+                    col: T.let = v0p + ((lane_id & 3) << 1) + 8 * vb
                     C[row, col] = reg[r]
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=64, cta_group=1)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=64, cta_group=1)
     # fmt: on
 
     dev = tvm.cuda(0)
@@ -464,77 +452,70 @@ def test_gemm_tcgen05_cta_group_2(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cbx, cby = Tx.cta_id_in_cluster([2, 1])
-        cta_id = Tx.cta_id([2])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cbx, cby = T.cta_id_in_cluster([2, 1])
+        cta_id = T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
+        A_smem = T.alloc_buffer(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: Tx.let[Tx.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = Tx.reinterpret("handle", Tx.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
-        tma_mbar_cta_0 = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        Tx.ptx.fence.mbarrier_init()
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
-        tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.copy_async(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
-                Tx.copy_async(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
-                if cbx == 0:
-                    Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+            Tx.copy_async(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
+            Tx.copy_async(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
+            if cbx == 0:
+                T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
 
         if cbx == 0:
-            Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-            Tx.ptx.tcgen05.fence.after_thread_sync()
-            Tx.cuda.cta_sync()
+            T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+            T.ptx.tcgen05.fence.after_thread_sync()
+            T.cuda.cta_sync()
             if tid_in_wg == 0:
-                with Tx.thread():
-                    Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], dispatch="tcgen05", cta_group=2)  # noqa: E501
-                    Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3) # signal cta 1's mbarrier  # noqa: E501
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0) # both cta 0 and cta 1 have done mma
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        Tx.cuda.cta_sync()
+                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3) # signal cta 1's mbarrier  # noqa: E501
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0) # both cta 0 and cta 1 have done mma
+        T.ptx.tcgen05.fence.after_thread_sync()
+        T.cuda.cta_sync()
 
-        C_reg = Tx.alloc_local(width , dtype=C_dtype)
+        C_reg = T.alloc_local(width , dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width])  # noqa: E501
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[cbx * 128 +tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
-        Tx.cuda.cta_sync()
+            Tx.wg.copy_async(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width])  # noqa: E501
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[cbx * 128 +tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -599,87 +580,77 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     total_bytes = per_cta_bytes * 2
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, (M_per_cta * 2, K), A_dtype)
-        B = Tx.match_buffer(B_ptr, (N_logical, K), B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (M_per_cta * 2, K), A_dtype)
+        B = T.match_buffer(B_ptr, (N_logical, K), B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cbx, cby = Tx.cta_id_in_cluster([2, 1])
-        cta_id = Tx.cta_id([2])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cbx, cby = T.cta_id_in_cluster([2, 1])
+        cta_id = T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: Tx.let[Tx.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = Tx.reinterpret("handle", Tx.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
-        tma_mbar_cta_0 = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
-                # Logical TMEM buffer: (64, N_logical) with 2x2 shard layout
-        tmem = Tx.decl_buffer((M_per_cta, N_logical), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M_per_cta, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]))  # noqa: E501
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
+        tmem = T.decl_buffer((M_per_cta, N_logical), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M_per_cta, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]))  # noqa: E501
                 # Physical TMEM view for readback: (128, N_half) standard layout
-        tmem_phys = Tx.decl_buffer((128, N_half), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, N_half) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        Tx.ptx.fence.mbarrier_init()
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+        tmem_phys = T.decl_buffer((128, N_half), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, N_half) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
-        tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            with Tx.thread():
-                        # CTA cbx loads its portion of A and B
-                Tx.copy_async(A_smem[0:M_per_cta, 0:K], A[cbx * M_per_cta:(cbx + 1) * M_per_cta, 0:K], **tma_args)  # noqa: E501
-                Tx.copy_async(B_smem[0:N_half, 0:K], B[cbx * N_half:(cbx + 1) * N_half, 0:K], **tma_args)  # noqa: E501
-                if cbx == 0:
-                    Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+                    # CTA cbx loads its portion of A and B
+            Tx.copy_async(A_smem[0:M_per_cta, 0:K], A[cbx * M_per_cta:(cbx + 1) * M_per_cta, 0:K], **tma_args)  # noqa: E501
+            Tx.copy_async(B_smem[0:N_half, 0:K], B[cbx * N_half:(cbx + 1) * N_half, 0:K], **tma_args)  # noqa: E501
+            if cbx == 0:
+                T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
 
         if cbx == 0:
-            Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-            Tx.ptx.tcgen05.fence.after_thread_sync()
-            Tx.cuda.cta_sync()
+            T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+            T.ptx.tcgen05.fence.after_thread_sync()
+            T.cuda.cta_sync()
             if tid_in_wg == 0:
-                with Tx.thread():
-                    Tx.gemm_async(tmem[0:M_per_cta, 0:N_logical], A_smem[0:M_per_cta, 0:K], B_smem[0:N_half, 0:K], dispatch="tcgen05", cta_group=2)  # noqa: E501
-                    Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        Tx.cuda.cta_sync()
+                Tx.gemm_async(tmem[0:M_per_cta, 0:N_logical], A_smem[0:M_per_cta, 0:K], B_smem[0:N_half, 0:K], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        T.cuda.cta_sync()
 
                 # Readback from physical TMEM view (128 rows x N_half cols)
                 # Warps 0,1 (rows 0-63): first N half for M rows 0-63
                 # Warps 2,3 (rows 64-127): second N half for M rows 0-63
-        C_reg = Tx.alloc_local(N_half, dtype=C_dtype)
+        C_reg = T.alloc_local(N_half, dtype=C_dtype)
         C_view = C_reg.view(128, N_half, layout=TileLayout(S[(128, N_half) : (1 @ axis_tid_in_wg, 1)]))  # noqa: E501
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem_phys[0:128, 0:N_half])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-
-                # Write to global: thread t holds M_row = t%64, N_half_idx = t//64
-        with Tx.thread():
-            n_off = (tid_in_wg // 64) * N_half
-            Tx.copy(C[cbx * M_per_cta + tid_in_wg % 64, n_off : n_off + N_half], C_reg[:])
-        Tx.cuda.cta_sync()
+            Tx.wg.copy_async(C_view[:, :], tmem_phys[0:128, 0:N_half])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        n_off = (tid_in_wg // 64) * N_half
+        Tx.copy(C[cbx * M_per_cta + tid_in_wg % 64, n_off : n_off + N_half], C_reg[:])
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -722,7 +693,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     """Test block-scaled fp8 GEMM with cta_group=1 using gemm_async op.
 
     Uses random per-row quantization with float8_e8m0fnu scale factors
-    loaded via tcgen05.cp. Reference: C = dequant(A) @ dequant(B).Tx.
+    loaded via tcgen05.cp. Reference: C = dequant(A) @ dequant(B).T.
     """
     (
         (C_shape, C_dtype, C_region),
@@ -774,101 +745,90 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async_fn(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle, SFA_ptr: Tx.handle, SFB_ptr: Tx.handle) -> None:  # noqa: E501
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
-        SFA_in = Tx.match_buffer(SFA_ptr, (128,), "uint32")
-        SFB_in = Tx.match_buffer(SFB_ptr, (128,), "uint32")
+    @T.prim_func
+    def gemm_async_fn(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, SFA_ptr: T.handle, SFB_ptr: T.handle) -> None:  # noqa: E501
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        SFA_in = T.match_buffer(SFA_ptr, (128,), "uint32")
+        SFB_in = T.match_buffer(SFB_ptr, (128,), "uint32")
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cta_id = Tx.cta_id([1])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        SFA_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
-        SFB_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        SFA_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFB_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
         SFA_smem_post = SFA_smem.view(4, 32, layout=SF_smem_post_layout)
         SFB_smem_post = SFB_smem.view(4, 32, layout=SF_smem_post_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
-        descSFA = Tx.alloc_buffer((1,), "uint64", scope="local")
-        descSFB = Tx.alloc_buffer((1,), "uint64", scope="local")
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        descSFA = T.alloc_buffer((1,), "uint64", scope="local")
+        descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
-        Tx.cuda.cta_sync()
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
+        T.cuda.cta_sync()
 
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = Tx.decl_buffer((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = Tx.decl_buffer((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        sfa_tmem = T.decl_buffer((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
+        sfb_tmem = T.decl_buffer((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-                Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
-
-                # Load packed scale factors from global to shared memory
-        with Tx.thread():
-            SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
-            SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
+            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
+        SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            with Tx.warp():
-                Tx.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-                Tx.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
-        Tx.cuda.cta_sync()
+            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
+            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+        T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp, then issue MMA
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
 
-                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
                 # Copy result from tmem to global
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        C_reg = Tx.alloc_local(width, dtype=C_dtype)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
+            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -926,7 +886,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     """Test block-scaled fp8 GEMM with cta_group=2 using gemm_async op.
 
     Uses random per-row SFA quantization (256 rows, indexed by cbx per CTA)
-    and uniform SFB. Reference: C = dequant(A) @ dequant(B).Tx.
+    and uniform SFB. Reference: C = dequant(A) @ dequant(B).T.
     """
     (
         (C_shape, C_dtype, C_region),
@@ -980,115 +940,103 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async_fn(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle, SFA_ptr: Tx.handle, SFB_ptr: Tx.handle) -> None:  # noqa: E501
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
-        SFA_in = Tx.match_buffer(SFA_ptr, (M_total,), "uint32")
-        SFB_in = Tx.match_buffer(SFB_ptr, (128,), "uint32")
+    @T.prim_func
+    def gemm_async_fn(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, SFA_ptr: T.handle, SFB_ptr: T.handle) -> None:  # noqa: E501
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        SFA_in = T.match_buffer(SFA_ptr, (M_total,), "uint32")
+        SFB_in = T.match_buffer(SFB_ptr, (128,), "uint32")
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cbx, cby = Tx.cta_id_in_cluster([2, 1])
-        cta_id = Tx.cta_id([2])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cbx, cby = T.cta_id_in_cluster([2, 1])
+        cta_id = T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
-        SFA_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
-        SFB_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        A_smem = T.alloc_buffer(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
+        SFA_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFB_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
         SFA_smem_post = SFA_smem.view(4, 32, layout=SF_smem_post_layout)
         SFB_smem_post = SFB_smem.view(4, 32, layout=SF_smem_post_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
-        descSFA = Tx.alloc_buffer((1,), "uint64", scope="local")
-        descSFB = Tx.alloc_buffer((1,), "uint64", scope="local")
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        descSFA = T.alloc_buffer((1,), "uint64", scope="local")
+        descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: Tx.let[Tx.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = Tx.reinterpret("handle", Tx.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
-        tma_mbar_cta_0 = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
 
-        sfa_tmem = Tx.decl_buffer((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sf_layout)  # noqa: E501
-        sfb_tmem = Tx.decl_buffer((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sf_layout)  # noqa: E501
+        sfa_tmem = T.decl_buffer((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sf_layout)  # noqa: E501
+        sfb_tmem = T.decl_buffer((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sf_layout)  # noqa: E501
 
-        Tx.ptx.fence.mbarrier_init()
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
                 # TMA load A and B (both CTAs issue with multicast)
-        tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.copy_async(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
-                Tx.copy_async(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
-                if cbx == 0:
-                    Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-
-                # Load SFA per CTA (each CTA gets its 128 rows), SFB same for both
-        with Tx.thread():
-            SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[cbx * 128 + tid_in_wg]
-            SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            Tx.copy_async(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
+            Tx.copy_async(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
+            if cbx == 0:
+                T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[cbx * 128 + tid_in_wg]
+        SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
                 # Transpose scale factors (both CTAs)
         if warp_id == 0:
-            with Tx.warp():
-                Tx.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-                Tx.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
-        Tx.cuda.cta_sync()
+            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
+            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+        T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp (both CTAs, cta_group=2)
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
         if cbx == 0:
-            Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-            Tx.ptx.tcgen05.fence.after_thread_sync()
-            Tx.cuda.cta_sync()
+            T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+            T.ptx.tcgen05.fence.after_thread_sync()
+            T.cuda.cta_sync()
             if tid_in_wg == 0:
-                with Tx.thread():
-                    Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:128, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
-                    Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        Tx.cuda.cta_sync()
+                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:128, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        T.cuda.cta_sync()
 
                 # Copy result from tmem to global
-        C_reg = Tx.alloc_local(width, dtype=C_dtype)
+        C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width])  # noqa: E501
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[cbx * 128 + tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
-        Tx.cuda.cta_sync()
+            Tx.wg.copy_async(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width])  # noqa: E501
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[cbx * 128 + tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -1146,7 +1094,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     """Test block-scaled nvfp4 GEMM with cta_group=1.
 
     Uses float4_e2m1fn A/B with float8_e4m3fn per-row scale factors.
-    Reference: C = dequant(A) @ dequant(B).Tx.
+    Reference: C = dequant(A) @ dequant(B).T.
     """
     M, N, K = 128, 32, 256
     C_shape = (128, 512)
@@ -1184,104 +1132,93 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async_fn(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle, SFA_ptr: Tx.handle, SFB_ptr: Tx.handle) -> None:  # noqa: E501
-        A_packed = Tx.match_buffer(A_ptr, A_packed_shape, "uint8")
-        B_packed = Tx.match_buffer(B_ptr, B_packed_shape, "uint8")
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
-        SFA_in = Tx.match_buffer(SFA_ptr, (128,), "uint32")
-        SFB_in = Tx.match_buffer(SFB_ptr, (128,), "uint32")
+    @T.prim_func
+    def gemm_async_fn(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, SFA_ptr: T.handle, SFB_ptr: T.handle) -> None:  # noqa: E501
+        A_packed = T.match_buffer(A_ptr, A_packed_shape, "uint8")
+        B_packed = T.match_buffer(B_ptr, B_packed_shape, "uint8")
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        SFA_in = T.match_buffer(SFA_ptr, (128,), "uint32")
+        SFB_in = T.match_buffer(SFB_ptr, (128,), "uint32")
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cta_id = Tx.cta_id([1])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem_packed = Tx.alloc_buffer(A_packed_shape, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
-        B_smem_packed = Tx.alloc_buffer(B_packed_shape, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
-        A_smem = Tx.decl_buffer(A_fp4_shape, "float4_e2m1fn", data=A_smem_packed.data, scope="shared", layout=A_fp4_layout)  # noqa: E501
-        B_smem = Tx.decl_buffer(B_fp4_shape, "float4_e2m1fn", data=B_smem_packed.data, scope="shared", layout=B_fp4_layout)  # noqa: E501
+        A_smem_packed = T.alloc_buffer(A_packed_shape, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
+        B_smem_packed = T.alloc_buffer(B_packed_shape, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
+        A_smem = T.decl_buffer(A_fp4_shape, "float4_e2m1fn", data=A_smem_packed.data, scope="shared", layout=A_fp4_layout)  # noqa: E501
+        B_smem = T.decl_buffer(B_fp4_shape, "float4_e2m1fn", data=B_smem_packed.data, scope="shared", layout=B_fp4_layout)  # noqa: E501
 
-        SFA_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
-        SFB_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFA_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFB_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
         SFA_smem_post = SFA_smem.view(4, 32, layout=SF_smem_post_layout)
         SFB_smem_post = SFB_smem.view(4, 32, layout=SF_smem_post_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
-        descSFA = Tx.alloc_buffer((1,), "uint64", scope="local")
-        descSFB = Tx.alloc_buffer((1,), "uint64", scope="local")
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        descSFA = T.alloc_buffer((1,), "uint64", scope="local")
+        descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
-        Tx.cuda.cta_sync()
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
+        T.cuda.cta_sync()
 
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = Tx.decl_buffer((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = Tx.decl_buffer((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        sfa_tmem = T.decl_buffer((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
+        sfb_tmem = T.decl_buffer((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
 
                 # TMA load A and B as uint8
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem_packed[:, :], A_packed[:, :], **tma_args)
-                Tx.copy_async(B_smem_packed[:, :], B_packed[:, :], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
-
-                # Load packed scale factors from global to shared memory
-        with Tx.thread():
-            SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
-            SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem_packed[:, :], A_packed[:, :], **tma_args)
+            Tx.copy_async(B_smem_packed[:, :], B_packed[:, :], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
+        SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            with Tx.warp():
-                Tx.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-                Tx.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
-        Tx.cuda.cta_sync()
+            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
+            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+        T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp, then issue MMA
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
 
-                Tx.gemm_async(tmem[0:128, 0:N], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            Tx.gemm_async(tmem[0:128, 0:N], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
                 # Copy result from tmem to global
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        C_reg = Tx.alloc_local(width, dtype=C_dtype)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[0:128, 0:N])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:N])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -1328,7 +1265,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     A: (256, 256) float4_e2m1fn, split M across 2 CTAs (128 each).
     B: (64, 256) float4_e2m1fn, split N across 2 CTAs (32 each).
     Per-row SFA, uniform SFB.
-    Reference: C = dequant(A) @ dequant(B).Tx.
+    Reference: C = dequant(A) @ dequant(B).T.
     """
     M_total, N_per_cta, K = 256, 32, 256
     N_total = N_per_cta * 2  # 64
@@ -1374,118 +1311,106 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async_fn(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle, SFA_ptr: Tx.handle, SFB_ptr: Tx.handle) -> None:  # noqa: E501
-        A_packed = Tx.match_buffer(A_ptr, A_packed_shape, "uint8")
-        B_packed = Tx.match_buffer(B_ptr, B_packed_shape, "uint8")
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
-        SFA_in = Tx.match_buffer(SFA_ptr, (M_total,), "uint32")
-        SFB_in = Tx.match_buffer(SFB_ptr, (128,), "uint32")
+    @T.prim_func
+    def gemm_async_fn(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, SFA_ptr: T.handle, SFB_ptr: T.handle) -> None:  # noqa: E501
+        A_packed = T.match_buffer(A_ptr, A_packed_shape, "uint8")
+        B_packed = T.match_buffer(B_ptr, B_packed_shape, "uint8")
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        SFA_in = T.match_buffer(SFA_ptr, (M_total,), "uint32")
+        SFB_in = T.match_buffer(SFB_ptr, (128,), "uint32")
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cbx, cby = Tx.cta_id_in_cluster([2, 1])
-        cta_id = Tx.cta_id([2])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cbx, cby = T.cta_id_in_cluster([2, 1])
+        cta_id = T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem_packed = Tx.alloc_buffer(A_packed_per_cta, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
-        B_smem_packed = Tx.alloc_buffer(B_packed_per_cta, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
-        A_smem = Tx.decl_buffer(A_fp4_per_cta, "float4_e2m1fn", data=A_smem_packed.data, scope="shared", layout=A_fp4_layout)  # noqa: E501
-        B_smem = Tx.decl_buffer(B_fp4_per_cta, "float4_e2m1fn", data=B_smem_packed.data, scope="shared", layout=B_fp4_layout)  # noqa: E501
+        A_smem_packed = T.alloc_buffer(A_packed_per_cta, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
+        B_smem_packed = T.alloc_buffer(B_packed_per_cta, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
+        A_smem = T.decl_buffer(A_fp4_per_cta, "float4_e2m1fn", data=A_smem_packed.data, scope="shared", layout=A_fp4_layout)  # noqa: E501
+        B_smem = T.decl_buffer(B_fp4_per_cta, "float4_e2m1fn", data=B_smem_packed.data, scope="shared", layout=B_fp4_layout)  # noqa: E501
 
-        SFA_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
-        SFB_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFA_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFB_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
         SFA_smem_post = SFA_smem.view(4, 32, layout=SF_smem_post_layout)
         SFB_smem_post = SFB_smem.view(4, 32, layout=SF_smem_post_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
-        descSFA = Tx.alloc_buffer((1,), "uint64", scope="local")
-        descSFB = Tx.alloc_buffer((1,), "uint64", scope="local")
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        descSFA = T.alloc_buffer((1,), "uint64", scope="local")
+        descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: Tx.let[Tx.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = Tx.reinterpret("handle", Tx.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
-        tma_mbar_cta_0 = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
-        tmem = Tx.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=2)
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
 
-        sfa_tmem = Tx.decl_buffer((M_per_cta, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = Tx.decl_buffer((N_total, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        sfa_tmem = T.decl_buffer((M_per_cta, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
+        sfb_tmem = T.decl_buffer((N_total, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
 
-        Tx.ptx.fence.mbarrier_init()
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+        T.ptx.fence.mbarrier_init()
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
                 # TMA load A and B with multicast (each CTA loads its portion)
-        tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.copy_async(A_smem_packed[:, :], A_packed[cbx * M_per_cta:(cbx + 1) * M_per_cta, :], **tma_args)  # noqa: E501
-                Tx.copy_async(B_smem_packed[:, :], B_packed[cbx * N_per_cta:(cbx + 1) * N_per_cta, :], **tma_args)  # noqa: E501
-                if cbx == 0:
-                    Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-
-                # Load SFA per CTA (each CTA gets its 128 rows), SFB same for both
-        with Tx.thread():
-            SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[cbx * M_per_cta + tid_in_wg]
-            SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            Tx.copy_async(A_smem_packed[:, :], A_packed[cbx * M_per_cta:(cbx + 1) * M_per_cta, :], **tma_args)  # noqa: E501
+            Tx.copy_async(B_smem_packed[:, :], B_packed[cbx * N_per_cta:(cbx + 1) * N_per_cta, :], **tma_args)  # noqa: E501
+            if cbx == 0:
+                T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[cbx * M_per_cta + tid_in_wg]
+        SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
                 # Transpose scale factors
         if warp_id == 0:
-            with Tx.warp():
-                Tx.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-                Tx.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
-        Tx.cuda.cta_sync()
+            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
+            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+        T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
-        Tx.cuda.cta_sync()
-        Tx.cuda.cluster_sync()
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=2, multicast="warpx4")  # noqa: E501
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
 
         if cbx == 0:
-            Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-            Tx.ptx.tcgen05.fence.after_thread_sync()
-            Tx.cuda.cta_sync()
+            T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+            T.ptx.tcgen05.fence.after_thread_sync()
+            T.cuda.cta_sync()
             if tid_in_wg == 0:
-                with Tx.thread():
-                    Tx.gemm_async(tmem[0:128, 0:N_total], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:N_total, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
-                    Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        Tx.cuda.cta_sync()
+                Tx.gemm_async(tmem[0:128, 0:N_total], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:N_total, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=2, cta_mask=3)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        T.cuda.cta_sync()
 
                 # Copy result from tmem to global
-        C_reg = Tx.alloc_local(width, dtype=C_dtype)
+        C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[0:128, 0:width])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[cbx * M_per_cta + tid_in_wg, 0:width], C_reg[:])
-        Tx.cuda.cta_sync()
+            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:width])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[cbx * M_per_cta + tid_in_wg, 0:width], C_reg[:])
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=2)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
     dev = tvm.cuda(0)
@@ -1589,106 +1514,95 @@ def test_gemm_block_scaled_fp8_sf_id():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async_fn(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle, SFA_ptr: Tx.handle, SFB_ptr: Tx.handle) -> None:  # noqa: E501
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
-        SFA_in = Tx.match_buffer(SFA_ptr, (128,), "uint32")
-        SFB_in = Tx.match_buffer(SFB_ptr, (128,), "uint32")
+    @T.prim_func
+    def gemm_async_fn(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, SFA_ptr: T.handle, SFB_ptr: T.handle) -> None:  # noqa: E501
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        SFA_in = T.match_buffer(SFA_ptr, (128,), "uint32")
+        SFB_in = T.match_buffer(SFB_ptr, (128,), "uint32")
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cta_id = Tx.cta_id([1])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
-        SFA_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
-        SFB_smem = Tx.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        SFA_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
+        SFB_smem = T.alloc_buffer((4, 32), "uint32", scope="shared", layout=SF_smem_layout)
         SFA_smem_post = SFA_smem.view(4, 32, layout=SF_smem_post_layout)
         SFB_smem_post = SFB_smem.view(4, 32, layout=SF_smem_post_layout)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
-        descSFA = Tx.alloc_buffer((1,), "uint64", scope="local")
-        descSFB = Tx.alloc_buffer((1,), "uint64", scope="local")
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        descSFA = T.alloc_buffer((1,), "uint64", scope="local")
+        descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
-        Tx.cuda.cta_sync()
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
+        T.cuda.cta_sync()
 
-        tmem = Tx.decl_buffer(C_shape, C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = Tx.decl_buffer((M, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = Tx.decl_buffer((N, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.decl_buffer(C_shape, C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        sfa_tmem = T.decl_buffer((M, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
+        sfb_tmem = T.decl_buffer((N, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem[0:M, 0:K], A[0:M, 0:K], **tma_args)
-                Tx.copy_async(B_smem[0:N, 0:K], B[0:N, 0:K], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
-
-                # Load packed scale factors from global to shared memory
-        with Tx.thread():
-            SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
-            SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[0:M, 0:K], A[0:M, 0:K], **tma_args)
+            Tx.copy_async(B_smem[0:N, 0:K], B[0:N, 0:K], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        SFA_smem[tid_in_wg // 32, tid_in_wg % 32] = SFA_in[tid_in_wg]
+        SFB_smem[tid_in_wg // 32, tid_in_wg % 32] = SFB_in[tid_in_wg]
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            with Tx.warp():
-                Tx.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-                Tx.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
-        Tx.cuda.cta_sync()
+            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
+            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+        T.cuda.cta_sync()
 
                 # Copy SF to TMEM, then single MMA call (schedule auto-derives sf_id per ki)
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
-                Tx.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
-                Tx.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFA.data, SFA_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFA_TMEM_START, descSFA[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
+            T.ptx.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
+            T.ptx.tcgen05.cp(SFB_TMEM_START, descSFB[0], shape="32x128b", cta_group=1, multicast="warpx4")  # noqa: E501
 
-                        # Single call with K=128: schedule auto-encodes descI and
-                        # rotates sf_id=0,1,2,3 for each of the 4 ki iterations.
-                        # SFA/SFB region covers all 4 ki positions (num_ki elements)
-                        # so the schedule knows sf_id should rotate.
-                Tx.gemm_async(tmem[0:128, 0:N], A_smem[0:M, 0:K], B_smem[0:N, 0:K], SFA=sfa_tmem[0:M, 0:sf_mma_k * num_ki], SFB=sfb_tmem[0:N, 0:sf_mma_k * num_ki], dispatch="tcgen05")  # noqa: E501
+                    # Single call with K=128: schedule auto-encodes descI and
+                    # rotates sf_id=0,1,2,3 for each of the 4 ki iterations.
+                    # SFA/SFB region covers all 4 ki positions (num_ki elements)
+                    # so the schedule knows sf_id should rotate.
+            Tx.gemm_async(tmem[0:128, 0:N], A_smem[0:M, 0:K], B_smem[0:N, 0:K], SFA=sfa_tmem[0:M, 0:sf_mma_k * num_ki], SFB=sfb_tmem[0:N, 0:sf_mma_k * num_ki], dispatch="tcgen05")  # noqa: E501
 
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
                 # Copy result from tmem to global
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        C_reg = Tx.alloc_local(N, dtype=C_dtype)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[0:128, 0:N])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:N])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
     def per_block_quantize_fp8(mat, block_size=32):
@@ -1947,70 +1861,63 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
     B_gmem_kw = {"layout": B_gmem_layout} if B_gmem_layout is not None else {}
 
     # fmt: off
-    @Tx.prim_func
-    def gemm_async(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, A_shape, A_dtype, **A_gmem_kw)
-        B = Tx.match_buffer(B_ptr, B_shape, B_dtype, **B_gmem_kw)
-        C = Tx.match_buffer(C_ptr, C_shape, C_dtype)
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype, **A_gmem_kw)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype, **B_gmem_kw)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([(1) * 4])
-        cta_id = Tx.cta_id([1])
-        wg_id = Tx.warpgroup_id([1])
-        tid_in_wg = Tx.thread_id_in_wg([128])
+        T.device_entry()
+        warp_id = T.warp_id([(1) * 4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
 
-        A_smem = Tx.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout, align=1024)
-        B_smem = Tx.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout, align=1024)
-        tmem_addr = Tx.alloc_shared([1], "uint32")
-        tma_mbar = Tx.alloc_shared([1], "uint64")
-        mma_mbar = Tx.alloc_shared([1], "uint64")
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout, align=1024)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout, align=1024)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
-                Tx.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
-        Tx.ptx.fence.proxy_async("shared::cta")
-        Tx.cuda.cta_sync()
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.alloc(
-                    Tx.address_of(tmem_addr), n_cols=cols_alloc, cta_group=cta_group
-                )
-        Tx.cuda.cta_sync()
-        tmem = Tx.decl_buffer((M, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            T.ptx.tcgen05.alloc(
+                T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=cta_group
+            )
+        T.cuda.cta_sync()
+        tmem = T.decl_buffer((M, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                tma_args = Tx.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
-                Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-                Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
-                Tx.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
-        Tx.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
+            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            with Tx.thread():
-                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], transA=transA, transB=transB, dispatch="tcgen05", cta_group=cta_group)  # noqa: E501
-                Tx.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=cta_group)
-        Tx.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
-        Tx.cuda.cta_sync()
+            Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], transA=transA, transB=transB, dispatch="tcgen05", cta_group=cta_group)  # noqa: E501
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=cta_group)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
 
-        Tx.ptx.tcgen05.fence.after_thread_sync()
-        C_reg = Tx.alloc_local(N, dtype=C_dtype)
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(M, N, layout=TileLayout(S[(M, N) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            with Tx.warpgroup():
-                Tx.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
-                Tx.ptx.tcgen05.wait.ld()
-        Tx.cuda.cta_sync()
-        with Tx.thread():
-            Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
+            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
-            with Tx.warp():
-                Tx.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
-                Tx.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=cta_group)
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=cta_group)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=cta_group)
         # fmt: on
 
     dev = tvm.cuda(0)

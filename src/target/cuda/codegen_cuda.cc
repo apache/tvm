@@ -45,6 +45,18 @@
 namespace tvm {
 namespace codegen {
 
+namespace {
+
+bool IsOp(const tirx::CallNode* call, const Op& compat_op, const char* canonical_name) {
+  if (call->op.same_as(compat_op)) {
+    return true;
+  }
+  const auto* op_node = call->op.as<OpNode>();
+  return op_node != nullptr && op_node->name == canonical_name;
+}
+
+}  // namespace
+
 std::string GetFP8Type(DataType type) {
   std::stringstream stream;
   int32_t lanes = type.lanes();
@@ -184,8 +196,6 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
       if (iv->var->name_hint == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
         clusterCtaIdx_z_ext = op->value;
       }
-    } else if (op->attr_key == tirx::attr::kPersistentKernel) {
-      is_persistent_kernel = op->value.as<IntImmNode>()->value;
     }
     StmtVisitor::VisitStmt_(op);
   }
@@ -197,17 +207,11 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
   PrimExpr clusterCtaIdx_x_ext = IntImm(DataType::Int(32), 1);
   PrimExpr clusterCtaIdx_y_ext = IntImm(DataType::Int(32), 1);
   PrimExpr clusterCtaIdx_z_ext = IntImm(DataType::Int(32), 1);
-  bool is_persistent_kernel = false;
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
-  // Also check PrimFunc attrs for persistent kernel (decorator-level)
-  bool is_persistent = extractor.is_persistent_kernel;
-  if (!is_persistent && f->attrs->dict.count(tirx::attr::kPersistentKernel)) {
-    is_persistent = true;
-  }
   arith::Analyzer analyzer;
   PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
                                              extractor.threadIdx_z_ext);
@@ -223,8 +227,11 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
-    if (is_persistent) {
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", 1)";
+    auto min_blocks_per_sm = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM);
+    if (min_blocks_per_sm.has_value()) {
+      TVM_FFI_ICHECK_GT(min_blocks_per_sm.value(), 0);
+      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value()
+         << ")";
     } else {
       os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
     }
@@ -1005,7 +1012,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", " : ")");
     }
-  } else if (op->op.same_as(builtin::ptx_mma())) {
+  } else if (IsOp(op, builtin::ptx_mma(), "tirx.ptx.mma")) {
     // arg 0: shape: mXnXkX
     // arg 1: A layout: row/col
     // arg 2: B layout: row/col
@@ -1040,7 +1047,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
                          b_bias, c_ref, c_bias, "", "", "", bit_op, false, saturate);
 
     this->stream << asm_code;
-  } else if (op->op.same_as(builtin::ptx_mma_sp())) {
+  } else if (IsOp(op, builtin::ptx_mma_sp(), "tirx.ptx.mma_sp")) {
     // arg 0: shape: mXnXkX
     // arg 1: A layout: row/col
     // arg 2: B layout: row/col
@@ -1136,7 +1143,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
     os << dst << "[" << dst_offset << " + i] = 0.0;";
     os << "}\n";
-  } else if (op->op.same_as(tvm::tirx::builtin::ptx_mma_legacy())) {
+  } else if (IsOp(op, tvm::tirx::builtin::ptx_mma_legacy(), "tirx.ptx.mma_legacy")) {
     // args: shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
     //       a_ptr_var, a_offset, b_ptr_var, b_offset,
     //       c_ptr_var, c_offset, saturate, [bit_op]
@@ -1159,7 +1166,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
                                      a_bias, b_ref, b_bias, c_ref, c_bias, "", "", "", bit_op,
                                      false, saturate);
-  } else if (op->op.same_as(tvm::tirx::builtin::ptx_ldmatrix_legacy())) {
+  } else if (IsOp(op, tvm::tirx::builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy")) {
     // args: trans, num, type, local_ptr_var, local_offset, smem_ptr_var, smem_offset
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 7U);
@@ -1236,7 +1243,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
     os << dst << "[" << dst_offset << " + i] = 0.0;";
     os << "}\n";
-  } else if (op->op.same_as(builtin::ptx_cp_async_bulk())) {
+  } else if (IsOp(op, builtin::ptx_cp_async_bulk(), "tirx.ptx.cp_async_bulk")) {
     codegen_tags_.insert("cast_smem_ptr_to_int");
     std::string dst = this->PrintExpr(op->args[0]);
     std::string dst_offset = this->PrintExpr(op->args[1]);
@@ -1250,7 +1257,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
     std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
     this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
-  } else if (op->op.same_as(builtin::ptx_cp_async_mbarrier_arrive())) {
+  } else if (IsOp(op, builtin::ptx_cp_async_mbarrier_arrive(),
+                  "tirx.ptx.cp_async_mbarrier_arrive")) {
     codegen_tags_.insert("cast_smem_ptr_to_int");
     int barrier_arr_id = Downcast<IntImm>(op->args[0])->value;
     int barrier_id = Downcast<IntImm>(op->args[1])->value;
@@ -1260,7 +1268,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
     std::string barrier = barrier_arr + "[" + std::to_string(barrier_id) + "]";
     this->stream << PrintCpAsyncBarrierAsm(barrier);
-  } else if (op->op.same_as(builtin::ptx_ldg32())) {
+  } else if (IsOp(op, builtin::ptx_ldg32(), "tirx.ptx.ldg32")) {
     /*
     asm volatile (
         "{.reg .pred p;\n"
@@ -1522,7 +1530,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     os << "}\n"
        << "// print_buffer ends\n";
-  } else if (op->op.same_as(builtin::cuda_func_call())) {
+  } else if (op->op.same_as(builtin::cuda_func_call()) ||
+             (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
   } else if (op->op.same_as(builtin::thread_return())) {
     os << "return";

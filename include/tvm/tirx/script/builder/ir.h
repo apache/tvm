@@ -139,21 +139,6 @@ SBlockFrame Block(ffi::String name, bool no_realize = false, ffi::String exec_sc
 
 void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
 
-/*!
- * \brief Create an ExecScopeFrame for execution scope contexts.
- * \param exec_scope_name The name of the execution scope (e.g. "cta", "warp").
- * \return The ExecScopeFrame.
- */
-ExecScopeFrame ExecScopeBlock(ffi::String exec_scope_name,
-                              ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-
-ExecScopeFrame Kernel(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-ExecScopeFrame Cluster(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-ExecScopeFrame WarpGroup(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-ExecScopeFrame CTA(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-ExecScopeFrame Warp(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-ExecScopeFrame Thread(ffi::Array<PrimExpr> guards = ffi::Array<PrimExpr>());
-
 ffi::Array<tvm::tirx::Var> KernelId(ffi::Array<PrimExpr> extents, ffi::String parent);
 
 ffi::Array<tvm::tirx::Var> CtaId(ffi::Array<PrimExpr> extents, ffi::String parent);

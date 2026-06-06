@@ -28,11 +28,10 @@ When: dst and src are both shared-memory buffers, exec scope is one of
     Each group of threads reduces one spatial position via shfl_xor.
 
 Before:
-    with Tx.cta():
-        Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+    Tx.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc, group_size=8, spatial_par=4):
-    thread_data[0] = Tx.float32(0.0)
+    thread_data[0] = T.float32(0.0)
     thread_data[0] = thread_data[0] + A_smem[tid_in_scope]  # gather
     # log2(8) = 3 shuffle-xor steps with width=8
     thread_data[0] = thread_data[0] + shfl_xor(thread_data[0], 1, 8, 32)
@@ -45,12 +44,11 @@ After (scheduled PrimFunc, group_size=8, spatial_par=4):
 
 Before:
     if tid == 65:
-        with Tx.thread():
-            Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
+        Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
 After (scheduled PrimFunc):
     for spa in range(4):
-        B_smem[spa] = Tx.float32(0.0)                       # init (skipped if accum)
+        B_smem[spa] = T.float32(0.0)                       # init (skipped if accum)
         for red in range(8):
             B_smem[spa] = B_smem[spa] + A_smem[spa * 8 + red]
 """
@@ -60,7 +58,7 @@ import math
 import operator
 
 from tvm.arith.analyzer import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
@@ -169,46 +167,46 @@ def _emit_reduction_shared_cta(
             return 0
 
     def shuffle_data(thread_data):
-        @Tx.inline
+        @T.inline
         def inner_shuffle(mask, v, shuffle_mask):
-            v[0] = op_func(v[0], Tx.tvm_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
+            v[0] = op_func(v[0], T.tvm_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
 
         if n_shuffles > 0:
-            mask = Tx.tvm_warp_activemask()
+            mask = T.tvm_warp_activemask()
             for i in range(n_shuffles):
                 inner_shuffle(mask, thread_data, 1 << i)
 
-    @Tx.inline
+    @T.inline
     def sync():
         if exec_scope_name == "cta":
-            Tx.cuda.cta_sync()
+            T.cuda.cta_sync()
         elif exec_scope_name == "warpgroup":
-            Tx.cuda.warpgroup_sync(8)  # TODO: fix this hardcoded value
+            T.cuda.warpgroup_sync(8)  # TODO: fix this hardcoded value
         elif exec_scope_name == "warp":
-            Tx.cuda.warp_sync()
+            T.cuda.warp_sync()
         elif exec_scope_name == "thread":
             pass
 
     # fmt: off
-    @Tx.prim_func
+    @T.prim_func
     def impl():
         tid_in_scope = get_tid_in_scope()
-        thread_data = Tx.alloc_buffer([1], dtype=dtype, scope="local")
-        group_id = Tx.meta_var(Tx.floordiv(tid_in_scope, group_size))
-        lane_in_grp = Tx.meta_var(tid_in_scope % group_size)
-        for step in Tx.serial(Tx.ceildiv(spatial_len, spatial_par)):
-            spa_fused = Tx.meta_var(step * spatial_par + group_id)
+        thread_data = T.alloc_buffer([1], dtype=dtype, scope="local")
+        group_id = T.meta_var(T.floordiv(tid_in_scope, group_size))
+        lane_in_grp = T.meta_var(tid_in_scope % group_size)
+        for step in T.serial(T.ceildiv(spatial_len, spatial_par)):
+            spa_fused = T.meta_var(step * spatial_par + group_id)
             if spa_fused < spatial_len:
                 thread_data[0] = init_value
-                for t in Tx.serial(Tx.ceildiv(reduction_len, group_size)):
-                    red_fused = Tx.meta_var(t * group_size + lane_in_grp)
+                for t in T.serial(T.ceildiv(reduction_len, group_size)):
+                    red_fused = T.meta_var(t * group_size + lane_in_grp)
                     if red_fused < reduction_len:
-                        src_indices = Tx.meta_var(build_src_indices(spa_fused, red_fused, spatial_dims, reduce_dims, src_extent, src_st))  # noqa: E501
+                        src_indices = T.meta_var(build_src_indices(spa_fused, red_fused, spatial_dims, reduce_dims, src_extent, src_st))  # noqa: E501
                         thread_data[0] = op_func(thread_data[0], src[tuple(src_indices)])
                 shuffle_data(thread_data)
                 if lane_in_grp == 0:
-                    dst_indices = Tx.meta_var(get_indices(spa_fused, dst_st, dst_extent))
-                    dst[tuple(dst_indices)] = Tx.if_then_else(Tx.bool(accum), op_func(dst[tuple(dst_indices)], thread_data[0]), thread_data[0])  # noqa: E501
+                    dst_indices = T.meta_var(get_indices(spa_fused, dst_st, dst_extent))
+                    dst[tuple(dst_indices)] = T.if_then_else(T.bool(accum), op_func(dst[tuple(dst_indices)], thread_data[0]), thread_data[0])  # noqa: E501
 
         sync()
     # fmt: on
@@ -238,14 +236,14 @@ def _emit_reduction_shared_thread(
     assert op_func is not None
     init_value = reduce_default_value_table(dtype).get(reduce_op)
 
-    @Tx.prim_func
+    @T.prim_func
     def impl():
-        for spa_fused in Tx.serial(spatial_len):
-            dst_indices = Tx.meta_var(get_indices(spa_fused, dst_st, dst_extent))
+        for spa_fused in T.serial(spatial_len):
+            dst_indices = T.meta_var(get_indices(spa_fused, dst_st, dst_extent))
             if not accum:
                 dst[tuple(dst_indices)] = init_value
-            for red_fused in Tx.serial(reduction_len):
-                src_indices = Tx.meta_var(
+            for red_fused in T.serial(reduction_len):
+                src_indices = T.meta_var(
                     build_src_indices(
                         spa_fused, red_fused, spatial_dims, reduce_dims, src_extent, src_st
                     )

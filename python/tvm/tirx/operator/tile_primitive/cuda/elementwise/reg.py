@@ -21,7 +21,7 @@ Mirrors ``cuda/copy/reg.py``: the partition is *induced* by the layout that
 carries thread-axis info (the "anchor" operand). The region slice is absorbed
 into the sliced layout up front via ``align_operands_to_anchor`` — emit
 operates on a flat 1D per-thread view and indexes it with a scalar offset, so
-codegen never sees multi-dim ``get_indices`` inside ``Tx.vectorized``.
+codegen never sees multi-dim ``get_indices`` inside ``T.vectorized``.
 
 Two paths inside emit:
   * induced (anchor exists)   — atom-based, exactly mirrors copy reg.py
@@ -35,7 +35,7 @@ import functools
 import operator
 
 from tvm.arith import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
@@ -285,7 +285,7 @@ def _make_views_meta(per_op_carved, per_thread_total):
     iter strides at codegen time.
     """
     return {
-        op_br: Tx.decl_buffer(
+        op_br: T.decl_buffer(
             (per_thread_total,),
             op_br.buffer.dtype,
             op_br.buffer.data,
@@ -297,7 +297,7 @@ def _make_views_meta(per_op_carved, per_thread_total):
 
 
 # -----------------------------------------------------------------------------
-# Emit — packed (one PTX/CUDA call per outer chunk; no Tx.vectorized inside)
+# Emit — packed (one PTX/CUDA call per outer chunk; no T.vectorized inside)
 # -----------------------------------------------------------------------------
 def _emit_induced_packed(
     plan, vec_impl, vec_len, outer_total, per_thread_total, per_op_carved, anchor_br
@@ -306,10 +306,10 @@ def _emit_induced_packed(
     srcs = plan.srcs
     dst_br = plan.dst
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
-        views = Tx.meta_var(_make_views_meta(per_op_carved, per_thread_total))
-        # Serial loop (not Tx.unroll): Tx.unroll materializes each per-iter
+        views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
+        # Serial loop (not T.unroll): T.unroll materializes each per-iter
         # ``dst_lane_indices`` / ``src_args`` buffer as a fresh int[1]
         # declaration, multiplying by outer_total. ptxas unrolls the
         # static-bound loop without that scratch explosion.
@@ -317,7 +317,7 @@ def _emit_induced_packed(
             # Pass logical 1D coord; each buffer's own layout maps it to
             # physical at access time (handles wgmma, broadcast, etc.).
             dst_lane_indices = [[f * vec_len + k] for k in range(vec_len)]
-            src_args = Tx.meta_var(
+            src_args = T.meta_var(
                 [
                     src.scalar
                     if src.is_scalar
@@ -328,14 +328,14 @@ def _emit_induced_packed(
                     for src in srcs
                 ]
             )
-            Tx.evaluate(vec_impl.emit(views[dst_br], dst_lane_indices, src_args, extras))
+            T.evaluate(vec_impl.emit(views[dst_br], dst_lane_indices, src_args, extras))
 
     return impl
 
 
 # -----------------------------------------------------------------------------
 # Emit — scalar fallback (vec_len = 1; one element per outer iter; no
-# Tx.vectorized inside, so no codegen vec-packing of multi-dim indices).
+# T.vectorized inside, so no codegen vec-packing of multi-dim indices).
 # -----------------------------------------------------------------------------
 def _emit_induced_scalar(
     plan, spec, outer_total, per_thread_total, per_op_carved, anchor_br
@@ -346,16 +346,16 @@ def _emit_induced_scalar(
     dst_dtype = dst_br.buffer.dtype
     compute = spec.compute_scalar
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
-        views = Tx.meta_var(_make_views_meta(per_op_carved, per_thread_total))
-        # Serial loop (not Tx.unroll) — see _emit_induced_packed for why.
+        views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
+        # Serial loop (not T.unroll) — see _emit_induced_packed for why.
         for f in range(outer_total):
             # Logical 1D coord = f (vec_len = 1 in scalar path); each
             # buffer's layout maps to physical at access time.
-            src_vals = Tx.meta_var(
+            src_vals = T.meta_var(
                 [src.scalar if src.is_scalar else views[src.buf_region][f] for src in srcs]
             )
-            views[dst_br][f] = Tx.cast(compute(src_vals, extras, dst_dtype), dst_dtype)
+            views[dst_br][f] = T.cast(compute(src_vals, extras, dst_dtype), dst_dtype)
 
     return impl

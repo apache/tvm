@@ -134,6 +134,7 @@ TVM_DLL const Op& large_uint_imm();
  * (i.e., round(x.1) = x and round (x.5) = x+1)
  */
 TVM_DLL const Op& q_multiply_shift();
+TVM_DLL const Op& q_multiply_shift_per_axis();
 
 /*!
  * \brief Returns the address of an element in the buffer (see pseudocode below).
@@ -498,6 +499,11 @@ TVM_DLL const Op& tvm_call_trace_packed_lowered();
  *  }
  */
 TVM_DLL const Op& tvm_storage_sync();
+
+/*!
+ * \brief Marker where a transform should replace generated kernel initialization.
+ */
+TVM_DLL const Op& tvm_kernel_replace_point();
 
 /*!
  * \brief See pseudo code
@@ -913,6 +919,11 @@ TVM_DLL const Op& cuda_atomic_add();
 TVM_DLL const Op& cuda_thread_fence();
 
 /*!
+ * \brief tvm intrinsic for cuda warpgroup sync instruction
+ */
+TVM_DLL const Op& cuda_warpgroup_sync();
+
+/*!
  * \brief Warp-level butterfly shuffle-XOR reduction.
  *
  * cuda_warp_reduce(value, op, width) reduces value across width adjacent
@@ -951,6 +962,11 @@ TVM_DLL const Op& cuda_cta_sync();
  * \brief tvm intrinsic for cuda grid-wide sync (cooperative groups)
  */
 TVM_DLL const Op& cuda_grid_sync();
+
+/*!
+ * \brief tvm intrinsic for cuda cluster-wide sync instruction
+ */
+TVM_DLL const Op& cuda_cluster_sync();
 
 /*!
  * \brief tvm intrinsic that returns ``cooperative_groups::thread_rank()``
@@ -1053,25 +1069,19 @@ TVM_DLL const Op& ptx_reduce3_max_f32();
  */
 TVM_DLL const Op& ptx_reduce3_min_f32();
 
-/*!
- * \brief tvm intrinsic for PTX packed add instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_add_packed_f32x2();
-
-/*!
- * \brief tvm intrinsic for PTX packed subtract instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_sub_packed_f32x2();
-
-/*!
- * \brief tvm intrinsic for PTX packed multiply instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_mul_packed_f32x2();
-
-/*!
- * \brief tvm intrinsic for PTX packed FMA instruction (sm_100a+)
- */
-TVM_DLL const Op& ptx_fma_packed_f32x2();
+TVM_DLL const Op& ptx_add_f32();
+TVM_DLL const Op& ptx_add_f32x2();
+TVM_DLL const Op& ptx_add_f64();
+TVM_DLL const Op& ptx_sub_f32();
+TVM_DLL const Op& ptx_sub_f32x2();
+TVM_DLL const Op& ptx_sub_f64();
+TVM_DLL const Op& ptx_mul_f32();
+TVM_DLL const Op& ptx_mul_f32x2();
+TVM_DLL const Op& ptx_mul_f64();
+TVM_DLL const Op& ptx_fma_f32();
+TVM_DLL const Op& ptx_fma_f32x2();
+TVM_DLL const Op& ptx_fma_f64();
+TVM_DLL const Op& ptx_max_f32();
 
 }  // namespace builtin
 }  // namespace tirx

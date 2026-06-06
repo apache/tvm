@@ -54,8 +54,7 @@ namespace {
 
 // Gather every ScopeIdDef declared anywhere under a given Stmt, paired with
 // the source stmt node that declared it (for implicit-eval routing). The
-// source is either an enclosing ExecScopeStmt or the AttrStmt(kDeviceEntry)
-// marker.
+// source is the AttrStmt(kDeviceEntry) marker.
 struct ScopeIdDefWithSource {
   ScopeIdDef def;
   const StmtNode* source_stmt;
@@ -67,10 +66,6 @@ class ScopeIdDefGather : public StmtExprVisitor {
     ScopeIdDefGather gather;
     gather(stmt);
     return std::move(gather.out_);
-  }
-
-  void VisitStmt_(const ExecScopeStmtNode* op) override {
-    EnterSourceAndPartition(op, [&]() { StmtExprVisitor::VisitStmt_(op); });
   }
 
   void VisitStmt_(const AttrStmtNode* op) override {
@@ -129,7 +124,14 @@ class ElectSyncFinder : public StmtExprVisitor {
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::ptx_elect_sync())) {
+    auto is_canonical_elect_sync = [&]() {
+      if (op->op.same_as(tirx::builtin::ptx_elect_sync())) return true;
+      if (auto call_op = op->op.as<Op>()) {
+        return call_op.value()->name == "tirx.ptx.elect_sync";
+      }
+      return false;
+    };
+    if (is_canonical_elect_sync()) {
       found_ = true;
       return;
     }
@@ -183,7 +185,7 @@ class ScopeIdDefRemover : public StmtExprMutator {
 // For implicitly-named ScopeIdDefs (parser-emitted Var("")), inject an
 // Evaluate(var) at the source stmt's body so the binding stays observably
 // live in the IR even if user code never references it. Routing uses source
-// stmt-node identity to match against the surviving ExecScopeStmt nodes.
+// stmt-node identity to match against the device-entry marker.
 class ImplicitScopeIdEvalInjector : public StmtExprMutator {
  public:
   static Stmt Inject(const Stmt& stmt,
@@ -211,16 +213,6 @@ class ImplicitScopeIdEvalInjector : public StmtExprMutator {
       eval_map_.erase(it);
     }
     return evals;
-  }
-
-  Stmt VisitStmt_(const ExecScopeStmtNode* op) final {
-    Stmt body = VisitStmt(op->body);
-    auto evals = ConsumeEvalsFor(op);
-    if (!evals.empty()) {
-      body = SeqStmt::Flatten(evals, body);
-    }
-    if (body.same_as(op->body)) return ffi::GetRef<Stmt>(op);
-    return ExecScopeStmt(op->exec_scope, body);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -302,8 +294,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
 
    private:
-    Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
-      if (op->op == tirx::tvm_kernel_replace_point()) {
+    Stmt VisitStmt_(const EvaluateNode* op) final {
+      const auto* call = op->value.as<CallNode>();
+      if (call != nullptr && call->op.same_as(tirx::builtin::tvm_kernel_replace_point())) {
         return body_;
       }
       return StmtExprMutator::VisitStmt_(op);
@@ -311,20 +304,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     Stmt body_;
   };
-
-  Stmt VisitStmt_(const ExecScopeStmtNode* op) final {
-    exec_scope_stack_.push_back(op->exec_scope);
-    scope_id_defs_at_level_.push_back({});
-    bool pushed_scope_ctx = PushScopeSwitchCtx(op->exec_scope->kind);
-    Stmt body = VisitStmt(op->body);
-    if (pushed_scope_ctx) ctx_stack_.pop_back();
-    exec_scope_stack_.pop_back();
-    scope_id_defs_at_level_.pop_back();
-    if (body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return ExecScopeStmt(op->exec_scope, body);
-  }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::kDeviceEntry) {
@@ -351,16 +330,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     PrepareLaunchParams(entry_node, body_to_visit, &scope_binds);
     bool pushed_base_ctx = PushKernelEntryCtx();
 
-    bool prev_inside = inside_device_entry_;
-    int prev_size = device_entry_stack_size_;
-    inside_device_entry_ = true;
-    device_entry_stack_size_ = static_cast<int>(exec_scope_stack_.size());
     // Direct ScopeIdDefStmt children of the device-entry marker live here.
     scope_id_defs_at_level_.push_back({});
     Stmt body = VisitStmt(body_to_visit);
     scope_id_defs_at_level_.pop_back();
-    inside_device_entry_ = prev_inside;
-    device_entry_stack_size_ = prev_size;
 
     // Post-dispatch: re-gather the now-inlined body and resolve every
     // ``ScopeIdDef`` (kernel-side + dispatch-introduced) into ``scope_binds``.
@@ -424,14 +397,13 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // alloc buffers wrapping ``body`` directly.
     Stmt res = body;
 
-    // Inject implicit scope-id evals sourced from inner ExecScopeStmts.
-    // Must run before ScopeIdDefRemover, which rebuilds ExecScope nodes
-    // and invalidates source identities.
+    // Inject implicit scope-id evals sourced from the device-entry marker.
+    // Must run before ScopeIdDefRemover, which rebuilds nodes and
+    // invalidates source identities.
     res = ImplicitScopeIdEvalInjector::Inject(res, implicit_scope_id_evals);
 
-    // Strip scope_id_def from inner ExecScopeStmts and standalone
-    // ScopeIdDefStmt nodes -- their values are now bound at kernel scope via
-    // the Bind statements below.
+    // Strip standalone ScopeIdDefStmt nodes -- their values are now bound at
+    // kernel scope via the Bind statements below.
     res = ScopeIdDefRemover::Remove(res);
 
     // Prepend Bind(var, value) for every resolved scope id (and the derived
@@ -558,38 +530,27 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
+    // Scope is a per-call field on the node. Derive the (inter, intra) split
+    // on the spot from the current active set ``A`` (tracked through control
+    // flow on ``ctx_stack_``) under this call's own ``op->scope``.
     ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter_map, intra_map;
-    // scope_kind defaults to the current ExecScope's name (or "kernel" when
-    // we're at the device-region root without any inner ExecScope). When
-    // ExecContext tracking is active the tracked scope_kind wins (consistent
-    // once predicates change the active set).
-    ffi::String scope_kind;
-    ExecScope dispatch_scope;
-    if (exec_scope_stack_.empty()) {
-      // At the device-region root (inside AttrStmt(kDeviceEntry) but no
-      // inner ExecScope). Use ``kernel`` for dispatcher continuity.
-      scope_kind = "kernel";
-      dispatch_scope = ExecScope("thread");  // placeholder; not load-bearing
-    } else {
-      scope_kind = exec_scope_stack_.back()->name();
-      dispatch_scope = exec_scope_stack_.back();
-    }
+    ffi::String scope_kind = ScopeKindToString(op->scope->kind);
     if (!ctx_stack_.empty()) {
-      const auto& ctx = ctx_stack_.back();
-      inter_map = EncodeSplitSide(ctx.split.inter);
-      intra_map = EncodeSplitSide(ctx.split.intra);
-      scope_kind = ScopeKindToString(ctx.scope_kind);
+      ExecSplit split;
+      std::string err;
+      if (ScopeSwitch(ctx_stack_.back().A, op->scope->kind, &split, &err)) {
+        inter_map = EncodeSplitSide(split.inter);
+        intra_map = EncodeSplitSide(split.intra);
+      } else {
+        // Factoring failure (e.g. warpgroup with a lane that crosses a
+        // warpgroup boundary unaligned). Leave the split empty; dispatchers
+        // fall back to scope_kind. This is not validated earlier, so an
+        // incompatible per-call scope only warns here and yields a degenerate
+        // split rather than a hard error.
+        LOG(WARNING) << "ExecContext scope_switch failed: " << err;
+      }
     }
-    // Preserve the "kernel" label at the device-region root (where
-    // dispatchers historically checked ``scope_kind == "kernel"`` to fire).
-    // The root corresponds to the dispatch site whose exec_scope_stack_ size
-    // matches the size at entry to ProcessDeviceEntry (the level where the
-    // marker was opened, before any inner ExecScope is pushed).
-    if (inside_device_entry_ &&
-        static_cast<int>(exec_scope_stack_.size()) == device_entry_stack_size_) {
-      scope_kind = "kernel";
-    }
-    tirx::DispatchContext sctx(target_, dispatch_scope, launch_params_, var_range_map_,
+    tirx::DispatchContext sctx(target_, op->scope, launch_params_, var_range_map_,
                                /*alloc_only=*/false, /*callbacks=*/{}, shared_state_, inter_map,
                                intra_map, scope_kind);
     static auto f_op_dispatcher_ = ffi::Function::GetGlobal("tirx.f_op_dispatcher");
@@ -702,7 +663,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       for (size_t i = 0; i < def->def_ids.size(); i++) {
         // Reuse the original Var as the bind target -- no rename, no
         // substitution. The IR already references this Var directly, and
-        // dispatch's filter resolution walks ExecScopeStmt::scope_id_def
+        // dispatch's filter resolution walks ScopeIdDefStmt::def
         // to map Vars back to their ScopeBinding.
         Var bind_var = def->def_ids[i];
         PrimExpr value = resolved[i];
@@ -815,21 +776,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // CTA ids keep their concrete factor axes (bx/by/bz or cbx/cby/cbz).
     if (cta_axes.size() <= 1) cta_axes.clear();
     ctx_stack_.push_back(ExecContext::AtKernelEntry(/*lane_ext=*/32, warp_ext, cta_ext, cta_axes));
-    return true;
-  }
-
-  bool PushScopeSwitchCtx(ScopeKind new_scope_kind) {
-    if (ctx_stack_.empty()) return false;
-    ExecContext new_ctx;
-    std::string err;
-    if (!ctx_stack_.back().WithScopeSwitch(new_scope_kind, &new_ctx, &err)) {
-      // Factoring failure (e.g. warpgroup case 3 / world scope_switch).
-      // Pause tracking; dispatchers fall back to scope_kind. The verifier
-      // (VerifyTIRxWellFormed) is responsible for catching this earlier.
-      LOG(WARNING) << "ExecContext scope_switch failed: " << err;
-      return false;
-    }
-    ctx_stack_.push_back(new_ctx);
     return true;
   }
 
@@ -1472,17 +1418,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   ffi::Map<Var, Range> var_range_map_;
   arith::Analyzer analyzer_;
   const Target& target_;
-  std::vector<ExecScope> exec_scope_stack_;
-  // Parallel to exec_scope_stack_ plus one entry for the device-entry body
-  // itself: list of ScopeIdDefs visible at each level. Grows as
-  // ScopeIdDefStmt nodes are visited.
+  // List of ScopeIdDefs visible at each nesting level (one entry for the
+  // device-entry body itself, plus one per ScopeIdDefStmt-bearing region).
+  // Grows as ScopeIdDefStmt nodes are visited.
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
-  // True while inside the AttrStmt(kDeviceEntry) body.
-  bool inside_device_entry_ = false;
-  // ``exec_scope_stack_.size()`` at the moment ProcessDeviceEntry was called.
-  // A TilePrimitiveCall whose dispatch site is at this same stack size is at
-  // the device-entry root level (no inner ExecScope opened yet).
-  int device_entry_stack_size_ = -1;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, IterVar> launch_params_;
   std::vector<Buffer> alloc_buffers_;
@@ -1521,41 +1460,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   // No failure aggregation; pass surfaces per-op exceptions
-};
-
-class ScopeMerger : public StmtExprMutator {
- public:
-  static Stmt Merge(const Stmt& stmt) { return ScopeMerger()(stmt); }
-
- private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    if (auto* n = stmt.as<SeqStmtNode>()) {
-      std::vector<Stmt> seq;
-      for (size_t i = 0; i < n->seq.size();) {
-        if (auto* exec_scope_stmt = n->seq[i].as<ExecScopeStmtNode>()) {
-          // Find a sequence of ExecScopeStmts with the same exec_scope
-          std::vector<Stmt> new_body{exec_scope_stmt->body};
-          auto scope = exec_scope_stmt->exec_scope;
-          for (i++; i < n->seq.size(); i++) {
-            if (auto* next_exec_scope = n->seq[i].as<ExecScopeStmtNode>()) {
-              if (scope->kind == next_exec_scope->exec_scope->kind) {
-                new_body.push_back(next_exec_scope->body);
-                continue;
-              }
-            }
-            break;
-          }
-          seq.push_back(ExecScopeStmt(scope, SeqStmt::Flatten(new_body)));
-        } else {
-          seq.push_back(n->seq[i]);
-          i++;
-        }
-      }
-      return SeqStmt::Flatten(seq);
-    }
-    return stmt;
-  };
 };
 
 namespace {

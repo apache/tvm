@@ -127,12 +127,6 @@ TVM_DLL const Op& mma_fill_legacy();
 TVM_DLL const Op& ptx_ldg32();
 
 /*!
- * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
- *
- */
-TVM_DLL const Op& ptx_ldg32();
-
-/*!
  * \brief tvm intrinsic for sparse tensor core ptx instructions.
  *
  * void ptx_mma_sp(StringImm shape, StringImm A_layout, StringImm B_layout,
@@ -373,6 +367,12 @@ TVM_DLL const Op& ptx_fence_mbarrier_init();
  * ptx_fetch_register(int bits, string reg_name)
  */
 TVM_DLL const Op& ptx_fetch_register();
+
+/*!
+ * \brief PTX programmatic dependent launch synchronization.
+ */
+TVM_DLL const Op& ptx_griddepcontrol_wait();
+TVM_DLL const Op& ptx_griddepcontrol_launch_dependents();
 
 /*!
  * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.

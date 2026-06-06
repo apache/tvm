@@ -17,7 +17,7 @@
 
 """Unary elementwise ops: zero / fill / reciprocal / sqrt / exp / exp2 / silu.
 
-All carry the same ``Tx.<unary>(dst, src[, bias, scale])`` shape (bias / scale
+All carry the same ``T.<unary>(dst, src[, bias, scale])`` shape (bias / scale
 optional; ``silu`` ignores bias/scale to preserve legacy behavior).
 """
 
@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from tvm.ir.expr import PrimExpr
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, TilePrimitiveCall
 from tvm.tirx.expr import FloatImm
 
@@ -34,7 +34,7 @@ from . import OpSpec, Plan, SrcSpec
 
 
 def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-    """Tx.<unary>(dst, src[, bias, scale]) → Plan."""
+    """T.<unary>(dst, src[, bias, scale]) → Plan."""
     _dst: BufferRegion = op.args[0]
     _src = op.args[1]
     _bias = op.args[2] if len(op.args) > 2 else None
@@ -71,7 +71,7 @@ def _check_unary_extras(extras: dict, compute_dtype: str) -> tuple[bool, str | N
 
 
 def _with_bias_scale(raw_op):
-    """Wrap ``raw_op`` (e.g. ``Tx.exp``) into a compute that applies bias/scale first."""
+    """Wrap ``raw_op`` (e.g. ``T.exp``) into a compute that applies bias/scale first."""
 
     def compute(src_vals, extras, dt):
         x = src_vals[0]
@@ -97,21 +97,21 @@ def _compute_fill(src_vals, extras, dt):
 
 def _compute_reciprocal(src_vals, extras, dt):
     x = src_vals[0]
-    return Tx.FloatImm(x.dtype, 1.0) / x
+    return T.FloatImm(x.dtype, 1.0) / x
 
 
 def _compute_silu(src_vals, extras, dt):
     # Legacy: silu doesn't apply bias/scale.
     x = src_vals[0]
-    return x / (Tx.FloatImm(x.dtype, 1.0) + Tx.exp(Tx.FloatImm(x.dtype, 0.0) - x))
+    return x / (T.FloatImm(x.dtype, 1.0) + T.exp(T.FloatImm(x.dtype, 0.0) - x))
 
 
 UNARY_OPS: dict[str, OpSpec] = {
     "zero": OpSpec("zero", _parse_unary, _compute_zero, _check_unary_extras),
     "fill": OpSpec("fill", _parse_unary, _compute_fill, _check_unary_extras),
     "reciprocal": OpSpec("reciprocal", _parse_unary, _compute_reciprocal, _check_unary_extras),
-    "sqrt": OpSpec("sqrt", _parse_unary, _with_bias_scale(Tx.sqrt), _check_unary_extras),
-    "exp": OpSpec("exp", _parse_unary, _with_bias_scale(Tx.exp), _check_unary_extras),
-    "exp2": OpSpec("exp2", _parse_unary, _with_bias_scale(Tx.exp2), _check_unary_extras),
+    "sqrt": OpSpec("sqrt", _parse_unary, _with_bias_scale(T.sqrt), _check_unary_extras),
+    "exp": OpSpec("exp", _parse_unary, _with_bias_scale(T.exp), _check_unary_extras),
+    "exp2": OpSpec("exp2", _parse_unary, _with_bias_scale(T.exp2), _check_unary_extras),
     "silu": OpSpec("silu", _parse_unary, _compute_silu, _check_unary_extras),
 }

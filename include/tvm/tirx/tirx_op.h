@@ -189,6 +189,8 @@ TVM_DLL const Op& sqrt();
 
 TVM_DLL const Op& exp();
 
+TVM_DLL const Op& exp2();
+
 TVM_DLL const Op& add();
 
 TVM_DLL const Op& sub();
@@ -221,12 +223,13 @@ TVM_DLL const Op& binary_chain();
 
 TVM_DLL const Op& select();
 
-/*!
- * \brief See pesudo code below:
- *
- *  tvm_kernel_replace_point()
- */
-TVM_DLL const Op& tvm_kernel_replace_point();
+TVM_DLL const Op& fma();
+
+TVM_DLL const Op& silu();
+
+TVM_DLL const Op& compose_op();
+
+TVM_DLL const Op& permute_layout();
 
 }  // namespace tirx
 }  // namespace tvm

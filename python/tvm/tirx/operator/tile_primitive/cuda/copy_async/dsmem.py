@@ -21,7 +21,7 @@ import functools
 import operator
 
 import tvm
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -132,7 +132,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     outer_src_strides = [grouped_src.shard[i].stride for i in outer_shard_indices]
     outer_dst_strides = [grouped_dst.shard[i].stride for i in outer_shard_indices]
 
-    # Helper to compute element offsets from loop variables (called via Tx.meta_var)
+    # Helper to compute element offsets from loop variables (called via T.meta_var)
     def compute_offsets(loop_vars):
         if len(outer_extents) == 1:
             lvs = [loop_vars]
@@ -149,27 +149,27 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     dst_tile = to_tile_layout(dst_buf.layout, dst_buf.shape)
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         # Map mbar to remote CTA (complete_tx targets the destination's mbar)
-        remote_mbar = Tx.ptx.map_shared_rank(mbar, remote_cta_id)
+        remote_mbar = T.ptx.map_shared_rank(mbar, remote_cta_id)
 
         if not outer_extents:
             # Single contiguous chunk — no iteration needed
             src_ptr = src_buf.ptr_to(src_st)
-            cluster_dst = Tx.ptx.map_shared_rank(dst_buf.ptr_to(dst_st), remote_cta_id)
-            Tx.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
+            cluster_dst = T.ptx.map_shared_rank(dst_buf.ptr_to(dst_st), remote_cta_id)
+            T.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
         else:
-            for loop_vars in Tx.grid(*outer_extents):
-                src_elem_offset, dst_elem_offset = Tx.meta_var(compute_offsets(loop_vars))
+            for loop_vars in T.grid(*outer_extents):
+                src_elem_offset, dst_elem_offset = T.meta_var(compute_offsets(loop_vars))
 
-                src_buf_w = Tx.decl_buffer(
+                src_buf_w = T.decl_buffer(
                     src_buf.shape, src_buf.dtype, src_buf.data,
                     elem_offset=src_buf.elem_offset + src_elem_offset,
                     scope=src_buf.scope(),
                     layout=src_tile,
                 )
-                dst_buf_w = Tx.decl_buffer(
+                dst_buf_w = T.decl_buffer(
                     dst_buf.shape, dst_buf.dtype, dst_buf.data,
                     elem_offset=dst_buf.elem_offset + dst_elem_offset,
                     scope=dst_buf.scope(),
@@ -177,8 +177,8 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
                 )
 
                 src_ptr = src_buf_w.ptr_to(src_st)
-                cluster_dst = Tx.ptx.map_shared_rank(dst_buf_w.ptr_to(dst_st), remote_cta_id)
-                Tx.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
+                cluster_dst = T.ptx.map_shared_rank(dst_buf_w.ptr_to(dst_st), remote_cta_id)
+                T.ptx.cp_async.bulk.s2c(cluster_dst, src_ptr, chunk_bytes, remote_mbar)
     # fmt: on
 
     return impl

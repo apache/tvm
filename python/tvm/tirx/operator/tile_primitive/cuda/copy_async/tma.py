@@ -48,7 +48,7 @@ from dataclasses import dataclass
 
 import tvm
 from tvm.arith import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, Layout, S, SwizzleLayout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
@@ -1166,17 +1166,17 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         tensor_map = cached_tensormap
         tensormap_is_cached = True
     else:
-        tensor_map = Tx.Var(
-            g_buf.data.name + "_tensormap", dtype=Tx.handle("tensormap").type_annotation
+        tensor_map = T.Var(
+            g_buf.data.name + "_tensormap", dtype=T.handle("tensormap").type_annotation
         )
         tensormap_is_cached = False
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
-        for loop_vars in Tx.unroll(flat_total_extent):
-            s_offset, tma_coords = Tx.meta_var(compute_offsets_and_tma_coords(loop_vars))
-            s_buf_w_offset = Tx.decl_buffer(
+        for loop_vars in T.unroll(flat_total_extent):
+            s_offset, tma_coords = T.meta_var(compute_offsets_and_tma_coords(loop_vars))
+            s_buf_w_offset = T.decl_buffer(
                 s_buf.shape,
                 s_buf.dtype,
                 s_buf.data,
@@ -1186,11 +1186,11 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
             )
 
             if direction == "g2s":
-                Tx.ptx.cp_async.bulk.tensor.g2c(
+                T.ptx.cp_async.bulk.tensor.g2c(
                     plan.rank,
                     s_buf_w_offset.ptr_to(s_st),
                     mbar,
-                    Tx.address_of(tensor_map),
+                    T.address_of(tensor_map),
                     cta_mask,
                     cta_group,
                     op_call.config.get("cache_hint", ""),
@@ -1198,18 +1198,18 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 )
             else:
                 if use_tma_reduce is None:
-                    Tx.ptx.cp_async.bulk.tensor.s2g(
+                    T.ptx.cp_async.bulk.tensor.s2g(
                         plan.rank,
                         s_buf_w_offset.ptr_to(s_st),
-                        Tx.address_of(tensor_map),
+                        T.address_of(tensor_map),
                         op_call.config.get("cache_hint", ""),
                         *tma_coords,
                     )
                 else:
-                    Tx.ptx.cp_async.bulk.tensor.s2g_reduce(
+                    T.ptx.cp_async.bulk.tensor.s2g_reduce(
                         plan.rank,
                         s_buf_w_offset.ptr_to(s_st),
-                        Tx.address_of(tensor_map),
+                        T.address_of(tensor_map),
                         op_call.config.get("cache_hint", ""),
                         use_tma_reduce,
                         *tma_coords,
@@ -1218,10 +1218,10 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
 
     if not tensormap_is_cached:
         # fmt: off
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def create_tensor_map():
-            Tx.Bind(Tx.tvm_stack_alloca("tensormap", 1), var=tensor_map)
-            Tx.call_packed(
+            T.Bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
+            T.call_packed(
                 "runtime.cuTensorMapEncodeTiled",
                 tensor_map,
                 plan.elem_dtype,
@@ -1236,7 +1236,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
                 oob_fill_kind,
             )
-            Tx.tvm_kernel_replace_point()
+            T.tvm_kernel_replace_point()
         # fmt: on
 
         sctx.add_init_stmt(create_tensor_map.body, host=True)
@@ -1250,11 +1250,11 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
             warp_id_in_cta = sctx.launch_params["warp_id_in_cta"].var
 
             # fmt: off
-            @Tx.prim_func(check_well_formed=False)
+            @T.prim_func(check_well_formed=False)
             def prefetch_tensor_map():
                 if warp_id_in_cta == 0:
-                    Tx.ptx.prefetch_tensormap(Tx.address_of(tensor_map))
-                Tx.tvm_kernel_replace_point()
+                    T.ptx.prefetch_tensormap(T.address_of(tensor_map))
+                T.tvm_kernel_replace_point()
             # fmt: on
 
             sctx.add_init_stmt(prefetch_tensor_map.body)

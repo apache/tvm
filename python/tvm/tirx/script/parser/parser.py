@@ -641,7 +641,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         if ann is None:
                             raise
                     if ann is _constexpr_sentinel:
-                        # Tx.constexpr param: value was bound in extra_vars by
+                        # T.constexpr param: value was bound in extra_vars by
                         # TIRJit.specialize() and lives in an outer var_table
                         # frame; do not register a runtime PrimFunc param.
                         continue

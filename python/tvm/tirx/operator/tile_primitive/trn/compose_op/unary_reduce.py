@@ -17,7 +17,7 @@
 
 """Implementation of UnaryReduce dispatch."""
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import UnaryReduce
@@ -68,10 +68,10 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     inst_size_limit = op.config.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
 
-    p_var = Tx.Var("P", "int32")
-    f_var = Tx.Var("F", "int32")
-    reduction_b_var = Tx.Var("rB", "int32")
-    spatial_b_var = Tx.Var("sB", "int32")
+    p_var = T.Var("P", "int32")
+    f_var = T.Var("F", "int32")
+    reduction_b_var = T.Var("rB", "int32")
+    spatial_b_var = T.Var("sB", "int32")
     p_size = unary_output.buffer.layout.size("P")
     inst_gen.bind_inst_iter(unary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(unary_output, f_var, inst_repr.size, inst_repr.stride, True)
@@ -97,22 +97,22 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     if reduction_b_extent == 1:
         # Direct implementation without intermediate buffer
         # fmt: off
-        @Tx.prim_func
+        @T.prim_func
         def impl():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
-                            src_1_indices = Tx.meta_var(inst_gen.generate_indices(unary_input))
-                            dst_1_indices = Tx.meta_var(inst_gen.generate_indices(unary_output))
-                            dst_2_indices = Tx.meta_var(inst_gen.generate_indices(reduce_output))
+                            src_1_indices = T.meta_var(inst_gen.generate_indices(unary_input))
+                            dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
+                            dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(unary_output):
                                 if isinstance(bias, BufferRegion):
-                                    src_bias_indices = Tx.meta_var(inst_gen.generate_indices(bias))
-                                    Tx.evaluate(Tx.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
+                                    src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))
+                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                 else:
-                                    Tx.evaluate(Tx.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
+                                    T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
         # fmt: on
 
         import tvm
@@ -122,30 +122,30 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         return mod["main"]
     else:
         # fmt: off
-        @Tx.prim_func
+        @T.prim_func
         def impl():
-            for b_loop in Tx.serial(0, spatial_b_extent):
-                for reduction_b_loop in Tx.serial(0, reduction_b_extent):
-                    with Tx.attr(0, "tensorized_nki_instruction", 1):
-                        for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                            for f_loop in Tx.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
+            for b_loop in T.serial(0, spatial_b_extent):
+                for reduction_b_loop in T.serial(0, reduction_b_extent):
+                    with T.attr(0, "tensorized_nki_instruction", 1):
+                        for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                            for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
-                                src_1_indices = Tx.meta_var(inst_gen.generate_indices(unary_input))
-                                dst_1_indices = Tx.meta_var(inst_gen.generate_indices(unary_output))
+                                src_1_indices = T.meta_var(inst_gen.generate_indices(unary_input))
+                                dst_1_indices = T.meta_var(inst_gen.generate_indices(unary_output))
                                 if inst_gen.make_guard(unary_output):
                                     if isinstance(bias, BufferRegion):
-                                        src_bias_indices = Tx.meta_var(inst_gen.generate_indices(bias))  # noqa: E501
-                                        Tx.evaluate(Tx.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
+                                        src_bias_indices = T.meta_var(inst_gen.generate_indices(bias))  # noqa: E501
+                                        T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:
-                                        Tx.evaluate(Tx.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
-                with Tx.attr(0, "tensorized_nki_instruction", 1):
-                    for p_loop in Tx.serial(0, p_size, annotations={nki_dim: "P"}):
-                        for f_loop in Tx.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
+                                        T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
+                with T.attr(0, "tensorized_nki_instruction", 1):
+                    for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
+                        for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
                             if inst_gen.make_guard(reduce_output):
-                                dst_2_indices = Tx.meta_var(inst_gen.generate_indices(reduce_output))  # noqa: E501
+                                dst_2_indices = T.meta_var(inst_gen.generate_indices(reduce_output))
                                 # TODO: we should use nki.activation_reduce as second stage reduction  # noqa: E501
-                                Tx.evaluate(Tx.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1))  # noqa: E501
+                                T.evaluate(T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_buffer[p_loop, f_loop], reduce_opcode, False, -1))  # noqa: E501
         # fmt: on
 
         return impl
@@ -160,7 +160,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         predicate(
             "exec_scope",
             lambda op, sctx: (
-                sctx.scope_kind == "kernel",
+                sctx.scope_kind == "thread",
                 f"unsupported exec_scope {sctx.scope_kind}",
             ),
         )

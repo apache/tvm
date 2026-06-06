@@ -315,7 +315,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
         // cuda_func_call: last arg is source_code (keyword-only in the Python API).
         // Print it as source_code=... to enable TVMScript round-trip.
-        if (op->name == "tirx.cuda_func_call") {
+        if (op->name == "tirx.cuda_func_call" || op->name == "tirx.cuda.func_call") {
           int n_args = call->args.size();
           ffi::Array<ExprDoc> args;
           // All args except the last (source_code) are positional.

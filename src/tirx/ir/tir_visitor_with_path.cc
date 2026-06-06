@@ -327,10 +327,6 @@ void TIRVisitorWithPath::VisitStmt_(const tirx::TilePrimitiveCallNode* op, Acces
   }
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ExecScopeStmtNode* op, AccessPath path) {
-  Visit(op->body, path->Attr("body"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath path) {
   // Flat stmt -- no body. Visit extents and preferred_extents (if present),
   // then push the bound Var(s) into the current scope so subsequent siblings

@@ -215,12 +215,12 @@ class TIRJit:
     """Top-level kernel decorator with constexpr params + ``.specialize()``.
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
-    supplies concrete values for the params annotated as ``Tx.constexpr``. The
+    supplies concrete values for the params annotated as ``T.constexpr``. The
     return type of ``.specialize()`` is a ``tvm.tirx.PrimFunc``, identical in
-    type to what ``@Tx.prim_func`` produces today.
+    type to what ``@T.prim_func`` produces today.
 
     Constexpr params are removed from the resulting PrimFunc's parameter list;
-    their values are baked into the IR (e.g. into ``Tx.Buffer((M, K), ...)``
+    their values are baked into the IR (e.g. into ``T.Buffer((M, K), ...)``
     shape annotations and into the body).
     """
 
@@ -240,11 +240,11 @@ class TIRJit:
         # Resolved closure vars (computed once; the function itself is the
         # capture point, so this never changes between specializations).
         self._closure_vars: dict[str, Any] = utils.inspect_function_capture(func)
-        # Detect which params are marked Tx.constexpr. With PEP 563
+        # Detect which params are marked T.constexpr. With PEP 563
         # (``from __future__ import annotations``), each annotation is a
         # string; we eval them one-by-one so a constexpr probe is not
         # blocked by sibling annotations that reference yet-undefined names
-        # (e.g. ``A: Tx.Buffer((N,), ...)`` referencing constexpr ``N``).
+        # (e.g. ``A: T.Buffer((N,), ...)`` referencing constexpr ``N``).
         raw_anns = getattr(func, "__annotations__", {}) or {}
         eval_globals = {**func.__globals__, **self._closure_vars}
         sig = inspect.signature(func)
@@ -271,7 +271,7 @@ class TIRJit:
         Parameters
         ----------
         **constexpr_kwargs
-            One value per ``Tx.constexpr``-annotated parameter. All such
+            One value per ``T.constexpr``-annotated parameter. All such
             parameters must be supplied; passing names that are not
             constexpr-annotated is an error.
 
@@ -279,7 +279,7 @@ class TIRJit:
         -------
         PrimFunc
             A concrete TIRx PrimFunc, identical in type to the output of
-            ``@Tx.prim_func``.
+            ``@T.prim_func``.
         """
         extra = constexpr_kwargs.keys() - self.constexpr_names
         if extra:
@@ -327,24 +327,23 @@ def jit(
 ) -> "TIRJit | Callable":
     """Decorator: capture the kernel and defer parsing until ``.specialize()``.
 
-    Use ``@Tx.jit`` (instead of ``@Tx.prim_func``) when the kernel takes
-    compile-time parameters annotated with ``Tx.constexpr``. The resulting
+    Use ``@T.jit`` (instead of ``@T.prim_func``) when the kernel takes
+    compile-time parameters annotated with ``T.constexpr``. The resulting
     object exposes ``.specialize(**constexpr_kwargs)``, which returns a
     ``tvm.tirx.PrimFunc``.
 
     Example::
 
-        from tvm.script import tirx as Tx
+        from tvm.script import tirx as T
 
-        @Tx.jit
+        @T.jit
         def add(
-            A: Tx.Buffer((N,), "float32"),
-            B: Tx.Buffer((N,), "float32"),
+            A: T.Buffer((N,), "float32"),
+            B: T.Buffer((N,), "float32"),
             *,
-            N: Tx.constexpr,
+            N: T.constexpr,
         ):
-            with Tx.thread():
-                ...
+            ...
 
         kernel = add.specialize(N=1024)  # returns a PrimFunc
     """
@@ -503,7 +502,7 @@ class PtrProxy:
 class _ConstexprProxy:
     """Sentinel marker for compile-time (specialization-time) parameters.
 
-    Used as a parameter annotation in ``@Tx.jit`` decorated functions to mark
+    Used as a parameter annotation in ``@T.jit`` decorated functions to mark
     a parameter as constexpr — its value is supplied to ``.specialize(**kwargs)``
     rather than at call time, and it is removed from the generated PrimFunc's
     runtime parameter list.

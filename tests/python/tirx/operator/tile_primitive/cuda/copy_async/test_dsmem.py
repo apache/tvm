@@ -28,7 +28,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx import IntImm, Var
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
@@ -69,7 +70,7 @@ class _S2CCounter(StmtExprVisitor):
 
     def visit_evaluate_(self, op):
         if isinstance(op.value, tvm.tirx.Call):
-            if op.value.op.name == "tirx.ptx_cp_async_bulk_shared_to_cluster":
+            if op.value.op.name == "tirx.ptx.cp_async_bulk_shared_to_cluster":
                 n = 1
                 for e in self._loop_extents:
                     n *= e
@@ -127,7 +128,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.
 
     Always tests dispatch (s2c op count or DispatchFail).
-    For non-fail cases: also runs a 2-CTA cluster kernel via Tx.copy_async
+    For non-fail cases: also runs a 2-CTA cluster kernel via T.copy_async
     dispatch (using src_spec as layout for both CTAs) and verifies correctness.
     """
     from tvm.tirx.lang.pipeline import MBarrier
@@ -157,54 +158,51 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     r = tuple(slice(0, s) for s in shape)
 
     # fmt: off
-    @Tx.prim_func
-    def dsmem_copy(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, shape, dtype)
-        B = Tx.match_buffer(B_ptr, shape, dtype)
+    @T.prim_func
+    def dsmem_copy(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, shape, dtype)
+        B = T.match_buffer(B_ptr, shape, dtype)
 
-        Tx.device_entry()
-        cbx = Tx.cta_id_in_cluster([CLUSTER_N])
-        Tx.cta_id([CLUSTER_N])
-        tid = Tx.thread_id([1])
+        T.device_entry()
+        cbx = T.cta_id_in_cluster([CLUSTER_N])
+        T.cta_id([CLUSTER_N])
+        tid = T.thread_id([1])
+        pool = T.SMEMPool()
+                # src_smem: CTA 0 writes here, dispatch reads from here
+        src_raw = pool.alloc([src_phys], dtype, align=128)
+        src_smem = T.decl_buffer(
+            list(shape), dtype, src_raw.data,
+            elem_offset=0, scope="shared.dyn", layout=src_layout,
+        )
+                # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
+        dst_raw = pool.alloc([dst_phys], dtype, align=128)
+        dst_smem = T.decl_buffer(
+            list(shape), dtype, dst_raw.data,
+            elem_offset=0, scope="shared.dyn", layout=dst_layout,
+        )
+        mbar = MBarrier(pool, 1)
+        pool.commit()
 
-        with Tx.cta():
-            pool = Tx.SMEMPool()
-                    # src_smem: CTA 0 writes here, dispatch reads from here
-            src_raw = pool.alloc([src_phys], dtype, align=128)
-            src_smem = Tx.decl_buffer(
-                list(shape), dtype, src_raw.data,
-                elem_offset=0, scope="shared.dyn", layout=src_layout,
-            )
-                    # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
-            dst_raw = pool.alloc([dst_phys], dtype, align=128)
-            dst_smem = Tx.decl_buffer(
-                list(shape), dtype, dst_raw.data,
-                elem_offset=0, scope="shared.dyn", layout=dst_layout,
-            )
-            mbar = MBarrier(pool, 1)
-            pool.commit()
+        mbar.init(1)
+        T.ptx.fence.mbarrier_init()
+        T.cuda.cluster_sync()
 
-            mbar.init(1)
-            Tx.ptx.fence.mbarrier_init()
-            Tx.cuda.cluster_sync()
+        if tid == 0:
+            if cbx == 0:
+                Tx.copy(src_smem[r], A[r])
+                T.ptx.fence.proxy_async("shared::cta")
 
-            if tid == 0:
-                with Tx.thread():
-                    if cbx == 0:
-                        Tx.copy(src_smem[r], A[r])
-                        Tx.ptx.fence.proxy_async("shared::cta")
+                Tx.copy_async(
+                    dst_smem[r], src_smem[r],
+                    dispatch="dsmem",
+                    mbar=mbar.ptr_to([0]),
+                    remote_cta_id=T.int32(1),
+                )
+            else:
+                T.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
+                mbar.wait(0, 0)
 
-                        Tx.copy_async(
-                            dst_smem[r], src_smem[r],
-                            dispatch="dsmem",
-                            mbar=mbar.ptr_to([0]),
-                            remote_cta_id=Tx.int32(1),
-                        )
-                    else:
-                        Tx.ptx.mbarrier.arrive.expect_tx(mbar.ptr_to([0]), copy_bytes)
-                        mbar.wait(0, 0)
-
-                        Tx.copy(B[r], dst_smem[r])
+                Tx.copy(B[r], dst_smem[r])
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)

@@ -42,35 +42,6 @@
 namespace tvm {
 namespace tirx {
 
-class DispatchContextRemover : public StmtExprMutator {
- public:
-  static Stmt Remove(const Stmt& stmt) { return DispatchContextRemover()(stmt); }
-
- private:
-  Stmt VisitStmt_(const ExecScopeStmtNode* op) final {
-    Stmt body = VisitStmt(op->body);
-    // Strip TIRX dispatch AttrStmts from ExecScopeStmt body
-    // (These are dead-code annotations that were never written but the cleanup pass
-    //  historically erased: scope_id_extent_map, thread_var_map, tirx.warp_id_in_cta)
-    auto strip = [](Stmt stmt) {
-      while (auto attr = stmt.as<AttrStmtNode>()) {
-        if (attr->attr_key == "scope_id_extent_map" || attr->attr_key == "thread_var_map" ||
-            attr->attr_key == "tirx.warp_id_in_cta") {
-          stmt = attr->body;
-        } else {
-          break;
-        }
-      }
-      return stmt;
-    };
-    body = strip(body);
-    if (body.same_as(op->body)) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return ExecScopeStmt(op->exec_scope, body);
-  }
-};
-
 class LayoutApplier : public arith::IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Map<Var, Buffer>> Flatten(
@@ -389,7 +360,6 @@ Pass LowerTIRxCleanup() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    n->body = DispatchContextRemover::Remove(n->body);
     std::tie(n->body, n->buffer_map) = LayoutApplier::Flatten(n->body, n->buffer_map, target);
     n->body = BufferOffsetRemover::Remove(n->body);
     return f;

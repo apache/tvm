@@ -18,7 +18,7 @@
 
 from collections.abc import Callable
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -29,7 +29,7 @@ def macro_or_prim_func(macro: Callable, need_macro: bool = False) -> Callable:
     if need_macro:
         return macro
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def func():
         macro()
 
@@ -48,7 +48,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
         The dispatch context. Only ``sctx.scope_kind`` is consulted; the
         caller is responsible for having narrowed into the desired scope via an
         ``if`` guard with a canonical thread-filter predicate before reaching here.
-    inner_impl : Tx.inline
+    inner_impl : T.inline
         The body to execute inside the selected thread.
     macro : bool
         If True, return the macro directly; otherwise wrap it in a ``prim_func``.
@@ -59,35 +59,31 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
         return macro_or_prim_func(inner_impl, need_macro=macro)
     if name == "cta":
 
-        @Tx.inline()
+        @T.inline()
         def impl():
-            Tx.lane_id([32])
-            if Tx.ptx.elect_sync():
-                with Tx.thread():
-                    inner_impl()
+            T.lane_id([32])
+            if T.ptx.elect_sync():
+                inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)
     if name == "warp":
 
-        @Tx.inline()
+        @T.inline()
         def impl():
-            Tx.lane_id([32])
-            if Tx.ptx.elect_sync():
-                with Tx.thread():
-                    inner_impl()
+            T.lane_id([32])
+            if T.ptx.elect_sync():
+                inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)
     if name == "warpgroup":
 
-        @Tx.inline()
+        @T.inline()
         def impl():
-            warp_id = Tx.warp_id_in_wg([4])
-            Tx.lane_id([32])
+            warp_id = T.warp_id_in_wg([4])
+            T.lane_id([32])
             if warp_id == 0:
-                with Tx.warp():
-                    if Tx.ptx.elect_sync():
-                        with Tx.thread():
-                            inner_impl()
+                if T.ptx.elect_sync():
+                    inner_impl()
 
         return macro_or_prim_func(impl, need_macro=macro)
     raise ValueError(f"thread_selector: unsupported exec_scope {name!r}")

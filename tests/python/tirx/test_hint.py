@@ -34,15 +34,11 @@ def test_hint_statement():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint("persistent tile scheduler with L2 swizzle")
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint("persistent tile scheduler with L2 swizzle")
+        T.evaluate(0)
 
     # Walk the IR to find the AttrStmt with tirx_hint
     found = [False]
@@ -64,15 +60,11 @@ def test_hint_context_manager():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        with T.hint("software pipeline, depth 4"):
-                            T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        with T.hint("software pipeline, depth 4"):
+            T.evaluate(0)
 
     found = [False]
 
@@ -92,15 +84,11 @@ def test_hint_with_attrs():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint("scheduler", mode="persistent", depth="4")
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint("scheduler", mode="persistent", depth="4")
+        T.evaluate(0)
 
     found = [False]
 
@@ -122,15 +110,11 @@ def test_hint_printer_roundtrip_statement():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint("persistent tile scheduler with L2 swizzle")
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint("persistent tile scheduler with L2 swizzle")
+        T.evaluate(0)
 
     code = func.script()
     assert 'hint("persistent tile scheduler with L2 swizzle")' in code
@@ -144,15 +128,11 @@ def test_hint_printer_roundtrip_context_manager():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        with T.hint("software pipeline, depth 4"):
-                            T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        with T.hint("software pipeline, depth 4"):
+            T.evaluate(0)
 
     code = func.script()
     assert 'hint("software pipeline, depth 4")' in code
@@ -166,15 +146,11 @@ def test_hint_printer_roundtrip_with_attrs():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         _A = T.match_buffer(A_ptr, (64,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint("scheduler", mode="persistent")
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint("scheduler", mode="persistent")
+        T.evaluate(0)
 
     code = func.script()
     assert 'hint("scheduler"' in code
@@ -194,7 +170,7 @@ def test_hint_keyword_arg_on_tx_op():
     op_call = TilePrimitiveCall(
         A[0:64, 0:64],
         A_sm[0:64, 0:64],
-        op=tvm.ir.Op.get("tirx.copy"),
+        op=tvm.ir.Op.get("tirx.tile.copy"),
         workspace={},
         config={"hint": "3-input ptx"},
     )
@@ -204,14 +180,13 @@ def test_hint_keyword_arg_on_tx_op():
 
 def test_hint_keyword_arg_on_tx_op_roundtrip():
     """Tx.op(..., hint="msg") roundtrips through printer/parser."""
-    from tvm.script import tirx as Tx
+    from tvm.script.tirx import tile as Tx
 
     @T.prim_func
     def func(A_ptr: T.handle, B_ptr: T.handle):
         A = T.match_buffer(A_ptr, [10], "float32", scope="global")
         B = T.match_buffer(B_ptr, [10], "float32", scope="global")
-        with T.thread():
-            Tx.add(B, A, T.float32(1), hint="use_fast_math")
+        Tx.add(B, A, T.float32(1), hint="use_fast_math")
 
     code = func.script()
     assert 'hint="use_fast_math"' in code
@@ -226,15 +201,11 @@ def test_hint_no_message():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         A = T.match_buffer(A_ptr, (128,), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([1, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint(access=A[0:64])
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([1, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint(access=A[0:64])
+        T.evaluate(0)
 
     found = [False]
 
@@ -259,15 +230,11 @@ def test_hint_access_buffer_region():
     @T.prim_func
     def func(A_ptr: T.handle) -> None:
         A = T.match_buffer(A_ptr, (128, 64), "float32", scope="global")
-        with T.thread():
-            bx, by, bz = T.cta_id([2, 1, 1])
-            warp_id = T.warp_id([1])
-            lane_id = T.lane_id([32])
-            with T.cta():
-                with T.warp():
-                    with T.thread():
-                        T.hint("partition", access=A[bx * 64 : (bx + 1) * 64, 0:64])
-                        T.evaluate(0)
+        bx, by, bz = T.cta_id([2, 1, 1])
+        warp_id = T.warp_id([1])
+        lane_id = T.lane_id([32])
+        T.hint("partition", access=A[bx * 64 : (bx + 1) * 64, 0:64])
+        T.evaluate(0)
 
     found = [False]
 

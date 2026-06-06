@@ -26,7 +26,7 @@ element of each packed pair on either side.
 from __future__ import annotations
 
 from tvm.ir.expr import PrimExpr
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 from ..ops import VecImpl
 
@@ -74,10 +74,10 @@ def _emit_cast_vec2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
     src_buf, src_lane_indices = src_arg
     func_name = _intrinsic_name(src_buf.dtype, dst_buf.dtype)
     source_code = _intrinsic_source(src_buf.dtype, dst_buf.dtype)
-    return Tx.cuda.func_call(
+    return T.cuda.func_call(
         func_name,
-        Tx.address_of(dst_buf[tuple(dst_lane_indices[0])]),
-        Tx.address_of(src_buf[tuple(src_lane_indices[0])]),
+        T.address_of(dst_buf[tuple(dst_lane_indices[0])]),
+        T.address_of(src_buf[tuple(src_lane_indices[0])]),
         source_code=source_code,
     )
 

@@ -220,17 +220,6 @@ inline ffi::String ScopeIdApiName(const tirx::ScopeBinding& binding) {
   return "";
 }
 
-inline Doc ExecScopeStmtDoc(tirx::ExecScopeStmt stmt, AccessPath p, IRDocsifier d,
-                            ffi::Array<ExprDoc> call_args) {
-  With<TIRFrame> frame(d, stmt);
-  tirx::ExecScope exec_scope = stmt->exec_scope;
-  ffi::Array<ExprDoc> scope_call_args = call_args;
-  // ScopeIdDefStmts (formerly payload) are now standalone statements within
-  // the body and print via their own dispatch.
-  AsDocBody(stmt->body, p->Attr("body"), frame->get(), d);
-  return ScopeDoc(std::nullopt, TIR(d, exec_scope->name())->Call(scope_call_args), (*frame)->stmts);
-}
-
 /*!
  * \brief Find the top frame in the stack that could place a var definition
  * \param var The var to be defined

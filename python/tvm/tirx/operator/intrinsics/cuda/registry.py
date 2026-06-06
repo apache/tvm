@@ -26,8 +26,23 @@ import functools
 import tvm_ffi
 
 CODEGEN_REGISTRY = {}
-_CALL_EFFECT_KIND_OPAQUE = 4
-_registered_attrs: set[str] = set()
+
+
+def _canonical_device_intrin_name(op_name: str) -> str:
+    if not op_name.startswith("tirx."):
+        return op_name
+    basename = op_name[len("tirx.") :]
+    if "." in basename:
+        return op_name
+    for prefix, namespace in (
+        ("cuda_", "cuda"),
+        ("ptx_", "ptx"),
+        ("nvshmem_", "nvshmem"),
+        ("nki_", "nki"),
+    ):
+        if basename.startswith(prefix):
+            return f"tirx.{namespace}.{basename[len(prefix) :]}"
+    return op_name
 
 
 @tvm_ffi.register_global_func("tirx.intrinsics.cuda.get_codegen")
@@ -45,7 +60,8 @@ def register_codegen(op, backend="cuda"):
 
     def decorator(func):
         full_op_name = "tirx." + op
-        _ensure_op_registered(full_op_name)
+        canonical_op_name = _canonical_device_intrin_name(full_op_name)
+        op_names = {full_op_name, canonical_op_name}
 
         @functools.wraps(func)
         def wrapper(arg_list):
@@ -54,24 +70,8 @@ def register_codegen(op, backend="cuda"):
                 return res[0], res[1]
             return res, list()
 
-        CODEGEN_REGISTRY[full_op_name] = wrapper
+        for op_name in op_names:
+            CODEGEN_REGISTRY[op_name] = wrapper
         return wrapper
 
     return decorator
-
-
-def _ensure_op_registered(op_name: str) -> None:
-    """Ensure dynamic TIRx ops also have a purity/effect attribute."""
-    try:
-        tvm_ffi.get_global_func("ir.RegisterOp")(op_name, "")
-    except Exception:
-        pass
-    if op_name in _registered_attrs:
-        return
-    try:
-        tvm_ffi.get_global_func("ir.RegisterOpAttr")(
-            op_name, "TCallEffectKind", _CALL_EFFECT_KIND_OPAQUE, 10
-        )
-        _registered_attrs.add(op_name)
-    except Exception:
-        pass

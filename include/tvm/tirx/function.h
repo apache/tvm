@@ -306,6 +306,13 @@ namespace attr {
 constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
 
 /*!
+ * \brief CUDA launch bound minimum CTAs per SM.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
+
+/*!
  * \brief Whether to set noalias rule on the function arguments.
  *
  * Type: IntImm

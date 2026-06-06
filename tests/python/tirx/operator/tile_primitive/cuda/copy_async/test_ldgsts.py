@@ -22,7 +22,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TileLayout
 
 
@@ -75,22 +76,21 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     r_gmem = list(slice(g_st[i], g_st[i] + g_extent[i]) for i in range(len(g_shape)))
 
     # fmt: off
-    @Tx.prim_func
-    def copy_async(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
-        B = Tx.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
+    @T.prim_func
+    def copy_async(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
+        B = T.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
 
-        Tx.device_entry()
-        cta_id = Tx.cta_id([1])
-        tid = Tx.thread_id([thread_cnt])
-        with Tx.cta():
-            A_smem = Tx.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
+        T.device_entry()
+        cta_id = T.cta_id([1])
+        tid = T.thread_id([thread_cnt])
+        A_smem = T.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
 
-            Tx.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
-            Tx.ptx.cp_async.commit_group()
-            Tx.ptx.cp_async.wait_group()
-            Tx.cuda.cta_sync()
-            Tx.copy(B[tuple(r_gmem)], A_smem[tuple(r_smem)])
+        Tx.cta.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
+        T.ptx.cp_async.commit_group()
+        T.ptx.cp_async.wait_group()
+        T.cuda.cta_sync()
+        Tx.cta.copy(B[tuple(r_gmem)], A_smem[tuple(r_smem)])
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)

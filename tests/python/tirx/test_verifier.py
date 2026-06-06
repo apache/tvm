@@ -16,37 +16,30 @@
 # under the License.
 import pytest
 
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.analysis import verify_tirx_well_formed as verify
 
 
 def test_root_scope():
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test1() -> None:
-        Tx.device_entry()
+        T.device_entry()
         pass
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test2() -> None:
-        with Tx.warp():
-            with Tx.thread():
-                pass
+        pass
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test3() -> None:
-        with Tx.cta():
-            with Tx.warp():
-                with Tx.thread():
-                    pass
+        pass
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test4() -> None:
-        Tx.device_entry()
-        with Tx.cta():
-            with Tx.warp():
-                with Tx.thread():
-                    pass
+        T.device_entry()
+        pass
 
         # fmt: on
 
@@ -58,44 +51,26 @@ def test_root_scope():
 
 def test_nested_scope():
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test1() -> None:
-        Tx.device_entry()
-        with Tx.cta():
-            with Tx.warp():
-                with Tx.thread():
-                    pass
-            with Tx.thread():
-                pass
+        T.device_entry()
+        pass
+        pass
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test2() -> None:
-        Tx.device_entry()
-        with Tx.thread():
-            with Tx.cta():
-                with Tx.thread():
-                    pass
+        T.device_entry()
+        pass
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test3() -> None:
-        Tx.device_entry()
-        with Tx.warp():
-            with Tx.thread():
-                with Tx.cta():
-                    with Tx.thread():
-                        pass
-    @Tx.prim_func(check_well_formed=False)
+        T.device_entry()
+        pass
+    @T.prim_func(check_well_formed=False)
     def test4() -> None:
-        Tx.device_entry()
-        with Tx.thread():
-            with Tx.warpgroup():
-                with Tx.warp():
-                    with Tx.thread():
-                        pass
-            with Tx.warpgroup():
-                with Tx.warp():
-                    with Tx.thread():
-                        pass
+        T.device_entry()
+        pass
+        pass
 
         # fmt: on
 
@@ -107,89 +82,71 @@ def test_nested_scope():
 
 def test_scope_id_consistency():
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test1():
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([4])
+        T.lane_id([32])
+        pass
 
-        with Tx.thread():
-            pass
-
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test2():
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
-        Tx.thread_id([128])
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([4])
+        T.lane_id([32])
+        T.thread_id([128])
+        pass
 
-        with Tx.thread():
-            pass
-
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test3():
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([2])
-        Tx.lane_id([32])
-        Tx.thread_id([128])
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([2])
+        T.lane_id([32])
+        T.thread_id([128])
+        pass
 
-        with Tx.thread():
-            pass
-
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test4():
-        Tx.device_entry()
-        bx, by, bz = Tx.cta_id([8, 10, 12])
-        cbx, cby, cbz = Tx.cta_id_in_cluster([2, 2, 1])
-        clx, cly, clz = Tx.cluster_id([4, 5, 12])
-        with Tx.cta():
-            with Tx.warp():
-                with Tx.thread():
-                    Tx.evaluate(bx + by + bz)
-                    Tx.evaluate(cbx + cby + cbz)
-                    Tx.evaluate(clx + cly + clz)
+        T.device_entry()
+        bx, by, bz = T.cta_id([8, 10, 12])
+        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
+        clx, cly, clz = T.cluster_id([4, 5, 12])
+        T.evaluate(bx + by + bz)
+        T.evaluate(cbx + cby + cbz)
+        T.evaluate(clx + cly + clz)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test5():
-        Tx.device_entry()
-        bx, by, bz = Tx.cta_id([8, 10, 12])
-        cbx, cby, cbz = Tx.cta_id_in_cluster([2, 2, 1])
-        clx, cly, clz = Tx.cluster_id([3, 5, 12])
-        with Tx.cta():
-            with Tx.warp():
-                with Tx.thread():
-                    Tx.evaluate(bx + by + bz)
-                    Tx.evaluate(cbx + cby + cbz)
-                    Tx.evaluate(clx + cly + clz)
+        T.device_entry()
+        bx, by, bz = T.cta_id([8, 10, 12])
+        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
+        clx, cly, clz = T.cluster_id([3, 5, 12])
+        T.evaluate(bx + by + bz)
+        T.evaluate(cbx + cby + cbz)
+        T.evaluate(clx + cly + clz)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test6():
-        Tx.device_entry()
-        clx, cly, clz = Tx.cluster_id([4, 5, 12])
-        bx, by, bz = Tx.cta_id([8, 10, 12])
-        with Tx.cluster():
-            cbx, cby, cbz = Tx.cta_id_in_cluster([2, 2, 1])
-            with Tx.warp():
-                with Tx.thread():
-                    Tx.evaluate(bx + by + bz)
-                    Tx.evaluate(cbx + cby + cbz)
-                    Tx.evaluate(clx + cly + clz)
+        T.device_entry()
+        clx, cly, clz = T.cluster_id([4, 5, 12])
+        bx, by, bz = T.cta_id([8, 10, 12])
+        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
+        T.evaluate(bx + by + bz)
+        T.evaluate(cbx + cby + cbz)
+        T.evaluate(clx + cly + clz)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test7():
-        Tx.device_entry()
-        clx, cly, clz = Tx.cluster_id([3, 5, 12])
-        bx, by, bz = Tx.cta_id([8, 10, 12])
-        with Tx.cluster():
-            cbx, cby, cbz = Tx.cta_id_in_cluster([2, 2, 1])
-            with Tx.warp():
-                with Tx.thread():
-                    Tx.evaluate(bx + by + bz)
-                    Tx.evaluate(cbx + cby + cbz)
-                    Tx.evaluate(clx + cly + clz)
+        T.device_entry()
+        clx, cly, clz = T.cluster_id([3, 5, 12])
+        bx, by, bz = T.cta_id([8, 10, 12])
+        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
+        T.evaluate(bx + by + bz)
+        T.evaluate(cbx + cby + cbz)
+        T.evaluate(clx + cly + clz)
 
         # fmt: on
 
@@ -208,116 +165,105 @@ def test_scope_id_consistency():
 def test_layout():
     ### TileLayout
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test1():
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([4])
+        T.lane_id([32])
+        A = T.alloc_buffer((2,), layout=T.TileLayout(T.S[2, 1]))
 
-        with Tx.thread():
-            A = Tx.alloc_buffer((2,), layout=Tx.TileLayout(Tx.S[2, 1]))
-
-            A[0] = 0
+        A[0] = 0
         # fmt: on
     verify(test1)
 
     ### SwizzleLayout
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test2():
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([4])
+        T.lane_id([32])
+        A = T.alloc_buffer((512,), scope="shared", layout=T.SwizzleLayout(3, 3, 3))
 
-        with Tx.thread():
-            A = Tx.alloc_buffer((512,), scope="shared", layout=Tx.SwizzleLayout(3, 3, 3))
-
-            A[0] = 0
+        A[0] = 0
         # fmt: on
     verify(test2)
 
 
 def test_host():
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
-    def test1(A_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+    @T.prim_func(check_well_formed=False)
+    def test1(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
 
-        A_map: Tx.let[Tx.handle("tensormap")] = Tx.tvm_stack_alloca("tensormap", 1)
-        Tx.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)  # noqa: E501
+        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)  # noqa: E501
 
-        Tx.device_entry()
-        for blockIdx in Tx.thread_binding(1, thread="blockIdx.x"):
-            for threadIdx in Tx.thread_binding(128, thread="threadIdx.x"):
-                with Tx.thread():
-                    bar = Tx.alloc_buffer((1,), "uint64", scope="shared", align=8)
-                    phase = Tx.alloc_buffer((1,), "int32", scope="local")
-                    A_smem = Tx.alloc_buffer((16, 16), "float32", scope="shared", align=128)
+        T.device_entry()
+        for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
+            for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+                bar = T.alloc_buffer((1,), "uint64", scope="shared", align=8)
+                phase = T.alloc_buffer((1,), "int32", scope="local")
+                A_smem = T.alloc_buffer((16, 16), "float32", scope="shared", align=128)
 
-                    phase[0] = 0
-                    if threadIdx == 0:
-                        Tx.ptx.mbarrier.init(bar.data, 1)
-                        Tx.ptx.fence.proxy_async("shared::cta")
-                        Tx.ptx.cp_async.bulk.tensor.g2c(2, A_smem.data, bar.data, Tx.address_of(A_map), 0, 1, "", 0, 0)  # noqa: E501
-                        Tx.ptx.mbarrier.arrive.expect_tx(bar.data, 16*16*4)
-                    Tx.ptx.mbarrier.try_wait(bar.data, phase[0])
-                    phase[0] = phase[0] ^ 1
-                    Tx.print_buffer(A_smem.data, "float32", False, False, 2, 16*16)
+                phase[0] = 0
+                if threadIdx == 0:
+                    T.ptx.mbarrier.init(bar.data, 1)
+                    T.ptx.fence.proxy_async("shared::cta")
+                    T.ptx.cp_async.bulk.tensor.g2c(2, A_smem.data, bar.data, T.address_of(A_map), 0, 1, "", 0, 0)  # noqa: E501
+                    T.ptx.mbarrier.arrive.expect_tx(bar.data, 16*16*4)
+                T.ptx.mbarrier.try_wait(bar.data, phase[0])
+                phase[0] = phase[0] ^ 1
+                T.print_buffer(A_smem.data, "float32", False, False, 2, 16*16)
         # fmt: on
     verify(test1)
 
 
 def test_device_func():
+    # Per-call exec-scope migration: scope is now attached per op via the
+    # ``T.op[scope](...)`` subscription surface instead of a ``with T.cta():``
+    # region. ``test1`` exercises a per-call-scoped op; ``test2`` the plain
+    # (unscoped) op. The old multi-root-scope negative case asserted the removed
+    # "only one root scope" verifier rule and no longer has an equivalent, so it
+    # is dropped.
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
-    def test1(A: Tx.Buffer((128,), "float32")):
-        with Tx.cta():
-            Tx.thread_id([128])
-            Tx.fill(A, 0.)
+    @T.prim_func(check_well_formed=False)
+    def test1(A: T.Buffer((128,), "float32")):
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([128])
+        Tx.cta.fill(A, 0.)
 
-    @Tx.prim_func(check_well_formed=False)
-    def test2(A: Tx.Buffer((128,), "float32")):
-        Tx.device_entry()
-        Tx.cta_id([128])
-        Tx.thread_id([128])
+    @T.prim_func(check_well_formed=False)
+    def test2(A: T.Buffer((128,), "float32")):
+        T.device_entry()
+        T.cta_id([128])
+        T.thread_id([128])
         Tx.fill(A, 0.)
-
-    @Tx.prim_func(check_well_formed=False)
-    def test3(A: Tx.Buffer((128,), "float32")):
-        with Tx.cta():
-            Tx.thread_id([128])
-            Tx.fill(A, 0.)
-        with Tx.cta():
-            Tx.thread_id([128])
-            Tx.fill(A, 0.)
     # fmt: on
     verify(test1, device_func=True)
     verify(test2, device_func=True)
-    with pytest.raises(Exception, match="Only one root scope is allowed in device function"):
-        verify(test3, device_func=True)
 
 
 def test_preferred_cluster_validation():
     # fmt: off
     # Valid: cluster→cta with preferred_extents matching size
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test1() -> None:
-        Tx.device_entry()
-        cbx, cby = Tx.cta_id_in_cluster([2, 1], preferred=[2, 2])
-        tx = Tx.thread_id([128])
-        with Tx.thread():
-            Tx.evaluate(cbx + cby + tx)
+        T.device_entry()
+        cbx, cby = T.cta_id_in_cluster([2, 1], preferred=[2, 2])
+        tx = T.thread_id([128])
+        T.evaluate(cbx + cby + tx)
 
         # Invalid: preferred size doesn't match extents size (caught at verify time)
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def test2() -> None:
-        Tx.device_entry()
-        cbx, cby = Tx.cta_id_in_cluster([2, 1], preferred=[2])
-        tx = Tx.thread_id([128])
-        with Tx.thread():
-            Tx.evaluate(cbx + cby + tx)
+        T.device_entry()
+        cbx, cby = T.cta_id_in_cluster([2, 1], preferred=[2])
+        tx = T.thread_id([128])
+        T.evaluate(cbx + cby + tx)
         # fmt: on
 
     verify(test1)
@@ -327,13 +273,12 @@ def test_preferred_cluster_validation():
     # Invalid: preferred on a non-cluster→cta scope (caught at IR build time)
     with pytest.raises(Exception):
         # fmt: off
-        @Tx.prim_func(check_well_formed=False)
+        @T.prim_func(check_well_formed=False)
         def test3() -> None:
-            Tx.device_entry()
-            bx = Tx.cta_id([128], preferred=[256])
-            tx = Tx.thread_id([128])
-            with Tx.thread():
-                Tx.evaluate(bx + tx)
+            T.device_entry()
+            bx = T.cta_id([128], preferred=[256])
+            tx = T.thread_id([128])
+            T.evaluate(bx + tx)
             # fmt: on
 
 
@@ -343,33 +288,30 @@ def test_scope_id_deferred_relaxed_at_construction():
     deferred to LowerTIRx."""
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def partial_only_cta():
-        Tx.device_entry()
-        bx = Tx.cta_id()           # deferred kernel→cta, no closure source
-        tx = Tx.thread_id([128])   # explicit
-        with Tx.thread():
-            Tx.evaluate(bx + tx)
+        T.device_entry()
+        bx = T.cta_id()           # deferred kernel→cta, no closure source
+        tx = T.thread_id([128])   # explicit
+        T.evaluate(bx + tx)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def all_deferred():
-        Tx.device_entry()
-        bx = Tx.cta_id()
-        wg = Tx.warpgroup_id()
-        warp = Tx.warp_id_in_wg()
-        lane = Tx.lane_id()
-        with Tx.thread():
-            Tx.evaluate(bx + wg + warp + lane)
+        T.device_entry()
+        bx = T.cta_id()
+        wg = T.warpgroup_id()
+        warp = T.warp_id_in_wg()
+        lane = T.lane_id()
+        T.evaluate(bx + wg + warp + lane)
 
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def mixed():
-        Tx.device_entry()
+        T.device_entry()
                 # kCtaWarp=4, kWarpThread=32 → kCtaThread=128 derivable.
-        Tx.warp_id([4])
-        Tx.lane_id([32])
-        Tx.thread_id()             # deferred kCtaThread, resolvable via closure
-        with Tx.thread():
-            pass
+        T.warp_id([4])
+        T.lane_id([32])
+        T.thread_id()             # deferred kCtaThread, resolvable via closure
+        pass
         # fmt: on
 
         # All three accepted by well-formed: deferred extents are tolerated.
@@ -383,17 +325,16 @@ def test_scope_id_deferred_consistency_still_enforced():
     must still be enforced by the closure check."""
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def inconsistent():
         # 4 warps * 32 lanes = 128 threads, but explicit thread_id says 64 -> error.
-        Tx.device_entry()
-        Tx.cta_id([32])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
-        Tx.thread_id()       # deferred (shouldn't shadow the conflict)
-        Tx.thread_id([64])   # conflicts with derived kCtaThread=128
-        with Tx.thread():
-            pass
+        T.device_entry()
+        T.cta_id([32])
+        T.warp_id([4])
+        T.lane_id([32])
+        T.thread_id()       # deferred (shouldn't shadow the conflict)
+        T.thread_id([64])   # conflicts with derived kCtaThread=128
+        pass
         # fmt: on
 
     with pytest.raises(Exception, match="Inconsistent extents for scope"):

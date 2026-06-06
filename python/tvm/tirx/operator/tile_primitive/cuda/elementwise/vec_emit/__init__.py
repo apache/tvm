@@ -34,7 +34,7 @@ VecImpl emit contract:
                                                                 with per-lane indices
   * extras: dict (rounding_mode, etc.)
 
-  Returns the PTX/CUDA call result; the schedule wraps in ``Tx.evaluate`` at
+  Returns the PTX/CUDA call result; the schedule wraps in ``T.evaluate`` at
   the call site. All Python-side shape branching (scalar vs buffer src) happens
   in this emit function -- collapses the old 4x2 schema.py factory explosion.
 """

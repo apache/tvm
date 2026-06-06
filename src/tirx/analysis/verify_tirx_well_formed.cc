@@ -27,6 +27,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tirx_op.h>
@@ -51,27 +52,18 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
   using Verifier::Visit;
 
   void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path
-                  << ". Use ExecScopeStmt with T.attr() instead.";
+    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
   }
 
   void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path
-                  << ". Use ExecScopeStmt with T.attr() instead.";
+    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
 
   void VisitStmt_(const tirx::TilePrimitiveCallNode* op,
                   ffi::reflection::AccessPath path) override {
-    static const tvm::OpAttrMap<bool>& tirx_op_map_ = Op::GetAttrMap<bool>("TIsTIRxOp");
-    Verify(tirx_op_map_.count(op->op))
-        << "TIRxError: TilePrimitiveCall at " << path << " has unknown TIRX op " << op->op;
-  }
-
-  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override {
-    // ExecScope ctor FATALs on unknown name, so a constructed scope is always
-    // structurally valid. Scope nesting is a perspective change rather than
-    // an active-set narrowing, so any ScopeKind may nest inside any other.
-    Verifier::VisitStmt_(op, path);
+    static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
+    Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
+        << "TIRxError: TilePrimitiveCall at " << path << " has non-tile op " << op->op;
   }
 };
 
@@ -81,18 +73,6 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override {
-    size_t baseline = scope_id_def_.size();
-    Verifier::VisitStmt_(op, path);
-    size_t total = scope_id_def_.size();
-    if (total > baseline) {
-      RunScopeIdVerify(path, baseline, /*is_root=*/false);
-    }
-    while (scope_id_def_.size() > baseline) {
-      scope_id_def_.pop_back();
-    }
-  }
 
   void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override {
     if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
@@ -161,11 +141,6 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
   void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
-
-  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override {
-    // Check buffer layouts in alloc_buffers that appear as AllocBuffer stmts
-    Verifier::VisitStmt_(op, path);
-  }
 };
 
 class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
@@ -182,14 +157,6 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
   void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
-
-  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override {
-    scope_stack_.push_back(op->exec_scope);
-    Verifier::VisitStmt_(op, path);
-    scope_stack_.pop_back();
-  }
-
-  std::vector<ExecScope> scope_stack_;
 };
 
 class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
@@ -206,23 +173,6 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
   void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
     Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
   }
-
-  void VisitStmt_(const ExecScopeStmtNode* op, ffi::reflection::AccessPath path) override {
-    if (!inside_root_scope_) {
-      // At the top level: only one root scope is allowed
-      Verify(!root_.has_value()) << "TIRxError: Only one root scope is allowed in device function";
-      root_ = op->exec_scope;
-      inside_root_scope_ = true;
-      Verifier::VisitStmt_(op, path);
-      inside_root_scope_ = false;
-    } else {
-      // Already inside a root scope: nested scopes are allowed
-      Verifier::VisitStmt_(op, path);
-    }
-  }
-
-  ffi::Optional<ExecScope> root_ = std::nullopt;
-  bool inside_root_scope_ = false;
 };
 
 bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {

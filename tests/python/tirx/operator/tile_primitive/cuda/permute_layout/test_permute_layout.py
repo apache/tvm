@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring
 
-"""Tests for ``Tx.permute_layout``.
+"""Tests for ``T.permute_layout``.
 
 Coverage:
 
@@ -41,7 +41,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, SwizzleLayout, TileLayout
 
 # Helpers exposed by the dispatcher module for direct algorithm tests.
@@ -191,19 +192,17 @@ def test_sf_blockwise_transpose(name, pipe, blk, dtype):
     post = TileLayout(S[shape:dst_strides])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = Tx.match_buffer(B, shape, dtype, layout=post)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                for s in Tx.serial(0, pipe):
-                    Tx.permute_layout(
-                        B_buf[s, 0:high, 0:4, 0:32], A_buf[s, 0:high, 0:4, 0:32]
-                    )
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
+        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        for s in T.serial(0, pipe):
+            Tx.warp.permute_layout(
+                B_buf[s, 0:high, 0:4, 0:32], A_buf[s, 0:high, 0:4, 0:32]
+            )
         # fmt: on
 
     np.random.seed(0)
@@ -239,16 +238,14 @@ def test_identity_passes_through_as_copy():
     layout = TileLayout(S[shape : (32, 1)])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = Tx.match_buffer(B, shape, "uint32", layout=layout)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
+        B_buf = T.match_buffer(B, shape, "uint32", layout=layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     np.random.seed(0)
@@ -275,16 +272,14 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
     post = TileLayout(S[shape:dst_strides])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = Tx.match_buffer(B, shape, dtype, layout=post)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
+        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     np.random.seed(0)
@@ -304,16 +299,14 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
 
 def _build_and_assert_rejected(shape, src_layout, dst_layout, dtype, msg_substr):
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, dtype, layout=src_layout)
-        B_buf = Tx.match_buffer(B, shape, dtype, layout=dst_layout)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, dtype, layout=src_layout)
+        B_buf = T.match_buffer(B, shape, dtype, layout=dst_layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -330,16 +323,14 @@ def test_reject_dtype_mismatch():
     layout = TileLayout(S[shape : (32, 1)])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = Tx.match_buffer(B, shape, "uint16", layout=layout)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
+        B_buf = T.match_buffer(B, shape, "uint16", layout=layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -353,16 +344,14 @@ def test_reject_shape_mismatch():
     dst_layout = TileLayout(S[(8, 16) : (16, 1)])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, (4, 32), "uint32", layout=src_layout)
-        B_buf = Tx.match_buffer(B, (8, 16), "uint32", layout=dst_layout)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=src_layout)
+        B_buf = T.match_buffer(B, (8, 16), "uint32", layout=dst_layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -381,16 +370,14 @@ def test_reject_swizzle_layout():
     plain = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, (4, 32), "uint32", layout=swizzled)
-        B_buf = Tx.match_buffer(B, (4, 32), "uint32", layout=plain)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            with Tx.warp():
-                Tx.permute_layout(B_buf, A_buf)
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=swizzled)
+        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=plain)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.warp.permute_layout(B_buf, A_buf)
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -404,15 +391,14 @@ def test_reject_non_warp_scope():
     layout_post = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, (4, 32), "uint32", layout=layout_pre)
-        B_buf = Tx.match_buffer(B, (4, 32), "uint32", layout=layout_post)
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([32])
-        with Tx.cta():
-            Tx.permute_layout(B_buf, A_buf)  # cta scope, not warp
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=layout_pre)
+        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=layout_post)
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        Tx.cta.permute_layout(B_buf, A_buf)  # cta scope, not warp
         # fmt: on
 
     target = tvm.target.Target("cuda")

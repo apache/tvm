@@ -22,7 +22,7 @@ import math
 import operator
 
 from tvm.arith.analyzer import Analyzer
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import BufferRegion
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -32,16 +32,16 @@ from ..common import match_scope
 
 reduce_op_table = {
     ReduceOpType.SUM: lambda a, b: a + b,
-    ReduceOpType.MAX: Tx.max,
-    ReduceOpType.MIN: Tx.min,
+    ReduceOpType.MAX: T.max,
+    ReduceOpType.MIN: T.min,
 }
 
 
 def reduce_default_value_table(dtype):
     return {
         ReduceOpType.SUM: 0.0,
-        ReduceOpType.MAX: Tx.min_value(dtype),
-        ReduceOpType.MIN: Tx.max_value(dtype),
+        ReduceOpType.MAX: T.min_value(dtype),
+        ReduceOpType.MIN: T.max_value(dtype),
     }
 
 

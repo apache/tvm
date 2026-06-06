@@ -35,11 +35,10 @@ TVM_FFI_STATIC_INIT_BLOCK() { TilePrimitiveCallNode::RegisterReflection(); }
 TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
                                      ffi::Map<ffi::String, Buffer> workspace,
                                      ffi::Map<ffi::String, ffi::Any> config,
-                                     ffi::Optional<ffi::String> dispatch) {
-  // Check if the op is a TIRX op.
-  static const auto& tirx_op_map = Op::GetAttrMap<bool>("TIsTIRxOp");
-  TVM_FFI_ICHECK_EQ(tirx_op_map.count(op), 1)
-      << "Only TIRX ops can be used in tirx::TilePrimitiveCall";
+                                     ffi::Optional<ffi::String> dispatch, ExecScope scope) {
+  static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
+  TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
+      << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
   // Construct the TilePrimitiveCall.
   ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>();
   n->op = std::move(op);
@@ -47,6 +46,7 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
   n->workspace = std::move(workspace);
   n->config = std::move(config);
   n->dispatch = std::move(dispatch);
+  n->scope = std::move(scope);
   data_ = std::move(n);
 }
 
@@ -55,8 +55,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "tirx.TilePrimitiveCall",
       [](tvm::Op op, ffi::Array<ffi::Any> args, ffi::Map<ffi::String, Buffer> workspace,
-         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch) {
-        return TilePrimitiveCall(op, args, workspace, config, dispatch);
+         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
+         ExecScope scope) {
+        return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);
       });
 }
 

@@ -35,8 +35,8 @@ from .utils import (
 def unary_trn(op: TilePrimitiveCall, unary_op: MapOpType, sctx: DispatchContext) -> PrimFunc | None:
     """Schedule unary operation on Trainium."""
     # Check execution environment
-    if not (sctx.is_trn() and sctx.scope_kind == "kernel"):
-        fail("requires Trainium target and kernel exec_scope")
+    if not (sctx.is_trn() and sctx.scope_kind == "thread"):
+        fail("requires Trainium target and thread exec_scope")
 
     # Extract operation arguments
     dst_buffer_region, _src = op.args

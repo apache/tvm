@@ -74,7 +74,7 @@ from __future__ import annotations
 import math
 
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, BufferRegion, IntImm, PrimFunc
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
@@ -306,27 +306,27 @@ def _impl(op_call, sctx):
     dtype = src_buf.dtype
 
     # fmt: off
-    @Tx.prim_func
+    @T.prim_func
     def impl():
-        warp_size = Tx.meta_var(32)
-        lane_id = Tx.meta_var(tid_x % warp_size)
-        regs = Tx.alloc_buffer((P,), dtype, scope="local")
+        warp_size = T.meta_var(32)
+        lane_id = T.meta_var(tid_x % warp_size)
+        regs = T.alloc_buffer((P,), dtype, scope="local")
         # Phase 1: read via L_src
-        for r in Tx.unroll(0, P):
-            j = Tx.meta_var(r ^ ((lane_id >> shift) & mask))
-            flat = Tx.meta_var(lane_id + j * warp_size)
-            iter_idx = Tx.meta_var(get_indices(flat, [0] * len(extent), extent))
-            src_idx = Tx.meta_var(_project(iter_idx, src_st))
+        for r in T.unroll(0, P):
+            j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+            flat = T.meta_var(lane_id + j * warp_size)
+            iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+            src_idx = T.meta_var(_project(iter_idx, src_st))
             regs[r] = src_buf[tuple(src_idx)]
-        Tx.cuda.warp_sync()
+        T.cuda.warp_sync()
         # Phase 2: write via L_dst
-        for r in Tx.unroll(0, P):
-            j = Tx.meta_var(r ^ ((lane_id >> shift) & mask))
-            flat = Tx.meta_var(lane_id + j * warp_size)
-            iter_idx = Tx.meta_var(get_indices(flat, [0] * len(extent), extent))
-            dst_idx = Tx.meta_var(_project(iter_idx, dst_st))
+        for r in T.unroll(0, P):
+            j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+            flat = T.meta_var(lane_id + j * warp_size)
+            iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+            dst_idx = T.meta_var(_project(iter_idx, dst_st))
             dst_buf[tuple(dst_idx)] = regs[r]
-        Tx.cuda.warp_sync()
+        T.cuda.warp_sync()
     # fmt: on
     return impl
 
@@ -344,7 +344,7 @@ def _impl(op_call, sctx):
 # projects back onto ``buf.shape`` via mixed-radix grouping for the emit.
 #
 # Before (TilePrimitiveCall):
-#     with Tx.warp():
+#     with T.warp():
 #         # SFA_smem: u32 (PIPE, BLK_SFA//32, 32), layout shard 4D
 #         #   (PIPE, BLK_SFA//128, 4, 32) strides (BLK_SFA, 128, 32, 1)
 #         # SFA_post: same shape; layout shard 4D, strides (BLK_SFA, 128, 1, 4)
@@ -352,19 +352,19 @@ def _impl(op_call, sctx):
 #
 # After (BLK_SFA=128, P=4, k=2, shift=3):
 #     lane_id = threadIdx.x % 32
-#     regs = Tx.alloc_buffer((4,), "uint32", scope="local")
-#     for r in Tx.unroll(4):
+#     regs = T.alloc_buffer((4,), "uint32", scope="local")
+#     for r in T.unroll(4):
 #         j = r ^ ((lane_id >> 3) & 0x3)
 #         flat = lane_id + j * 32
 #         (g, l) = decompose(flat, extent=[4, 32])
 #         regs[r] = src[ks, g, l]
-#     Tx.cuda.warp_sync()
-#     for r in Tx.unroll(4):
+#     T.cuda.warp_sync()
+#     for r in T.unroll(4):
 #         j = r ^ ((lane_id >> 3) & 0x3)
 #         flat = lane_id + j * 32
 #         (g, l) = decompose(flat, extent=[4, 32])
 #         dst[ks, g, l] = regs[r]
-#     Tx.cuda.warp_sync()
+#     T.cuda.warp_sync()
 @register_dispatch(
     "permute_layout",
     "cuda",

@@ -24,7 +24,7 @@ shape collapse as binary_f32x2.
 from __future__ import annotations
 
 from tvm.ir.expr import PrimExpr
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 from ..ops import VecImpl
 from .binary_f32x2 import _lane
@@ -61,11 +61,11 @@ def _fma_f32x2_applies(op_call, sctx, plan):
 def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
     a_arg, b_arg, c_arg = src_args
     rm = extras.get("rounding_mode", "rz")
-    return Tx.ptx.fma_f32x2(
-        Tx.address_of(dst_buf[tuple(dst_lane_indices[0])]),
-        Tx.cuda.make_float2(_lane(a_arg, 0), _lane(a_arg, 1)),
-        Tx.cuda.make_float2(_lane(b_arg, 0), _lane(b_arg, 1)),
-        Tx.cuda.make_float2(_lane(c_arg, 0), _lane(c_arg, 1)),
+    return T.ptx.fma_f32x2(
+        T.address_of(dst_buf[tuple(dst_lane_indices[0])]),
+        T.cuda.make_float2(_lane(a_arg, 0), _lane(a_arg, 1)),
+        T.cuda.make_float2(_lane(b_arg, 0), _lane(b_arg, 1)),
+        T.cuda.make_float2(_lane(c_arg, 0), _lane(c_arg, 1)),
         rounding=rm,
         ftz=True,
     )

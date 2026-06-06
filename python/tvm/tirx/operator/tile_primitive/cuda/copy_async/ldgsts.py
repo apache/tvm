@@ -19,14 +19,14 @@
 (SASS: ``LDGSTS``).
 
 Shares the partition / layout-alignment algorithm with
-``cuda/copy/gmem_smem.py`` (sync ``Tx.copy`` global ↔ shared); differs at
+``cuda/copy/gmem_smem.py`` (sync ``T.copy`` global ↔ shared); differs at
 emit time only:
 
 * direction: ``cp.async`` is global → shared only (hardware restriction).
 * cp_size: PTX ``cp.async`` only accepts 4 / 8 / 16 bytes, so the vec-width
   candidate set is restricted to ``{32, 64, 128}`` bits.
-* emit: ``Tx.evaluate(Tx.ptx.cp_async(dst, src, cp_size))`` instead of the
-  synchronous ``Tx.cuda.copy_{vec_bits}b(dst, src)``.
+* emit: ``T.evaluate(T.ptx.cp_async(dst, src, cp_size))`` instead of the
+  synchronous ``T.cuda.copy_{vec_bits}b(dst, src)``.
 
 Note: ``cp.async`` does **not** sync at emit time — caller is responsible
 for ``commit_group`` / ``wait_group`` / ``cta_sync`` plumbing around the
@@ -34,7 +34,7 @@ async pipeline.
 """
 
 from tvm.runtime import DataType
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
@@ -247,17 +247,17 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     v0 = _IntImm("int32", 0)
 
     # fmt: off
-    @Tx.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False)
     def impl():
         tid = _decl_tid()
         _setup_swizzle(tid)
-        for f in Tx.unroll(total_outer):
+        for f in T.unroll(total_outer):
             s_lin = s_p.apply(f, tid, v0, shape=apply_shape)["m"]
             g_lin = g_p.apply(f, tid, v0, shape=apply_shape)["m"]
             s_off = _s_off(f, s_lin)
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
-            Tx.evaluate(Tx.ptx.cp_async(s_ptr, g_ptr, cp_size))
+            T.evaluate(T.ptx.cp_async(s_ptr, g_ptr, cp_size))
         # cp.async is caller-synced — no cta_sync here (commit_group /
         # wait_group / cta_sync are the caller's responsibility).
     # fmt: on

@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
 
 
 def generate_random_data(shape, dtype):
@@ -193,17 +193,17 @@ def test_print():
         C_np = A_np + B_np
         A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
-        @Tx.prim_func(s_tir=True)
-        def add_func(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M,), dtype_str)
-            B = Tx.match_buffer(B_ptr, (M,), dtype_str)
-            C = Tx.match_buffer(C_ptr, (M,), dtype_str)
+        @T.prim_func(s_tir=True)
+        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M,), dtype_str)
+            B = T.match_buffer(B_ptr, (M,), dtype_str)
+            C = T.match_buffer(C_ptr, (M,), dtype_str)
 
-            for i in Tx.grid(M):
-                with Tx.sblock("C"):
-                    vi = Tx.axis.spatial(M, i)
+            for i in T.grid(M):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(M, i)
                     C[vi] = A[vi] + B[vi]
-                Tx.print_buffer(C.data, dtype_str, False, False, dim_num, (M,))
+                T.print_buffer(C.data, dtype_str, False, False, dim_num, (M,))
 
         sch = tvm.s_tir.Schedule(add_func)
         blk = sch.get_sblock("C")
@@ -229,18 +229,18 @@ def test_print():
         C_np = A_np + B_np
         A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
-        @Tx.prim_func(s_tir=True)
-        def add_func(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), dtype_str)
-            B = Tx.match_buffer(B_ptr, (M, N), dtype_str)
-            C = Tx.match_buffer(C_ptr, (M, N), dtype_str)
+        @T.prim_func(s_tir=True)
+        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), dtype_str)
+            B = T.match_buffer(B_ptr, (M, N), dtype_str)
+            C = T.match_buffer(C_ptr, (M, N), dtype_str)
 
-            for i, j in Tx.grid(M, N):
-                with Tx.sblock("C"):
-                    vi = Tx.axis.spatial(M, i)
-                    vj = Tx.axis.spatial(N, j)
+            for i, j in T.grid(M, N):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(M, i)
+                    vj = T.axis.spatial(N, j)
                     C[vi, vj] = A[vi, vj] + B[vi, vj]
-                Tx.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N))
+                T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N))
 
         sch = tvm.s_tir.Schedule(add_func)
         blk = sch.get_sblock("C")
@@ -270,19 +270,19 @@ def test_print():
 
         A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
-        @Tx.prim_func(s_tir=True)
-        def add_func(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N, K), dtype_str)
-            B = Tx.match_buffer(B_ptr, (M, N, K), dtype_str)
-            C = Tx.match_buffer(C_ptr, (M, N, K), dtype_str)
+        @T.prim_func(s_tir=True)
+        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N, K), dtype_str)
+            B = T.match_buffer(B_ptr, (M, N, K), dtype_str)
+            C = T.match_buffer(C_ptr, (M, N, K), dtype_str)
 
-            for i, j, k in Tx.grid(M, N, K):
-                with Tx.sblock("C"):
-                    vi = Tx.axis.spatial(M, i)
-                    vj = Tx.axis.spatial(N, j)
-                    vk = Tx.axis.spatial(K, k)
+            for i, j, k in T.grid(M, N, K):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(M, i)
+                    vj = T.axis.spatial(N, j)
+                    vk = T.axis.spatial(K, k)
                     C[vi, vj, vk] = A[vi, vj, vk] + B[vi, vj, vk]
-                Tx.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N, K))
+                T.print_buffer(C.data, C.dtype, False, False, dim_num, (M, N, K))
 
         sch = tvm.s_tir.Schedule(add_func)
         blk = sch.get_sblock("C")
@@ -314,18 +314,18 @@ def test_print():
         C_np = A_np + B_np
         A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
-        @Tx.prim_func(s_tir=True)
-        def add_func(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M,), dtype_str)
-            B = Tx.match_buffer(B_ptr, (M,), dtype_str)
-            C = Tx.match_buffer(C_ptr, (M,), dtype_str)
-            Ten: Tx.let = Tx.IntImm(dtype_str, 10)
+        @T.prim_func(s_tir=True)
+        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M,), dtype_str)
+            B = T.match_buffer(B_ptr, (M,), dtype_str)
+            C = T.match_buffer(C_ptr, (M,), dtype_str)
+            Ten: T.let = T.IntImm(dtype_str, 10)
 
-            for i in Tx.grid(M):
-                with Tx.sblock("C"):
-                    vi = Tx.axis.spatial(M, i)
+            for i in T.grid(M):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(M, i)
                     C[vi] = A[vi] + B[vi]
-                Tx.print_buffer(Ten, "int32", False, True, dim_num, ())
+                T.print_buffer(Ten, "int32", False, True, dim_num, ())
 
         sch = tvm.s_tir.Schedule(add_func)
         blk = sch.get_sblock("C")
@@ -351,18 +351,18 @@ def test_print():
         C_np = A_np + B_np
         A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
-        @Tx.prim_func(s_tir=True)
-        def add_func(A_ptr: Tx.handle, B_ptr: Tx.handle, C_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M,), dtype_str)
-            B = Tx.match_buffer(B_ptr, (M,), dtype_str)
-            C = Tx.match_buffer(C_ptr, (M,), dtype_str)
-            string_var = Tx.StringImm(test_string)
+        @T.prim_func(s_tir=True)
+        def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M,), dtype_str)
+            B = T.match_buffer(B_ptr, (M,), dtype_str)
+            C = T.match_buffer(C_ptr, (M,), dtype_str)
+            string_var = T.StringImm(test_string)
 
-            for i in Tx.grid(M):
-                with Tx.sblock("C"):
-                    vi = Tx.axis.spatial(M, i)
+            for i in T.grid(M):
+                with T.sblock("C"):
+                    vi = T.axis.spatial(M, i)
                     C[vi] = A[vi] + B[vi]
-                Tx.print_buffer(string_var, "int8", True, False, dim_num, ())
+                T.print_buffer(string_var, "int8", True, False, dim_num, ())
 
         sch = tvm.s_tir.Schedule(add_func)
         blk = sch.get_sblock("C")
