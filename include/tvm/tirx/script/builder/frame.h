@@ -248,52 +248,6 @@ class BlockInitFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame that represents an execution scope (e.g. cta, warp, thread).
- *
- * When exiting this frame, it produces an ExecScopeStmt wrapping the body.
- * This is the new IR pattern, replacing the old pattern of storing exec_scope on SBlock.
- *
- * \sa ExecScopeFrame
- */
-class ExecScopeFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The execution scope (always plain kind; no slice). */
-  ffi::Optional<tvm::tirx::ExecScope> exec_scope;
-  /*! \brief Optional surface-syntax guards for ``with Tx.scope(cond)``. */
-  ffi::Array<PrimExpr> guards;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExecScopeFrameNode>()
-        .def_ro("exec_scope", &ExecScopeFrameNode::exec_scope)
-        .def_ro("guards", &ExecScopeFrameNode::guards);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ExecScopeFrame", ExecScopeFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to ExecScopeFrameNode.
- *
- * \sa ExecScopeFrameNode
- */
-class ExecScopeFrame : public TIRFrame {
- public:
-  explicit ExecScopeFrame(ffi::ObjectPtr<ExecScopeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecScopeFrame, TIRFrame, ExecScopeFrameNode);
-};
-
-/*!
  * \brief A frame that represents the for loop.
  *
  * \sa ForFrame

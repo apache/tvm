@@ -147,12 +147,6 @@ void StmtVisitor::VisitStmt_(const SBlockRealizeNode* op) {
   this->VisitStmt(op->block);
 }
 
-void StmtVisitor::VisitStmt_(const ExecScopeStmtNode* op) {
-  // ScopeIdDefStmts are now separate body stmts and are visited via the
-  // standard StmtFunctor dispatch; nothing extra to do here.
-  this->VisitStmt(op->body);
-}
-
 void StmtVisitor::VisitStmt_(const ScopeIdDefStmtNode* op) {
   // Flat stmt -- no body. Visit extents (skip deferred defs whose extents
   // are NullOpt) and any preferred_extents.
@@ -643,16 +637,6 @@ Stmt StmtMutator::VisitStmt_(const ScopeIdDefStmtNode* op) {
   ScopeIdDef new_def(op->def->def_ids, new_extents, op->def->scope, new_pref);
   auto n = CopyOnWrite(op);
   n->def = std::move(new_def);
-  return Stmt(n);
-}
-
-Stmt StmtMutator::VisitStmt_(const ExecScopeStmtNode* op) {
-  Stmt body = this->VisitStmt(op->body);
-  if (body.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  }
-  auto n = CopyOnWrite(op);
-  n->body = std::move(body);
   return Stmt(n);
 }
 

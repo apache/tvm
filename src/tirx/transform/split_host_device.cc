@@ -34,6 +34,8 @@
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
+#include <optional>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "../analysis/var_use_def_analysis.h"
 #include "ir_utils.h"
@@ -82,6 +84,36 @@ PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
 }
 
 // Host/device function extraction
+
+class LaunchBoundsAttrExtractor : public StmtMutator {
+ public:
+  Stmt Extract(Stmt stmt) {
+    min_blocks_per_sm_.reset();
+    return operator()(std::move(stmt));
+  }
+
+  std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
+
+ private:
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == tirx::attr::kLaunchBoundsMinBlocksPerSM) {
+      const auto* min_blocks_per_sm = op->value.as<IntImmNode>();
+      TVM_FFI_ICHECK(min_blocks_per_sm)
+          << tirx::attr::kLaunchBoundsMinBlocksPerSM << " expects an integer value";
+      TVM_FFI_ICHECK_GT(min_blocks_per_sm->value, 0)
+          << tirx::attr::kLaunchBoundsMinBlocksPerSM << " must be positive";
+      if (min_blocks_per_sm_.has_value()) {
+        TVM_FFI_ICHECK_EQ(min_blocks_per_sm_.value(), min_blocks_per_sm->value)
+            << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
+      }
+      min_blocks_per_sm_ = min_blocks_per_sm->value;
+      return VisitStmt(op->body);
+    }
+    return StmtMutator::VisitStmt_(op);
+  }
+
+  std::optional<int64_t> min_blocks_per_sm_;
+};
 
 class HostDeviceSplitter : public StmtMutator {
  public:
@@ -147,20 +179,23 @@ class HostDeviceSplitter : public StmtMutator {
     for (Buffer buf : buffers_to_declare) {
       body = SeqStmt::Flatten(DeclBuffer(buf), std::move(body));
     }
+    LaunchBoundsAttrExtractor launch_bounds_attr;
+    body = launch_bounds_attr.Extract(std::move(body));
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
-    if (cur_func_->attrs->dict.count(tvm::attr::kSTir)) {
+    bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
+    if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
+    }
+    if (device_target->kind->name == "cuda" && launch_bounds_attr.min_blocks_per_sm().has_value()) {
+      device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
+                             launch_bounds_attr.min_blocks_per_sm().value());
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
-    }
-    auto persistent = cur_func_->GetAttr<bool>(tirx::attr::kPersistentKernel);
-    if (persistent.has_value()) {
-      device_func = WithAttr(std::move(device_func), tirx::attr::kPersistentKernel, persistent);
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);

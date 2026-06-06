@@ -136,9 +136,6 @@ struct ExecContext {
   /*! \brief Apply modulo filter on a factorized CTA axis such as cbx/cby/cbz. */
   bool WithCtaAxisModulo(const std::string& axis, int64_t modulus, int64_t residue,
                          ExecContext* out, std::string* err) const;
-
-  /*! \brief Apply scope_switch; A preserved, split recomputed for new scope_kind. */
-  bool WithScopeSwitch(ScopeKind new_scope_kind, ExecContext* out, std::string* err) const;
 };
 
 /*!

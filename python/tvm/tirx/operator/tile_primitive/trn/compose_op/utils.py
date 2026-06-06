@@ -23,20 +23,20 @@ from ...common import ReduceOpType
 
 # Operation code mappings
 opcode_table = {
-    Op.get("tirx.add"): "add",
-    Op.get("tirx.sub"): "sub",
-    Op.get("tirx.mul"): "mul",
-    Op.get("tirx.maximum"): "max",
-    Op.get("tirx.minimum"): "min",
-    Op.get("tirx.sqrt"): "sqrt",
-    Op.get("tirx.sum"): "add",
-    Op.get("tirx.max"): "max",
-    Op.get("tirx.min"): "min",
-    Op.get("tirx.exp"): "exp",
+    Op.get("tirx.tile.add"): "add",
+    Op.get("tirx.tile.sub"): "sub",
+    Op.get("tirx.tile.mul"): "mul",
+    Op.get("tirx.tile.maximum"): "max",
+    Op.get("tirx.tile.minimum"): "min",
+    Op.get("tirx.tile.sqrt"): "sqrt",
+    Op.get("tirx.tile.sum"): "add",
+    Op.get("tirx.tile.max"): "max",
+    Op.get("tirx.tile.min"): "min",
+    Op.get("tirx.tile.exp"): "exp",
 }
 
 optype_table = {
-    Op.get("tirx.sum"): ReduceOpType.SUM,
-    Op.get("tirx.max"): ReduceOpType.MAX,
-    Op.get("tirx.min"): ReduceOpType.MIN,
+    Op.get("tirx.tile.sum"): ReduceOpType.SUM,
+    Op.get("tirx.tile.max"): ReduceOpType.MAX,
+    Op.get("tirx.tile.min"): ReduceOpType.MIN,
 }

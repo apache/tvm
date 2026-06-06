@@ -33,7 +33,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TileLayout, laneid, tid_in_wg, tx
 
 
@@ -65,162 +66,152 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         if scope == "warpgroup":
 
-            @Tx.prim_func
-            def kernel(B_ptr: Tx.handle) -> None:
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.warpgroup_id([n_threads // 128])
-                Tx.warp_id_in_wg([4])
-                Tx.lane_id([32])
-                Tx.thread_id_in_wg([128])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-                    with Tx.warpgroup():
-                        for kk in range(k):
-                            A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                        Tx.cuda.cta_sync()
-                        R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                        Tx.copy(R_local[full_slices], A_smem[full_slices])
-                        for kk in range(k):
-                            A_smem[tid, kk] = Tx.cast(0, dtype)
-                        Tx.cuda.cta_sync()
-                        Tx.copy(A_smem[full_slices], R_local[full_slices])
-                        Tx.cuda.cta_sync()
-                        for kk in range(k):
-                            B[tid, kk] = A_smem[tid, kk]
+            @T.prim_func
+            def kernel(B_ptr: T.handle) -> None:
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.warpgroup_id([n_threads // 128])
+                T.warp_id_in_wg([4])
+                T.lane_id([32])
+                T.thread_id_in_wg([128])
+                tid = T.thread_id([n_threads])
+                A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.wg.copy(R_local[full_slices], A_smem[full_slices])
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.wg.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A_smem[tid, kk]
 
         elif scope == "warp":
 
-            @Tx.prim_func
-            def kernel(B_ptr: Tx.handle) -> None:
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.lane_id([32])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-                    with Tx.warp():
-                        for kk in range(k):
-                            A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                        Tx.cuda.cta_sync()
-                        R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                        Tx.copy(R_local[full_slices], A_smem[full_slices])
-                        for kk in range(k):
-                            A_smem[tid, kk] = Tx.cast(0, dtype)
-                        Tx.cuda.cta_sync()
-                        Tx.copy(A_smem[full_slices], R_local[full_slices])
-                        Tx.cuda.cta_sync()
-                        for kk in range(k):
-                            B[tid, kk] = A_smem[tid, kk]
+            @T.prim_func
+            def kernel(B_ptr: T.handle) -> None:
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.lane_id([32])
+                tid = T.thread_id([n_threads])
+                A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.warp.copy(R_local[full_slices], A_smem[full_slices])
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.warp.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A_smem[tid, kk]
 
         elif scope == "cta":
 
-            @Tx.prim_func
-            def kernel(B_ptr: Tx.handle) -> None:
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.warp_id([n_threads // 32])
-                Tx.lane_id([32])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-                    for kk in range(k):
-                        A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                    Tx.cuda.cta_sync()
-                    R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                    Tx.copy(R_local[full_slices], A_smem[full_slices])
-                    for kk in range(k):
-                        A_smem[tid, kk] = Tx.cast(0, dtype)
-                    Tx.cuda.cta_sync()
-                    Tx.copy(A_smem[full_slices], R_local[full_slices])
-                    Tx.cuda.cta_sync()
-                    for kk in range(k):
-                        B[tid, kk] = A_smem[tid, kk]
+            @T.prim_func
+            def kernel(B_ptr: T.handle) -> None:
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.warp_id([n_threads // 32])
+                T.lane_id([32])
+                tid = T.thread_id([n_threads])
+                A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.cta.copy(R_local[full_slices], A_smem[full_slices])
+                for kk in range(k):
+                    A_smem[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.cta.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A_smem[tid, kk]
 
         return kernel
 
     if non_r_scope == "global":
         if scope == "warpgroup":
 
-            @Tx.prim_func
-            def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-                A = Tx.match_buffer(A_ptr, shape, dtype)
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.warpgroup_id([n_threads // 128])
-                Tx.warp_id_in_wg([4])
-                Tx.lane_id([32])
-                Tx.thread_id_in_wg([128])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    with Tx.warpgroup():
-                        for kk in range(k):
-                            A[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                        Tx.cuda.cta_sync()
-                        R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                        Tx.copy(R_local[full_slices], A[full_slices])
-                        for kk in range(k):
-                            A[tid, kk] = Tx.cast(0, dtype)
-                        Tx.cuda.cta_sync()
-                        Tx.copy(A[full_slices], R_local[full_slices])
-                        Tx.cuda.cta_sync()
-                        for kk in range(k):
-                            B[tid, kk] = A[tid, kk]
+            @T.prim_func
+            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+                A = T.match_buffer(A_ptr, shape, dtype)
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.warpgroup_id([n_threads // 128])
+                T.warp_id_in_wg([4])
+                T.lane_id([32])
+                T.thread_id_in_wg([128])
+                tid = T.thread_id([n_threads])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.wg.copy(R_local[full_slices], A[full_slices])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.wg.copy(A[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A[tid, kk]
 
         elif scope == "warp":
 
-            @Tx.prim_func
-            def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-                A = Tx.match_buffer(A_ptr, shape, dtype)
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.lane_id([32])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    with Tx.warp():
-                        for kk in range(k):
-                            A[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                        Tx.cuda.cta_sync()
-                        R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                        Tx.copy(R_local[full_slices], A[full_slices])
-                        for kk in range(k):
-                            A[tid, kk] = Tx.cast(0, dtype)
-                        Tx.cuda.cta_sync()
-                        Tx.copy(A[full_slices], R_local[full_slices])
-                        Tx.cuda.cta_sync()
-                        for kk in range(k):
-                            B[tid, kk] = A[tid, kk]
+            @T.prim_func
+            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+                A = T.match_buffer(A_ptr, shape, dtype)
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.lane_id([32])
+                tid = T.thread_id([n_threads])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.warp.copy(R_local[full_slices], A[full_slices])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.warp.copy(A[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A[tid, kk]
 
         elif scope == "cta":
 
-            @Tx.prim_func
-            def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-                A = Tx.match_buffer(A_ptr, shape, dtype)
-                B = Tx.match_buffer(B_ptr, shape, dtype)
-                Tx.device_entry()
-                Tx.cta_id([1])
-                Tx.warp_id([n_threads // 32])
-                Tx.lane_id([32])
-                tid = Tx.thread_id([n_threads])
-                with Tx.cta():
-                    for kk in range(k):
-                        A[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
-                    Tx.cuda.cta_sync()
-                    R_local = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-                    Tx.copy(R_local[full_slices], A[full_slices])
-                    for kk in range(k):
-                        A[tid, kk] = Tx.cast(0, dtype)
-                    Tx.cuda.cta_sync()
-                    Tx.copy(A[full_slices], R_local[full_slices])
-                    Tx.cuda.cta_sync()
-                    for kk in range(k):
-                        B[tid, kk] = A[tid, kk]
+            @T.prim_func
+            def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+                A = T.match_buffer(A_ptr, shape, dtype)
+                B = T.match_buffer(B_ptr, shape, dtype)
+                T.device_entry()
+                T.cta_id([1])
+                T.warp_id([n_threads // 32])
+                T.lane_id([32])
+                tid = T.thread_id([n_threads])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                T.cuda.cta_sync()
+                R_local = T.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
+                Tx.cta.copy(R_local[full_slices], A[full_slices])
+                for kk in range(k):
+                    A[tid, kk] = T.cast(0, dtype)
+                T.cuda.cta_sync()
+                Tx.cta.copy(A[full_slices], R_local[full_slices])
+                T.cuda.cta_sync()
+                for kk in range(k):
+                    B[tid, kk] = A[tid, kk]
 
         return kernel
 
@@ -305,19 +296,17 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
     r_lmem = tuple(slice(None) for _ in range(len(l_shape)))
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
 
-    @Tx.prim_func
-    def copy_sync(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
-        B = Tx.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
+    @T.prim_func
+    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
+        B = T.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
 
-        Tx.device_entry()
-        Tx.cta_id([2])
-        Tx.thread_id([thread_cnt])
-
-        with Tx.thread():
-            A_local = Tx.alloc_buffer(l_shape, dtype, scope="local", layout=layoutLocal)
-            Tx.copy(A_local[r_lmem], A[r_gmem])
-            Tx.copy(B[r_gmem], A_local[r_lmem])
+        T.device_entry()
+        T.cta_id([2])
+        T.thread_id([thread_cnt])
+        A_local = T.alloc_buffer(l_shape, dtype, scope="local", layout=layoutLocal)
+        Tx.copy(A_local[r_lmem], A[r_gmem])
+        Tx.copy(B[r_gmem], A_local[r_lmem])
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
@@ -356,7 +345,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     (Python ``range`` doesn't actually unroll in TVMScript) the swizzle
     fast path's per-iter constant-fold can't kick in and the
     ``tvm_builtin_pointer_offset`` swizzle XOR ends up recomputed every
-    iteration. Loop must be ``Tx.unroll``.
+    iteration. Loop must be ``T.unroll``.
     """
     from tvm.tirx.layout import SwizzleLayout, wg_local_layout
 
@@ -366,30 +355,27 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     # 128b swizzle on the SMEM side (per_element=3 ⇒ 8 fp16 atom width).
     smem_layout = SwizzleLayout(per_element=3, swizzle_len=3, atom_len=3)
 
-    @Tx.prim_func
-    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, g_shape, "float16", layout=g_layout)
-        B = Tx.match_buffer(B_ptr, g_shape, "float16", layout=g_layout)
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, g_shape, "float16", layout=g_layout)
+        B = T.match_buffer(B_ptr, g_shape, "float16", layout=g_layout)
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.thread_id([N_THREADS])
-        tid = Tx.thread_id_in_wg([N_THREADS])
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([N_THREADS])
+        tid = T.thread_id_in_wg([N_THREADS])
+        reg = T.alloc_buffer(g_shape, "float16", scope="local", layout=wg_local_layout(EPI_N))
+        smem = T.alloc_buffer(g_shape, "float16", scope="shared", layout=smem_layout)
 
-        with Tx.thread():
-            reg = Tx.alloc_buffer(g_shape, "float16", scope="local", layout=wg_local_layout(EPI_N))
-            smem = Tx.alloc_buffer(g_shape, "float16", scope="shared", layout=smem_layout)
-
-            # Populate the per-thread slice via .local() (decomposes the wg
-            # thread-axis layout into a per-thread 1D view).
-            reg_local = reg.local(EPI_N)
-            for i in Tx.serial(EPI_N):
-                reg_local[i] = A[tid, i]
-            with Tx.warpgroup():
-                Tx.copy(smem, reg)
-            Tx.cuda.cta_sync()
-            for i in Tx.serial(EPI_N):
-                B[tid, i] = smem[tid, i]
+        # Populate the per-thread slice via .local() (decomposes the wg
+        # thread-axis layout into a per-thread 1D view).
+        reg_local = reg.local(EPI_N)
+        for i in T.serial(EPI_N):
+            reg_local[i] = A[tid, i]
+        Tx.wg.copy(smem, reg)
+        T.cuda.cta_sync()
+        for i in T.serial(EPI_N):
+            B[tid, i] = smem[tid, i]
 
     target = tvm.target.Target("cuda")
     with target:

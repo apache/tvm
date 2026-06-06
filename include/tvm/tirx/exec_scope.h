@@ -35,11 +35,12 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief The target execution scope kind of an ExecScopeStmt.
+ * \brief The target execution scope kind of a tile primitive call.
  *
- * Replaces the string-keyed name of ExecScope. One value per user-facing
- * `with T.<kind>():` construct. Ordered from coarsest to finest; smaller
- * integer = wider scope, so ``ScopeKindHigher`` is a plain ``<``.
+ * Identifies the granularity at which an op executes (the per-call
+ * ``scope`` on a ``TilePrimitiveCall``, e.g. ``Tx.warp.copy(...)``).
+ * Ordered from coarsest to finest; smaller integer = wider scope, so
+ * ``ScopeKindHigher`` is a plain ``<``.
  */
 enum class ScopeKind : int {
   kCluster = 2,

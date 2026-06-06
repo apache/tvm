@@ -18,9 +18,9 @@
 """Round-trip tests for the ``ldstmatrix`` copy dispatch.
 
 Pipeline:
-  ld direction: A_gmem → A_smem (per-thread init) → R_local (Tx.copy dispatch
+  ld direction: A_gmem → A_smem (per-thread init) → R_local (T.copy dispatch
                 under test) → B_gmem (per-thread write).
-  st direction: A_gmem → R_local (per-thread init) → A_smem (Tx.copy dispatch
+  st direction: A_gmem → R_local (per-thread init) → A_smem (T.copy dispatch
                 under test) → B_gmem (per-thread write).
 
 Both directions must round-trip ``A == B``. Layout strides are constructed
@@ -37,7 +37,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tirx as Tx
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout, laneid, tid_in_wg, tx
 
 
@@ -104,57 +105,53 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.lane_id([32])
-            tid = Tx.thread_id([32])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                with Tx.warp():
-                    row = tid // 4
-                    cp = tid % 4
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(row, cp, t, w)
-                            A_smem[row, cp, t, w] = A[gr, gc]
-                    Tx.cuda.cta_sync()
-                    R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                    Tx.copy(R_local[full], A_smem[full])
-                    r_view = R_local.local()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(row, cp, t, w)
-                            B[gr, gc] = r_view[t * 2 + w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.lane_id([32])
+            tid = T.thread_id([32])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            row = tid // 4
+            cp = tid % 4
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(row, cp, t, w)
+                    A_smem[row, cp, t, w] = A[gr, gc]
+            T.cuda.cta_sync()
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            Tx.warp.copy(R_local[full], A_smem[full])
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(row, cp, t, w)
+                    B[gr, gc] = r_view[t * 2 + w]
     else:  # direction == "st"
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.lane_id([32])
-            tid = Tx.thread_id([32])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                with Tx.warp():
-                    row = tid // 4
-                    cp = tid % 4
-                    R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                    r_view = R_local.local()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(row, cp, t, w)
-                            r_view[t * 2 + w] = A[gr, gc]
-                    Tx.copy(A_smem[full], R_local[full])
-                    Tx.cuda.cta_sync()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(row, cp, t, w)
-                            B[gr, gc] = A_smem[row, cp, t, w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.lane_id([32])
+            tid = T.thread_id([32])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            row = tid // 4
+            cp = tid % 4
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(row, cp, t, w)
+                    r_view[t * 2 + w] = A[gr, gc]
+            Tx.warp.copy(A_smem[full], R_local[full])
+            T.cuda.cta_sync()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(row, cp, t, w)
+                    B[gr, gc] = A_smem[row, cp, t, w]
     # fmt: on
     return kernel, (M, N)
 
@@ -176,67 +173,63 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.warpgroup_id([1])
-            Tx.warp_id_in_wg([4])
-            Tx.lane_id([32])
-            Tx.thread_id_in_wg([128])
-            tid = Tx.thread_id([128])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                with Tx.warpgroup():
-                    wid = tid // 32
-                    lid = tid % 32
-                    row = lid // 4
-                    cp = lid % 4
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(wid, row, cp, t, w)
-                            A_smem[wid, row, cp, t, w] = A[gr, gc]
-                    Tx.cuda.cta_sync()
-                    R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                    Tx.copy(R_local[full], A_smem[full])
-                    r_view = R_local.local()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(wid, row, cp, t, w)
-                            B[gr, gc] = r_view[t * 2 + w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.warpgroup_id([1])
+            T.warp_id_in_wg([4])
+            T.lane_id([32])
+            T.thread_id_in_wg([128])
+            tid = T.thread_id([128])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            wid = tid // 32
+            lid = tid % 32
+            row = lid // 4
+            cp = lid % 4
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    A_smem[wid, row, cp, t, w] = A[gr, gc]
+            T.cuda.cta_sync()
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            Tx.wg.copy(R_local[full], A_smem[full])
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    B[gr, gc] = r_view[t * 2 + w]
     else:
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.warpgroup_id([1])
-            Tx.warp_id_in_wg([4])
-            Tx.lane_id([32])
-            Tx.thread_id_in_wg([128])
-            tid = Tx.thread_id([128])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                with Tx.warpgroup():
-                    wid = tid // 32
-                    lid = tid % 32
-                    row = lid // 4
-                    cp = lid % 4
-                    R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                    r_view = R_local.local()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(wid, row, cp, t, w)
-                            r_view[t * 2 + w] = A[gr, gc]
-                    Tx.copy(A_smem[full], R_local[full])
-                    Tx.cuda.cta_sync()
-                    for t in range(num):
-                        for w in range(2):
-                            gr, gc = _coord(wid, row, cp, t, w)
-                            B[gr, gc] = A_smem[wid, row, cp, t, w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.warpgroup_id([1])
+            T.warp_id_in_wg([4])
+            T.lane_id([32])
+            T.thread_id_in_wg([128])
+            tid = T.thread_id([128])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            wid = tid // 32
+            lid = tid % 32
+            row = lid // 4
+            cp = lid % 4
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    r_view[t * 2 + w] = A[gr, gc]
+            Tx.wg.copy(A_smem[full], R_local[full])
+            T.cuda.cta_sync()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    B[gr, gc] = A_smem[wid, row, cp, t, w]
     # fmt: on
     return kernel, (M, N)
 
@@ -258,61 +251,59 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.warp_id([4])
-            Tx.lane_id([32])
-            tid = Tx.thread_id([128])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                wid = tid // 32
-                lid = tid % 32
-                row = lid // 4
-                cp = lid % 4
-                for t in range(num):
-                    for w in range(2):
-                        gr, gc = _coord(wid, row, cp, t, w)
-                        A_smem[wid, row, cp, t, w] = A[gr, gc]
-                Tx.cuda.cta_sync()
-                R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                Tx.copy(R_local[full], A_smem[full])
-                r_view = R_local.local()
-                for t in range(num):
-                    for w in range(2):
-                        gr, gc = _coord(wid, row, cp, t, w)
-                        B[gr, gc] = r_view[t * 2 + w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.warp_id([4])
+            T.lane_id([32])
+            tid = T.thread_id([128])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            wid = tid // 32
+            lid = tid % 32
+            row = lid // 4
+            cp = lid % 4
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    A_smem[wid, row, cp, t, w] = A[gr, gc]
+            T.cuda.cta_sync()
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            Tx.cta.copy(R_local[full], A_smem[full])
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    B[gr, gc] = r_view[t * 2 + w]
     else:
-        @Tx.prim_func
-        def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-            A = Tx.match_buffer(A_ptr, (M, N), "float16")
-            B = Tx.match_buffer(B_ptr, (M, N), "float16")
-            Tx.device_entry()
-            Tx.cta_id([1])
-            Tx.warp_id([4])
-            Tx.lane_id([32])
-            tid = Tx.thread_id([128])
-            with Tx.cta():
-                A_smem = Tx.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
-                wid = tid // 32
-                lid = tid % 32
-                row = lid // 4
-                cp = lid % 4
-                R_local = Tx.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
-                r_view = R_local.local()
-                for t in range(num):
-                    for w in range(2):
-                        gr, gc = _coord(wid, row, cp, t, w)
-                        r_view[t * 2 + w] = A[gr, gc]
-                Tx.copy(A_smem[full], R_local[full])
-                Tx.cuda.cta_sync()
-                for t in range(num):
-                    for w in range(2):
-                        gr, gc = _coord(wid, row, cp, t, w)
-                        B[gr, gc] = A_smem[wid, row, cp, t, w]
+        @T.prim_func
+        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+            A = T.match_buffer(A_ptr, (M, N), "float16")
+            B = T.match_buffer(B_ptr, (M, N), "float16")
+            T.device_entry()
+            T.cta_id([1])
+            T.warp_id([4])
+            T.lane_id([32])
+            tid = T.thread_id([128])
+            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            wid = tid // 32
+            lid = tid % 32
+            row = lid // 4
+            cp = lid % 4
+            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            r_view = R_local.local()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    r_view[t * 2 + w] = A[gr, gc]
+            Tx.cta.copy(A_smem[full], R_local[full])
+            T.cuda.cta_sync()
+            for t in range(num):
+                for w in range(2):
+                    gr, gc = _coord(wid, row, cp, t, w)
+                    B[gr, gc] = A_smem[wid, row, cp, t, w]
     # fmt: on
     return kernel, (M, N)
 
@@ -406,35 +397,29 @@ def _build_multi_iter_kernel(outer_ext: int):
     s_layout = SwizzleLayout(3, 3, 3)
     full = tuple(slice(0, e) for e in shape)
 
-    @Tx.prim_func
-    def kernel(A_ptr: Tx.handle, B_ptr: Tx.handle) -> None:
-        A = Tx.match_buffer(A_ptr, shape, "float16")
-        B = Tx.match_buffer(B_ptr, shape, "float16")
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([32])
-        with Tx.cta():
-            A_smem = Tx.alloc_buffer(shape, "float16", scope="shared", layout=s_layout)
-            with Tx.warp():
-                for a in range(outer_ext):
-                    for c in range(2):
-                        for d in range(4):
-                            for e in range(2):
-                                A_smem[a, tid // 4, c, d, tid % 4, e] = A[
-                                    a, tid // 4, c, d, tid % 4, e
-                                ]
-                Tx.cuda.cta_sync()
-                R_local = Tx.alloc_buffer(shape, "float16", scope="local", layout=r_layout)
-                Tx.copy(R_local[full], A_smem[full])
-                r_view = R_local.local()
-                for a in range(outer_ext):
-                    for c in range(2):
-                        for d in range(4):
-                            for e in range(2):
-                                B[a, tid // 4, c, d, tid % 4, e] = r_view[
-                                    a * 16 + c * 8 + d * 2 + e
-                                ]
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, shape, "float16")
+        B = T.match_buffer(B_ptr, shape, "float16")
+        T.device_entry()
+        T.cta_id([1])
+        T.lane_id([32])
+        tid = T.thread_id([32])
+        A_smem = T.alloc_buffer(shape, "float16", scope="shared", layout=s_layout)
+        for a in range(outer_ext):
+            for c in range(2):
+                for d in range(4):
+                    for e in range(2):
+                        A_smem[a, tid // 4, c, d, tid % 4, e] = A[a, tid // 4, c, d, tid % 4, e]
+        T.cuda.cta_sync()
+        R_local = T.alloc_buffer(shape, "float16", scope="local", layout=r_layout)
+        Tx.warp.copy(R_local[full], A_smem[full])
+        r_view = R_local.local()
+        for a in range(outer_ext):
+            for c in range(2):
+                for d in range(4):
+                    for e in range(2):
+                        B[a, tid // 4, c, d, tid % 4, e] = r_view[a * 16 + c * 8 + d * 2 + e]
 
     return kernel, shape
 

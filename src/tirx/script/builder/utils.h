@@ -100,21 +100,6 @@ inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
 }
 
 /*!
- * \brief Find the innermost ExecScopeFrame in the IRBuilder frame stack.
- * \param method The method name to be printed when throwing exception.
- * \return The innermost ExecScopeFrame.
- */
-inline ExecScopeFrame FindExecScopeFrame(const ffi::String& method) {
-  if (ffi::Optional<ExecScopeFrame> frame = IRBuilder::Current()->FindFrame<ExecScopeFrame>()) {
-    return frame.value();
-  }
-  LOG(FATAL) << "ValueError: " << method
-             << " must be called inside an execution scope (e.g. T.cta(), T.warp()), "
-             << "but no ExecScopeFrame was found";
-  throw;
-}
-
-/*!
  * \brief Check whether the top frame in IRBuilder frame stack is IfFrame.
  * \param method The method name to be printed when throwing exception.
  * \return The top frame of IfFrame.

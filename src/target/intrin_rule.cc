@@ -199,6 +199,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
     });
 
 TVM_REGISTER_OP("tirx.isfinite")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -206,6 +207,7 @@ TVM_REGISTER_OP("tirx.isfinite")
     });
 
 TVM_REGISTER_OP("tirx.isinf")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);

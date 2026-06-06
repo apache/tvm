@@ -59,8 +59,8 @@ def test_dispatch_prints_predicate_reasons():
             self.op = op
             self.args = []  # not used by the tested predicates
 
-    # Use TRN copy; predicate requires exec_scope == "kernel".
-    op_call = _OpCall(Op.get("tirx.copy"))
+    # Use TRN copy; predicate requires exec_scope == "thread".
+    op_call = _OpCall(Op.get("tirx.tile.copy"))
     sctx = _DummySctx(target_kind="trn", exec_scope="warp")  # intentionally wrong
 
     with pytest.raises(RuntimeError) as e:
@@ -69,7 +69,7 @@ def test_dispatch_prints_predicate_reasons():
     out = str(e.value)
     print(out)
     # Header + per-variant reason must be printed in table format
-    assert "TIRx schedule dispatch failed: op=tirx.copy target=trn" in out
+    assert "TIRx schedule dispatch failed: op=tirx.tile.copy target=trn" in out
     assert "Variant" in out  # table header present
     assert "default" in out  # variant name present
     assert "rejected: exec_scope" in out
@@ -88,15 +88,15 @@ def test_dispatch_forced_variant_missing_table_and_message():
             self.dispatch = "__nonexistent__"
             self.args = []
 
-    op_call = _OpCall(Op.get("tirx.copy"))
-    sctx = _DummySctx(target_kind="trn", exec_scope="kernel")
+    op_call = _OpCall(Op.get("tirx.tile.copy"))
+    sctx = _DummySctx(target_kind="trn", exec_scope="thread")
 
     with pytest.raises(RuntimeError) as e:
         run_dispatch(op_call, sctx)
 
     msg = str(e.value)
     print(msg)
-    assert "TIRx schedule dispatch failed: op=tirx.copy target=trn" in msg
+    assert "TIRx schedule dispatch failed: op=tirx.tile.copy target=trn" in msg
     assert "no variant named '__nonexistent__' is registered" in msg
 
 
@@ -112,15 +112,15 @@ def test_dispatch_raises_with_aggregated_reasons():
             self.args = []
 
     # Use TRN compose_op; variant implementation raises NotImplementedError
-    op_call = _OpCall(Op.get("tirx.compose_op"))
-    sctx = _DummySctx(target_kind="trn", exec_scope="kernel")
+    op_call = _OpCall(Op.get("tirx.tile.compose_op"))
+    sctx = _DummySctx(target_kind="trn", exec_scope="thread")
 
     with pytest.raises(RuntimeError) as e:
         run_dispatch(op_call, sctx)
 
     msg = str(e.value)
     print(msg)
-    assert "TIRx schedule dispatch failed: op=tirx.compose_op target=trn" in msg
+    assert "TIRx schedule dispatch failed: op=tirx.tile.compose_op target=trn" in msg
     assert "default" in msg
     assert "exception — NotImplementedError" in msg
     # opcall content and backtrace should be included inside the table
@@ -136,11 +136,11 @@ def test_dispatch_prints_real_opcall_ir():
     from tvm.tirx.operator.tile_primitive.dispatcher import run_dispatch
     from tvm.tirx.stmt import TilePrimitiveCall
 
-    # Build a real TIRx TilePrimitiveCall: tirx.copy(A[0:64], B[0:64])
+    # Build a real TIRx TilePrimitiveCall: tirx.tile.copy(A[0:64], B[0:64])
     A = decl_buffer((64,), "float32", scope="global")
     B = decl_buffer((64,), "float32", scope="shared")
     real_opcall = TilePrimitiveCall(
-        A[0:64], B[0:64], op=Op.get("tirx.copy"), workspace={}, config={}
+        A[0:64], B[0:64], op=Op.get("tirx.tile.copy"), workspace={}, config={}
     )
 
     # Force predicate rejection to trigger formatted error with opcall IR
@@ -151,8 +151,8 @@ def test_dispatch_prints_real_opcall_ir():
     out = str(e.value)
     print(out)
     # Verify header and that the opcall IR is included in the table
-    assert "TIRx schedule dispatch failed: op=tirx.copy target=trn" in out
+    assert "TIRx schedule dispatch failed: op=tirx.tile.copy target=trn" in out
     assert "Variant" in out
     assert "opcall:" in out
     # IR should mention the operator name
-    assert "tirx.copy" in out
+    assert "tirx.tile.copy" in out

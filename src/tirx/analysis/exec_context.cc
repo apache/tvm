@@ -660,16 +660,6 @@ bool ExecContext::WithCtaAxisModulo(const std::string& axis, int64_t modulus, in
   return true;
 }
 
-bool ExecContext::WithScopeSwitch(ScopeKind new_scope_kind, ExecContext* out,
-                                  std::string* err) const {
-  ExecSplit new_split;
-  if (!ScopeSwitch(A, new_scope_kind, &new_split, err)) return false;
-  out->A = A;
-  out->scope_kind = new_scope_kind;
-  out->split = std::move(new_split);
-  return true;
-}
-
 ffi::Map<ffi::String, ffi::Array<PrimExpr>> EncodeSplitSide(
     const std::unordered_map<std::string, AxisRange>& side) {
   ffi::Map<ffi::String, ffi::Array<PrimExpr>> out;
