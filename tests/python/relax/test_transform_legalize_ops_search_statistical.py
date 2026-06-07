@@ -677,6 +677,22 @@ def test_prod_zero_dim_axis_identity():
     assert "T.float32(1)" in script or "T.float32(1.0)" in script
 
 
+def test_prod_bool_zero_dim_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Prod:
+        @R.function
+        def main(x: R.Tensor((2, 0, 4), "bool")) -> R.Tensor((2, 4), "bool"):
+            gv: R.Tensor((2, 4), "bool") = R.prod(x, axis=[1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Prod)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.bool(1)" in script
+
+
 def test_mean():
     # fmt: off
     @tvm.script.ir_module
