@@ -1149,7 +1149,7 @@ def test_matmul_zero_k_no_reduction():
     mod = LegalizeOps()(Matmul)
     script = mod.script()
     assert "T.axis.reduce" not in script
-    assert "T.float32(0)" in script
+    assert "T.float32(0)" in script or "T.float32(0.0)" in script
 
 
 def test_einsum():
