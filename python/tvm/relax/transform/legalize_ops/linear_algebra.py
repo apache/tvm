@@ -46,7 +46,11 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         f_infer_sinfo = call.op.get_attr("FInferStructInfo")
         output_shape = f_infer_sinfo(relax.op.matmul(a_relax, b_relax), bb).shape
         if isinstance(a_shape[-1], tirx.IntImm) and a_shape[-1] == 0:
-            return topi.full(output_shape, call.struct_info.dtype, 0)
+            return te.compute(
+                output_shape,
+                lambda *_: tirx.const(0, call.struct_info.dtype),
+                name="matmul",
+            )
 
         def matmul_compute(*idx_spatial):
             k = te.reduce_axis((0, a_shape[-1]), name="k")
