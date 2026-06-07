@@ -1136,6 +1136,22 @@ def test_matmul_batching_dim_1():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_matmul_zero_k_no_reduction():
+    # fmt: off
+    @tvm.script.ir_module
+    class Matmul:
+        @R.function
+        def main(x: R.Tensor((2, 0), "float32"), y: R.Tensor((0, 3), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.matmul(x, y)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Matmul)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(0)" in script
+
+
 def test_einsum():
     # fmt: off
     @I.ir_module(s_tir=True)
