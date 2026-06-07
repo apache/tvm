@@ -629,6 +629,22 @@ def test_prod_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_sum_zero_dim_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Sum:
+        @R.function
+        def main(x: R.Tensor((2, 0, 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv: R.Tensor((2, 4), "float32") = R.sum(x, axis=[1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Sum)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(0)" in script or "T.float32(0.0)" in script
+
+
 def test_mean():
     # fmt: off
     @tvm.script.ir_module
