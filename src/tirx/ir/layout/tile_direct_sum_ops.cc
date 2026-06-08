@@ -61,7 +61,7 @@ Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr
   for (const auto& [axis, off] : right->offset) {
     auto it = sum_off.find(axis);
     if (it != sum_off.end()) {
-      sum_off.Set(axis, analyzer.Simplify((*it).second + off));
+      sum_off.Set(axis, analyzer->Simplify((*it).second + off));
     } else {
       sum_off.Set(axis, off);
     }
@@ -70,7 +70,7 @@ Layout TileLayoutNode::DirectSum(const TileLayout& left_in, const Array<PrimExpr
   return TileLayout(sum_shard, sum_rep, sum_off)->Canonicalize();
 }
 
-static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, arith::Analyzer* analyzer) {
+static bool IterEqualRelaxUnit(const Iter& a, const Iter& b, arith::AnalyzerObj* analyzer) {
   if (!(*analyzer).CanProveEqual(a->extent, b->extent)) return false;
   if (!is_one(a->extent)) {
     if (!(*analyzer).CanProveEqual(a->stride, b->stride)) return false;
@@ -88,9 +88,9 @@ static ffi::Map<Axis, PrimExpr> SubtractOffsets(const ffi::Map<Axis, PrimExpr>& 
   for (const auto& [axis, off] : rhs) {
     auto it = res.find(axis);
     if (it != res.end()) {
-      res.Set(axis, analyzer.Simplify((*it).second - off));
+      res.Set(axis, analyzer->Simplify((*it).second - off));
     } else {
-      res.Set(axis, analyzer.Simplify(-off));
+      res.Set(axis, analyzer->Simplify(-off));
     }
   }
   return res;
@@ -128,7 +128,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsDirectSumRight(
     for (int j = 0; j < right_cnt; ++j) {
       Iter s_iter = grouped_sum->shard[sum_seps[2 * i + 2] - right_cnt + j];
       Iter r_iter = grouped_right->shard[right_seps[i] + j];
-      if (!IterEqualRelaxUnit(s_iter, r_iter, &analyzer)) return std::nullopt;
+      if (!IterEqualRelaxUnit(s_iter, r_iter, analyzer.get())) return std::nullopt;
     }
     // If sum_right_cnt > right_cnt, residual dims cannot be attributed; reject for now.
     if (sum_right_cnt != right_cnt) return std::nullopt;
@@ -175,7 +175,7 @@ ffi::Optional<Layout> TileLayoutNode::IsDirectSumLeft(
     for (int j = 0; j < left_cnt; ++j) {
       Iter s_iter = grouped_sum->shard[sum_seps[2 * i] + j];
       Iter l_iter = grouped_left->shard[left_seps[i] + j];
-      if (!IterEqualRelaxUnit(s_iter, l_iter, &analyzer)) return std::nullopt;
+      if (!IterEqualRelaxUnit(s_iter, l_iter, analyzer.get())) return std::nullopt;
     }
     // If sum_left_cnt > left_cnt, residual dims cannot be attributed; reject for now.
     if (sum_left_cnt != left_cnt) return std::nullopt;

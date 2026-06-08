@@ -49,13 +49,14 @@ using support::NDIntSet;
 /*! \brief a more constrained bound estimate for n-dimentional int set */
 NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
                       const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
-                      arith::Analyzer* analyzer) {
+                      arith::AnalyzerObj* analyzer) {
   std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
     var_dom[ffi::GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   ffi::Optional<ffi::Array<arith::IntSet>> eval_res =
-      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
+      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer_ref);
 
   if (eval_res.defined()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
@@ -166,7 +167,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
                                  op->thread_binding.value()->thread_tag)
                        : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
-    dom_analyzer_.Bind(op->loop_var, loop_range);
+    dom_analyzer_->Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), arith::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_buffers_.size();
     StmtExprVisitor::VisitStmt_(op);
@@ -179,7 +180,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitStmt_(const BindNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
     if (arith::IsIndexType(op->value->dtype)) {
-      dom_analyzer_.Bind(op->var, op->value);
+      dom_analyzer_->Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
     }
   }
@@ -187,7 +188,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitExpr_(const LetNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
     if (arith::IsIndexType(op->value->dtype)) {
-      dom_analyzer_.Bind(op->var, op->value);
+      dom_analyzer_->Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
     }
     StmtExprVisitor::VisitExpr(op->body);
@@ -321,7 +322,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       if (!dom.defined()) {  // dom is empty for legacy te schedule
         dom = Range::FromMinExtent(make_zero(op->value->dtype), op->value);
       }
-      dom_analyzer_.Bind(iter->var, dom);
+      dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_buffers_.size();
       StmtExprVisitor::VisitStmt_(op);
@@ -367,13 +368,13 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         if (pred->dtype.is_bool()) return pred;
         return pred != make_zero(pred->dtype);
       };
-      PrimExpr predicate = dom_analyzer_.Simplify(
+      PrimExpr predicate = dom_analyzer_->Simplify(
           std::accumulate(pending_conditions_.begin(), pending_conditions_.end(), const_true(),
                           [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
                             return normalize_pred(x) && normalize_pred(y);
                           }));
       NDIntSet nd_int_set =
-          NDIntSetEval(buffer_region->region, predicate, dom_map_, &dom_analyzer_);
+          NDIntSetEval(buffer_region->region, predicate, dom_map_, dom_analyzer_.get());
 
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
@@ -440,16 +441,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       Range range = int_set.CoverRange(original);
       PrimExpr min, extent;
       if (collect_inbound_) {
-        min = dom_analyzer_.Simplify(tvm::max(0, range->min));
+        min = dom_analyzer_->Simplify(tvm::max(0, range->min));
         extent = range->extent;
         // Apply stronger symbolic proof to help us remove symbolic min here.
-        if (!dom_analyzer_.CanProveLessEqualThanSymbolicShapeValue(extent, original_shape[i])) {
+        if (!dom_analyzer_->CanProveLessEqualThanSymbolicShapeValue(extent, original_shape[i])) {
           extent = tvm::min(original_shape[i], range->extent);
         }
-        extent = dom_analyzer_.Simplify(extent);
+        extent = dom_analyzer_->Simplify(extent);
       } else {
-        min = dom_analyzer_.Simplify(range->min);
-        extent = dom_analyzer_.Simplify(range->extent);
+        min = dom_analyzer_->Simplify(range->min);
+        extent = dom_analyzer_->Simplify(range->extent);
       }
 
       // We check the buffer extent is pure and not loop dependent, since loop dependent
@@ -465,7 +466,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       };
       if (UsesVar(extent, is_loop_var)) {
         // try estimate a constant upperbound on region's extent
-        int64_t upperbound = dom_analyzer_.const_int_bound(extent)->max_value;
+        int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {
           extent = make_const(extent->dtype, upperbound);
         } else {

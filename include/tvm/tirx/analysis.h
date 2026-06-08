@@ -37,10 +37,6 @@
 
 namespace tvm {
 
-namespace arith {
-class Analyzer;
-}
-
 namespace tirx {
 
 /*!

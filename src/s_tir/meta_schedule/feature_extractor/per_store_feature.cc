@@ -62,7 +62,7 @@ namespace utils {
  * \param analyzer The analyzer
  * \return The shape of the buffer
  */
-std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::Analyzer* analyzer) {
+std::vector<int64_t> GetBufferShape(const Buffer& buffer, arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   std::vector<int64_t> result;
   result.reserve(ndim);
@@ -121,7 +121,7 @@ int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
  * \return The relaxed and unioned region
  */
 IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
-                     arith::Analyzer* analyzer) {
+                     arith::AnalyzerObj* analyzer) {
   *numel = 1;
   if (multi_indices.empty()) {
     return {};
@@ -737,7 +737,7 @@ struct Feature {
 
     static void Pad(std::vector<double>* v) { v->insert(v->end(), 18, 0.0); }
 
-    void SetStride(const LoopNest& loop_nest, arith::Analyzer* analyzer);
+    void SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer);
 
     void SetReuse(const LoopNest& loop_nest,     //
                   int64_t top_loop_touch_bytes,  //
@@ -766,14 +766,14 @@ struct Feature {
 
   explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest,
                    int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::Analyzer* analyzer);
+                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::AnalyzerObj* analyzer);
 
   void Init(const BufferStoreNode* store, int n_loops);
 
   void SetRegion(const LoopNest& loop_nest,                        //
                  IntVec* for_touched_bytes,                        //
                  ForBufferMap<IntVec>* buffer_touched_under_loop,  //
-                 arith::Analyzer* analyzer);
+                 arith::AnalyzerObj* analyzer);
 
   std::vector<SubFeature> sub_features;
 };
@@ -820,7 +820,7 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
 
 void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                         ForBufferMap<IntVec>* buffer_touched_under_loop,
-                        arith::Analyzer* analyzer) {
+                        arith::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // Step 1. Initialize and bind all the loop variables to a constant
@@ -858,7 +858,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
   }
 }
 
-void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* analyzer) {
+void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each buffer, we find the loop stride on it
@@ -1009,7 +1009,7 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
 
 Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
                  IntVec* for_touched_bytes, ForBufferMap<IntVec>* buffer_touched_under_loop,
-                 arith::Analyzer* analyzer) {
+                 arith::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   // Step 0. Initialize data structures
   this->Init(store, n_loops);
@@ -1155,7 +1155,7 @@ struct Feature {
 
   Feature() = default;
 
-  explicit Feature(const LoopNest& loop_nest, const Buffer& buffer, arith::Analyzer* analyzer) {
+  explicit Feature(const LoopNest& loop_nest, const Buffer& buffer, arith::AnalyzerObj* analyzer) {
     std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
     int64_t numel = 1;
     for (int64_t x : shape) {
@@ -1324,7 +1324,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
     feature.group1 = std::make_unique<group1::Feature>(store, loop_nest_, is_gpu_);
     feature.group2 =
         std::make_unique<group2::Feature>(store, loop_nest_, cache_line_bytes_, &for_touched_bytes_,
-                                          &buffer_touched_under_loop_, &analyzer_);
+                                          &buffer_touched_under_loop_, analyzer_.get());
     feature.group3 =
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes_, feature.group1->arith_ops);
@@ -1340,7 +1340,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
   void HandleBufferAlloc(const Buffer& buffer) {
     Feature& feature = buffer_features_[buffer.get()];
-    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, buffer, &analyzer_);
+    feature.group4 = std::make_unique<group4::Feature>(loop_nest_, buffer, analyzer_.get());
   }
 
   explicit PerStoreFeatureCollector(bool is_gpu, int64_t cache_line_bytes,

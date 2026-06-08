@@ -159,7 +159,7 @@ struct BufferPadding {
     return result;
   }
 
-  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::Analyzer* analyzer) {
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::AnalyzerObj* analyzer) {
     ffi::Array<Var> loop_vars;
     ffi::Array<Range> loop_doms;
     ffi::Array<IterVar> iter_vars;
@@ -390,8 +390,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
     PrimExpr pad_imm = IntImm(dom->dtype, padding[i]);
-    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, pad_imm) * pad_imm);
-    if (!analyzer.CanProveEqual(new_dom, dom)) {
+    PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
+    if (!analyzer->CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);
       if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
         replacer.iter2padded_extents.Set(ffi::GetRef<Var>(loop_var), new_dom);
@@ -441,7 +441,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       BufferPadding bp =
           BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
       replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
-      read_blocks.push_back(bp.MakeCopyBlock(true, &new_copy_blocks, &analyzer));
+      read_blocks.push_back(bp.MakeCopyBlock(true, &new_copy_blocks, analyzer.get()));
       alloc_buffers.push_back(bp.padded_buffer);
     }
   }
@@ -450,7 +450,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       BufferPadding bp =
           BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
       replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
-      write_blocks.push_back(bp.MakeCopyBlock(false, &new_copy_blocks, &analyzer));
+      write_blocks.push_back(bp.MakeCopyBlock(false, &new_copy_blocks, analyzer.get()));
       alloc_buffers.push_back(bp.padded_buffer);
     }
   }

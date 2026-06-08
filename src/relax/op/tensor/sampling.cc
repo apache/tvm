@@ -115,7 +115,7 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
   PrimExpr batch = prob_shape->values[0];
   PrimExpr n = uniform_sample_shape->values[0];
   arith::Analyzer ana;
-  if (!ana.CanProveEqual(n, sample_indices_shape->values[0])) {
+  if (!ana->CanProveEqual(n, sample_indices_shape->values[0])) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Multinomial_from_uniform op requires the input uniform_sample and "
                         "sample_indices to have the same batch size. "

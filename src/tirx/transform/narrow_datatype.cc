@@ -82,7 +82,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (e.dtype().is_int()) {
       int bits = max_bits_;
       if (bound_.find(e) == bound_.end()) {
-        analyzer_.const_int_bound(e, &bound_);
+        analyzer_->const_int_bound(e, &bound_);
       }
       ConstIntBound bound = bound_[e];
       int64_t ubound = Downcast<IntImm>(max_value(DataType::Int(target_bits_)))->value;
@@ -108,14 +108,14 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_[op->loop_var.as<VarNode>()] = op->extent.dtype();
     return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const SBlockNode* op) {
     for (const IterVar& iter : op->iter_vars) {
-      analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+      analyzer_->Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
       vextent_[iter->var.as<VarNode>()] = iter->dom->extent.dtype();
     }
     StmtExprVisitor::VisitStmt_(op);
@@ -125,7 +125,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
+      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
     } else {
@@ -136,7 +136,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitExpr_(const ReduceNode* op) {
     // Setup the domain information before simplification.
     for (const IterVar& iv : op->axis) {
-      analyzer_.Bind(iv->var, iv->dom);
+      analyzer_->Bind(iv->var, iv->dom);
       vextent_[iv->var.as<VarNode>()] = iv->dom->extent.dtype();
     }
     // Recursively call simplification when necessary.

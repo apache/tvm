@@ -395,8 +395,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     const tirx::ForNode* desc_loop = kv.second.get();
     TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
-    PrimExpr block_extent = analyzer.Simplify(block_loop->extent);
-    PrimExpr desc_extent = analyzer.Simplify(desc_loop->extent);
+    PrimExpr block_extent = analyzer->Simplify(block_loop->extent);
+    PrimExpr desc_extent = analyzer->Simplify(desc_loop->extent);
     const auto* int_block_extent = block_extent.as<IntImmNode>();
     const auto* int_desc_extent = desc_extent.as<IntImmNode>();
     TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);

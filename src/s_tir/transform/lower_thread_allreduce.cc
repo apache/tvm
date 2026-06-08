@@ -710,7 +710,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // The local buffer index.
   PrimExpr BufIndex(PrimExpr reduce_index, PrimExpr group_index, int reduce_extent) {
     if (!is_zero(group_index)) {
-      return analyzer_.Simplify(group_index * reduce_extent + reduce_index);
+      return analyzer_->Simplify(group_index * reduce_extent + reduce_index);
     } else {
       return reduce_index;
     }

@@ -118,7 +118,7 @@ bool IsOp(const CallNode* call, const Op& compat_op, const char* canonical_name)
 // store warp_mem[m * warp_index + (width * m) * y + x]
 class WarpStoreCoeffFinder : private StmtExprVisitor {
  public:
-  WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::Analyzer* analyzer)
+  WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::AnalyzerObj* analyzer)
       : buffer_(buffer), warp_index_(warp_index), analyzer_(analyzer) {}
   // find the warp co-efficient in the statement given the warp size
   int Find(const Stmt& stmt) {
@@ -206,7 +206,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   // the coefficient
   int64_t warp_coeff_{0};
   // analyzer.
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
 };
 
 // Visitor to find the warp index
@@ -257,7 +257,7 @@ class WarpIndexFinder : private StmtVisitor {
 // Mutator to change the read pattern
 class WarpAccessRewriter : protected StmtExprMutator {
  public:
-  explicit WarpAccessRewriter(int warp_size, arith::Analyzer* analyzer)
+  explicit WarpAccessRewriter(int warp_size, arith::AnalyzerObj* analyzer)
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the AllocBuffer statement which transforms
   // warp memory to local memory.
@@ -440,7 +440,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // the coefficient n
   int warp_group_{0};
   // Internal analyzer
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
 };
 
 // Bind bound information of variables to make analyzer more effective
@@ -448,7 +448,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 // so analysis can be context independent.
 class BindVarBoundInfo : public StmtVisitor {
  public:
-  explicit BindVarBoundInfo(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit BindVarBoundInfo(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   void VisitStmt_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
@@ -471,7 +471,7 @@ class BindVarBoundInfo : public StmtVisitor {
 
  protected:
   // internal analyzer.
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   // variable domain
   std::unordered_map<const VarNode*, Range> var_dom_;
 };
@@ -483,7 +483,7 @@ class WarpMemoryRewriter : private StmtMutator {
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
-    BindVarBoundInfo binder(&analyzer_);
+    BindVarBoundInfo binder(analyzer_.get());
     binder(stmt);
     stmt = operator()(std::move(stmt));
     return stmt;
@@ -506,7 +506,7 @@ class WarpMemoryRewriter : private StmtMutator {
           remaining.push_back(op->seq[j]);
         }
         Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
-        WarpAccessRewriter rewriter(warp_size_, &analyzer_);
+        WarpAccessRewriter rewriter(warp_size_, analyzer_.get());
         Stmt rewritten = rewriter.Rewrite(alloc, body);
         new_seq.push_back(rewritten);
         changed = true;

@@ -146,7 +146,7 @@ StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
   TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of scatter_from_worker0 should have defined shape.";

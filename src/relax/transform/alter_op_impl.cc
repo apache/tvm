@@ -68,9 +68,9 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
   ffi::Array<PrimExpr> input_shape = GetShapeFromTensor(expr);
   ffi::Array<Range> initial_ranges = ConstructRangeFromShape(input_shape);
   arith::Analyzer analyzer;
-  auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges, &analyzer);
+  auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges, analyzer);
   (void)inverse;  // to avoid unused variable warning;
-  if (!analyzer.CanProve(!padding_predicate)) return false;
+  if (!analyzer->CanProve(!padding_predicate)) return false;
   return true;
 }
 
@@ -256,7 +256,7 @@ class AlterOpImplMutator : public ExprMutator {
     ffi::Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
     arith::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
-        index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
+        index_map.NonSurjectiveInverse(initial_ranges, analyzer);
 
     if (tirx::is_zero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator);
@@ -352,7 +352,7 @@ class AlterOpImplMutator : public ExprMutator {
     if (transform.get() == nullptr) return tensor_sinfo;
     auto shape = GetShapeFromTensorStructInfo(tensor_sinfo);
     arith::Analyzer analyzer;
-    auto new_shape = transform->MapShape(shape, &analyzer);
+    auto new_shape = transform->MapShape(shape, analyzer);
     if (tensor_sinfo->vdevice.defined()) {
       return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype,
                               tensor_sinfo->vdevice.value());

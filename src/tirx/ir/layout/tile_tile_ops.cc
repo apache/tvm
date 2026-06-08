@@ -39,27 +39,27 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
     auto stride_i = layout->shard[i]->stride;
     prod *= extent_i;
     while (shape_idx < shape.size() &&
-           analyzer.CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
+           analyzer->CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
       // Simplify ``c``, ``floordiv(extent_i, c)`` and ``stride_i * c`` —
       // without this, splitting an iter whose extent contains a symbolic
       // dim that algebraically cancels (e.g. ``floordiv(batch_size,
       // batch_size) == 1``) leaves dead ``a // a`` factors in the new
       // iter's stride that ``int(stride)`` can't unwrap downstream.
-      PrimExpr c = analyzer.Simplify(floordiv(prod, shape[shape_idx]));
-      TVM_FFI_ICHECK(analyzer.CanProveEqual(floormod(extent_i, c), 0))
+      PrimExpr c = analyzer->Simplify(floordiv(prod, shape[shape_idx]));
+      TVM_FFI_ICHECK(analyzer->CanProveEqual(floormod(extent_i, c), 0))
           << "layout " << layout << " can not be grouped by shape " << shape;
-      new_shard.push_back(Iter(analyzer.Simplify(floordiv(extent_i, c)),
-                               analyzer.Simplify(stride_i * c), layout->shard[i]->axis));
+      new_shard.push_back(Iter(analyzer->Simplify(floordiv(extent_i, c)),
+                               analyzer->Simplify(stride_i * c), layout->shard[i]->axis));
       extent_i = c;
       prod = c;
       shape_idx++;
       seps.push_back(new_shard.size());
     }
-    extent_i = analyzer.Simplify(extent_i);
+    extent_i = analyzer->Simplify(extent_i);
     if (!is_one(extent_i)) {
       TVM_FFI_ICHECK(shape_idx < shape.size())
           << "layout " << layout << " can not be grouped by shape " << shape;
-      new_shard.push_back(Iter(extent_i, analyzer.Simplify(stride_i), layout->shard[i]->axis));
+      new_shard.push_back(Iter(extent_i, analyzer->Simplify(stride_i), layout->shard[i]->axis));
     }
   }
 
@@ -88,20 +88,20 @@ std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
     auto stride_i = layout->shard[i]->stride;
     prod *= extent_i;
     while (shape_idx < shape.size() &&
-           analyzer.CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
-      PrimExpr c = analyzer.Simplify(floordiv(prod, shape[shape_idx]));
-      if (!analyzer.CanProveEqual(floormod(extent_i, c), 0)) return std::nullopt;
-      new_shard.push_back(Iter(analyzer.Simplify(floordiv(extent_i, c)),
-                               analyzer.Simplify(stride_i * c), layout->shard[i]->axis));
+           analyzer->CanProveEqual(floormod(prod, shape[shape_idx]), 0)) {
+      PrimExpr c = analyzer->Simplify(floordiv(prod, shape[shape_idx]));
+      if (!analyzer->CanProveEqual(floormod(extent_i, c), 0)) return std::nullopt;
+      new_shard.push_back(Iter(analyzer->Simplify(floordiv(extent_i, c)),
+                               analyzer->Simplify(stride_i * c), layout->shard[i]->axis));
       extent_i = c;
       prod = c;
       shape_idx++;
       seps.push_back(new_shard.size());
     }
-    extent_i = analyzer.Simplify(extent_i);
+    extent_i = analyzer->Simplify(extent_i);
     if (!is_one(extent_i)) {
       if (shape_idx >= shape.size()) return std::nullopt;
-      new_shard.push_back(Iter(extent_i, analyzer.Simplify(stride_i), layout->shard[i]->axis));
+      new_shard.push_back(Iter(extent_i, analyzer->Simplify(stride_i), layout->shard[i]->axis));
     }
   }
 
@@ -194,7 +194,7 @@ ffi::Array<PrimExpr> TileShape(ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> 
 
   ffi::Array<PrimExpr> new_shape;
   for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
-    TVM_FFI_ICHECK(analyzer.CanProveEqual(floormod(shape[i], factor[i]), 0))
+    TVM_FFI_ICHECK(analyzer->CanProveEqual(floormod(shape[i], factor[i]), 0))
         << "Shape[i] must be divisible by factor[i]";
 
     if (is_inner) {
@@ -294,7 +294,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
   auto rescale_by_inner_span = [&](const Iter& iter) -> ffi::Optional<Iter> {
     auto it = inner_span_map.find(iter->axis->name);
     if (it != inner_span_map.end() && !is_one(iter->extent)) {
-      if (!analyzer.CanProveEqual(floormod(iter->stride, (*it).second), 0)) {
+      if (!analyzer->CanProveEqual(floormod(iter->stride, (*it).second), 0)) {
         return std::nullopt;
       }
       return Iter(iter->extent, floordiv(iter->stride, (*it).second), iter->axis);
@@ -327,9 +327,9 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
     for (int j = 0; j < inner_count; ++j) {
       Iter inner_iter = grouped_layout->shard[inner_seps[i] + j];
       Iter tiled_iter = grouped_tiled->shard[tiled_seps_even[i + 1] - inner_count + j];
-      if (!analyzer.CanProveEqual(inner_iter->extent, tiled_iter->extent) ||
+      if (!analyzer->CanProveEqual(inner_iter->extent, tiled_iter->extent) ||
           (!is_one(inner_iter->extent) &&
-           !(analyzer.CanProveEqual(inner_iter->stride, tiled_iter->stride) &&
+           !(analyzer->CanProveEqual(inner_iter->stride, tiled_iter->stride) &&
              inner_iter->axis.same_as(tiled_iter->axis)))) {
         return std::nullopt;
       }
@@ -357,7 +357,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
   for (const auto& [axis, off] : tiled->offset) {
     auto it = layout->offset.find(axis);
     if (it != layout->offset.end()) {
-      outer_exclude.Set(axis, analyzer.Simplify(off - (*it).second));
+      outer_exclude.Set(axis, analyzer->Simplify(off - (*it).second));
     } else {
       outer_exclude.Set(axis, off);
     }
@@ -416,7 +416,7 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
     for (int j = 0; j < outer_count; ++j) {
       Iter outer_iter = grouped_layout->shard[outer_seps[i] + j];
       Iter tiled_iter = grouped_tiled->shard[tiled_seps_even[i] + j];
-      if (!analyzer.CanProveEqual(outer_iter->extent, tiled_iter->extent) ||
+      if (!analyzer->CanProveEqual(outer_iter->extent, tiled_iter->extent) ||
           (!is_one(outer_iter->extent) && !outer_iter->axis.same_as(tiled_iter->axis))) {
         return std::nullopt;
       }
@@ -440,7 +440,7 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
   for (const auto& [axis, off] : tiled->offset) {
     auto it = layout->offset.find(axis);
     if (it != layout->offset.end()) {
-      inner_exclude.Set(axis, analyzer.Simplify(off - (*it).second));
+      inner_exclude.Set(axis, analyzer->Simplify(off - (*it).second));
     } else {
       inner_exclude.Set(axis, off);
     }

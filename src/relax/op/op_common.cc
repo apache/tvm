@@ -109,7 +109,7 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
   return tensor_sinfo;
 }
 
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::Analyzer* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape) {
   BinaryBroadcastShapeInferResult result;
@@ -159,7 +159,7 @@ BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::Analyzer* analy
 ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
     const Call& call, const BlockBuilder& ctx, const ffi::Array<PrimExpr>& x1_shape,
     const ffi::Array<PrimExpr>& x2_shape) {
-  auto infer_result = InferBinaryBroadcastShape(ctx->GetAnalyzer(), x1_shape, x2_shape);
+  auto infer_result = InferBinaryBroadcastShape(ctx->GetAnalyzer().get(), x1_shape, x2_shape);
   if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kConflict) {
     TVM_FFI_ICHECK(infer_result.message.has_value());
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -223,7 +223,7 @@ bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired
     arith::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
       if (tirx::is_const_int(shape[i])) {
-        if (!analyzer.CanProveEqual(shape[i], back_shape[i])) {
+        if (!analyzer->CanProveEqual(shape[i], back_shape[i])) {
           can_prove = false;
           break;
         }

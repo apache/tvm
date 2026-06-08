@@ -346,7 +346,7 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     TVM_FFI_ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
-      if (range.CanProveSinglePoint(&ana_)) {
+      if (range.CanProveSinglePoint(ana_)) {
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, make_const(min.dtype(), 1)));
       } else {

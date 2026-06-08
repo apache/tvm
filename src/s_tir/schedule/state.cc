@@ -45,15 +45,16 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,   
                                                   const PrimExpr& predicate,           //
                                                   const StmtSRef& dom_low_inclusive,   //
                                                   const StmtSRef& dom_high_exclusive,  //
-                                                  arith::Analyzer* analyzer) {
+                                                  arith::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
       /*var_dom=*/var_dom,
-      /*predicate=*/predicate, /*analyzer=*/analyzer);
+      /*predicate=*/predicate, /*analyzer=*/analyzer_ref);
 }
 
 /*!
@@ -70,15 +71,16 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,   
                                                   const PrimExpr& predicate,           //
                                                   const StmtSRef& dom_low_inclusive,   //
                                                   const StmtSRef& dom_high_exclusive,  //
-                                                  arith::Analyzer* analyzer) {
+                                                  arith::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<arith::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
           /*var_dom=*/var_dom,
-          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
+          /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
   return ffi::Array<arith::IntSet>(region->buffer->shape.size(), arith::IntSet::Nothing());
@@ -95,7 +97,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,   
 bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
                             const ffi::Array<arith::IntSet>& produced_region,
                             const ffi::Array<arith::IntSet>& consumed_region,
-                            arith::Analyzer* analyzer) {
+                            arith::AnalyzerObj* analyzer) {
   TVM_FFI_ICHECK_EQ(buffer_shape.size(), consumed_region.size());
   TVM_FFI_ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
@@ -191,7 +193,7 @@ class SBlockInfoCollector : private StmtVisitor {
       info.affine_binding =
           IsAffineBinding(/*realize=*/block2realize_.at(scope_root->stmt),
                           /*loop_var_ranges=*/LoopDomainOfSRefTreePath(srefs_.back()),
-                          /*analyzer=*/&analyzer_);
+                          /*analyzer=*/analyzer_.get());
     }
     // Set `region_cover` to true, will be updated on its scope block
     info.region_cover = true;
@@ -296,7 +298,7 @@ class SBlockInfoCollector : private StmtVisitor {
                   /*predicate=*/producer_realize->predicate,
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
-                  /*analyzer=*/&analyzer_));
+                  /*analyzer=*/analyzer_.get()));
             }
           }
         }
@@ -315,9 +317,9 @@ class SBlockInfoCollector : private StmtVisitor {
                   /*predicate=*/consumer_realize->predicate,
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
-                  /*analyzer=*/&analyzer_);
+                  /*analyzer=*/analyzer_.get());
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
-                                          &analyzer_)) {
+                                          analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;
                 break;
@@ -332,7 +334,7 @@ class SBlockInfoCollector : private StmtVisitor {
   }
 
   void VisitStmt_(const ForNode* loop) final {
-    analyzer_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    analyzer_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     PushSRef(loop);
     VisitStmt(loop->body);
     PopSRef();

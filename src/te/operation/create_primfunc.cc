@@ -192,7 +192,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 using NestedIterLevels = std::vector<std::vector<IterVar>>;
 
 NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
-                                          arith::Analyzer* analyzer) {
+                                          arith::AnalyzerObj* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
   std::unordered_map<Var, IterVar> var2iter;
@@ -364,7 +364,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
  **/
 Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buffer>& buffers,
                       const ffi::Map<Var, PrimExpr>& var_map, PrimExpr expr_body,
-                      CreateFuncInfo* info, arith::Analyzer* analyzer) {
+                      CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
     return Substitute(info->transformer(e), var_map);
@@ -476,7 +476,7 @@ struct NestedScopeInfo {
 };
 
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
-                             arith::Analyzer* analyzer) {
+                             arith::AnalyzerObj* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
   ffi::Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
@@ -707,7 +707,7 @@ void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
 }
 
 void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
-                         ffi::Array<Stmt>* root_stmts, arith::Analyzer* analyzer) {
+                         ffi::Array<Stmt>* root_stmts, arith::AnalyzerObj* analyzer) {
   if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     TVM_FFI_ICHECK_EQ(op->num_outputs(), 1);
@@ -776,7 +776,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 
   // Step 3. Rewrite compute stages into blocks.
   for (const te::Operation& op : order) {
-    RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
+    RewriteStageToBlock(op, &info, &root_stmts, analyzer.get());
   }
 
   // Step 4. Create func and complete prim func.
@@ -854,7 +854,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
 
   // Step 3. Rewrite compute stages into blocks.
   for (const te::Operation& op : order) {
-    RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
+    RewriteStageToBlock(op, &info, &root_stmts, analyzer.get());
   }
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {

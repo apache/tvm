@@ -27,11 +27,11 @@ TEST(Simplify, MinMax) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
-  auto e1s = ana.canonical_simplify(e1);
+  auto e1s = ana->canonical_simplify(e1);
   TVM_FFI_ICHECK(tvm::tirx::is_zero(e1s));
 
   auto e2 = (x * tvm::min(x, 1)) - (x * tvm::min(x, 1));
-  auto e2s = ana.canonical_simplify(e2);
+  auto e2s = ana->canonical_simplify(e2);
   TVM_FFI_ICHECK(tvm::tirx::is_zero(e2s));
 }
 
@@ -39,7 +39,7 @@ TEST(Simplify, Mul) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x);
-  auto es = ana.canonical_simplify(e);
+  auto es = ana->canonical_simplify(e);
   TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
 }
 
@@ -50,9 +50,29 @@ TEST(Simplify, Mod) {
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = ana.canonical_simplify(tvm::tirx::Mod(x, y));
-  auto es = ana.canonical_simplify(mod - x);
+  auto mod = ana->canonical_simplify(tvm::tirx::Mod(x, y));
+  auto es = ana->canonical_simplify(mod - x);
   TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
+}
+
+TEST(AnalyzerObjectRef, CopySharesMutableState) {
+  tvm::arith::Analyzer analyzer;
+  tvm::arith::Analyzer copy = analyzer;
+  auto x = tvm::te::var("x");
+
+  copy->Bind(x, tvm::Range::FromMinExtent(0, 8));
+
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
+}
+
+TEST(AnalyzerObjectRef, ConstHandleRefCanMutateAnalyzerState) {
+  tvm::arith::Analyzer analyzer;
+  const tvm::arith::Analyzer& analyzer_ref = analyzer;
+  auto x = tvm::te::var("x");
+
+  analyzer_ref->Bind(x, tvm::Range::FromMinExtent(0, 8));
+
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
 }
 
 TEST(ConstantFold, Broadcast) {

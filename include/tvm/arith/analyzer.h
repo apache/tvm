@@ -25,6 +25,7 @@
 #define TVM_ARITH_ANALYZER_H_
 
 #include <tvm/arith/int_set.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/with_context.h>
@@ -32,6 +33,7 @@
 #include <limits>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -48,8 +50,10 @@ namespace arith {
 // another analyzer.
 //-------------------------------------------------------
 
-// Forward declare Analyzer
+// Forward declare the analyzer object and its reference handle.
+class AnalyzerObj;
 class Analyzer;
+class ConstraintContext;
 
 using tirx::Var;
 
@@ -172,9 +176,9 @@ class ConstIntBoundAnalyzer {
   TVM_DLL bool IsBound(const Var& var) const;
 
  private:
-  friend class Analyzer;
+  friend class AnalyzerObj;
   friend class ConstraintContext;
-  explicit ConstIntBoundAnalyzer(Analyzer* parent);
+  explicit ConstIntBoundAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ConstIntBoundAnalyzer();
   /*!
    * \brief Update the internal state to enter constraint.
@@ -251,9 +255,9 @@ class ModularSetAnalyzer {
   TVM_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
 
  private:
-  friend class Analyzer;
+  friend class AnalyzerObj;
   friend class ConstraintContext;
-  explicit ModularSetAnalyzer(Analyzer* parent);
+  explicit ModularSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ModularSetAnalyzer();
   /*!
    * \brief Update the internal state to enter constraint.
@@ -397,16 +401,17 @@ class RewriteSimplifier {
    * Note: To maintain accurate usage counters, `Analyzer` instances
    * should be re-used wherever possible.  For example, TIR
    * transformations should declare a single `Analyzer` that is used
-   * throughout the pass, and utility functions should receive an
-   * `Analyzer*` from their calling scope.
+   * throughout the pass.  Internal helper functions that only borrow
+   * the analyzer temporarily may receive the underlying `AnalyzerObj*`
+   * from their calling scope.
    */
   TVM_DLL void SetMaximumRewriteSteps(int64_t maximum);
 
  private:
-  friend class Analyzer;
+  friend class AnalyzerObj;
   friend class ConstraintContext;
   friend class CanonicalSimplifier;
-  explicit RewriteSimplifier(Analyzer* parent);
+  explicit RewriteSimplifier(AnalyzerObj* parent);
   TVM_DLL ~RewriteSimplifier();
   class Impl;
   /*! \brief Internal impl */
@@ -435,9 +440,9 @@ class CanonicalSimplifier {
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
  private:
-  friend class Analyzer;
+  friend class AnalyzerObj;
   friend class ConstraintContext;
-  explicit CanonicalSimplifier(Analyzer* parent);
+  explicit CanonicalSimplifier(AnalyzerObj* parent);
   TVM_DLL ~CanonicalSimplifier();
   class Impl;
   /*! \brief Internal impl */
@@ -520,52 +525,13 @@ class TransitiveComparisonAnalyzer {
   TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
-  friend class Analyzer;
+  friend class AnalyzerObj;
   friend class ConstraintContext;
   TransitiveComparisonAnalyzer();
   TVM_DLL ~TransitiveComparisonAnalyzer();
   class Impl;
   /*! \brief Internal impl */
   std::unique_ptr<Impl> impl_;
-};
-
-/*!
- * \brief Constraint context.
- *
- * \code
- *
- *  Var("x");
- *  arith::Analyzer analyzer;
- *  {
- *    With<arith::ConstraintContext> scope(&analyzer, x % 3 == 0);
- *    TVM_FFI_ICHECK_EQ(analyzer.modular_set(x)->coeff, 3);
- *  }
- *  // constraint no longer in effect.
- *  TVM_FFI_ICHECK_NE(analyzer.modular_set(x)->coeff, 3);
- *
- * \endcode
- */
-class ConstraintContext {
- private:
-  // declare friend to enable with.
-  friend class With<ConstraintContext>;
-  /*!
-   * \brief Construct a constraint context.
-   * \param analyzer The analyzer.
-   * \param constraint The constraint to be applied.
-   */
-  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
-      : analyzer_(analyzer), constraint_(constraint) {}
-  // enter the scope.
-  void EnterWithScope();
-  // exit the scope.
-  void ExitWithScope();
-  /*! \brief The analyzer */
-  Analyzer* analyzer_;
-  /*! \brief The constraint */
-  PrimExpr constraint_;
-  /*! \brief functions to be called in recovery */
-  std::vector<std::function<void()>> recovery_functions_;
 };
 
 /*!
@@ -614,8 +580,8 @@ class IntSetAnalyzer {
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
-  friend class Analyzer;
-  explicit IntSetAnalyzer(Analyzer* parent);
+  friend class AnalyzerObj;
+  explicit IntSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~IntSetAnalyzer();
   class Impl;
   /*! \brief Internal impl */
@@ -632,13 +598,8 @@ class IntSetAnalyzer {
  * If the analyzer uses memoization, we need to clear the internal
  * cache when information about a Var has been overridden.
  */
-class TVM_DLL Analyzer {
+class TVM_DLL AnalyzerObj : public ffi::Object {
  public:
-  /*
-   * Disable copy constructor.
-   */
-  Analyzer(const Analyzer&) = delete;
-  Analyzer& operator=(const Analyzer&) = delete;
   /*! \brief sub-analyzer: const integer bound */
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */
@@ -652,7 +613,7 @@ class TVM_DLL Analyzer {
   /*! \brief sub-analyzer transitive comparisons */
   TransitiveComparisonAnalyzer transitive_comparisons;
   /*! \brief constructor */
-  Analyzer();
+  AnalyzerObj();
   /*!
    * \brief Mark the value as non-negative value globally in analyzer.
    *
@@ -785,6 +746,90 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+  /*!
+   * \brief Analyzer methods update facts, constraints, caches, and stats.
+   *
+   * Marking the object mutable makes the `Analyzer` ObjectRef expose a
+   * non-const `operator->`, so APIs can take `const Analyzer&` while still
+   * allowing calls such as `analyzer->Bind(...)`.
+   * `const Analyzer&` keeps the handle itself from being rebound; it does
+   * not make the underlying AnalyzerObj immutable.
+   */
+  static constexpr bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.Analyzer", AnalyzerObj, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to AnalyzerObj.
+ *
+ * Analyzer is a lightweight, reference-counted handle around a heap-allocated
+ * AnalyzerObj. Because it is now a first-class FFI object, an Analyzer can be
+ * passed across the tvm-ffi boundary (e.g. handed from Python into a C++ pass)
+ * and shared, so that accumulated bindings/constraints persist across calls.
+ * Copying an Analyzer copies the handle, and both handles share the same
+ * mutable AnalyzerObj state.
+ * This is not a deep copy of analyzer facts or caches.
+ *
+ * \sa AnalyzerObj
+ */
+class Analyzer : public ffi::ObjectRef {
+ public:
+  /*! \brief Default-construct a fresh analyzer (allocates an AnalyzerObj). */
+  Analyzer() : Analyzer(ffi::make_object<AnalyzerObj>()) {}
+  explicit Analyzer(ffi::ObjectPtr<AnalyzerObj> n) : ffi::ObjectRef(std::move(n)) {
+    TVM_FFI_ICHECK(this->get() != nullptr);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Analyzer, ffi::ObjectRef, AnalyzerObj);
+};
+
+/*!
+ * \brief Constraint context.
+ *
+ * \code
+ *
+ *  Var x("x");
+ *  arith::Analyzer analyzer;
+ *  {
+ *    With<arith::ConstraintContext> scope(analyzer, tvm::floormod(x, 3) == 0);
+ *    TVM_FFI_ICHECK_EQ(analyzer->modular_set(x)->coeff, 3);
+ *  }
+ *  // constraint no longer in effect.
+ *  TVM_FFI_ICHECK_NE(analyzer->modular_set(x)->coeff, 3);
+ *
+ * \endcode
+ */
+class ConstraintContext {
+ private:
+  // declare friend to enable with.
+  friend class With<ConstraintContext>;
+  /*!
+   * \brief Construct a constraint context.
+   * \param analyzer The analyzer whose context is updated. The context
+   *        keeps a reference to the analyzer while the scope is active.
+   * \param constraint The constraint to be applied.
+   */
+  ConstraintContext(const Analyzer& analyzer, PrimExpr constraint)
+      : analyzer_(analyzer), constraint_(constraint) {}
+  /*!
+   * \brief Construct a constraint context from a borrowed analyzer object.
+   * \param analyzer The borrowed analyzer object.
+   * \param constraint The constraint to be applied.
+   *
+   * This overload is for internal callers that already operate on AnalyzerObj*.
+   */
+  ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint)
+      : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint)) {}
+  // enter the scope.
+  void EnterWithScope();
+  // exit the scope.
+  void ExitWithScope();
+  /*! \brief Analyzer kept alive while the context is active. */
+  Analyzer analyzer_;
+  /*! \brief The constraint */
+  PrimExpr constraint_;
+  /*! \brief functions to be called in recovery */
+  std::vector<std::function<void()>> recovery_functions_;
 };
 
 }  // namespace arith

@@ -413,7 +413,7 @@ struct BinaryBroadcastShapeInferResult {
  * \param x2_shape The shape of the second operand.
  * \return Inference status and broadcasted shape, or a conflict message.
  */
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::Analyzer* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape);
 

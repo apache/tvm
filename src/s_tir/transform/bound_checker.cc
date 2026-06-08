@@ -206,8 +206,8 @@ class BoundChecker : public StmtExprMutator {
         }
 
         // Try to simplify index and bound.
-        index = analyzer_.Simplify(index);
-        upper_bound = analyzer_.Simplify(upper_bound);
+        index = analyzer_->Simplify(index);
+        upper_bound = analyzer_->Simplify(upper_bound);
 
         // Cast to the same type - signed, to be able to check lower bound.
         index = Cast(DataType::Int(64), index);

@@ -393,7 +393,7 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
 PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
   if (do_normalization) {
     arith::Analyzer analyzer;
-    return analyzer.Simplify(expr);
+    return analyzer->Simplify(expr);
   } else {
     return expr;
   }

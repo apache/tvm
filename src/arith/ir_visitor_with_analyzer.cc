@@ -34,7 +34,7 @@ using namespace tirx;
 
 void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
   constraint_scope_.WithNewScope([&]() {
-    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     StmtExprVisitor::VisitStmt_(op);
   });
 }
@@ -42,7 +42,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
 void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
   constraint_scope_.WithNewScope([&]() {
     for (const auto& iter_var : op->iter_vars) {
-      analyzer_.Bind(iter_var->var, iter_var->dom);
+      analyzer_->Bind(iter_var->var, iter_var->dom);
     }
     StmtExprVisitor::VisitStmt_(op);
   });
@@ -50,7 +50,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const BindNode* op) {
   this->VisitExpr(op->value);
-  analyzer_.Bind(op->var, op->value);
+  analyzer_->Bind(op->var, op->value);
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
@@ -60,13 +60,13 @@ void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     PrimExpr real_condition = ExtractRealCondition(op->condition);
 
     constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(&analyzer_, real_condition);
+      constraint_scope_.Current().Emplace(analyzer_, real_condition);
       this->VisitStmt(op->then_case);
     });
     if (op->else_case) {
       constraint_scope_.WithNewScope([&]() {
-        constraint_scope_.Current().Emplace(&analyzer_,
-                                            analyzer_.rewrite_simplify(Not(real_condition)));
+        constraint_scope_.Current().Emplace(analyzer_,
+                                            analyzer_->rewrite_simplify(Not(real_condition)));
         this->VisitStmt(op->else_case.value());
       });
     }
@@ -78,7 +78,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
     }
     StmtExprVisitor::VisitStmt_(op);
   });
@@ -86,7 +86,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
-  constraint_scope_.Current().Emplace(&analyzer_, op->condition);
+  constraint_scope_.Current().Emplace(analyzer_, op->condition);
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
@@ -101,11 +101,11 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
     PrimExpr cond = op->args[0];
     this->VisitExpr(op->args[0]);
     constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(&analyzer_, cond);
+      constraint_scope_.Current().Emplace(analyzer_, cond);
       this->VisitExpr(op->args[1]);
     });
     constraint_scope_.WithNewScope([&]() {
-      constraint_scope_.Current().Emplace(&analyzer_, analyzer_.rewrite_simplify(Not(cond)));
+      constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
       this->VisitExpr(op->args[2]);
     });
   } else {
@@ -115,13 +115,13 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
 
 void IRVisitorWithAnalyzer::VisitExpr_(const LetNode* op) {
   this->VisitExpr(op->value);
-  analyzer_.Bind(op->var, op->value);
+  analyzer_->Bind(op->var, op->value);
   this->VisitExpr(op->body);
 }
 
 void IRVisitorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
   for (const IterVar& iv : op->axis) {
-    analyzer_.Bind(iv->var, iv->dom);
+    analyzer_->Bind(iv->var, iv->dom);
   }
   StmtExprVisitor::VisitExpr_(op);
 }

@@ -497,7 +497,7 @@ inline Tensor concatenate(const ffi::Array<Tensor>& inputs, int axis = 0,
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
-  join_size = analyzer.Simplify(join_size);
+  join_size = analyzer->Simplify(join_size);
   ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
@@ -733,8 +733,8 @@ inline te::Tensor dynamic_strided_slice_with_axes(
   ffi::Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
     int axis = static_cast<int>(axes[i]);
-    PrimExpr new_shape =
-        analyzer.Simplify(GetLength(begin[i], end[i], strides[i], out_shape[axis], assume_inbound));
+    PrimExpr new_shape = analyzer->Simplify(
+        GetLength(begin[i], end[i], strides[i], out_shape[axis], assume_inbound));
     out_shape.Set(axis, new_shape);
   }
 
@@ -790,7 +790,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
     if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
         !strides[i]->IsInstance<ProducerLoadNode>()) {
       out_shape.push_back(
-          analyzer.Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
+          analyzer->Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
     } else {
       out_shape.push_back(tvm::tirx::Var("dim"));
     }
@@ -1744,10 +1744,10 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
   arith::Analyzer analyzer;
   PrimExpr num_elem;
   bool is_all_int = start.dtype().is_int() && stop.dtype().is_int() && step.dtype().is_int();
-  if (is_all_int && analyzer.CanProveGreaterEqual(step, 1)) {
+  if (is_all_int && analyzer->CanProveGreaterEqual(step, 1)) {
     // fast path for integer arange when step is positive
     num_elem = tvm::floordiv((stop - start + step - 1), step);
-  } else if (is_all_int && analyzer.CanProveLess(step, 0)) {
+  } else if (is_all_int && analyzer->CanProveLess(step, 0)) {
     // fast path for integer arange when step is negative
     num_elem = tvm::floordiv((start - stop - step - 1), -step);
   } else {
@@ -1755,7 +1755,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
     num_elem = tvm::cast(DefaultIndexType(),
                          tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
   }
-  num_elem = analyzer.Simplify(num_elem);
+  num_elem = analyzer->Simplify(num_elem);
 
   return compute(
       {num_elem},
@@ -1962,13 +1962,12 @@ inline Tensor meta_schedule_layout_transform(
   for (const PrimExpr& e : src->shape) {
     iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
   }
-  ffi::Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
+  ffi::Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, analyzer);
   return compute(
       post_transform_shape,
-      [src, inv = index_map.Inverse(iter_domain, &analyzer),
+      [src, inv = index_map.Inverse(iter_domain, analyzer),
        &analyzer](const ffi::Array<Var>& indices) -> PrimExpr {
-        return src(
-            inv->MapIndices(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
+        return src(inv->MapIndices(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, analyzer));
       },
       name, tag);
 }

@@ -81,7 +81,7 @@ class ExprBinder : public ExprMutator {
     auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
-      new_expr = analyzer.Simplify(new_expr);
+      new_expr = analyzer->Simplify(new_expr);
     }
     return new_expr;
   }
@@ -109,7 +109,9 @@ StructInfo Bind(const StructInfo& sinfo,
 }
 
 tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
+    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap,
+    const arith::Analyzer& analyzer) {
+  (void)analyzer;
   tvm::ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
 
   auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,

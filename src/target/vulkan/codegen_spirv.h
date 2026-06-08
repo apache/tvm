@@ -222,7 +222,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.
-  std::unique_ptr<arith::Analyzer> analyzer_;
+  arith::Analyzer analyzer_;
 
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;

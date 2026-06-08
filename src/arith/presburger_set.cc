@@ -104,7 +104,7 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
   });
   auto constraints_union = ExtractComponents(constraint);
   Analyzer analyzer;
-  PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
+  PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   auto space = PresburgerSpace::getRelationSpace(vars.size(), 0, 0, 0);
   auto node = ffi::make_object<PresburgerSetNode>(std::move(space), vars);
   node->SetVars(vars);
@@ -120,7 +120,7 @@ PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
 
 void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const ffi::Array<Var>& vars) {
   Analyzer analyzer;
-  PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
+  PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   Update(simplified_constraint, this);
   SetVars(vars);
 }

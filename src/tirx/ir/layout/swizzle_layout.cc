@@ -80,7 +80,7 @@ ffi::Map<ffi::String, PrimExpr> SwizzleLayoutNode::Apply(PrimExpr coord) const {
   // It takes more arithmetic operations to compute the result, but it is more friendly to the
   // vectorization. We use "m" as the default axis name here.
   return {
-      {"m", analyzer.Simplify((f(floordiv(input, base)) << per_element) + floormod(input, base))}};
+      {"m", analyzer->Simplify((f(floordiv(input, base)) << per_element) + floormod(input, base))}};
 }
 
 Layout SwizzleLayoutNode::Canonicalize() const { return ffi::GetRef<SwizzleLayout>(this); }

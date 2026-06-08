@@ -375,7 +375,7 @@ StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
                          tvm::ceil(tvm::cast(tvm::DataType::Float(32), end - start) / step));
   }
   arith::Analyzer analyzer;
-  num_elem = analyzer.Simplify(num_elem);
+  num_elem = analyzer->Simplify(num_elem);
   return TensorStructInfo(ShapeExpr({num_elem}), dtype);
 }
 
@@ -421,12 +421,12 @@ StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ct
   PrimExpr window_size = get_prim_value(call->args[0], "window_size");
 
   arith::Analyzer analyzer;
-  if (analyzer.CanProveLess(window_size, 1)) {
+  if (analyzer->CanProveLess(window_size, 1)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Hamming_window expects the window_size must be greater than zero but got "
                      << window_size);
   }
-  window_size = analyzer.Simplify(window_size);
+  window_size = analyzer->Simplify(window_size);
   return TensorStructInfo(ShapeExpr({window_size}), dtype);
 }
 

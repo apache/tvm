@@ -269,7 +269,7 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
   const auto* valid_count_shape = valid_count_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
-    arith::Analyzer* analyzer = ctx->GetAnalyzer();
+    arith::Analyzer analyzer = ctx->GetAnalyzer();
     PrimExpr batch = data_shape->values[0];
     PrimExpr num_anchors = data_shape->values[1];
     if (valid_count_shape != nullptr &&

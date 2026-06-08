@@ -222,7 +222,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       const auto* var = loop_sref->StmtAs<ForNode>();
       arith::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
-        PrimExpr idx = analyzer.Simplify(Substitute(access->region[i]->min, binding_map));
+        PrimExpr idx = analyzer->Simplify(Substitute(access->region[i]->min, binding_map));
         int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
         if (coef != 0) {
           stride = coef * buffer_stride;

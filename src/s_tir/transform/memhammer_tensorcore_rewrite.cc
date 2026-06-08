@@ -43,8 +43,8 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   PrimExpr extent_last2 = loops[n - 2]->extent;
   {
     arith::Analyzer analyzer;
-    if (!analyzer.CanProveEqual(floormod(extent_last1, 16), 0) ||
-        !analyzer.CanProveEqual(floormod(extent_last2, 16), 0)) {
+    if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
+        !analyzer->CanProveEqual(floormod(extent_last2, 16), 0)) {
       return std::make_pair(stmt, std::nullopt);
     }
   }
@@ -371,8 +371,8 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   {
     arith::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
-    if (!analyzer.CanProveEqual(floormod(extent_last1, 8), 0) ||
-        !analyzer.CanProveEqual(floormod(extent_last2, 8), 0)) {
+    if (!analyzer->CanProveEqual(floormod(extent_last1, 8), 0) ||
+        !analyzer->CanProveEqual(floormod(extent_last2, 8), 0)) {
       return std::make_pair(stmt, std::nullopt);
     }
   }

@@ -103,7 +103,7 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr padding_w =
       IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[1]);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
@@ -232,7 +232,7 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr padding_w =
       IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[3]);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
@@ -394,7 +394,7 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr padding_w =
       IntImm(DataType::Int(32), attrs->padding[2]) + IntImm(DataType::Int(32), attrs->padding[5]);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCDHW_shape;
   out_NCDHW_shape.resize(5);
   out_NCDHW_shape[0] = data_NCDHW_shape[0];

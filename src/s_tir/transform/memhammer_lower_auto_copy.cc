@@ -477,7 +477,7 @@ class AutoPadder {
         }
       });
       arith::Analyzer analyzer;
-      return !analyzer.CanProve(Substitute(e2 - e1, subst_map) != 1);
+      return !analyzer->CanProve(Substitute(e2 - e1, subst_map) != 1);
     }
 
     void VisitStmt_(const ForNode* op) final {
@@ -514,7 +514,7 @@ class AutoPadder {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
@@ -542,7 +542,7 @@ class AutoPadder {
         ffi::Array<PrimExpr> substitued_indices;
         arith::Analyzer analyzer;
         for (const PrimExpr& e : op->indices) {
-          substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
+          substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
         }
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
@@ -584,7 +584,7 @@ class AutoPadder {
                 ffi::Array<PrimExpr> substitued_indices;
                 arith::Analyzer analyzer;
                 for (const PrimExpr& e : indices) {
-                  substitued_indices.push_back(analyzer.Simplify(Substitute(e, substitute_map_)));
+                  substitued_indices.push_back(analyzer->Simplify(Substitute(e, substitute_map_)));
                 }
                 std::vector<std::vector<int>> iter_space = PatternCollector::CollectIterationSpace(
                     substitued_indices, var_range_, data_bits_);

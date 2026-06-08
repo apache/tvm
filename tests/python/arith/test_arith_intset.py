@@ -424,5 +424,33 @@ def test_relax_cyclic_variable_dependency():
     assert res is not None
 
 
+def test_estimate_region_accepts_external_analyzer():
+    i = tvm.tirx.Var("i", "int32")
+    tile = tvm.tirx.Var("tile", "int32")
+    region = [tvm.ir.Range.from_min_extent(i % tile, 1)]
+    dom = {i: tvm.ir.Range(0, 16)}
+
+    # Without knowing `tile`, the affine detection fails for exact bounds.
+    assert tvm.arith.estimate_region_lower_bound(region, dom, True) is None
+    assert tvm.arith.estimate_region_strict_bound(region, dom, True) is None
+    upper_without_analyzer = tvm.arith.estimate_region_upper_bound(region, dom, True)
+
+    analyzer = tvm.arith.Analyzer()
+    analyzer.bind(tile, tvm.tirx.const(4, "int32"))
+    # The external binding lets the affine detection succeed.
+    for estimate_region in [
+        tvm.arith.estimate_region_lower_bound,
+        tvm.arith.estimate_region_strict_bound,
+        tvm.arith.estimate_region_upper_bound,
+    ]:
+        result = estimate_region(region, dom, True, analyzer=analyzer)
+        assert result is not None
+        assert analyzer.can_prove_equal(result[0].min_value, 0)
+        assert analyzer.can_prove_equal(result[0].max_value, 3)
+
+    # The upper-bound fallback without analyzer is safe but much wider.
+    assert not analyzer.can_prove_equal(upper_without_analyzer[0].min_value, 0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

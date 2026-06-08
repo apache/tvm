@@ -50,7 +50,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     PrimExpr step = op->step.value_or(make_const(loop_var->dtype, 1));
 
     // report warning for negative step, since it would be a forever loop
-    if (!analyzer_.CanProveGreaterEqual(step, 1)) {
+    if (!analyzer_->CanProveGreaterEqual(step, 1)) {
       // TODO(tvm): prove dynamic shaped step
       TVM_FFI_THROW(InternalError)
           << "Loop step for " << op->loop_var << " may not be positive: " << step;
@@ -60,7 +60,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     auto n = CopyOnWrite(op);
     n->body = VisitStmt(op->body);
     n->min = make_zero(loop_var->dtype);
-    n->extent = analyzer_.Simplify(ceildiv(op->extent, step));
+    n->extent = analyzer_->Simplify(ceildiv(op->extent, step));
     n->step = std::nullopt;
     new_iter_info_.erase(loop_var);
     return For(n);

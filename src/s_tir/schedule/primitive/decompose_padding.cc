@@ -71,7 +71,7 @@ class PaddingInfoAnalyzer {
  public:
   static PaddingSBlockInfo CheckAndGetPaddingInfo(IRModule mod, const SBlockRealizeNode* realize,
                                                   const ffi::Map<Var, Range>& dom_map,
-                                                  arith::Analyzer* analyzer) {
+                                                  arith::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
       throw PaddingPatternMatchError(mod, realize->block, padding_analyzer.error_msg_);
@@ -80,7 +80,7 @@ class PaddingInfoAnalyzer {
   }
 
  private:
-  explicit PaddingInfoAnalyzer(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit PaddingInfoAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*! \brief Detect padding pattern and update result. */
   bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<Var, Range>& dom_map) {
@@ -164,8 +164,9 @@ class PaddingInfoAnalyzer {
                                           const PrimExpr& in_bound_predicate) {
     ffi::Array<Range> region;
 
+    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer_);
     auto res = arith::DetectIterMap(iter_values, dom_map, in_bound_predicate,
-                                    arith::IterMapLevel::Surjective, analyzer_);
+                                    arith::IterMapLevel::Surjective, analyzer_ref);
     if (res->indices.empty()) {
       SetError("Block iters are not independent wrt padding condition");
       return {};
@@ -192,7 +193,7 @@ class PaddingInfoAnalyzer {
   /*! \brief current error message. */
   std::string error_msg_;
   /*! \brief arithmetic analyzer. */
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
 };
 
 /*! \brief Create block to fill constant pad values into full region */
@@ -200,7 +201,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                                                        const PaddingSBlockInfo& info,
                                                        const ffi::Array<For>& loops,
                                                        const Stmt& highest_pos_inclusive,
-                                                       arith::Analyzer* analyzer) {
+                                                       arith::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -269,7 +270,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
 
                                                          const ffi::Array<For>& loops,
                                                          const Stmt& highest_pos_inclusive,
-                                                         arith::Analyzer* analyzer) {
+                                                         arith::AnalyzerObj* analyzer) {
   const SBlock& block = realize->block;
   ffi::Array<IterVar> new_iter_vars;
   ffi::Map<Var, PrimExpr> repl_dict;
@@ -435,7 +436,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
     For cur_loop = ffi::GetRef<For>((*it)->StmtAs<ForNode>());
     Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
     dom_map.Set(cur_loop->loop_var, range);
-    analyzer.Bind(cur_loop->loop_var, range);
+    analyzer->Bind(cur_loop->loop_var, range);
     loops.push_back(cur_loop);
 
     if (cur_loop.same_as(const_filling_pos)) {
@@ -462,7 +463,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
 
   // Check 3. match padding pattern and return padding operation info.
   PaddingSBlockInfo info =
-      PaddingInfoAnalyzer::CheckAndGetPaddingInfo(self->mod, realize, dom_map, &analyzer);
+      PaddingInfoAnalyzer::CheckAndGetPaddingInfo(self->mod, realize, dom_map, analyzer.get());
 
   // IR Manipulation
   // Step 1. Create const pad value filling part and in-bound value filling part.
@@ -470,9 +471,9 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   replace_desc.const_filling_pos = const_filling_pos;
   replace_desc.in_bound_filling_pos = in_bound_filling_pos;
   std::tie(replace_desc.const_filling_loop, replace_desc.const_filling_block) =
-      CreateConstBlock(realize, info, loops, const_filling_pos, &analyzer);
+      CreateConstBlock(realize, info, loops, const_filling_pos, analyzer.get());
   std::tie(replace_desc.in_bound_filling_loop, replace_desc.in_bound_filling_block) =
-      CreateInBoundBlock(realize, info, loops, in_bound_filling_pos, &analyzer);
+      CreateInBoundBlock(realize, info, loops, in_bound_filling_pos, analyzer.get());
 
   // Step 2. Execute IR replacement.
   SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());

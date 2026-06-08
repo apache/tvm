@@ -135,13 +135,14 @@ void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector<PrimEx
   }
 }
 
-void EnterConstraintFacts(WithGroup<ConstraintContext>* constraints, Analyzer* analyzer,
+void EnterConstraintFacts(WithGroup<ConstraintContext>* constraints, AnalyzerObj* analyzer,
                           const PrimExpr& condition) {
-  constraints->Emplace(analyzer, condition);
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
+  constraints->Emplace(analyzer_ref, condition);
   std::vector<PrimExpr> derived;
   CollectDerivedConstraintFacts(condition, &derived);
   for (const PrimExpr& fact : derived) {
-    constraints->Emplace(analyzer, fact);
+    constraints->Emplace(analyzer_ref, fact);
   }
 }
 
@@ -163,8 +164,9 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     pred = pred && val;
   }
   int n = indices.size();
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(this->analyzer_);
   ffi::Array<PrimExpr> simplified = arith::IterMapSimplify(
-      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, this->analyzer_);
+      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, analyzer_ref);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
       if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {

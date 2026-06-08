@@ -46,7 +46,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Inject(PrimFunc func) {
     arith::Analyzer ana;
-    auto pass = TextureAllocInjector(&ana);
+    auto pass = TextureAllocInjector(ana.get());
     auto writer = func.CopyOnWrite();
     pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
@@ -59,7 +59,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit TextureAllocInjector(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TextureAllocInjector(arith::AnalyzerObj* ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);

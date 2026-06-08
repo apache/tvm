@@ -28,7 +28,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
-  n->analyzer_ = std::make_unique<arith::Analyzer>();
+  n->analyzer_ = arith::Analyzer();
   n->trace_ = Trace();
   n->Seed(seed);
   GlobalVar gv;
@@ -45,7 +45,7 @@ Schedule TracedScheduleNode::Copy() {
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->func_working_on_ = this->func_working_on_;
-  n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
+  n->analyzer_ = arith::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
   return Schedule(std::move(n));

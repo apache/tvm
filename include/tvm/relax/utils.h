@@ -75,7 +75,7 @@ TVM_DLL StructInfo Bind(const StructInfo& sinfo,
  * \return A map of TIR variables to TIR expressions
  */
 TVM_DLL tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& binds, arith::Analyzer* analyzer);
+    const tvm::ffi::Map<relax::Var, relax::Expr>& binds, const arith::Analyzer& analyzer);
 
 /*!
  * \brief Check if the given StructInfo is for a boolean scalar (tensor of rank 0 with a boolean
