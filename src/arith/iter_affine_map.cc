@@ -1520,8 +1520,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "arith.DetectIterMap",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
-         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
-        arith::Analyzer ana;
+         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
+         ffi::Optional<Analyzer> opt_analyzer) {
+        Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return DetectIterMap(indices, input_iters, input_pred, IterMapLevel(check_level), ana,
                              simplify_trivial_iterators);
       });
@@ -1546,11 +1547,12 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("arith.NormalizeToIterSum",
-                        [](PrimExpr index, const ffi::Map<Var, Range>& input_iters) {
-                          arith::Analyzer ana;
-                          return NormalizeToIterSum(index, input_iters, ana);
-                        });
+  refl::GlobalDef().def(
+      "arith.NormalizeToIterSum", [](PrimExpr index, const ffi::Map<Var, Range>& input_iters,
+                                     ffi::Optional<Analyzer> opt_analyzer) {
+        Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
+        return NormalizeToIterSum(index, input_iters, ana);
+      });
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
@@ -2186,8 +2188,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "arith.IterMapSimplify",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
-         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
-        arith::Analyzer ana;
+         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
+         ffi::Optional<Analyzer> opt_analyzer) {
+        Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return IterMapSimplify(indices, input_iters, input_pred, IterMapLevel(check_level), ana,
                                simplify_trivial_iterators);
       });
@@ -2526,8 +2529,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "arith.SubspaceDivide",
       [](const ffi::Array<PrimExpr>& bindings, const ffi::Map<Var, Range>& root_iters,
          const ffi::Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
-         bool simplify_trivial_iterators) {
-        arith::Analyzer ana;
+         bool simplify_trivial_iterators, ffi::Optional<Analyzer> opt_analyzer) {
+        Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),
                               ana, simplify_trivial_iterators);
       });

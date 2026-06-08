@@ -1270,21 +1270,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("arith.IntSetIsNothing", &IntSet::IsNothing)
       .def_method("arith.IntSetIsEverything", &IntSet::IsEverything)
       .def("arith.EstimateRegionLowerBound",
-           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
-              PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
-             Analyzer analyzer;
+           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom, PrimExpr predicate,
+              ffi::Optional<Analyzer> opt_analyzer) -> ffi::Optional<ffi::Array<IntSet>> {
+             Analyzer analyzer = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
              return EstimateRegionLowerBound(region, var_dom, predicate, analyzer);
            })
       .def("arith.EstimateRegionStrictBound",
-           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
-              PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
-             Analyzer analyzer;
+           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom, PrimExpr predicate,
+              ffi::Optional<Analyzer> opt_analyzer) -> ffi::Optional<ffi::Array<IntSet>> {
+             Analyzer analyzer = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
              return EstimateRegionStrictBound(region, var_dom, predicate, analyzer);
            })
       .def("arith.EstimateRegionUpperBound",
-           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom,
-              PrimExpr predicate) -> ffi::Optional<ffi::Array<IntSet>> {
-             Analyzer analyzer;
+           [](ffi::Array<Range> region, ffi::Map<Var, Range> var_dom, PrimExpr predicate,
+              ffi::Optional<Analyzer> opt_analyzer) -> ffi::Optional<ffi::Array<IntSet>> {
+             Analyzer analyzer = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
              return EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
            })
       .def("arith.PosInf", []() { return SymbolicLimits::pos_inf_; })

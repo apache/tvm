@@ -426,7 +426,7 @@ class IndexMap(Object):
 
         return IndexMap(initial_indices, final_indices, inverse_index_map), axis_separators
 
-    def is_equivalent_to(self, other_map: "IndexMap") -> bool:
+    def is_equivalent_to(self, other_map: "IndexMap", analyzer=None) -> bool:
         """Return if the index maps are equivalent.
 
         Parameters
@@ -434,6 +434,13 @@ class IndexMap(Object):
         other_map: IndexMap
 
             The IndexMap to which the comparison should be made.
+
+        analyzer : Optional[tvm.arith.Analyzer]
+
+            The analyzer to use while comparing the mapped indices.  When
+            provided, its accumulated bindings and constraints are reused so
+            that maps that are only equivalent under those bindings can be
+            proven equal.
 
         Returns
         -------
@@ -447,9 +454,10 @@ class IndexMap(Object):
         if len(self.final_indices) != len(other_map.final_indices):
             return False
 
-        analyzer = tvm.arith.Analyzer()
+        if analyzer is None:
+            analyzer = tvm.arith.Analyzer()
 
-        mapped_other_final_indices = other_map.map_indices(self.initial_indices)
+        mapped_other_final_indices = other_map.map_indices(self.initial_indices, analyzer=analyzer)
         for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
             if not analyzer.can_prove_equal(self_index, other_index):
                 return False

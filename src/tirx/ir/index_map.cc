@@ -129,13 +129,14 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   {
     TVM_FFI_ICHECK_EQ(output_ranges.size(), output_vars.size());
 
-    arith::Analyzer analyzer;
+    arith::Analyzer output_var_analyzer;
     for (size_t i = 0; i < output_vars.size(); ++i) {
-      analyzer->Bind(output_vars[i], output_ranges[i]);
+      output_var_analyzer->Bind(output_vars[i], output_ranges[i]);
     }
 
     // Additional simplification steps required to unwrap nested floordiv/floormod
     padding_predicate = analyzer->Simplify(padding_predicate, 10);
+    padding_predicate = output_var_analyzer->Simplify(padding_predicate, 10);
   }
 
   return {IndexMap(output_vars, inverse_exprs), padding_predicate};
@@ -224,7 +225,8 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
           extent = term_extent;
         }
       }
-      output.push_back(Range::FromMinExtent(index->base, extent.value_or(1)));
+      extent = analyzer_ptr->Simplify(extent.value_or(1));
+      output.push_back(Range::FromMinExtent(index->base, extent.value()));
     }
 
   } else {

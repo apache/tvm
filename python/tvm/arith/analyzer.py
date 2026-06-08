@@ -35,6 +35,22 @@ class ProofStrength(enum.IntEnum):
     SYMBOLIC_BOUND = 1
 
 
+class CompareResult(enum.IntEnum):
+    """Result of a transitive comparison.
+
+    Values must match the C++ ``arith::CompareResult`` enum.
+    """
+
+    INCONSISTENT = 0
+    EQ = 1
+    LT = 2
+    LE = 3
+    GT = 4
+    GE = 5
+    NE = 6
+    UNKNOWN = 7
+
+
 class Extension(enum.Flag):
     """Extensions enabled for RewriteSimplifier
 
@@ -214,7 +230,7 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerCanonicalSimplify(self, expr)
 
-    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet]) -> IntSet:
+    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
@@ -222,8 +238,9 @@ class Analyzer(Object):
         expr : PrimExpr
             The expression.
 
-        dom_map : Dict[tvm.tirx.Var, tvm.arith.IntSet]
-            The domain for variables to be relaxed.
+        dom_map : Optional[Dict[tvm.tirx.Var, tvm.arith.IntSet]]
+            The domain for variables to be relaxed.  When omitted, the analyzer
+            uses the domains of the variables already bound to it.
 
         Returns
         -------
@@ -251,6 +268,21 @@ class Analyzer(Object):
             The result.
         """
         return _ffi_api.AnalyzerCanProve(self, expr, strength)
+
+    def set_maximum_rewrite_steps(self, maximum: int) -> None:
+        """Set the maximum allowed number of rewrite-simplify steps.
+
+        When a positive limit is set, the simplifier raises an exception once
+        it exceeds that number of rewrite steps.  This is useful for guarding
+        against performance regressions in tests.
+
+        Parameters
+        ----------
+        maximum : int
+            The maximum number of rewrite steps, or a non-positive value to
+            allow an unlimited number of steps.
+        """
+        _ffi_api.AnalyzerSetMaximumRewriteSteps(self, maximum)
 
     def bind(
         self,
@@ -304,22 +336,30 @@ class Analyzer(Object):
 
         return ConstraintScope(_fenter)
 
-    def update(self, var: tirx.Var, info: ConstIntBound, override: bool = False) -> None:
-        """Update infomation about var
+    def update(
+        self, var: tirx.Var, info: ConstIntBound | ModularSet | IntSet, override: bool = False
+    ) -> None:
+        """Update information about var.
 
         Parameters
         ----------
         var : tvm.tirx.Var
             The variable.
 
-        info : tvm.Object
-            Related information.
+        info : Union[ConstIntBound, ModularSet, IntSet]
+            Related information.  A ``ConstIntBound`` updates the constant
+            integer bound, a ``ModularSet`` updates the modular set, and an
+            ``IntSet`` updates the integer-set domain of ``var``.
 
         override : bool
             Whether allow override.
         """
         if isinstance(info, ConstIntBound):
             _ffi_api.AnalyzerConstIntBoundUpdate(self, var, info, override)
+        elif isinstance(info, ModularSet):
+            _ffi_api.AnalyzerModularSetUpdate(self, var, info, override)
+        elif isinstance(info, IntSet):
+            _ffi_api.AnalyzerIntSetUpdate(self, var, info, override)
         else:
             raise TypeError(f"Do not know how to handle type {type(info)}")
 
@@ -340,6 +380,31 @@ class Analyzer(Object):
             Whether we can prove that lhs == rhs
         """
         return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
+
+    def try_compare(
+        self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr, propagate_inequalities: bool = True
+    ) -> CompareResult:
+        """Compare lhs and rhs using previously provided known comparisons.
+
+        Parameters
+        ----------
+        lhs : PrimExpr
+            The left-hand side of the comparison.
+
+        rhs : PrimExpr
+            The right-hand side of the comparison.
+
+        propagate_inequalities : bool
+            If true, attempt to find a sequence of transitive inequalities that
+            allow lhs and rhs to be compared.
+
+        Returns
+        -------
+        result : CompareResult
+            The most specific result that can be proven about the comparison.
+            Returns ``CompareResult.UNKNOWN`` when nothing can be proven.
+        """
+        return CompareResult(_ffi_api.AnalyzerTryCompare(self, lhs, rhs, propagate_inequalities))
 
     @property
     def enabled_extensions(self) -> Extension:

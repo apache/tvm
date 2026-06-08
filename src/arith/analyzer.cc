@@ -268,6 +268,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("arith.AnalyzerConstIntBoundIsBound",
            [](Analyzer analyzer, const Var& var) { return analyzer->const_int_bound.IsBound(var); })
+      .def("arith.AnalyzerModularSetUpdate",
+           [](Analyzer analyzer, const Var& var, const ModularSet& info, bool allow_override) {
+             analyzer->modular_set.Update(var, info, allow_override);
+           })
+      .def("arith.AnalyzerIntSetUpdate",
+           [](Analyzer analyzer, const Var& var, const IntSet& info, bool allow_override) {
+             analyzer->int_set.Update(var, info, allow_override);
+           })
       .def("arith.AnalyzerModularSet",
            [](Analyzer analyzer, const PrimExpr& expr) { return analyzer->modular_set(expr); })
       .def("arith.AnalyzerSimplify", [](Analyzer analyzer, const PrimExpr& expr,
@@ -283,8 +291,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return analyzer->canonical_simplify(expr);
            })
       .def("arith.AnalyzerIntSet",
-           [](Analyzer analyzer, const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map) {
-             return analyzer->int_set(expr, dom_map);
+           [](Analyzer analyzer, const PrimExpr& expr,
+              ffi::Optional<ffi::Map<Var, IntSet>> opt_dom_map) {
+             if (opt_dom_map.has_value()) {
+               return analyzer->int_set(expr, opt_dom_map.value());
+             }
+             return analyzer->int_set(expr);
            })
       .def_packed("arith.AnalyzerBind",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -302,6 +314,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
+      .def("arith.AnalyzerSetMaximumRewriteSteps",
+           [](Analyzer analyzer, int64_t maximum) {
+             analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);
+           })
       .def("arith.AnalyzerEnterConstraintContext",
            [](Analyzer analyzer, const PrimExpr& constraint) {
              // can't use make_shared due to noexcept(false) decl in destructor,
@@ -312,6 +328,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return ffi::Function::FromPacked(fexit);
            })
       .def_method("arith.AnalyzerCanProveEqual", &AnalyzerObj::CanProveEqual)
+      .def("arith.AnalyzerTryCompare",
+           [](Analyzer analyzer, const PrimExpr& lhs, const PrimExpr& rhs,
+              bool propagate_inequalities) {
+             return static_cast<int64_t>(
+                 analyzer->transitive_comparisons.TryCompare(lhs, rhs, propagate_inequalities));
+           })
       .def("arith.AnalyzerGetEnabledExtensions",
            [](Analyzer analyzer) {
              return static_cast<std::int64_t>(analyzer->rewrite_simplify.GetEnabledExtensions());
