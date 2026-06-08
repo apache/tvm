@@ -17,7 +17,9 @@
  * under the License.
  */
 
-import { OPFSStore } from "./opfs_store";
+import { OPFSStore, type OPFSAccessMode } from "./opfs_store";
+
+export type { OPFSAccessMode } from "./opfs_store";
 
 export interface TensorCacheEntry {
   name: string;
@@ -91,6 +93,7 @@ export interface TensorCacheAccessOptions {
   cacheScope?: string;
   cacheType?: ArtifactCacheType;
   artifactCache?: ArtifactCacheTemplate;
+  opfsAccessMode?: OPFSAccessMode;
 }
 
 type StoreType = string | undefined;
@@ -603,8 +606,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
 export class ArtifactOPFSCache implements ArtifactCacheTemplate {
   private readonly store: OPFSStore;
 
-  constructor(scope: string) {
-    this.store = new OPFSStore(scope);
+  constructor(scope: string, accessMode: OPFSAccessMode = "async") {
+    this.store = new OPFSStore(scope, accessMode);
   }
 
   static isAvailable(): boolean {
@@ -616,7 +619,19 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     storetype?: string,
     signal?: AbortSignal,
   ): Promise<any> {
+    // TODO: Avoid duplicate OPFS record validation by trying cache reads first
     await this.addToCache(url, storetype, signal);
+    return this.readFromCache(url, storetype);
+  }
+
+  private async readFromCache(url: string, storetype?: string): Promise<any> {
+    if (storetype?.toLowerCase() === "arraybuffer") {
+      const cachedData = await this.store.readArrayBuffer(url);
+      if (cachedData === undefined) {
+        throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+      }
+      return cachedData;
+    }
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
       throw new Error("ArtifactOPFSCache failed to fetch: " + url);
@@ -642,7 +657,7 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
         `ArtifactOPFSCache: Unable to fetch ${url}, received status ${response.status}`,
       );
     }
-    await this.store.write(url, response.clone());
+    await this.store.write(url, response);
   }
 
   async hasAllKeys(keys: string[]): Promise<boolean> {
@@ -821,7 +836,7 @@ export function createArtifactCache(
     }
   }
   if (cacheType === "opfs") {
-    return new ArtifactOPFSCache(scope);
+    return new ArtifactOPFSCache(scope, options.opfsAccessMode);
   }
   return new ArtifactCache(scope);
 }
