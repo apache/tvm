@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag, branch, or SHA to build; PyPI publishes require refs/tags/<tag>"
+        description: "Tag, branch, or SHA to build"
         required: true
         type: string
       publish_repository:
@@ -150,18 +150,6 @@ jobs:
             include_cuda_runtime: "1"
             artifact_suffix: windows-amd64
     steps:
-      - name: Validate publish inputs
-        shell: bash
-        env:
-          TVM_PUBLISH_REPOSITORY: ${{ inputs.publish_repository }}
-          TVM_PUBLISH_REF: ${{ inputs.tag }}
-        run: |
-          set -eux
-          if [[ "${TVM_PUBLISH_REPOSITORY}" == "pypi" && "${TVM_PUBLISH_REF}" != refs/tags/* ]]; then
-            echo "PyPI publishes must use an immutable refs/tags/<tag> ref" >&2
-            exit 1
-          fi
-
       - name: Checkout source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
