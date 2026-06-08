@@ -23,7 +23,7 @@ type OPFSEffectiveAccessMode = "async" | "sync";
 type OPFSSyncAccessHandleMode = "read-only" | "readwrite";
 
 interface OPFSWritableFileStream extends WritableStream<Uint8Array> {
-  write(value: Blob | BufferSource | string): Promise<void>;
+  write(value: Blob | BufferSource | Uint8Array | string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -132,18 +132,11 @@ export class OPFSStore {
       if (entry === undefined) {
         return undefined;
       }
-      if (this.accessMode === "async") {
-        const blob = await entry.payloadHandle.getFile();
-        if (blob.size !== entry.record.nbytes) {
-          return undefined;
-        }
-        return new Response(blob, this.getResponseInit(entry.record));
-      }
-      const payload = await this.readPayload(entry.payloadHandle);
-      if (payload.byteLength !== entry.record.nbytes) {
+      const blob = await entry.payloadHandle.getFile();
+      if (blob.size !== entry.record.nbytes) {
         return undefined;
       }
-      return new Response(payload, this.getResponseInit(entry.record));
+      return new Response(blob, this.getResponseInit(entry.record));
     } catch (err) {
       if (this.handleCacheMissStateError(err)) {
         return undefined;
@@ -331,8 +324,17 @@ export class OPFSStore {
     record: OPFSStoreRecord,
   ): Promise<void> {
     const writable = await handle.createWritable();
-    await writable.write(new TextEncoder().encode(JSON.stringify(record)));
-    await writable.close();
+    try {
+      await writable.write(new TextEncoder().encode(JSON.stringify(record)));
+      await writable.close();
+    } catch (err) {
+      try {
+        await writable.abort();
+      } catch {
+        // Preserve the original write error.
+      }
+      throw err;
+    }
   }
 
   private async readPayload(handle: OPFSFileHandle): Promise<ArrayBuffer> {
@@ -345,6 +347,19 @@ export class OPFSStore {
   private async hasExpectedPayloadSize(
     entry: OPFSStoredEntry,
   ): Promise<boolean> {
+    if (this.accessMode === "sync") {
+      const syncHandle = await this.openSyncAccessHandle(
+        entry.payloadHandle,
+        "read-only",
+      );
+      if (syncHandle !== undefined) {
+        try {
+          return syncHandle.getSize() === entry.record.nbytes;
+        } finally {
+          syncHandle.close();
+        }
+      }
+    }
     const blob = await entry.payloadHandle.getFile();
     return blob.size === entry.record.nbytes;
   }
@@ -365,28 +380,37 @@ export class OPFSStore {
     response: Response,
   ): Promise<number> {
     const writable = await handle.createWritable();
-    if (response.body !== null) {
-      let nbytes = 0;
-      const reader = response.body.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            break;
+    try {
+      if (response.body !== null) {
+        let nbytes = 0;
+        const reader = response.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+            await writable.write(value);
+            nbytes += value.byteLength;
           }
-          await writable.write(value);
-          nbytes += value.byteLength;
+        } finally {
+          reader.releaseLock();
         }
-      } finally {
-        reader.releaseLock();
+        await writable.close();
+        return nbytes;
       }
+      const payload = await response.arrayBuffer();
+      await writable.write(payload);
       await writable.close();
-      return nbytes;
+      return payload.byteLength;
+    } catch (err) {
+      try {
+        await writable.abort();
+      } catch {
+        // Preserve the original write error.
+      }
+      throw err;
     }
-    const payload = await response.arrayBuffer();
-    await writable.write(payload);
-    await writable.close();
-    return payload.byteLength;
   }
 
   private readPayloadWithSyncHandle(
