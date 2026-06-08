@@ -51,14 +51,15 @@ interface OPFSStorageManager {
   getDirectory?: () => Promise<OPFSDirectoryHandle>;
 }
 
-interface OPFSStoreMetadata {
+interface OPFSStoreRecord {
   url: string;
+  nbytes: number;
   contentType?: string;
 }
 
 interface OPFSStoredEntry {
   payloadHandle: OPFSFileHandle;
-  metadata: OPFSStoreMetadata;
+  record: OPFSStoreRecord;
 }
 
 interface OPFSSyncAccessHandle {
@@ -111,84 +112,132 @@ export class OPFSStore {
   }
 
   async has(url: string): Promise<boolean> {
-    return (await this.getExistingEntry(url)) !== undefined;
+    try {
+      const entry = await this.getStoredEntry(url);
+      if (entry === undefined) {
+        return false;
+      }
+      return this.hasExpectedPayloadSize(entry);
+    } catch (err) {
+      if (this.handleCacheMissStateError(err)) {
+        return false;
+      }
+      throw err;
+    }
   }
 
   async read(url: string): Promise<Response | undefined> {
-    const entry = await this.getExistingEntry(url);
-    if (entry === undefined) {
-      return undefined;
+    try {
+      const entry = await this.getStoredEntry(url);
+      if (entry === undefined) {
+        return undefined;
+      }
+      if (this.accessMode === "async") {
+        const blob = await entry.payloadHandle.getFile();
+        if (blob.size !== entry.record.nbytes) {
+          return undefined;
+        }
+        return new Response(blob, this.getResponseInit(entry.record));
+      }
+      const payload = await this.readPayload(entry.payloadHandle);
+      if (payload.byteLength !== entry.record.nbytes) {
+        return undefined;
+      }
+      return new Response(payload, this.getResponseInit(entry.record));
+    } catch (err) {
+      if (this.handleCacheMissStateError(err)) {
+        return undefined;
+      }
+      throw err;
     }
-    if (this.accessMode === "async") {
-      const blob = await entry.payloadHandle.getFile();
-      return new Response(blob, this.getResponseInit(entry.metadata));
-    }
-    const payload = await this.readPayload(entry.payloadHandle);
-    return new Response(payload, this.getResponseInit(entry.metadata));
   }
 
   async readArrayBuffer(url: string): Promise<ArrayBuffer | undefined> {
-    const entry = await this.getExistingEntry(url);
-    if (entry === undefined) {
-      return undefined;
+    try {
+      const entry = await this.getStoredEntry(url);
+      if (entry === undefined) {
+        return undefined;
+      }
+      const payload = await this.readPayload(entry.payloadHandle);
+      return payload.byteLength === entry.record.nbytes ? payload : undefined;
+    } catch (err) {
+      if (this.handleCacheMissStateError(err)) {
+        return undefined;
+      }
+      throw err;
     }
-    return this.readPayload(entry.payloadHandle);
   }
 
   async write(url: string, response: Response): Promise<void> {
-    const directory = await this.getScopedDirectory();
-    const baseName = await this.hashUrl(url);
-    const payloadHandle = await directory.getFileHandle(`${baseName}.bin`, {
-      create: true,
-    });
-    const metadataHandle = await directory.getFileHandle(
-      `${baseName}.meta.json`,
-      { create: true },
-    );
-    const metadata: OPFSStoreMetadata = {
-      url,
-      contentType: response.headers.get("content-type") ?? undefined,
-    };
-    await this.writePayload(payloadHandle, response);
-    await this.writeMetadata(metadataHandle, metadata);
+    try {
+      const directory = await this.getScopedDirectory();
+      const baseName = await this.hashUrl(url);
+      await this.removeEntryIfExists(
+        directory,
+        this.getRecordFilename(baseName),
+      );
+      const payloadHandle = await directory.getFileHandle(
+        this.getPayloadFilename(baseName),
+        { create: true },
+      );
+      const nbytes = await this.writePayload(payloadHandle, response);
+      const recordHandle = await directory.getFileHandle(
+        this.getRecordFilename(baseName),
+        { create: true },
+      );
+      const record: OPFSStoreRecord = {
+        url,
+        nbytes,
+        contentType: response.headers.get("content-type") ?? undefined,
+      };
+      await this.writeRecord(recordHandle, record);
+    } catch (err) {
+      this.resetDirectoryOnInvalidStateError(err);
+      throw err;
+    }
   }
 
   async remove(url: string): Promise<void> {
-    const directory = await this.getScopedDirectory();
-    const baseName = await this.hashUrl(url);
-    await this.removeEntryIfExists(directory, `${baseName}.bin`);
-    await this.removeEntryIfExists(directory, `${baseName}.meta.json`);
+    try {
+      const directory = await this.getScopedDirectory();
+      const baseName = await this.hashUrl(url);
+      await this.removeEntryIfExists(
+        directory,
+        this.getPayloadFilename(baseName),
+      );
+      await this.removeEntryIfExists(
+        directory,
+        this.getRecordFilename(baseName),
+      );
+    } catch (err) {
+      this.resetDirectoryOnInvalidStateError(err);
+      throw err;
+    }
   }
 
-  private async getExistingEntry(
+  private async getStoredEntry(
     url: string,
   ): Promise<OPFSStoredEntry | undefined> {
     const directory = await this.getScopedDirectory();
     const baseName = await this.hashUrl(url);
+    const recordHandle = await this.getFileHandleIfExists(
+      directory,
+      this.getRecordFilename(baseName),
+      false,
+    );
+    if (recordHandle === undefined) {
+      return undefined;
+    }
+    const record = await this.readRecord(recordHandle);
+    if (record === undefined || record.url !== url) {
+      return undefined;
+    }
     const payloadHandle = await this.getFileHandleIfExists(
       directory,
-      `${baseName}.bin`,
+      this.getPayloadFilename(baseName),
       false,
     );
-    if (payloadHandle === undefined) {
-      return undefined;
-    }
-    const metadataHandle = await this.getFileHandleIfExists(
-      directory,
-      `${baseName}.meta.json`,
-      false,
-    );
-    if (metadataHandle === undefined) {
-      return undefined;
-    }
-    const metadata = await this.readMetadata(metadataHandle);
-    if (metadata === undefined) {
-      return undefined;
-    }
-    if (metadata.url !== url) {
-      throw new Error("OPFSStore: metadata URL does not match key URL.");
-    }
-    return { payloadHandle, metadata };
+    return payloadHandle === undefined ? undefined : { payloadHandle, record };
   }
 
   private static getStorageManager(): OPFSStorageManager | undefined {
@@ -234,9 +283,9 @@ export class OPFSStore {
     return this.directoryPromise;
   }
 
-  private async readMetadata(
+  private async readRecord(
     fileHandle: OPFSFileHandle,
-  ): Promise<OPFSStoreMetadata | undefined> {
+  ): Promise<OPFSStoreRecord | undefined> {
     try {
       const text = await (await fileHandle.getFile()).text();
       const parsed = JSON.parse(text);
@@ -244,38 +293,45 @@ export class OPFSStore {
         parsed === undefined ||
         parsed === null ||
         typeof parsed !== "object" ||
-        typeof parsed.url !== "string"
+        typeof parsed.url !== "string" ||
+        !Number.isSafeInteger(parsed.nbytes) ||
+        parsed.nbytes < 0
       ) {
-        throw new Error("OPFSStore: invalid metadata format.");
+        return undefined;
       }
-      const metadata: OPFSStoreMetadata = {
+      const record: OPFSStoreRecord = {
         url: parsed.url,
+        nbytes: parsed.nbytes,
       };
       if (typeof parsed.contentType === "string") {
-        metadata.contentType = parsed.contentType;
+        record.contentType = parsed.contentType;
       }
-      return metadata;
+      return record;
     } catch (err) {
-      if (this.isNotFoundError(err)) {
-        // Treat metadata disappearance between lookup and read as a cache miss
+      if (
+        OPFSStore.getErrorName(err) === "SyntaxError" ||
+        this.handleCacheMissStateError(err)
+      ) {
         return undefined;
       }
       throw err;
     }
   }
 
-  private getResponseInit(metadata: OPFSStoreMetadata): ResponseInit | undefined {
-    return metadata.contentType !== undefined
-      ? { headers: { "content-type": metadata.contentType } }
+  private getResponseInit(
+    record: OPFSStoreRecord,
+  ): ResponseInit | undefined {
+    return record.contentType !== undefined
+      ? { headers: { "content-type": record.contentType } }
       : undefined;
   }
 
-  private async writeMetadata(
+  private async writeRecord(
     handle: OPFSFileHandle,
-    metadata: OPFSStoreMetadata,
+    record: OPFSStoreRecord,
   ): Promise<void> {
     const writable = await handle.createWritable();
-    await writable.write(new TextEncoder().encode(JSON.stringify(metadata)));
+    await writable.write(new TextEncoder().encode(JSON.stringify(record)));
     await writable.close();
   }
 
@@ -286,29 +342,51 @@ export class OPFSStore {
       : (await handle.getFile()).arrayBuffer();
   }
 
+  private async hasExpectedPayloadSize(
+    entry: OPFSStoredEntry,
+  ): Promise<boolean> {
+    const blob = await entry.payloadHandle.getFile();
+    return blob.size === entry.record.nbytes;
+  }
+
   private async writePayload(
     handle: OPFSFileHandle,
     response: Response,
-  ): Promise<void> {
+  ): Promise<number> {
     const syncHandle = await this.openSyncAccessHandle(handle, "readwrite");
     if (syncHandle !== undefined) {
-      await this.writePayloadWithSyncHandle(syncHandle, response);
-      return;
+      return this.writePayloadWithSyncHandle(syncHandle, response);
     }
-    await this.writePayloadWithWritable(handle, response);
+    return this.writePayloadWithWritable(handle, response);
   }
 
   private async writePayloadWithWritable(
     handle: OPFSFileHandle,
     response: Response,
-  ): Promise<void> {
+  ): Promise<number> {
     const writable = await handle.createWritable();
     if (response.body !== null) {
-      await response.body.pipeTo(writable);
-    } else {
-      await writable.write(await response.arrayBuffer());
+      let nbytes = 0;
+      const reader = response.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          await writable.write(value);
+          nbytes += value.byteLength;
+        }
+      } finally {
+        reader.releaseLock();
+      }
       await writable.close();
+      return nbytes;
     }
+    const payload = await response.arrayBuffer();
+    await writable.write(payload);
+    await writable.close();
+    return payload.byteLength;
   }
 
   private readPayloadWithSyncHandle(
@@ -327,7 +405,7 @@ export class OPFSStore {
   private async writePayloadWithSyncHandle(
     syncHandle: OPFSSyncAccessHandle,
     response: Response,
-  ): Promise<void> {
+  ): Promise<number> {
     try {
       syncHandle.truncate(0);
       let offset = 0;
@@ -348,8 +426,10 @@ export class OPFSStore {
       } else {
         const payload = await response.arrayBuffer();
         syncHandle.write(new Uint8Array(payload), { at: 0 });
+        offset = payload.byteLength;
       }
       syncHandle.flush();
+      return offset;
     } finally {
       syncHandle.close();
     }
@@ -369,10 +449,7 @@ export class OPFSStore {
       return await handle.createSyncAccessHandle({ mode });
     } catch (err) {
       const isLockContention =
-        err &&
-        typeof err === "object" &&
-        "name" in err &&
-        (err as { name?: unknown }).name === "NoModificationAllowedError";
+        OPFSStore.getErrorName(err) === "NoModificationAllowedError";
       if (this.requestedAccessMode === "auto" && isLockContention) {
         return undefined;
       }
@@ -388,7 +465,7 @@ export class OPFSStore {
     try {
       return await directory.getFileHandle(filename, { create });
     } catch (err) {
-      if (this.isNotFoundError(err)) {
+      if (OPFSStore.isNotFoundError(err)) {
         // NotFound maps to cache miss semantics
         return undefined;
       }
@@ -403,7 +480,7 @@ export class OPFSStore {
     try {
       await directory.removeEntry(filename);
     } catch (err) {
-      if (this.isNotFoundError(err)) {
+      if (OPFSStore.isNotFoundError(err)) {
         // Delete is intentionally idempotent for missing entries
         return;
       }
@@ -427,12 +504,44 @@ export class OPFSStore {
       .join("");
   }
 
-  private isNotFoundError(err: unknown): boolean {
+  private static isNotFoundError(err: unknown): boolean {
+    return OPFSStore.getErrorName(err) === "NotFoundError";
+  }
+
+
+  private static isCacheMissStateError(err: unknown): boolean {
+    const name = OPFSStore.getErrorName(err);
+    return name === "NotFoundError" || name === "InvalidStateError";
+  }
+
+  private handleCacheMissStateError(err: unknown): boolean {
+    if (!OPFSStore.isCacheMissStateError(err)) {
+      return false;
+    }
+    this.resetDirectoryOnInvalidStateError(err);
+    return true;
+  }
+
+  private resetDirectoryOnInvalidStateError(err: unknown): void {
+    if (OPFSStore.getErrorName(err) === "InvalidStateError") {
+      this.directoryPromise = undefined;
+    }
+  }
+
+  private static getErrorName(err: unknown): string | undefined {
     if (err && typeof err === "object" && "name" in err) {
       const name = (err as { name?: unknown }).name;
-      return name === "NotFoundError";
+      return typeof name === "string" ? name : undefined;
     }
-    return false;
+    return undefined;
+  }
+
+  private getPayloadFilename(baseName: string): string {
+    return `${baseName}.bin`;
+  }
+
+  private getRecordFilename(baseName: string): string {
+    return `${baseName}.record.json`;
   }
 
   private createSyncUnavailableError(): Error {
