@@ -690,7 +690,7 @@ def test_prod_bool_zero_dim_axis_identity():
     mod = LegalizeOps()(Prod)
     script = mod.script()
     assert "T.axis.reduce" not in script
-    assert "T.bool(1)" in script
+    assert "T.bool(1)" in script or "T.bool(True)" in script
 
 
 def test_mean():
