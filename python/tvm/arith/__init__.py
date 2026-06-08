@@ -25,7 +25,7 @@ from .int_set import (
     estimate_region_strict_bound,
     estimate_region_upper_bound,
 )
-from .analyzer import ModularSet, ConstIntBound, Analyzer, ProofStrength, Extension
+from .analyzer import ModularSet, ConstIntBound, Analyzer, ProofStrength, Extension, CompareResult
 from .bound import deduce_bound
 from .pattern import detect_linear_equation, detect_clip_bound
 from .int_solver import solve_linear_equations, solve_linear_inequalities

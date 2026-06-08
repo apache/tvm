@@ -44,7 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { BufferNode::RegisterReflection(); }
 using IndexMod = tirx::FloorModNode;
 using IndexDiv = tirx::FloorDivNode;
 
-ffi::Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, ffi::Array<PrimExpr> array) {
+ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
     array.Set(i, ana->Simplify(array[i]));
   }
@@ -89,7 +89,7 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
 // If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c1)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, PrimExpr> MergeMulModInner(arith::Analyzer* analyzer,
+inline std::pair<bool, PrimExpr> MergeMulModInner(arith::AnalyzerObj* analyzer,
                                                   const PrimExpr& mult_expr,
                                                   const PrimExpr& mod_l_expr,
                                                   const PrimExpr& mod_r_expr) {
@@ -186,7 +186,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
 // The search will be performed repeatively until no pattern is found.
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
-inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
+inline PrimExpr MergeMulMod(arith::AnalyzerObj* analyzer, const PrimExpr& base) {
   using namespace tirx;
   // 1. Prepare the lists.
   // We store two lists, a list that contain all the elements that match Mul and
@@ -306,7 +306,7 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices, 
     }
 
     if (i > 0) {
-      output_index = MergeMulMod(&ana, output_index);
+      output_index = MergeMulMod(ana.get(), output_index);
     }
 
     output_indices.Set(current_output_axis, output_index);
@@ -318,7 +318,7 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices, 
     }
   }
 
-  return SimplifyArray(&ana, output_indices);
+  return SimplifyArray(ana.get(), output_indices);
 }
 
 inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExpr> index,
@@ -499,9 +499,9 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
   const BufferNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   arith::Analyzer ana;
-  begins = SimplifyArray(&ana, begins);
+  begins = SimplifyArray(ana.get(), begins);
   ffi::Array<PrimExpr> elem_offset =
-      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana.Simplify(expr); });
+      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana->Simplify(expr); });
 
   ffi::Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
@@ -510,7 +510,7 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
     // check if stride is needed.
     for (size_t i = 0; i < extents.size(); ++i) {
       if (!can_relax) {
-        if (!is_zero(begins[i]) || !is_zero(ana.Simplify(extents[i] - n->shape[i]))) {
+        if (!is_zero(begins[i]) || !is_zero(ana->Simplify(extents[i] - n->shape[i]))) {
           need_stride = true;
         }
       }

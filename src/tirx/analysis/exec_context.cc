@@ -55,7 +55,7 @@ bool TryAsInt64(const PrimExpr& expr, int64_t* value) {
 
 bool IsZero(const PrimExpr& expr) {
   arith::Analyzer analyzer;
-  return analyzer.CanProveEqual(expr, 0);
+  return analyzer->CanProveEqual(expr, 0);
 }
 
 ActiveSet MakeActiveSet(const std::vector<std::pair<std::string, AxisRange>>& axes) {

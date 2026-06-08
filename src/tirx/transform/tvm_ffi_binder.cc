@@ -179,7 +179,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
     } else {
       // Duplicate bind: create rich assertion with both paths
       PrimExpr prev_value = it->second.value;
-      PrimExpr scond = analyzer_.Simplify(prev_value == value);
+      PrimExpr scond = analyzer_->Simplify(prev_value == value);
       if (is_zero(scond)) {
         TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << prev_value
                                      << " == " << value << " at " << RenderAccessPath(path);
@@ -209,7 +209,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
   } else {
     // Non-Var expression (e.g. batch_size + 1): defer assertion to Finalize()
     // so display-var substitution can render human-readable names.
-    PrimExpr scond = analyzer_.Simplify(arg == value);
+    PrimExpr scond = analyzer_->Simplify(arg == value);
     if (is_zero(scond)) {
       TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
                                    << " at " << RenderAccessPath(path);
@@ -370,7 +370,7 @@ void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
         PrimExpr offset = value->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
         PrimExpr zero = make_zero(offset.dtype());
-        PrimExpr acond = analyzer_.Simplify(truncmod(offset, factor) == zero);
+        PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
         if (is_zero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(offset_path);
@@ -394,7 +394,7 @@ void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
     TVM_FFI_ICHECK(fuzzy_match) << "Buffer size mismatch at " << RenderAccessPath(base_path);
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      TVM_FFI_ICHECK(is_one(analyzer_.Simplify(value->shape[i])))
+      TVM_FFI_ICHECK(is_one(analyzer_->Simplify(value->shape[i])))
           << "Buffer shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
           << " vs " << value->shape;
     }
@@ -613,7 +613,7 @@ void TVMFFIABIBuilder::BindAutoBroadcastStrides(const Buffer& buffer, const Var&
     ffi::reflection::AccessPath strides_k_path =
         param_path->Attr(ffi::String("strides"))->ArrayItem(k);
     BindScalar(buffer->strides[k], value, strides_k_path, true);
-    stride = analyzer_.Simplify(stride * buffer->shape[k]);
+    stride = analyzer_->Simplify(stride * buffer->shape[k]);
   }
 }
 
@@ -715,7 +715,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
         PrimExpr offset = buffer->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), buffer->offset_factor);
         PrimExpr zero = make_zero(offset.dtype());
-        PrimExpr acond = analyzer_.Simplify(truncmod(offset, factor) == zero);
+        PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
         if (is_zero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(byte_offset_path);
@@ -737,7 +737,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
     // Use custom assertion for device_type to show human-readable device name
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond =
-          analyzer_.Simplify(make_const(DataType::Int(32), const_dt->value) == actual_device_type);
+          analyzer_->Simplify(make_const(DataType::Int(32), const_dt->value) == actual_device_type);
       if (!is_one(cond)) {
         std::string device_name = runtime::DLDeviceType2Str(static_cast<int>(const_dt->value));
         EmitAssert(cond, "ValueError",  //

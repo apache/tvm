@@ -116,7 +116,7 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   arith::Analyzer analyzer;
-  TVM_FFI_ICHECK(analyzer.CanProve(call->args[3] == call->args[4]))
+  TVM_FFI_ICHECK(analyzer->CanProve(call->args[3] == call->args[4]))
       << "Intel warp shuffle dose not support width != warp_size";
   ffi::Array<PrimExpr> opencl_args{
       {StringImm("intel_sub_group_shuffle"), call->args[1], call->args[2]}};

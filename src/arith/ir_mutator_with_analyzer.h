@@ -47,7 +47,7 @@ namespace arith {
  */
 class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
  public:
-  explicit IRMutatorWithAnalyzer(Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit IRMutatorWithAnalyzer(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
@@ -82,7 +82,7 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
                                                   bool non_trivial_only);
 
   /*! \brief internal analyzer field. */
-  Analyzer* analyzer_;
+  AnalyzerObj* analyzer_;
   /*! \brief Scope stack for accumulated assert constraints. */
   ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
   // the following two fields are useful in case we want

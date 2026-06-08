@@ -979,14 +979,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   bool TryExtractLinearScopeDiff(const PrimExpr& diff, ScopeIdTarget* target, int64_t* coeff,
                                  int64_t* base) {
-    PrimExpr simplified = analyzer_.Simplify(diff);
+    PrimExpr simplified = analyzer_->Simplify(diff);
     for (const auto& [var, candidate] : ScopeIdTargets()) {
       ffi::Array<PrimExpr> linear = arith::DetectLinearEquation(simplified, {var});
       if (linear.size() != 2) continue;
       int64_t c = 0;
       int64_t b = 0;
-      if (!TryExtractIntImm(analyzer_.Simplify(linear[0]), &c) ||
-          !TryExtractIntImm(analyzer_.Simplify(linear[1]), &b)) {
+      if (!TryExtractIntImm(analyzer_->Simplify(linear[0]), &c) ||
+          !TryExtractIntImm(analyzer_->Simplify(linear[1]), &b)) {
         continue;
       }
       if (c != 1 && c != -1) continue;
@@ -1072,7 +1072,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto maybe_target = ResolveScopeIdTarget(lhs);
     if (!maybe_target) return false;
     int64_t mod_value = 0;
-    if (!TryExtractIntImm(analyzer_.Simplify(rhs), &mod_value) || mod_value <= 0) return false;
+    if (!TryExtractIntImm(analyzer_->Simplify(rhs), &mod_value) || mod_value <= 0) return false;
     *target = *maybe_target;
     *modulus = mod_value;
     return true;
@@ -1083,11 +1083,11 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     int64_t modulus = 0;
     int64_t residue = 0;
     if (TryExtractModuloTarget(lhs, &target, &modulus) &&
-        TryExtractIntImm(analyzer_.Simplify(rhs), &residue)) {
+        TryExtractIntImm(analyzer_->Simplify(rhs), &residue)) {
       return TryPushModuloForTarget(target, modulus, residue);
     }
     if (TryExtractModuloTarget(rhs, &target, &modulus) &&
-        TryExtractIntImm(analyzer_.Simplify(lhs), &residue)) {
+        TryExtractIntImm(analyzer_->Simplify(lhs), &residue)) {
       return TryPushModuloForTarget(target, modulus, residue);
     }
     return false;

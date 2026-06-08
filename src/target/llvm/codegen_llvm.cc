@@ -220,7 +220,7 @@ void CodeGenLLVM::InitFuncState() {
   alias_var_set_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
-  analyzer_.reset(new arith::Analyzer());
+  analyzer_ = arith::Analyzer();
 }
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(

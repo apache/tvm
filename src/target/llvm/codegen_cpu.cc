@@ -519,7 +519,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
-    std::unique_ptr<arith::Analyzer> analyzer_{std::make_unique<arith::Analyzer>()};
+    arith::Analyzer analyzer_{arith::Analyzer()};
     CodeGenCPU* parent_;
   };
 
@@ -663,7 +663,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}),
       "num_task");
   par_env.penv = penv;
-  auto new_analyzer = std::make_unique<arith::Analyzer>();
+  auto new_analyzer = arith::Analyzer();
   std::swap(function_, f);
   std::swap(parallel_env_, par_env);
   std::swap(analyzer_, new_analyzer);
@@ -716,7 +716,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   TVM_FFI_ICHECK(parallel_env_.penv == nullptr);
-  auto new_analyzer = std::make_unique<arith::Analyzer>();
+  auto new_analyzer = arith::Analyzer();
   std::swap(function_, f);
   std::swap(analyzer_, new_analyzer);
   std::swap(var_map_, new_vmap);

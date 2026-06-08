@@ -129,7 +129,7 @@ void CodeGenSPIRV::InitFuncState() {
   std::fill(workgroup_size_, workgroup_size_ + 3, 1);
   var_map_.clear();
   storage_info_.clear();
-  analyzer_.reset(new arith::Analyzer());
+  analyzer_ = arith::Analyzer();
   builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
   shared_memory_bytes_used_ = 0;

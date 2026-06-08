@@ -326,7 +326,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
 
   if (buffer_type.bits() != 8) return nullptr;
 
-  int table_elem_count = arith::Analyzer().Simplify(buffer->shape[0]).as<IntImmNode>()->value;
+  int table_elem_count = arith::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value;
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
   auto int32 = DataType::Int(32);

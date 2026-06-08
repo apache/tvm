@@ -93,7 +93,7 @@ class PresburgerSet(IntSet):
         self.__init_handle_by_constructor__(_ffi_api.PresburgerSet)
 
 
-def estimate_region_lower_bound(region, var_dom, predicate):
+def estimate_region_lower_bound(region, var_dom, predicate, analyzer=None):
     """Analyze the region with affine map, given the domain of variables and their predicate
     Some subregion may be discarded during the lower-bound analysis.
 
@@ -108,15 +108,19 @@ def estimate_region_lower_bound(region, var_dom, predicate):
     predicate : PrimExpr
         The predicate for the affine map
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     ----------
     region_int_set : Optional[List[IntSet]]
         None if the detection fails, or an array of IntSets as the result of analysis
     """
-    return _ffi_api.EstimateRegionLowerBound(region, var_dom, predicate)
+    return _ffi_api.EstimateRegionLowerBound(region, var_dom, predicate, analyzer)
 
 
-def estimate_region_strict_bound(region, var_dom, predicate):
+def estimate_region_strict_bound(region, var_dom, predicate, analyzer=None):
     """Analyze the region with affine map, given the domain of variables and their predicate
     The result should be strict, i.e. no region is discarded or relaxed.
 
@@ -131,15 +135,19 @@ def estimate_region_strict_bound(region, var_dom, predicate):
     predicate : PrimExpr
         The predicate for the affine map
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     ----------
     region_int_set : Optional[List[IntSet]]
         None if the detection fails, or an array of IntSets as the result of analysis
     """
-    return _ffi_api.EstimateRegionStrictBound(region, var_dom, predicate)
+    return _ffi_api.EstimateRegionStrictBound(region, var_dom, predicate, analyzer)
 
 
-def estimate_region_upper_bound(region, var_dom, predicate):
+def estimate_region_upper_bound(region, var_dom, predicate, analyzer=None):
     """Analyze the region with affine map, given the domain of variables and their predicate
     Relaxation of the region may be used in upper-bound analysis,
     i.e. some extra region may be added to the result.
@@ -155,12 +163,16 @@ def estimate_region_upper_bound(region, var_dom, predicate):
     predicate : PrimExpr
         The predicate for the affine map
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     ----------
     region_int_set : List[IntSet]
         an array of IntSets as the result of analysis
     """
-    return _ffi_api.EstimateRegionUpperBound(region, var_dom, predicate)
+    return _ffi_api.EstimateRegionUpperBound(region, var_dom, predicate, analyzer)
 
 
 def pos_inf():

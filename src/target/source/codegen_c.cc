@@ -866,7 +866,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(index)) {
       const RampNode* ramp = index.as<RampNode>();
       TVM_FFI_ICHECK(ramp);
-      arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
+      arith::ModularSet me = arith::Analyzer()->modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
       if (me->coeff % op->dtype.lanes() == 0 && me->base % op->dtype.lanes() == 0) {
         can_vector_load = true;
@@ -1241,7 +1241,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer().Simplify(op->min + op->extent);
+  PrimExpr end = is_zero(op->min) ? op->extent : arith::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();

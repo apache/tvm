@@ -745,13 +745,13 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
-          bool divided = analyzer_.CanProve(indexmod(combo_size, type_bits) == 0);
+          bool divided = analyzer_->CanProve(indexmod(combo_size, type_bits) == 0);
           combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
-          combo_size = analyzer_.Simplify(combo_size);
+          combo_size = analyzer_->Simplify(combo_size);
           Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(),
                      e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
           ffi::Map<ffi::String, ffi::Any> annotations;
@@ -1171,7 +1171,7 @@ struct BufferVarInfo {
         }
       }
       arith::Analyzer analyzer_;
-      arith::ModularSet me = analyzer_.modular_set(extent);
+      arith::ModularSet me = analyzer_->modular_set(extent);
       if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
         preferred_lanes = lanes;
       }
@@ -1389,7 +1389,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
-          arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
+          arith::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
           }
@@ -1400,7 +1400,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (detect_scalar_read_patterns_ && is_buffer_load && indices.size()) {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.dtype().lanes() == 1) {
-        arith::ModularSet me = analyzer_.modular_set(last_dim_index);
+        arith::ModularSet me = analyzer_->modular_set(last_dim_index);
         var_info.scalar_read_dtype.emplace(access_dtype.with_lanes(me->coeff));
         return;
       }
@@ -1539,7 +1539,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.dtype().lanes() == 1 && info.factor() > 1) {
-      arith::ModularSet me = analyzer_.modular_set(last_dim_index);
+      arith::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
       shuffle_index = me->base % info.factor();

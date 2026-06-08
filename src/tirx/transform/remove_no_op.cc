@@ -74,7 +74,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 // Mark the statement of each stage.
 class NoOpRemover : public arith::IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, arith::Analyzer* analyzer, bool ignore_profiler_call = false) {
+  static Stmt Apply(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false) {
     NoOpRemover visitor(analyzer, ignore_profiler_call);
     return visitor(std::move(stmt));
   }
@@ -84,7 +84,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  NoOpRemover(arith::Analyzer* analyzer, bool ignore_profiler_call = false)
+  NoOpRemover(arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
   Stmt VisitStmt_(const BindNode* op) final {
@@ -99,7 +99,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
       arith::Analyzer ana;
-      if (ana.CanProve(wait_cnt < 0)) {
+      if (ana->CanProve(wait_cnt < 0)) {
         // A negative wait count can arise if it depends on a loop variable.
         // For example, a wait count 1 - i can be negative after loop unrolling.
         // We assume that such wait is a nop.
@@ -263,7 +263,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   bool ignore_profiler_call_{false};
 };
 
-Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, bool ignore_profiler_call) {
+Stmt RemoveNoOp(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call) {
   return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
@@ -276,14 +276,14 @@ Pass RemoveNoOp() {
             .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
 
     arith::Analyzer analyzer;
-    analyzer.rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
+    analyzer->rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
 
     bool ignore_profiler_call = config->ignore_profiler_call;
 
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemover::Apply(std::move(write_ptr->body), &analyzer, ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body), analyzer.get(), ignore_profiler_call);
     }
     return f;
   };
