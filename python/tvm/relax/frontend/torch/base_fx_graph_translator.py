@@ -391,6 +391,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _logical_and(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_and accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_and requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_and(lhs, rhs))
+
     def _logical_not(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         # torch.logical_not accepts any dtype (treating nonzero as True) and returns bool, but
