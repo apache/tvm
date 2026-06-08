@@ -184,7 +184,9 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
 inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                          FReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
-  TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  if (ndim == 0) {
+    return topi::identity(data, data->op->name + "_red", kCommReduce);
+  }
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
   return DoCommReduce(data, func, target_shape, real_axis,
