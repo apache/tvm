@@ -215,7 +215,7 @@ bool DetectClipBound(const PrimExpr& cond,
   LinearEqEntry ret;
   Analyzer analyzer;
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
-  ret.coeff = analyzer.Simplify(ret.coeff);
+  ret.coeff = analyzer->Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
 
   ffi::Optional<PrimExpr> min_value;
@@ -268,7 +268,7 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
-  SplitCommExpr<tirx::AndNode>(analyzer.Simplify(e), &splits);
+  SplitCommExpr<tirx::AndNode>(analyzer->Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();
@@ -280,10 +280,10 @@ ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& v
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {
-      e.min_value = analyzer.Simplify(e.min_value);
+      e.min_value = analyzer->Simplify(e.min_value);
     }
     if (e.max_value.defined()) {
-      e.max_value = analyzer.Simplify(e.max_value);
+      e.max_value = analyzer->Simplify(e.max_value);
     }
     ret.push_back(e.min_value);
     ret.push_back(e.max_value);

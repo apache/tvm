@@ -103,8 +103,8 @@ class With {
  *
  * \code
  *   WithGroup<ConstraintContext> group;
- *   group.Emplace(&analyzer, cond1);  // constructs and enters
- *   group.Emplace(&analyzer, cond2);  // constructs and enters
+ *   group.Emplace(analyzer, cond1);  // constructs and enters
+ *   group.Emplace(analyzer, cond2);  // constructs and enters
  *   // destructor: exits cond2, then cond1
  * \endcode
  *

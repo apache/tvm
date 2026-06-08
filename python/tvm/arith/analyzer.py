@@ -35,6 +35,22 @@ class ProofStrength(enum.IntEnum):
     SYMBOLIC_BOUND = 1
 
 
+class CompareResult(enum.IntEnum):
+    """Result of a transitive comparison.
+
+    Values must match the C++ ``arith::CompareResult`` enum.
+    """
+
+    INCONSISTENT = 0
+    EQ = 1
+    LT = 2
+    LE = 3
+    GT = 4
+    GE = 5
+    NE = 6
+    UNKNOWN = 7
+
+
 class Extension(enum.Flag):
     """Extensions enabled for RewriteSimplifier
 
@@ -100,31 +116,17 @@ class ConstraintScope:
         self._fexit()
 
 
-class Analyzer:
+@tvm_ffi.register_object("arith.Analyzer")
+class Analyzer(Object):
     """Integer arithmetic analyzer
 
-    This is a stateful analyzer class that can
-    be used to perform various symbolic integer analysis.
+    This is a stateful analyzer class that can be used to perform
+    various symbolic integer analysis. The same analyzer instance can
+    be passed to FFI APIs to share accumulated facts across calls.
     """
 
     def __init__(self):
-        _mod = _ffi_api.CreateAnalyzer()
-        self._const_int_bound = _mod("const_int_bound")
-        self._const_int_bound_update = _mod("const_int_bound_update")
-        self._const_int_bound_is_bound = _mod("const_int_bound_is_bound")
-        self._bind = _mod("bind")
-        self._modular_set = _mod("modular_set")
-        self._simplify = _mod("Simplify")
-        self._rewrite_simplify = _mod("rewrite_simplify")
-        self._get_rewrite_simplify_stats = _mod("get_rewrite_simplify_stats")
-        self._reset_rewrite_simplify_stats = _mod("reset_rewrite_simplify_stats")
-        self._canonical_simplify = _mod("canonical_simplify")
-        self._int_set = _mod("int_set")
-        self._enter_constraint_context = _mod("enter_constraint_context")
-        self._can_prove_equal = _mod("can_prove_equal")
-        self._can_prove = _mod("can_prove")
-        self._get_enabled_extensions = _mod("get_enabled_extensions")
-        self._set_enabled_extensions = _mod("set_enabled_extensions")
+        self.__init_handle_by_constructor__(_ffi_api.Analyzer)
 
     def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
@@ -139,7 +141,7 @@ class Analyzer:
         bound : ConstIntBound
             The result bound
         """
-        return self._const_int_bound(expr)
+        return _ffi_api.AnalyzerConstIntBound(self, expr)
 
     def const_int_bound_is_bound(self, var: tirx.Var) -> bool:
         """Check if a variable is bound to a range.
@@ -154,7 +156,7 @@ class Analyzer:
         result : bool
             Whether the variable is bound to a range.
         """
-        return self._const_int_bound_is_bound(var)
+        return _ffi_api.AnalyzerConstIntBoundIsBound(self, var)
 
     def modular_set(self, expr: tirx.PrimExpr) -> ModularSet:
         """Find a modular set that expr belongs to.
@@ -169,7 +171,7 @@ class Analyzer:
         result : ModularSet
             The result.
         """
-        return self._modular_set(expr)
+        return _ffi_api.AnalyzerModularSet(self, expr)
 
     def simplify(self, expr: tirx.PrimExpr, steps: int = 2) -> tirx.PrimExpr:
         """Simplify expression via both rewrite and canonicalization.
@@ -189,7 +191,7 @@ class Analyzer:
         result : Expr
             The result.
         """
-        return self._simplify(expr, steps)
+        return _ffi_api.AnalyzerSimplify(self, expr, steps)
 
     def rewrite_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
         """Simplify expression via rewriting rules.
@@ -204,14 +206,14 @@ class Analyzer:
         result : Expr
             The result.
         """
-        return self._rewrite_simplify(expr)
+        return _ffi_api.AnalyzerRewriteSimplify(self, expr)
 
     @property
     def rewrite_simplify_stats(self):
-        return self._get_rewrite_simplify_stats()
+        return _ffi_api.AnalyzerGetRewriteSimplifyStats(self)
 
     def reset_rewrite_simplify_stats(self):
-        self._reset_rewrite_simplify_stats()
+        _ffi_api.AnalyzerResetRewriteSimplifyStats(self)
 
     def canonical_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
         """Simplify expression via canonicalization.
@@ -226,9 +228,9 @@ class Analyzer:
         result : Expr
             The result.
         """
-        return self._canonical_simplify(expr)
+        return _ffi_api.AnalyzerCanonicalSimplify(self, expr)
 
-    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet]) -> IntSet:
+    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
@@ -236,15 +238,16 @@ class Analyzer:
         expr : PrimExpr
             The expression.
 
-        dom_map : Dict[tvm.tirx.Var, tvm.arith.IntSet]
-            The domain for variables to be relaxed.
+        dom_map : Optional[Dict[tvm.tirx.Var, tvm.arith.IntSet]]
+            The domain for variables to be relaxed.  When omitted, the analyzer
+            uses the domains of the variables already bound to it.
 
         Returns
         -------
         result : IntSet
             The result.
         """
-        return self._int_set(expr, dom_map)
+        return _ffi_api.AnalyzerIntSet(self, expr, dom_map)
 
     def can_prove(
         self, expr: tirx.PrimExpr, strength: ProofStrength = ProofStrength.DEFAULT
@@ -264,7 +267,22 @@ class Analyzer:
         result : Expr
             The result.
         """
-        return self._can_prove(expr, strength)
+        return _ffi_api.AnalyzerCanProve(self, expr, strength)
+
+    def set_maximum_rewrite_steps(self, maximum: int) -> None:
+        """Set the maximum allowed number of rewrite-simplify steps.
+
+        When a positive limit is set, the simplifier raises an exception once
+        it exceeds that number of rewrite steps.  This is useful for guarding
+        against performance regressions in tests.
+
+        Parameters
+        ----------
+        maximum : int
+            The maximum number of rewrite steps, or a non-positive value to
+            allow an unlimited number of steps.
+        """
+        _ffi_api.AnalyzerSetMaximumRewriteSteps(self, maximum)
 
     def bind(
         self,
@@ -285,7 +303,7 @@ class Analyzer:
         allow_override : bool
             Whether to allow overriding an existing binding for the variable.
         """
-        return self._bind(var, expr, allow_override)
+        return _ffi_api.AnalyzerBind(self, var, expr, allow_override)
 
     def constraint_scope(self, constraint: tirx.PrimExpr) -> ConstraintScope:
         """Create a constraint scope.
@@ -306,7 +324,7 @@ class Analyzer:
 
           x = te.var("x")
           analyzer = tvm.arith.Analyzer()
-          with analzyer.constraint_scope(x % 3 == 0):
+          with analyzer.constraint_scope(x % 3 == 0):
               # constraint in effect
               assert analyzer.modular_set(x).coeff == 3
           # constraint no longer in effect
@@ -314,26 +332,34 @@ class Analyzer:
         """
 
         def _fenter():
-            return self._enter_constraint_context(constraint)
+            return _ffi_api.AnalyzerEnterConstraintContext(self, constraint)
 
         return ConstraintScope(_fenter)
 
-    def update(self, var: tirx.Var, info: ConstIntBound, override: bool = False) -> None:
-        """Update infomation about var
+    def update(
+        self, var: tirx.Var, info: ConstIntBound | ModularSet | IntSet, override: bool = False
+    ) -> None:
+        """Update information about var.
 
         Parameters
         ----------
         var : tvm.tirx.Var
             The variable.
 
-        info : tvm.Object
-            Related information.
+        info : Union[ConstIntBound, ModularSet, IntSet]
+            Related information.  A ``ConstIntBound`` updates the constant
+            integer bound, a ``ModularSet`` updates the modular set, and an
+            ``IntSet`` updates the integer-set domain of ``var``.
 
         override : bool
             Whether allow override.
         """
         if isinstance(info, ConstIntBound):
-            self._const_int_bound_update(var, info, override)
+            _ffi_api.AnalyzerConstIntBoundUpdate(self, var, info, override)
+        elif isinstance(info, ModularSet):
+            _ffi_api.AnalyzerModularSetUpdate(self, var, info, override)
+        elif isinstance(info, IntSet):
+            _ffi_api.AnalyzerIntSetUpdate(self, var, info, override)
         else:
             raise TypeError(f"Do not know how to handle type {type(info)}")
 
@@ -353,12 +379,37 @@ class Analyzer:
         result: bool
             Whether we can prove that lhs == rhs
         """
-        return self._can_prove_equal(lhs, rhs)
+        return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
+
+    def try_compare(
+        self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr, propagate_inequalities: bool = True
+    ) -> CompareResult:
+        """Compare lhs and rhs using previously provided known comparisons.
+
+        Parameters
+        ----------
+        lhs : PrimExpr
+            The left-hand side of the comparison.
+
+        rhs : PrimExpr
+            The right-hand side of the comparison.
+
+        propagate_inequalities : bool
+            If true, attempt to find a sequence of transitive inequalities that
+            allow lhs and rhs to be compared.
+
+        Returns
+        -------
+        result : CompareResult
+            The most specific result that can be proven about the comparison.
+            Returns ``CompareResult.UNKNOWN`` when nothing can be proven.
+        """
+        return CompareResult(_ffi_api.AnalyzerTryCompare(self, lhs, rhs, propagate_inequalities))
 
     @property
     def enabled_extensions(self) -> Extension:
         """Return the currently enabled extensions"""
-        value = self._get_enabled_extensions()
+        value = _ffi_api.AnalyzerGetEnabledExtensions(self)
         return Extension(value)
 
     @enabled_extensions.setter
@@ -372,4 +423,4 @@ class Analyzer:
             The extensions to enable.
         """
         flags = Extension(flags).value
-        self._set_enabled_extensions(flags)
+        _ffi_api.AnalyzerSetEnabledExtensions(self, flags)

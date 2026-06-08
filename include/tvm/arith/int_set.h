@@ -36,6 +36,7 @@ using tirx::IterVar;
 using tirx::Var;
 using tirx::VarNode;
 
+class AnalyzerObj;
 class Analyzer;
 
 //-----------------------------------------------
@@ -96,7 +97,7 @@ class IntSet : public ffi::ObjectRef {
    * \param ana Analyzer used in the proof.
    * \return Whether we can prove it is a single point
    */
-  bool CanProveSinglePoint(Analyzer* ana) const;
+  bool CanProveSinglePoint(const Analyzer& ana) const;
   // TODO(tvm-team): update all CanProve to explicitly take
   // analyzer to encourage more analyzer reuse
   /*! \return Whether the set is proved to be bigger than 0 */
@@ -302,7 +303,7 @@ ffi::Map<Var, arith::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
  */
 TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
-    arith::Analyzer* analyzer);
+    const arith::Analyzer& analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate.
@@ -316,7 +317,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
  */
 TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
-    arith::Analyzer* analyzer);
+    const arith::Analyzer& analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate
@@ -331,7 +332,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
 TVM_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
                                                     const ffi::Map<Var, Range>& var_dom,
                                                     const PrimExpr& predicate,
-                                                    arith::Analyzer* analyzer);
+                                                    const arith::Analyzer& analyzer);
 
 }  // namespace arith
 }  // namespace tvm

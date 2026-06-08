@@ -677,8 +677,8 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      TVM_FFI_ICHECK(
-          arith::Analyzer().CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
+      TVM_FFI_ICHECK(arith::Analyzer()->CanProveEqual(
+          floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
   }
@@ -697,7 +697,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& range = source->region[i];
-    TVM_FFI_ICHECK(analyzer.CanProve(range->extent == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(range->extent == 1));
     result.push_back(range->min);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
@@ -719,7 +719,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& source_range = source->region[i];
-    TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == 1));
     result.push_back(Range::FromMinExtent(source_range->min, 1));
   }
   for (size_t i = 0; i < region.size(); ++i) {
@@ -735,7 +735,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
   // extract equations and related vars from condition expression.
   // currently only extract simple integral equations which could be solvable.
   arith::Analyzer analyzer;
-  PrimExpr condition = analyzer.Simplify(condition_);
+  PrimExpr condition = analyzer->Simplify(condition_);
   if (is_const_int(condition)) {
     return std::nullopt;
   }
@@ -797,7 +797,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
       }
     }
     if (dom.defined()) {
-      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer.Simplify(dom.max() - dom.min() + 1)));
+      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
     }
   }
   // solve constraints
