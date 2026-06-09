@@ -3230,7 +3230,10 @@ class Resize(OnnxOpConverter):
 
         use_dynamic_roi = roi_dynamic_vec is not None
 
-        # Convert scales to sizes if needed.
+        # Convert scales to sizes if needed, preserving the orginal spatial scales so
+        # the coordinate transformation uses the exact ONNX scale value rather than the
+        # lossy ratio derived from floor(input * scale) / input.
+        original_spatial_scales = None
         if scales is not None:
             if isinstance(scales, relax.Constant):
                 scales = scales.data.numpy()
@@ -3238,6 +3241,7 @@ class Resize(OnnxOpConverter):
                 scales = [int(val.value) for val in scales.values]
             else:
                 raise ValueError(f"Type {type(scales)} for scale is currently unsupported.")
+            original_spatial_scales = list(scales[2:])
             sizes = []
 
             for i, dim in enumerate(x.struct_info.shape):
@@ -3279,33 +3283,38 @@ class Resize(OnnxOpConverter):
                 cubic_coeff_a,
                 exclude_outside,
                 extrapolation_value,
+                scales=original_spatial_scales,
             )
         elif ndims == 4:
-            return relax.op.image.resize2d(
+            return bb.emit_te(
+                topi.image.resize2d,
                 x,
-                size=relax.ShapeExpr(sizes),
-                roi=roi_static,
-                layout="NCHW",
-                method=relax_mode,
-                coordinate_transformation_mode=coord_mode,
-                rounding_method=rounding_method,
-                cubic_alpha=cubic_coeff_a,
-                cubic_exclude=exclude_outside,
-                extrapolation_value=extrapolation_value,
+                roi_static,
+                sizes,
+                "NCHW",
+                topi_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+                scales=original_spatial_scales,
             )
         else:  # ndims == 5
             roi3d = _topi_resize3d_roi_from_onnx_ncdhw_spatial(roi_static)
-            return relax.op.image.resize3d(
+            return bb.emit_te(
+                topi.image.resize3d,
                 x,
-                size=relax.ShapeExpr(sizes),
-                roi=roi3d,
-                layout="NCDHW",
-                method=relax_mode,
-                coordinate_transformation_mode=coord_mode,
-                rounding_method=rounding_method,
-                cubic_alpha=cubic_coeff_a,
-                cubic_exclude=exclude_outside,
-                extrapolation_value=extrapolation_value,
+                roi3d,
+                sizes,
+                "NCDHW",
+                relax_mode,
+                coord_mode,
+                rounding_method,
+                cubic_coeff_a,
+                exclude_outside,
+                extrapolation_value,
+                scales=original_spatial_scales,
             )
 
 
