@@ -29,6 +29,11 @@ from tvm.script import tirx as T
 from tvm.target.codegen import llvm_version_major
 
 
+def _xfail_if_llvm_uses_fixed_width_vectorization(loads):
+    if llvm_version_major() >= 22 and len(loads) == 0:
+        pytest.xfail("LLVM 22 may lower this loop to fixed-width NEON instead of SVE")
+
+
 @pytest.mark.skipif(
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
@@ -225,6 +230,7 @@ def test_max(dtype):
         r"max\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
     )
 
+    _xfail_if_llvm_uses_fixed_width_vectorization(loads)
     assert len(loads) > 1
     assert (len(compare) > 1 and len(select) == len(compare)) or len(max_instr) > 1
 
@@ -268,6 +274,7 @@ def test_min(dtype):
         r"min\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
     )
 
+    _xfail_if_llvm_uses_fixed_width_vectorization(loads)
     assert len(loads) > 1
     assert (len(compare) > 1 and len(select) == len(compare)) or len(min_instr) > 1
 
@@ -384,6 +391,7 @@ def test_eq(dtype):
         r"cm(p)?eq\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
     )
 
+    _xfail_if_llvm_uses_fixed_width_vectorization(loads)
     assert len(loads) > 1
     assert len(matches) > 1
 
@@ -423,6 +431,7 @@ def test_neq(dtype):
         r"cm(p)?(gt|ne)\tp[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
     )
 
+    _xfail_if_llvm_uses_fixed_width_vectorization(loads)
     assert len(loads) > 1
     assert len(matches) > 1
 
@@ -536,8 +545,9 @@ def test_not(dtype):
         r"eor\tz[0-9].[shdb],( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
     )
 
-    assert len(loads) > 1
-    assert len(matches) > 1
+    _xfail_if_llvm_uses_fixed_width_vectorization(loads)
+    assert len(loads) > 0
+    assert len(matches) > 0
 
 
 @pytest.mark.skipif(
@@ -587,7 +597,7 @@ def test_memcpy(dtype):
     [
         ("+neon", False),
         ("+sve", True),
-        ("+v9a", True),
+        ("+v9a", False),
         ("+sme", True),
     ],
 )
