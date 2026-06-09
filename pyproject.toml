@@ -20,7 +20,7 @@ requires = ["scikit-build-core>=0.11", "setuptools-scm>=8"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "tvm"
+name = "apache-tvm"
 # The version is derived from the most recent Git tag by setuptools_scm at build
 # time (see [tool.setuptools_scm]); no manual version stamping is required.
 dynamic = ["version"]
@@ -144,7 +144,7 @@ BUILD_TESTING = "OFF"
 # Version comes from the most recent Git tag (vMAJOR.MINOR.devN or vMAJOR.MINOR.PATCH).
 # guess-next-dev reproduces the previous version.py behaviour for vMAJOR.MINOR.devN
 # tags (e.g. v0.25.dev0 + N commits -> 0.25.devN). local_scheme = "no-local-version"
-# drops the +g<hash> local segment: PyPI/TestPyPI reject local versions on upload, and
+# drops the +g<hash> local segment: PyPI rejects local versions on upload, and
 # this matches the public version the old version.py stamped.
 version_file = "python/tvm/_version.py"
 version_scheme = "guess-next-dev"
