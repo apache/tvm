@@ -25,6 +25,8 @@ from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TileLayout, wg_local_layout
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 @pytest.mark.parametrize(
     "input",

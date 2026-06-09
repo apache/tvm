@@ -278,6 +278,7 @@ def test_sub_buffer_buffer_rounding():
         tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-6)
 
 
+@tvm.testing.requires_cuda_compute_version(10)
 def test_fma_warpgroup_wg_local_layout():
     rows, cols = 128, 8
     dtype = "float32"

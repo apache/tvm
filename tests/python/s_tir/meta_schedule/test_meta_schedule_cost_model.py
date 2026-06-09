@@ -22,8 +22,10 @@ import shutil
 import tempfile
 import unittest
 from functools import partial
+from importlib.util import find_spec
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -36,6 +38,11 @@ from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule.schedule import Schedule
 from tvm.script import tirx as T
+
+
+requires_xgboost = pytest.mark.skipif(
+    find_spec("xgboost") is None, reason="xgboost is not installed"
+)
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -166,6 +173,7 @@ def _dummy_result(num_samples: int = 4, max_run_sec: int = 10):
     return RunnerResult(list(np.random.rand(num_samples) * max_run_sec + 1e-6), None)
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)
@@ -179,6 +187,7 @@ def test_meta_schedule_xgb_model():
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_no_feature():
     model = XGBModel(num_warmup_samples=0)
     tune_ctx = TuneContext(
@@ -192,6 +201,7 @@ def test_meta_schedule_xgb_model_no_feature():
     model.predict(tune_ctx, [candidate])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_reload():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=10)
@@ -235,6 +245,7 @@ def test_meta_schedule_xgb_model_reload():
             assert (f1 == f2).all()
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_reupdate():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)
@@ -258,6 +269,7 @@ def test_meta_schedule_xgb_model_reupdate():
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_callback_as_function():
     # pylint: disable=import-outside-toplevel
     from itertools import chain as itertools_chain

@@ -179,6 +179,7 @@ def pack_sf_fp8_uint32(sf_uint8, n_total=128):
         )
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_tcgen05_cta_group_1(task):
     (
         (C_shape, C_dtype, C_region),
@@ -293,6 +294,7 @@ def test_gemm_tcgen05_cta_group_1(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     """M=64 MMA with C operand allocated as Layout F (datapath="F").
 
@@ -417,6 +419,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         )
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_tcgen05_cta_group_2(task):
     (
         (C_shape, C_dtype, C_region),
@@ -545,6 +548,7 @@ def test_gemm_tcgen05_cta_group_2(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_tcgen05_cta_group_2_layout_b():
     """Test cta_group=2 with Layout B (2x2 datapath, M=128 total, 64 per CTA).
 
@@ -689,6 +693,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         )
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_block_scaled_fp8_cta_group_1(task):
     """Test block-scaled fp8 GEMM with cta_group=1 using gemm_async op.
 
@@ -882,6 +887,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         )
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_block_scaled_fp8_cta_group_2(task):
     """Test block-scaled fp8 GEMM with cta_group=2 using gemm_async op.
 
@@ -1090,6 +1096,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
 
 
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_block_scaled_nvfp4_cta_group_1():
     """Test block-scaled nvfp4 GEMM with cta_group=1.
 
@@ -1259,6 +1266,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
 
 
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_block_scaled_nvfp4_cta_group_2():
     """Test block-scaled nvfp4 GEMM with cta_group=2.
 
@@ -1463,6 +1471,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
 
 
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_block_scaled_fp8_sf_id():
     """Test sf_id auto-derivation from layout for fp8 block-scaled MMA.
 
@@ -1809,6 +1818,7 @@ def test_gemm_block_scaled_fp8_sf_id():
         "transA_kmajor_smem",
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_gemm_tcgen05_arbitrary_tiles(task):
     """Test arbitrary tile decomposition for tcgen05 gemm_async.
 

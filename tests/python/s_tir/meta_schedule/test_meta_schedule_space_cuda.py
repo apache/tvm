@@ -17,6 +17,7 @@
 # ruff: noqa: E501, F401
 """Tests for MetaSchedule search space on CUDA"""
 
+import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
@@ -26,6 +27,8 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
 from tvm.script import tirx as T
 from tvm.target import Target
+
+pytestmark = tvm.testing.requires_cuda.marks()
 
 
 def _target():
