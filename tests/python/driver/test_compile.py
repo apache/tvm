@@ -85,6 +85,7 @@ def test_compile_relax():
     tvm.testing.assert_allclose(z.numpy(), x_np + y_np)
 
 
+@tvm.testing.skip_if_wheel_test
 @tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 def test_compile_mixed_module():
     @tvm.script.ir_module

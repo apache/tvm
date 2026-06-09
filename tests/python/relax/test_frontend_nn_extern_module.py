@@ -145,6 +145,7 @@ def _compile_cc(src: Path, dst: Path):
             raise RuntimeError(msg)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_extern_object():
     with tempfile.TemporaryDirectory() as temp_dir_str:
         path = Path(temp_dir_str) / "main.o"
@@ -198,6 +199,7 @@ def test_extern_object():
         _test_infer_sym(compiled["test_sym"], x=3, y=4, z=2)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_extern_source():
     source = Path(__file__).parent / "frontend_nn_extern_module.cc"
 

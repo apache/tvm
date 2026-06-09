@@ -228,6 +228,7 @@ def test_executable_integration():
             shutil.rmtree(temp_dir)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_executable_jit_force_recompile():
     """Test jit method with force_recompile=True."""
     # Create target and build

@@ -35,7 +35,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, utils
 
-EXEC_MODE = ["bytecode", "compiled"]
+EXEC_MODE = [pytest.param("bytecode", marks=tvm.testing.skip_if_wheel_test), "compiled"]
 
 
 @pytest.fixture(params=EXEC_MODE)
