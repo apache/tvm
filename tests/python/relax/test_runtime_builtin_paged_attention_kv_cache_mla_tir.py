@@ -18,9 +18,6 @@ import itertools
 
 import numpy as np
 import pytest
-
-pytest.importorskip("torch")
-
 import torch
 import tvm_ffi
 from tvm_ffi import Shape

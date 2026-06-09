@@ -21,7 +21,6 @@ import operator
 
 import pytest
 
-pytest.importorskip("torch")
 pytest.importorskip("torchvision")
 
 import torch

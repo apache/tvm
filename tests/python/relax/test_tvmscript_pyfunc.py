@@ -27,9 +27,6 @@ This test verifies:
 
 import numpy as np
 import pytest
-
-pytest.importorskip("torch")
-
 import torch
 
 import tvm

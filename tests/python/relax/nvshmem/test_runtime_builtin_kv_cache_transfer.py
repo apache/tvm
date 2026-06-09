@@ -23,7 +23,6 @@ import numpy as np
 import pytest
 
 pytest.importorskip("scipy")
-pytest.importorskip("torch")
 
 import scipy.special
 import torch

@@ -16,9 +16,6 @@
 # under the License.
 # ruff: noqa: E741
 import pytest
-
-pytest.importorskip("torch")
-
 import torch
 import tvm_ffi
 from tvm_ffi import Shape

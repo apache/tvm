@@ -16,9 +16,6 @@
 # under the License.
 
 import pytest
-
-pytest.importorskip("torch")
-
 import torch
 
 import tvm
