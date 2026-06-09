@@ -687,6 +687,7 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
 
 @pytest.mark.parametrize("reduction_len", [8, 16, 64, 128, 256, 9, 17, 63, 65, 100])
 @pytest.mark.parametrize("accum", [False, True])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
     """Test thread-level sum reduction using packed add with add.f32x2 PTX instruction."""
     dev = tvm.cuda(0)

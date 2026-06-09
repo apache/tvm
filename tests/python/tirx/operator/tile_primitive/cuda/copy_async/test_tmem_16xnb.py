@@ -155,6 +155,7 @@ def _expected_reg_value_16b(
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 2, 4, 8, 16, 32])  # subset; full reps below
 @pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_ld_16xnb_load_fp32(shape, rep, dtype):
     """Bit-exact verification of ``tcgen05.<shape>.x<rep>.b32`` load."""
     if rep not in _SHAPE_REPS[shape]:
@@ -170,6 +171,7 @@ def test_tcgen05_ld_16xnb_load_fp32(shape, rep, dtype):
         ("16x128b", 64),
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_ld_16xnb_load_fp32_large_rep(shape, rep):
     """High-rep entries that aren't in the parametrize-cross above."""
     _run_load_test(shape, rep, "float32")
@@ -178,6 +180,7 @@ def test_tcgen05_ld_16xnb_load_fp32_large_rep(shape, rep):
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 2, 4, 8, 16, 32])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_16xnb_roundtrip_16b(shape, rep, dtype):
     """Self-consistent round-trip for 16-bit pack::16b path.
 
@@ -204,6 +207,7 @@ def test_tcgen05_16xnb_roundtrip_16b(shape, rep, dtype):
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
 @pytest.mark.parametrize("rep", [1, 2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_16xnb_roundtrip_16b_M128(shape, rep, dtype):
     if rep not in _SHAPE_REPS[shape]:
         pytest.skip(f"rep {rep} not valid for {shape}")
@@ -217,6 +221,7 @@ def test_tcgen05_16xnb_roundtrip_16b_M128(shape, rep, dtype):
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
 @pytest.mark.parametrize("rep", [1, 2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_16xnb_roundtrip_16b_layout_F(shape, rep, dtype):
     if rep not in _SHAPE_REPS[shape]:
         pytest.skip(f"rep {rep} not valid for {shape}")
@@ -642,6 +647,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 4, 16])
 @pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     """Round-trip test: write the M=64 fragment via .<shape>.x<rep>.st then read
     via the standard .32x32b path; verify the host-known fragment data ends up
@@ -807,6 +813,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
         ("16x256b", 64, 64),  # .16x256b.x8 fp32
     ],
 )
+@tvm.testing.requires_cuda_compute_version(10)
 def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     """Ensure T.alloc_tcgen05_ldst_frag yields a buffer that ``T.copy_async`` accepts
     and lowers to the correct tcgen05 atom for each supported instr_shape."""

@@ -30,6 +30,7 @@ from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
 @pytest.mark.parametrize("width_32b", [4, 8, 16, 32])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_copy_tmem2reg_async(dtype, width_32b):
     """Test async tmem<->local copy using copy_async instead of copy.
 
@@ -135,6 +136,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
 @pytest.mark.parametrize("dtype", ["uint8", "float16", "float32"])
 @pytest.mark.parametrize("width_32b", [2, 4, 8, 16, 32, 64, 128])
 @pytest.mark.parametrize("offset_32b", [0, 3, 10])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_copy_tmem2reg(dtype, width_32b, offset_32b):
     def next_power_of_2(x):
         if x <= 1:
@@ -227,6 +229,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
 @pytest.mark.parametrize("width_32b", [4, 8, 16, 32])
 @pytest.mark.parametrize("local_offset_32b", [0, 2, 4])
+@tvm.testing.requires_cuda_compute_version(10)
 def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
     """tmem<->local copy with a sliced local buffer region."""
 

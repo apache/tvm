@@ -30,6 +30,7 @@ def _get_source(func: tvm.tirx.PrimFunc) -> str:
     return src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_bulk_s2c_codegen():
     """Test that T.ptx.cp_async.bulk.s2c emits the correct PTX instruction."""
 
@@ -58,6 +59,7 @@ def test_ptx_cp_async_bulk_s2c_codegen():
     assert "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_bulk_s2c_codegen_address_conversion():
     """Test that the codegen correctly converts addresses to shared space."""
 

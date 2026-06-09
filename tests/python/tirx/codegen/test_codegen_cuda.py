@@ -87,6 +87,7 @@ def test_serial_pragma_unroll_codegen():
     assert "break;" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_cluster_cta_id_codegen_uses_coordinate_sregs():
     @T.prim_func
     def main(A: T.Buffer((1,), "int32")):
@@ -160,6 +161,7 @@ def test_ptx_ld_acquire_and_volatile_codegen():
     assert "ld.volatile.global.u64" in src
 
 
+@tvm.testing.requires_cuda_compute_version(10)
 def test_megamoe_extracted_intrinsics_codegen():
     @T.prim_func
     def main(
@@ -265,6 +267,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         assert snippet in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async_bulk_non_tma_form_codegen():
     @T.prim_func
     def main(
@@ -304,6 +307,7 @@ def test_tensor_map_param_codegen():
     assert "((unsigned long long)(&(A_map)))" in src
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 def test_tma_cache_policy_operand_codegen():
     @T.prim_func
     def main(Cache: T.Buffer((1,), "uint64")):
@@ -537,6 +541,7 @@ def test_warp_shuffle_xor_sync():
 @pytest.mark.parametrize("prefetch_size", [-1, 64, 128, 256])
 @pytest.mark.parametrize("predicate", [-1, T.int32(0), T.int32(1)])
 @pytest.mark.parametrize("fill_mode", ["", "zero"])
+@tvm.testing.requires_cuda_compute_version(9)
 def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
     if fill_mode != "" and predicate == -1:
         return
