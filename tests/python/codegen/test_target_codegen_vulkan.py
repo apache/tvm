@@ -33,6 +33,11 @@ dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))
 
 
+def _skip_runtime_check_for_nvptx(target):
+    if tvm.target.Target(target).kind.name == "nvptx":
+        pytest.skip("NVPTX codegen target does not produce a directly launchable runtime module")
+
+
 # Explicitly specify a target, as this test is looking at the
 # generated shader code, and is not running on an actual device.
 @tvm.testing.parametrize_targets(
@@ -108,6 +113,7 @@ def test_array_vectorize_add(target, dev, dtype):
                         B[v_i] = A[v_i] + one
 
     f = tvm.compile(Module, target=target)
+    _skip_runtime_check_for_nvptx(target)
 
     a = tvm.runtime.empty((arr_size,), vec_dtype, dev).copyfrom(
         np.random.uniform(size=(arr_size, lanes))
@@ -133,6 +139,7 @@ def test_vulkan_bool_load(target, dev):
                         B[v_i] = T.Cast("int32", A[v_i])
 
     f = tvm.compile(Module, target=target)
+    _skip_runtime_check_for_nvptx(target)
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
@@ -245,6 +252,7 @@ def test_vulkan_while_if(target, dev):
 
     mod = get_module("gpu" in target.keys)
     compiled_func = tvm.compile(mod, target=target)
+    _skip_runtime_check_for_nvptx(target)
 
     a = tvm.runtime.tensor(np.array([5], dtype=dtype), dev)
     b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
@@ -275,6 +283,7 @@ def test_vulkan_local_threadidx(target, dev):
 
     mod = tvm.IRModule.from_expr(local_threadidx_func)
     func = tvm.compile(mod, target=target)
+    _skip_runtime_check_for_nvptx(target)
 
     a_np = np.arange(n).astype(dtype="int32")
     b_np = np.zeros((n,), dtype="int32")
@@ -386,6 +395,7 @@ def test_negative_operand_divmod(target, dev):
                     A[v_i, 1] = T.floormod(v_i - offset, divisor)
 
     built = tvm.compile(func, target=target)
+    _skip_runtime_check_for_nvptx(target)
 
     a_dev = tvm.runtime.empty([N, 2], "int32", dev)
     built(a_dev)
