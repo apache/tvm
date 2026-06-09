@@ -37,6 +37,8 @@ from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TileLayout, laneid, tid_in_wg, tx
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 def _r_layout(scope, shape):
     if scope == "warpgroup":

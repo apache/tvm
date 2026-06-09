@@ -119,6 +119,7 @@ def test_cuda_handle_uint64_reinterpret_codegen():
     assert "*(void* *)" not in src
 
 
+@tvm.testing.requires_cuda
 def test_cuda_atomic_add():
     @T.prim_func
     def main(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "float32")):
@@ -446,6 +447,7 @@ def test_cuda_atomic_cas():
     assert "tvm_builtin_cuda_atomic_cas" in src
 
 
+@tvm.testing.requires_cuda
 def test_cuda_func_call():
     def test_add_one():
         add_one = """
@@ -501,6 +503,7 @@ __device__ void print(int32_t a) {
     test_print()
 
 
+@tvm.testing.requires_cuda
 def test_warp_shuffle_xor_sync():
     # fmt: off
     @T.prim_func
@@ -582,6 +585,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
 
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_ptx_ldmatrix(trans, num):
     dtype = ".b16"
 

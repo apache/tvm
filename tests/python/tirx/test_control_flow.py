@@ -17,7 +17,10 @@
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm.script import tirx as T
+
+pytestmark = tvm.testing.requires_cuda.marks()
 
 
 def run_test_break_continue(func, shape, expected):

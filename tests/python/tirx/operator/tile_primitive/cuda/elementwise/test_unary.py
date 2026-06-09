@@ -28,6 +28,8 @@ from tvm.tirx.operator.tile_primitive.cuda.layout_utils import (
     cast_layout_supported_for_local as _cast_layout_supported_for_local,
 )
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 
 @pytest.mark.parametrize(
     "input",

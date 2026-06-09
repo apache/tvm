@@ -181,6 +181,7 @@ def verify_cuda_code_string(func, expected_var_name, expected_string_literal):
     )
 
 
+@tvm.testing.requires_cuda
 def test_print():
     DEV = tvm.cuda()
     target = tvm.target.Target("cuda")

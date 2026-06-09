@@ -34,6 +34,8 @@ from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import S, TileLayout
 
+pytestmark = tvm.testing.requires_cuda.marks()
+
 # Force the fallback dispatch to register before any test compiles a kernel.
 # Without this import, in fresh pytest workers the `copy/fallback` variant
 # isn't yet registered when the dispatcher snapshots its registry.
