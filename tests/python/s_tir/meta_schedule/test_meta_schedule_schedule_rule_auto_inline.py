@@ -542,13 +542,13 @@ def test_no_inline_root_block():
             data_red: T.Buffer((), "float32"),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
-            with T.block("data_red"):
+            with T.sblock("data_red"):
                 T.reads(data[0:8, 0:8])
                 T.writes(data_red[()])
                 with T.init():
                     data_red[()] = T.float32(-3.4e38)
                 for i, j in T.grid(8, 8):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         T.reads(data_red[()], data[i, j])
                         T.writes(data_red[()])
                         data_red[()] = T.max(data_red[()], data[i, j])
