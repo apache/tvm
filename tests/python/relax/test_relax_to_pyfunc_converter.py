@@ -23,6 +23,9 @@ Tests all major features including basic operations, call_tir, call_dps_packed, 
 
 import numpy as np
 import pytest
+
+pytest.importorskip("torch")
+
 import torch
 import torch.nn.functional as F
 

@@ -20,6 +20,10 @@ import math
 import operator
 
 import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("torchvision")
+
 import torch
 import torch.nn.functional as F
 import torchvision

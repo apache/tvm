@@ -21,6 +21,8 @@ import tempfile
 import numpy as np
 import pytest
 
+pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
+
 import tvm
 import tvm.testing
 from tvm.ir.utils import derived_object

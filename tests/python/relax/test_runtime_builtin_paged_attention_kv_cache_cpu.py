@@ -20,6 +20,9 @@ import itertools
 
 import numpy as np
 import pytest
+
+pytest.importorskip("scipy")
+
 import scipy.special
 import tvm_ffi
 from tvm_ffi import Shape

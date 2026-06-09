@@ -17,6 +17,9 @@
 """Tests for tvm.tirx.bench utilities."""
 
 import pytest
+
+pytest.importorskip("torch")
+
 import torch
 
 import tvm.testing

@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import pytest
+
+pytest.importorskip("torch")
+
 import torch
 
 import tvm
