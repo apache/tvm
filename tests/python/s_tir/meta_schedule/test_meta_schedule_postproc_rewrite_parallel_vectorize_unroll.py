@@ -189,10 +189,10 @@ def before_postproc_dynamic_shape_vectorize(
     n = T.int64()
     A = T.match_buffer(a, (n,), dtype="float32")
     B = T.match_buffer(b, (n,), dtype="float32")
-    with T.sblock("root"):
-        T.sblock_attr({"meta_schedule.vectorize": 64})
+    with T.block("root"):
+        T.block_attr({"meta_schedule.vectorize": 64})
         for i in T.serial(0, n):
-            with T.sblock("copy"):
+            with T.block("copy"):
                 vi = T.axis.spatial(n, i)
                 T.reads(A[vi])
                 T.writes(B[vi])
