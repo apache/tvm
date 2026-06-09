@@ -16,7 +16,6 @@
 # under the License.
 """Utilities for meta schedule"""
 
-import ctypes
 import os
 import shutil
 from collections.abc import Callable
@@ -245,29 +244,6 @@ def shash2hex(mod: IRModule) -> str:
     """
     func = get_global_func("s_tir.meta_schedule._SHash2Hex")
     return str(func(mod))
-
-
-def _get_default_str(obj: Any) -> str:
-    return (
-        # pylint: disable=protected-access
-        f"s_tir.meta_schedule.{obj.__class__.__name__}"
-        + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
-        # pylint: enable=protected-access
-    )
-
-
-def _to_hex_address(handle: ctypes.c_void_p) -> str:
-    """Get the hexadecimal address of a handle.
-    Parameters
-    ----------
-    handle : ctypes.c_void_p
-        The handle to be converted.
-    Returns
-    -------
-    result : str
-        The hexadecimal address of the handle.
-    """
-    return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
 def fork_seed(seed: int | None, n: int) -> list[int]:

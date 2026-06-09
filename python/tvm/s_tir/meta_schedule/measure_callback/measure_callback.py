@@ -33,7 +33,6 @@ from .. import _ffi_api
 from ..builder import BuilderResult
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..task_scheduler import TaskScheduler
@@ -94,13 +93,12 @@ class _PyMeasureCallback(MeasureCallback):
     See also: PyMeasureCallback
     """
 
-    def __init__(self, f_apply: Callable, f_as_string: Callable | None = None):
+    def __init__(self, f_apply: Callable):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.MeasureCallbackPyMeasureCallback,  # type: ignore # pylint: disable=no-member
             f_apply,
-            f_as_string,
         )
 
 
@@ -114,7 +112,7 @@ class PyMeasureCallback:
 
     _tvm_metadata = {
         "cls": _PyMeasureCallback,
-        "methods": ["apply", "__str__"],
+        "methods": ["apply"],
     }
 
     def apply(
@@ -141,6 +139,3 @@ class PyMeasureCallback:
             The runner results by running the built measure candidates.
         """
         raise NotImplementedError
-
-    def __str__(self) -> str:
-        return _get_default_str(self)

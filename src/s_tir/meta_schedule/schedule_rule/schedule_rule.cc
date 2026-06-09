@@ -45,13 +45,11 @@ ScheduleRule PyScheduleRuleNode::Clone() const {
 ScheduleRule ScheduleRule::PyScheduleRule(
     PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyScheduleRuleNode::FApply f_apply,                                             //
-    PyScheduleRuleNode::FClone f_clone,                                             //
-    PyScheduleRuleNode::FAsString f_as_string) {
+    PyScheduleRuleNode::FClone f_clone) {
   ffi::ObjectPtr<PyScheduleRuleNode> n = ffi::make_object<PyScheduleRuleNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  n->f_as_string = std::move(f_as_string);
   return ScheduleRule(n);
 }
 
