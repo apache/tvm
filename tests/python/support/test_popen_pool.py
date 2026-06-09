@@ -19,9 +19,14 @@
 
 import os
 import time
+from importlib.util import find_spec
 
 import psutil
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    find_spec("cloudpickle") is None, reason="cloudpickle is not installed"
+)
 
 from tvm.support.popen_pool import PopenPoolExecutor, PopenWorker
 from tvm.testing import (
