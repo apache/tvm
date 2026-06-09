@@ -185,7 +185,8 @@ inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<int6
                          FReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   if (ndim == 0) {
-    return topi::identity(data, data->op->name + "_red", kCommReduce);
+    auto identity = topi::identity(data, data->op->name + "_red", kCommReduce);
+    return atleast1d ? topi::expand_dims(identity, 0, 1) : identity;
   }
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
