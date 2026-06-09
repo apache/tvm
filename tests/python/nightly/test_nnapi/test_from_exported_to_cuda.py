@@ -17,6 +17,10 @@
 # ruff: noqa: E501, F401
 
 import numpy as np
+import pytest
+
+pytest.importorskip("torch")
+
 import torch
 from torch import nn
 from torch.export import export
