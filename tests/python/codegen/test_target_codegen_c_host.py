@@ -24,6 +24,7 @@ from tvm.script import tirx as T
 from tvm.support import utils
 
 
+@tvm.testing.skip_if_wheel_test
 def test_add():
     nn = 1024
 
@@ -61,6 +62,7 @@ def test_add():
     check_c()
 
 
+@tvm.testing.skip_if_wheel_test
 def test_reinterpret():
     nn = 1024
 
@@ -96,6 +98,7 @@ def test_reinterpret():
     check_c()
 
 
+@tvm.testing.skip_if_wheel_test
 def test_ceil():
     nn = 1024
 
@@ -131,6 +134,7 @@ def test_ceil():
     check_c()
 
 
+@tvm.testing.skip_if_wheel_test
 def test_floor():
     nn = 1024
 
@@ -166,6 +170,7 @@ def test_floor():
     check_c()
 
 
+@tvm.testing.skip_if_wheel_test
 def test_round():
     nn = 1024
 

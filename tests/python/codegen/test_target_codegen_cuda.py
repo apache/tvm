@@ -977,6 +977,7 @@ def test_cuda_float_const_hex_format():
     assert "0x1.2f684bda12f68p-5f" in cuda_code
 
 
+@tvm.testing.skip_if_wheel_test
 @tvm.testing.requires_cuda
 def test_device_host_call_same_func():
     @I.ir_module(s_tir=True)

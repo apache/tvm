@@ -109,6 +109,7 @@ def test_if_cond_const(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
+@tvm.testing.skip_if_wheel_test
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_exec_serialize_export_library(exec_mode):
     @tvm.script.ir_module

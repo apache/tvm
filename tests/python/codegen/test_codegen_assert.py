@@ -22,7 +22,10 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 
-codegen_target = tvm.testing.parameter("llvm", "c")
+codegen_target = tvm.testing.parameter(
+    "llvm",
+    pytest.param("c", marks=tvm.testing.skip_if_wheel_test),
+)
 
 
 def test_assert_runtime_error(codegen_target):
