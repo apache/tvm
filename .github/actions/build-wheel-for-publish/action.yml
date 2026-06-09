@@ -55,7 +55,7 @@ runs:
 
     # ---- Cache LLVM prefix ----
     - name: Cache LLVM
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@v5.0.5
       id: llvm-cache
       with:
         path: ${{ runner.os == 'Windows' && 'C:/opt/llvm' || '/opt/llvm' }}
@@ -64,7 +64,7 @@ runs:
     # ---- Install LLVM via conda (cache miss only) ----
     - name: Setup conda
       if: steps.llvm-cache.outputs.cache-hit != 'true'
-      uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+      uses: conda-incubator/setup-miniconda@v4.0.1
       continue-on-error: true
       id: conda1
       with:
@@ -73,7 +73,7 @@ runs:
 
     - name: Setup conda (retry with tar.bz2)
       if: steps.llvm-cache.outputs.cache-hit != 'true' && steps.conda1.outcome == 'failure'
-      uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+      uses: conda-incubator/setup-miniconda@v4.0.1
       with:
         miniforge-version: latest
         use-only-tar-bz2: true
@@ -108,7 +108,7 @@ runs:
 
     # ---- Build and test wheels ----
     - name: Build and test wheels
-      uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # v3.3.1
+      uses: pypa/cibuildwheel@v3.3.1
       with:
         package-dir: .
         output-dir: wheelhouse
