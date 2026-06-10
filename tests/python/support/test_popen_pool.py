@@ -23,6 +23,8 @@ import time
 import psutil
 import pytest
 
+pytest.importorskip("cloudpickle")  # PopenWorker.send requires cloudpickle
+
 from tvm.support.popen_pool import PopenPoolExecutor, PopenWorker
 from tvm.testing import (
     identity_after,
