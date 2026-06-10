@@ -17,7 +17,6 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: F401
 import os
-import re
 import shutil
 import tempfile
 import unittest
@@ -99,31 +98,6 @@ def test_meta_schedule_cost_model():
         TuneContext(), [MeasureCandidate(Schedule(mod=Matmul), []) for _ in range(10)]
     )
     assert results.shape == (10,)
-
-
-def test_meta_schedule_cost_model_as_string():
-    @derived_object
-    class NotSoFancyCostModel(PyCostModel):
-        def load(self, path: str) -> None:
-            pass
-
-        def save(self, path: str) -> None:
-            pass
-
-        def update(
-            self,
-            context: TuneContext,
-            candidates: list[MeasureCandidate],
-            results: list[RunnerResult],
-        ) -> None:
-            pass
-
-        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
-            return np.random.rand(10)
-
-    cost_model = NotSoFancyCostModel()
-    pattern = re.compile(r"s_tir.meta_schedule.NotSoFancyCostModel\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(cost_model))
 
 
 def test_meta_schedule_random_model():

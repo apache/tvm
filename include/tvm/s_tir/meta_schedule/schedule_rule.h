@@ -93,11 +93,6 @@ class ScheduleRule : public ffi::ObjectRef {
   using FApply = ffi::TypedFunction<ffi::Array<s_tir::Schedule>(const s_tir::Schedule&,
                                                                 const s_tir::SBlockRV&)>;
   /*!
-   * \brief Get the schedule rule as string with name.
-   * \return The string of the schedule rule.
-   */
-  using FAsString = ffi::TypedFunction<ffi::String()>;
-  /*!
    * \brief The function type of `Clone` method.
    * \return The cloned schedule rule.
    */
@@ -290,14 +285,12 @@ class ScheduleRule : public ffi::ObjectRef {
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
    * \param f_clone The packed function of `Clone`.
-   * \param f_as_string The packed function of `AsString`.
    * \return The schedule rule created.
    */
   TVM_DLL static ScheduleRule PyScheduleRule(
       FInitializeWithTuneContext f_initialize_with_tune_context,  //
       FApply f_apply,                                             //
-      FClone f_clone,                                             //
-      FAsString f_as_string);
+      FClone f_clone);
 
   /*! \brief Create default schedule rules for LLVM */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultLLVM();
@@ -323,21 +316,17 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
   using FInitializeWithTuneContext = ScheduleRule::FInitializeWithTuneContext;
   using FApply = ScheduleRule::FApply;
   using FClone = ScheduleRule::FClone;
-  using FAsString = ScheduleRule::FAsString;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` function. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `Apply` function. */
   FApply f_apply;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
 
   static void RegisterReflection() {
     // `f_initialize_with_tune_context` is not registered
     // `f_apply` is not registered
-    // `f_as_string` is not registered
     // `f_clone` is not registered
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyScheduleRuleNode>();
