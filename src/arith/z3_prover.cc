@@ -1,3 +1,32 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file src/arith/z3_prover.cc
+ * \brief Optional Z3 SMT solver backend for arith::Analyzer.
+ *
+ * The real implementation is compiled only when TVM_USE_Z3 is defined (set by
+ * the USE_Z3 CMake option). Otherwise a conservative stub is compiled so the
+ * C++ and Python APIs stay available without a Z3 dependency.
+ */
+#ifdef TVM_USE_Z3
+
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
@@ -20,7 +49,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "tvm/arith/analyzer.h"
 #include "tvm/ffi/cast.h"
 #include "tvm/ffi/object.h"
 #include "tvm/ffi/string.h"
@@ -87,8 +115,6 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   /// @brief Memorize pure expressions
   std::unordered_map<PrimExpr, z3::expr, StructuralHash, ExprDeepEqual> memo_;
 
-  bool is_assume = false;
-
   /// @brief Namespace for variable naming
   Namespace ns;
 
@@ -111,11 +137,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   Impl(AnalyzerObj* parent) : analyzer(parent) {
     scope_stack_.push_back({});
     solver = CreateSolver(*ctx);
-    // default timeout 5ms
-    // Z3's implementation of timeout, when setting timeout T ms, it will stop at T - 1 ms
-    // SetTimeoutMs(5);
-    // use rlimit, not timeout to ensure determinstic behavior
-    SetRLimit(1e4);
+    // use rlimit, not timeout to ensure deterministic behavior
+    SetRLimit(10000U);
   }
 
   /// @brief Create a Free z3 expression from PrimExprNode
@@ -157,33 +180,21 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   std::vector<std::vector<Scope>> scope_stack_;
 
   /// @brief Enter a constraint scope
-  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     scope_stack_.push_back({});
     scope_stack_.back().push_back(
         Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint});
     solver.push();
-    this->is_assume = is_assume;
     solver.add(VisitBool(constraint));
-    this->is_assume = false;
     auto side_effect_exprs = std::move(side_effect_exprs_);
     side_effect_exprs_.clear();
-    if (is_assume) {
-      return [this, side_effect_exprs]() {
-        solver.pop();
-        for (const auto& expr : side_effect_exprs) {
-          memo_.erase(expr);
-        }
-        scope_stack_.pop_back();
-      };
-    } else {
-      for (const auto& expr : side_effect_exprs) {
-        memo_.erase(expr);
-      }
-      return [this]() {
-        solver.pop();
-        scope_stack_.pop_back();
-      };
+    for (const auto& expr : side_effect_exprs) {
+      memo_.erase(expr);
     }
+    return [this]() {
+      solver.pop();
+      scope_stack_.pop_back();
+    };
   }
 
   /// @brief Check trivil bad cases, return true if the expr is a bad case
@@ -231,13 +242,19 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
 
   /// @brief Check if the expression can be proved
   bool CanProve(const PrimExpr& expr) {
-    if (CheckTrivilBadCases(expr)) return false;
-    if (!IsValidDType(expr->dtype)) return false;
-    z3::expr_vector constr(*ctx);
-    constr.push_back(!ConvertBool(expr));
-    auto result = solver.check(constr);
-    constr.pop_back();
-    return result == z3::unsat;
+    // Z3 is only a fallback. Any failure (including z3::exception thrown by the
+    // solver) must degrade to "cannot prove" instead of escaping to the caller.
+    try {
+      if (CheckTrivilBadCases(expr)) return false;
+      if (!IsValidDType(expr->dtype)) return false;
+      z3::expr_vector constr(*ctx);
+      constr.push_back(!ConvertBool(expr));
+      auto result = solver.check(constr);
+      constr.pop_back();
+      return result == z3::unsat;
+    } catch (const z3::exception&) {
+      return false;
+    }
   }
 
   /// @brief Binded
@@ -265,9 +282,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
     //    instead of adding an unsat constraint, we just skip the range constraint to leave it a
     //    free var
-    if (tirx::is_const_int(range->min) && tirx::is_const_int(range->min + range->extent)) {
+    //
+    //    NOTE: range->min + range->extent builds a fresh AddNode that is not folded, so we must
+    //    test is_const_int on range->min and range->extent individually and add the two constants
+    //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
+    //    symbolic constraint below.
+    if (tirx::is_const_int(range->min) && tirx::is_const_int(range->extent)) {
       int64_t min_value = *tirx::as_const_int(range->min);
-      int64_t max_value = *tirx::as_const_int(range->min + range->extent);
+      int64_t extent_value = *tirx::as_const_int(range->extent);
+      int64_t max_value = min_value + extent_value;
       if (min_value < max_value) {
         solver.add(ctx->int_val(min_value) <= var_expr);
         solver.add(var_expr < ctx->int_val(max_value));
@@ -281,11 +304,12 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   void CopyFrom(const Self& other_) {
     // 1. create a new solver
     //    because this->solver depends on this->ctx
-    //    we need to deconstruct the old solver, and create a new one depending on other_.ctx
-    solver = CreateSolver(*other_.ctx);
-    // 2. copy the context
-    //    the context is a shared_ptr, we can just copy the pointer
-    ctx = other_.ctx;
+    //    we need to deconstruct the old solver, and create a new one depending on this->ctx
+    solver = CreateSolver(*ctx);
+    // 2. ctx is a static thread_local pointer, so other_.ctx already refers to the same
+    //    context on the current thread; there is nothing to copy here. Cross-thread copying
+    //    of Z3Prover is not supported because Z3 expressions cannot be shared across different
+    //    thread-local contexts without explicit translation.
     // 3. copy other objects
     ns = other_.ns;
     for (auto& item : other_.memo_) {
@@ -482,25 +506,21 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
 
   std::vector<PrimExpr> side_effect_exprs_;
 
-  z3::expr ConvertBool(const PrimExpr& e, bool is_assume = false) {
-    this->is_assume = is_assume;
+  z3::expr ConvertBool(const PrimExpr& e) {
     auto res = VisitBool(e);
     for (auto& expr : side_effect_exprs_) {
       memo_.erase(expr);
     }
     side_effect_exprs_.clear();
-    this->is_assume = false;
     return res;
   }
 
-  z3::expr ConvertInt(const PrimExpr& e, bool is_assume = false) {
-    this->is_assume = is_assume;
+  z3::expr ConvertInt(const PrimExpr& e) {
     auto res = VisitInt(e);
     for (auto& expr : side_effect_exprs_) {
       memo_.erase(expr);
     }
     side_effect_exprs_.clear();
-    this->is_assume = false;
     return res;
   }
 
@@ -517,9 +537,6 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
       memo_.emplace(e, res);
       side_effect_exprs_.emplace_back(e);
     } else {
-      if (is_assume) {
-        memo_.emplace(e, res);
-      }
       side_effect_exprs_.emplace_back(e);
     }
     return res;
@@ -599,6 +616,20 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     auto b = VisitInt(op->b);
     return z3::ite(a > b, a, b);
   }
+  // TVM Div/Mod are truncated (round toward zero), while Z3's native operator/
+  // and operator% are Euclidean. Using the raw operators is unsound once the
+  // dividend can be negative, so we implement truncating helpers explicitly.
+  static z3::expr truncdiv(const z3::expr& a, const z3::expr& b) {
+    z3::expr abs_a = z3::ite(a >= 0, a, -a);
+    z3::expr abs_b = z3::ite(b >= 0, b, -b);
+    // |a| / |b| is exact (Euclidean == truncated for non-negative operands).
+    z3::expr q = abs_a / abs_b;
+    return z3::ite((a >= 0) == (b >= 0), q, -q);
+  }
+  static z3::expr truncmod(const z3::expr& a, const z3::expr& b) {
+    // TVM Mod follows the sign of the dividend: a - b * truncdiv(a, b).
+    return a - b * truncdiv(a, b);
+  }
   static z3::expr floordiv(const z3::expr& a, const z3::expr& b) {
     return z3::ite(b > 0, a / b, -((-a) / b));
   }
@@ -614,12 +645,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   z3::expr VisitExpr_(const MulNode* op) override {
     return VisitArith(z3::operator*, op, op->a, op->b);
   }
-  z3::expr VisitExpr_(const DivNode* op) override {
-    return VisitArith(z3::operator/, op, op->a, op->b);
-  }
-  z3::expr VisitExpr_(const ModNode* op) override {
-    return VisitArith(z3::operator%, op, op->a, op->b);
-  }
+  z3::expr VisitExpr_(const DivNode* op) override { return VisitArith(truncdiv, op, op->a, op->b); }
+  z3::expr VisitExpr_(const ModNode* op) override { return VisitArith(truncmod, op, op->a, op->b); }
   z3::expr VisitExpr_(const FloorDivNode* op) override {
     return VisitArith(floordiv, op, op->a, op->b);
   }
@@ -667,6 +694,10 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
       return VisitShiftOp(z3::shl, op);
     } else if (op->op.same_as(tirx::builtin::shift_right())) {
       return VisitShiftOp(z3::ashr, op);
+    } else if (op->op.same_as(tirx::builtin::if_then_else()) && op->args.size() == 3 &&
+               IsValidDType(op->args[1]->dtype) && IsValidDType(op->args[2]->dtype)) {
+      // tir.if_then_else(cond, a, b) is a select-like ternary.
+      return z3::ite(VisitBool(op->args[0]), VisitInt(op->args[1]), VisitInt(op->args[2]));
     } else {
       // For other call nodes, create a free variable
       return Create(op);
@@ -725,19 +756,14 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
 
     // Shift operations require integer types for both operands
     if (IsValidDType(a->dtype) && IsValidDType(b->dtype)) {
-      // For shift operations, we need to ensure the shift amount is non-negative
-      // and within reasonable bounds
       z3::expr a_expr = VisitInt(a);
       z3::expr b_expr = VisitInt(b);
 
-      // Add constraint that shift amount should be non-negative
-      // This is a common assumption in many programming languages
-      solver.add(b_expr >= 0);
-
-      // Also limit shift amount to avoid unrealistic large shifts
-      // We'll limit to 64 bits (reasonable for most use cases)
-      solver.add(b_expr < 64);
-
+      // Rely on Z3's native bit-vector shift behavior. We must NOT add hard
+      // assertions such as `b_expr >= 0` to the solver here: solver.add() has no
+      // matching push/pop in this path, so the assertion would permanently
+      // poison the shared solver and make all subsequent unrelated proofs about
+      // `b` unsound.
       unsigned bit_width = std::max(a.dtype().bits(), b.dtype().bits());
       z3::expr a_bv = z3::int2bv(bit_width, a_expr);
       z3::expr b_bv = z3::int2bv(bit_width, b_expr);
@@ -751,11 +777,15 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   }
 
   z3::expr VisitExprDefault_(const Object* op) override {
-    LOG(FATAL) << "Z3Prover only support integers, but got " << op->GetTypeKey() << ".";
-    TVM_FFI_UNREACHABLE();
+    // Z3 is a best-effort fallback that runs only after the native analyzers
+    // have already failed. An unsupported node must not crash the build, so we
+    // model it as a fresh unconstrained free variable, which keeps the proof
+    // sound (it can only make CanProve more conservative).
+    return Create(static_cast<const PrimExprNode*>(op));
   }
 };
 
+TVM_DLL bool Z3Prover::IsEnabled() const { return true; }
 TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return impl_->CanProve(expr); }
 TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {
   return impl_->Bind(var, new_range, allow_override);
@@ -763,8 +793,8 @@ TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_o
 TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   return impl_->Bind(var, expr, allow_override);
 }
-std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
-  return impl_->EnterConstraint(constraint, is_assume);
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
+  return impl_->EnterConstraint(constraint);
 }
 ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
   if (expr.has_value()) {
@@ -786,3 +816,48 @@ Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(new Impl{parent}) {}
 TVM_DLL Z3Prover::~Z3Prover() { delete impl_; }
 
 }  // namespace tvm::arith
+
+#else  // TVM_USE_Z3
+
+#include <tvm/arith/analyzer.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
+
+#include "tvm/ffi/string.h"
+#include "tvm/ir/expr.h"
+
+namespace tvm::arith {
+
+using namespace tirx;
+using namespace ffi;
+
+// Stub implementation used when Z3 support is not built. All proving queries
+// conservatively report "cannot prove" while keeping the public API available.
+class Z3Prover::Impl {};
+
+TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
+TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
+TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
+TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
+std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint) {
+  return []() {};
+}
+ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
+  return "; Z3 Prover is disabled.";
+}
+void Z3Prover::SetTimeoutMs(unsigned timeout_ms) {}
+void Z3Prover::SetRLimit(unsigned rlimit) {}
+ffi::String Z3Prover::GetModel(const PrimExpr& expr) { return "; Z3 Prover is disabled."; }
+TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
+                                                int64_t min_consecutive) {
+  return -1;  // Z3 disabled, return error
+}
+
+void Z3Prover::CopyFrom(const Z3Prover& other) {}
+ffi::String Z3Prover::GetStats() { return "; Z3 Prover is disabled."; }
+Z3Prover::Z3Prover(AnalyzerObj*) : impl_(nullptr) {}
+TVM_DLL Z3Prover::~Z3Prover() {}
+
+}  // namespace tvm::arith
+
+#endif  // TVM_USE_Z3
