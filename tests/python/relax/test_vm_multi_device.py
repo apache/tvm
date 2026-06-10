@@ -17,6 +17,7 @@
 """Test eliminate common subexpr pass"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -87,6 +88,9 @@ def test_multi_cpu():
 
 @tvm.testing.requires_multi_gpu
 def test_multi_gpu():
+    if not tvm.cuda(2).exist:
+        pytest.skip("requires at least 3 visible CUDA devices")
+
     @I.ir_module
     class Example:
         I.module_attrs({"attr": 10})
