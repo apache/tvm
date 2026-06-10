@@ -19,6 +19,8 @@
 
 #include "statistical.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include <vector>
 namespace tvm {
 namespace relax {
@@ -42,7 +44,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
   } else if (!attrs->axis.defined()) {
     out_ndim = 0;
   } else if (data_sinfo->IsUnknownNdim()) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Input of distributed operator must be known ndim");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known ndim";
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
     TVM_FFI_ICHECK_GE(out_ndim, 0);
@@ -58,8 +60,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
   if (data_shape == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Input of distributed operator must be known shape");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known shape";
   }
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);

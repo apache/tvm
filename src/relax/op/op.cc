@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -89,8 +90,8 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "call_pure_packed must be called with at least one argument");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "call_pure_packed must be called with at least one argument";
   }
 
   // the callee must be an opaque function
@@ -140,11 +141,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() <= 1) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "call_inplace_packed must be called with at least two arguments"
         << " (the packed call and at least one argument to the packed call"
-        << "if the packed call does not need arguments, use call_pure_packed instead)");
+        << "if the packed call does not need arguments, use call_pure_packed instead)";
   }
 
   // the callee must be an opaque function
@@ -164,22 +164,21 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
     int index = attrs->inplace_indices[i];
     if (index < -1 || index >= static_cast<int>(num_args)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In-place index " << i << " is out of range (must be between -1 and "
-                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In-place index " << i << " is out of range (must be between -1 and " << (num_args - 1)
+          << ", inclusive, but is " << index << ")";
     }
     if (index != -1) {
       if (encountered.count(index)) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "All in-place indices must be unique, but index " << index
-                         << " appears more than once.");
+        TVM_FFI_VISIT_THROW(ValueError, call) << "All in-place indices must be unique, but index "
+                                              << index << " appears more than once.";
       }
       encountered.insert(index);
     }
   }
   if (encountered.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "At least one index must have a value other than "
-                                                "-1 (or else simply use call_pure_packed)");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "At least one index must have a value other than "
+                                             "-1 (or else simply use call_pure_packed)";
   }
 
   // same logic as from DeriveCallRetStructInfo for ordinary calls
@@ -198,16 +197,16 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
     auto arg_idx = attrs->inplace_indices[0] + 1;
     auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
     if (!IsBaseOf(ret, arg_sinfo, ctx->GetAnalyzer())) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The derived return StructInfo does not match that for "
-                       << "the in-place argument at index " << (arg_idx - 1) << ": " << ret
-                       << " vs " << arg_sinfo);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The derived return StructInfo does not match that for "
+          << "the in-place argument at index " << (arg_idx - 1) << ": " << ret << " vs "
+          << arg_sinfo;
     }
   } else {
     auto* tup_info = ret.as<TupleStructInfoNode>();
     if (!tup_info) {
-      ctx->ReportFatal(Diagnostic::Error(call) << "Multiple outputs given via the inplace indices "
-                                                  "but the derived StructInfo is not a tuple");
+      TVM_FFI_VISIT_THROW(ValueError, call) << "Multiple outputs given via the inplace indices "
+                                               "but the derived StructInfo is not a tuple";
     }
     for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
       if (attrs->inplace_indices[i] == -1) {
@@ -217,10 +216,10 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
       auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
       auto ret_sinfo = tup_info->fields[i];
       if (!IsBaseOf(ret_sinfo, arg_sinfo, ctx->GetAnalyzer())) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "The derived return StructInfo does not match that for "
-                         << "the in-place argument at index " << (arg_idx - 1) << ": " << ret_sinfo
-                         << " vs " << arg_sinfo);
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "The derived return StructInfo does not match that for "
+            << "the in-place argument at index " << (arg_idx - 1) << ": " << ret_sinfo << " vs "
+            << arg_sinfo;
       }
     }
   }
@@ -434,8 +433,8 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exactly 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exactly 1 output struct info.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
@@ -693,8 +692,8 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
   TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != sinfo_outputs.size()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "There must be an in-place index specified for each output");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "There must be an in-place index specified for each output";
   }
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
@@ -703,23 +702,21 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
     int index = attrs->inplace_indices[i];
     if (index < -1 || index >= static_cast<int>(num_args)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In-place index " << i << " is out of range (must be between -1 and "
-                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In-place index " << i << " is out of range (must be between -1 and " << (num_args - 1)
+          << ", inclusive, but is " << index << ")";
     }
     if (index != -1) {
       if (encountered.count(index)) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "All in-place indices must be unique, but index " << index
-                         << " appears more than once.");
+        TVM_FFI_VISIT_THROW(ValueError, call) << "All in-place indices must be unique, but index "
+                                              << index << " appears more than once.";
       }
       encountered.insert(index);
     }
   }
   if (encountered.empty()) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "At least one index must have a value other than -1 (or else simply use call_tir)");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "At least one index must have a value other than -1 (or else simply use call_tir)";
   }
 
   // for safety, we will make sure the output shape for each in-place argument exactly matches the
@@ -737,10 +734,10 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
     auto tinfo_output = sinfo_output.as<TensorStructInfoNode>();
 
     if (!tinfo_output || !tinfo_output->shape.defined() || tinfo_output->IsUnknownDtype()) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The output struct info for an in-place mutation must be a tensor "
-                       << "with a defined shape and dtype, "
-                       << "but output " << i_output << " has struct info " << sinfo_output);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The output struct info for an in-place mutation must be a tensor "
+          << "with a defined shape and dtype, "
+          << "but output " << i_output << " has struct info " << sinfo_output;
     }
 
     auto sinfo_input = GetStructInfo(call_args->fields[i_input]);
@@ -751,12 +748,12 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
         (!tinfo_input->shape.defined() ||
          !CanProveShapeEqual(tinfo_input->shape.value(), tinfo_output->shape.value(),
                              ctx->GetAnalyzer()))) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The input used for an in-place mutation must be "
-                       << "a tensor with identical shape and dtype as the output.  "
-                       << "However, output " << i_output << " with struct info " << sinfo_output
-                       << " is specified as an in-place mutation of input " << i_input
-                       << " with struct info " << sinfo_input);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The input used for an in-place mutation must be "
+          << "a tensor with identical shape and dtype as the output.  "
+          << "However, output " << i_output << " with struct info " << sinfo_output
+          << " is specified as an in-place mutation of input " << i_input << " with struct info "
+          << sinfo_input;
     }
   }
 
@@ -820,8 +817,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallDPSPacked(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exact 1 output struct info.";
   }
   return call->sinfo_args[0];
 }
@@ -864,8 +861,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallPyFunc(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exact 1 output struct info.";
   }
   return call->sinfo_args[0];
 }
@@ -1004,14 +1001,13 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
   if (call->args.size() < 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Assert must have at least one argument (the condition).");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Assert must have at least one argument (the condition).";
   }
   StructInfo arg_struct_info = GetStructInfo(call->args[0]);
   if (!IsBoolStructInfo(arg_struct_info)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument to assert must be a boolean scalar, but received "
-                     << arg_struct_info);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument to assert must be a boolean scalar, but received " << arg_struct_info;
   }
   return ReturnVoidStructInfo(call, ctx);
 }

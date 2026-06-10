@@ -24,6 +24,7 @@
 
 #include "grad.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -65,8 +66,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument of relax.op.grad.start_checkpoint should be a Var.");
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument of relax.op.grad.start_checkpoint should be a Var.";
   }
   return GetStructInfo(call->args[0]);
 }
@@ -90,8 +91,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument of relax.op.grad.end_checkpoint should be a Var.");
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument of relax.op.grad.end_checkpoint should be a Var.";
   }
   return GetStructInfo(call->args[0]);
 }

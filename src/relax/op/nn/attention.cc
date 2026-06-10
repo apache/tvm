@@ -19,6 +19,7 @@
 
 #include "attention.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -72,9 +73,9 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo v_sinfo = input_sinfo[2];
   auto diag_dim = [&](TensorStructInfo sinfo, ffi::String name) {
     if (sinfo->ndim != 4) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The " << name << " should have 4 dimension, namely "
-                       << "[batch size, sequence length, number of heads, dimension of heads].");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The " << name << " should have 4 dimension, namely "
+          << "[batch size, sequence length, number of heads, dimension of heads].";
     }
   };
   diag_dim(q_sinfo, "query");
@@ -92,19 +93,19 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto diag_equal = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2, ffi::String dim) {
     if (analyzer->CanProve(v1 != v2)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
-                       << " should be the same. However, the " << dim << " of " << m1 << " is "
-                       << v1 << " while the " << dim << " of " << m2 << " is " << v2);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
+          << " should be the same. However, the " << dim << " of " << m1 << " is " << v1
+          << " while the " << dim << " of " << m2 << " is " << v2;
     }
   };
   auto multiple_of = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                          ffi::String dim) {
     if (analyzer->CanProve(indexmod(v1, v2) != 0)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The " << m1 << " " << dim << " should be a multiple of " << m2 << " "
-                       << dim << ". However, the " << dim << " of " << m1 << " is " << v1
-                       << " while the " << dim << " of " << m2 << " is " << v2);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The " << m1 << " " << dim << " should be a multiple of " << m2 << " " << dim
+          << ". However, the " << dim << " of " << m1 << " is " << v1 << " while the " << dim
+          << " of " << m2 << " is " << v2;
     }
   };
 
@@ -119,18 +120,17 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     TensorStructInfo bias_sinfo = input_sinfo[3];
     const ShapeExprNode* bias_shape = bias_sinfo->shape.as<ShapeExprNode>();
     if (bias_sinfo->ndim != 4) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The bias should have 4 dimensions."
-                       << "However, the bias input has " << bias_sinfo->ndim << " dimensions.");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The bias should have 4 dimensions."
+          << "However, the bias input has " << bias_sinfo->ndim << " dimensions.";
     }
     auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                                        ffi::String dim) {
       if (analyzer->CanProve(v1 != v2) && !tirx::is_one(v2)) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
-                         << " should be the same or broadcastable. However, the " << dim << " of "
-                         << m1 << " is " << v1 << " while the " << dim << " of " << m2 << " is "
-                         << v2);
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
+            << " should be the same or broadcastable. However, the " << dim << " of " << m1
+            << " is " << v1 << " while the " << dim << " of " << m2 << " is " << v2;
       }
     };
     diag_equal_or_broadcast(num_batches, bias_shape->values[0], "query", "bias", "batch size");

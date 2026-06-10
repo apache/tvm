@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -162,9 +162,9 @@ def test_unary_arith_infer_struct_info_invalid_input_dtype(
     x0 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(unary_arith_op(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(unary_arith_op(x1))
 
 
@@ -182,9 +182,9 @@ def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(unary_arith_op(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(unary_arith_op(x1))
 
 

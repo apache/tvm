@@ -26,6 +26,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <string>
@@ -70,20 +71,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Full op should have 2 arguments");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
   }
   const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
   const auto* fill_value_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
   if (shape_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Full requires the input shape to be a Shape. However, the given one is "
-                     << call->args[0]->struct_info_->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Full requires the input shape to be a Shape. However, the given one is "
+        << call->args[0]->struct_info_->GetTypeKey();
   }
   if (fill_value_sinfo == nullptr || fill_value_sinfo->ndim != 0) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "Full requires the input fill value to be zero rank Tensor. However, the given one is "
-        << call->args[1]->struct_info_);
+        << call->args[1]->struct_info_;
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
@@ -120,9 +120,9 @@ StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = input_sinfo[0];
   TensorStructInfo fill_value_sinfo = input_sinfo[1];
   if (fill_value_sinfo->ndim != 0) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "FullLike requires the input fill value to be zero "
-                                                "rank Tensor. However, the given one has ndim"
-                                             << fill_value_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call) << "FullLike requires the input fill value to be zero "
+                                             "rank Tensor. However, the given one has ndim"
+                                          << fill_value_sinfo->ndim;
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
@@ -147,15 +147,14 @@ TVM_REGISTER_OP("relax.full_like")
 // Structure info inference for ones and zeros
 StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Ones/Zeros should have 1 argument");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
   }
 
   const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
   if (shape_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey());
+        << call->args[0]->struct_info_->GetTypeKey();
   }
   const auto* attrs = call->attrs.as<InitAttrs>();
   return TensorStructInfo(/*shape=*/call->args[0], attrs->dtype);
@@ -270,16 +269,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Eye op should have 3 arguments: n, m, and k, but got " << call->args.size()
-                     << " arguments");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Eye op should have 3 arguments: n, m, and k, but got "
+                                          << call->args.size() << " arguments";
   }
 
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
     if (!expr->IsInstance<PrimValueNode>()) {
-      ctx->ReportFatal(Diagnostic::Error(expr)
-                       << "Eye expects the `" << key << "` to be a PrimValue, but got "
-                       << expr->GetTypeKey());
+      TVM_FFI_VISIT_THROW(TypeError, expr)
+          << "Eye expects the `" << key << "` to be a PrimValue, but got " << expr->GetTypeKey();
     }
     return expr.as<PrimValueNode>()->value;
   };
@@ -293,21 +290,21 @@ StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Eye_like op should have 2 arguments: x and k, but got "
-                     << call->args.size() << " arguments");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Eye_like op should have 2 arguments: x and k, but got " << call->args.size()
+        << " arguments";
   }
 
   const auto* x_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   if (x_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Eye_like expects the input `x` to be a Tensor, but got "
-                     << call->args[0]->struct_info_->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Eye_like expects the input `x` to be a Tensor, but got "
+        << call->args[0]->struct_info_->GetTypeKey();
   }
   if (x_sinfo->ndim != 2 && x_sinfo->ndim != kUnknownNDim) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Eye_like expects the input tensor to be 2-dimensional, but got "
-                     << x_sinfo->ndim << " dimensions");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Eye_like expects the input tensor to be 2-dimensional, but got " << x_sinfo->ndim
+        << " dimensions";
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
@@ -349,17 +346,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "Arange should have 3 arguments, which are `start`, `end` and `step`, but got "
-        << call->args.size() << " arguments");
+        << call->args.size() << " arguments";
   }
   // TODO(Siyuan): Support indirect prim_values
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
     if (!expr->IsInstance<PrimValueNode>()) {
-      ctx->ReportFatal(Diagnostic::Error(expr)
-                       << "Arange expects the `" << key << "` to be a PrimValue, but got "
-                       << expr->GetTypeKey());
+      TVM_FFI_VISIT_THROW(TypeError, expr)
+          << "Arange expects the `" << key << "` to be a PrimValue, but got " << expr->GetTypeKey();
     }
     return expr.as<PrimValueNode>()->value;
   };
@@ -407,14 +402,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
   DataType dtype = call->attrs.as<InitAttrs>()->dtype;
   if (dtype.is_int() || dtype.is_uint() || dtype.is_uint()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Hamming Window expects the datatype to be float but got " << dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Hamming Window expects the datatype to be float but got " << dtype;
   }
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
     if (!expr->IsInstance<PrimValueNode>()) {
-      ctx->ReportFatal(Diagnostic::Error(expr)
-                       << "Hamming_window expects the `" << key << "` to be a PrimValue, but got "
-                       << expr->GetTypeKey());
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "Hamming_window expects the `" << key
+                                           << "` to be a PrimValue, but got " << expr->GetTypeKey();
     }
     return expr.as<PrimValueNode>()->value;
   };
@@ -422,9 +416,9 @@ StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ct
 
   arith::Analyzer analyzer;
   if (analyzer->CanProveLess(window_size, 1)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Hamming_window expects the window_size must be greater than zero but got "
-                     << window_size);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Hamming_window expects the window_size must be greater than zero but got "
+        << window_size;
   }
   window_size = analyzer->Simplify(window_size);
   return TensorStructInfo(ShapeExpr({window_size}), dtype);
@@ -470,10 +464,10 @@ StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
   auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);
 
   if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim < 2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << call->op
-                                             << " requires the input tensor to have at least two "
-                                                "dimensions. However, the given input has "
-                                             << data_sinfo->ndim << " dimension(s).");
+    TVM_FFI_VISIT_THROW(ValueError, call) << call->op
+                                          << " requires the input tensor to have at least two "
+                                             "dimensions. However, the given input has "
+                                          << data_sinfo->ndim << " dimension(s).";
   }
   return data_sinfo;
 }

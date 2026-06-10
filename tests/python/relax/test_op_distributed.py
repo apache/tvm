@@ -19,7 +19,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.base import TVMError
 from tvm.script.parser import relax as R
 
 
@@ -40,7 +39,7 @@ def test_redistribute_R_to_S():
     )
 
     # wrong: indivisible
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(R.distributed.redistribute_replica_to_shard(x, num_workers=4, axis=0))
 
     y = relax.Var("y", R.Tensor((3, 4), "float32"))
@@ -51,7 +50,7 @@ def test_redistribute_R_to_S():
     )
 
     # wrong: indivisible
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(R.distributed.redistribute_replica_to_shard(y, num_workers=4, axis=0))
 
 

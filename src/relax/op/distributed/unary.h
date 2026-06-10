@@ -25,6 +25,8 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_UNARY_H_
 #define TVM_RELAX_OP_DISTRIBUTED_UNARY_H_
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include "utils.h"
 
 namespace tvm {
@@ -42,11 +44,10 @@ StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
 
   if (require_float_dtype && !input_tensor_sinfo->IsUnknownDtype() &&
       !input_tensor_sinfo->dtype.is_float()) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
-        << input_tensor_sinfo->dtype);
+        << input_tensor_sinfo->dtype;
   }
   auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_tensor_sinfo.get());
   output_sinfo->dtype = f_compute_out_dtype(input_tensor_sinfo);
