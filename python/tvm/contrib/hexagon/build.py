@@ -71,6 +71,8 @@ def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
     pathlib.Path :
         The path to the Hexagon API directory.
     """
+    global HEXAGON_RPC_LIB_DIR
+    HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
     if HEXAGON_RPC_LIB_DIR is None:
         raise RuntimeError("hexagon_api binaries not found, please define HEXAGON_RPC_LIB_DIR")
     return pathlib.Path(HEXAGON_RPC_LIB_DIR)
