@@ -92,22 +92,15 @@ class Postproc : public ffi::ObjectRef {
    */
   using FClone = ffi::TypedFunction<Postproc()>;
   /*!
-   * \brief Get the postprocessor function as string with name.
-   * \return The string of the postprocessor function.
-   */
-  using FAsString = ffi::TypedFunction<ffi::String()>;
-  /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
    * \param f_clone The packed function of `Clone`.
-   * \param f_as_string The packed function of `AsString`.
    * \return The postprocessor created.
    */
   TVM_DLL static Postproc PyPostproc(FInitializeWithTuneContext f_initialize_with_tune_context,  //
                                      FApply f_apply,                                             //
-                                     FClone f_clone,                                             //
-                                     FAsString f_as_string);
+                                     FClone f_clone);
   /*!
    * \brief Create a postprocessor that checks if all loops are static
    * \return The postprocessor created
@@ -186,21 +179,17 @@ class PyPostprocNode : public PostprocNode {
   using FInitializeWithTuneContext = Postproc::FInitializeWithTuneContext;
   using FApply = Postproc::FApply;
   using FClone = Postproc::FClone;
-  using FAsString = Postproc::FAsString;
   /*! \brief The packed function to the `InitializeWithTuneContext` function. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `Apply` function. */
   FApply f_apply;
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
 
   static void RegisterReflection() {
     // `f_initialize_with_tune_context` is not registered
     // `f_apply` is not registered
     // `f_clone` is not registered
-    // `f_as_string` is not registered
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyPostprocNode>();
   }
