@@ -21,6 +21,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
@@ -37,6 +38,26 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # library loading
 # ----------------------------
 
+# Known per-backend runtime DSOs that, when present, are loaded with
+# RTLD_GLOBAL so their static initializers register the device backend.
+_BACKEND_RUNTIME_LIBS = ["cuda", "vulkan", "opencl", "metal", "rocm", "hexagon", "extra"]
+
+
+def load_backend_libs(runtime_lib_path: str) -> None:
+    """Try to load each known backend runtime DSO; failures are silent."""
+    runtime_dir = Path(runtime_lib_path).resolve().parent
+    for backend in _BACKEND_RUNTIME_LIBS:
+        try:
+            load_lib_ctypes(
+                package="tvm",
+                target_name=f"tvm_runtime_{backend}",
+                mode="RTLD_GLOBAL",
+                extra_lib_paths=[runtime_dir],
+            )
+        except (OSError, FileNotFoundError, RuntimeError):
+            pass
+
+
 # The TVM C++ side is split into two shared libraries:
 #
 # - ``libtvm_runtime`` — runtime-only sources. Loaded with ``RTLD_GLOBAL`` so
@@ -46,8 +67,8 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 #   ``libtvm_runtime``. Loaded with ``RTLD_LOCAL`` so compiler internals
 #   don't leak into the global symbol namespace.
 #
-# If the environment variable ``TVM_USE_RUNTIME_LIB`` is truthy, or the
-# compiler library is simply not present (runtime-only wheel), only the
+# If the environment variable ``TVM_USE_RUNTIME_LIB`` is set to ``"1"``, or
+# the compiler library is simply not present (runtime-only wheel), only the
 # runtime is loaded and ``_LIB`` aliases ``_LIB_RUNTIME``.
 _extra_lib_paths = libinfo.package_lib_paths()
 _LIB_RUNTIME = load_lib_ctypes(
@@ -59,9 +80,9 @@ _LIB_RUNTIME = load_lib_ctypes(
 # with RTLD_GLOBAL so their static initializers register device backends.
 # Failures are swallowed silently — a missing driver just means that backend
 # is unavailable, not an error.
-libinfo.load_backend_libs(_LIB_RUNTIME._name)
+load_backend_libs(_LIB_RUNTIME._name)
 
-_RUNTIME_ONLY = libinfo.use_runtime_lib()
+_RUNTIME_ONLY = os.environ.get("TVM_USE_RUNTIME_LIB") == "1"
 if _RUNTIME_ONLY:
     _LIB = _LIB_RUNTIME
 else:
