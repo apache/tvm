@@ -48,7 +48,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return minrpc_dir, path
 
 
-def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runtime"):
+def with_minrpc(compile_func, server="posix_popen_server"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -59,18 +59,12 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runti
     server : str
         The server type.
 
-    runtime : str
-        The runtime library.
-
     Returns
     -------
     fcompile : function
         The return compilation.
     """
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
-    # ``runtime`` is kept as an inert back-compat kwarg; the runtime library is
-    # now resolved by name via the tvm-ffi-style resolver.
-    del runtime
     runtime_path = libinfo.find_libtvm_runtime()
     tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
 
