@@ -38,11 +38,11 @@ import struct
 import sys
 import threading
 import time
+from pathlib import Path
 
 import tvm_ffi
 
 from tvm.base import py_str
-from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
 from tvm.support import utils
 from tvm.support.popen_pool import PopenWorker
@@ -115,7 +115,14 @@ def _server_env(load_library, work_path=None):
     libs = []
     load_library = load_library.split(":") if load_library else []
     for file_name in load_library:
-        file_name = find_lib_path(file_name)[0]
+        # Resolve the literal library file name against the current working
+        # directory, preserving the exact filename the caller requested.
+        resolved = tvm_ffi.libinfo._resolve_and_validate(
+            [Path.cwd() / file_name], cond=lambda p: p.is_file()
+        )
+        if resolved is None:
+            raise RuntimeError(f"Cannot find library {file_name}")
+        file_name = resolved
         libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
         logger.info("Load additional library %s", file_name)
     temp.libs = libs
