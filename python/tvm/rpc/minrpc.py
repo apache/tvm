@@ -68,7 +68,10 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runti
         The return compilation.
     """
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
-    runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
+    # ``runtime`` is kept as an inert back-compat kwarg; the runtime library is
+    # now resolved by name via the tvm-ffi-style resolver.
+    del runtime
+    runtime_path = libinfo.find_libtvm_runtime()
     tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
