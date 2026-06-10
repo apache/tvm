@@ -26,7 +26,7 @@ from tvm.base import py_str
 
 
 def find_wasm_lib(name, optional=False):
-    """Find a wasm-related asset (e.g. a ``.bc`` file) under ``web/dist``.
+    """Find a wasm/web asset (e.g. a ``.bc`` or ``.js`` file) under ``web/dist``.
 
     Specializes the asset search to the wasm build outputs that live under
     ``web/dist/wasm`` and ``web/dist``, anchored on ``TVM_HOME`` (when set) or
