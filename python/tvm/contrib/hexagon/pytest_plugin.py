@@ -139,10 +139,8 @@ def _tracker_info() -> str | int:
 
     else:
         # No tracker is provided to the tests, so we should start one
-        # for the tests to use. tvm.rpc.tracker requires the optional
-        # tornado package, so it is imported lazily here rather than at
-        # module level, where it would break pytest collection in
-        # environments without tornado.
+        # for the tests to use. Import tvm.rpc.tracker lazily since it
+        # requires the optional tornado package.
         pytest.importorskip("tornado", reason="tvm.rpc.tracker requires tornado")
         from tvm.rpc.tracker import Tracker
 
