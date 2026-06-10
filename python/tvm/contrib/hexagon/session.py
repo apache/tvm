@@ -202,7 +202,7 @@ class Session:
         return self._rpc.get_function("tvm.hexagon.load_module")(str(remote_file_path))
 
     def get_executor_from_factory(
-        self, module: runtime.executable | str, hexagon_arch: str = "v68"
+        self, module: runtime.Executable | str, hexagon_arch: str = "v68"
     ):
         """Create a local GraphModule which consumes a remote libmod.
 

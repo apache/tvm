@@ -98,6 +98,8 @@ def test_dso_module_load(target):
 
 @tvm.testing.requires_gpu
 def test_device_module_dump():
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
@@ -155,6 +157,8 @@ def test_device_module_dump():
 @tvm.testing.requires_llvm
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     nn = 12
     n = tvm.runtime.convert(nn)

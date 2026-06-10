@@ -16,7 +16,11 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name, unused-argument, not-callable
 import numpy as np
+import pytest
 import tvm_ffi
+
+pytest.importorskip("scipy")
+
 from scipy import special
 
 import tvm

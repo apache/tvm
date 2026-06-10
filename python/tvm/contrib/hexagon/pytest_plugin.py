@@ -25,7 +25,8 @@ import random
 import pytest
 
 import tvm
-import tvm.rpc.tracker
+import tvm.rpc
+import tvm.testing
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
 from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
@@ -138,8 +139,12 @@ def _tracker_info() -> str | int:
 
     else:
         # No tracker is provided to the tests, so we should start one
-        # for the tests to use.
-        tracker = tvm.rpc.tracker.Tracker("127.0.0.1", get_free_port())
+        # for the tests to use. Import tvm.rpc.tracker lazily since it
+        # requires the optional tornado package.
+        pytest.importorskip("tornado", reason="tvm.rpc.tracker requires tornado")
+        from tvm.rpc.tracker import Tracker
+
+        tracker = Tracker("127.0.0.1", get_free_port())
         try:
             yield (tracker.host, tracker.port)
         finally:

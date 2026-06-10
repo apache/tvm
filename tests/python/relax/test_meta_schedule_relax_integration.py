@@ -89,6 +89,8 @@ def test_compile_relax_with_database():
     same keys (by running LegalizeOps + FuseOps + FuseTIR before applying the
     database), so the scheduled kernels are actually picked up.
     """
+    pytest.importorskip("cloudpickle")  # needed by meta_schedule popen workers
+
     target = tvm.target.Target({"kind": "llvm", "num-cores": 1})
 
     # Prepare the fused module whose TIR keys will populate the database.
