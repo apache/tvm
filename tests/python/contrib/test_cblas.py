@@ -19,6 +19,8 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm
 import tvm.testing
 import tvm.topi.testing

@@ -225,6 +225,7 @@ def test_meta_schedule_error_handle_time_out():
 
 
 def test_meta_schedule_missing_build_func():
+    pytest.importorskip("cloudpickle")
     with pytest.raises(ValueError):
         LocalBuilder(f_build="wrong-name")
 

@@ -19,6 +19,9 @@ import pytest
 
 import tvm
 import tvm.testing
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
 from tvm import TVMError, relax, tirx
 from tvm.ir import Op, VDevice
