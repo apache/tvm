@@ -21,8 +21,46 @@ import os
 import subprocess
 from pathlib import Path
 
+from tvm import libinfo
 from tvm.base import py_str
-from tvm.libinfo import find_lib_path
+
+
+def find_wasm_lib(name, optional=False):
+    """Find a wasm/web asset (e.g. a ``.bc`` or ``.js`` file) under ``web/dist``.
+
+    Specializes the asset search to the wasm build outputs that live under
+    ``web/dist/wasm`` and ``web/dist``, anchored on ``TVM_HOME`` (when set) or
+    the TVM source root otherwise.
+
+    Parameters
+    ----------
+    name : str
+        The asset file name to look for.
+
+    optional : bool
+        When True, return None instead of raising if the asset is not found.
+
+    Returns
+    -------
+    found : list(str) or None
+        List of matching paths, or None when ``optional`` and nothing is found.
+    """
+    # use extra TVM_HOME environment for finding libraries.
+    if os.environ.get("TVM_HOME", None):
+        tvm_source_home_dir = os.environ["TVM_HOME"]
+    else:
+        tvm_source_home_dir = os.fspath(libinfo._dev_top_directory())
+
+    dll_path = [
+        os.path.join(tvm_source_home_dir, "web", "dist", "wasm"),
+        os.path.join(tvm_source_home_dir, "web", "dist"),
+    ]
+    found = [os.path.join(p, name) for p in dll_path if os.path.isfile(os.path.join(p, name))]
+    if not found:
+        if optional:
+            return None
+        raise RuntimeError(f"Cannot find {name}; searched {dll_path}")
+    return found
 
 
 def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
@@ -72,10 +110,10 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
 
     all_libs = []
     if not with_runtime:
-        all_libs += [find_lib_path("wasm_runtime.bc")[0]]
+        all_libs += [find_wasm_lib("wasm_runtime.bc")[0]]
 
-    all_libs += [find_lib_path("tvmjs_support.bc")[0]]
-    all_libs += [find_lib_path("webgpu_runtime.bc")[0]]
+    all_libs += [find_wasm_lib("tvmjs_support.bc")[0]]
+    all_libs += [find_wasm_lib("webgpu_runtime.bc")[0]]
 
     if libs:
         if not isinstance(libs, list):

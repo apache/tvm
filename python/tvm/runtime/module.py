@@ -28,6 +28,7 @@ import numpy as np
 from tvm_ffi import (
     Module as _Module,
 )
+from tvm_ffi import libinfo as tvm_ffi_libinfo
 from tvm_ffi import (
     load_module as _load_module,
 )
@@ -38,8 +39,8 @@ from tvm_ffi import (
     system_lib,
 )
 
+import tvm.libinfo
 from tvm.base import _RUNTIME_ONLY
-from tvm.libinfo import find_include_path
 
 from . import _ffi_api
 
@@ -311,7 +312,12 @@ class Module(_Module):
             if "options" in kwargs:
                 opts = kwargs["options"]
                 options = opts if isinstance(opts, list | tuple) else [opts]
-            opts = options + ["-I" + path for path in find_include_path()]
+            default_include_paths = [
+                tvm.libinfo.find_include_path(),
+                tvm_ffi_libinfo.find_include_path(),
+                tvm_ffi_libinfo.find_dlpack_include_path(),
+            ]
+            opts = options + ["-I" + path for path in default_include_paths]
             kwargs.update({"options": opts})
 
         return fcompile(file_name, files, **kwargs)
