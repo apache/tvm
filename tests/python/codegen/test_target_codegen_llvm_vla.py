@@ -111,11 +111,10 @@ def test_scalable_broadcast(target):
     llvm = mod.inspect_source("ll")
     # Older LLVM versions print the broadcast as a shufflevector of an insertelement,
     # newer ones print it as a splat constant.
-    assert re.findall(
-        r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
-    ) or re.findall(r"store <vscale x 4 x float> splat \(float 1\.000000e\+00\)", llvm), (
-        "No scalable broadcast in generated LLVM."
-    )
+    assert (
+        "shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float>" in llvm
+        or "store <vscale x 4 x float> splat (float 1.000000e+00)" in llvm
+    ), "No scalable broadcast in generated LLVM."
     assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
 
 
