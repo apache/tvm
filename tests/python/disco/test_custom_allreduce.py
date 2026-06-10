@@ -45,7 +45,10 @@ _strategies = [
     AllReduceStrategyType.AUTO,
 ]
 
-_ccl = [ccl for ccl in tvm.get_global_func("runtime.disco.compiled_ccl")() if ccl == "nccl"]
+_compiled_ccl = tvm.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+if _compiled_ccl is None:
+    pytest.skip("Disco CCL is not enabled in this TVM build", allow_module_level=True)
+_ccl = [ccl for ccl in _compiled_ccl() if ccl == "nccl"]
 
 
 @pytest.mark.parametrize("shape", _shapes)
