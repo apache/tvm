@@ -51,6 +51,9 @@ RPC data exchange between the tracker, server and client are in plain-text.
 It is recommended to use them under trusted networking environment or encrypted channels.
 
 
+Loading serialized artifacts must only be done with input from a trusted source.
+
+
 Security Advisories
 -------------------
 
