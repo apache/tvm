@@ -17,6 +17,7 @@
 """Basic runtime enablement test."""
 
 import math
+import os
 
 import numpy as np
 import pytest
@@ -43,6 +44,13 @@ def test_nd_create(target, dev, dtype):
 
 
 def test_memory_usage(target, dev, dtype):
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        pytest.skip(
+            reason="Available-memory assertions are not stable under pytest-xdist, "
+            "as concurrently running tests may allocate or free device memory "
+            "between the two measurements"
+        )
+
     available_memory_before = dev.available_global_memory
     if available_memory_before is None:
         pytest.skip(reason=f"Target '{target}' does not support queries of available memory")
