@@ -34,7 +34,6 @@ from tvm.runtime import Object
 from tvm.s_tir.schedule import SBlockRV, Schedule
 
 from .. import _ffi_api
-from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -130,7 +129,6 @@ class _PyScheduleRule(ScheduleRule):
         f_initialize_with_tune_context: Callable | None = None,
         f_apply: Callable | None = None,
         f_clone: Callable | None = None,
-        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
@@ -139,7 +137,6 @@ class _PyScheduleRule(ScheduleRule):
             f_initialize_with_tune_context,
             f_apply,
             f_clone,
-            f_as_string,
         )
 
 
@@ -153,7 +150,7 @@ class PyScheduleRule:
 
     _tvm_metadata = {
         "cls": _PyScheduleRule,
-        "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "clone"],
     }
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
@@ -192,13 +189,3 @@ class PyScheduleRule:
             The cloned schedule rule.
         """
         raise NotImplementedError
-
-    def __str__(self) -> str:
-        """Get the schedule rule as string with name.
-
-        Return
-        ------
-        result : str
-            Get the schedule rule as string with name.
-        """
-        return _get_default_str(self)

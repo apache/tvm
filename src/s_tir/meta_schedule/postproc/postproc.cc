@@ -43,13 +43,11 @@ Postproc PyPostprocNode::Clone() const {
 Postproc Postproc::PyPostproc(
     PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyPostprocNode::FApply f_apply,                                             //
-    PyPostprocNode::FClone f_clone,                                             //
-    PyPostprocNode::FAsString f_as_string) {
+    PyPostprocNode::FClone f_clone) {
   ffi::ObjectPtr<PyPostprocNode> n = ffi::make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  n->f_as_string = std::move(f_as_string);
   return Postproc(n);
 }
 

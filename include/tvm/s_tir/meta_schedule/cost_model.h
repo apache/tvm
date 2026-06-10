@@ -108,12 +108,6 @@ class PyCostModelNode : public CostModelNode {
    */
   using FPredict = ffi::TypedFunction<void(const TuneContext&, const ffi::Array<MeasureCandidate>&,
                                            void* p_addr)>;
-  /*!
-   * \brief Get the cost model as string with name.
-   * \return The string representation of the cost model.
-   */
-  using FAsString = ffi::TypedFunction<ffi::String()>;
-
   /*! \brief The packed function to the `Load` function. */
   FLoad f_load;
   /*! \brief The packed function to the `Save` function. */
@@ -122,8 +116,6 @@ class PyCostModelNode : public CostModelNode {
   FUpdate f_update;
   /*! \brief The packed function to the `Predict` function. */
   FPredict f_predict;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
 
   void Load(const ffi::String& path);
   void Save(const ffi::String& path);
@@ -142,19 +134,17 @@ class PyCostModelNode : public CostModelNode {
 class CostModel : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Create a feature extractor with customized methods on the python-side.
+   * \brief Create a cost model with customized methods on the python-side.
    * \param f_load The packed function of `Load`.
    * \param f_save The packed function of `Save`.
    * \param f_update The packed function of `Update`.
    * \param f_predict The packed function of `Predict`.
-   * \param f_as_string The packed function of `AsString`.
-   * \return The feature extractor created.
+   * \return The cost model created.
    */
-  TVM_DLL static CostModel PyCostModel(PyCostModelNode::FLoad f_load,        //
-                                       PyCostModelNode::FSave f_save,        //
-                                       PyCostModelNode::FUpdate f_update,    //
-                                       PyCostModelNode::FPredict f_predict,  //
-                                       PyCostModelNode::FAsString f_as_string);
+  TVM_DLL static CostModel PyCostModel(PyCostModelNode::FLoad f_load,      //
+                                       PyCostModelNode::FSave f_save,      //
+                                       PyCostModelNode::FUpdate f_update,  //
+                                       PyCostModelNode::FPredict f_predict);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
 };
 

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-import re
 import tempfile
 
 import pytest
@@ -106,24 +105,6 @@ def test_meta_schedule_measure_callback_fail():
         )
 
 
-def test_meta_schedule_measure_callback_as_string():
-    @derived_object
-    class NotSoFancyMeasureCallback(ms.measure_callback.PyMeasureCallback):
-        def apply(
-            self,
-            task_scheduler: ms.task_scheduler.TaskScheduler,
-            task_id: int,
-            measure_candidates: list[ms.MeasureCandidate],
-            builder_results: list[ms.builder.BuilderResult],
-            runner_results: list[ms.runner.RunnerResult],
-        ) -> None:
-            pass
-
-    measure_callback = NotSoFancyMeasureCallback()
-    pattern = re.compile(r"s_tir.meta_schedule.NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(measure_callback))
-
-
 @pytest.mark.skip("Tuning test - launches runner")
 def test_meta_schedule_measure_callback_update_cost_model_with_zero():
     @derived_object
@@ -179,6 +160,5 @@ def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
 if __name__ == "__main__":
     test_meta_schedule_measure_callback()
     test_meta_schedule_measure_callback_fail()
-    test_meta_schedule_measure_callback_as_string()
     test_meta_schedule_measure_callback_update_cost_model_with_zero()
     test_meta_schedule_measure_callback_update_cost_model_with_runtime_error()

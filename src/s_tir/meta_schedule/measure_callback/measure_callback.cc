@@ -30,15 +30,13 @@ void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,          
                                   const ffi::Array<BuilderResult>& builds,                 //
                                   const ffi::Array<RunnerResult>& results) {
   TVM_FFI_ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
-  auto _ = Profiler::TimedScope("MeasureCallback/" + this->f_as_string());
+  auto _ = Profiler::TimedScope("MeasureCallback/PyMeasureCallback");
   return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
 }
 
-MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,  //
-                                                   PyMeasureCallbackNode::FAsString f_as_string) {
+MeasureCallback MeasureCallback::PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply) {
   ffi::ObjectPtr<PyMeasureCallbackNode> n = ffi::make_object<PyMeasureCallbackNode>();
   n->f_apply = std::move(f_apply);
-  n->f_as_string = std::move(f_as_string);
   return MeasureCallback(n);
 }
 
