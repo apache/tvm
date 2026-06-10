@@ -14,13 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Library information.
-
-This module is a thin *info* layer: it answers questions about where TVM's
-shared libraries and headers live. It never loads libraries (that belongs in
-``tvm.base``); path discovery is delegated to the ``tvm_ffi.libinfo``
-primitives wherever possible.
-"""
+"""Library and include path information for TVM."""
 
 from __future__ import annotations
 
@@ -63,12 +57,17 @@ def package_lib_paths() -> list[Path]:
 
 
 def find_libtvm_runtime() -> str:
-    """Find the ``libtvm_runtime`` shared library.
+    """Return the path to the ``libtvm_runtime`` shared library.
 
-    Mirrors :func:`tvm_ffi.libinfo.find_libtvm_ffi`: derive the platform
-    basename via :func:`tvm_ffi.libinfo._find_library_by_basename` (which also
-    searches ``package_lib_paths()`` so the dev ``build/lib`` and wheel ``lib``
-    layouts are covered), then resolve/normalize the path.
+    Returns
+    -------
+    path : str
+        The resolved path to the TVM runtime shared library.
+
+    Raises
+    ------
+    RuntimeError
+        If the runtime library cannot be found.
     """
     candidate = tvm_ffi_libinfo._find_library_by_basename(
         "tvm", "tvm_runtime", extra_lib_paths=package_lib_paths()
@@ -78,8 +77,8 @@ def find_libtvm_runtime() -> str:
     raise RuntimeError("Cannot find libtvm_runtime")
 
 
-def find_tvm_include_path() -> str:
-    """Find TVM's own ``include/`` directory (the one holding ``tvm/runtime``)."""
+def find_include_path() -> str:
+    """Return the path to TVM's own ``include/`` directory."""
     if ret := tvm_ffi_libinfo._resolve_and_validate(
         paths=[
             _rel_top_directory() / "include",
@@ -89,15 +88,6 @@ def find_tvm_include_path() -> str:
     ):
         return ret
     raise RuntimeError("Cannot find TVM include path.")
-
-
-def find_include_path() -> list[str]:
-    """Return all include dirs needed to compile against TVM.
-
-    Combines TVM's own ``include/`` with the FFI + dlpack + python-helper
-    include dirs (discovered by ``tvm_ffi.libinfo``).
-    """
-    return [find_tvm_include_path(), *tvm_ffi_libinfo.include_paths()]
 
 
 # The version is written by setuptools_scm into _version.py at build time

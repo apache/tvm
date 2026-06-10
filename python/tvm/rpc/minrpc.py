@@ -89,7 +89,12 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runti
     # inside libtvm_runtime; with the default ``--as-needed`` those
     # registrations would never run.
     options += ["-Wl,--no-as-needed"]
-    options += ["-I" + path for path in libinfo.find_include_path()]
+    default_include_paths = [
+        libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_dlpack_include_path(),
+    ]
+    options += ["-I" + path for path in default_include_paths]
     options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(
         compile_func, options=options, add_files=[server_path, runtime_path, tvm_ffi_path]
