@@ -3241,7 +3241,7 @@ class Resize(OnnxOpConverter):
                 scales = [int(val.value) for val in scales.values]
             else:
                 raise ValueError(f"Type {type(scales)} for scale is currently unsupported.")
-            original_spatial_scales = list(scales[2:])
+            original_spatial_scales = [float(s) for s in scales[2:]]
             sizes = []
 
             for i, dim in enumerate(x.struct_info.shape):
