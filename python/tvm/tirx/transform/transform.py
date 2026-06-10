@@ -20,7 +20,8 @@
 import enum
 from collections.abc import Callable
 
-from ... import ffi as _ffi
+import tvm_ffi as _ffi
+
 from . import _ffi_api
 from . import function_pass as _fpass
 
