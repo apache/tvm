@@ -22,31 +22,30 @@ if(NOT USE_Z3)
   return()
 endif()
 
-find_package(Z3 QUIET)
-set(Z3_PYTHON_RESULT 1)
-
-if(NOT Z3_FOUND)
+# Default lookup: the PIC static Z3 library shipped by the PyPI `z3-static`
+# package (headers + libz3.a + Z3 CMake package files). Linking it statically
+# keeps libtvm free of a runtime libz3 dependency. Users can override the
+# lookup by setting Z3_DIR/CMAKE_PREFIX_PATH to any Z3 installation (e.g. a
+# shared system Z3).
+if(NOT Z3_DIR)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_EXECUTABLE)
     execute_process(
-      COMMAND "${Python3_EXECUTABLE}" -c "import z3; print(z3.__path__[0])"
-      OUTPUT_VARIABLE Z3_PYTHON_PACKAGE_DIR
+      COMMAND
+        "${Python3_EXECUTABLE}" -c
+        "import os, z3_static as m; f = getattr(m, 'get_cmake_dir', None); print(f() if f else os.path.join(os.path.dirname(m.__file__), 'static', 'lib', 'cmake', 'z3'))"
+      OUTPUT_VARIABLE Z3_STATIC_CMAKE_DIR
       OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE Z3_PYTHON_RESULT
+      ERROR_QUIET
+      RESULT_VARIABLE Z3_STATIC_RESULT
     )
-  endif()
-
-  if(Z3_PYTHON_RESULT EQUAL 0 AND NOT Z3_PYTHON_PACKAGE_DIR STREQUAL "")
-    find_path(Z3_INCLUDE_DIR NO_DEFAULT_PATH NAMES z3++.h PATHS "${Z3_PYTHON_PACKAGE_DIR}/include")
-    find_library(
-      Z3_LIBRARY
-      NO_DEFAULT_PATH
-      NAMES z3 libz3
-      PATHS "${Z3_PYTHON_PACKAGE_DIR}/bin" "${Z3_PYTHON_PACKAGE_DIR}/lib"
-            "${Z3_PYTHON_PACKAGE_DIR}/lib64"
-    )
+    if(Z3_STATIC_RESULT EQUAL 0 AND EXISTS "${Z3_STATIC_CMAKE_DIR}")
+      set(Z3_DIR "${Z3_STATIC_CMAKE_DIR}")
+    endif()
   endif()
 endif()
+
+find_package(Z3 QUIET)
 
 if(TARGET z3::libz3 OR TARGET Z3::libz3)
   if(TARGET z3::libz3)
@@ -72,7 +71,10 @@ elseif(Z3_FOUND OR (Z3_INCLUDE_DIR AND Z3_LIBRARY))
   include_directories(SYSTEM ${Z3_INCLUDE_DIR})
   list(APPEND TVM_LINKER_LIBS ${Z3_LIBRARY})
 else()
-  message(FATAL_ERROR "USE_Z3 is ON, but Z3 was not found. Install Z3 or PyPI z3-solver.")
+  message(FATAL_ERROR
+    "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
+    "package with `pip install z3-static`, or point Z3_DIR/CMAKE_PREFIX_PATH "
+    "at a Z3 installation.")
 endif()
 
 # Enable the real Z3 implementation inside the single src/arith/z3_prover.cc file.
