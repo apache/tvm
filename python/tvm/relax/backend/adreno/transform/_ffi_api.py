@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 """FFI APIs for Adreno transform"""
 
-import tvm.ffi
+import tvm_ffi
 
-tvm.ffi.init_ffi_api("relax.backend.adreno.transform", __name__)
+tvm_ffi.init_ffi_api("relax.backend.adreno.transform", __name__)

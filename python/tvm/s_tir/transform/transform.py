@@ -17,7 +17,8 @@
 """S-TIR specific transformations."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-from ... import ffi as _ffi
+import tvm_ffi as _ffi
+
 from . import _ffi_api
 
 
