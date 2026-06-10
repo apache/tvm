@@ -4069,6 +4069,29 @@ def test_resize_noninteger_scales_1d():
     check_correctness(helper.make_model(graph), opset=18)
 
 
+def test_resize_noninteger_scales_3d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_3d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3, 3])
+        ],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 1.5, 1.5, 1.5])
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)
