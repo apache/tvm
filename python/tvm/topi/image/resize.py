@@ -328,7 +328,7 @@ def _resize_1d(
         roi[0],
         roi[1],
         scale_x_override=scale_x,
-        )
+    )
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -881,8 +881,8 @@ def resize2d(
             exclude_outside=bicubic_exclude,
             extrapolation_value=extrapolation_value,
             out_dtype=out_dtype,
-            scale_h = scale_h,
-            scale_w = scale_w,
+            scale_h=scale_h,
+            scale_w=scale_w,
         )
 
     return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
@@ -1104,7 +1104,7 @@ def _resize_3d(
         roi[2],
         roi[5],
         scale_x_override=scale_d,
-        )
+    )
     in_y = get_inx(
         y,
         image_height,
@@ -1113,7 +1113,7 @@ def _resize_3d(
         roi[1],
         roi[4],
         scale_x_override=scale_h,
-        )
+    )
     in_x = get_inx(
         x,
         image_width,
@@ -1122,7 +1122,7 @@ def _resize_3d(
         roi[0],
         roi[3],
         scale_x_override=scale_w,
-        )
+    )
 
     if method == "nearest_neighbor":
         if rounding_method == "":
