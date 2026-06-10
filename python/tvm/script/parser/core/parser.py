@@ -25,8 +25,7 @@ from typing import Any
 
 import numpy as np
 
-from tvm.base import TVMError
-from tvm.error import DiagnosticError
+from tvm.error import DiagnosticError, TVMError
 from tvm.ir import GlobalVar
 
 from . import dispatch, doc

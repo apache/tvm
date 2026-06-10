@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var

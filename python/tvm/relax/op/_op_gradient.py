@@ -22,7 +22,7 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.relax.struct_info import ShapeStructInfo
 
 from ...tirx import PrimExpr

@@ -23,7 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule.space_generator import (
     PySpaceGenerator,

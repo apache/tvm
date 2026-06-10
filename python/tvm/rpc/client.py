@@ -28,7 +28,7 @@ import tvm_ffi
 from tvm_ffi import DLDeviceType
 
 import tvm.runtime
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.support import utils
 
 from . import _ffi_api, base, server

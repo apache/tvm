@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R

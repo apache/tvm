@@ -65,7 +65,7 @@ def test_vtcm_limit(vtcm_capacity, limited):
     def _raises_exception(f):
         try:
             f()
-        except tvm.base.TVMError:
+        except tvm.error.TVMError:
             return True
         return False
 

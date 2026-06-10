@@ -22,7 +22,7 @@ import pytest
 
 import tvm
 from tvm import tirx
-from tvm.base import TVMError
+from tvm.error import TVMError
 from tvm.ir.transform import PassContext
 from tvm.script import tirx as T
 

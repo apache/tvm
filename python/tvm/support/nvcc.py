@@ -28,7 +28,6 @@ import tvm_ffi
 import tvm
 from tvm.target import Target
 
-from ..base import py_str
 from . import utils
 
 
@@ -228,7 +227,7 @@ def _compile_cuda_nvcc(
     if proc.returncode != 0:
         msg = code
         msg += "\nCompilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
     # Second stage for NVSHMEM
@@ -249,7 +248,7 @@ def _compile_cuda_nvcc(
         if proc.returncode != 0:
             msg = code
             msg += "\nCompilation error:\n"
-            msg += py_str(out)
+            msg += out.decode("utf-8", errors="replace")
             raise RuntimeError(msg)
 
         file_target = f"{file_prefix}.cubin"
@@ -660,7 +659,7 @@ def find_cuda_path():
     cmd = ["which", "nvcc"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    out = py_str(out)
+    out = out.decode("utf-8", errors="replace")
     if proc.returncode == 0:
         return os.path.realpath(os.path.join(str(out).strip(), "../.."))
     cuda_path = "/usr/local/cuda"
@@ -702,7 +701,7 @@ def get_cuda_version(cuda_path=None):
     cmd = [os.path.join(cuda_path, "bin", "nvcc"), "--version"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    out = py_str(out)
+    out = out.decode("utf-8", errors="replace")
     if proc.returncode == 0:
         release_line = next(line for line in out.split("\n") if "release" in line)
         release_fields = [s.strip() for s in release_line.split(",")]
