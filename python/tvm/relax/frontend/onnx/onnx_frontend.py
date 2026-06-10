@@ -3286,35 +3286,61 @@ class Resize(OnnxOpConverter):
                 scales=original_spatial_scales,
             )
         elif ndims == 4:
-            return bb.emit_te(
-                topi.image.resize2d,
+            if original_spatial_scales is not None:
+                return bb.emit_te(
+                    topi.image.resize2d,
+                    x,
+                    roi_static,
+                    sizes,
+                    "NCHW",
+                    topi_mode,
+                    coord_mode,
+                    rounding_method,
+                    cubic_coeff_a,
+                    exclude_outside,
+                    extrapolation_value,
+                    scales=original_spatial_scales,
+                )
+            return relax.op.image.resize2d(
                 x,
-                roi_static,
-                sizes,
-                "NCHW",
-                topi_mode,
-                coord_mode,
-                rounding_method,
-                cubic_coeff_a,
-                exclude_outside,
-                extrapolation_value,
-                scales=original_spatial_scales,
+                size=relax.ShapeExpr(sizes),
+                roi=roi_static,
+                layout="NCHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
             )
         else:  # ndims == 5
             roi3d = _topi_resize3d_roi_from_onnx_ncdhw_spatial(roi_static)
-            return bb.emit_te(
-                topi.image.resize3d,
+            if original_spatial_scales is not None:
+                return bb.emit_te(
+                    topi.image.resize3d,
+                    x,
+                    roi3d,
+                    sizes,
+                    "NCDHW",
+                    relax_mode,
+                    coord_mode,
+                    rounding_method,
+                    cubic_coeff_a,
+                    exclude_outside,
+                    extrapolation_value,
+                    scales=original_spatial_scales,
+                )
+            return relax.op.image.resize3d(
                 x,
-                roi3d,
-                sizes,
-                "NCDHW",
-                relax_mode,
-                coord_mode,
-                rounding_method,
-                cubic_coeff_a,
-                exclude_outside,
-                extrapolation_value,
-                scales=original_spatial_scales,
+                size=relax.ShapeExpr(sizes),
+                roi=roi3d,
+                layout="NCDHW",
+                method=relax_mode,
+                coordinate_transformation_mode=coord_mode,
+                rounding_method=rounding_method,
+                cubic_alpha=cubic_coeff_a,
+                cubic_exclude=exclude_outside,
+                extrapolation_value=extrapolation_value,
             )
 
 
