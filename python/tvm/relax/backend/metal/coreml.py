@@ -169,7 +169,7 @@ def partition_for_coreml(mod):
     """
 
     patterns = get_patterns_with_prefix("coreml")
-    mod = transform.FoldDataflowBlockOutput()(mod)
+    mod = transform.CanonicalizeBindings()(mod)
     mod = transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(mod)
     mod = transform.MergeCompositeFunctions()(mod)
     return mod
