@@ -131,11 +131,10 @@ void ConstraintContext::EnterWithScope() {
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
-  recovery_functions_.push_back(
-      analyzer_->rewrite_simplify.EnterConstraint(constraint_, is_assume_));
+  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
-  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_, is_assume_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -236,9 +235,11 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
-    if (z3_prover.CanProve(simplified)) {
-      return true;
-    }
+  // Z3 is an expensive best-effort fallback. Gate it behind the higher
+  // kSymbolicBound strength so the common kDefault path (including deeply
+  // recursive internal CanProve calls) never pays the prover cost.
+  if (strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+    return true;
   }
   return false;
 }
@@ -343,6 +344,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return static_cast<int64_t>(
                  analyzer->transitive_comparisons.TryCompare(lhs, rhs, propagate_inequalities));
            })
+      .def("arith.AnalyzerIsZ3Enabled",
+           [](Analyzer analyzer) { return analyzer->z3_prover.IsEnabled(); })
       .def("arith.AnalyzerGetSMTLIB2",
            [](Analyzer analyzer, ffi::Optional<PrimExpr> expr) {
              return analyzer->z3_prover.GetSMTLIB2(expr);

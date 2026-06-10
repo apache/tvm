@@ -300,7 +300,7 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
+  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -610,6 +610,13 @@ class Z3Prover {
   TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*!
+   * \brief Whether the Z3 backend is compiled into this build (USE_Z3=ON).
+   *
+   * \return true if the real Z3 prover is available, false for the stub.
+   */
+  TVM_DLL bool IsEnabled() const;
+
+  /*!
    * \brief Whether can we prove expr is always true.
    *
    * \param expr The expression.
@@ -621,10 +628,9 @@ class Z3Prover {
    * \brief Update the internal state to enter constraint.
    *
    * \param constraint A constraint expression.
-   * \param is_assume Whether the constraint comes from an assumption.
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
   /*!
    * \brief Get the SMTLIB2 representation of the current context.
