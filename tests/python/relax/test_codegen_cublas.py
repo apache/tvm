@@ -20,6 +20,9 @@ import pytest
 
 import tvm
 import tvm.testing
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.cuda.cublas import partition_for_cublas

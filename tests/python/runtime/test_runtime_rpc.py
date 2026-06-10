@@ -28,6 +28,8 @@ import numpy as np
 import pytest
 import tvm_ffi
 
+pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
+
 import tvm
 import tvm.testing
 from tvm import rpc, te

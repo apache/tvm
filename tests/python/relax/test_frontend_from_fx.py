@@ -22,7 +22,6 @@ import operator
 import pytest
 import torch
 import torch.nn.functional as F
-import torchvision
 from torch import fx
 from torch.nn import Module
 
@@ -1821,6 +1820,8 @@ def test_embedding():
 
 
 def test_stochastic_depth():
+    torchvision = pytest.importorskip("torchvision")
+
     input_info = [([1, 3, 10, 10], "float32")]
 
     class StochasticDepth1(Module):

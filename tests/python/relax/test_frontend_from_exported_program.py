@@ -20,7 +20,6 @@ import operator
 import numpy as np
 import pytest
 import torch
-import torchvision
 from torch import nn
 from torch.export import export
 from torch.nn import Module
@@ -9017,6 +9016,8 @@ def test_grid_sample():
 
 
 def test_torchvision_roi_align():
+    torchvision = pytest.importorskip("torchvision")
+
     class ROIAlign(Module):
         def forward(self, input, rois):
             return torchvision.ops.roi_align(
@@ -9057,6 +9058,8 @@ def test_torchvision_roi_align():
 
 
 def test_torchvision_roi_align_aligned():
+    torchvision = pytest.importorskip("torchvision")
+
     class ROIAlign(Module):
         def forward(self, input, rois):
             return torchvision.ops.roi_align(

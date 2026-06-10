@@ -25,9 +25,13 @@ This file is a test script to test Relax ONNX frontend coverage.
 from typing import Literal
 
 import numpy as np
+import pytest
+
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+
 import onnx
 import onnxruntime
-import pytest
 import tvm_ffi
 from onnx import ModelProto, TensorProto, helper, numpy_helper
 

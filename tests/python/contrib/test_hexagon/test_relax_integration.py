@@ -20,6 +20,8 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("onnx")  # tvm.relax.frontend.onnx imports onnx
+
 import tvm.testing
 from tvm import relax, runtime
 from tvm.contrib.hexagon.session import Session

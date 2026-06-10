@@ -49,6 +49,8 @@ import os
 import numpy as np
 import pytest
 
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.testing
 from tvm import te, tirx, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
