@@ -145,10 +145,6 @@ class RandomEngine {
   static int64_t GetFillElementCount(DLTensor* tensor) {
     size_t data_size = ffi::GetDataSize(*tensor);
     DLDataType dtype = tensor->dtype;
-    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8) {
-      return static_cast<int64_t>(data_size);
-    }
-
     TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0) << "Unsupported dtype bits " << dtype.bits;
     size_t bytes_per_element = dtype.bits / 8;
     TVM_FFI_ICHECK_EQ(data_size % bytes_per_element, 0);
@@ -189,8 +185,7 @@ class RandomEngine {
 
   void FillData(DLTensor* tensor) {
     DLDataType dtype = tensor->dtype;
-    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
-        dtype.bits == 32 || dtype.bits == 64) {
+    if (dtype.bits == 8 || dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64) {
       FillDataImpl(tensor->data, 0, GetFillElementCount(tensor), dtype);
     } else {
       TVM_FFI_THROW(InternalError)
@@ -224,8 +219,7 @@ class RandomEngine {
     task.data = tensor->data;
     DLDataType dtype = task.dtype = tensor->dtype;
     task.size = GetFillElementCount(tensor);
-    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
-        dtype.bits == 32 || dtype.bits == 64) {
+    if (dtype.bits == 8 || dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64) {
       int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, 0);
       TVM_FFI_ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
     } else {
