@@ -14,11 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E712, F401, F821
+# ruff: noqa: E712, F401
 import ctypes
 import math
 
 import numpy as np
+import pytest
+
+pytest.importorskip("scipy")
+
 import scipy
 
 import tvm

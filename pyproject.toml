@@ -53,6 +53,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+torch = ["torch"]
 importer-onnx = ["onnx", "onnxoptimizer", "onnxruntime"]
 importer-pytorch = ["torch", "torchvision"]
 importer-tflite = ["tflite"]
@@ -67,6 +68,7 @@ Repository = "https://github.com/apache/tvm"
 "Bug Tracker" = "https://github.com/apache/tvm/issues"
 
 [dependency-groups]
+torch = ["torch"]
 test = [
   "pytest",
   "pytest-xdist",
@@ -76,6 +78,7 @@ test = [
   "pytest-timeout",
   "pytest-rerunfailures",
   "pytest-repeat",
+  { include-group = "torch" },
 ]
 lint = ["ruff", "pre-commit"]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
