@@ -18,7 +18,6 @@
 """Setup Trainer Pass."""
 
 import tvm
-from tvm import TVMError
 from tvm.ir.module import IRModule
 from tvm.tirx.expr import IntImm
 
@@ -132,7 +131,7 @@ class SetupTrainer:
             raise ValueError("SetupTrainer: The backbone module is not well formed.")
         try:
             func = mod[self.BACKBONE_FUNC]
-        except TVMError as exc:
+        except (KeyError, ValueError) as exc:
             raise ValueError(
                 f"SetupTrainer: The backbone module does not contain a function named "
                 f"{self.BACKBONE_FUNC}"

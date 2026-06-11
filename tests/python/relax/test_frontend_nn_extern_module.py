@@ -121,11 +121,6 @@ def _check_ir_equality(mod):
 
 
 def _compile_cc(src: Path, dst: Path):
-    # pylint: disable=import-outside-toplevel
-    from tvm.base import py_str
-
-    # pylint: enable=import-outside-toplevel
-
     cmd = ["g++", str(src)]
     default_include_paths = [
         tvm.libinfo.find_include_path(),
@@ -145,7 +140,7 @@ def _compile_cc(src: Path, dst: Path):
         (out, _) = proc.communicate()
         if proc.returncode != 0:
             msg = "Compilation error:\n"
-            msg += py_str(out)
+            msg += out.decode("utf-8", errors="replace")
             msg += "\nCommand line: " + " ".join(cmd)
             raise RuntimeError(msg)
 

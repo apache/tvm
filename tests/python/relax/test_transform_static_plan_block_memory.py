@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -1242,7 +1242,7 @@ def test_invalid_tir_var_upper_bound():
             R.func_attr({"tir_var_upper_bound": {"n": [4]}, "relax.force_pure": True})
             return x
 
-    with pytest.raises((TVMError, TypeError)):
+    with pytest.raises((RuntimeError, TypeError)):
         relax.transform.StaticPlanBlockMemory()(Module)
 
 
@@ -1254,7 +1254,7 @@ def test_invalid_tir_var_lower_bound():
             R.func_attr({"tir_var_lower_bound": {"n": [4]}, "relax.force_pure": True})
             return x
 
-    with pytest.raises((TVMError, TypeError)):
+    with pytest.raises((RuntimeError, TypeError)):
         relax.transform.StaticPlanBlockMemory()(Module)
 
 

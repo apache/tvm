@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F841
 
 import sys
 import tempfile
@@ -26,7 +26,6 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.base import TVMError
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T

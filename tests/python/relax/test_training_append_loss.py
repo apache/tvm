@@ -18,7 +18,6 @@
 import pytest
 
 import tvm.testing
-from tvm import TVMError
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.training import AppendLoss
 from tvm.script import ir as I
@@ -181,7 +180,7 @@ def test_error_return_value_vs_parameter():
         return gv0
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss1, 2)(Module1)
 
     # The numbers of backbone return value and loss parameter are not enough
@@ -203,7 +202,7 @@ def test_error_return_value_vs_parameter():
         return gv0
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss2, 2)(Module2)
 
     # Backbone returns nested tuple
@@ -227,7 +226,7 @@ def test_error_return_value_vs_parameter():
         return gv0
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss3, 1)(Module3)
 
 
@@ -252,7 +251,7 @@ def test_error_more_blocks():
         return gv
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss1)(Module1)
 
     # loss more than one blocks
@@ -275,7 +274,7 @@ def test_error_more_blocks():
         return gv1
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss2)(Module2)
 
 
@@ -299,7 +298,7 @@ def test_loss_return_value():
         return gv0
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss)(Module)
 
     # loss returns tuple
@@ -322,7 +321,7 @@ def test_loss_return_value():
         return gv0, gv1
     # fmt: on
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         AppendLoss("main", loss)(Module)
 
 

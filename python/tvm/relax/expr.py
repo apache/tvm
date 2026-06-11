@@ -236,11 +236,11 @@ class ExprWithOp(Expr, Scriptable):
         """
         try:
             return TupleGetItem(self, index)
-        except tvm.TVMError as err:
+        except RuntimeError as err:
             # For Python objects with __getitem__, but without
             # __len__, tuple unpacking is done by iterating over
             # sequential indices until IndexError is raised.
-            # Therefore, convert from TVMError to IndexError for
+            # Therefore, convert from RuntimeError to IndexError for
             # compatibility.
             if "Index out of bounds" in err.args[0]:
                 raise IndexError from err
