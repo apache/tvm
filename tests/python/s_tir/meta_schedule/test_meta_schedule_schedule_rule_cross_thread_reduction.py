@@ -582,8 +582,12 @@ def argmax(
             with T.init():
                 argmax_v0[i] = -1
                 argmax_v1[i] = T.min_value("float32")
-            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            v_argmax_v0: T.let[T.int32] = T.Select(
+                argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+            )
+            v_argmax_v1: T.let[T.float32] = T.Select(
+                argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+            )
             argmax_v0[i] = v_argmax_v0
             argmax_v1[i] = v_argmax_v1
 
@@ -604,8 +608,12 @@ def argmax_32(
             with T.init():
                 argmax_v0[i] = -1
                 argmax_v1[i] = T.min_value("float32")
-            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            v_argmax_v0: T.let[T.int32] = T.Select(
+                argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+            )
+            v_argmax_v1: T.let[T.float32] = T.Select(
+                argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+            )
             argmax_v0[i] = v_argmax_v0
             argmax_v1[i] = v_argmax_v1
 
@@ -628,8 +636,10 @@ def test_gpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -654,10 +664,10 @@ def test_gpu_argmax():
                     with T.init():
                         argmax_v0[i] = -1
                         argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                    v_argmax_v0: T.int32 = T.Select(
+                    v_argmax_v0: T.let[T.int32] = T.Select(
                         argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
                     )
-                    v_argmax_v1: T.float32 = T.Select(
+                    v_argmax_v1: T.let[T.float32] = T.Select(
                         argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                     )
                     argmax_v0[i] = v_argmax_v0
@@ -701,8 +711,10 @@ def test_gpu_argmax_32():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -728,10 +740,10 @@ def test_gpu_argmax_32():
                     with T.init():
                         argmax_v0[i] = -1
                         argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                    v_argmax_v0: T.int32 = T.Select(
+                    v_argmax_v0: T.let[T.int32] = T.Select(
                         argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
                     )
-                    v_argmax_v1: T.float32 = T.Select(
+                    v_argmax_v1: T.let[T.float32] = T.Select(
                         argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                     )
                     argmax_v0[i] = v_argmax_v0

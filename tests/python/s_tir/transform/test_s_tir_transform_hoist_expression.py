@@ -221,14 +221,14 @@ def test_hoist_with_let():
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
-                condition = i < 3
+                condition: T.let[T.bool] = i < 3
                 if condition:
                     A[i, j] = 0.0
 
     @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
-            condition: T.bool = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
                 for j in T.serial(4):
                     A[i, j] = T.float32(0.0)
@@ -250,14 +250,14 @@ def test_hoist_disable_let():
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
-                condition = i < 3
+                condition: T.let[T.bool] = i < 3
                 if condition:
                     A[i, j] = 0.0
 
     @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            condition: T.bool = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
                 A[i, j] = T.float32(0.0)
 
@@ -519,7 +519,7 @@ def test_hoist_let_expr():
     @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
-            x: T.float32 = T.cast(i + 1, "float32")  # noqa: F841
+            x: T.let[T.float32] = T.cast(i + 1, "float32")  # noqa: F841
             for j in T.serial(4):
                 A[i, j] = T.float32(5.0) * T.cast(i + 1, "float32") + T.cast(j, "float32")
 
