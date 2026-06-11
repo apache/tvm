@@ -20,8 +20,8 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import TVMError, tirx
 from tvm import relax as rx
+from tvm import tirx
 
 
 def _check_equal(x, y, map_free_vars=False):
@@ -87,7 +87,7 @@ def test_prim_struct_info():
     assert s2.dtype == "int32"
 
     # wrong API constructors
-    with pytest.raises((TVMError, TypeError)):
+    with pytest.raises((RuntimeError, TypeError)):
         rx.PrimStructInfo([1])
 
 
@@ -136,7 +136,7 @@ def test_shape_struct_info():
     str(s0)
 
     # wrong argument type
-    with pytest.raises((TVMError, TypeError)):
+    with pytest.raises((RuntimeError, TypeError)):
         rx.ShapeStructInfo(1)
 
     # cannot pass both ndim and values

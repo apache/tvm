@@ -75,7 +75,7 @@ def derived_object(cls: type[T]) -> type[T]:
             return method
 
         # for task scheduler return None means calling default function
-        # otherwise it will trigger a TVMError of method not implemented
+        # otherwise it will trigger a RuntimeError of method not implemented
         # on the c++ side when you call the method
         return None
 

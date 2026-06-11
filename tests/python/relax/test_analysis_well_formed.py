@@ -162,7 +162,7 @@ def test_symbolic_var_across_functions():
 
 def test_symbolic_var_invalid_type():
     with pytest.raises(
-        tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"
+        RuntimeError, match="the value in ShapeStructInfo can only have dtype of int64"
     ):
         dim = tirx.Var("dim", "float32")
         y = rx.Var("y", R.Tensor([dim], "float32"))

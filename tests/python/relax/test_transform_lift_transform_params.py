@@ -604,7 +604,7 @@ def test_incompatible_weights_in_shared_transform_raises_error():
                 R.output(output)
             return output
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.LiftTransformParams(shared_transform=True)(Before)
 
 
@@ -649,7 +649,7 @@ def test_incompatible_shape_in_shared_transform_raises_error():
                 R.output(output)
             return output
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.LiftTransformParams(shared_transform=True)(Before)
 
 
@@ -694,7 +694,7 @@ def test_incompatible_dtype_in_shared_transform_raises_error():
                 R.output(output)
             return output
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.LiftTransformParams(shared_transform=True)(Before)
 
 

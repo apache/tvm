@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import TVMError, ir, tirx
+from tvm import ir, tirx
 from tvm import relax as rx
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -405,7 +405,7 @@ def test_derive_call_ret_struct_info():
         )
 
         # Error: wrong number of arguments
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(
                 bb,
                 func0(2),
@@ -414,7 +414,7 @@ def test_derive_call_ret_struct_info():
             )
 
         # Error:type mismatch
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(bb, func0(2), [obj0], obj0)
 
         # Tensor with vdevice
@@ -484,7 +484,7 @@ def test_derive_call_ret_struct_info():
         )
 
         # tuple length mismatch is not causes an error
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(
                 bb,
                 func_tuple0(4),

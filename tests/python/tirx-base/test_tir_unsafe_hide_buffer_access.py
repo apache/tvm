@@ -92,14 +92,14 @@ def test_hide_buffer_access_write():
 def test_hide_buffer_access_fail_buffer_type():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         sch.unsafe_hide_buffer_access(block_b, "opaque", [0])
 
 
 def test_hide_buffer_access_fail_buffer_index():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         sch.unsafe_hide_buffer_access(block_b, "read", [2])
 
 

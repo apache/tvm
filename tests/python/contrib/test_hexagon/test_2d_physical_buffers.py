@@ -300,7 +300,7 @@ class TestElementWise:
             is_hexagon = target_host.kind.name == "hexagon"
             uses_2d_memory = "nchw-8h8w32c-2d" in [input_layout, working_layout, output_layout]
             if uses_2d_memory and not is_hexagon:
-                stack.enter_context(pytest.raises(tvm.TVMError))
+                stack.enter_context(pytest.raises(RuntimeError))
 
             tvm.compile(*schedule_args, target=target_host)
 

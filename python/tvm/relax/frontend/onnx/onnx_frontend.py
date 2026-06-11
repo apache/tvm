@@ -57,7 +57,7 @@ except ImportError as err:
 import tvm_ffi
 
 import tvm
-from tvm import TVMError, relax, tirx, topi
+from tvm import relax, tirx, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
 from tvm.runtime import DataType, DataTypeCode
@@ -71,7 +71,7 @@ def _relax_dtype_is_floating_point(dtype: str) -> bool:
     """Whether a Relax dtype string is a floating point type."""
     try:
         code = DataType(dtype).type_code
-    except (ValueError, TypeError, TVMError):
+    except (ValueError, TypeError, RuntimeError):
         return False
     return (
         code == DataTypeCode.FLOAT
@@ -537,7 +537,7 @@ class Div(BinaryBase):
         try:
             lhs_code = DataType(inputs[0].struct_info.dtype).type_code
             rhs_code = DataType(inputs[1].struct_info.dtype).type_code
-        except (AttributeError, ValueError, TypeError, TVMError):
+        except (AttributeError, ValueError, TypeError, RuntimeError):
             return cls.base_impl(bb, inputs, attr, params)
 
         lhs_is_integer = lhs_code == DataTypeCode.INT or lhs_code == DataTypeCode.UINT
@@ -5576,7 +5576,7 @@ class ONNXGraphImporter:
                 # Create struct information for the new operator.
                 if isinstance(op, relax.Expr):
                     op = self.bb.normalize(op)
-            except TVMError as err:
+            except Exception as err:  # pylint: disable=broad-exception-caught
                 print(f"Error converting operator {op_name}, with inputs: {inputs}")
                 raise err
 

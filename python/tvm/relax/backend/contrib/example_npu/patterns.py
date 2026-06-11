@@ -24,7 +24,6 @@ tiling, and fusion strategies.
 
 from typing import ClassVar
 
-from tvm import TVMError
 from tvm.ir import Op
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.transform import PatternCheckContext
@@ -372,7 +371,7 @@ def softmax_patterns():
     try:
         Op.get("relax.nn.softmax")
         patterns.append(("example_npu.softmax", *_make_softmax_pattern(), _check_softmax))
-    except TVMError:  # pylint: disable=broad-exception-caught
+    except (KeyError, AttributeError):
         pass
 
     return patterns
@@ -415,7 +414,7 @@ def activation_patterns():
     for pattern_name, op_name in activations:
         try:
             Op.get(op_name)
-        except TVMError:  # pylint: disable=broad-exception-caught
+        except (KeyError, AttributeError):
             continue
 
         pattern_fn = _make_activation_pattern(op_name)
@@ -456,7 +455,7 @@ def elementwise_patterns():
     for op in ops:
         try:
             Op.get(op)
-        except TVMError:  # pylint: disable=broad-exception-caught
+        except (KeyError, AttributeError):
             continue
 
         op_short = op.split(".")[-1]
@@ -505,7 +504,7 @@ def quantization_patterns():
     try:
         Op.get("relax.quantize")
         patterns.append(("example_npu.quantize", *_make_quantize_pattern(), _check_quantization))
-    except TVMError:  # pylint: disable=broad-exception-caught
+    except (KeyError, AttributeError):
         pass
 
     try:
@@ -513,7 +512,7 @@ def quantization_patterns():
         patterns.append(
             ("example_npu.dequantize", *_make_dequantize_pattern(), _check_quantization)
         )
-    except TVMError:  # pylint: disable=broad-exception-caught
+    except (KeyError, AttributeError):
         pass
 
     return patterns

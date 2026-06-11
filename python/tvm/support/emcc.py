@@ -22,7 +22,6 @@ import subprocess
 from pathlib import Path
 
 from tvm import libinfo
-from tvm.base import py_str
 
 
 def find_wasm_lib(name, optional=False):
@@ -139,7 +138,7 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 

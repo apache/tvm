@@ -161,7 +161,7 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
     verify_state(state, [0], [[np_two, np_three]])
     f_popn(state, 0, 1)
     verify_state(state, [0], [[np_zero, np_one]])
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         f_popn(state, 0, 1)  # no available history to pop
 
 

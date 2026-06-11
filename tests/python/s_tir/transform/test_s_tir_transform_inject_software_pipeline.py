@@ -23,7 +23,7 @@ import pytest
 import tvm
 import tvm.s_tir.tensor_intrin.cuda
 import tvm.testing
-from tvm import TVMError, te, tirx
+from tvm import te, tirx
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.tensor_intrin.cuda import (
     LDMATRIX_f16_A_DYN_INTRIN,

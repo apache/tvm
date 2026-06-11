@@ -25,7 +25,6 @@ import tvm_ffi
 
 import tvm.runtime
 import tvm.target
-from tvm.base import py_str
 
 from . import utils
 
@@ -97,7 +96,7 @@ def rocm_link(in_file, out_file, lld=None):
 
     if proc.returncode != 0:
         msg = "Linking error using ld.lld:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 
@@ -285,7 +284,7 @@ def find_rocm_path():
     cmd = ["which", "hipcc"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    out = out.decode("utf-8").strip()
+    out = out.decode("utf-8", errors="replace").strip()
     if proc.returncode == 0:
         return os.path.realpath(os.path.join(out, "../.."))
     rocm_path = "/opt/rocm"

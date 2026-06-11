@@ -24,7 +24,6 @@ from typing import Any
 import numpy as np  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
-from tvm.error import TVMError
 from tvm.ir import IRModule
 from tvm.rpc import RPCSession
 from tvm.tirx import FloatImm, IntImm
@@ -159,7 +158,7 @@ def get_global_func_with_default_on_worker(
         return name
     try:
         return get_global_func(name)
-    except TVMError as error:
+    except (ValueError, RuntimeError) as error:
         raise ValueError(
             "Function '{name}' is not registered on the worker process. "
             "The build function and export function should be registered in the worker process. "

@@ -143,7 +143,7 @@ def test_error_on_unknown_var():
 
     unknown_var = relax.Var("unknown_var")
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         before.bind_params({unknown_var: np.arange(16).astype("float32")})
 
 
@@ -153,7 +153,7 @@ def test_error_on_unknown_var_name():
         R.func_attr({"global_symbol": "main"})
         return A
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         before.bind_params({"unknown_var_name": np.arange(16).astype("float32")})
 
 

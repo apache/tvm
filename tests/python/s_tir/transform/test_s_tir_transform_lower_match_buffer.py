@@ -32,7 +32,7 @@ def _check(original, transformed):
 
 def _check_fail(original):
     mod = tvm.IRModule.from_expr(original)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
 
 
