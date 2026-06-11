@@ -70,7 +70,7 @@ def with_minrpc(compile_func, server="posix_popen_server"):
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     tvm_ffi_dir = os.path.abspath(os.path.dirname(tvm_ffi_path))
-    options = ["-std=c++17"]
+    options = ["-std=c++20"]
     # Make sure the rpath to the libtvm_runtime is set so we can do local tests.
     # Note that however, this approach won't work on remote.
     # Always recommend to link statically.

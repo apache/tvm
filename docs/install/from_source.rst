@@ -40,7 +40,6 @@ Apache TVM requires the following dependencies:
     - Clang 10
     - Apple Clang 14
     - Visual Studio 2022
-
   Optional dependencies that use newer C++20 standard library facilities, such
   as ``std::format``, may require a newer standard library (for example GCC 13
   or newer on Linux).
