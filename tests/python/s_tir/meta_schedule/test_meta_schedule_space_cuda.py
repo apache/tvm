@@ -375,7 +375,7 @@ def test_cuda_cap():
         ("SamplePerfectTile", [8, 4, 1]),
         ("SampleCategorical", 1),
         ("SampleCategorical", 3),
-        ("SampleCategorical", 2),
+        ("SampleCategorical", 3),
     ]
     mod = create_te_workload("CAP", 0)
     actual = _design_space(mod)
@@ -537,7 +537,7 @@ def test_cuda_dil():
         ("SamplePerfectTile", [3, 1, 1]),
         ("SampleCategorical", 1),
         ("SampleCategorical", 3),
-        ("SampleCategorical", 3),
+        ("SampleCategorical", 6),
     ]
     mod = create_te_workload("DIL", 0)
     actual = _design_space(mod)
@@ -611,7 +611,7 @@ def test_cuda_gmm():
         ("SamplePerfectTile", [1, 32, 4]),
         ("SampleCategorical", 1),
         ("SampleCategorical", 0),
-        ("SampleCategorical", 4),
+        ("SampleCategorical", 7),
     ]
     mod = create_te_workload("GMM", 0)
     actual = _design_space(mod)
@@ -776,7 +776,7 @@ def test_cuda_t2d():
         ("SamplePerfectTile", [16, 4, 8]),
         ("SampleCategorical", 1),
         ("SampleCategorical", 3),
-        ("SampleCategorical", 2),
+        ("SampleCategorical", 3),
     ]
     mod = create_te_workload("T2D", 0)
     actual = _design_space(mod)
@@ -846,11 +846,11 @@ def test_cuda_nrm():
                         D[v_b] = T.sqrt(C_shared[v_b])
     # fmt: on
     decision_0 = [
-        ("SampleCategorical", 3),
+        ("SampleCategorical", 6),
     ]
     decision_1 = [
         ("SampleCategorical", 5),
-        ("SampleCategorical", 4),
+        ("SampleCategorical", 7),
     ]
     mod = create_te_workload("NRM", 0)
     actual = _design_space(mod)
@@ -1043,7 +1043,7 @@ def test_cuda_sfm():
     ]
     decision_2 = [
         ("SampleCategorical", 7),
-        ("SampleCategorical", 3),
+        ("SampleCategorical", 6),
         ("SampleCategorical", 0),
     ]
     decision_3 = [
@@ -1132,7 +1132,7 @@ def test_cuda_cbr():
         ("SamplePerfectTile", [3, 1, 1]),
         ("SampleCategorical", 0),
         ("SampleCategorical", 0),
-        ("SampleCategorical", 3),
+        ("SampleCategorical", 6),
     ]
     mod = create_te_workload("CBR", 0)
     actual = _design_space(mod)
@@ -1211,7 +1211,7 @@ def test_cuda_tbg():
         ("SamplePerfectTile", [8, 4, 2]),
         ("SampleCategorical", 2),
         ("SampleCategorical", 3),
-        ("SampleCategorical", 4),
+        ("SampleCategorical", 7),
     ]
     mod = create_te_workload("TBG", 0)
     actual = _design_space(mod)

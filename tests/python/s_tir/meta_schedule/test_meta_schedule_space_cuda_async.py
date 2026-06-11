@@ -178,7 +178,7 @@ def test_cuda_c2d():
         ("SamplePerfectTile", [3, 1, 1]),
         ("SampleCategorical", 3),
         ("SampleCategorical", 2),
-        ("SampleCategorical", 4),
+        ("SampleCategorical", 7),
     ]
 
     mod = create_te_workload("C2D", 0)

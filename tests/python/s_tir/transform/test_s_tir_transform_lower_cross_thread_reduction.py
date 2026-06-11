@@ -1246,8 +1246,10 @@ def argmax_split(
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -1278,10 +1280,10 @@ def lowered_argmax_split(
                     k = T.axis.reduce(128, i1_0 * 32 + i1_1)
                     T.reads(idx[i, k], val[i, k])
                     T.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
-                    v_argmax_v0: T.int32 = T.Select(
+                    v_argmax_v0: T.let[T.int32] = T.Select(
                         in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v0[0], idx[i, k]
                     )
-                    v_argmax_v1: T.float32 = T.Select(
+                    v_argmax_v1: T.let[T.float32] = T.Select(
                         in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v1[0], val[i, k]
                     )
                     in_thread_argmax_v0[0] = v_argmax_v0
@@ -1338,8 +1340,10 @@ def argmin_split_init_update_reordered(
                 with T.init():
                     argmin_v1[i] = T.float32(3.4028234663852886e38)
                     argmin_v0[i] = -1
-                v_argmin_v0: T.int32 = T.Select(argmin_v1[i] <= val[i, k], argmin_v0[i], idx[i, k])
-                v_argmin_v1: T.float32 = T.Select(
+                v_argmin_v0: T.let[T.int32] = T.Select(
+                    argmin_v1[i] <= val[i, k], argmin_v0[i], idx[i, k]
+                )
+                v_argmin_v1: T.let[T.float32] = T.Select(
                     argmin_v1[i] <= val[i, k], argmin_v1[i], val[i, k]
                 )
                 argmin_v1[i] = v_argmin_v1
@@ -1370,10 +1374,10 @@ def lowered_argmin_split_init_update_reordered(
                     k = T.axis.reduce(128, i1_0 * 32 + i1_1)
                     T.reads(idx[i, k], val[i, k])
                     T.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
-                    v_argmin_v0: T.int32 = T.Select(
+                    v_argmin_v0: T.let[T.int32] = T.Select(
                         in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v0[0], idx[i, k]
                     )
-                    v_argmin_v1: T.float32 = T.Select(
+                    v_argmin_v1: T.let[T.float32] = T.Select(
                         in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v1[0], val[i, k]
                     )
                     in_thread_argmin_v1[0] = v_argmin_v1
@@ -1433,8 +1437,8 @@ def layer_norm_tuple_sum(
                     with T.init():
                         data_red_temp_v0[ax0] = T.float32(0)
                         data_red_temp_v1[ax0] = T.float32(0)
-                    v_data_red_temp_v0: T.float32 = data_red_temp_v0[ax0] + data[ax0, k1]
-                    v_data_red_temp_v1: T.float32 = (
+                    v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
+                    v_data_red_temp_v1: T.let[T.float32] = (
                         data_red_temp_v1[ax0] + data[ax0, k1] * data[ax0, k1]
                     )
                     data_red_temp_v0[ax0] = v_data_red_temp_v0
@@ -1499,8 +1503,10 @@ def lowered_layer_norm_tuple_sum(
                     k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
                     T.reads(data[ax0, k1])
                     T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
-                    v_data_red_temp_v0: T.float32 = in_thread_data_red_temp_v0[0] + data[ax0, k1]
-                    v_data_red_temp_v1: T.float32 = (
+                    v_data_red_temp_v0: T.let[T.float32] = (
+                        in_thread_data_red_temp_v0[0] + data[ax0, k1]
+                    )
+                    v_data_red_temp_v1: T.let[T.float32] = (
                         in_thread_data_red_temp_v1[0] + data[ax0, k1] * data[ax0, k1]
                     )
                     in_thread_data_red_temp_v0[0] = v_data_red_temp_v0
