@@ -51,6 +51,7 @@ TEST_FILES=(
   "s_tir/schedule"
   "s_tir/dlight"
   "s_tir/analysis"
+  "s_tir/transform"
   "tirx-analysis"
   "tirx-base"
   "tirx-transform"
