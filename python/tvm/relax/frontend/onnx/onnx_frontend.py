@@ -3525,7 +3525,7 @@ class Resize(OnnxOpConverter):
 
         use_dynamic_roi = roi_dynamic_vec is not None
 
-        # Convert scales to sizes if needed, preserving the orginal spatial scales so
+        # Convert scales to sizes if needed, preserving the original spatial scales so
         # the coordinate transformation uses the exact ONNX scale value rather than the
         # lossy ratio derived from floor(input * scale) / input.
         original_spatial_scales = None
@@ -3617,7 +3617,7 @@ class Resize(OnnxOpConverter):
                     roi3d,
                     sizes,
                     "NCDHW",
-                    relax_mode,
+                    topi_mode,
                     coord_mode,
                     rounding_method,
                     cubic_coeff_a,
