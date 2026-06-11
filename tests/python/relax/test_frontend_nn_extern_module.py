@@ -136,7 +136,7 @@ def _compile_cc(src: Path, dst: Path):
         cmd += ["-I", include_path]
     cmd += [
         "-c",
-        "-std=c++20",
+        "-std=c++17",
         "-fPIC",
         "-o",
         str(dst),

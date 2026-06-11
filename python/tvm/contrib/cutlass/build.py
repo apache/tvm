@@ -76,7 +76,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-Xcompiler=-fno-strict-aliasing",
         "-Xcompiler=-fvisibility=hidden",
         "-O3",
-        "-std=c++20",
+        "-std=c++17",
         f"-I{cutlass_include}",
         f"-I{cutlass_util_include}",
         f"-I{cutlass_attention_include}",

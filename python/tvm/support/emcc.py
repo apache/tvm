@@ -85,7 +85,7 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
     """
     cmd = [cc]
     cmd += ["-O3"]
-    cmd += ["-std=c++20"]
+    cmd += ["-std=c++17"]
     cmd += ["--no-entry"]
     # NOTE: asynctify conflicts with wasm-exception
     # so we temp disable exception handling for now
