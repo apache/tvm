@@ -56,8 +56,8 @@ def test_normalize_relax_function():
 
     After = relax.transform.NormalizeGlobalVar()(Before)
 
-    assert not relax.analysis.well_formed(Before)
-    assert relax.analysis.well_formed(After)
+    assert not relax.analysis.check_well_formed(Before)
+    relax.analysis.well_formed(After)
     assert_structural_equal(After, Expected)
 
 
@@ -90,8 +90,8 @@ def test_normalize_tir_function():
 
     After = relax.transform.NormalizeGlobalVar()(Before)
 
-    assert not relax.analysis.well_formed(Before)
-    assert relax.analysis.well_formed(After)
+    assert not relax.analysis.check_well_formed(Before)
+    relax.analysis.well_formed(After)
     assert_structural_equal(After, Expected)
 
 

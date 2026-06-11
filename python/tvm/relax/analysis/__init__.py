@@ -22,6 +22,7 @@ from .analysis import (
     all_global_vars,
     all_vars,
     bound_vars,
+    check_well_formed,
     collect_non_negative_expressions,
     computable_at_compile_time,
     contains_impure_call,

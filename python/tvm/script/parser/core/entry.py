@@ -130,9 +130,9 @@ def parse(
 
         source_ast = source.as_ast()
 
-        if isinstance(ret, IRModule | tvm.relax.Function) and not tvm.relax.analysis.well_formed(
-            ret
-        ):
+        if isinstance(
+            ret, IRModule | tvm.relax.Function
+        ) and not tvm.relax.analysis.check_well_formed(ret):
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:

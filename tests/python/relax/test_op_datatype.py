@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -98,9 +98,9 @@ def test_astype_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.astype(x0, "float16"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.astype(x1, "float16"))
 
 

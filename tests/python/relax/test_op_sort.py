@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -93,10 +93,10 @@ def test_sort_wrong_input():
     with pytest.raises(TypeError):
         relax.op.sort(x, y)
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.sort(x0, axis=1))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.sort(x1, axis=1))
 
 

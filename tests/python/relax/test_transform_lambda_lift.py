@@ -240,7 +240,7 @@ def test_recursive():
     before = Before
     expected = Expected
     # check well-formness of recursive call
-    assert relax.analysis.well_formed(before)
+    relax.analysis.well_formed(before)
 
     # Perform Lambda Lifting
     after = transform.LambdaLift()(before)

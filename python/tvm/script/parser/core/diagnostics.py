@@ -20,7 +20,7 @@
 import inspect
 import sys
 
-from tvm.ir import IRModule, SourceName, Span, diagnostics
+from tvm.error import DiagnosticError
 
 from . import doc
 
@@ -185,65 +185,98 @@ def getsourcelines(obj):
 inspect.getfile = _patched_inspect_getfile
 
 
+def _format_source_snippet(
+    source_lines: list,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int,
+) -> str:
+    """Format a source code snippet with a column/span marker.
+
+    Renders every source line spanned by the diagnostic (``lineno`` through
+    ``end_lineno``, inclusive) with a per-line gutter, followed by a caret
+    underline covering the offending span. For a single-line span
+    (``end_lineno == lineno``) only the columns ``col_offset`` (inclusive)
+    through ``end_col_offset`` (exclusive) are underlined; for a multi-line
+    span the underline covers the start column to end-of-line on the first
+    line, the full text of interior lines, and the start of the final line up
+    to ``end_col_offset``.
+
+    Parameters
+    ----------
+    source_lines : list of str
+        Lines of the source code.
+
+    lineno : int
+        1-based starting line number in the source.
+
+    col_offset : int
+        1-based starting column (inclusive) on ``lineno``.
+
+    end_lineno : int
+        1-based ending line number in the source (>= ``lineno``).
+
+    end_col_offset : int
+        1-based ending column (exclusive) on ``end_lineno``.
+
+    Returns
+    -------
+    snippet : str
+        Formatted source snippet with caret-marker line(s).
+    """
+    if end_lineno < lineno:
+        end_lineno = lineno
+
+    # Determine the gutter width so that all line numbers line up.
+    header_width = len(f" {end_lineno} ")
+    no_line_header = " " * header_width
+
+    parts = [f"{no_line_header}|  "]
+    for cur_lineno in range(lineno, end_lineno + 1):
+        idx = cur_lineno - 1
+        if not 0 <= idx < len(source_lines):
+            continue
+        line_text = source_lines[idx].rstrip("\n")
+        line_header = f" {cur_lineno} ".rjust(header_width)
+
+        # Compute the underline span [start_col, stop_col) for this line.
+        start_col = col_offset if cur_lineno == lineno else 1
+        stop_col = end_col_offset if cur_lineno == end_lineno else len(line_text) + 1
+
+        marker = ""
+        for i in range(1, len(line_text) + 1):
+            if start_col <= i < stop_col:
+                marker += "^"
+            else:
+                marker += " "
+        parts.append(f"{line_header}|  {line_text}")
+        parts.append(f"{no_line_header}|  {marker}")
+
+    if len(parts) == 1:
+        return ""
+    return "\n".join(parts)
+
+
 class Diagnostics:
     """Diagnostics class for error reporting in parser.
+
+    Formats parse errors with source location context and raises directly,
+    without going through DiagnosticContext.
 
     Parameters
     ----------
     source : Source
         The source code.
-
-    ctx : diagnostics.DiagnosticContext
-        The diagnostic context for diagnostics.
     """
 
     source: Source
-    ctx: diagnostics.DiagnosticContext
 
     def __init__(self, source: Source):
-        mod = IRModule()
-        mod.source_map.add(source.source_name, source.full_source)
         self.source = source
-        self.ctx = diagnostics.DiagnosticContext(mod, diagnostics.get_renderer())
-
-    def _emit(self, node: doc.AST, message: str, level: diagnostics.DiagnosticLevel) -> None:
-        """Emit a diagnostic.
-
-        Parameters
-        ----------
-        node : doc.AST
-            The node with diagnostic information.
-
-        message : str
-            The diagnostic message.
-
-        level : diagnostics.DiagnosticLevel
-            The diagnostic level.
-        """
-        lineno = getattr(node, "lineno", 1)
-        col_offset = getattr(node, "col_offset", self.source.start_column)
-        end_lineno = getattr(node, "end_lineno", lineno)
-        end_col_offset = getattr(node, "end_col_offset", col_offset)
-        lineno += self.source.start_line - 1
-        end_lineno += self.source.start_line - 1
-        col_offset += self.source.start_column + 1
-        end_col_offset += self.source.start_column + 1
-        self.ctx.emit(
-            diagnostics.Diagnostic(
-                level=level,
-                span=Span(
-                    source_name=SourceName(self.source.source_name),
-                    line=lineno,
-                    end_line=end_lineno,
-                    column=col_offset,
-                    end_column=end_col_offset,
-                ),
-                message=message,
-            )
-        )
 
     def error(self, node: doc.AST, message: str) -> None:
-        """Emit a diagnostic error.
+        """Emit a diagnostic error by raising with source location context.
 
         Parameters
         ----------
@@ -253,5 +286,20 @@ class Diagnostics:
         message : str
             The diagnostic message.
         """
-        self._emit(node, message, diagnostics.DiagnosticLevel.ERROR)
-        self.ctx.render()
+        lineno = getattr(node, "lineno", 1)
+        col_offset = getattr(node, "col_offset", self.source.start_column)
+        end_lineno = getattr(node, "end_lineno", lineno)
+        end_col_offset = getattr(node, "end_col_offset", col_offset)
+        lineno += self.source.start_line - 1
+        end_lineno += self.source.start_line - 1
+        col_offset += self.source.start_column + 1
+        end_col_offset += self.source.start_column + 1
+
+        source_lines = self.source.full_source.splitlines(keepends=True)
+        snippet = _format_source_snippet(
+            source_lines, lineno, col_offset, end_lineno, end_col_offset
+        )
+
+        location = f"{self.source.source_name}:{lineno}:{col_offset}"
+        formatted = f"error: {message}\n --> {location}\n{snippet}"
+        raise DiagnosticError(formatted)

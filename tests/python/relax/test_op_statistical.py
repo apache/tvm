@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -185,15 +185,15 @@ def test_statistical_infer_struct_info_axis_out_of_range_repetitive():
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[4]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x1, axis=[3, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[-1, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x1, axis=[-4, -4]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[-5]))
 
 
@@ -202,9 +202,9 @@ def test_statistical_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.variance(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.variance(x1))
 
 
@@ -271,9 +271,9 @@ def test_scan_opinfer_struct_info_wrong_input_type(scan_op: Callable):
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(scan_op(x0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(scan_op(x1, axis=1))
 
 
@@ -496,9 +496,9 @@ def test_statistical_ext_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.median(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.median(x1))
 
 

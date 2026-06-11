@@ -21,9 +21,3 @@ tvm.ir
    :members:
    :imported-members:
    :autosummary:
-
-tvm.ir.diagnostics
-~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.ir.diagnostics
-   :members:
-   :imported-members:

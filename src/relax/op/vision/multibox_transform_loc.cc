@@ -24,6 +24,7 @@
 
 #include "multibox_transform_loc.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
 
@@ -65,10 +66,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
-                        "got "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
+           "got "
+        << call->args.size();
   }
 
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -77,33 +78,32 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
   const auto anchor_sinfo = input_sinfo[2];
 
   if (!cls_sinfo->IsUnknownNdim() && cls_sinfo->ndim != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: cls_pred must be 3-D [B, num_classes, N], got "
-                        "ndim "
-                     << cls_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "multibox_transform_loc: cls_pred must be 3-D [B, num_classes, N], got "
+           "ndim "
+        << cls_sinfo->ndim;
   }
   if (!loc_sinfo->IsUnknownNdim() && loc_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: loc_pred must be 2-D [B, 4*N], got ndim "
-                     << loc_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "multibox_transform_loc: loc_pred must be 2-D [B, 4*N], got ndim " << loc_sinfo->ndim;
   }
   if (!anchor_sinfo->IsUnknownNdim() && anchor_sinfo->ndim != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: anchor must be 3-D [1, N, 4] ltrb, got ndim "
-                     << anchor_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "multibox_transform_loc: anchor must be 3-D [1, N, 4] ltrb, got ndim "
+        << anchor_sinfo->ndim;
   }
 
   if (!cls_sinfo->IsUnknownDtype() && !loc_sinfo->IsUnknownDtype() &&
       cls_sinfo->dtype != loc_sinfo->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: cls_pred and loc_pred dtype must match, got "
-                     << cls_sinfo->dtype << " vs " << loc_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "multibox_transform_loc: cls_pred and loc_pred dtype must match, got "
+        << cls_sinfo->dtype << " vs " << loc_sinfo->dtype;
   }
   if (!cls_sinfo->IsUnknownDtype() && !anchor_sinfo->IsUnknownDtype() &&
       cls_sinfo->dtype != anchor_sinfo->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "multibox_transform_loc: cls_pred and anchor dtype must match, got "
-                     << cls_sinfo->dtype << " vs " << anchor_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "multibox_transform_loc: cls_pred and anchor dtype must match, got " << cls_sinfo->dtype
+        << " vs " << anchor_sinfo->dtype;
   }
 
   auto vdev = cls_sinfo->vdevice;
@@ -114,9 +114,9 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
   if (loc_shape != nullptr) {
     const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();
     if (loc_dim1 != nullptr && loc_dim1->value % 4 != 0) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: loc_pred.shape[1] must be divisible by 4, got "
-                       << loc_dim1->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: loc_pred.shape[1] must be divisible by 4, got "
+          << loc_dim1->value;
     }
   }
 
@@ -124,25 +124,23 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
     const auto* cls_b = cls_shape->values[0].as<IntImmNode>();
     const auto* loc_b = loc_shape->values[0].as<IntImmNode>();
     if (cls_b != nullptr && loc_b != nullptr && cls_b->value != loc_b->value) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: cls_pred.shape[0] must match loc_pred.shape[0], "
-                          "got B="
-                       << cls_b->value << " vs " << loc_b->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: cls_pred.shape[0] must match loc_pred.shape[0], "
+             "got B="
+          << cls_b->value << " vs " << loc_b->value;
     }
   }
 
   if (anchor_shape != nullptr) {
     const auto* anchor_batch = anchor_shape->values[0].as<IntImmNode>();
     if (anchor_batch != nullptr && anchor_batch->value != 1) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: anchor.shape[0] must be 1, got "
-                       << anchor_batch->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: anchor.shape[0] must be 1, got " << anchor_batch->value;
     }
     const auto* anchor_last = anchor_shape->values[2].as<IntImmNode>();
     if (anchor_last != nullptr && anchor_last->value != 4) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: anchor.shape[2] must be 4 (ltrb), got "
-                       << anchor_last->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: anchor.shape[2] must be 4 (ltrb), got " << anchor_last->value;
     }
   }
 
@@ -161,10 +159,10 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
     const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();
     if (num_anchors_imm != nullptr && loc_dim1 != nullptr &&
         loc_dim1->value != num_anchors_imm->value * 4) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: loc_pred.shape[1] must equal 4*N with "
-                          "N=cls_pred.shape[2], got loc_dim="
-                       << loc_dim1->value << ", N=" << num_anchors_imm->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: loc_pred.shape[1] must equal 4*N with "
+             "N=cls_pred.shape[2], got loc_dim="
+          << loc_dim1->value << ", N=" << num_anchors_imm->value;
     }
   }
   if (anchor_shape != nullptr) {
@@ -172,10 +170,10 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
     const auto* anchor_num_anchors = anchor_shape->values[1].as<IntImmNode>();
     if (num_anchors_imm != nullptr && anchor_num_anchors != nullptr &&
         anchor_num_anchors->value != num_anchors_imm->value) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "multibox_transform_loc: anchor.shape[1] must equal N=cls_pred.shape[2], "
-                          "got anchor_N="
-                       << anchor_num_anchors->value << ", N=" << num_anchors_imm->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "multibox_transform_loc: anchor.shape[1] must equal N=cls_pred.shape[2], "
+             "got anchor_N="
+          << anchor_num_anchors->value << ", N=" << num_anchors_imm->value;
     }
   }
 
