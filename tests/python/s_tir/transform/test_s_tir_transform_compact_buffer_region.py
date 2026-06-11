@@ -755,8 +755,8 @@ class TestLetBinding(BaseCompactTest):
             for rii, rjj in T.grid(8, 8):
                 C[rii, rjj] = T.float32(0)
             for riijj in T.serial(8 * 8):
-                rii: T.int32 = riijj // 8
-                rjj: T.int32 = riijj % 8
+                rii: T.let[T.int32] = riijj // 8
+                rjj: T.let[T.int32] = riijj % 8
                 C[rii, rjj] += A[rk, rii] * B[rk, rjj]
 
     expected = before
@@ -766,13 +766,13 @@ class TestNonIndexLetBinding(BaseCompactTest):
     @T.prim_func(s_tir=True)
     def before():
         A = T.sblock_alloc_buffer((64), "float32")
-        x1 = T.call_extern("get", dtype="float16")
-        x2 = T.call_extern("get", dtype="float32")
-        x3 = T.call_extern("get", dtype="float64")
-        x4 = T.call_extern("get", dtype="uint8")
-        x5 = T.call_extern("get", dtype="int32x16")
-        x6 = T.call_extern("get", dtype="handle")
-        x7 = T.call_extern("get", dtype="")
+        x1: T.let[T.float16] = T.call_extern("get", dtype="float16")
+        x2: T.let[T.float32] = T.call_extern("get", dtype="float32")
+        x3: T.let[T.float64] = T.call_extern("get", dtype="float64")
+        x4: T.let[T.uint8] = T.call_extern("get", dtype="uint8")
+        x5: T.let[T.int32x16] = T.call_extern("get", dtype="int32x16")
+        x6: T.let[T.handle] = T.call_extern("get", dtype="handle")
+        x7: T.let = T.call_extern("get", dtype="")
         for rk in range(64):
             A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, dtype="float32")
 
