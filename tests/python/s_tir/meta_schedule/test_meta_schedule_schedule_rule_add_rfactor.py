@@ -138,8 +138,10 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.min_value("float32")
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -160,8 +162,10 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -184,12 +188,12 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0_rf[i, vi1_1] = -1
                     argmax_v1_rf[i, vi1_1] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0_rf: T.int32 = T.Select(
+                v_argmax_v0_rf: T.let[T.int32] = T.Select(
                     argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v0_rf[i, vi1_1],
                     idx[i, vi1_0 * 16 + vi1_1],
                 )
-                v_argmax_v1_rf: T.float32 = T.Select(
+                v_argmax_v1_rf: T.let[T.float32] = T.Select(
                     argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v1_rf[i, vi1_1],
                     val[i, vi1_0 * 16 + vi1_1],
@@ -205,10 +209,10 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
                 )
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v1[i], argmax_v1_rf[i, vi1_1]
                 )
                 argmax_v0[i] = v_argmax_v0
@@ -233,12 +237,12 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0_rf[i, vi1_0] = -1
                     argmax_v1_rf[i, vi1_0] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0_rf: T.int32 = T.Select(
+                v_argmax_v0_rf: T.let[T.int32] = T.Select(
                     argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v0_rf[i, vi1_0],
                     idx[i, vi1_0 * 16 + vi1_1],
                 )
-                v_argmax_v1_rf: T.float32 = T.Select(
+                v_argmax_v1_rf: T.let[T.float32] = T.Select(
                     argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v1_rf[i, vi1_0],
                     val[i, vi1_0 * 16 + vi1_1],
@@ -254,10 +258,10 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v0[i], argmax_v0_rf[i, vi1_0]
                 )
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v1[i], argmax_v1_rf[i, vi1_0]
                 )
                 argmax_v0[i] = v_argmax_v0
