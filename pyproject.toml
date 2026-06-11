@@ -48,18 +48,16 @@ dependencies = [
   "apache-tvm-ffi>=0.1.12",
   "ml_dtypes",
   "numpy",
-  "psutil",
   "typing_extensions",
 ]
 
 [project.optional-dependencies]
 torch = ["torch"]
-importer-onnx = ["onnx", "onnxoptimizer", "onnxruntime"]
-importer-pytorch = ["torch", "torchvision"]
-importer-tflite = ["tflite"]
-coreml = ["coremltools"]
+cuda = ["cuda-python"]
 meta-schedule = ["xgboost"]
-all = ["xgboost"]
+popen-pool = ["psutil", "cloudpickle"]
+rpc = ["tornado", "psutil", "cloudpickle"]
+all = ["xgboost", "psutil", "cloudpickle", "tornado"]
 
 [project.urls]
 Homepage = "https://tvm.apache.org/"
@@ -69,6 +67,7 @@ Repository = "https://github.com/apache/tvm"
 
 [dependency-groups]
 torch = ["torch"]
+popen-pool = ["psutil", "cloudpickle"]
 test = [
   "pytest",
   "pytest-xdist",
@@ -79,6 +78,7 @@ test = [
   "pytest-rerunfailures",
   "pytest-repeat",
   { include-group = "torch" },
+  { include-group = "popen-pool" },
 ]
 lint = ["ruff", "pre-commit"]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
