@@ -246,6 +246,17 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return access_ptr_call;
   }
 
+  // Device intrinsics are registered under both a flat name (the builtin Op)
+  // and a canonical dotted name (emitted by TVMScript and the tensor
+  // intrinsics), so compare against both.
+  static bool IsOp(const Call& call, const Op& compat_op, const char* canonical_name) {
+    if (call->op.same_as(compat_op)) {
+      return true;
+    }
+    const auto* op_node = call->op.as<OpNode>();
+    return op_node != nullptr && op_node->name == canonical_name;
+  }
+
   PrimExpr VisitExpr_(const CallNode* op) final {
     // Rewrite from/to shared or shared.dyn to/from local
     auto call = Downcast<Call>(IRMutatorWithAnalyzer::VisitExpr_(op));
@@ -254,12 +265,12 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     }
 
-    if (!call->op.same_as(builtin::ptx_ldmatrix()) && !call->op.same_as(builtin::mma_store())) {
-      return call;
-    }
-
-    if (call->op.same_as(builtin::ptx_ldmatrix())) {
-      // form: T.ptx_ldmatrix(..., smem_ptr, smem_offset)
+    // Only the legacy intrinsic forms fold the shared memory access into a
+    // tvm_access_ptr + offset, which must be rewritten here. The non-legacy
+    // forms address shared memory through BufferLoad (e.g. via address_of),
+    // which is already handled by the BufferLoad visitor above.
+    if (IsOp(call, builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy")) {
+      // form: T.ptx.ldmatrix_legacy(..., smem_ptr, smem_offset)
       // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
       auto access_ptr = call->args[5];
       PrimExpr smem_offset = call->args[6];
@@ -268,7 +279,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       new_call->args.Set(5, new_access_ptr);
       new_call->args.Set(6, IntImm(smem_offset->dtype, 0));
       return call;
-    } else if (call->op.same_as(builtin::mma_store())) {
+    } else if (IsOp(call, builtin::mma_store_legacy(), "tirx.mma_store_legacy")) {
       // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
       auto access_ptr = call->args[2];
@@ -276,9 +287,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(2, new_access_ptr);
       return call;
-    } else {
-      TVM_FFI_THROW(InternalError) << "Invalid call node: " << call;
     }
+    return call;
   }
 
   static constexpr size_t VECTORIZE_FACTOR = 8;
