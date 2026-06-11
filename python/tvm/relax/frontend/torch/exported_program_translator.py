@@ -2030,6 +2030,21 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 )
                 output_args = self._flatten_output_args(output_args)
 
+                # Functionalization in torch.export prepends mutation outputs
+                # (e.g. buffer mutations from in-place ops such as `copy_`) to the
+                # graph outputs. Only user-facing outputs should be returned so the
+                # Relax function matches the original module's calling convention.
+                output_kind = torch.export.graph_signature.OutputKind
+                output_specs = exported_program.graph_signature.output_specs
+                if len(output_specs) == len(output_args):
+                    user_outputs = tuple(
+                        arg
+                        for arg, spec in zip(output_args, output_specs)
+                        if spec.kind in (output_kind.USER_OUTPUT, output_kind.LOSS_OUTPUT)
+                    )
+                    if user_outputs:
+                        output_args = user_outputs
+
                 if unwrap_unit_return_tuple and len(output_args) == 1:
                     ret = output_args[0]
                 elif no_bind_return_tuple:
