@@ -8146,6 +8146,10 @@ def from_tflite(
         import tflite
 
         assert isinstance(model, tflite.Model)
+    except ImportError as err:
+        raise ImportError(
+            "tflite is required by the TFLite frontend. Install it with: pip install tflite"
+        ) from err
     except TypeError:
         import tflite.Model
 
