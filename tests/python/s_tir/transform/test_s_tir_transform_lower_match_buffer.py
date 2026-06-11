@@ -64,7 +64,10 @@ def transformed_buffer_load_store(a: T.handle, c: T.handle) -> None:
                 A[i * 4 + ii, j, k * 2 + kk] += C[i * 4 + ii, k * 2 + kk]
 
 
-@tvm.ir.register_op_attr("tirx.intrin_test", "")
+# Dummy intrinsic whose arguments exercise match_buffer fields.  TVMScript
+# evaluates the call eagerly (to 0), so it must NOT be registered as an op:
+# registering "tirx.intrin_test" only leaves a category-less op in the tirx
+# registry, breaking the exactly-one-category invariant for later tests.
 def intrin_test(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
     return 0
 
