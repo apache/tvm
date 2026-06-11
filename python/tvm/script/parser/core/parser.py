@@ -25,7 +25,7 @@ from typing import Any
 
 import numpy as np
 
-from tvm.error import DiagnosticError, TVMError
+from tvm.error import DiagnosticError
 from tvm.ir import GlobalVar
 
 from . import dispatch, doc
@@ -615,7 +615,7 @@ class Parser(doc.NodeVisitor):
             raise err
 
         # Only take the last line of the error message
-        if isinstance(err, TVMError):
+        if isinstance(err, RuntimeError):
             lines = list(filter(None, str(err).split("\n")))
             msg = lines[-1] if lines else (str(err) or type(err).__name__)
         elif isinstance(err, KeyError):

@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
 import pytest
 import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import TVMError, tirx
 from tvm import relax as rx
+from tvm import tirx
 from tvm.ir import Range
 
 

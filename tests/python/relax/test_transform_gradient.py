@@ -21,7 +21,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.error import TVMError
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
@@ -366,7 +365,7 @@ def test_intermediate_var_require_grads():
 
     # z does not occur in function
     z = relax.Var("z", R.Tensor((3, 3), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", [x, lv1, z])(Before)
 
 
@@ -1109,7 +1108,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(TargetNotTensor)
 
     @I.ir_module(s_tir=True)
@@ -1121,7 +1120,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(TargetNotScalar)
 
     @I.ir_module(s_tir=True)
@@ -1133,7 +1132,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(TargetNotFloat)
 
     @I.ir_module(s_tir=True)
@@ -1145,7 +1144,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", target_index=1)(ReturnScalarAndWrongTargetIndex)
 
     @I.ir_module(s_tir=True)
@@ -1158,7 +1157,7 @@ def test_report_error():
                 R.output(gv1, gv2)
             return gv1, gv2
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", target_index=2)(ReturnTupleAndWrongTargetIndex)
 
     @I.ir_module(s_tir=True)
@@ -1170,7 +1169,7 @@ def test_report_error():
                 R.output(gv)
             return gv, (gv, gv)
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", target_index=1)(IndexedTargetNotVar)
 
     @I.ir_module(s_tir=True)
@@ -1180,7 +1179,7 @@ def test_report_error():
             gv = R.sum(x0)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(NoDataflow)
 
     @I.ir_module(s_tir=True)
@@ -1195,7 +1194,7 @@ def test_report_error():
             gv1 = R.sum(x0)
             return gv1
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(MultiBlocks)
 
     @I.ir_module(s_tir=True)
@@ -1226,10 +1225,10 @@ def test_report_error():
     with pytest.raises(ValueError):
         relax.transform.Gradient("main1")(NormalModule)
     # wrong function type
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("sum")(NormalModule)
     # no such var
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", require_grads=MultiBlocks["main"].params[0])(NormalModule)
 
     @I.ir_module(s_tir=True)
@@ -1242,7 +1241,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(IntDtype)
 
     @I.ir_module(s_tir=True)
@@ -1257,7 +1256,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.Gradient("main")(IntDtypeTuple)
 
 

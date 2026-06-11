@@ -235,7 +235,7 @@ This shows the registered patterns and that matched subgraphs were turned into c
 - **Layout preferences**: NHWC channel-last layouts preferred by NPUs
 
 ### Error Handling
-- **Robust exception handling**: Uses specific `TVMError` instead of generic exceptions
+- **Robust exception handling**: Catches specific exception types instead of generic exceptions
 - **Comprehensive testing**: Validates both successful cases and error conditions
 
 ## Learn More

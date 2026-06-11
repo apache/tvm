@@ -37,7 +37,6 @@ from .runtime import DataType, DataTypeCode
 
 # tvm.error
 from . import error
-from .error import TVMError
 
 # tvm.ir
 from .ir import IRModule

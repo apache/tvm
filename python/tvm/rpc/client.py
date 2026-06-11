@@ -28,7 +28,6 @@ import tvm_ffi
 from tvm_ffi import DLDeviceType
 
 import tvm.runtime
-from tvm.error import TVMError
 from tvm.support import utils
 
 from . import _ffi_api, base, server
@@ -433,7 +432,7 @@ class TrackerSession:
             except OSError as err:
                 self.close()
                 last_err = err
-            except TVMError as err:
+            except RuntimeError as err:
                 last_err = err
         raise RuntimeError(f"Cannot request {key} after {max_retry} retry, last_error:{last_err!s}")
 
@@ -468,7 +467,7 @@ class TrackerSession:
                 sess = self.request(key, priority=priority, session_timeout=session_timeout)
                 tstart = time.time()
                 return func(sess)
-            except TVMError as err:
+            except RuntimeError as err:
                 duration = time.time() - tstart
                 # roughly estimate if the error is due to timeout termination
                 if session_timeout and duration >= session_timeout * 0.95:

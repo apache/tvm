@@ -2443,7 +2443,7 @@ def test_fuse_with_axis_separators_inconsistent_buffer_mapping():
             return gv
 
     with pytest.raises(
-        tvm.TVMError, match=r"Inconsistent buffers.*and.*mapped to the same relax var:.*"
+        RuntimeError, match=r"Inconsistent buffers.*and.*mapped to the same relax var:.*"
     ):
         relax.transform.FuseTIR()(Before)
 

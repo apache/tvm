@@ -500,7 +500,7 @@ def test_cyclic_dependency():
     relu_pat = is_op("relax.nn.relu")(conv_pat)
     add_pat = is_op("relax.add")(relu_pat, wildcard())
 
-    with pytest.raises(tvm.error.TVMError) as err:
+    with pytest.raises(RuntimeError) as err:
         relax.transform.FuseOpsByPattern(
             [("compiler_A.conv2d_relu_add", add_pat)], bind_constants=True
         )(Branch)

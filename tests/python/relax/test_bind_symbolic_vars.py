@@ -68,7 +68,7 @@ def test_error_with_duplicate_var_names():
         out: R.Tensor((N1, N2)) = R.matmul(A, B)
         return out
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"N": 64})
 
 
@@ -106,7 +106,7 @@ def test_error_with_nonexisting_var_name():
     def func(A: R.Tensor(("M", "N"))):
         return A
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"non_existing_symbolic_var": 64})
 
 
@@ -117,7 +117,7 @@ def test_error_with_nonexisting_tir_var():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({tvm.tirx.Var("M", "int64"): 64})
 
 
@@ -131,7 +131,7 @@ def test_error_with_multiple_definitions():
     tir_var = func.params[0].struct_info.shape[0]
     symbolic_var_map = {tir_var: 0, "M": 0}
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars(symbolic_var_map)
 
 
@@ -144,7 +144,7 @@ def test_error_if_output_has_undefined():
 
     outside_var = tvm.tirx.Var("outside_var", "int64")
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"M": outside_var * 2})
 
 

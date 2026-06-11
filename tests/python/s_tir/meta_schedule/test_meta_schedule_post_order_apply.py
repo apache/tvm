@@ -27,7 +27,6 @@ from tvm_ffi import register_global_func
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.error import TVMError
 from tvm.ir.module import IRModule
 from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule import TuneContext
@@ -314,7 +313,7 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
     )
     post_order_apply = context.space_generator
     with pytest.raises(
-        TVMError,
+        RuntimeError,
         match=r".*Duplicated block name matmul in function main not supported!",
     ):
         post_order_apply.generate_design_space(mod)

@@ -20,7 +20,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.error import TVMError
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var
@@ -141,7 +140,7 @@ def test_remove_unused_undef():
     root_fn = Identity["main"]
     dfb = root_fn.body.blocks[0]
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         rwt = DataflowBlockRewrite(dfb, root_fn)
         rwt.remove_unused(Var("whatever"))
 
