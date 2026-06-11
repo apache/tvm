@@ -395,7 +395,7 @@ class ProfilerEngine:
         self.cuda_arch = cuda_arch
         self.binary_prefix = binary_prefix
         self.cutlass = cutlass_path
-        self.cflags = f"-I{cutlass_path}/include -I{cutlass_path}/tools/util/include -O3 -std=c++20"
+        self.cflags = f"-I{cutlass_path}/include -I{cutlass_path}/tools/util/include -O3 -std=c++17"
         self.cflags += " -DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
         self.cflags += (
             f" -gencode=arch=compute_{cuda_arch},code=[sm_{cuda_arch},compute_{cuda_arch}]"

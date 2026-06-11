@@ -327,7 +327,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     ) -> list[str]:
         """Returns the default compile options depending on `source_format`, including the default
         inlcude paths w.r.t. `tvm_home()`, and by default,
-        it uses "-O3" and "-std=c++20".
+        it uses "-O3" and "-std=c++17".
 
         Parameters
         ----------
@@ -350,13 +350,13 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             host_flags = [
                 "-c",  # generate object file
                 "-O3",
-                "-std=c++20",
+                "-std=c++17",
             ]
         elif source_format == "cu":
             host_flags = [
                 "-c",  # generate object file
                 "-O3",
-                "-std=c++20",
+                "-std=c++17",
                 # Enable `-fPIC` for the host compiler
                 "-Xcompiler=-fPIC",
             ]
