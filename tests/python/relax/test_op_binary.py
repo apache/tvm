@@ -21,7 +21,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -284,7 +284,7 @@ def test_binary_infer_struct_info_shape_unequal_const_int(binary_arith_op: Calla
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     y0 = relax.Var("y", R.Tensor((2, 4), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(binary_arith_op(x0, y0))
 
 

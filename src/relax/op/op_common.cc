@@ -20,6 +20,7 @@
 #include "op_common.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 
 #include <algorithm>
 #include <sstream>
@@ -42,9 +43,9 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
   int expected_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != expected_input) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << op << " expects " << expected_input << " arguments"
-                     << ", but was called with " << call->args.size() << " arguments");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Operator " << op << " expects " << expected_input << " arguments"
+        << ", but was called with " << call->args.size() << " arguments";
   }
 }
 
@@ -62,10 +63,10 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
     return tensor_sinfo.value();
   } else {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << op << " requires argument " << i_arg << " ("
-                     << op->arguments[i_arg]->name << ") to be a tensor.  "
-                     << "However, the argument " << arg << " is instead of type " << sinfo);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Operator " << op << " requires argument " << i_arg << " (" << op->arguments[i_arg]->name
+        << ") to be a tensor.  "
+        << "However, the argument " << arg << " is instead of type " << sinfo;
     // Unreachable, but [[noreturn]] attribute on virtual function
     // `ReportFatal` is insufficient to silence -Wreturn-type, as
     // child class might not be [[noreturn]].
@@ -88,10 +89,9 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
                                                           const Expr& tup) {
   const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tup);
   if (tuple_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << call->op
-                     << " expects the input to be a Tuple of Tensors. However, the given input is "
-                     << tup->struct_info_->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
+        << tup->struct_info_->GetTypeKey();
   }
 
   ffi::Array<TensorStructInfo> tensor_sinfo;
@@ -99,10 +99,9 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
   for (StructInfo field_sinfo : tuple_sinfo->fields) {
     const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
     if (field_tensor_sinfo == nullptr) {
-      ctx->ReportFatal(
-          Diagnostic::Error(call)
+      TVM_FFI_VISIT_THROW(TypeError, call)
           << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << tup->struct_info_);
+          << tup->struct_info_;
     }
     tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
   }
@@ -162,8 +161,8 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
   auto infer_result = InferBinaryBroadcastShape(ctx->GetAnalyzer().get(), x1_shape, x2_shape);
   if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kConflict) {
     TVM_FFI_ICHECK(infer_result.message.has_value());
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "In " << call->op << ", " << infer_result.message.value());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "In " << call->op << ", " << infer_result.message.value();
   } else if (infer_result.status == BinaryBroadcastShapeInferResult::Status::kSuccess) {
     TVM_FFI_ICHECK(infer_result.shape.has_value());
     return infer_result.shape.value();
@@ -184,20 +183,20 @@ std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int nd
   for (int64_t axis : axes) {
     int _axis = static_cast<int>(axis);
     if (_axis < -ndim || _axis >= ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call) << "In " << call->op << ", the input axis " << _axis
-                                               << " is out of range. The input tensor has " << ndim
-                                               << " dimensions, so axis should be in range ["
-                                               << -ndim << ", " << ndim << ").");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In " << call->op << ", the input axis " << _axis
+          << " is out of range. The input tensor has " << ndim
+          << " dimensions, so axis should be in range [" << -ndim << ", " << ndim << ").";
     } else if (_axis < 0) {
       _axis = ndim + _axis;
     }
 
     if (appeared_dims_set[_axis]) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In " << call->op
-                       << ", the input axes is required to be non-repetitive. However, there are "
-                          "multiple given axes referring to axis "
-                       << _axis);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In " << call->op
+          << ", the input axes is required to be non-repetitive. However, there are "
+             "multiple given axes referring to axis "
+          << _axis;
     }
     appeared_dims_set[_axis] = true;
     axes_non_neg.push_back(_axis);

@@ -24,6 +24,7 @@
 
 #include "view.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
@@ -50,9 +51,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 4) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << call->op << " should receive 4 arguments, "
-                     << "but received " << call->args);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Operator " << call->op << " should receive 4 arguments, "
+        << "but received " << call->args;
   }
   Expr arg_data = call->args[0];
   Expr arg_shape = call->args[1];
@@ -376,9 +377,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << call->op << " should receive 1 argument, "
-                     << "but received " << call->args);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Operator " << call->op << " should receive 1 argument, "
+        << "but received " << call->args;
   }
   return GetStructInfo(call->args[0]);
 }

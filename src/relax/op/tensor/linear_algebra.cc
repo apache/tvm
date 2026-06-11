@@ -24,6 +24,7 @@
 
 #include "linear_algebra.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/topi/einsum.h>
 
@@ -86,18 +87,16 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   int x1_ndim = x1_sinfo->ndim;
   int x2_ndim = x2_sinfo->ndim;
   if (x1_ndim == 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul operands must not be scalar.  "
-                     << "However, the expression " << call << " has a LHS of " << lhs
-                     << " with struct info " << x1_sinfo
-                     << ", which is scalar (zero-dimensional) tensor.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul operands must not be scalar.  "
+        << "However, the expression " << call << " has a LHS of " << lhs << " with struct info "
+        << x1_sinfo << ", which is scalar (zero-dimensional) tensor.";
   }
   if (x2_ndim == 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul operands must not be scalar.  "
-                     << "However, the expression " << call << " has a RHS of " << rhs
-                     << " with struct info " << x2_sinfo
-                     << ", which is scalar (zero-dimensional) tensor.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul operands must not be scalar.  "
+        << "However, the expression " << call << " has a RHS of " << rhs << " with struct info "
+        << x2_sinfo << ", which is scalar (zero-dimensional) tensor.";
   }
 
   int x1_prepended = 0;
@@ -138,12 +137,11 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   PrimExpr x1_reduction_length = x1_shape->values[x1_sinfo->ndim - 1];
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
   if (analyzer->CanProve(x1_reduction_length != x2_reduction_length)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul requires the reduction length of the operands to be equal.  "
-                     << "However, the LHS " << lhs << " has shape " << x1_sinfo->shape
-                     << ", while the RHS " << rhs << " has shape " << x2_sinfo->shape
-                     << ".  The reduction dimensions of " << x1_reduction_length << " and "
-                     << x2_reduction_length << " are not equal.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul requires the reduction length of the operands to be equal.  "
+        << "However, the LHS " << lhs << " has shape " << x1_sinfo->shape << ", while the RHS "
+        << rhs << " has shape " << x2_sinfo->shape << ".  The reduction dimensions of "
+        << x1_reduction_length << " and " << x2_reduction_length << " are not equal.";
   }
 
   ffi::Array<PrimExpr> output_shape = output_shape_prefix.value();
@@ -190,14 +188,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Einsum op should take 1 argument";
   }
   ffi::Array<TensorStructInfo> operands_tensor_sinfo =
       GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (operands_tensor_sinfo.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Einsum op expects at least one tensor in the input Tuple. However, the "
-                        "given input Tuple is empty.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Einsum op expects at least one tensor in the input Tuple. However, the "
+           "given input Tuple is empty.";
   }
 
   const auto* attrs = call->attrs.as<EinsumAttrs>();
@@ -228,10 +226,10 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
     // Check the input tuple consists of tensors with same dtype
     if (tensor_sinfo->dtype != operand_dtype) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Einsum expects all input tensors to have the same dtype. However, the "
-                          "input contains tensors with dtype "
-                       << operand_dtype << " and " << tensor_sinfo->dtype);
+      TVM_FFI_VISIT_THROW(TypeError, call)
+          << "Einsum expects all input tensors to have the same dtype. However, the "
+             "input contains tensors with dtype "
+          << operand_dtype << " and " << tensor_sinfo->dtype;
     }
 
     // Get input shapes
@@ -280,8 +278,7 @@ StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
 
   // Ensure both inputs are 1D tensors
   if (x1_sinfo->ndim != 1 || x2_sinfo->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "torch.outer requires both inputs to be 1D tensors.");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "torch.outer requires both inputs to be 1D tensors.";
   }
 
   // Determine output shape

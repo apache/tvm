@@ -25,6 +25,8 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_BINARY_H_
 #define TVM_RELAX_OP_DISTRIBUTED_BINARY_H_
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include <algorithm>
 
 #include "utils.h"
@@ -65,8 +67,7 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
       output_tensor_sinfo = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
     }
   } else {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Cannot infer shape for binary broadcast operator.");
+    TVM_FFI_VISIT_THROW(InternalError, call) << "Cannot infer shape for binary broadcast operator.";
   }
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
 }

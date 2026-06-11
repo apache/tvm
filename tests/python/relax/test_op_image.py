@@ -23,7 +23,7 @@ import tvm.testing
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -241,7 +241,7 @@ def test_resize3d_infer_struct_info():
 def test_resize3d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x, size=(4, 8, 12), layout="OIHW"))
 
 
@@ -250,11 +250,11 @@ def test_resize3d_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32, 3), "float32"))
     x2 = relax.Var("x", R.Tensor("float32", ndim=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, size=(4, 8, 12), layout="NCDHW8c"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x1, size=(4, 8, 12), layout="NCDHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x2, size=(4, 8, 12)))
 
 
@@ -269,21 +269,21 @@ def test_resize3d_wrong_size_ndim():
     s5 = relax.Var("s", relax.ShapeStructInfo(ndim=0))
     s6 = relax.Var("s", relax.ShapeStructInfo())
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, (3, 3)))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s5))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, s6))
 
 
@@ -294,18 +294,18 @@ def test_resize3d_infer_struct_info_wrong_input_type():
     x2 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3, 3)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize3d(x0, size=(4, 8, 12)))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize3d(x1, size=(4, 8, 12)))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize3d(x2, s0))
 
 
 def test_resize2d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x, size=28, layout="OIHW"))
 
 
@@ -314,11 +314,11 @@ def test_resize2d_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 3, 32, 32, 3), "float32"))
     x2 = relax.Var("x", R.Tensor("float32", ndim=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, size=28, layout="NCHW16c"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x1, size=28, layout="NCHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x2, size=28))
 
 
@@ -332,19 +332,19 @@ def test_resize2d_wrong_pool_size_ndim():
     s4 = relax.Var("s", relax.ShapeStructInfo(ndim=0))
     s5 = relax.Var("s", relax.ShapeStructInfo())
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, (3, 3, 3)))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, s5))
 
 
@@ -355,11 +355,11 @@ def test_resize2d_infer_struct_info_wrong_input_type():
     x2 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize2d(x0, size=32))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize2d(x1, size=32))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.resize2d(x2, s0))
 
 
@@ -429,9 +429,9 @@ def test_affine_grid_infer_struct_info_wrong_input_type():
     x1 = relax.Var("x", R.Tensor((2, 2, 3), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.affine_grid(x0, size=(16, 16)))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.image.affine_grid(x1, s0))
 
 
@@ -440,9 +440,9 @@ def test_affine_grid_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.affine_grid(x0, size=(16, 16)))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.affine_grid(x1, size=(16, 16)))
 
 
@@ -450,9 +450,9 @@ def test_affine_grid_wrong_size_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.affine_grid(x0, (16, 16, 16)))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.image.affine_grid(x0, (16,)))
 
 

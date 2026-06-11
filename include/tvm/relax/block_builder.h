@@ -25,7 +25,6 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
@@ -112,12 +111,6 @@ class BlockBuilderNode : public ffi::Object {
    * \param function The updated function.
    */
   virtual void UpdateFunction(const GlobalVar& gv, BaseFunc function) = 0;
-
-  /*!
-   * \brief Report an error during transformation construction.
-   * \param diagnostic The diagnostic information.
-   */
-  [[noreturn]] virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
 
   //-------------------------------
   // Scope management

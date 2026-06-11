@@ -61,7 +61,6 @@
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
@@ -87,8 +86,6 @@ class PassContextNode : public ffi::Object {
   ffi::Array<ffi::String> required_pass;
   /*! \brief The list of disabled passes. */
   ffi::Array<ffi::String> disabled_pass;
-  /*! \brief The diagnostic context. */
-  mutable ffi::Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
   ffi::Map<ffi::String, Any> config;
 
@@ -133,8 +130,7 @@ class PassContextNode : public ffi::Object {
         .def_ro("required_pass", &PassContextNode::required_pass)
         .def_ro("disabled_pass", &PassContextNode::disabled_pass)
         .def_ro("instruments", &PassContextNode::instruments)
-        .def_ro("config", &PassContextNode::config)
-        .def_ro("diag_ctx", &PassContextNode::diag_ctx);
+        .def_ro("config", &PassContextNode::config);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
 };
@@ -556,6 +552,31 @@ TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pas
  * \return The pass.
  */
 TVM_DLL Pass PrintIR(ffi::String header = "");
+
+/*!
+ * \brief Enrich a pass-time error with a TVMScript-rendered, underlined source
+ *        location derived from the error's embedded VisitErrorContext.
+ *
+ * Returns an ffi::Error that preserves err's kind, original message, and
+ * backtrace, and appends the failing pass name plus the offending location
+ * rendered as TVMScript (the whole \p mod, or local to \p func when provided).
+ * The returned error drops the VisitErrorContext payload, so an outer catch
+ * that re-enriches finds no context and returns the error unchanged.
+ *
+ * Pure and total: never throws; returns \p err unchanged when there is no
+ * context, the path is unresolvable, or rendering fails.
+ *
+ * \param err The error thrown by the pass body.
+ * \param mod The IRModule the pass ran on (the access-path root, or the
+ *            container of \p func when \p func is provided).
+ * \param pass_name The name of the failing pass, shown in the message.
+ * \param func When set, resolve and render the location local to
+ *             \p mod->functions[func]; otherwise use the whole module.
+ * \return The enriched (or, on any fallback, the original) error.
+ */
+TVM_DLL ffi::Error EnrichPassErrorWithContext(
+    const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
+    ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
 
 }  // namespace transform
 }  // namespace tvm

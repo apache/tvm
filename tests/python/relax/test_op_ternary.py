@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -121,9 +121,9 @@ def test_ewise_fma_infer_struct_info_dtype_mismatch():
     z0 = relax.Var("z", R.Tensor((2, 3), "float32"))
     z1 = relax.Var("z", R.Tensor((2, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y0, z0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y1, z1))
 
 
@@ -135,9 +135,9 @@ def test_ewise_fma_infer_struct_info_ndim_mismatch():
     z0 = relax.Var("z", R.Tensor((2, 3), "float32"))
     z1 = relax.Var("z", R.Tensor(dtype="float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.ewise_fma(x, y1, z0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.ewise_fma(x, y0, z1))
 
 
@@ -159,9 +159,9 @@ def test_ewise_fma_infer_struct_info_wrong_input_type():
     y1 = relax.Var("y", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
     z = relax.Var("z", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y0, z))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y1, z))
 
 

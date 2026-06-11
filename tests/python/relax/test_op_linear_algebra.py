@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -180,9 +180,9 @@ def test_matmul_infer_struct_info_zero_rank_input():
     y0 = relax.Var("y", R.Tensor((4, 5), "float32"))
     y1 = relax.Var("y", R.Tensor((), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.matmul(x0, y1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.matmul(x1, y0))
 
 
@@ -191,7 +191,7 @@ def test_matmul_infer_struct_info_not_broadcastable():
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     y = relax.Var("y", R.Tensor((2, 8, 3, 5, 6), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.matmul(x, y))
 
 
@@ -203,9 +203,9 @@ def test_matmul_infer_struct_info_unequal_reduction_length():
     y0 = relax.Var("y", R.Tensor((6, 5), "float32"))
     y1 = relax.Var("y", R.Tensor((k + 1, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.matmul(x0, y0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.matmul(x1, y1))
 
 
@@ -236,7 +236,7 @@ def test_linear():
         _check_inference(
             bb, relax.op.linear(x1, w1, b2), relax.TensorStructInfo((2, 3, 5), "float32")
         )
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             bb.normalize(relax.op.linear(x1, w2, b1))  # error on Add with shape (2, 3, 5) and (4,)
         _check_inference(bb, relax.op.linear(x1, w2, b2), relax.TensorStructInfo((2, 3), "float32"))
         _check_inference(bb, relax.op.linear(x1, w3, b1), relax.TensorStructInfo(dtype="float32"))
@@ -332,9 +332,9 @@ def test_einsum_infer_struct_info_wrong_inputs():
     x0 = relax.Var("x0", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x1", R.Tensor((5, 5), "int32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.einsum(x0, subscripts="ii"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.einsum(x1, subscripts="ijk"))
 
 
