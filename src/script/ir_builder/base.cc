@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
@@ -44,13 +45,13 @@ void IRBuilderFrameNode::ExitWithScope() {
 
 void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
   if (IRBuilder::Current()->frames.empty()) {
-    LOG(FATAL) << "ValueError: No frames in Builder to add callback";
+    TVM_FFI_THROW(InternalError) << "ValueError: No frames in Builder to add callback";
   }
   IRBuilder::Current()->frames.back()->callbacks.push_back(callback);
 }
 
 IRBuilder::IRBuilder() {
-  ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
+  ffi::ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
   n->frames.clear();
   n->result = std::nullopt;
   data_ = n;
@@ -63,9 +64,9 @@ std::vector<IRBuilder>* ThreadLocalBuilderStack() {
 
 void IRBuilder::EnterWithScope() {
   IRBuilderNode* n = this->get();
-  CHECK(n->frames.empty()) << "ValueError: There are frame(s) left in the builder: "
-                           << n->frames.size()
-                           << ". Please use a fresh new builder every time building IRs";
+  TVM_FFI_CHECK(n->frames.empty(), ValueError)
+      << "ValueError: There are frame(s) left in the builder: " << n->frames.size()
+      << ". Please use a fresh new builder every time building IRs";
   n->result = std::nullopt;
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
   stack->push_back(*this);
@@ -73,13 +74,13 @@ void IRBuilder::EnterWithScope() {
 
 void IRBuilder::ExitWithScope() {
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
-  ICHECK(!stack->empty());
+  TVM_FFI_ICHECK(!stack->empty());
   stack->pop_back();
 }
 
 IRBuilder IRBuilder::Current() {
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
-  CHECK(!stack->empty()) << "ValueError: No builder in current scope";
+  TVM_FFI_CHECK(!stack->empty(), ValueError) << "ValueError: No builder in current scope";
   return stack->back();
 }
 
@@ -95,11 +96,11 @@ Namer::FType& Namer::vtable() {
   return inst;
 }
 
-void Namer::Name(ObjectRef node, ffi::String name) {
+void Namer::Name(ffi::ObjectRef node, ffi::String name) {
   static const FType& f = vtable();
-  CHECK(node.defined()) << "ValueError: Cannot name nullptr with: " << name;
-  CHECK(f.can_dispatch(node)) << "ValueError: Do not know how to name type \""
-                              << node->GetTypeKey();
+  TVM_FFI_CHECK(node.defined(), ValueError) << "ValueError: Cannot name nullptr with: " << name;
+  TVM_FFI_CHECK(f.can_dispatch(node), ValueError)
+      << "ValueError: Do not know how to name type \"" << node->GetTypeKey() << "\"";
   f(node, name);
 }
 
@@ -116,8 +117,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
       .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
-      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ObjectRef>)
-      .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ObjectRef>);
+      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ffi::ObjectRef>)
+      .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 
 }  // namespace ir_builder

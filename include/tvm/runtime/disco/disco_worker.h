@@ -63,7 +63,7 @@ class DiscoWorker {
   /*! \brief Main loop of the worker */
   void MainLoop();
   /*! \brief Get the worker instance on the current thread */
-  TVM_DLL static DiscoWorker* ThreadLocal();
+  TVM_RUNTIME_DLL static DiscoWorker* ThreadLocal();
   /*! \brief Set the specific register to a specific value */
   void SetRegister(int reg_id, ffi::AnyView value);
 

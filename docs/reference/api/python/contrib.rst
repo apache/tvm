@@ -25,15 +25,9 @@ tvm.contrib.cblas
     :members:
 
 
-tvm.contrib.clang
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.clang
-    :members:
-
-
-tvm.contrib.cc
-~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.cc
+tvm.contrib.coreml_runtime
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.coreml_runtime
     :members:
 
 
@@ -43,39 +37,51 @@ tvm.contrib.cublas
     :members:
 
 
+tvm.contrib.cublaslt
+~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cublaslt
+    :members:
+
+
+tvm.contrib.cudnn
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.cudnn
+    :members:
+
+
 tvm.contrib.dlpack
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.dlpack
     :members:
 
 
-tvm.contrib.emcc
+tvm.contrib.dnnl
 ~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.emcc
+.. automodule:: tvm.contrib.dnnl
     :members:
 
 
-tvm.contrib.miopen
-~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.miopen
+tvm.contrib.download
+~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.download
     :members:
 
 
-tvm.contrib.ndk
+tvm.contrib.hipblas
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.hipblas
+    :members:
+
+
+tvm.contrib.mkl
 ~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.ndk
+.. automodule:: tvm.contrib.mkl
     :members:
 
 
 tvm.contrib.nnpack
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.nnpack
-    :members:
-
-
-tvm.contrib.nvcc
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.nvcc
     :members:
 
 
@@ -91,37 +97,27 @@ tvm.contrib.random
     :members:
 
 
-tvm.contrib.rocblas
+tvm.contrib.thrust
+~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.thrust
+    :members:
+
+
+tvm.contrib.tvmjs
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.tvmjs
+    :members:
+
+
+tvm.contrib.cutlass
 ~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.rocblas
+.. automodule:: tvm.contrib.cutlass
     :members:
+    :imported-members:
 
 
-tvm.contrib.rocm
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.rocm
+tvm.contrib.hexagon
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.hexagon
     :members:
-
-
-tvm.contrib.spirv
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.spirv
-    :members:
-
-
-tvm.contrib.tar
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.tar
-    :members:
-
-
-tvm.contrib.utils
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.utils
-    :members:
-
-
-tvm.contrib.xcode
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.xcode
-    :members:
+    :imported-members:

@@ -26,10 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_set>
@@ -37,7 +37,7 @@
 
 namespace tvm {
 namespace te {
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OperationNode::RegisterReflection();
@@ -45,47 +45,43 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ComputeOpNode::RegisterReflection();
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ComputeOpNode*>(node.get());
-      p->stream << "compute(" << op->name << ", body=" << op->body << ", axis=" << op->axis
-                << ", reduce_axis=" << op->reduce_axis << ", tag=" << op->tag
-                << ", attrs=" << op->attrs << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op);
 
-static inline void AssertReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
+static inline void AssertReduceEqual(const tirx::ReduceNode* a, const tirx::ReduceNode* b) {
   const char* shared_text =
       "When a TE compute node produces multiple outputs, "
       "each of which is a reduction, "
       "each reduction must be structurally identical, "
       "except for the ReduceNode::value_index.  ";
 
-  StructuralEqual eq;
+  ffi::StructuralEqual eq;
 
-  ICHECK(a->combiner.same_as(b->combiner)) << shared_text << "However, the reduction operation "
-                                           << a->combiner << " does not match " << b->combiner;
-  ICHECK(a->source.same_as(b->source))
+  TVM_FFI_ICHECK(a->combiner.same_as(b->combiner))
+      << shared_text << "However, the reduction operation " << a->combiner << " does not match "
+      << b->combiner;
+  TVM_FFI_ICHECK(a->source.same_as(b->source))
       << shared_text << "However, the input " << a->source << " does not match " << b->source;
-  ICHECK(eq(a->axis, b->axis)) << shared_text << "However, the reduction axis " << a->axis
-                               << " does not match " << b->axis;
-  ICHECK(eq(a->condition, b->condition)) << shared_text << "However, the predicate " << a->condition
-                                         << " does not match " << b->condition;
-  ICHECK(eq(a->init, b->init)) << shared_text << "However, the initial value " << a->init
-                               << " does not match " << b->init;
+  TVM_FFI_ICHECK(eq(a->axis, b->axis))
+      << shared_text << "However, the reduction axis " << a->axis << " does not match " << b->axis;
+  TVM_FFI_ICHECK(eq(a->condition, b->condition))
+      << shared_text << "However, the predicate " << a->condition << " does not match "
+      << b->condition;
+  TVM_FFI_ICHECK(eq(a->init, b->init))
+      << shared_text << "However, the initial value " << a->init << " does not match " << b->init;
 }
 
 int ComputeOpNode::num_outputs() const { return body.size(); }
 
 DataType ComputeOpNode::output_dtype(size_t idx) const {
-  ICHECK_LT(idx, num_outputs());
+  TVM_FFI_ICHECK_LT(idx, num_outputs());
   return body[idx].dtype();
 }
 
 ffi::Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
-  ICHECK_LT(idx, num_outputs());
+  TVM_FFI_ICHECK_LT(idx, num_outputs());
   // for now, all outputs of a BaseComputeOp have the same shape
   ffi::Array<PrimExpr> shape;
   for (const auto& ivar : this->axis) {
@@ -145,8 +141,8 @@ ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ff
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->IsInstance<tir::ReduceNode>()) {
-    const tir::ReduceNode* reduce = n->body[0].as<tir::ReduceNode>();
+  if (n->body[0]->IsInstance<tirx::ReduceNode>()) {
+    const tirx::ReduceNode* reduce = n->body[0].as<tirx::ReduceNode>();
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
@@ -167,8 +163,8 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
-    tir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-      if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+    tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
+      if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
         Tensor t = Downcast<Tensor>(pload->producer);
         if (!visited.count(t)) {
           ret.push_back(t);
@@ -192,12 +188,12 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifier final : protected tir::ExprVisitor {
+class ComputeVerifier final : protected tirx::ExprVisitor {
  public:
   /// Special member functions
   //@{
   explicit ComputeVerifier(const ComputeOpNode* compute)
-      : compute_(compute), reduce_(compute->body[0].as<tir::ReduceNode>()) {}
+      : compute_(compute), reduce_(compute->body[0].as<tirx::ReduceNode>()) {}
   virtual ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
@@ -209,9 +205,10 @@ class ComputeVerifier final : protected tir::ExprVisitor {
   void Run() {
     for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
-      const tir::ReduceNode* reduce = e.as<tir::ReduceNode>();
-      ICHECK((reduce && reduce_) || (!reduce && !reduce_)) << "All ComputeOp should be consistent "
-                                                           << "with being Reduce operation or not.";
+      const tirx::ReduceNode* reduce = e.as<tirx::ReduceNode>();
+      TVM_FFI_ICHECK((reduce && reduce_) || (!reduce && !reduce_))
+          << "All ComputeOp should be consistent "
+          << "with being Reduce operation or not.";
 
       if (reduce && reduce_) {
         AssertReduceEqual(reduce, reduce_);
@@ -231,17 +228,17 @@ class ComputeVerifier final : protected tir::ExprVisitor {
     --level_;
   }
 
-  void VisitExpr_(const tir::ReduceNode* op) final {
+  void VisitExpr_(const tirx::ReduceNode* op) final {
     // Check for non top level reductions
-    ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
-                        << "Please create another tensor for further composition.";
+    TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
+                                << "Please create another tensor for further composition.";
   }
   //@}
 
  private:
-  const ComputeOpNode* compute_{nullptr};   ///< ComputeOpNode to verify
-  const tir::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
-  int level_{0};                            ///< Level of op being processed
+  const ComputeOpNode* compute_{nullptr};    ///< ComputeOpNode to verify
+  const tirx::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
+  int level_{0};                             ///< Level of op being processed
 };
 }  // namespace
 

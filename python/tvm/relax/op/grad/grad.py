@@ -21,10 +21,9 @@ We are trying to keep grad operators as simple as possible, and hope they are on
 gradients for forward operators. The struct_info inference for grad operators just returns the
 struct_info of the input.
 """
-from typing import Optional, Tuple
 
-from . import _ffi_api
 from ...expr import Expr
+from . import _ffi_api
 
 
 def no_grad(input: Expr) -> Expr:
@@ -100,7 +99,7 @@ def nll_loss_backward(
     output_grad: Expr,
     predictions: Expr,
     targets: Expr,
-    weights: Optional[Expr] = None,
+    weights: Expr | None = None,
     reduction: str = "mean",
     ignore_index: int = -100,
 ) -> Expr:
@@ -125,14 +124,14 @@ def nll_loss_backward(
 def max_pool2d_backward(
     output_grad: Expr,
     data: Expr,
-    pool_size: Tuple[int, int] = (1, 1),
-    strides: Tuple[int, int] = (1, 1),
-    padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
-    dilation: Tuple[int, int] = (1, 1),
+    pool_size: tuple[int, int] = (1, 1),
+    strides: tuple[int, int] = (1, 1),
+    padding: tuple[int, int, int, int] = (0, 0, 0, 0),
+    dilation: tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     """Backward operator of relax.nn.max_pool2d. All parameters except output_grad is the same as
     relax.nn.max_pool2d. Returns the gradient w.r.t. data.
@@ -164,14 +163,14 @@ def max_pool2d_backward(
 def avg_pool2d_backward(
     output_grad: Expr,
     data: Expr,
-    pool_size: Tuple[int, int] = (1, 1),
-    strides: Tuple[int, int] = (1, 1),
-    padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
-    dilation: Tuple[int, int] = (1, 1),
+    pool_size: tuple[int, int] = (1, 1),
+    strides: tuple[int, int] = (1, 1),
+    padding: tuple[int, int, int, int] = (0, 0, 0, 0),
+    dilation: tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     """Backward operator of relax.nn.avg_pool2d. All parameters except output_grad is the same as
     relax.nn.avg_pool2d. Returns the gradient w.r.t. data.
@@ -200,7 +199,7 @@ def avg_pool2d_backward(
     )
 
 
-def take_backward(output_grad: Expr, x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
+def take_backward(output_grad: Expr, x: Expr, indices: Expr, axis: int | None = None) -> Expr:
     """Backward operator of relax.take. All parameters except output_grad is the same as
     relax.take. Returns the gradient w.r.t. x.
 

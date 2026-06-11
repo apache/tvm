@@ -23,6 +23,7 @@
  *   into in-place versions.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
@@ -31,12 +32,73 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include "utils.h"
 
 namespace tvm {
 namespace relax {
+
+// Ops that may return a tensor sharing storage with the first argument.
+// These ops has been verified to share storage with the first argument in
+// tests/python/relax/test_dataflow_inplace.py.
+bool IsViewMemoryOp(const OpNode* op_node) {
+  // TODO: Consider to add more ops that may return a tensor sharing storage with
+  // the first argument in the future.
+  static const std::unordered_set<std::string> kViewOps = {
+      "relax.expand_dims", "relax.squeeze",
+      "relax.reshape",     "relax.permute_dims",
+      "relax.flatten",     "relax.nn.batch_flatten",
+      "relax.memory.view", "relax.memory.ensure_zero_offset",
+  };
+  return kViewOps.count(op_node->name);
+}
+
+// Look up alias ids for a call argument (only Var args are expected in dataflow blocks).
+std::unordered_set<int> GetVarAliasSetFromExpr(
+    const Expr& arg, const std::unordered_map<Var, std::unordered_set<int>>& alias_sets) {
+  if (auto* var_node = arg.as<VarNode>()) {
+    Var var = ffi::GetRef<Var>(var_node);
+    if (!alias_sets.count(var)) {
+      return {-1};
+    }
+    return alias_sets.at(var);
+  }
+  return {-1};
+}
+
+// In-place on arg `candidate` is invalid if another distinct operand may alias the same
+// storage (e.g. two expand_dims views of x bound to different vars). Reject on any shared
+// alias id; -1 in the other operand's set does not skip checking other ids. Same var twice
+// (e.g. add(z, z)) is allowed.
+bool InplaceArgDisjointFromOtherCallArgs(
+    const CallNode* call_node, int candidate,
+    const std::unordered_map<Var, std::unordered_set<int>>& alias_sets) {
+  const auto* cand_var_node = call_node->args[candidate].as<VarNode>();
+  if (!cand_var_node) {
+    return false;
+  }
+  auto cand_set = GetVarAliasSetFromExpr(call_node->args[candidate], alias_sets);
+  if (cand_set.count(-1)) {
+    return false;
+  }
+  for (size_t j = 0; j < call_node->args.size(); j++) {
+    if (static_cast<int>(j) == candidate) {
+      continue;
+    }
+    const Expr& other_arg = call_node->args[j];
+    if (other_arg.same_as(call_node->args[candidate])) {
+      continue;
+    }
+    auto other_set = GetVarAliasSetFromExpr(other_arg, alias_sets);
+    for (int alias_idx : other_set) {
+      if (cand_set.count(alias_idx)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 // Perform liveness analysis on a dataflow block, returning a map of vars to
 // pairs of indices (the liveness interval, from the starting index to the end index).
@@ -86,7 +148,7 @@ std::unordered_map<Var, std::pair<int, int>> AnalyzeLiveness(const DataflowBlock
     } else {
       // this means the var is used later but we encountered its definition now
       auto last_range = ret[defined_var];
-      CHECK_EQ(last_range.first, -1);
+      TVM_FFI_ICHECK_EQ(last_range.first, -1);
       std::pair<int, int> new_range = {i, last_range.second};
       ret[defined_var] = new_range;
     }
@@ -273,6 +335,9 @@ class AliasAnalyzer {
           } else {
             ret.insert(get_fresh_idx());
           }
+        } else if (IsViewMemoryOp(op_node) && !call_node->args.empty()) {
+          // View-like ops may share storage with their input (and with other views of it).
+          return GetAliasSet(call_node->args[0], bound_var);
         } else {
           // We are assuming most op calls return fresh values.
           // We may have to track more exceptions
@@ -314,7 +379,7 @@ PrimExpr NumElements(const ShapeExpr& shape) {
 // that is eleigible to be used for in-place computations (tensors are eligible
 // only if all their dimensions are integer constants, tuples are eligible if
 // all members are eligible though we can consider only individual members separately)
-std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSinfo(
+std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateSinfo(
     const StructInfo& result_sinfo) {
   if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
     // don't consider void dtype (don't know the size at compile time)
@@ -330,7 +395,7 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSin
     }
   } else if (auto* tuple_info = result_sinfo.as<TupleStructInfoNode>()) {
     // we can see if the whole tuple matches or go for any of the components
-    std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> ret;
+    std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
     for (auto field : tuple_info->fields) {
       auto field_candidates = GatherCandidateSinfo(field);
       ret.insert(field_candidates.begin(), field_candidates.end());
@@ -519,11 +584,10 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 /*! \brief Corresponds to a binding where at least one argument meets the conditions to be
  *  made in-place. Contains the binding index and indices of the applicable arguments
  */
-class InplaceOpportunityNode : public Object {
+class InplaceOpportunityNode : public ffi::Object {
  public:
-  // need to use Array for the benefit of the FFI
-  Integer binding_idx;
-  ffi::Array<Integer> arg_idxs;
+  int64_t binding_idx;
+  ffi::Array<int64_t> arg_idxs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -531,21 +595,23 @@ class InplaceOpportunityNode : public Object {
         .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
         .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+                              ffi::Object);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
 
-class InplaceOpportunity : public ObjectRef {
+class InplaceOpportunity : public ffi::ObjectRef {
  public:
-  TVM_DLL InplaceOpportunity(const Integer& binding_idx, const ffi::Array<Integer>& arg_idxs) {
+  TVM_DLL InplaceOpportunity(int64_t binding_idx, const ffi::Array<int64_t>& arg_idxs) {
     auto node = ffi::make_object<InplaceOpportunityNode>();
     node->binding_idx = binding_idx;
     node->arg_idxs = arg_idxs;
     data_ = std::move(node);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ObjectRef, InplaceOpportunityNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ffi::ObjectRef,
+                                             InplaceOpportunityNode);
 };
 
 // Check for in-place eligibility:
@@ -652,7 +718,8 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         std::unordered_set<int> remove_candidates;
         for (auto candidate : candidates) {
           if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live,
-                                    call_node->args[candidate], i)) {
+                                    call_node->args[candidate], i) ||
+              !InplaceArgDisjointFromOtherCallArgs(call_node, candidate, alias_sets)) {
             remove_candidates.insert(candidate);
           }
         }
@@ -667,24 +734,25 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         }
 
         // produce a list of candidates for this index
-        ffi::Array<Integer> size_candidate_list;
+        ffi::Array<int64_t> size_candidate_list;
         for (auto candidate : candidates) {
-          size_candidate_list.push_back(Integer(candidate));
+          size_candidate_list.push_back(static_cast<int64_t>(candidate));
         }
-        size_match_list.push_back(InplaceOpportunity(Integer(i), size_candidate_list));
+        size_match_list.push_back(InplaceOpportunity(static_cast<int64_t>(i), size_candidate_list));
 
         // also gather up the exact match candidates if there are any
-        ffi::Array<Integer> exact_candidate_list;
+        ffi::Array<int64_t> exact_candidate_list;
         for (auto candidate : candidates) {
           if (!exact_match_candidates.count(candidate)) {
             continue;
           }
-          exact_candidate_list.push_back(Integer(candidate));
+          exact_candidate_list.push_back(static_cast<int64_t>(candidate));
         }
         if (exact_candidate_list.empty()) {
           continue;
         }
-        exact_match_list.push_back(InplaceOpportunity(Integer(i), exact_candidate_list));
+        exact_match_list.push_back(
+            InplaceOpportunity(static_cast<int64_t>(i), exact_candidate_list));
       }
     }
   }
@@ -693,79 +761,79 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 }
 
 // Replace buffers in a PrimFunc according to the mapping.
-tir::Stmt RemapBuffers(const tir::Stmt& stmt,
-                       const ffi::Map<tir::Buffer, tir::Buffer>& buffer_map) {
-  class BufferMapper : public tir::StmtExprMutator {
+tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
+                        const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map) {
+  class BufferMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tir::Buffer, tir::Buffer>& buffer_map)
+    explicit BufferMapper(const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map)
         : buffer_map_(buffer_map) {}
 
-    tir::Stmt Remap(const tir::Stmt& stmt) { return VisitStmt(stmt); }
+    tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
-    PrimExpr VisitExpr_(const tir::BufferLoadNode* op) final {
-      auto node = Downcast<tir::BufferLoad>(tir::StmtExprMutator::VisitExpr_(op));
+    PrimExpr VisitExpr_(const tirx::BufferLoadNode* op) final {
+      auto node = Downcast<tirx::BufferLoad>(tirx::StmtExprMutator::VisitExpr_(op));
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::BufferStoreNode* op) final {
-      auto node = Downcast<tir::BufferStore>(tir::StmtExprMutator::VisitStmt_(op));
+    tirx::Stmt VisitStmt_(const tirx::BufferStoreNode* op) final {
+      auto node = Downcast<tirx::BufferStore>(tirx::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::BufferRealizeNode* op) final {
-      auto node = Downcast<tir::BufferRealize>(tir::StmtExprMutator::VisitStmt_(op));
+    tirx::Stmt VisitStmt_(const tirx::DeclBufferNode* op) final {
+      auto node = Downcast<tirx::DeclBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::DeclBufferNode* op) final {
-      auto node = Downcast<tir::DeclBuffer>(tir::StmtExprMutator::VisitStmt_(op));
+    tirx::Stmt VisitStmt_(const tirx::AllocBufferNode* op) final {
+      auto node = Downcast<tirx::AllocBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::BlockNode* op) final {
-      auto node = Downcast<tir::Block>(tir::StmtExprMutator::VisitStmt_(op));
+    tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) final {
+      auto node = Downcast<tirx::SBlock>(tirx::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =
-          node->alloc_buffers.Map([this](const tir::Buffer& b) { return AttemptRemap(b); });
+          node->alloc_buffers.Map([this](const tirx::Buffer& b) { return AttemptRemap(b); });
       node_cow->reads =
-          node->reads.Map([this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+          node->reads.Map([this](const tirx::BufferRegion& br) { return VisitBufferRegion(br); });
       node_cow->writes =
-          node->writes.Map([this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+          node->writes.Map([this](const tirx::BufferRegion& br) { return VisitBufferRegion(br); });
       node_cow->match_buffers = node->match_buffers.Map(
-          [this](const tir::MatchBufferRegion& mbr) { return VisitMatchBufferRegion(mbr); });
+          [this](const tirx::MatchBufferRegion& mbr) { return VisitMatchBufferRegion(mbr); });
       return node;
     }
 
    private:
-    tir::Buffer AttemptRemap(const tir::Buffer& buffer) {
+    tirx::Buffer AttemptRemap(const tirx::Buffer& buffer) {
       if (buffer_map_.count(buffer)) {
         return buffer_map_.at(buffer);
       }
       return buffer;
     }
 
-    tir::BufferRegion VisitBufferRegion(tir::BufferRegion region) {
+    tirx::BufferRegion VisitBufferRegion(tirx::BufferRegion region) {
       auto* region_cow = region.CopyOnWrite();
       region_cow->buffer = AttemptRemap(region_cow->buffer);
       return region;
     }
 
-    tir::MatchBufferRegion VisitMatchBufferRegion(tir::MatchBufferRegion region) {
+    tirx::MatchBufferRegion VisitMatchBufferRegion(tirx::MatchBufferRegion region) {
       auto* region_cow = region.CopyOnWrite();
       region_cow->buffer = AttemptRemap(region_cow->buffer);
       return region;
     }
 
-    const ffi::Map<tir::Buffer, tir::Buffer>& buffer_map_;
+    const ffi::Map<tirx::Buffer, tirx::Buffer>& buffer_map_;
   };
 
   BufferMapper mapper(buffer_map);
@@ -816,9 +884,9 @@ class ModuleInplaceTransformer : public ExprMutator {
     // Note: Not passing any input values for now, as we can't make any assumptions
     // about them.
     auto matches_found = FindInplaceOpportunities(block, {}, builder_);
-    ffi::Map<Binding, ffi::Array<Integer>> new_idxs;
+    ffi::Map<Binding, ffi::Array<int64_t>> new_idxs;
     for (auto match : matches_found.second) {
-      new_idxs.Set(block->bindings[match->binding_idx.IntValue()], match->arg_idxs);
+      new_idxs.Set(block->bindings[match->binding_idx], match->arg_idxs);
     }
 
     inplace_idxs = new_idxs;
@@ -860,7 +928,7 @@ class ModuleInplaceTransformer : public ExprMutator {
   // Given the call and indices of arguments that could be done in-place,
   // replace the call with a call to an in-place PrimFunc.
   // (Made public for testing.)
-  Call CreateInplaceCall(const Call& call, const ffi::Array<Integer>& inplace_indices) {
+  Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
@@ -875,9 +943,9 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto old_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
+    auto old_primfunc = Downcast<tirx::PrimFunc>(mod->Lookup(legal_op));
 
-    tir::Stmt new_body = old_primfunc->body;
+    tirx::Stmt new_body = old_primfunc->body;
 
     size_t num_outs = inplace_indices.size();
     size_t num_params = old_primfunc->params.size();
@@ -889,12 +957,12 @@ class ModuleInplaceTransformer : public ExprMutator {
     // 2. For each output var, replace its instances with the corresponding inplace index var
     // 3. Do the same for the *buffer vars* corresponding to the output vars
     // 4. Remove the output vars from the param list and buffer map
-    ffi::Map<tir::Buffer, tir::Buffer> buffer_subst_map;
-    ffi::Map<tir::Var, tir::Var> var_subst_map;
+    ffi::Map<tirx::Buffer, tirx::Buffer> buffer_subst_map;
+    ffi::Map<tirx::Var, tirx::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
       auto output_var = old_primfunc->params[num_params - num_outs + i];
-      auto inplace_var = old_primfunc->params[inplace_indices[i].IntValue()];
+      auto inplace_var = old_primfunc->params[inplace_indices[i]];
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
@@ -907,7 +975,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
     new_body =
-        tir::Substitute(new_body, [&var_subst_map](const tir::Var& v) -> ffi::Optional<PrimExpr> {
+        tirx::Substitute(new_body, [&var_subst_map](const tirx::Var& v) -> ffi::Optional<PrimExpr> {
           if (var_subst_map.count(v)) {
             return var_subst_map.at(v);
           }
@@ -922,11 +990,11 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
-    ffi::Array<tir::Var> new_params(old_primfunc->params.begin(),
-                                    old_primfunc->params.begin() + (num_params - num_outs));
+    ffi::Array<tirx::Var> new_params(old_primfunc->params.begin(),
+                                     old_primfunc->params.begin() + (num_params - num_outs));
 
-    tir::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, new_buffer_map,
-                               old_primfunc->attrs, old_primfunc->span);
+    tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, new_buffer_map,
+                                old_primfunc->attrs, old_primfunc->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end
@@ -939,7 +1007,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     new_args.Set(0, new_gv);
     legalized_call_cow->args = new_args;
 
-    ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
+    ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
     attrs->inplace_indices = inplace_indices;
     legalized_call_cow->attrs = Attrs(attrs);
 
@@ -957,44 +1025,45 @@ class ModuleInplaceTransformer : public ExprMutator {
   // (we are assuming good behavior on the user's part).
   ffi::Array<Var> func_params;
   // map of eligible bindings to indices of arguments that can be used as the in-place target
-  ffi::Map<Binding, ffi::Array<Integer>> inplace_idxs;
+  ffi::Map<Binding, ffi::Array<int64_t>> inplace_idxs;
 };
 
 namespace transform {
 
-ffi::Map<Var, ffi::Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock& block) {
+ffi::Map<Var, ffi::Array<int64_t>> DataflowLivenessAnalysis(const DataflowBlock& block) {
   auto liveness_ranges = AnalyzeLiveness(block);
-  ffi::Map<Var, ffi::Array<Integer>> ret;
+  ffi::Map<Var, ffi::Array<int64_t>> ret;
   for (auto kv : liveness_ranges) {
     ret.Set(kv.first, {kv.second.first, kv.second.second});
   }
   return ret;
 }
 
-ffi::Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, ffi::Array<Var> inputs) {
+ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
+                                                 ffi::Array<Var> inputs) {
   AliasAnalyzer analyzer;
   auto res = analyzer.Analyze(block, inputs);
   auto alias_sets = res.first;
   auto tuple_map = res.second;
-  ffi::Map<Var, ffi::Array<Integer>> new_alias_sets;
-  ffi::Map<Integer, ffi::Array<ffi::Array<Integer>>> new_tuple_map;
+  ffi::Map<Var, ffi::Array<int64_t>> new_alias_sets;
+  ffi::Map<IntImm, ffi::Array<ffi::Array<int64_t>>> new_tuple_map;
   for (auto kv : alias_sets) {
-    ffi::Array<Integer> aliases;
+    ffi::Array<int64_t> aliases;
     for (auto alias : kv.second) {
       aliases.push_back(alias);
     }
     new_alias_sets.Set(kv.first, aliases);
   }
   for (auto kv : tuple_map) {
-    ffi::Array<ffi::Array<Integer>> elem_aliases;
+    ffi::Array<ffi::Array<int64_t>> elem_aliases;
     for (auto alias_set : kv.second) {
-      ffi::Array<Integer> dim_aliases;
+      ffi::Array<int64_t> dim_aliases;
       for (auto alias : alias_set) {
         dim_aliases.push_back(alias);
       }
       elem_aliases.push_back(dim_aliases);
     }
-    new_tuple_map.Set(kv.first, elem_aliases);
+    new_tuple_map.Set(IntImm(DataType::Int(32), kv.first), elem_aliases);
   }
   return {new_alias_sets, new_tuple_map};
 }
@@ -1027,10 +1096,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
       .def("relax.testing.transform.SingleInplaceCall",
            [](const IRModule& mod, const Call& call,
-              const ffi::Array<Integer>& inplace_indices) -> ffi::Array<ObjectRef> {
+              const ffi::Array<int64_t>& inplace_indices) -> ffi::Array<ffi::ObjectRef> {
              ModuleInplaceTransformer transformer(mod);
              auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
-             return ffi::Array<ObjectRef>{ret_call, transformer.CurrentMod()};
+             return ffi::Array<ffi::ObjectRef>{ret_call, transformer.CurrentMod()};
            });
 }
 

@@ -1,3 +1,8 @@
+import pytest
+
+pytest.importorskip("jaxlib", reason="jaxlib not available")
+pytest.importorskip("jax", reason="jax not available")
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,26 +19,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841
 
 # pylint: disable=c-extension-no-member
 
 import functools
-from typing import Union, Tuple, List
-import pytest
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import tir as T
-from tvm.script import relax as R
 from tvm.relax.frontend.stablehlo import from_stablehlo
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 def generate_np_inputs(
-    input_shapes: Union[Tuple, List[Tuple]], dtype: str = "float32"
-) -> Union[np.ndarray, List[np.ndarray]]:
+    input_shapes: tuple | list[tuple], dtype: str = "float32"
+) -> np.ndarray | list[np.ndarray]:
     """Generate numpy data as the inputs of model
 
     Parameters
@@ -48,7 +54,7 @@ def generate_np_inputs(
     out: List[np.ndarray]
         numpy input data
     """
-    if not isinstance(input_shapes[0], (list, tuple)):
+    if not isinstance(input_shapes[0], list | tuple):
         return [np.random.uniform(size=input_shapes).astype(dtype)]
     out = []
     for input_shape in input_shapes:
@@ -56,7 +62,7 @@ def generate_np_inputs(
     return out
 
 
-def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
+def np2jnp(inputs_np: np.ndarray | list[np.ndarray]):
     """Convert data from numpy to jax.numpy
 
     Parameters
@@ -73,7 +79,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
 
     # Use jnp.asarray to avoid unnecessary memory copies
     inputs_jnp = []
-    if isinstance(inputs_np, (tuple, list)):
+    if isinstance(inputs_np, tuple | list):
         for input_np in inputs_np:
             inputs_jnp.append(jnp.asarray(input_np))
         return inputs_jnp
@@ -82,7 +88,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
 
 def check_correctness(
     jax_jit_mod,
-    input_shapes: Union[Tuple, List[Tuple]],
+    input_shapes: tuple | list[tuple],
     dtype: str = "float32",
 ) -> None:
     """Run a jax model and the translated TVM IRModule,
@@ -137,8 +143,8 @@ def check_correctness(
 
 
 def get_vm_res(
-    ir_mod: tvm.IRModule, weights: Union[np.ndarray, List[np.ndarray]]
-) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
+    ir_mod: tvm.IRModule, weights: np.ndarray | list[np.ndarray]
+) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
     """Compile and run an ir_module on Relax VM
 
     Parameters
@@ -329,8 +335,8 @@ def test_dot_general():
 # TODO(yongwww): fix flaky error of "invalid device ordinal"
 def test_conv():
     import jax
-    from flax import linen as nn
     import jax.random as jrandom
+    from flax import linen as nn
 
     conv = nn.Conv(64, (7, 7), (2, 2), padding=[(3, 3), (3, 3)], name="conv_init")
     input_shape = (7, 7, 5, 64)

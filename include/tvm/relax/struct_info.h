@@ -20,12 +20,13 @@
 #define TVM_RELAX_STRUCT_INFO_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cast.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/node/node.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/base.h>
 
 #include <utility>
 
@@ -293,7 +294,7 @@ class FuncStructInfoNode : public StructInfoNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FuncStructInfoNode>()
-        .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret", &FuncStructInfoNode::ret)
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
@@ -307,7 +308,7 @@ class FuncStructInfoNode : public StructInfoNode {
  */
 class FuncStructInfo : public StructInfo {
  public:
-  explicit FuncStructInfo(ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+  explicit FuncStructInfo(ffi::ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
@@ -318,7 +319,7 @@ class FuncStructInfo : public StructInfo {
    * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
-   * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
+   * \note If the ret contains variables(tirx::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity = true,
@@ -381,7 +382,7 @@ inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetStructInfoAs(const Expr& expr) {
-  ICHECK(expr->struct_info_.defined())
+  TVM_FFI_ICHECK(expr->struct_info_.defined())
       << "The struct_info is not populated, check if you have normalized the expr";
   return expr->struct_info_.as<T>();
 }
@@ -394,7 +395,7 @@ inline const T* GetStructInfoAs(const Expr& expr) {
  */
 inline StructInfo GetStructInfo(const Expr& expr) {
   auto* ptr = expr->struct_info_.as<StructInfoNode>();
-  ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
+  TVM_FFI_ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
   return ffi::GetRef<StructInfo>(ptr);
 }
 

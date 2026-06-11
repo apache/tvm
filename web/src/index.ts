@@ -21,13 +21,19 @@ export {
   Scalar, DLDevice, DLDataType,
   PackedFunc, Module, Tensor,
   TVMArray, TVMObject, VirtualMachine,
-  InitProgressCallback, InitProgressReport,
+  InitProgressCallback, InitProgressReport, FetchTensorCacheOptions,
   Instance, instantiate
 } from "./runtime";
 export {
+  ArtifactCacheType,
+  OPFSAccessMode,
+  TensorCacheAccessOptions,
   ArtifactCacheTemplate,
   ArtifactCache,
   ArtifactIndexedDBCache,
+  ArtifactOPFSCache,
+  ArtifactCrossOriginStorageCache,
+  createArtifactCache,
   hasTensorInCache,
   deleteTensorCache
 } from "./artifact_cache";
@@ -35,4 +41,5 @@ export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
 export { assert, wasmPath, LinearCongruentialGenerator } from "./support";
 export { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
+export { LRUCache, CacheState } from "./cache_state";
 export { createPolyfillWASI } from "./compact";

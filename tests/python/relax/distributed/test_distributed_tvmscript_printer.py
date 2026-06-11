@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm.testing
 from tvm.ir import Range
+from tvm.relax import TensorStructInfo
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
-from tvm.relax import TensorStructInfo
+from tvm.script.parser import tirx as T
 
 
 def _assert_print(obj, expected):
@@ -72,7 +73,7 @@ def test_dtensor_struct_info():
     )
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class TestModule:
     I.module_attrs({"device_num": 10})
     I.module_global_infos(
@@ -84,14 +85,14 @@ class TestModule:
         }
     )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_func(
         x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 y[vi, vj] = x[vi, vj] + 1.0
 
@@ -128,19 +129,20 @@ def test_module():
         TestModule,
         """
 # from tvm.script import ir as I
-# from tvm.script import tir as T
+# from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
 # from tvm.script import relax as R
 
 @I.ir_module
 class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
-        T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        T.func_attr({"tirx.noalias": True})
+        # with T.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block(""):
+            with T.sblock(""):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.reads(x[vi, vj])
                 T.writes(y[vi, vj])

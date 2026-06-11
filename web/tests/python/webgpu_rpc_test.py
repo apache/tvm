@@ -20,11 +20,12 @@ To use it, start a rpc proxy with "python -m tvm.exec.rpc_proxy".
 Connect javascript end to the websocket port and connect to the RPC.
 """
 
-import tvm
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils, tvmjs
 import numpy as np
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import tvmjs
+from tvm.support import utils
 
 proxy_host = "127.0.0.1"
 proxy_port = 9090
@@ -34,14 +35,16 @@ def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target(
+        "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    )
 
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tvm.tir.Schedule(mod)
-    (i,) = sch.get_loops(block=sch.get_block("B"))
+    sch = tvm.s_tir.Schedule(mod)
+    (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

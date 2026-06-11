@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF005
 """Internal DiscoWorker for Disco ProcessSession."""
+
 import os
 import sys
+from collections.abc import Callable
 
-from typing import Callable
+from tvm_ffi import Shape, get_global_func, register_global_func
+from tvm_ffi.core import String
 
 import tvm
-from tvm_ffi import get_global_func, register_global_func
-from tvm.runtime import Tensor, ShapeTuple, String
-from tvm.runtime import tensor
+from tvm.runtime import Tensor, tensor
 
 
 @register_global_func("tests.disco.add_one", override=True)
@@ -54,9 +56,9 @@ def _str_obj_func(x: str):
 
 
 @register_global_func("tests.disco.shape_tuple", override=True)
-def _shape_tuple_func(x: ShapeTuple):
-    assert isinstance(x, ShapeTuple)
-    return ShapeTuple(list(x) + [4, 5])
+def _shape_tuple_func(x: Shape):
+    assert isinstance(x, Shape)
+    return Shape(list(x) + [4, 5])
 
 
 @register_global_func("tests.disco.test_callback", override=True)
@@ -121,5 +123,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (KeyboardInterrupt, IOError):
+    except (OSError, KeyboardInterrupt):
         pass

@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 """Relax vm primitives."""
 
-from typing import Union
+from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm, Tuple
+from ...utils import convert_to_expr
 from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple, StringImm
-from ...utils import args_converter
 
 
-@args_converter.auto
 def alloc_storage(
     shape: Expr,
-    runtime_device_index: Union[int, Expr],
-    dtype: Union[str, Expr],
-    storage_scope: Union[str, StringImm] = "global",
+    runtime_device_index: int | Expr,
+    dtype: str | Expr,
+    storage_scope: str | StringImm = "global",
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -51,6 +49,7 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(storage_scope, str):
@@ -60,13 +59,12 @@ def alloc_storage(
     return _ffi_api.alloc_storage(shape, runtime_device_index, dtype, storage_scope)  # type: ignore
 
 
-@args_converter.auto
 def alloc_tensor(
     storage: Expr,
-    offset: Union[int, Expr],
+    offset: int | Expr,
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_ind: Union[int, Expr] = PrimValue(0),
+    dtype: str | Expr,
+    runtime_device_ind: int | Expr = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -95,6 +93,7 @@ def alloc_tensor(
     """
     if isinstance(offset, int):
         offset = PrimValue(offset)
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
@@ -117,7 +116,6 @@ def kill_object(obj: Expr) -> Call:
     return _ffi_api.kill_object(obj)  # type: ignore
 
 
-@args_converter.auto
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)
     consisting of the input tensors and the shape of the result.
@@ -135,7 +133,8 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     result : Call
         A relax Call to call_tir_dyn.
     """
-    if isinstance(args, (list, tuple)):
+    func = convert_to_expr(func)
+    if isinstance(args, list | tuple):
         args = Tuple(args)
 
     return _ffi_api.call_tir_dyn(func, args)  # type: ignore

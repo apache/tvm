@@ -14,19 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Provide abstraction for defining optimizers and a set of common optimizers."""
 
 from decimal import Decimal
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm
 
 from ..block_builder import BlockBuilder
+from ..expr import Function, TupleGetItem, Var, const
+from ..expr import Tuple as RxTuple
+from ..op import add, divide, multiply, sqrt, subtract
 from ..struct_info import TensorStructInfo, TupleStructInfo
-from ..op import add, subtract, multiply, divide, sqrt
-from ..expr import const, Var, Function, TupleGetItem, Tuple as RxTuple
 
 
 # TODO(chaofan, yixin): Migrate key logics to C++
@@ -51,7 +54,7 @@ class Optimizer:
     param_list : List[Var]
         The list of variables to optimize. Will be set in `init()`.
 
-    state : tvm.ir.Array
+    state : tvm_ffi.Array
         `state` is an runtime Array representing the state of the optimizer. Will be set in
         `init()`.
 
@@ -69,6 +72,7 @@ class Optimizer:
     For detailed examples, please see the tutorial.
 
     .. code-block:: python
+
         # Construct the optimizer
         opt = relax.optimizer.SGD(0.1)
 
@@ -99,8 +103,8 @@ class Optimizer:
 
     dtype: str
     name: str
-    param_list: List[Var]
-    state: tvm.ir.Array
+    param_list: list[Var]
+    state: tvm_ffi.Array
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -108,7 +112,7 @@ class Optimizer:
         self.state = None
         self.dtype = None
 
-    def init(self, params: Union[Var, List[Var]]) -> "Optimizer":
+    def init(self, params: Var | list[Var]) -> "Optimizer":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -133,7 +137,7 @@ class Optimizer:
         self.state = None
         return self
 
-    def _set_params_and_dtype(self, params: List[Var]) -> None:
+    def _set_params_and_dtype(self, params: list[Var]) -> None:
         """Check params is legal and set the param_list and dtype of the optimizer."""
         params_set = set()
         dtype = None
@@ -146,7 +150,7 @@ class Optimizer:
                     f"struct info {x.struct_info}"
                 )
             data_type = tvm.DataType(x.struct_info.dtype)
-            if not data_type.type_code in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
+            if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
                     f"of {x.name_hint} is {x.struct_info.dtype}"
@@ -192,6 +196,7 @@ class Optimizer:
         gradient descent method with lr = 0.1.
 
         .. code-block:: python
+
             @R.function
             def SGD(
                 params: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
@@ -225,7 +230,7 @@ class Optimizer:
 
 
 # TODO(chaofan, yixin): Support symbolic shapes
-def _get_shape_as_int_list(var: Var) -> List[int]:
+def _get_shape_as_int_list(var: Var) -> list[int]:
     return [int(val) for val in var.struct_info.shape]
 
 
@@ -242,6 +247,7 @@ class SGD(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def SGD(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             param_tuple_new, state_tuple_new = [], []
@@ -266,7 +272,7 @@ class SGD(Optimizer):
         self.lr = float(lr)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "SGD":
+    def init(self, params: Var | list[Var]) -> "SGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -354,6 +360,7 @@ class MomentumSGD(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def MomentumSGD(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             param_tuple_new, state_tuple_new = [], []
@@ -407,7 +414,7 @@ class MomentumSGD(Optimizer):
         self.dampening = float(dampening)
         self.nesterov = nesterov
 
-    def init(self, params: Union[Var, List[Var]]) -> "MomentumSGD":
+    def init(self, params: Var | list[Var]) -> "MomentumSGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -513,6 +520,7 @@ class Adam(Optimizer):
     The returned function of `get_function()` is equivalent to the following numpy code:
 
     .. code-block:: python
+
         def Adam(param_tuple, grad_tuple, state_tuple):
             num_steps = state_tuple[0]
             num_steps_new = num_steps + 1
@@ -559,7 +567,7 @@ class Adam(Optimizer):
     def __init__(
         self,
         lr: float,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-08,
         weight_decay: float = 0,
     ) -> None:
@@ -570,13 +578,14 @@ class Adam(Optimizer):
         self.eps = float(eps)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "Adam":
+    def init(self, params: Var | list[Var]) -> "Adam":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
         The state of Adam is
 
         .. code-block:: python
+
             (
                 num_steps,
                 beta_0_prod, # beta0 ** num_steps

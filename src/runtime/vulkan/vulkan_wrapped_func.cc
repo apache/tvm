@@ -19,21 +19,22 @@
 
 #include "vulkan_wrapped_func.h"
 
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/support/io.h>
 
 #include <utility>
 
-#include "../file_utils.h"
+#include "../../support/bytes_io.h"
 #include "vulkan_device_api.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
+void VulkanWrappedFunc::Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr,
                              const std::string& func_name, size_t num_buffer_args,
                              size_t num_pack_args,
-                             const std::vector<std::string>& launch_param_tags) {
+                             const ffi::Array<ffi::String>& launch_param_tags) {
   m_ = m;
   sptr_ = sptr;
   func_name_ = func_name;
@@ -74,7 +75,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     device.ThreadLocalStream().Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
-      ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
+      TVM_FFI_ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
@@ -189,7 +190,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   for (size_t device_id = 0; device_id < ecache_.size(); ++device_id) {
     for (auto& kv : ecache_[device_id]) {
       auto& pe = kv.second;
-      ICHECK(pe);
+      TVM_FFI_ICHECK(pe);
       const auto& device = VulkanDeviceAPI::Global()->device(device_id);
 
       if (pe->descriptor_update_template != VK_NULL_HANDLE) {
@@ -206,16 +207,16 @@ VulkanModuleNode::~VulkanModuleNode() {
 }
 
 ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
-  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return std::nullopt;
-  const FunctionInfo& info = it->second;
+  ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
+  auto opt_info = fmap_.Get(name);
+  if (!opt_info.has_value()) return std::nullopt;
+  FunctionInfo info = opt_info.value();
   VulkanWrappedFunc f;
-  size_t num_buffer_args = NumBufferArgs(info.arg_types);
-  f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-         info.launch_param_tags);
-  return PackFuncNonBufferArg(std::move(f), info.arg_types);
+  size_t num_buffer_args = NumBufferArgs(info->arg_types);
+  f.Init(this, sptr_to_self, name, num_buffer_args, info->arg_types.size() - num_buffer_args,
+         info->launch_param_tags);
+  return PackFuncNonBufferArg(std::move(f), info->arg_types);
 }
 
 std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
@@ -231,8 +232,8 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   auto pe = std::make_shared<VulkanPipeline>();
   {
     // create shader
-    auto sit = smap_.find(func_name);
-    ICHECK(sit != smap_.end());
+    auto sit = internal_smap_.find(func_name);
+    TVM_FFI_ICHECK(sit != internal_smap_.end());
     pe->use_ubo = sit->second.flag & (1 << ShaderMetaDataFlagMask::kUseUBO);
     const std::vector<uint32_t>& data = sit->second.data;
     VkShaderModuleCreateInfo shader_cinfo;
@@ -285,9 +286,10 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   };
 
   {
-    auto fit = fmap_.find(func_name);
-    ICHECK(fit != fmap_.end());
-    for (DLDataType arg_type : fit->second.arg_types) {
+    auto opt_info = fmap_.Get(func_name);
+    TVM_FFI_ICHECK(opt_info.has_value());
+    FunctionInfo finfo = opt_info.value();
+    for (DLDataType arg_type : finfo->arg_types) {
       if (arg_type.code == kDLOpaqueHandle) {
         push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         ++num_buffer;
@@ -353,7 +355,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (0 < nbytes_scalars && !pe->use_ubo) {
     playout_cinfo.pushConstantRangeCount = 1;
     playout_cinfo.pPushConstantRanges = &crange;
-    ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
+    TVM_FFI_ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
         << "The Vulkan shader uses " << crange.size
         << " bytes of push constants, but the device only supports "
         << device.device_properties.max_push_constants_size << "bytes. "
@@ -403,33 +405,32 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
-  std::string fmt = GetFileFormat(file_name, format);
-  ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
-  std::string meta_file = GetMetaFilePath(file_name);
-  SaveMetaDataToFile(meta_file, fmap_);
-  std::string data_bin;
-  dmlc::MemoryStringStream fs(&data_bin);
-  dmlc::Stream* stream = &fs;
-  uint32_t magic = kVulkanModuleMagic;
-  stream->Write(magic);
-  stream->Write(smap_);
-  SaveBinaryToFile(file_name, data_bin);
-}
-
 ffi::Bytes VulkanModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmt_);
-  stream->Write(fmap_);
-  stream->Write(smap_);
-  return ffi::Bytes(buffer);
+  // NOTE: serialization format MUST remain byte-identical to
+  // target::VulkanFallbackModuleNode::SaveToBytes in
+  // src/target/vulkan/vulkan_fallback_module.cc.  This file is the
+  // source of truth; the fallback follows.
+  // 3 fields only — the source map is in-memory inspection material and
+  // is NEVER serialized (matches upstream behavior for all backends).
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmt_);
+  stream.Write(fmap_);
+  stream.Write(smap_);
+  return ffi::Bytes(std::move(result));
 }
 
 ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {
-  // can only return disassembly code.
-  return source_;
+  if (auto it = source_.find(format); it != source_.end()) {
+    return (*it).second;
+  }
+  if (format.empty()) {
+    // Default: aggregated SPIR-V text dump (key "spv").
+    if (auto it = source_.find("spv"); it != source_.end()) {
+      return (*it).second;
+    }
+  }
+  return ffi::String();
 }
 
 }  // namespace vulkan

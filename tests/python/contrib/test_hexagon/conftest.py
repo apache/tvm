@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon testing fixtures used to deduce testing argument
-    values from testing parameters """
+"""Hexagon testing fixtures used to deduce testing argument
+values from testing parameters"""
 
-# Disabling invalid-name check as the name is expected to be exactly this by pytest
-# pylint: disable=invalid-name
-pytest_plugins = [
-    "tvm.contrib.hexagon.pytest_plugin",
-]
+# pytest 9 no longer supports declaring ``pytest_plugins`` in a
+# non-rootdir conftest, so re-export the plugin's hooks and fixtures
+# here instead. The explicit import covers the underscore-prefixed
+# fixture that the wildcard import skips.
+# ruff: noqa: F401, F403
+from tvm.contrib.hexagon.pytest_plugin import *
+from tvm.contrib.hexagon.pytest_plugin import _tracker_info

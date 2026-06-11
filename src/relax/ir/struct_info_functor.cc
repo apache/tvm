@@ -21,6 +21,7 @@
  * \file struct_info_functor.cc
  * \brief Implementations of struct info functors.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/struct_info_functor.h>
 
 namespace tvm {
@@ -146,7 +147,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const FuncStructInfoNode* op) {
   if (params.same_as(op->params) && ret.same_as(op->ret)) {
     return ffi::GetRef<StructInfo>(op);
   } else {
-    ICHECK(ret.defined()) << "FuncStructInfo that contains params must contain ret";
+    TVM_FFI_ICHECK(ret.defined()) << "FuncStructInfo that contains params must contain ret";
     return FuncStructInfo(params.value(), ret, op->purity, op->span);
   }
 }

@@ -52,15 +52,15 @@ void HexagonHtp::Acquire() {
   int nErr;
 
   if ((nErr = HAP_compute_res_attr_init(&compute_res_attr))) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_attr_init failed\n";
+    TVM_FFI_THROW(InternalError) << "HAP_compute_res_attr_init failed\n";
   }
   if ((nErr = HAP_compute_res_attr_set_hmx_param(&compute_res_attr, 1))) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_attr_set_hmx_param failed\n";
+    TVM_FFI_THROW(InternalError) << "HAP_compute_res_attr_set_hmx_param failed\n";
   }
   context_id_ = HAP_compute_res_acquire(&compute_res_attr, COMPUTE_RES_ACQ_TIMEOUT);
 
   if (!context_id_) {
-    LOG(FATAL) << "InternalError: HAP_compute_res_acquire failed\n";
+    TVM_FFI_THROW(InternalError) << "HAP_compute_res_acquire failed\n";
   }
 }
 
@@ -70,7 +70,7 @@ void HexagonHtp::Lock() {
   int nErr;
 
   if ((nErr = HAP_compute_res_hmx_lock(context_id_))) {
-    LOG(FATAL) << "InternalError: Unable to lock HTP!";
+    TVM_FFI_THROW(InternalError) << "Unable to lock HTP!";
   }
 }
 

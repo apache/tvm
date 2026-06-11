@@ -29,17 +29,17 @@ TVM_FFI_STATIC_INIT_BLOCK() { IRModuleFrameNode::RegisterReflection(); }
 
 void IRModuleFrameNode::ExitWithScope() {
   ffi::Map<GlobalVar, BaseFunc> func_map;
-  CHECK_EQ(functions.size(), global_var_map.size())
+  TVM_FFI_ICHECK_EQ(functions.size(), global_var_map.size())
       << "All functions must be defined in the IRModule. Got " << global_var_map.size()
       << "declared function(s), but only " << functions.size() << "defined function(s).";
   for (const auto& kv : functions) {
     const GlobalVar& gv = kv.first;
     const BaseFunc& func = kv.second;
-    CHECK(func.defined()) << "ValueError: function " << gv->name_hint << " is not defined";
+    TVM_FFI_CHECK(func.defined(), ValueError) << "function " << gv->name_hint << " is not defined";
     func_map.Set(gv, func);
   }
   IRBuilder builder = IRBuilder::Current();
-  ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
+  TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
   auto dict_attrs = DictAttrs(attrs);
   builder->result = tvm::IRModule(func_map, {}, dict_attrs, global_infos);
 }

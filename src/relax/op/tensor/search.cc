@@ -24,6 +24,7 @@
 
 #include "search.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
@@ -58,9 +59,8 @@ StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo boundaries_info = input_sinfo[1];
 
   if (!boundaries_info->IsUnknownNdim() && boundaries_info->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Bucketize requires boundary to be 1-D array but got "
-                     << boundaries_info->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Bucketize requires boundary to be 1-D array but got " << boundaries_info->ndim;
   }
 
   auto attrs = call->attrs.as<BucketizeAttrs>();
@@ -85,7 +85,7 @@ TVM_REGISTER_OP("relax.bucketize")
                   "1-D tensor, must contain a strictly increasing sequence, or the return value is "
                   "undefined.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBucketize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
@@ -120,10 +120,10 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (!cond_sinfo->dtype.is_bool()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Where requires the input condition tensor to have boolean dtype. However, "
-                        "the given condition dtype is "
-                     << cond_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Where requires the input condition tensor to have boolean dtype. However, "
+           "the given condition dtype is "
+        << cond_sinfo->dtype;
   }
   DataType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_sinfo, x2_sinfo);
 
@@ -156,7 +156,7 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
       }
       return TensorStructInfo(output_dtype, output_ndim);
     }
-    ICHECK_EQ(static_cast<int>(broadcasted_shape.value().size()), output_ndim);
+    TVM_FFI_ICHECK_EQ(static_cast<int>(broadcasted_shape.value().size()), output_ndim);
     if (vdev.defined()) {
       return TensorStructInfo(ShapeExpr(broadcasted_shape.value()), output_dtype, vdev);
     }
@@ -184,7 +184,7 @@ TVM_REGISTER_OP("relax.where")
     .add_argument("x1", "Tensor", "The first input tensor.")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.argmax & relax.argmin */
 
@@ -206,7 +206,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     out_ndim = kUnknownNDim;
   } else {
     out_ndim = data_sinfo->ndim - 1;
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   DataType out_dtype = DataType::Int(64);
@@ -243,26 +243,26 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
       out_shape.push_back(IntImm(out_dtype, /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }
 
-#define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                    \
-  Expr OpName(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {                \
-    ObjectPtr<ArgmaxArgminAttrs> attrs = ffi::make_object<ArgmaxArgminAttrs>();    \
-    attrs->axis = std::move(axis);                                                 \
-    attrs->keepdims = std::move(keepdims);                                         \
-    static const Op& op = Op::Get("relax." #OpName);                               \
-    return Call(op, {std::move(x)}, Attrs(attrs));                                 \
-  }                                                                                \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \
-  }                                                                                \
-  TVM_REGISTER_OP("relax." #OpName)                                                \
-      .set_num_inputs(1)                                                           \
-      .add_argument("x", "Tensor", "The input data tensor")                        \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin) \
-      .set_attr<Bool>("FPurity", Bool(true));
+#define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                      \
+  Expr OpName(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {                  \
+    ffi::ObjectPtr<ArgmaxArgminAttrs> attrs = ffi::make_object<ArgmaxArgminAttrs>(); \
+    attrs->axis = std::move(axis);                                                   \
+    attrs->keepdims = std::move(keepdims);                                           \
+    static const Op& op = Op::Get("relax." #OpName);                                 \
+    return Call(op, {std::move(x)}, Attrs(attrs));                                   \
+  }                                                                                  \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                      \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);              \
+  }                                                                                  \
+  TVM_REGISTER_OP("relax." #OpName)                                                  \
+      .set_num_inputs(1)                                                             \
+      .add_argument("x", "Tensor", "The input data tensor")                          \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin)   \
+      .set_attr<bool>("FPurity", true);
 
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmax);
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmin);

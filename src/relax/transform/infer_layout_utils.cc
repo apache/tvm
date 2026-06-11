@@ -18,6 +18,7 @@
  */
 #include "infer_layout_utils.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "utils.h"
@@ -25,8 +26,8 @@
 namespace tvm {
 namespace relax {
 
-using tir::IterVar;
-using tir::Layout;
+using tirx::IterVar;
+using tirx::SLayout;
 
 std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
                                       const std::string& desired_str) {
@@ -34,41 +35,43 @@ std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::stri
   for (const char& c : desired_str) {
     if (std::isupper(c)) {
       auto res = src_str.find(c, 0);
-      ICHECK(res != std::string::npos) << "Invalid Layout:"
-                                       << "can't find " << c << " in source layout" << src_str;
+      TVM_FFI_ICHECK(res != std::string::npos)
+          << "Invalid SLayout:"
+          << "can't find " << c << " in source layout" << src_str;
       out.push_back(ref_str[res]);
     } else if (isdigit(c)) {
       out.push_back(c);
     } else if (std::islower(c)) {
       auto res = src_str.find(std::toupper(c), 0);
-      ICHECK(res != std::string::npos) << "Invalid Layout:"
-                                       << "can't find " << c << " in source layout" << src_str;
+      TVM_FFI_ICHECK(res != std::string::npos)
+          << "Invalid SLayout:"
+          << "can't find " << c << " in source layout" << src_str;
       out.push_back(std::tolower(ref_str[res]));
     }
   }
   return out;
 }
 
-Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired) {
+SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLayout& desired) {
   std::string ref_str = ref.name();
   std::string src_str = src.name();
   std::string desired_str = desired.name();
   std::string out = TransposeSubLayoutStrLike(ref_str, src_str, desired_str);
-  return Layout(out);
+  return SLayout(out);
 }
 
-Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst) {
-  ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
+SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst) {
+  TVM_FFI_ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
       << "Layouts must have the same size";
   std::vector<IterVar> axes;
   for (size_t i = 0; i < src.ndim(); ++i) {
     axes.push_back(input->axes[src.IndexOf(dst[i])]);
   }
-  return Layout(axes);
+  return SLayout(axes);
 }
 
-ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const Layout& dst) {
-  ICHECK(src.ndim() == dst.ndim() && input.size() == src.ndim())
+ffi::String TransposeStrLike(const ffi::String& input, const SLayout& src, const SLayout& dst) {
+  TVM_FFI_ICHECK(src.ndim() == dst.ndim() && input.size() == src.ndim())
       << "Layouts must have the same size";
   std::string axes;
   for (size_t i = 0; i < src.ndim(); ++i) {
@@ -77,7 +80,7 @@ ffi::String TransposeStrLike(const ffi::String& input, const Layout& src, const 
   return axes;
 }
 
-int FindAxis(const Layout& dst, int axis) {
+int FindAxis(const SLayout& dst, int axis) {
   axis = (axis + dst.ndim()) % dst.ndim();
   std::string layout_name = dst.name();
   layout_name.erase(std::remove_if(layout_name.begin(), layout_name.end(),
@@ -86,17 +89,17 @@ int FindAxis(const Layout& dst, int axis) {
   return layout_name.find('A' + axis);
 }
 
-Layout InitialLayout(int ndim) {
-  ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return Layout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+SLayout InitialLayout(int ndim) {
+  TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
 }
 
 LayoutDecision InitialLayoutDecision(int ndim) {
   if (ndim == kUnknownNDim) {
     return LayoutDecision::InitUnknownDim();
   }
-  ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return Layout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+  TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
 }
 
 NLayout InitialNLayout(const StructInfo& sinfo) {
@@ -113,7 +116,7 @@ NLayout InitialNLayout(const Expr& expr) { return InitialNLayout(GetStructInfo(e
 
 LayoutDecision GetLayoutDecision(const VarLayoutMap& var_layout_map, const Expr& arg) {
   NLayout nlayout = GetNLayout(var_layout_map, arg);
-  ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << arg;
+  TVM_FFI_ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << arg;
   return nlayout.LeafValue();
 }
 
@@ -148,12 +151,13 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
   if (src_ndim == dst_ndim) {
     return src;
   } else {
-    ICHECK_LT(src_ndim, dst_ndim) << "Cannot broadcast from " << src_ndim << " to " << dst_ndim;
+    TVM_FFI_ICHECK_LT(src_ndim, dst_ndim)
+        << "Cannot broadcast from " << src_ndim << " to " << dst_ndim;
     std::string layout = InitialLayout(dst_ndim - src_ndim).name();
     for (int i = 0; i < src_ndim; ++i) {
       layout.push_back(src->layout.name()[i] + dst_ndim - src_ndim);
     }
-    return LayoutDecision(Layout(layout));
+    return LayoutDecision(SLayout(layout));
   }
 }
 

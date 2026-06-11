@@ -14,30 +14,37 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821, F841
 
 import ctypes
+
 import numpy as np
-from tvm.contrib import cc, utils, popen_pool, tar
+import pytest
+
 import tvm
 import tvm.testing
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tirx as T
+from tvm.support import cc, popen_pool, tar, utils
 
 
 @tvm.testing.uses_gpu
 def test_cuda_multi_lib():
+    pytest.importorskip("cloudpickle")
+
     # test combining two system lib together
     # each contains a fatbin component in cuda
     dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
-            print("skip because %s is not enabled..." % device)
+            print(f"skip because {device} is not enabled...")
             return
 
     @tvm.script.ir_module
     class ModA:
         I.module_attrs({"system_lib_prefix": "modA_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -48,7 +55,7 @@ def test_cuda_multi_lib():
     class ModB:
         I.module_attrs({"system_lib_prefix": "modB_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):

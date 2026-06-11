@@ -23,26 +23,21 @@
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
   impure external function callings, inplace mutation, etc.
 """
+
 from collections import OrderedDict
+from collections.abc import Callable, Iterator, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
     Union,
 )
 
 import numpy as np  # type: ignore
 
-from tvm import tir
+import tvm.runtime
+from tvm import tirx
 from tvm.ir import IRModule
 from tvm.ir.transform import Pass
-import tvm.runtime
 from tvm.runtime import Device
 from tvm.runtime import device as as_device
 from tvm.runtime.vm import VirtualMachine
@@ -122,13 +117,31 @@ class Tensor(_TensorOp):
         return Tensor(_expr=rx.const(data))
 
     @staticmethod
-    def from_scalar(data: Union[int, float], dtype: str) -> "Tensor":
+    def from_scalar(data: int | float, dtype: str) -> "Tensor":
         """Construct a tensor from a scalar with dtype specified."""
         return Tensor(_expr=rx.const(data, dtype=dtype))
 
     @staticmethod
     def from_struct_info(struct_info: rx.TensorStructInfo, name: str = "tensor") -> "Tensor":
-        """Construct a nn.Tensor from relax TensorStructInfo"""
+        """Construct a nn.Tensor from a Relax TensorStructInfo.
+
+        TensorStructInfo is the Relax type-level description of a tensor, carrying its shape
+        and dtype without holding actual data. This factory creates an unbound placeholder
+        ``nn.Tensor`` that can be used as a symbolic input when tracing an ``nn.Module``.
+
+        Parameters
+        ----------
+        struct_info : rx.TensorStructInfo
+            The struct info describing the tensor's shape and dtype.
+
+        name : str
+            Name hint for the underlying Relax variable.
+
+        Returns
+        -------
+        tensor : Tensor
+            A symbolic ``nn.Tensor`` backed by a ``relax.Var`` with the given struct info.
+        """
         return Tensor(
             _expr=rx.Var(
                 name_hint=name,
@@ -138,7 +151,7 @@ class Tensor(_TensorOp):
 
     @staticmethod
     def placeholder(
-        shape: Sequence[Union[int, str, tir.PrimExpr]],
+        shape: Sequence[int | str | tirx.PrimExpr],
         dtype: str,
         name: str = "tensor",
     ) -> "Tensor":
@@ -146,20 +159,20 @@ class Tensor(_TensorOp):
         never be created directly by users in usual cases, and the only exception is to indicate
         the shape/dtype of return values of an external function.
 
-        If shape is a string `name`, we create a symbolic shape `tvm.tir.Var(name, "int64")`.
+        If shape is a string `name`, we create a symbolic shape `tvm.tirx.Var(name, "int64")`.
         """
         new_shape = []
         for expr in shape:
-            if isinstance(expr, (int, tir.IntImm)):
+            if isinstance(expr, int | tirx.IntImm):
                 expr = int(expr)
                 assert expr >= 0
                 new_shape.append(expr)
                 continue
             if isinstance(expr, str):
-                expr = tir.Var(expr, "int64")
+                expr = tirx.Var(expr, "int64")
                 new_shape.append(expr)
                 continue
-            if not isinstance(expr, tir.PrimExpr):
+            if not isinstance(expr, tirx.PrimExpr):
                 raise TypeError(f"Invalid shape: {shape}")
             assert expr.dtype == "int64"
             new_shape.append(expr)
@@ -174,21 +187,21 @@ class Tensor(_TensorOp):
         )
 
     @property
-    def shape(self) -> List[Union[int, tir.PrimExpr]]:
+    def shape(self) -> list[int | tirx.PrimExpr]:
         """Returns the shape of the tensor as a list of integers.
 
-        An integer can be a python int or tvm.tir.PrimExpr, depending on whether the shape is
-        fully static, for example, [1, 2, tvm.tir.Var("n")] is a valid shape where the last
+        An integer can be a python int or tvm.tirx.PrimExpr, depending on whether the shape is
+        fully static, for example, [1, 2, tvm.tirx.Var("n")] is a valid shape where the last
         dimension is dynamic while the first two dimensions are always static constants.
 
         Returns
         -------
-        shape : List[Union[int, tir.PrimExpr]]
+        shape : List[Union[int, tirx.PrimExpr]]
             The shape of the tensor
         """
 
-        def _simplify(expr: tir.PrimExpr):
-            return expr.value if isinstance(expr, tir.IntImm) else expr
+        def _simplify(expr: tirx.PrimExpr):
+            return expr.value if isinstance(expr, tirx.IntImm) else expr
 
         shape_sinfo: ShapeStructInfo = self._expr.struct_info.shape.struct_info
         return [_simplify(x) for x in shape_sinfo.values]
@@ -225,22 +238,22 @@ class Parameter(Tensor):
     it is called a bound parameter, otherwise it is called an unbound parameter.
     """
 
-    _data: Optional[Tensor]
-    attrs: Dict[str, Any]
+    _data: Tensor | None
+    attrs: dict[str, Any]
 
     def __init__(
         self,
-        shape: Sequence[Union[int, str, tir.PrimExpr]],
-        dtype: Optional[str] = None,
+        shape: Sequence[int | str | tirx.PrimExpr],
+        dtype: str | None = None,
     ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
         concrete values.
 
         Parameters
         ----------
-        shape : Sequence[Union[int, str, tir.PrimExpr]]
+        shape : Sequence[Union[int, str, tirx.PrimExpr]]
             The shape of the parameter. If it is a string `name`, we create a symbolic shape
-            `tvm.tir.Var(name, "int64")`.
+            `tvm.tirx.Var(name, "int64")`.
         dtype : Optional[str]
             The data type of the parameter. If not specified, the default dtype will be used.
         """
@@ -251,7 +264,7 @@ class Parameter(Tensor):
         self.attrs = OrderedDict()
 
     @property
-    def data(self) -> Optional[Tensor]:
+    def data(self) -> Tensor | None:
         """Returns the concrete value of the parameter if it is bound to a concrete value,
         otherwise returns None. The returned value is a tvm.runtime.Tensor."""
         return self._data
@@ -282,7 +295,7 @@ class Parameter(Tensor):
             raise ValueError(f"Dtype mismatch: expected {self.dtype}, got {data.dtype}")
         self._data = data
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
         """Change the dtype of the parameter if it is not bound to any concrete data"""
         if dtype is not None:
             if self._data is not None:
@@ -317,24 +330,24 @@ class Effect:
     effects, for example, print. It is used to represent the output of a computation.
     """
 
-    def emit_init(self, name_hint: str, builder: BlockBuilder) -> List[rx.DataflowVar]:
+    def emit_init(self, name_hint: str, builder: BlockBuilder) -> list[rx.DataflowVar]:
         """Emit the initialization of the effect. This method is called by the compiler to
         initialize the effect."""
         raise NotImplementedError
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         """Create the implicit inputs to a relax.Function that represents the side effect"""
         raise NotImplementedError
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         """Set the variables that represents the effect"""
         raise NotImplementedError
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         """finalize the effect as the implicit return value of a relax.Function"""
         raise NotImplementedError
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
         """Convert the effect to specific dtype. Usually it is no-op for most of the effects"""
 
 
@@ -342,7 +355,7 @@ class Module(SubroutineMixin):
     """Base class for neural network components. Subclass it to build your models.
     Modules can nest within each other in a tree structure using regular attribute assignment."""
 
-    def named_parameters(self, prefix: str = "") -> Iterator[Tuple[str, Parameter]]:
+    def named_parameters(self, prefix: str = "") -> Iterator[tuple[str, Parameter]]:
         """This method provides an iterator over module parameters,
         yielding both the parameter name and its corresponding value.
 
@@ -371,8 +384,8 @@ class Module(SubroutineMixin):
             yield param
 
     def state_dict(
-        self, *, prefix: str = "", destination: Optional[Dict[str, Parameter]] = None
-    ) -> Dict[str, Parameter]:
+        self, *, prefix: str = "", destination: dict[str, Parameter] | None = None
+    ) -> dict[str, Parameter]:
         """Returns a dictionary containing references to the whole state of the module.
 
         Parameters
@@ -396,8 +409,8 @@ class Module(SubroutineMixin):
         return destination
 
     def load_state_dict(
-        self, state_dict: Dict[str, Parameter], strict: bool = True
-    ) -> Tuple[List[str], List[str]]:
+        self, state_dict: dict[str, Parameter], strict: bool = True
+    ) -> tuple[list[str], list[str]]:
         """This function copies parameters and buffers from the state_dict into the current module
         and its descendants. If `strict` is set to True, the keys in the `state_dict` must exactly
         match the keys returned by the `state_dict()` function of this module.
@@ -416,8 +429,8 @@ class Module(SubroutineMixin):
             A tuple of two lists: the missing keys and the unexpected keys.
         """
         self_state_dict = self.state_dict()
-        missing_keys: List[str] = []
-        unexpected_keys: List[str] = []
+        missing_keys: list[str] = []
+        unexpected_keys: list[str] = []
         for key, value in state_dict.items():
             if key not in self_state_dict:
                 unexpected_keys.append(key)
@@ -436,7 +449,7 @@ class Module(SubroutineMixin):
             raise NotImplementedError(f"Module {type(self)} does not have a `forward` method")
         return self.forward(*args, **kwargs)  # pylint: disable=no-member
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
         """Convert the module to specific dtype recursively"""
         for _, item in self.__dict__.items():
             if hasattr(item, "to") and callable(item.to):
@@ -449,17 +462,10 @@ class Module(SubroutineMixin):
         spec: "_spec.ModuleSpecType",
         debug: bool = False,
         allow_extern: bool = False,
-    ) -> Union[
-        Tuple[
-            IRModule,
-            List[Tuple[str, Parameter]],
-        ],
-        Tuple[
-            IRModule,
-            List[Tuple[str, Parameter]],
-            List["ExternModule"],
-        ],
-    ]:
+    ) -> (
+        tuple[IRModule, list[tuple[str, Parameter]]]
+        | tuple[IRModule, list[tuple[str, Parameter]], list["ExternModule"]]
+    ):
         """Export the module to TVM IRModule and parameters
 
         Parameters
@@ -499,12 +505,41 @@ class Module(SubroutineMixin):
     def jit(  # pylint: disable=too-many-arguments
         self,
         spec: "_spec.ModuleSpec",
-        device: Union[str, Device] = "cpu",
-        pipeline: Union[None, str, Pass] = "default_build",
+        device: str | Device = "cpu",
+        pipeline: None | str | Pass = "default_build",
         out_format: str = "torch",
         debug: bool = False,
     ) -> Any:
-        """Just-in-time compilation of a nn.model to an executable"""
+        """Just-in-time compile an ``nn.Module`` into a callable executable.
+
+        The method exports the module to a Relax IRModule, applies the given compilation
+        pipeline, builds a Relax VM executable, and wraps the result so it can be called
+        directly (e.g. with PyTorch tensors when ``out_format="torch"``).
+
+        Parameters
+        ----------
+        spec : _spec.ModuleSpec
+            A specification mapping each module input to its shape and dtype.
+
+        device : Union[str, Device]
+            The device to compile and run on (e.g. ``"cpu"``, ``"cuda"``).
+
+        pipeline : Union[None, str, Pass]
+            The Relax compilation pipeline to apply. ``"default_build"`` uses the standard
+            optimization pipeline; ``None`` skips pipeline passes.
+
+        out_format : str
+            Output wrapper format. ``"torch"`` returns a ``TorchModule`` whose ``forward``
+            accepts and returns PyTorch tensors.
+
+        debug : bool
+            If ``True``, enable effect-based debugging (e.g. printing) in the compiled graph.
+
+        Returns
+        -------
+        module : Any
+            A callable wrapper (type depends on *out_format*) around the compiled VM.
+        """
 
         def _compile(spec, device, pipeline, debug):
             # pylint: disable=import-outside-toplevel
@@ -543,7 +578,7 @@ class Module(SubroutineMixin):
 class ModuleDict(Module):
     """Holds submodules in a dict."""
 
-    def __init__(self, modules: Optional[OrderedDict[str, Module]] = None):
+    def __init__(self, modules: OrderedDict[str, Module] | None = None):
         if modules is None:
             self.modules = OrderedDict()
         else:
@@ -567,13 +602,13 @@ class ModuleDict(Module):
     def values(self) -> Iterator[Module]:
         return self.modules.values()
 
-    def items(self) -> Iterator[Tuple[str, Module]]:
+    def items(self) -> Iterator[tuple[str, Module]]:
         return self.modules.items()
 
-    def get(self, key: str, default: Optional[Module] = None) -> Optional[Module]:
+    def get(self, key: str, default: Module | None = None) -> Module | None:
         return self.modules.get(key, default)
 
-    def update(self, modules: Dict[str, Module]) -> None:
+    def update(self, modules: dict[str, Module]) -> None:
         self.modules.update(modules)
 
     def clear(self) -> None:
@@ -585,15 +620,74 @@ class ModuleDict(Module):
     def __contains__(self, key: str) -> bool:
         return key in self.modules
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
         for module in self.modules.values():
             module.to(dtype=dtype)
+
+
+class ParameterDict(Module):
+    """Holds parameters in a dict."""
+
+    def __init__(
+        self,
+        params: OrderedDict[str, Parameter] | dict[str, Parameter] | None = None,
+    ):
+        self.params: OrderedDict[str, Parameter] = OrderedDict()
+        if params is not None:
+            self.update(params)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.params)
+
+    def __getitem__(self, key: str) -> Parameter:
+        return self.params[key]
+
+    def __setitem__(self, key: str, param: Parameter) -> None:
+        if not isinstance(key, str):
+            raise TypeError(f"ParameterDict keys must be strings, but got {type(key).__name__}")
+        if not isinstance(param, Parameter):
+            raise TypeError(
+                f"ParameterDict values must be nn.Parameter, but got {type(param).__name__}"
+            )
+        self.params[key] = param
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def keys(self) -> Iterator[str]:
+        return self.params.keys()
+
+    def values(self) -> Iterator[Parameter]:
+        return self.params.values()
+
+    def items(self) -> Iterator[tuple[str, Parameter]]:
+        return self.params.items()
+
+    def get(self, key: str, default: Parameter | None = None) -> Parameter | None:
+        return self.params.get(key, default)
+
+    def update(self, params: dict[str, Parameter]) -> None:
+        for key, param in params.items():
+            self[key] = param
+
+    def clear(self) -> None:
+        self.params.clear()
+
+    def pop(self, key: str) -> Parameter:
+        return self.params.pop(key)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.params
+
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
+        for param in self.params.values():
+            param.to(dtype=dtype)
 
 
 class ModuleList(Module):
     """Holds submodules in a list."""
 
-    def __init__(self, modules: List[Module]):
+    def __init__(self, modules: list[Module]):
         self.modules = modules
 
     def __iter__(self):
@@ -612,7 +706,7 @@ class ModuleList(Module):
         """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
         for module in self.modules:
             module.to(dtype=dtype)
 
@@ -623,7 +717,49 @@ class ModuleList(Module):
         return x
 
 
-def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
+class ParameterList(Module):
+    """Holds parameters in a list."""
+
+    def __init__(self, params: list[Parameter] | None = None):
+        self.params: list[Parameter] = []
+        if params is not None:
+            self.extend(params)
+
+    def __iter__(self) -> Iterator[Parameter]:
+        return iter(self.params)
+
+    def __getitem__(self, idx: int) -> Parameter:
+        return self.params[idx]
+
+    def __setitem__(self, idx: int, param: Parameter) -> None:
+        if not isinstance(param, Parameter):
+            raise TypeError(
+                f"ParameterList elements must be nn.Parameter, but got {type(param).__name__}"
+            )
+        self.params[idx] = param
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def append(self, param: Parameter) -> None:
+        """Add a parameter to the end of the ParameterList"""
+        if not isinstance(param, Parameter):
+            raise TypeError(
+                f"ParameterList elements must be nn.Parameter, but got {type(param).__name__}"
+            )
+        self.params.append(param)
+
+    def extend(self, params: list[Parameter]) -> None:
+        """Add parameters to the end of the ParameterList"""
+        for param in params:
+            self.append(param)
+
+    def to(self, dtype: str | None = None) -> None:  # pylint: disable=invalid-name
+        for param in self.params:
+            param.to(dtype=dtype)
+
+
+def wrap_nested(expr: rx.Expr, name: str) -> Tensor | Sequence[Tensor]:
     """Wrap the given relax.Expr, emit it using the current BlockBuilder,
     and automatically handle nested cases if the expr represents a Tuple.
 
@@ -657,7 +793,17 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
-    if isinstance(root, ModuleList):
+    if isinstance(root, ParameterList):
+        for i, param in enumerate(root):
+            if condition_yield(param):
+                yield prefix + f"{i}", param
+        return
+    elif isinstance(root, ParameterDict):
+        for name, param in root.items():
+            if condition_yield(param):
+                yield prefix + name, param
+        return
+    elif isinstance(root, ModuleList):
         for i, subitem in enumerate(root):
             yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
         return
@@ -668,6 +814,18 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
+        elif isinstance(item, ParameterList):
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
+        elif isinstance(item, ParameterDict):
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
         elif isinstance(item, ModuleList):
             yield from _attribute_finder(
                 item,
@@ -707,8 +865,8 @@ def _from_dlpack(tensor) -> tvm.runtime.Tensor:
 
 
 def _param_to_tensor(
-    params: List[Tuple[str, Parameter]], device: Device
-) -> List[tvm.runtime.Tensor]:
+    params: list[tuple[str, Parameter]], device: Device
+) -> list[tvm.runtime.Tensor]:
     results = []
     missing = []
     for name, param in params:

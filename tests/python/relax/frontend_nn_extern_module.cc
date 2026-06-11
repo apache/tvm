@@ -28,12 +28,12 @@ namespace {
 
 int _scalar_add(DLTensor* a, DLTensor* b, DLTensor* c) {
   using namespace tvm::runtime;
-  ICHECK(a->ndim == 0);
-  ICHECK(b->ndim == 0);
-  ICHECK(c->ndim == 0);
-  ICHECK(DataType(a->dtype) == DataType::Float(32));
-  ICHECK(DataType(b->dtype) == DataType::Float(32));
-  ICHECK(DataType(c->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(a->ndim == 0);
+  TVM_FFI_ICHECK(b->ndim == 0);
+  TVM_FFI_ICHECK(c->ndim == 0);
+  TVM_FFI_ICHECK(DataType(a->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(DataType(b->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(DataType(c->dtype) == DataType::Float(32));
   float* a_data = static_cast<float*>(a->data);
   float* b_data = static_cast<float*>(b->data);
   float* c_data = static_cast<float*>(c->data);
@@ -43,25 +43,25 @@ int _scalar_add(DLTensor* a, DLTensor* b, DLTensor* c) {
 
 int _test_sym(DLTensor* a, DLTensor* b, DLTensor* c) {
   using namespace tvm::runtime;
-  ICHECK(a->ndim == 3);  // [x, y, 1]
-  ICHECK(b->ndim == 3);  // [y, z, 5]
-  ICHECK(c->ndim == 4);  // [x, y, z, 9]
-  ICHECK(DataType(a->dtype) == DataType::Float(32));
-  ICHECK(DataType(b->dtype) == DataType::Float(32));
-  ICHECK(DataType(c->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(a->ndim == 3);  // [x, y, 1]
+  TVM_FFI_ICHECK(b->ndim == 3);  // [y, z, 5]
+  TVM_FFI_ICHECK(c->ndim == 4);  // [x, y, z, 9]
+  TVM_FFI_ICHECK(DataType(a->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(DataType(b->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK(DataType(c->dtype) == DataType::Float(32));
   int x = a->shape[0];
   int y = a->shape[1];
   int z = b->shape[1];
-  ICHECK(a->shape[0] == x);
-  ICHECK(a->shape[1] == y);
-  ICHECK(a->shape[2] == 1);
-  ICHECK(b->shape[0] == y);
-  ICHECK(b->shape[1] == z);
-  ICHECK(b->shape[2] == 5);
-  ICHECK(c->shape[0] == x);
-  ICHECK(c->shape[1] == y);
-  ICHECK(c->shape[2] == z);
-  ICHECK(c->shape[3] == 9);
+  TVM_FFI_ICHECK(a->shape[0] == x);
+  TVM_FFI_ICHECK(a->shape[1] == y);
+  TVM_FFI_ICHECK(a->shape[2] == 1);
+  TVM_FFI_ICHECK(b->shape[0] == y);
+  TVM_FFI_ICHECK(b->shape[1] == z);
+  TVM_FFI_ICHECK(b->shape[2] == 5);
+  TVM_FFI_ICHECK(c->shape[0] == x);
+  TVM_FFI_ICHECK(c->shape[1] == y);
+  TVM_FFI_ICHECK(c->shape[2] == z);
+  TVM_FFI_ICHECK(c->shape[3] == 9);
   return 0;
 }
 }  // namespace

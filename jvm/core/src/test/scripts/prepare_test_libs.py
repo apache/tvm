@@ -16,11 +16,11 @@
 # under the License.
 # Prepare test library for standalone wasm runtime test.
 
-import sys
 import os
+import sys
+
 import tvm
-from tvm import te
-from tvm import relax
+from tvm import relax, te
 from tvm.script import relax as R
 
 
@@ -45,7 +45,7 @@ def prepare_relax_lib(base_path):
 def prepare_cpu_lib(base_path):
     target = "llvm"
     if not tvm.runtime.enabled(target):
-        raise RuntimeError("Target %s is not enbaled" % target)
+        raise RuntimeError(f"Target {target} is not enbaled")
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
@@ -65,9 +65,9 @@ def prepare_gpu_lib(base_path):
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     sch.work_on("myadd")
-    (i,) = sch.get_loops(block=sch.get_block("C"))
+    (i,) = sch.get_loops(block=sch.get_sblock("C"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

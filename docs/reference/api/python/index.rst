@@ -24,10 +24,14 @@ Python API
 
     error
     ir
+    arith
     instrument
     transform
     target
     driver
+    testing
+    exec
+    support
 
 .. toctree::
     :maxdepth: 1
@@ -36,7 +40,6 @@ Python API
     runtime/runtime
     runtime/vm
     runtime/disco
-    runtime/profiling
 
 .. toctree::
     :maxdepth: 1
@@ -44,20 +47,45 @@ Python API
 
     relax/relax
     relax/analysis
+    relax/backend
     relax/block_builder
+    relax/distributed
     relax/frontend
     relax/op
+    relax/testing
+    relax/training
     relax/transform
+    relax/dpl
 
 .. toctree::
     :maxdepth: 1
-    :caption: tvm.tir
+    :caption: tvm.tirx
 
-    tir/tir
-    tir/analysis
-    tir/schedule
-    tir/stmt_functor
-    tir/transform
+    tirx/tirx
+    tirx/analysis
+    tirx/stmt_functor
+    tirx/transform
+    tirx/backend
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.s_tir
+
+    s_tir/analysis
+    s_tir/schedule
+    s_tir/transform
+    s_tir/dlight
+    s_tir/backend
+    s_tir/tensor_intrin
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.script
+
+    script/script
+    script/parser
+    script/ir_builder
+    script/printer
 
 .. toctree::
     :maxdepth: 1
@@ -68,15 +96,11 @@ Python API
 
 .. toctree::
     :maxdepth: 1
-    :caption: tvm.meta_schedule
+    :caption: tvm.s_tir.meta_schedule
 
     meta_schedule
 
-.. toctree::
-    :maxdepth: 1
-    :caption: tvm.dlight
 
-    dlight
 
 .. toctree::
     :maxdepth: 1

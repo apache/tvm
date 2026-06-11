@@ -20,7 +20,6 @@
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_FUNCTOR_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -75,11 +74,12 @@ class IRDocsifierFunctor {
     }
 
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
-                 << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
+                 << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
-    ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
-                  << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
-                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+    TVM_FFI_ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
+                          << ffi::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
+                          << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+    TVM_FFI_UNREACHABLE();
   }
 
   /*!
@@ -98,15 +98,15 @@ class IRDocsifierFunctor {
     }
     ffi::Function& slot = (*table)[type_index];
     if (slot != nullptr) {
-      ICHECK(false) << "Dispatch for type is already registered: "
-                    << runtime::Object::TypeIndex2Key(type_index);
+      TVM_FFI_ICHECK(false) << "Dispatch for type is already registered: "
+                            << ffi::Object::TypeIndex2Key(type_index);
     }
     slot = f;
     return *this;
   }
 
   TSelf& set_fallback(ffi::Function f) {
-    ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
+    TVM_FFI_ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
     dispatch_fallback_ = f;
     return *this;
   }
@@ -126,9 +126,9 @@ class IRDocsifierFunctor {
   }
 
   template <typename TCallable,
-            typename = std::enable_if_t<IsDispatchFunction<ObjectRef, TCallable>::value>>
+            typename = std::enable_if_t<IsDispatchFunction<ffi::ObjectRef, TCallable>::value>>
   TSelf& set_fallback(TCallable f) {
-    ffi::Function func = ffi::TypedFunction<R(ObjectRef, Args...)>(f);
+    ffi::Function func = ffi::TypedFunction<R(ffi::ObjectRef, Args...)>(f);
     return set_fallback(func);
   }
 

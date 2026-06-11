@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F401, F841
 import json
+
 import tvm
-from tvm import te
 from tvm import te
 
 

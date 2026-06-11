@@ -22,6 +22,7 @@
  * \brief Implementation of use-def analysis.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -57,13 +58,14 @@ class UDChain : relax::ExprVisitor {
  private:
   ffi::Map<Var, Expr> bound_values;
   std::unordered_set<Var> forward_declarations;
-  std::unordered_map<Var, support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual>> usage_map;
-  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> outputs;
+  std::unordered_map<Var, support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+      usage_map;
+  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> outputs;
 
   ffi::Optional<Var> cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    CHECK(!bound_values.count(binding->var))
+    TVM_FFI_ICHECK(!bound_values.count(binding->var))
         << "Variable " << binding->var << " was defined multiple times";
     bound_values.Set(binding->var, binding->value);
 
@@ -104,7 +106,8 @@ class UDChain : relax::ExprVisitor {
   }
 
   void DefineVar(const Var& var) {
-    CHECK(!usage_map.count(var)) << "Variable " << var << " was used before its definition";
+    TVM_FFI_ICHECK(!usage_map.count(var))
+        << "Variable " << var << " was used before its definition";
     usage_map[var] = {};
   }
 };

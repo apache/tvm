@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union
 
 import tvm
 import tvm.script
@@ -25,8 +24,8 @@ from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -97,9 +96,9 @@ def test_mean():
 
 def test_median():
     @R.function
-    def foo(
-        x: R.Tensor((1, 2, 3, 4), "float32")
-    ) -> R.Tuple(R.Tensor((1, 3, 4), "float32"), R.Tensor((1, 3, 4), "int64")):
+    def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tuple(
+        R.Tensor((1, 3, 4), "float32"), R.Tensor((1, 3, 4), "int64")
+    ):
         gv: R.Tuple(R.Tensor((1, 3, 4), "float32"), R.Tensor((1, 3, 4), "int64")) = R.median(
             x, axis=[1]
         )

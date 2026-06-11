@@ -22,7 +22,9 @@
  * \brief Check if the IRModule is well-formed.
  *
  * This pass is supposed to be applied to normalized Relax AST.
- * If it's malformed, messages will be logged as Warning.
+ * If it's malformed, an ffi::Error is thrown on the first violation, seeded
+ * with the offending node so the caller can resolve a precise access path.
+ * Use `check_well_formed` for a boolean answer.
  * This pass will check:
  *    1. Each Expr should have `struct_info_` field already populated, when
  *      `check_struct_info` is true.
@@ -64,6 +66,8 @@
  *    17. If the kForcePure attribute is set for a function,
  *        that function's is_pure field must be true.
  */
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -71,8 +75,12 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/tirx/expr_functor.h>
 
+#include <sstream>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace tvm {
@@ -84,9 +92,12 @@ namespace relax {
 /*! \brief Helper to implement well formed check.*/
 class WellFormedChecker : public relax::ExprVisitor,
                           public relax::StructInfoVisitor,
-                          public tir::ExprVisitor {
+                          public tirx::ExprVisitor {
  public:
-  static bool Check(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
+  // Throws ffi::Error on the first well-formedness violation, seeded with the
+  // offending node so the caller can resolve an access path. Returns normally
+  // when the object is well-formed.
+  static void Check(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
     WellFormedChecker well_formed_checker =
         WellFormedChecker(obj.as<IRModule>(), check_struct_info);
 
@@ -95,6 +106,7 @@ class WellFormedChecker : public relax::ExprVisitor,
         // visit relax.Function
         if (auto* n = it.second.as<FunctionNode>()) {
           Function func = ffi::GetRef<Function>(n);
+          well_formed_checker.func_name_map_[n] = it.first->name_hint;
           well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
           well_formed_checker.VisitExpr(func);
         }
@@ -102,10 +114,9 @@ class WellFormedChecker : public relax::ExprVisitor,
     } else if (const auto* func = obj.as<FunctionNode>()) {
       well_formed_checker.VisitExpr(ffi::GetRef<Expr>(func));
     } else {
-      LOG(FATAL) << "Unreachable, "
-                 << "variant did not contain any of the allowed types";
+      TVM_FFI_THROW(InternalError) << "Unreachable, "
+                                   << "variant did not contain any of the allowed types";
     }
-    return well_formed_checker.well_formed_;
   }
 
  private:
@@ -113,8 +124,8 @@ class WellFormedChecker : public relax::ExprVisitor,
       : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
-  using tir::ExprVisitor::VisitExpr;
-  using tir::ExprVisitor::VisitExpr_;
+  using tirx::ExprVisitor::VisitExpr;
+  using tirx::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor
   enum class VisitMode {
@@ -129,9 +140,13 @@ class WellFormedChecker : public relax::ExprVisitor,
     kMatchVarDef
   };
 
-  void Malformed(Diagnostic diag) {
-    well_formed_ = false;
-    LOG(WARNING) << "This IR is not well formed: " << diag->message;
+  /*! \brief Get the name of a function for use in error messages. */
+  std::string FuncName(const FunctionNode* func) const {
+    auto it = func_name_map_.find(func);
+    if (it != func_name_map_.end()) {
+      return "\"" + it->second + "\"";
+    }
+    return "(anonymous function)";
   }
 
   void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
@@ -141,15 +156,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     // check name in global var and gsymbol
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (gsymbol.has_value() && gsymbol != var->name_hint) {
-      Malformed(Diagnostic::Error(func->span)
-                << "Name in GlobalVar is not equal to name in gsymbol: " << var
-                << " != " << gsymbol.value());
+      TVM_FFI_VISIT_THROW(ValueError, func->span)
+          << "Name in GlobalVar is not equal to name in gsymbol: " << var
+          << " != " << gsymbol.value();
     }
   }
 
   void VisitExpr(const Expr& expr) final {
     if (!expr.as<OpNode>() && !expr->struct_info_.defined()) {
-      Malformed(Diagnostic::Error(expr) << "The struct_info_ of Expr " << expr << " is nullptr.");
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "The struct_info_ of Expr " << expr << " is nullptr.";
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
@@ -159,16 +174,16 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (mod_.defined()) {
       if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
             mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
-        Malformed(Diagnostic::Error(var)
-                  << "GlobalVar " << ffi::GetRef<Expr>(op) << " is not defined.");
+        TVM_FFI_VISIT_THROW(ValueError, var)
+            << "GlobalVar " << ffi::GetRef<Expr>(op) << " is not defined.";
       }
     }
 
     if (op->struct_info_.defined()) {
       if (!op->struct_info_->IsInstance<FuncStructInfoNode>()) {
-        Malformed(Diagnostic::Error(var)
-                  << "The struct_info_ of GlobalVar " << ffi::GetRef<Expr>(op)
-                  << " must be either FuncStructInfo.");
+        TVM_FFI_VISIT_THROW(TypeError, var)
+            << "The struct_info_ of GlobalVar " << ffi::GetRef<Expr>(op)
+            << " must be either FuncStructInfo.";
       }
     }
 
@@ -176,25 +191,27 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const TupleNode* op) final {
+    TVM_FFI_VISIT_BEGIN();
     for (size_t i = 0; i < op->fields.size(); i++) {
       Expr expr = op->fields[i];
       if (IsLeafOrTuple(expr)) {
         this->VisitExpr(expr);
       } else {
-        Malformed(Diagnostic::Error(expr)
-                  << "Tuple is not in ANF form, field " << i << " gets " << expr->GetTypeKey());
+        TVM_FFI_VISIT_THROW(ValueError, expr)
+            << "Tuple is not in ANF form, field " << i << " gets " << expr->GetTypeKey();
       }
     }
 
     CheckStructInfo(op);
+    TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
     if (IsLeafOrTuple(op->tuple)) {
       this->VisitExpr(op->tuple);
     } else {
-      Malformed(Diagnostic::Error(op)
-                << "The tuple value in a TupleGetItem node must be a leaf expression.");
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
+          << "The tuple value in a TupleGetItem node must be a leaf expression.";
     }
     CheckStructInfo(op);
   }
@@ -202,7 +219,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var) << "Var " << ffi::GetRef<Expr>(op) << " is not defined.");
+      TVM_FFI_VISIT_THROW(ValueError, var) << "Var " << ffi::GetRef<Expr>(op) << " is not defined.";
     }
     CheckStructInfo(op);
   }
@@ -210,17 +227,18 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const DataflowVarNode* op) final {
     DataflowVar var = ffi::GetRef<DataflowVar>(op);
     if (!is_dataflow_) {
-      Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << ffi::GetRef<Expr>(op) << " is used outside DataflowBlock.");
+      TVM_FFI_VISIT_THROW(ValueError, var)
+          << "DataflowVar " << ffi::GetRef<Expr>(op) << " is used outside DataflowBlock.";
     }
     if (dataflow_var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << ffi::GetRef<Expr>(op) << " is not defined.");
+      TVM_FFI_VISIT_THROW(ValueError, var)
+          << "DataflowVar " << ffi::GetRef<Expr>(op) << " is not defined.";
     }
     CheckStructInfo(op);
   }
 
   void VisitExpr_(const FunctionNode* op) final {
+    TVM_FFI_VISIT_BEGIN();
     // set current visited function.
     // for nested functions, we only set the outermost function.
     if (cur_visited_func_ == nullptr) {
@@ -238,7 +256,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // first populate defs in params
     WithMode(VisitMode::kMatchVarDef, [&]() {
-      ICHECK(mode_ == VisitMode::kMatchVarDef);
+      TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
         relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
       }
@@ -246,21 +264,21 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // ensure the purity attributes are valid
     if (op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && !op->is_pure) {
-      Malformed(Diagnostic::Error(op->span)
-                << "Function " << ffi::GetRef<Expr>(op) << " has true for "
-                << relax::attr::kForcePure << " but false for is_pure; " << relax::attr::kForcePure
-                << " should be true only if is_pure is also true.");
+      TVM_FFI_VISIT_THROW(ValueError, op->span)
+          << "Function " << ffi::GetRef<Expr>(op) << " has true for " << relax::attr::kForcePure
+          << " but false for is_pure; " << relax::attr::kForcePure
+          << " should be true only if is_pure is also true.";
     }
 
     // check all expr are well defined.
     for (Var param : op->params) {
       this->VisitVarDef(param);
 
-      if (param_var_func_map_.count(param) == 1) {
-        // TODO(relax-team): Complete this error info after we integrate printer
-        Malformed(Diagnostic::Error(param->span)
-                  << "Relax variable " << param
-                  << " is repeatedly used as parameters in function.");
+      auto it = param_var_func_map_.find(param);
+      if (it != param_var_func_map_.end()) {
+        TVM_FFI_VISIT_THROW(ValueError, param->span)
+            << "Relax variable " << param << " is used as a parameter in both function "
+            << FuncName(it->second) << " and function " << FuncName(cur_visited_func_) << ".";
       }
       param_var_func_map_.insert({param, cur_visited_func_});
     }
@@ -268,7 +286,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (op->ret_struct_info.defined()) {
       this->VisitStructInfo(op->ret_struct_info);
     } else {
-      Malformed(Diagnostic::Error(op) << "Function must have defined ret_struct_info");
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
+          << "Function must have defined ret_struct_info";
     }
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
@@ -276,11 +295,11 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (check_struct_info_ && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) &&
         op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
-        Malformed(Diagnostic::Error(op)
-                  << "Function " << op << " is annotated as pure but contains an impure call: "
-                  << impure << ".  Please set " << relax::attr::kForcePure << " to true "
-                  << "or use a pure operator variant (e.g., call_pure_packed) "
-                  << "if it is necessary to override this judgment.");
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
+            << "Function " << op << " is annotated as pure but contains an impure call: " << impure
+            << ".  Please set " << relax::attr::kForcePure << " to true "
+            << "or use a pure operator variant (e.g., call_pure_packed) "
+            << "if it is necessary to override this judgment.";
       }
     }
 
@@ -294,24 +313,27 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (cur_visited_func_ == op) {
       cur_visited_func_ = nullptr;
     }
+    TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
   void VisitExpr_(const CallNode* call) final {
+    TVM_FFI_VISIT_BEGIN();
     if (IsLeafOrTuple(call->op)) {
       const FunctionNode* prev_visited_func = cur_visited_func_;
       cur_visited_func_ = nullptr;  // close the symbolic var dup check
       this->VisitExpr(call->op);
       cur_visited_func_ = prev_visited_func;
     } else {
-      Malformed(Diagnostic::Error(call) << "The called expression must be a leaf expression");
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Call>(call))
+          << "The called expression must be a leaf expression";
     }
     for (size_t i = 0; i < call->args.size(); i++) {
       Expr arg = call->args[i];
       if (IsLeafOrTuple(arg)) {
         this->VisitExpr(arg);
       } else {
-        Malformed(Diagnostic::Error(arg->span)
-                  << "Call is not in ANF form, arg " << i << " gets " << arg->GetTypeKey());
+        TVM_FFI_VISIT_THROW(ValueError, arg->span)
+            << "Call is not in ANF form, arg " << i << " gets " << arg->GetTypeKey();
       }
     }
 
@@ -322,8 +344,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(call);
     if (is_dataflow_ && check_struct_info_) {
       if (auto impure = FindImpureCall(ffi::GetRef<Call>(call))) {
-        Malformed(Diagnostic::Error(call)
-                  << "Impure function call " << impure << " occurs within a dataflow block.");
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
+            << "Impure function call " << impure << " occurs within a dataflow block.";
       }
     }
 
@@ -339,20 +361,18 @@ class WellFormedChecker : public relax::ExprVisitor,
       try {
         after_normalize = func_normalize(dummy_builder, before_normalize);
       } catch (std::exception& err) {
-        Malformed(
-            Diagnostic::Error(call)
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
             << "However, normalization of " << before_normalize << " resulted in the error: \n"
-            << err.what());
+            << err.what();
       }
       if (after_normalize && !before_normalize.same_as(after_normalize)) {
-        Malformed(
-            Diagnostic::Error(call)
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
             << "However, normalization of " << before_normalize << " resulted in "
-            << after_normalize);
+            << after_normalize;
       }
     }
 
@@ -360,9 +380,10 @@ class WellFormedChecker : public relax::ExprVisitor,
       try {
         func_validate(ffi::GetRef<Call>(call));
       } catch (std::exception& err) {
-        Malformed(Diagnostic::Error(call) << "Operator-specific validation (FValidate) for "
-                                          << call->op << " identified error: \n"
-                                          << err.what());
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
+            << "Operator-specific validation (FValidate) for " << call->op
+            << " identified error: \n"
+            << err.what();
       }
     }
 
@@ -376,11 +397,11 @@ class WellFormedChecker : public relax::ExprVisitor,
       try {
         normalized = dummy_builder->Normalize(copied);
       } catch (std::exception& err) {
-        Malformed(Diagnostic::Error(call)
-                  << "Each Relax expression must be able to have its StructInfo inferred.  "
-                  << "However, inferring the struct info of expression " << ffi::GetRef<Call>(call)
-                  << " resulted in the error: \n"
-                  << err.what());
+        TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Call>(call))
+            << "Each Relax expression must be able to have its StructInfo inferred.  "
+            << "However, inferring the struct info of expression " << ffi::GetRef<Call>(call)
+            << " resulted in the error: \n"
+            << err.what();
       }
       if (normalized.defined()) {
         auto inferred_struct_info = GetStructInfo(normalized.value());
@@ -401,28 +422,31 @@ class WellFormedChecker : public relax::ExprVisitor,
         // not raise an error.
         if (StructInfoBaseCheck(current_struct_info, inferred_struct_info) <
             BaseCheckResult::kFailL1) {
-          Malformed(Diagnostic::Error(call)
-                    << "All information in StructInfo annotations must be correct.  "
-                    << "However, while the expression " << ffi::GetRef<Call>(call)
-                    << " is annotated as " << current_struct_info << ", the expression outputs "
-                    << inferred_struct_info);
+          TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(call))
+              << "All information in StructInfo annotations must be correct.  "
+              << "However, while the expression " << ffi::GetRef<Call>(call) << " is annotated as "
+              << current_struct_info << ", the expression outputs " << inferred_struct_info;
         }
       }
     }
+    TVM_FFI_VISIT_END(ffi::GetRef<Call>(call));
   }
 
   void VisitExpr_(const IfNode* op) final {
+    TVM_FFI_VISIT_BEGIN();
     if (is_dataflow_) {
-      Malformed(Diagnostic::Error(op) << "If nodes are not allowed to appear in dataflow blocks.");
+      TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
+          << "If nodes are not allowed to appear in dataflow blocks.";
     }
     if (IsLeafOrTuple(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
-      Malformed(Diagnostic::Error(op) << "The condition for an if node must be a leaf expression.");
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
+          << "The condition for an if node must be a leaf expression.";
     }
 
     std::unordered_set<Var> previous_var_set = var_set_;
-    std::unordered_set<tir::Var> previous_symbolic_var_set = symbolic_var_set_;
+    std::unordered_set<tirx::Var> previous_symbolic_var_set = symbolic_var_set_;
     this->VisitSeqExpr(op->true_branch.get());
     var_set_ = previous_var_set;
     symbolic_var_set_ = previous_symbolic_var_set;
@@ -431,36 +455,41 @@ class WellFormedChecker : public relax::ExprVisitor,
     symbolic_var_set_ = previous_symbolic_var_set;
 
     CheckStructInfo(op);
+    TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
   void VisitExpr_(const ShapeExprNode* op) final {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
-      tir::ExprVisitor::VisitExpr(expr);
+      tirx::ExprVisitor::VisitExpr(expr);
       if (!expr.dtype().is_int()) {
-        Malformed(Diagnostic::Error(expr)
-                  << "Shape expressions must be of integer type, but got " << expr.dtype());
+        TVM_FFI_VISIT_THROW(TypeError, expr)
+            << "Shape expressions must be of integer type, but got " << expr.dtype();
       }
     }
     CheckStructInfo(op);
   }
 
   void VisitExpr_(const SeqExprNode* op) final {
-    Malformed(Diagnostic::Error(op) << "SeqExpr only serves as the function body in FunctionNode, "
-                                       "or the true/false branch body in IfNode.");
+    TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
+        << "SeqExpr only serves as the function body in FunctionNode, "
+           "or the true/false branch body in IfNode.";
   }
 
   void VisitSeqExpr(const SeqExprNode* op) {
+    TVM_FFI_VISIT_BEGIN();
     // a special call only if SeqExpr is the function body
     // in FunctionNode or the true/false branch body in IfNode
     for (BindingBlock block : op->blocks) {
       this->VisitBindingBlock(block);
     }
     if (!IsLeafOrTuple(op->body)) {
-      Malformed(Diagnostic::Error(op) << "SeqExpr bodies must be leaf expressions.");
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
+          << "SeqExpr bodies must be leaf expressions.";
     }
     this->VisitExpr(op->body);
     CheckStructInfo(op);
+    TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
@@ -469,8 +498,9 @@ class WellFormedChecker : public relax::ExprVisitor,
       is_lambda = true;
       recur_vars_.insert(binding->var);
     }
-    if (binding->value->IsInstance<tir::PrimFuncNode>()) {
-      Malformed(Diagnostic::Error(binding->value) << "Inline PrimFunc is disallowed in Relax IR.");
+    if (binding->value->IsInstance<tirx::PrimFuncNode>()) {
+      TVM_FFI_VISIT_THROW(ValueError, binding->value)
+          << "Inline PrimFunc is disallowed in Relax IR.";
     } else {
       this->VisitExpr(binding->value);
     }
@@ -482,9 +512,9 @@ class WellFormedChecker : public relax::ExprVisitor,
       auto expr_sinfo = GetStructInfo(binding->value);
       auto var_sinfo = GetStructInfo(binding->var);
       if (!IsBaseOf(var_sinfo, expr_sinfo)) {
-        Malformed(Diagnostic::Error(binding->var)
-                  << "Expression of type " << expr_sinfo
-                  << " cannot be assigned to a variable of type " << var_sinfo);
+        TVM_FFI_VISIT_THROW(TypeError, binding->var)
+            << "Expression of type " << expr_sinfo << " cannot be assigned to a variable of type "
+            << var_sinfo;
       }
     }
 
@@ -514,12 +544,12 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitVarDef_(const DataflowVarNode* var) final {
     if (!is_dataflow_) {
-      Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << var << " is defined outside DataflowBlock.");
+      TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(var))
+          << "DataflowVar " << var << " is defined outside DataflowBlock.";
     }
     DataflowVar lv = ffi::GetRef<DataflowVar>(var);
     if (dataflow_var_set_.count(lv) == 1) {
-      Malformed(Diagnostic::Error(var) << "DataflowVar " << lv << " is defined more than once.");
+      TVM_FFI_VISIT_THROW(ValueError, lv) << "DataflowVar " << lv << " is defined more than once.";
     }
     // register DataflowVar
     dataflow_var_set_.insert(lv);
@@ -529,18 +559,18 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitVarDef_(const VarNode* var) final {
     Var gv = ffi::GetRef<Var>(var);
     if (var_set_.count(gv) == 1) {
-      Malformed(Diagnostic::Error(var) << "Var " << gv << " is defined more than once.");
+      TVM_FFI_VISIT_THROW(ValueError, gv) << "Var " << gv << " is defined more than once.";
     }
     // register Var
     var_set_.insert(gv);
     CheckStructInfo(var);
   }
 
-  void VisitExpr_(const tir::VarNode* op) final {
-    tir::Var var = ffi::GetRef<tir::Var>(op);
+  void VisitExpr_(const tirx::VarNode* op) final {
+    tirx::Var var = ffi::GetRef<tirx::Var>(op);
     // default mode, check defined.
     if (symbolic_var_set_.count(var) == 0) {
-      this->Malformed(Diagnostic::Error(var) << "Symbolic Var " << var << " is not defined.");
+      TVM_FFI_VISIT_THROW(ValueError, var) << "Symbolic Var " << var << " is not defined.";
     }
 
     // don't perform the check
@@ -551,10 +581,9 @@ class WellFormedChecker : public relax::ExprVisitor,
     // check across functions presence
     auto it = symbolic_var_func_map_.find(var);
     if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
-      // TODO(relax-team): Complete this error info after we integrate printer
-      Malformed(Diagnostic::Error(var->span)
-                << "Symbolic Var " << var
-                << " presents in different functions in the same Module.");
+      TVM_FFI_VISIT_THROW(ValueError, var->span)
+          << "Symbolic Var " << var << " is present in both function " << FuncName(it->second)
+          << " and function " << FuncName(cur_visited_func_) << " in the same Module.";
     }
     symbolic_var_func_map_.insert({var, cur_visited_func_});
   }
@@ -562,7 +591,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
-        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (StructInfo param : op->params.value()) {
           this->VisitStructInfo(param);
         }
@@ -593,14 +622,14 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitStructInfoExprField(const PrimExpr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence
-      if (auto* op = expr.as<tir::VarNode>()) {
-        auto var = ffi::GetRef<tir::Var>(op);
+      if (auto* op = expr.as<tirx::VarNode>()) {
+        auto var = ffi::GetRef<tirx::Var>(op);
         if (symbolic_var_set_.count(var) == 0) {
           symbolic_var_set_.insert(var);
         }
       }
     } else {
-      tir::ExprVisitor::VisitExpr(expr);
+      tirx::ExprVisitor::VisitExpr(expr);
     }
   }
 
@@ -613,8 +642,9 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (sinfo != nullptr) {
       this->VisitStructInfo(ffi::GetRef<StructInfo>(sinfo));
     } else {
-      Malformed(Diagnostic::Error(op) << "Expr must have struct_info populated. "
-                                      << " Expr.type_key=" << op->GetTypeKey());
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
+          << "Expr must have struct_info populated. "
+          << " Expr.type_key=" << op->GetTypeKey();
     }
   }
 
@@ -628,31 +658,46 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   ffi::Optional<IRModule> mod_;
   const bool check_struct_info_;
-  bool well_formed_ = true;
   bool is_dataflow_;
   // Current visited function.
   const FunctionNode* cur_visited_func_;
+  // Map from function pointer to its global name (for error messages).
+  std::unordered_map<const FunctionNode*, std::string> func_name_map_;
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
   std::unordered_set<Var> var_set_;
   std::unordered_set<Var> recur_vars_;
-  std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
-  std::unordered_set<tir::Var> symbolic_var_set_;
+  std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> dataflow_var_set_;
+  std::unordered_set<tirx::Var> symbolic_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
-  std::unordered_map<tir::Var, const FunctionNode*> symbolic_var_func_map_;
+  std::unordered_map<tirx::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
 };
 
-bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
-  return WellFormedChecker::Check(obj, check_struct_info);
+void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
+  WellFormedChecker::Check(obj, check_struct_info);
+}
+
+bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
+  try {
+    WellFormed(obj, check_struct_info);
+    return true;
+  } catch (const ffi::Error&) {
+    return false;
+  }
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.well_formed", WellFormed);
+  refl::GlobalDef()
+      .def("relax.analysis.well_formed",
+           [](ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
+             WellFormed(obj, check_struct_info);
+           })
+      .def("relax.analysis.check_well_formed", CheckWellFormed);
 }
 
 }  // namespace relax

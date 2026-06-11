@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
@@ -26,52 +27,72 @@ TEST(Simplify, MinMax) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
-  auto e1s = ana.canonical_simplify(e1);
-  ICHECK(tvm::tir::is_zero(e1s));
+  auto e1s = ana->canonical_simplify(e1);
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(e1s));
 
   auto e2 = (x * tvm::min(x, 1)) - (x * tvm::min(x, 1));
-  auto e2s = ana.canonical_simplify(e2);
-  ICHECK(tvm::tir::is_zero(e2s));
+  auto e2s = ana->canonical_simplify(e2);
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(e2s));
 }
 
 TEST(Simplify, Mul) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x);
-  auto es = ana.canonical_simplify(e);
-  ICHECK(tvm::tir::is_zero(es));
+  auto es = ana->canonical_simplify(e);
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
 }
 
 TEST(Simplify, Mod) {
   tvm::arith::Analyzer ana;
-  auto x = tvm::Integer(10);
-  auto y = tvm::Integer(12);
+  auto x = tvm::IntImm(tvm::DataType::Int(32), 10);
+  auto y = tvm::IntImm(tvm::DataType::Int(32), 12);
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = ana.canonical_simplify(tvm::tir::Mod(x, y));
-  auto es = ana.canonical_simplify(mod - x);
-  ICHECK(tvm::tir::is_zero(es));
+  auto mod = ana->canonical_simplify(tvm::tirx::Mod(x, y));
+  auto es = ana->canonical_simplify(mod - x);
+  TVM_FFI_ICHECK(tvm::tirx::is_zero(es));
+}
+
+TEST(AnalyzerObjectRef, CopySharesMutableState) {
+  tvm::arith::Analyzer analyzer;
+  tvm::arith::Analyzer copy = analyzer;
+  auto x = tvm::te::var("x");
+
+  copy->Bind(x, tvm::Range::FromMinExtent(0, 8));
+
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
+}
+
+TEST(AnalyzerObjectRef, ConstHandleRefCanMutateAnalyzerState) {
+  tvm::arith::Analyzer analyzer;
+  const tvm::arith::Analyzer& analyzer_ref = analyzer;
+  auto x = tvm::te::var("x");
+
+  analyzer_ref->Bind(x, tvm::Range::FromMinExtent(0, 8));
+
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
 }
 
 TEST(ConstantFold, Broadcast) {
-  tvm::StructuralEqual checker;
-  auto i32x4 = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
+  tvm::ffi::StructuralEqual checker;
+  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
+  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
 
 TEST(ConstantFold, Ramp) {
-  tvm::StructuralEqual checker;
-  auto i32x4 = tvm::tir::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
-                              tvm::IntImm(tvm::DataType::Int(32), 1), 4);
+  tvm::ffi::StructuralEqual checker;
+  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
+                               tvm::IntImm(tvm::DataType::Int(32), 1), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tir::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
-                                       tvm::IntImm(tvm::DataType::Int(64), 1), 4);
+  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
+                                        tvm::IntImm(tvm::DataType::Int(64), 1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
   auto f32x4 = tvm::cast(tvm::DataType::Float(32, 4), i32x4);
-  auto f32x4_expected = tvm::tir::Cast(tvm::DataType::Float(32, 4), i32x4);
+  auto f32x4_expected = tvm::tirx::Cast(tvm::DataType::Float(32, 4), i32x4);
   ASSERT_TRUE(checker(f32x4, f32x4_expected));
 }

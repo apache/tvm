@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _relax-creation:
@@ -39,7 +40,7 @@ and relax NNModule API.
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -70,13 +71,14 @@ RelaxModule.show()
 
 @I.ir_module
 class RelaxModuleWithTIR:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def relu(x: T.handle, y: T.handle):
-        n, m = T.int64(), T.int64()
+        n = T.int64()
+        m = T.int64()
         X = T.match_buffer(x, (n, m), "float32")
         Y = T.match_buffer(y, (n, m), "float32")
         for i, j in T.grid(n, m):
-            with T.block("relu"):
+            with T.sblock("relu"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 Y[vi, vj] = T.max(X[vi, vj], T.float32(0))
 
@@ -162,21 +164,23 @@ mod.show()
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
-    M, N, K = T.int64(), T.int64(), T.int64()
+    M = T.int64()
+    N = T.int64()
+    K = T.int64()
     X = T.match_buffer(x, (M, K), "float32")
     W = T.match_buffer(w, (N, K), "float32")
     B = T.match_buffer(b, (N,), "float32")
     Z = T.match_buffer(z, (M, N), "float32")
     for i, j, k in T.grid(M, N, K):
-        with T.block("linear"):
+        with T.sblock("linear"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 Z[vi, vj] = 0
             Z[vi, vj] = Z[vi, vj] + X[vi, vk] * W[vj, vk]
     for i, j in T.grid(M, N):
-        with T.block("add"):
+        with T.sblock("add"):
             vi, vj = T.axis.remap("SS", [i, j])
             Z[vi, vj] = Z[vi, vj] + B[vj]
 

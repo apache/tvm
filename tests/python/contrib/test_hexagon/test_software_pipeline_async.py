@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Async software pipeline tests."""
 
 import numpy as np
 
 import tvm
-from tvm import tir
-from tvm.script import tir as T
+from tvm import tirx
+from tvm.script import tirx as T
 
 from .infrastructure import get_hexagon_target
 
@@ -29,20 +30,20 @@ def compute(comp_type, outer, inner, dtype):
     """Generate compute function."""
     if comp_type == "single_input":
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype), out: T.Buffer((outer, inner), dtype)
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_1_primfunc
     else:
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_b_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype),
             b_buffer: T.Buffer((outer, inner), dtype),
@@ -50,8 +51,8 @@ def compute(comp_type, outer, inner, dtype):
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + b_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_b_plus_1_primfunc
@@ -112,9 +113,9 @@ class TestAsyncSoftwarePipeline:
     @tvm.testing.fixture
     def schedule(self, comp_type, sched_type, outer, inner, dtype, scope):
         """Generate schedule."""
-        sch = tir.Schedule(compute(comp_type, outer, inner, dtype))
+        sch = tvm.s_tir.Schedule(compute(comp_type, outer, inner, dtype))
 
-        compute_block = sch.get_block("compute")
+        compute_block = sch.get_sblock("compute")
         i, _ = sch.get_loops(compute_block)
 
         if "read" in sched_type:
@@ -179,8 +180,8 @@ class TestAsyncSoftwarePipeline:
 
         with tvm.transform.PassContext(
             config={
-                "tir.use_async_copy": 1,
-                "tir.experimental_dma_bypass_cache": 1,
+                "tirx.use_async_copy": 1,
+                "tirx.experimental_dma_bypass_cache": 1,
             }
         ):
             func = tvm.compile(schedule.mod["main"], target=get_hexagon_target("v68"))

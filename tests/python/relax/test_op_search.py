@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -104,12 +104,12 @@ def test_where_infer_struct_info():
 
 def test_where_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d0 = tir.Var("d", "int64")
-    d1 = tir.Var("d", "int64")
-    e = tir.Var("e", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d0 = tirx.Var("d", "int64")
+    d1 = tirx.Var("d", "int64")
+    e = tirx.Var("e", "int64")
     cond = relax.Var("cond", R.Tensor((a, b, 1, d0, 1), "bool"))
     x0 = relax.Var("x", R.Tensor((b, 1, d0, e), "float32"))
     x1 = relax.Var("x", R.Tensor((b, 1, d1, e), "float32"))
@@ -231,9 +231,9 @@ def test_where_infer_struct_info_cond_not_boolean():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond0, x, y))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond1, x, y))
 
 
@@ -246,11 +246,11 @@ def test_where_infer_struct_info_shape_unequal_const_int():
     y0 = relax.Var("y", R.Tensor((4, 4, 1), "float32"))
     y1 = relax.Var("y", R.Tensor((4, 3, 1), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.where(cond0, x1, y1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.where(cond1, x0, y1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.where(cond1, x1, y0))
 
 
@@ -277,11 +277,11 @@ def test_where_infer_struct_info_wrong_input_type():
     y0 = relax.Var("y", relax.TupleStructInfo([R.Tensor((2, 3), "float32")]))
     y1 = relax.Var("y", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond0, x1, y1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond1, x0, y1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond1, x1, y0))
 
 
@@ -362,10 +362,10 @@ def test_argmax_argmin_infer_struct_info(argmax_argmin_op: Callable):
 
 def test_argmax_argmin_infer_struct_info_shape_symbolic(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "int64"))
 
     _check_inference(bb, argmax_argmin_op(x, axis=1), relax.TensorStructInfo((a, c, d), "int64"))
@@ -423,13 +423,13 @@ def test_argmax_argmin_infer_struct_info_axis_out_of_range(argmax_argmin_op: Cal
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "int64"))
     x1 = relax.Var("x", R.Tensor("int64", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(argmax_argmin_op(x0, axis=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(argmax_argmin_op(x0, axis=-5))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(argmax_argmin_op(x1, axis=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(argmax_argmin_op(x1, axis=-5))
 
 
@@ -438,9 +438,9 @@ def test_argmax_argmin_infer_struct_info_wrong_input_type(argmax_argmin_op: Call
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "int64")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(argmax_argmin_op(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(argmax_argmin_op(x1))
 
 

@@ -32,7 +32,7 @@
 
 #include "codegen_c.h"
 #include "tvm/target/codegen.h"
-#include "tvm/tir/expr.h"
+#include "tvm/tirx/expr.h"
 
 namespace tvm {
 namespace codegen {

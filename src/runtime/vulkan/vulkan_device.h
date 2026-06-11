@@ -20,7 +20,7 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_DEVICE_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <memory>
 #include <mutex>
@@ -30,7 +30,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../thread_map.h"
+#include "thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_buffer.h"
 #include "vulkan_stream.h"
@@ -69,7 +69,7 @@ struct VulkanQueueInsertDebugUtilsLabelFunctions {
  * The member variables here have a 1-1 mapping to Target parameters,
  * if target->GetTargetDeviceType()==kDLVulkan.  A separate struct is used
  * to maintain the boundary between the Vulkan runtime in
- * libtvm_runtime.so, and the Target object in libtvm.so.
+ * libtvm_runtime.so, and the Target object in libtvm_compiler.so.
  */
 struct VulkanDeviceProperties {
   VulkanDeviceProperties() {}

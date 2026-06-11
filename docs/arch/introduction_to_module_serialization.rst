@@ -27,7 +27,7 @@ serialization format standard and implementation details.
 Serialization
 *************
 
-The entrance API is ``export_library`` of ``tvm.module.Module``.
+The entrance API is ``export_library`` of ``tvm.runtime.Module``.
 Inside this function, we will do the following steps:
 
 1. Collect all DSO modules (LLVM modules and C modules)
@@ -79,7 +79,7 @@ location 0. In our example, we have module relationship like this:
 
 .. code:: c++
 
-  llvm_mod:imported_modules
+  llvm_mod:imports
     - cuda_mod
 
 So LLVM module will have index 0, CUDA module will have index 1.
@@ -118,7 +118,7 @@ blob type key is ``_lib``. For CUDA module, it is ``cuda``, which could be got b
 
 .. note::
    Whether or not it is required to implement the SaveToBinary virtual function depends on
-   how the module is used. For example, If the module has information we need when we load
+   how the module is used. For example, if the module has information we need when we load
    the dynamic shared library back, we should do. Like CUDA module, we need its binary data
    passing to GPU driver when we load the dynamic shared library, so we should implement
    ``SaveToBinary`` to serialize its binary data. But for host module (like DSO), we don't
@@ -143,8 +143,8 @@ support arbitrary modules to import ideally.
 Deserialization
 ****************
 
-The entrance API is ``tvm.runtime.load``. This function
-is to call ``_LoadFromFile`` in fact. If we dig it a little deeper, this is
+The entrance API is ``tvm.runtime.load_module``. This function
+actually calls ``_LoadFromFile``. If we dig it a little deeper, this is
 ``Module::LoadFromFile``. In our example, the file is ``deploy.so``,
 according to the function logic, we will call ``module.loadfile_so`` in
 ``dso_library.cc``. The key is here:

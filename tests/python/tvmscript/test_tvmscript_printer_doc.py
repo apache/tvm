@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """
 In this test file, we want to make sure the Python code can construct
 Doc objects, then access and modify their attributes correctly.
 """
 
 import pytest
-import tvm
 from tvm_ffi.access_path import AccessPath
+
+import tvm
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
@@ -537,8 +539,8 @@ def test_stmt_doc_comment():
     comment = "test comment"
     doc.comment = comment
     # Make sure the previous statement doesn't set attribute
-    # as if it's an ordinary Python object.
-    assert "comment" not in doc.__dict__
+    # as if it's an ordinary Python object (__slots__ enforces this).
+    assert not hasattr(doc, "__dict__") or "comment" not in doc.__dict__
     assert doc.comment == comment
 
 
@@ -549,7 +551,7 @@ def test_doc_source_paths():
     source_paths = [AccessPath.root(), AccessPath.root().attr("x")]
 
     doc.source_paths = source_paths
-    # This should triggers the __getattr__ and gets a tvm.ir.container.Array
+    # This should triggers the __getattr__ and gets a tvm_ffi.Array
     assert not isinstance(doc.source_paths, list)
     assert list(doc.source_paths) == source_paths
 

@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utils to path."""
+
 import os
+
 import tvm_ffi
+
 from tvm import libinfo
-from tvm.contrib import cc
+from tvm.support import cc
 
 
 def find_minrpc_server_libpath(server="posix_popen_server"):
@@ -36,7 +39,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     """
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
-    minrpc_dir = os.path.join(source_dir, "src", "runtime", "minrpc")
+    minrpc_dir = os.path.join(source_dir, "src", "runtime", "rpc", "minrpc")
     path = os.path.join(minrpc_dir, server, f"{server}.cc")
 
     candidates = [path]
@@ -45,7 +48,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return minrpc_dir, path
 
 
-def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
+def with_minrpc(compile_func, server="posix_popen_server"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -56,27 +59,36 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     server : str
         The server type.
 
-    runtime : str
-        The runtime library.
-
     Returns
     -------
     fcompile : function
         The return compilation.
     """
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
-    runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
+    runtime_path = libinfo.find_libtvm_runtime()
     tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     tvm_ffi_dir = os.path.abspath(os.path.dirname(tvm_ffi_path))
     options = ["-std=c++17"]
-    # Make sure the rpath to the libtvm is set so we can do local tests.
+    # Make sure the rpath to the libtvm_runtime is set so we can do local tests.
     # Note that however, this approach won't work on remote.
     # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-Wl,-rpath=" + tvm_ffi_dir]
-    options += ["-I" + path for path in libinfo.find_include_path()]
+    # Force the linker to retain the runtime shared lib dependency even if no
+    # symbol from it is directly referenced. The minrpc server binary only
+    # touches tvm_ffi APIs at link time but relies on global functions (e.g.
+    # ``rpc.CreateEventDrivenServer``) registered via static initializers
+    # inside libtvm_runtime; with the default ``--as-needed`` those
+    # registrations would never run.
+    options += ["-Wl,--no-as-needed"]
+    default_include_paths = [
+        libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_dlpack_include_path(),
+    ]
+    options += ["-I" + path for path in default_include_paths]
     options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(
         compile_func, options=options, add_files=[server_path, runtime_path, tvm_ffi_path]

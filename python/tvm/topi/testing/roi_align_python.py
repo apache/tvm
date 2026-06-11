@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-nested-blocks
 "Roi align in python"
+
 import math
+
 import numpy as np
 
 
@@ -27,8 +29,8 @@ def _bilinear(a_np, n, c, y, x, height, width, layout):
     y = min(max(y, 0), height - 1)
     x = min(max(x, 0), width - 1)
 
-    y_low = int(math.floor(y))
-    x_low = int(math.floor(x))
+    y_low = math.floor(y)
+    x_low = math.floor(x)
     y_high = y_low + 1
     x_high = x_low + 1
 
@@ -57,6 +59,7 @@ def roi_align_common(
     pooled_size_w,
     spatial_scale,
     sample_ratio,
+    aligned,
     avg_mode,
     max_mode,
     height,
@@ -70,8 +73,8 @@ def roi_align_common(
         roi = rois_np[i]
         batch_index = int(roi[0])
         roi_start_w, roi_start_h, roi_end_w, roi_end_h = roi[1:] * spatial_scale
-        roi_h = max(roi_end_h - roi_start_h, 1.0)
-        roi_w = max(roi_end_w - roi_start_w, 1.0)
+        roi_h = roi_end_h - roi_start_h if aligned else max(roi_end_h - roi_start_h, 1.0)
+        roi_w = roi_end_w - roi_start_w if aligned else max(roi_end_w - roi_start_w, 1.0)
 
         bin_h = roi_h / pooled_size_h
         bin_w = roi_w / pooled_size_w
@@ -79,8 +82,8 @@ def roi_align_common(
         if sample_ratio > 0:
             roi_bin_grid_h = roi_bin_grid_w = int(sample_ratio)
         else:
-            roi_bin_grid_h = int(math.ceil(roi_h / pooled_size_h))
-            roi_bin_grid_w = int(math.ceil(roi_w / pooled_size_w))
+            roi_bin_grid_h = math.ceil(roi_h / pooled_size_h)
+            roi_bin_grid_w = math.ceil(roi_w / pooled_size_w)
 
         count = roi_bin_grid_h * roi_bin_grid_w
 
@@ -113,7 +116,9 @@ def roi_align_common(
     return b_np
 
 
-def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
+def roi_align_nchw_python(
+    a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg", aligned=False
+):
     """Roi align NCHW in python"""
     avg_mode = mode in (b"avg", "avg", 0)
     max_mode = mode in (b"max", "max", 1)
@@ -135,6 +140,7 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         pooled_size_w,
         spatial_scale,
         sample_ratio,
+        aligned,
         avg_mode,
         max_mode,
         height,
@@ -143,7 +149,9 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
     )
 
 
-def roi_align_nhwc_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
+def roi_align_nhwc_python(
+    a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg", aligned=False
+):
     """Roi align NHWC in python"""
     avg_mode = mode in (b"avg", "avg", 0)
     max_mode = mode in (b"max", "max", 1)
@@ -167,6 +175,7 @@ def roi_align_nhwc_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         pooled_size_w,
         spatial_scale,
         sample_ratio,
+        aligned,
         avg_mode,
         max_mode,
         height,

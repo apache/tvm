@@ -17,6 +17,8 @@
 
 package org.apache.tvm.rpc;
 
+import static org.junit.Assert.assertEquals;
+
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.TVMValue;
@@ -25,8 +27,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.junit.Assert.assertEquals;
 
 public class RPCTest {
   private final Logger logger = LoggerFactory.getLogger(RPCTest.class);
@@ -39,10 +39,11 @@ public class RPCTest {
       return;
     }
     Function.register("test.rpc.addone", new Function.Callback() {
-        @Override public Object invoke(TVMValue... args) {
-          return args[0].asLong() + 1L;
-        }
-      });
+      @Override
+      public Object invoke(TVMValue... args) {
+        return args[0].asLong() + 1L;
+      }
+    });
 
     TestUtils.RefInt port = new TestUtils.RefInt();
     Server server = null;
@@ -66,7 +67,8 @@ public class RPCTest {
       return;
     }
     Function.register("test.rpc.strcat", new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         return args[0].asString() + ":" + args[1].asLong();
       }
     });
@@ -86,15 +88,17 @@ public class RPCTest {
   }
 
   @Ignore("Proxy server may not have been ready when this test runs,"
-        + " will add retry when callback function can deal with Java exception."
-        + " After that we'll enable this test.")
+      + " will add retry when callback function can deal with Java exception."
+      + " After that we'll enable this test.")
   @Test
-  public void test_connect_proxy_server() {
+  public void
+  test_connect_proxy_server() {
     String proxyHost = System.getProperty("test.rpc.proxy.host");
     int proxyPort = Integer.parseInt(System.getProperty("test.rpc.proxy.port"));
 
     Function.register("test.rpc.proxy.addone", new Function.Callback() {
-      @Override public Object invoke(TVMValue... tvmValues) {
+      @Override
+      public Object invoke(TVMValue... tvmValues) {
         return tvmValues[0].asLong() + 1L;
       }
     });

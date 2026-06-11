@@ -15,17 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import argparse
-import textwrap
-import junitparser
-from pathlib import Path
-from typing import List, Optional
-import os
-import urllib.parse
 import logging
+import os
+import textwrap
+import urllib.parse
+from pathlib import Path
 
+import junitparser
 from cmd_utils import init_log
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -42,7 +41,7 @@ def classname_to_file(classname: str) -> str:
     return classname.replace(".", "/") + ".py"
 
 
-def failed_test_ids() -> List[str]:
+def failed_test_ids() -> list[str]:
     FAILURE_TYPES = (junitparser.Failure, junitparser.Error)
     junit_dir = REPO_ROOT / "build" / "pytest-results"
     failed_node_ids = []
@@ -62,7 +61,7 @@ def failed_test_ids() -> List[str]:
     return list(set(failed_node_ids))
 
 
-def repro_command(build_type: str, failed_node_ids: List[str]) -> Optional[str]:
+def repro_command(build_type: str, failed_node_ids: list[str]) -> str | None:
     """
     Parse available JUnit XML files and output a command that users can run to
     reproduce CI failures locally
@@ -72,7 +71,7 @@ def repro_command(build_type: str, failed_node_ids: List[str]) -> Optional[str]:
     return f"python3 tests/scripts/ci.py {build_type} {test_args_str}"
 
 
-def make_issue_url(failed_node_ids: List[str]) -> str:
+def make_issue_url(failed_node_ids: list[str]) -> str:
     names = [f"`{node_id}`" for node_id in failed_node_ids]
     run_url = os.getenv("RUN_DISPLAY_URL", "<insert run URL>")
     test_bullets = [f"  - `{node_id}`" for node_id in failed_node_ids]
@@ -80,7 +79,7 @@ def make_issue_url(failed_node_ids: List[str]) -> str:
         "labels": "test: flaky",
         "title": "[Flaky Test] " + ", ".join(names),
         "body": textwrap.dedent(
-            f"""
+            """
             These tests were found to be flaky (intermittently failing on `main` or failed in a PR with unrelated changes). See [the docs](https://github.com/apache/tvm/blob/main/docs/contribute/ci.rst#handling-flaky-failures) for details.
 
             ### Tests(s)\n
@@ -92,7 +91,7 @@ def make_issue_url(failed_node_ids: List[str]) -> str:
     return "https://github.com/apache/tvm/issues/new?" + urllib.parse.urlencode(params)
 
 
-def show_failure_help(failed_suites: List[str]) -> None:
+def show_failure_help(failed_suites: list[str]) -> None:
     failed_node_ids = failed_test_ids()
 
     if len(failed_node_ids) == 0:

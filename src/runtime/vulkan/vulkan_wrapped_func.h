@@ -27,10 +27,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
-#include "../spirv/spirv_shader.h"
 #include "../thread_storage_scope.h"
+#include "spirv_shader.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_common.h"
 #include "vulkan_device.h"
@@ -56,9 +56,9 @@ class VulkanModuleNode;
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
+  void Init(VulkanModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& launch_param_tags);
+            const ffi::Array<ffi::String>& launch_param_tags);
 
   void operator()(ffi::PackedArgs args, ffi::Any* rv, const ArgUnion64* pack_args) const;
 
@@ -66,7 +66,7 @@ class VulkanWrappedFunc {
   // internal module
   VulkanModuleNode* m_;
   // the resource holder
-  ObjectPtr<Object> sptr_;
+  ffi::ObjectPtr<ffi::Object> sptr_;
   // v The name of the function.
   std::string func_name_;
   // Number of buffer arguments
@@ -82,9 +82,15 @@ class VulkanWrappedFunc {
 
 class VulkanModuleNode final : public ffi::ModuleObj {
  public:
-  explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source) {}
+  explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> internal_smap,
+                            ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                            ffi::Map<ffi::String, FunctionInfo> fmap,
+                            ffi::Map<ffi::String, ffi::String> source)
+      : internal_smap_(std::move(internal_smap)),
+        smap_(std::move(smap)),
+        fmt_(std::move(fmt)),
+        fmap_(std::move(fmap)),
+        source_(std::move(source)) {}
   ~VulkanModuleNode();
 
   const char* kind() const final { return "vulkan"; }
@@ -99,20 +105,22 @@ class VulkanModuleNode final : public ffi::ModuleObj {
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);
 
-  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
-
   ffi::Bytes SaveToBytes() const final;
   ffi::String InspectSource(const ffi::String& format) const final;
 
  private:
+  // Deserialized SPIRV shaders, used by GetPipeline at runtime.
+  std::unordered_map<std::string, SPIRVShader> internal_smap_;
+  // Per-kernel serialized SPIRVShader bytes, kept for byte-identical
+  // SaveToBytes vs target::VulkanFallbackModuleNode.  Both forms carry
+  // the same shaders; internal_smap_ is the deserialized cache.
+  ffi::Map<ffi::String, ffi::Bytes> smap_;
+  // The format identifier — always "vulkan" today.
+  ffi::String fmt_;
   // function information table.
-  std::unordered_map<std::string, SPIRVShader> smap_;
-  // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
-  // The format
-  std::string fmt_{"vulkan"};
-  // The source
-  std::string source_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
+  // In-memory source map for InspectSource — never serialized.
+  ffi::Map<ffi::String, ffi::String> source_;
 
   // Guards accesses to `ecache_`
   std::mutex mutex_;

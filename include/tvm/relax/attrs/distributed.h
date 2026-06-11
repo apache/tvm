@@ -32,7 +32,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for redistribute and annotate_sharding operator */
-struct DistributionAttrs : public AttrsNodeReflAdapter<DistributionAttrs> {
+struct DistributionAttrs : public AttrsNode {
   distributed::DeviceMesh device_mesh;
   distributed::Placement placement;
 
@@ -44,8 +44,7 @@ struct DistributionAttrs : public AttrsNodeReflAdapter<DistributionAttrs> {
         .def_ro("placement", &DistributionAttrs::placement,
                 "The placement of a tensor's distribution plan");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DistributionAttrs", DistributionAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DistributionAttrs", DistributionAttrs, AttrsNode);
 };  // struct DistributionAttrs
 
 }  // namespace relax

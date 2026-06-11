@@ -23,9 +23,10 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <tuple>
 #include <unordered_map>
@@ -36,7 +37,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 namespace {
 
@@ -85,7 +86,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     } else if (consider_stores) {
       bounds = std::get<StoreAccess>(kv->second).set;
     } else {
-      CHECK(false) << "Must consider at least on of either loads and stores, but both are false";
+      TVM_FFI_ICHECK(false)
+          << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
       ret.push_back(arith::Union(bounds[i]).CoverRange(none));
@@ -123,7 +125,7 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
       if (args[i].as<RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
-        (*bounds)[i].emplace_back(analyzer_.int_set(args[i]));
+        (*bounds)[i].emplace_back(analyzer_->int_set(args[i]));
       }
     }
   }
@@ -136,9 +138,9 @@ Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
-  ffi::Map<Buffer, ffi::Array<ObjectRef>> ret;
+  ffi::Map<Buffer, ffi::Array<ffi::ObjectRef>> ret;
   auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
     auto& buffer = buffer_map[var];
@@ -154,7 +156,7 @@ ffi::Map<Buffer, ffi::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& f
       combined.push_back(ffi::Array<IntSet>(touch));
     }
 
-    ffi::Array<ObjectRef> fields;
+    ffi::Array<ffi::ObjectRef> fields;
     fields.push_back(loads);
     fields.push_back(stores);
     fields.push_back(combined);

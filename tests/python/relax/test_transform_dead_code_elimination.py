@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 
 import pytest
 
 import tvm
 import tvm.testing
 from tvm.relax.transform import DeadCodeElimination
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tirx as T
 
 
 def verify(input, expected):
@@ -59,7 +62,7 @@ def test_simple():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -121,7 +124,7 @@ def test_2block():
             gv3 = R.astype(gv2, dtype="float16")
             return gv3
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -159,14 +162,14 @@ def check_if_func_exists(mod, func_name):
 def test_unused_relax_func():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -176,9 +179,9 @@ def test_unused_relax_func():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -196,14 +199,14 @@ provide_entry_func_name = tvm.testing.parameter(True, False)
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -213,9 +216,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -237,14 +240,14 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
 def test_tracking_through_externally_exposed_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -254,9 +257,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -279,7 +282,7 @@ def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
     @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(
             x_handle: T.handle,
             y_handle: T.handle,
@@ -292,7 +295,7 @@ def test_unused_relax_func_symbolic_shape():
             y = T.match_buffer(y_handle, (n, k), "float32")
             z = T.match_buffer(z_handle, (m, k), "float32")
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         z[vi, vj] = 0.0
@@ -321,7 +324,7 @@ def test_unused_relax_func_symbolic_shape():
 def test_unused_prim_func():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def unused_func(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -329,7 +332,7 @@ def test_unused_prim_func():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -339,9 +342,9 @@ def test_unused_prim_func():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = InputModule.relax_add(x, w)
             return gv0
 
@@ -358,9 +361,9 @@ def test_preserve_indirectly_used_prim_func():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
@@ -368,18 +371,18 @@ def test_preserve_indirectly_used_prim_func():
             )
             return gv0
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_add_tensors(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
             z: T.Buffer((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:
             return x + y
 
@@ -393,7 +396,7 @@ def test_preserve_indirectly_used_prim_func():
 def test_multiple_unused_funcs():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def unused_func1(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -401,7 +404,7 @@ def test_multiple_unused_funcs():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -411,9 +414,9 @@ def test_multiple_unused_funcs():
             return gv0
 
         @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
+        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
+            (16, 16), "float32"
+        ):
             gv0 = R.add(x, w)
             return gv0
 
@@ -569,155 +572,6 @@ def test_extern_func():
     verify(before, before)
 
 
-def test_compatibility_with_apply_pass_to_function():
-    """DeadCodeElimination can be used with ApplyPassToFunction
-
-    The `ApplyPassToFunction` utility calls another transform, where
-    only the specified functions are exposed to the internal
-    transform.  This intermediate does not contain `cls.subroutine`,
-    and so the intermediate is ill-formed.
-
-    In general, IRModule transformations may assume that their inputs
-    are well-formed.  In specific cases, IRModule transformations may
-    accept IRModules that are ill-formed.  The `DeadCodeElimination`
-    transform allows IRModule arguments that are ill-formed due to
-    a dangling GlobalVar.
-
-    After `DeadCodeElimination` completes, the resulting function is
-    inserted in the original IRModule, providing a well-formed output
-    from `ApplyPassToFunction`.
-
-    """
-
-    @I.ir_module
-    class Before:
-        @R.function
-        def to_be_transformed(A: R.Tensor):
-            cls = Before
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function
-        def to_be_ignored(A: R.Tensor):
-            cls = Before
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function(private=True)
-        def subroutine(arg: R.Tensor) -> R.Tensor:
-            return R.add(arg, arg)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def to_be_transformed(A: R.Tensor):
-            cls = Expected
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            return C
-
-        @R.function
-        def to_be_ignored(A: R.Tensor):
-            cls = Expected
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function(private=True)
-        def subroutine(arg: R.Tensor) -> R.Tensor:
-            return R.add(arg, arg)
-
-    # The well-formed check in conftest.py must be disabled, to avoid
-    # triggering on the ill-formed intermediate, so this unit test
-    # checks it explicitly.
-    assert tvm.relax.analysis.well_formed(Before)
-    After = tvm.ir.transform.ApplyPassToFunction(
-        tvm.relax.transform.DeadCodeElimination(),
-        "to_be_transformed",
-    )(Before)
-    assert tvm.relax.analysis.well_formed(After)
-    tvm.ir.assert_structural_equal(Expected, After)
-
-
-def test_well_formed_output_with_restricted_scope():
-    """DeadCodeElimination can be used with ApplyPassToFunction
-
-    If the call graph cannot be completely traced, private functions
-    should not be removed.
-
-    See `test_compatibility_with_apply_pass_to_function` for full
-    description of `DeadCodeElimination` and `ApplyPassToFunction`.
-
-    """
-
-    @I.ir_module
-    class Before:
-        @R.function
-        def main(A: R.Tensor):
-            cls = Before
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function(private=True)
-        def subroutine(A: R.Tensor) -> R.Tensor:
-            cls = Before
-
-            B = R.add(A, A)
-            C = cls.subsubroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function(private=True)
-        def subsubroutine(A: R.Tensor) -> R.Tensor:
-            B = R.add(A, A)
-            C = R.multiply(B, B)
-            return B
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(A: R.Tensor):
-            cls = Expected
-
-            B = R.add(A, A)
-            C = cls.subroutine(B)
-            return C
-
-        @R.function(private=True)
-        def subroutine(A: R.Tensor) -> R.Tensor:
-            cls = Expected
-
-            B = R.add(A, A)
-            C = cls.subsubroutine(B)
-            D = R.multiply(C, C)
-            return C
-
-        @R.function(private=True)
-        def subsubroutine(A: R.Tensor) -> R.Tensor:
-            B = R.add(A, A)
-            return B
-
-    assert tvm.relax.analysis.well_formed(Before)
-    After = tvm.ir.transform.ApplyPassToFunction(
-        tvm.relax.transform.DeadCodeElimination(),
-        "main|subsubroutine",
-    )(Before)
-    assert tvm.relax.analysis.well_formed(After)
-    tvm.ir.assert_structural_equal(Expected, After)
-
-
 def test_recursively_defined_lambda():
     """DCE may be applied to recursively-defined functions
 
@@ -732,14 +586,14 @@ def test_recursively_defined_lambda():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             @R.function
-            def while_loop(
-                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
-            ) -> R.Tensor((2, 3), "float32"):
+            def while_loop(i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")) -> R.Tensor(
+                (2, 3), "float32"
+            ):
                 cond = R.call_pure_packed(
                     "test.vm.less", i, R.const(10), sinfo_args=R.Tensor((), dtype="bool")
                 )
@@ -769,16 +623,16 @@ def test_recursively_defined_closure():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             threshold = R.const(10)
 
             @R.function
-            def while_loop(
-                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
-            ) -> R.Tensor((2, 3), "float32"):
+            def while_loop(i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")) -> R.Tensor(
+                (2, 3), "float32"
+            ):
                 cond = R.call_pure_packed(
                     "test.vm.less", i, threshold, sinfo_args=R.Tensor((), dtype="bool")
                 )

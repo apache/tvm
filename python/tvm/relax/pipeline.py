@@ -20,11 +20,11 @@ oRelax enables flexible pipeline optimizations before min build.
 This namespace offers a pre-defined collection that can be used
 as it is or serves as a basis to do further composition.
 """
+
 # pylint: disable=unused-argument
-from typing import Union, Optional
 
 import tvm
-from tvm import meta_schedule as ms
+from tvm.s_tir import meta_schedule as ms
 
 from . import backend, transform
 from .backend.utils import BackendDispatcher
@@ -109,10 +109,10 @@ def default_build_pipeline():
 
 def static_shape_tuning_pipeline(
     total_trials: int,
-    target: Union[str, tvm.target.Target],
+    target: str | tvm.target.Target,
     work_dir: str = "tuning_logs",
     cpu_weight_prepack: bool = False,
-    max_trials_per_task: Optional[int] = None,
+    max_trials_per_task: int | None = None,
 ):
     """Tune the static shape model and store the log to database.
 
@@ -151,7 +151,7 @@ def static_shape_tuning_pipeline(
 
         mod = relax.pipeline.static_shape_tuning_pipeline(
             total_trials=1000,
-            target="llvm -num-cores 16",
+            target={"kind": "llvm", "num-cores": 16},
             work_dir="tuning_logs",
             cpu_weight_prepack=True,
             max_trials_per_task=64,
@@ -236,7 +236,7 @@ def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
 
     if name not in PIPELINE_MAP:
         raise ValueError(
-            f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
+            f"Unknown pre-built pipeline {name},candidates are {list(PIPELINE_MAP.keys())}"
         )
     return PIPELINE_MAP[name](**kwargs)
 

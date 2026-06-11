@@ -17,6 +17,8 @@
 
 if(USE_RANDOM)
   message(STATUS "Build with contrib.random")
-  tvm_file_glob(GLOB RANDOM_CONTRIB_SRC src/runtime/contrib/random/random.cc)
-  list(APPEND RUNTIME_SRCS ${RANDOM_CONTRIB_SRC})
+  tvm_file_glob(GLOB RANDOM_CONTRIB_SRC src/runtime/extra/contrib/random/random.cc)
+  add_library(tvm_random_objs OBJECT ${RANDOM_CONTRIB_SRC})
+  target_link_libraries(tvm_random_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_random_objs)
 endif(USE_RANDOM)

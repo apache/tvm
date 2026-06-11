@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unittests for tvm.script.ir_builder.base"""
+
 import pytest
+
 from tvm.script.ir_builder import IRBuilder
 
 

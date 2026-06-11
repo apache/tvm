@@ -26,7 +26,7 @@ Hexagon built into it.
 
 ## Configuration
 
-There is a set of configuration variables that are required for cmake:
+There is a set of configuration variables that are required for CMake:
 - `ANDROID_ABI`: Set this to `arm64-v8a`.
 - `ANDROID_PLATFORM`: This can be `android-28`.
 - `USE_ANDROID_TOOLCHAIN`: The path to the Android toolchain file, i.e.

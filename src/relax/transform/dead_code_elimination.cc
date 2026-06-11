@@ -33,19 +33,77 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt_functor.h>
+
+#include <unordered_set>
 
 #include "utils.h"
 
 namespace tvm {
 namespace relax {
 
+namespace {
+
+struct RelaxCalleeCollector : relax::ExprVisitor {
+  std::vector<GlobalVar>* callees;
+  explicit RelaxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
+  void VisitExpr_(const GlobalVarNode* node) final {
+    callees->push_back(ffi::GetRef<GlobalVar>(node));
+  }
+};
+
+struct TIRxCalleeCollector : tirx::StmtExprVisitor {
+  std::vector<GlobalVar>* callees;
+  explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
+  void VisitExpr_(const tirx::CallNode* node) final {
+    tirx::StmtExprVisitor::VisitExpr_(node);
+    if (auto opt_gvar = node->op.as<GlobalVar>()) {
+      callees->push_back(opt_gvar.value());
+    }
+  }
+};
+
+// Collect the GlobalVars directly called by `func`. Dedups while
+// preserving first-encounter order (same semantics the old
+// support::OrderedSet path provided).
+ffi::Array<GlobalVar> CollectCallees(const BaseFunc& func) {
+  std::vector<GlobalVar> raw;
+  if (auto opt = func.as<relax::Function>()) {
+    RelaxCalleeCollector visitor(&raw);
+    visitor(opt.value());
+  } else if (func.as<relax::ExternFunc>()) {
+    // no callees
+  } else if (auto opt = func.as<tirx::PrimFunc>()) {
+    TIRxCalleeCollector visitor(&raw);
+    visitor(opt.value()->body);
+  }
+  // dedup preserving order
+  ffi::Array<GlobalVar> result;
+  std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> seen;
+  for (const auto& gv : raw) {
+    if (seen.insert(gv).second) result.push_back(gv);
+  }
+  return result;
+}
+
+ffi::Map<GlobalVar, ffi::Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
+  ffi::Map<GlobalVar, ffi::Array<GlobalVar>> call_map;
+  for (const auto& [gvar, base_func] : mod->functions) {
+    call_map.Set(gvar, CollectCallees(base_func));
+  }
+  return call_map;
+}
+
+}  // namespace
+
 IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>& entry_funcs) {
-  auto call_map = ir::CollectCallMap(mod);
+  auto call_map = CollectCallMap(mod);
 
   std::unordered_set<GlobalVar> reachable = entry_funcs;
   std::vector<GlobalVar> to_visit(entry_funcs.begin(), entry_funcs.end());

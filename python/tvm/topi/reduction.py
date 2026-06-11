@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=redefined-builtin,consider-using-enumerate,no-member
 """Reduce operators"""
-from __future__ import absolute_import as _abs
+
 from . import cpp
 
 
@@ -27,7 +27,7 @@ def _get_real_axis(ndim, axis):
         if isinstance(axis, int):
             axis = [axis]
         else:
-            assert isinstance(axis, (list, tuple))
+            assert isinstance(axis, list | tuple)
         real_axis = []
         for ele in axis:
             if ele < 0:

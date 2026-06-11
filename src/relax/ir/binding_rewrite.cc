@@ -22,6 +22,7 @@
  * \brief Implementation of binding rewriters.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/binding_rewrite.h>
@@ -84,8 +85,8 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
     }
   };
 
-  ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
-  ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
+  TVM_FFI_ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
+  TVM_FFI_ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
 
   // replace uses inside the DataflowBlock.
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
@@ -142,11 +143,11 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
     } else if (auto mc = binding.as<MatchCastNode>()) {
       return std::make_pair(mc->var, mc->value);
     }
-    LOG(FATAL) << "Unsupported binding type";
+    TVM_FFI_THROW(InternalError) << "Unsupported binding type";
     return std::make_pair(Var{}, Expr{});
   }();
 
-  ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";
+  TVM_FFI_ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";
 
   // Add this VarBinding statement after the definition of uses.
   auto used_vars = GetUsedVars(val);
@@ -216,7 +217,7 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
       users_map.erase(unused[i]);
       // remove def site.
       for (const auto& used_var : used) {
-        ICHECK(users_map.count(used_var));
+        TVM_FFI_ICHECK(users_map.count(used_var));
         ffi::Array<Var> var_users = users_map[used_var];
         // remove the unused var from the use site.
         if (auto it = std::find(var_users.begin(), var_users.end(), unused[i]);
@@ -272,10 +273,11 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   // first need to check if this var is used.
   if (to_users_.count(unused) == 0) {  // no def.
     if (allow_undef) return;
-    LOG(FATAL) << unused << " undefined. Set allow_undef=True to allow 'removing' undefined var";
+    TVM_FFI_THROW(InternalError)
+        << unused << " undefined. Set allow_undef=True to allow 'removing' undefined var";
   }
 
-  ICHECK(to_users_[unused].empty())
+  TVM_FFI_ICHECK(to_users_[unused].empty())
       << unused << " is used by " << to_users_[unused].size() << " vars";
 
   auto old_dfb = dfb_;
@@ -326,7 +328,7 @@ Expr RemoveAllUnused(Expr expr) {
   auto var_usage = CollectVarUsage(expr);
 
   // For the purpose of
-  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> externally_exposed(
+  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> externally_exposed(
       var_usage.outputs.begin(), var_usage.outputs.end());
   for (const auto& [var, expr] : var_usage.bound_values) {
     if (ContainsImpureCall(expr)) {

@@ -22,9 +22,10 @@ Docker Images
 We provide docker utility scripts to help developers to setup development environment.
 They are also helpful run through TVM demo and tutorials.
 We need `docker <https://docs.docker.com/engine/installation/>`_ and
-`nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda.
+`NVIDIA Container Toolkit <https://github.com/NVIDIA/nvidia-container-toolkit>`_
+if we want to use CUDA.
 
-Get a tvm source distribution or clone the github repo to get the auxiliary scripts
+Get a tvm source distribution or clone the GitHub repo to get the auxiliary scripts
 
 .. code:: bash
 

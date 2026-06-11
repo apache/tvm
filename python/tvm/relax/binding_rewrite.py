@@ -17,13 +17,12 @@
 # pylint: disable=no-else-return, invalid-name
 """Developer API of add/remove/replace bindings in Relax."""
 
-from typing import Optional
+import tvm_ffi
 
 import tvm
-import tvm_ffi
 from tvm.runtime import Object
-from . import Binding, DataflowBlock, Expr, Function, Var
-from . import _ffi_api
+
+from . import Binding, DataflowBlock, Expr, Function, Var, _ffi_api
 
 
 @tvm_ffi.register_object("relax.DataflowBlockRewrite")
@@ -39,6 +38,8 @@ class DataflowBlockRewrite(Object):
     use mutate_irmodule which rewrites the old function that registered in the constructor.
     """
 
+    __slots__ = ("__dict__",)
+
     def __init__(self, dfb: DataflowBlock, root_fn: Function):
         """
         Construct a rewriter with the DataflowBlock to rewrite and its root function.
@@ -52,7 +53,9 @@ class DataflowBlockRewrite(Object):
         """
         self.func_name = root_fn.__name__ if hasattr(root_fn, "__name__") else None
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowBlockRewrite, dfb, root_fn  # type: ignore
+            _ffi_api.DataflowBlockRewrite,
+            dfb,
+            root_fn,  # type: ignore
         )
 
     def replace_all_uses(self, old_var: Var, new_var: Var) -> None:
@@ -71,7 +74,7 @@ class DataflowBlockRewrite(Object):
     def add_binding(self, binding: Binding) -> None:
         return _ffi_api.dfb_rewrite_add_binding(self, binding)  # type: ignore
 
-    def add(self, expr: Expr, name: Optional[str] = None, is_dfvar: bool = False) -> None:
+    def add(self, expr: Expr, name: str | None = None, is_dfvar: bool = False) -> None:
         """
         Add a new statement to the DataflowBlock with an automatically generated variable name.
 

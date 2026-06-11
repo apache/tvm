@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=redefined-outer-name, invalid-name
 """Tool to start RPC tracker"""
-import logging
+
 import argparse
+import logging
+
 from ..rpc.tracker import Tracker
 
 

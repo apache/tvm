@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 """Relax memory primitives."""
 
-from typing import Union
+from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
+from ...utils import convert_to_expr
 from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, StringImm
-from ...utils import args_converter
 
 
-@args_converter.auto
 def alloc_storage(
     size: Expr,
-    virtual_device_index: Union[int, Expr],
-    storage_scope: Union[str, Expr],
-    dtype: Union[str, Expr],
+    virtual_device_index: int | Expr,
+    storage_scope: str | Expr,
+    dtype: str | Expr,
 ) -> Call:
     """Construct a Call to allocate a storage with specific size, virtual_device_index,
     storage_scope and dtype.
@@ -51,6 +49,7 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
+    size = convert_to_expr(size)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(storage_scope, str):
@@ -60,13 +59,12 @@ def alloc_storage(
     return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
 
 
-@args_converter.auto
 def alloc_tensor(
     storage: Expr,
-    offset: Union[int, Expr],
+    offset: int | Expr,
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_ind: Union[int, Expr] = PrimValue(0),
+    dtype: str | Expr,
+    runtime_device_ind: int | Expr = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -95,12 +93,12 @@ def alloc_tensor(
     """
     if isinstance(offset, int):
         offset = PrimValue(offset)
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
 
 
-@args_converter.auto
 def kill_storage(storage: Expr) -> Call:
     """Construct a Call to kill a storage.
 
@@ -117,7 +115,6 @@ def kill_storage(storage: Expr) -> Call:
     return _ffi_api.kill_storage(storage)  # type: ignore
 
 
-@args_converter.auto
 def kill_tensor(tensor: Expr) -> Call:
     """Construct a Call to kill a tensor.
 

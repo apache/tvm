@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,5 +18,8 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """GPU specific declaration."""
+
 from .scan import cumsum, cumprod
+from .scatter_elements import scatter_elements
+from .scatter_nd import scatter_nd
 from .sort import *

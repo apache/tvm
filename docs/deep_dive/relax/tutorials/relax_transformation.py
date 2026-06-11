@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _relax-transform:
@@ -89,7 +90,7 @@ mod.show()
 #
 # Custom Passes
 # ~~~~~~~~~~~~~
-# We can also define our own passes. Let's taking an example of rewrite the ``relu``
+# We can also define our own passes. Let's take an example of rewriting the ``relu``
 # operator to ``gelu`` operator.
 #
 # First, we need to write a Relax IR Mutator to do the rewriting.

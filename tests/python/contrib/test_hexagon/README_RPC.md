@@ -29,9 +29,9 @@ The communication between x86 and Android is done via the standard TVM RPC proto
 
 A packet between Android and Hexagon is proxy-ed by the Hexagon FastRPC mechanism. FastRPC depends on the auto-generated implementations of client- and server- side API. During the build time, the Android side API (”stub”) and the Hexagon side API (”skel”) is generated from `src/runtime/hexagon/rpc/hexagon_rpc.idl` (see `cmake/modules/Hexagon.cmake`).
 
-When TVM’s RPC server on Android, `tvm_rpc_android_server`, invokes `hexagon_rpc_send(...)`, it actually calls into the same-name function defined in the stub with the exact same arguments (which includes the URI for the `*skel.so` library to use on Hexagon, which in our case is `libhexagon_rpc_skel.so`). Similarly, on the Hexagon side, `hexagon_rpc_send(...)` call is first intercepted by the “skel” API, which in tern calls the actual implementation defined in `src/runtime/hexagon/rpc/rpc_server.cc`.
+When TVM’s RPC server on Android, `tvm_rpc_android_server`, invokes `hexagon_rpc_send(...)`, it actually calls into the same-name function defined in the stub with the exact same arguments (which includes the URI for the `*skel.so` library to use on Hexagon, which in our case is `libhexagon_rpc_skel.so`). Similarly, on the Hexagon side, `hexagon_rpc_send(...)` call is first intercepted by the “skel” API, which in turn calls the actual implementation defined in `src/runtime/hexagon/rpc/hexagon/rpc_server.cc`.
 
-## Initialization: Setting up Android and establishing connection between x86 host and android
+## Initialization: Setting up Android and establishing connection between x86 host and Android
 
 What’s happening during the launcher initialization at [https://github.com/apache/tvm/blob/7cfaa88e6c18edc0a41e1a984d3cb9d8659a1c2c/tests/python/contrib/test_hexagon/test_launcher.py#L71-L73](https://github.com/apache/tvm/blob/7cfaa88e6c18edc0a41e1a984d3cb9d8659a1c2c/tests/python/contrib/test_hexagon/test_launcher.py#L71-L73) ?
 
@@ -41,7 +41,7 @@ launcher.upload(dso_binary_path, dso_binary)
 launcher.start_server()
 ```
 
-Here, we send various files over android via `adb`, and initialize a RPC server via `tvm_rpc_android` binary (built from [https://github.com/apache/tvm/tree/main/apps/cpp_rpc](https://github.com/apache/tvm/tree/main/apps/cpp_rpc)):
+Here, we send various files over Android via `adb`, and initialize a RPC server via `tvm_rpc_android` binary (built from [https://github.com/apache/tvm/tree/main/apps/cpp_rpc](https://github.com/apache/tvm/tree/main/apps/cpp_rpc)):
 
 [https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/build.py#L373-L378](https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/build.py#L373-L378)
 
@@ -60,7 +60,7 @@ subprocess.Popen(
 ./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY>&
 ```
 
-When we do `launcher.create_session()` , a remote RPC session between x86 and android is established via this line:
+When we do `launcher.create_session()` , a remote RPC session between x86 and Android is established via this line:
 
 [https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67](https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67)
 
@@ -75,7 +75,7 @@ self._rpc = tracker.request(
 )
 ```
 
-Which eventually jumps to the following line in C++, which creates a RPC client session on an x86 host and run a server initialization function `tvm.contrib.hexagon.create_hexagon_session` on android:
+Which eventually jumps to the following line in C++, which creates a RPC client session on an x86 host and run a server initialization function `tvm.contrib.hexagon.create_hexagon_session` on Android:
 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
@@ -92,7 +92,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 ```
 
-`tvm.contrib.hexagon.create_hexagon_session` is defined here. It establishes a link between android and hexagon, this code runs on android.
+`tvm.contrib.hexagon.create_hexagon_session` is defined here. It establishes a link between Android and Hexagon, this code runs on Android.
 
 [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106)
 
@@ -180,7 +180,7 @@ GetSess(dev_from)->GetDeviceAPI(remote_dev)->CopyDataFromTo(&from_tensor, &to_te
 
 [https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L94](https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L94)
 
-At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I thought it would jump to `HexagonDeviceAPI`). Since `GetSess(dev_from)` returns the client RPC connection between x86 and android, created during initialization in
+At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I thought it would jump to `HexagonDeviceAPI`). Since `GetSess(dev_from)` returns the client RPC connection between x86 and Android, created during initialization in
 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107)
 
@@ -259,7 +259,7 @@ void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final 
   }
 ```
 
-But this time, `endpoint_` is different. Previously, this `endpoint_` represented the connection between x86 and android (created in [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L99-L100](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L99-L100)), but this `endpoint_` belongs to the Hexagon session created in [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L113](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L113). So this is where the RPC communication between Android and Hexagon starts.
+But this time, `endpoint_` is different. Previously, this `endpoint_` represented the connection between x86 and Android (created in [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L99-L100](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L99-L100)), but this `endpoint_` belongs to the Hexagon session created in [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L113](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L113). So this is where the RPC communication between Android and Hexagon starts.
 
 ## Android → Hexagon
 
@@ -299,7 +299,7 @@ AEEResult hexagon_rpc_send(remote_handle64 _handle, const unsigned char* data,
 
 This is where FastRPC comes into play and things get very confusing. The endpoint lives in Android, so `hexagon_rpc_send` call (also `hexagon_rpc_open`) happens at Android. But the implementations of these functions in `rpc_server.cc` describe the behavior on the Hexagon side... What’s happening is that FastRPC “stub” and “skel” (see the overview at the top) API intercept those calls and play some magic behind the scene to make RPC call look transparent from the client (Android) perspective.
 
-So when the control comes to the point of definition of `hexagon_rpc_send` in `rpc_server.cc`, FastRPC has already finished its job and so we are really on the Hexagon side now. We come to `HexagonRPCServer::Write(...)` function, which in tern calls into TVM MinRPC server instance `rpc_server_` to process the incoming packet:
+So when the control comes to the point of definition of `hexagon_rpc_send` in `rpc_server.cc`, FastRPC has already finished its job and so we are really on the Hexagon side now. We come to `HexagonRPCServer::Write(...)` function, which in turn calls into TVM MinRPC server instance `rpc_server_` to process the incoming packet:
 
 [https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L167](https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L167)
 

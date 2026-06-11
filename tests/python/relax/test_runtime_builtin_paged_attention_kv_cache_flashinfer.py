@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict, List, Tuple, Union
-
+# ruff: noqa: E741
 import pytest
 import torch
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
@@ -33,7 +33,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _merge_state_inplace,
     llama_rope_with_position_map,
 )
-from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -136,7 +136,7 @@ def set_global_func(rope_mode: RopeMode):
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.tir.build(mod["main"], target=target)
+        f = tvm.tirx.build(mod["main"], target=target)
         builts.append(f.main)
 
     (
@@ -153,7 +153,7 @@ def create_kv_cache(rope_mode):
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     support_sliding_window = 0
     cache = fcreate(
-        tvm.runtime.ShapeTuple(
+        tvm_ffi.Shape(
             [
                 reserved_nseq,
                 maximum_total_seq_length,
@@ -162,12 +162,12 @@ def create_kv_cache(rope_mode):
                 support_sliding_window,
             ]
         ),
-        tvm.runtime.ShapeTuple([0, num_layers]),
+        tvm_ffi.Shape([0, num_layers]),
         num_qo_heads,
         num_kv_heads,
         head_dim,
         head_dim,  # v_head_dim
-        tvm.runtime.ShapeTuple([int(AttnKind.MHA) for _ in range(num_layers)]),
+        tvm_ffi.Shape([int(AttnKind.MHA) for _ in range(num_layers)]),
         False,  # enable_kv_transfer
         rope_mode,
         rope_scale,
@@ -242,9 +242,9 @@ def f_apply_rotary(x, offset, scale, theta):
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, torch.Tensor],
-    cached_v: Dict[int, torch.Tensor],
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_k: dict[int, torch.Tensor],
+    cached_v: dict[int, torch.Tensor],
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -275,7 +275,7 @@ def apply_attention(
                 (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
             )
 
-    fbegin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(append_lengths))
+    fbegin_forward(kv_cache, Shape(seq_ids), Shape(append_lengths))
 
     global_new_q = torch.zeros(
         (num_layers, 0, num_qo_heads, head_dim), dtype=dtype_torch, device=device_torch

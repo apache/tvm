@@ -24,19 +24,28 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_SESSION_H_
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/object.h>
 
 #include <functional>
 #include <memory>
 #include <string>
 
-#include "../minrpc/rpc_reference.h"
+#include "minrpc/rpc_reference.h"
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief Static FFI type index for `runtime::RPCObjectRef`.
+ *
+ * Allocated within the [kTVMFFIDynObjectBegin - 16, kTVMFFIDynObjectBegin)
+ * custom-static slot range. The sibling constant `kRuntimeDiscoDRef` lives in
+ * `tvm/runtime/disco/session.h` and uses `... - 14`; values must remain
+ * disjoint across this small reserved block.
+ */
+constexpr int32_t kRuntimeRPCObjectRef = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 13;
 
 /*!
  * \brief The interface of all remote RPC sessions.
@@ -281,12 +290,20 @@ struct RemoteSpace {
   void* data;
   /*! \brief Reference to the underlying RPC session. */
   std::shared_ptr<RPCSession> sess;
+  /*!
+   * \brief The remote Tensor object handle, if this RemoteSpace wraps a returned Tensor.
+   *
+   * Returned RPC Tensors carry both the backing data pointer and a Tensor object handle.  The
+   * object handle must be released with FreeHandle so the remote side can correctly decrement the
+   * Tensor refcount and free the backing storage when it is no longer shared.
+   */
+  void* object_handle{nullptr};
 };
 
 /*!
- * \brief Object wrapper that represents a reference to a remote object
+ * \brief ffi::Object wrapper that represents a reference to a remote object
  */
-class RPCObjectRefObj : public Object {
+class RPCObjectRefObj : public ffi::Object {
  public:
   /*!
    * \brief constructor
@@ -303,7 +320,7 @@ class RPCObjectRefObj : public Object {
     if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
         sess_->FreeHandle(object_handle_);
-      } catch (const Error& e) {
+      } catch (const ffi::Error& e) {
         // fault tolerance to remote close
       }
       object_handle_ = nullptr;
@@ -314,9 +331,9 @@ class RPCObjectRefObj : public Object {
 
   void* object_handle() const { return object_handle_; }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
+  static constexpr const uint32_t _type_index = kRuntimeRPCObjectRef;
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_STATIC("runtime.RPCObjectRef", RPCObjectRefObj, ffi::Object);
 
  private:
   // The object handle
@@ -330,12 +347,12 @@ class RPCObjectRefObj : public Object {
  * \sa RPCObjectRefObj
  * \note No public constructor is provided as it is not supposed to be directly created by users.
  */
-class RPCObjectRef : public ObjectRef {
+class RPCObjectRef : public ffi::ObjectRef {
  public:
-  explicit RPCObjectRef(ObjectPtr<RPCObjectRefObj> data) : ObjectRef(data) {
+  explicit RPCObjectRef(ffi::ObjectPtr<RPCObjectRefObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ObjectRef, RPCObjectRefObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RPCObjectRef, ffi::ObjectRef, RPCObjectRefObj);
 };
 
 /*!

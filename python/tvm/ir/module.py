@@ -16,14 +16,10 @@
 # under the License.
 """IRModule that holds the functions and type definitions."""
 
-from __future__ import annotations
-
-from typing import Dict, Union
+import tvm_ffi
 
 import tvm
-import tvm_ffi
-from tvm.runtime import Scriptable
-from tvm.runtime.object import Object
+from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from . import expr as _expr
@@ -124,10 +120,10 @@ class IRModule(Node, Scriptable):
         assert isinstance(var, _expr.GlobalVar)
         return _ffi_api.Module_Lookup(self, var)
 
-    def __delitem__(self, var: Union[str, _expr.GlobalVar]):
+    def __delitem__(self, var: str | _expr.GlobalVar):
         _ffi_api.Module_Remove(self, var)
 
-    def __contains__(self, var: Union[str, _expr.GlobalVar]) -> bool:
+    def __contains__(self, var: str | _expr.GlobalVar) -> bool:
         return _ffi_api.Module_Contains(self, var)
 
     def update(self, other):
@@ -198,33 +194,6 @@ class IRModule(Node, Scriptable):
             An array of global vars.
         """
         return _ffi_api.Module_GetGlobalVars(self)
-
-    def replace_global_vars(
-        self,
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]],
-    ) -> "IRModule":
-        """Replace GlobalVar instances within the module
-
-        Replace GlobalVars within the IRModule.  Since the IRModule
-        may contain internal references to a GlobalVar, either in TIR
-        or in Relax, this method should be used whenever replacing or
-        renaming a GlobalVar.
-
-        Parameters
-        ----------
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
-
-            A dictionary where each key is a GlobalVar to be replaced,
-            and the corresponding value is the GlobalVar with which to
-            replace it.
-
-        Returns
-        -------
-        IRModule
-            The updated module
-
-        """
-        return _ffi_api.Module_ReplaceGlobalVars(self, replacements)
 
     @staticmethod
     def from_expr(expr, functions=None):
@@ -297,7 +266,7 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.Module_WithoutAttr(self, attr_key)
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> "IRModule":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "IRModule":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------

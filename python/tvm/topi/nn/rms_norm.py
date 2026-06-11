@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Root mean square normalization operator."""
+
 from .. import cpp
 
 

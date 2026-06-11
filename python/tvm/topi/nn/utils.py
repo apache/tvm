@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
-from __future__ import absolute_import
 
 import tvm
+
 from ..utils import get_const_int
 
 
@@ -110,8 +110,8 @@ def infer_stride(data, kernel, out):
     _, _, IH, IW = data.shape
     _, _, KH, KW = kernel.shape
     _, _, OH, OW = out.shape
-    hstride = (IH - KH) // tvm.te.max(OH - 1, 1) + tvm.tir.Select(OH == 1, 1, 0)
-    wstride = (IW - KW) // tvm.te.max(OW - 1, 1) + tvm.tir.Select(OW == 1, 1, 0)
+    hstride = (IH - KH) // tvm.te.max(OH - 1, 1) + tvm.tirx.Select(OH == 1, 1, 0)
+    wstride = (IW - KW) // tvm.te.max(OW - 1, 1) + tvm.tirx.Select(OW == 1, 1, 0)
     return get_const_int(hstride), get_const_int(wstride)
 
 
@@ -141,7 +141,7 @@ def get_pad_tuple(padding, kernel):
         Padding size on right.
     """
     # compute the padding size
-    if isinstance(padding, (tuple, list)):
+    if isinstance(padding, tuple | list):
         if len(padding) == 2:
             pad_h = padding[0] * 2
             pad_w = padding[1] * 2
@@ -190,7 +190,7 @@ def get_pad_tuple_generic(padding, kernel):
         Padding size on right.
     """
     # compute the padding size
-    if isinstance(padding, (tuple, list)):
+    if isinstance(padding, tuple | list):
         if len(padding) == len(kernel):
             pad_dimensions = [p * 2 for p in padding]
         elif len(padding) == len(kernel) * 2:
@@ -244,7 +244,7 @@ def get_pad_tuple3d(padding, kernel):
         Padding size on right.
     """
     # compute the padding size
-    if isinstance(padding, (tuple, list)):
+    if isinstance(padding, tuple | list):
         if len(padding) == 3:
             pad_d = padding[0] * 2
             pad_h = padding[1] * 2
@@ -291,7 +291,7 @@ def get_pad_tuple1d(padding, kernel):
         Padding size on right.
     """
     # compute the padding size
-    if isinstance(padding, (tuple, list)):
+    if isinstance(padding, tuple | list):
         if len(padding) == 1:
             pad_w = padding[0] * 2
         elif len(padding) == 2:

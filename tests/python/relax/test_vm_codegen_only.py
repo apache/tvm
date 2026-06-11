@@ -14,12 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """Test last-stage of codegen VM.
 
 Restrictions: all shape lowered, explicit allocation.
 """
+
 import numpy as np
 import pytest
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -27,7 +31,7 @@ from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -118,7 +122,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    from tvm.contrib import utils
+    from tvm.support import utils
 
     temp_dir = utils.tempdir()
     path_exec = temp_dir.relpath("exec.so")
@@ -264,7 +268,7 @@ def test_shape_check_builtin(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
-    assert res == tvm.runtime.container.ShapeTuple([2, 1, 2])
+    assert res == tvm_ffi.Shape([2, 1, 2])
 
     # wrong input type
     with pytest.raises(TypeError):
@@ -360,23 +364,23 @@ def test_vm_builtin_reshape(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_kill_object(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestKillObject:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def full(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full", "tir.noalias": True})
+            T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)
                     T.reads()
                     T.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def full1(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full1", "tir.noalias": True})
+            T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)
                     T.reads()
                     T.writes(T_full[v_ax0])
@@ -423,7 +427,7 @@ def test_vm_kill_object(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_preserve_trivial_bindings(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function(pure=False)
         def main():

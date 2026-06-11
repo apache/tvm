@@ -14,11 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841, RUF005
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
@@ -31,7 +35,7 @@ from tvm.relax.testing import (
 )
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -108,9 +112,9 @@ def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert (
-            len(mod["main"].body.blocks[0].bindings) == num_final_bindings
-        ), "Not all bindings are fused. " + str(mod["main"])
+        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings, (
+            "Not all bindings are fused. " + str(mod["main"])
+        )
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -192,7 +196,7 @@ def _to_concrete_shape(symbolic_shape, var_table=None):
             result.append(_to_concrete_shape(dim, var_table))
             continue
 
-        if not isinstance(dim, tvm.tir.expr.Var):
+        if not isinstance(dim, tvm.tirx.expr.Var):
             result.append(dim)
             continue
 
@@ -204,8 +208,8 @@ def _to_concrete_shape(symbolic_shape, var_table=None):
 
 
 _vars = {
-    "a": tvm.tir.expr.Var("a", "int64"),
-    "b": tvm.tir.expr.Var("b", "int64"),
+    "a": tvm.tirx.expr.Var("a", "int64"),
+    "b": tvm.tirx.expr.Var("b", "int64"),
 }
 
 
@@ -883,7 +887,7 @@ def get_relax_attention_rewrite_module(
 ):
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
-    from tvm.script.ir_builder import tir as T
+    from tvm.script.ir_builder import tirx as T
 
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -1135,7 +1139,7 @@ def test_layer_norm(data_shape, dtype, axes):
 
 
 def test_attention_rewrite_fp16():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1168,7 +1172,7 @@ def test_attention_rewrite_fp16():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def fused_relax_nn_attention_bias_cutlass1(
@@ -1244,7 +1248,7 @@ def split_transform_deploy_mod(mod):
         if "transform_params" in gv.name_hint:
             transform_func_name = gv.name_hint
             mod_transform[gv] = func
-        elif isinstance(func, tvm.tir.PrimFunc):
+        elif isinstance(func, tvm.tirx.PrimFunc):
             mod_transform[gv] = func
         else:
             mod_deploy[gv] = func
@@ -1254,18 +1258,18 @@ def split_transform_deploy_mod(mod):
 
 
 def test_fp16A_int4B_gemm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(128),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(128)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j // T.int64(2)], B[v_j])
                     T.writes(decode_1[v_i, v_j])
@@ -1289,18 +1293,18 @@ def test_fp16A_int4B_gemm():
                         * B[v_j]
                     )
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(128), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(128),), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            max_abs_value = T.alloc_buffer((T.int64(128),), "float16")
-            scale = T.alloc_buffer((T.int64(128),))
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
+            max_abs_value = T.sblock_alloc_buffer((T.int64(128),), "float16")
+            scale = T.sblock_alloc_buffer((T.int64(128),))
             for i, k in T.grid(T.int64(128), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1308,7 +1312,7 @@ def test_fp16A_int4B_gemm():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(128)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(128), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1316,7 +1320,7 @@ def test_fp16A_int4B_gemm():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.125)
             for j, i, k in T.grid(T.int64(64), T.int64(64), T.int64(2)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i, v_k = T.axis.remap("SSR", [j, i, k])
                     T.reads(A[v_i * T.int64(2) + v_k, v_j], scale[v_i * T.int64(2) + v_k])
                     T.writes(w_gathered[v_j, v_i])
@@ -1351,7 +1355,7 @@ def test_fp16A_int4B_gemm():
                         ),
                     )
             for i0 in range(T.int64(128)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(128), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1511,35 +1515,35 @@ def test_fp16A_int4B_gemm():
 
 
 def test_fp16A_int8B_gemm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_j])
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
-            scale = T.alloc_buffer((T.int64(64),))
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
+            max_abs_value = T.sblock_alloc_buffer((T.int64(64),), "float16")
+            scale = T.sblock_alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1547,7 +1551,7 @@ def test_fp16A_int8B_gemm():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(64), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1555,7 +1559,7 @@ def test_fp16A_int8B_gemm():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -1570,7 +1574,7 @@ def test_fp16A_int8B_gemm():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(64), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1657,19 +1661,19 @@ def test_fp16A_int8B_gemm():
 
 
 def test_rms_norm():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def rms_norm(
             A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
             B: T.Buffer((T.int64(4096),), "float16"),
             rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -1679,7 +1683,7 @@ def test_rms_norm():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm[v_bsz, v_i, v_k])
@@ -1717,7 +1721,7 @@ def test_rms_norm():
     # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
     # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"rms_eps": 1e-6}},
@@ -1782,7 +1786,7 @@ def test_conv2d_cuda_graph():
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
 
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(mod, inputs, "cuda", cuda_graph=True)
     ref = build_and_run(Conv2d, inputs, "llvm", legalize=True)
@@ -1790,35 +1794,35 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_j])
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
-            max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
-            scale = T.alloc_buffer((T.int64(64),))
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
+            max_abs_value = T.sblock_alloc_buffer((T.int64(64),), "float16")
+            scale = T.sblock_alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1826,7 +1830,7 @@ def test_fp16A_int8B_gemm_batched():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(64), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1834,7 +1838,7 @@ def test_fp16A_int8B_gemm_batched():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -1849,7 +1853,7 @@ def test_fp16A_int8B_gemm_batched():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(64), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1923,23 +1927,23 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def decode(
             A: T.Buffer((T.int64(128), T.int64(128)), "int8"),
             B: T.Buffer((T.int64(2), T.int64(128)), "float16"),
             decode_1: T.Buffer((T.int64(128), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_i // T.int64(64), v_j])
                     T.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def encode(
             A: T.Buffer((T.int64(128), T.int64(128)), "float16"),
             w_gathered: T.Buffer((T.int64(128), T.int64(128)), "int8"),
@@ -1951,22 +1955,22 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 "float16",
             ),
         ):
-            T.func_attr({"tir.noalias": True})
-            max_abs_value = T.alloc_buffer(
+            T.func_attr({"tirx.noalias": True})
+            max_abs_value = T.sblock_alloc_buffer(
                 (
                     T.int64(2),
                     T.int64(128),
                 ),
                 "float16",
             )
-            scale = T.alloc_buffer(
+            scale = T.sblock_alloc_buffer(
                 (
                     T.int64(2),
                     T.int64(128),
                 )
             )
             for i, j, k in T.grid(T.int64(2), T.int64(128), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                     T.reads(A[v_j, v_i * T.int64(64) + v_k])
                     T.writes(max_abs_value[v_i, v_j])
@@ -1976,7 +1980,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         max_abs_value[v_i, v_j], T.fabs(A[v_j, v_i * T.int64(64) + v_k])
                     )
             for i, j in T.grid(T.int64(2), T.int64(128)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(max_abs_value[v_i, v_j])
                     T.writes(scale[v_i, v_j])
@@ -1984,7 +1988,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         T.Cast("float32", max_abs_value[v_i, v_j]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(128), T.int64(128)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_j // T.int64(64), v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -2001,7 +2005,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         ),
                     )
             for i0, i1 in T.grid(T.int64(2), T.int64(128)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(scale[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
@@ -2078,7 +2082,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
 
 def test_attention_rewrite_multi_query():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -2167,7 +2171,7 @@ def _test_batched_var_len_attention(
 
     with tvm.target.Target("cuda"):
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(
         mod,
@@ -2198,7 +2202,7 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {
@@ -2251,7 +2255,7 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {
@@ -2346,7 +2350,7 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos(
             {

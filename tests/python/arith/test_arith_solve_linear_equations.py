@@ -14,24 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 import random
 import sys
+
 import pytest
+import tvm_ffi
+
 import tvm
-from tvm import te, arith, ir, tir, testing
-from tvm.script import tir as T
+from tvm import arith, ir, testing, tirx
+from tvm.script import tirx as T
 
 
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
     print(
         "\nThis test is intentionally non-deterministic, "
-        "if it fails please report it in github issue together with this seed {}\n".format(seed)
+        f"if it fails please report it in GitHub issue together with this seed {seed}\n"
     )
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
-        variables = [te.var("x" + str(i)) for i in range(num_vars)]
+        variables = [tvm.tirx.Var("x" + str(i), "int32") for i in range(num_vars)]
 
         relations = []
         for i in range(num_formulas):
@@ -40,10 +44,10 @@ def test_solution_consistency():
             s2 = sum([v * random.randint(coef[0], coef[1]) for v in variables])
             s2 += random.randint(coef[0], coef[1])
             if random.random() < 0.7:
-                op = tvm.tir.EQ
+                op = tvm.tirx.EQ
             else:
                 # we also make sure it can correctly handle inequalities
-                op = random.choice([tvm.tir.LE, tvm.tir.LT, tvm.tir.GE, tvm.tir.GT])
+                op = random.choice([tvm.tirx.LE, tvm.tirx.LT, tvm.tirx.GE, tvm.tirx.GT])
             relations.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in variables}
@@ -85,55 +89,55 @@ def test_solution_consistency():
 
 
 def test_empty_var_to_solve():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     equations = [
-        tvm.tir.EQ(x + y, 20),
-        tvm.tir.EQ(x - y, 10),
+        tvm.tirx.EQ(x + y, 20),
+        tvm.tirx.EQ(x - y, 10),
     ]
     solution = arith.solve_linear_equations(equations)
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
     assert len(solution.src.variables) == 0
     assert len(solution.src.ranges) == 0
-    assert ir.structural_equal(solution.src.relations, equations)
-    assert ir.structural_equal(solution.src, solution.dst)
+    assert tvm_ffi.structural_equal(solution.src.relations, equations)
+    assert tvm_ffi.structural_equal(solution.src, solution.dst)
 
 
 def test_unique_solution():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 20),
-            tvm.tir.EQ(x - y, 10),
+            tvm.tirx.EQ(x + y, 20),
+            tvm.tirx.EQ(x - y, 10),
         ],
         [x, y],
     )
     assert list(solution.dst.variables) == []
-    assert ir.structural_equal(solution.src_to_dst[x], T.int32(15))
-    assert ir.structural_equal(solution.src_to_dst[y], T.int32(5))
+    assert tvm_ffi.structural_equal(solution.src_to_dst[x], T.int32(15))
+    assert tvm_ffi.structural_equal(solution.src_to_dst[y], T.int32(5))
 
 
 def test_low_rank():
-    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
     ranges = {}
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y + z, 15),
-            tvm.tir.EQ(x + y, 10),
+            tvm.tirx.EQ(x + y + z, 15),
+            tvm.tirx.EQ(x + y, 10),
         ],
         [x, y, z],
         ranges,
     )
     [n0] = solution.dst.variables
-    assert ir.structural_equal(solution.src_to_dst[x], n0 + 10)
-    assert ir.structural_equal(solution.src_to_dst[y], -n0)
-    assert ir.structural_equal(solution.src_to_dst[z], T.int32(5))
+    assert tvm_ffi.structural_equal(solution.src_to_dst[x], n0 + 10)
+    assert tvm_ffi.structural_equal(solution.src_to_dst[y], -n0)
+    assert tvm_ffi.structural_equal(solution.src_to_dst[z], T.int32(5))
 
 
 def test_infer_range():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     ranges = {
         x: tvm.ir.Range.from_min_extent(-5, 10),
         y: tvm.ir.Range.from_min_extent(0, 10),
@@ -141,39 +145,39 @@ def test_infer_range():
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 0),
+            tvm.tirx.EQ(x + y, 0),
         ],
         [x, y],
         ranges,
     )
     [n0] = solution.dst.variables
-    assert ir.structural_equal(solution.src_to_dst[x], n0)
-    assert ir.structural_equal(solution.src_to_dst[y], -n0)
+    assert tvm_ffi.structural_equal(solution.src_to_dst[x], n0)
+    assert tvm_ffi.structural_equal(solution.src_to_dst[y], -n0)
     # inferred from y's range
-    assert ir.structural_equal(solution.dst.ranges[n0].min, T.int32(-9))
-    assert ir.structural_equal(solution.dst.ranges[n0].extent, T.int32(10))
+    assert tvm_ffi.structural_equal(solution.dst.ranges[n0].min, T.int32(-9))
+    assert tvm_ffi.structural_equal(solution.dst.ranges[n0].extent, T.int32(10))
     # additional inequality is added into the system for x
     [ineq] = solution.dst.relations
-    assert isinstance(ineq, tvm.tir.LE)
-    assert ir.structural_equal(ineq.a, T.int32(-5))
-    assert ir.structural_equal(ineq.b, n0)
+    assert isinstance(ineq, tvm.tirx.LE)
+    assert tvm_ffi.structural_equal(ineq.a, T.int32(-5))
+    assert tvm_ffi.structural_equal(ineq.b, n0)
 
 
 def test_ill_formed():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
-            tvm.tir.EQ(x + y, 0),
-            tvm.tir.EQ(x - y, 0),
-            tvm.tir.EQ(x, 5),
+            tvm.tirx.EQ(x + y, 0),
+            tvm.tirx.EQ(x - y, 0),
+            tvm.tirx.EQ(x, 5),
         ],
         [x, y],
         {},
     )
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
-    ir.assert_structural_equal(rel, tir.const(False))
+    ir.assert_structural_equal(rel, tirx.const(False))
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
 

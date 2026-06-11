@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _optimize_model:
@@ -32,6 +33,7 @@ Please note that default end-to-end optimization may not suit complex models.
 # PyTorch.
 
 import os
+
 import numpy as np
 import torch
 from torch.export import export
@@ -87,7 +89,7 @@ if not IS_IN_CI:
 ######################################################################
 # IRModule Optimization
 # ---------------------
-# Apache TVM Unity provides a flexible way to optimize the IRModule. Everything centered
+# Apache TVM provides a flexible way to optimize the IRModule. Everything centered
 # around IRModule optimization can be composed with existing pipelines. Note that each
 # transformation can be combined as an optimization pipeline via ``tvm.ir.transform.Sequential``.
 #
@@ -139,7 +141,7 @@ if not IS_IN_CI:
 
 if not IS_IN_CI:
     with target:
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target=target)
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)

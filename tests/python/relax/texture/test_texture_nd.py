@@ -14,24 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821, F841
 
 import os
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
-import tempfile
-import numpy as np
-
 from tvm import (
-    relax,
+    DataType,
     IRModule,
+    relax,
+    tirx,
 )
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.script import ir as I, tir as T
-from tvm.target import Target
-from tvm.contrib import ndk
-from tvm import tir, DataType
 from tvm.rpc import connect_tracker
+from tvm.script import ir as I
+from tvm.script import tirx as T
+from tvm.support import ndk
+from tvm.target import Target
 
 
 def get_rpc():
@@ -58,11 +62,11 @@ def preprocess_pipeline(mod: IRModule) -> IRModule:
     desired_layouts = {"relax.nn.conv2d": ["NCHW16c", "OIHW16o", "NCHW16c"]}
     seq = tvm.transform.Sequential(
         [
-            tvm.tir.transform.BindTarget(Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(Target.current(allow_none=False)),
             tvm.relax.transform.FoldConstant(),
             tvm.relax.transform.DecomposeOpsForInference(),
             tvm.relax.transform.FoldConstant(),
-            tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
             tvm.relax.transform.ConvertLayout(desired_layouts),
             tvm.relax.transform.Normalize(),
             tvm.relax.transform.FoldConstant(),
@@ -114,18 +118,18 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     if read_width > lanes:
         return
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TextureCopy:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):
-                with T.block("Copy"):
+                with T.sblock("Copy"):
                     i, j = T.axis.remap("SS", [li, lj])
                     B[i, j] = A[i, j]
 
-    def schedule_texture_read(sch: tir.Schedule):
-        B_blk = sch.get_block("Copy")
+    def schedule_texture_read(sch: s_tir.Schedule):
+        B_blk = sch.get_sblock("Copy")
         Ai_block = sch.cache_read(B_blk, 0, "global.texture")
         sch.transform_layout(Ai_block, ("write", 0), lambda i, j: (i, j // lanes, j % lanes))
 
@@ -146,13 +150,16 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     mod = TextureCopy
 
     if remote is None:
-        target = Target(backend + " -device=adreno")
+        target = Target({"kind": backend, "device": "adreno"})
     else:
-        target = Target(backend + " -device=adreno", "llvm -mtriple=aarch64-linux-android")
+        target = Target(
+            {"kind": backend, "device": "adreno"},
+            {"kind": "llvm", "mtriple": "aarch64-linux-android"},
+        )
 
     with target:
         mod = preprocess_pipeline(mod)
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
         schedule_texture_read(sch)
         mod = postprocess_pipeline(sch.mod)
 

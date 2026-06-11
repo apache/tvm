@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm.testing
 import numpy as np
+import pytest
 
 import tvm
-from tvm import relax, TVMError
+import tvm.testing
+from tvm import TVMError, relax
 from tvm.relax.training import SetupTrainer, Trainer
-from tvm.relax.training.optimizer import SGD, Adam
 from tvm.relax.training.loss import MSELoss
-from tvm.script import ir as I, relax as R
+from tvm.relax.training.optimizer import SGD, Adam
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def _get_backbone():
@@ -65,7 +66,7 @@ def test_execute(target, dev):
 
     train_mod = setup_trainer(backbone)
     ex = tvm.compile(train_mod, target)
-    vm = relax.VirtualMachine(ex, dev, profile=True)
+    vm = relax.VirtualMachine(ex, dev)
 
     trainer = Trainer(train_mod, vm, dev, False)
     trainer.zero_init_params()
@@ -74,7 +75,6 @@ def test_execute(target, dev):
     dataset = _make_dataset()
     trainer.predict(dataset[0][0])
     trainer.update(dataset[0][0], dataset[0][1])
-    trainer.profile_adjoint(dataset[0][0], dataset[0][1])
 
 
 @tvm.testing.parametrize_targets("llvm")

@@ -28,8 +28,8 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace relax {

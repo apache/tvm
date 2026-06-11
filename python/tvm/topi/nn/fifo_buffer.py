@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 
 """FIFO buffer op"""
-from __future__ import absolute_import as _abs
+
 import tvm
 from tvm import te
+
 from .. import tag
 from ..transform import concatenate, strided_slice
 
@@ -75,7 +77,7 @@ def fifo_buffer(data, buffer, axis):
     if len(buffer.shape) == 1:
         return te.compute(
             buffer.shape,
-            lambda i: tvm.tir.if_then_else(
+            lambda i: tvm.tirx.if_then_else(
                 i < buflen - data_size, buffer[i + data_size], data[i - buflen + data_size]
             ),
             name="new_buffer",
@@ -84,7 +86,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 0:
             return te.compute(
                 buffer.shape,
-                lambda i, j: tvm.tir.if_then_else(
+                lambda i, j: tvm.tirx.if_then_else(
                     i < buflen - data_size,
                     buffer[i + data_size, j],
                     data[i - buflen + data_size, j],
@@ -94,7 +96,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 1:
             return te.compute(
                 buffer.shape,
-                lambda i, j: tvm.tir.if_then_else(
+                lambda i, j: tvm.tirx.if_then_else(
                     j < buflen - data_size,
                     buffer[i, j + data_size],
                     data[i, j - buflen + data_size],
@@ -106,7 +108,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 0:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k: tvm.tir.if_then_else(
+                lambda i, j, k: tvm.tirx.if_then_else(
                     i < buflen - data_size,
                     buffer[i + data_size, j, k],
                     data[i - buflen + data_size, j, k],
@@ -116,7 +118,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 1:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k: tvm.tir.if_then_else(
+                lambda i, j, k: tvm.tirx.if_then_else(
                     j < buflen - data_size,
                     buffer[i, j + data_size, k],
                     data[i, j - buflen + data_size, k],
@@ -126,7 +128,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 2:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k: tvm.tir.if_then_else(
+                lambda i, j, k: tvm.tirx.if_then_else(
                     k < buflen - data_size,
                     buffer[i, j, k + data_size],
                     data[i, j, k - buflen + data_size],
@@ -138,7 +140,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 0:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k, l: tvm.tir.if_then_else(
+                lambda i, j, k, l: tvm.tirx.if_then_else(
                     i < buflen - data_size,
                     buffer[i + data_size, j, k, l],
                     data[i - buflen + data_size, j, k, l],
@@ -148,7 +150,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 1:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k, l: tvm.tir.if_then_else(
+                lambda i, j, k, l: tvm.tirx.if_then_else(
                     j < buflen - data_size,
                     buffer[i, j + data_size, k, l],
                     data[i, j - buflen + data_size, k, l],
@@ -158,7 +160,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 2:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k, l: tvm.tir.if_then_else(
+                lambda i, j, k, l: tvm.tirx.if_then_else(
                     k < buflen - data_size,
                     buffer[i, j, k + data_size, l],
                     data[i, j, k - buflen + data_size, l],
@@ -168,7 +170,7 @@ def fifo_buffer(data, buffer, axis):
         if axis == 3:
             return te.compute(
                 buffer.shape,
-                lambda i, j, k, l: tvm.tir.if_then_else(
+                lambda i, j, k, l: tvm.tirx.if_then_else(
                     l < buflen - data_size,
                     buffer[i, j, k, l + data_size],
                     data[i, j, k, l - buflen + data_size],

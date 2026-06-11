@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-argument
+# ruff: noqa: E741, F821
 """TVM operator fully connected compute."""
+
 import tvm
 from tvm import te
 
-from .. import tag, add
+from .. import add, tag
 
 
 def matmul(
@@ -67,9 +69,9 @@ def matmul(
     """
     # TODO(yixin): support cases for 1-dim input
     # TODO(yixin): adding support and further check for >2-dim input in autotvm template
-    assert (
-        len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2
-    ), "1-dim matmul is not supported yet."
+    assert len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2, (
+        "1-dim matmul is not supported yet."
+    )
 
     if bias is not None:
         assert len(bias.shape) == 1
@@ -93,10 +95,10 @@ def matmul(
         reduce_dim_b, out_dim = tensor_b.shape[-2:]
     batch_dims_b = tensor_b.shape[:-2]
 
-    if not isinstance(reduce_dim_a, tvm.tir.Var) and not isinstance(reduce_dim_b, tvm.tir.Var):
-        assert int(reduce_dim_a) == int(
-            reduce_dim_b
-        ), f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
+    if not isinstance(reduce_dim_a, tvm.tirx.Var) and not isinstance(reduce_dim_b, tvm.tirx.Var):
+        assert int(reduce_dim_a) == int(reduce_dim_b), (
+            f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
+        )
 
     result_ndim = max(len(batch_dims_a), len(batch_dims_b))
     batch_dims_a = [1] * (result_ndim - len(batch_dims_a)) + batch_dims_a
@@ -104,8 +106,8 @@ def matmul(
 
     for idx, (l, r) in enumerate(zip(batch_dims_a, batch_dims_b)):
         if (
-            not isinstance(l, tvm.tir.Var)
-            and not isinstance(r, tvm.tir.Var)
+            not isinstance(l, tvm.tirx.Var)
+            and not isinstance(r, tvm.tirx.Var)
             and int(l) != 1
             and int(r) != 1
         ):
@@ -113,7 +115,7 @@ def matmul(
                 "Batch dimensions of dense do not match: "
                 f"{tensor_a.shape[:-2]} vs {tensor_b.shape[:-2]}."
             )
-        if not isinstance(l, tvm.tir.Var) and int(l) == 1:
+        if not isinstance(l, tvm.tirx.Var) and int(l) == 1:
             batch_dims_a[idx] = batch_dims_b[idx]
 
     k = te.reduce_axis((0, reduce_dim_a), name="k")
@@ -121,12 +123,12 @@ def matmul(
     def compute(*indices):
         batch_indices_a = indices[-len(tensor_a.shape) : -2]
         batch_indices_a = [
-            i if isinstance(dim, tvm.tir.Var) or int(dim) != 1 else 0
+            i if isinstance(dim, tvm.tirx.Var) or int(dim) != 1 else 0
             for i, dim in zip(batch_indices_a, tensor_a.shape[:-2])
         ]
         batch_indices_b = indices[-len(tensor_b.shape) : -2]
         batch_indices_b = [
-            i if isinstance(dim, tvm.tir.Var) or int(dim) != 1 else 0
+            i if isinstance(dim, tvm.tirx.Var) or int(dim) != 1 else 0
             for i, dim in zip(batch_indices_b, tensor_b.shape[:-2])
         ]
         i, j = indices[-2:]
@@ -241,8 +243,8 @@ def dense_pack(data, weight, bias=None, out_dtype=None):
     N, _, packw_bn = get_const_tuple(weight.shape)  # out_dim
     N = N * packw_bn
 
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
     k = te.reduce_axis((0, K), name="k")
     C = te.compute(
         (M, N),

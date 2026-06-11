@@ -23,8 +23,9 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -189,13 +190,13 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
 static std::optional<MatchState> TryValidate(
     const MatchState& current_match,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
-    const std::vector<DFConstraint>& validation_constraints, arith::Analyzer* analyzer) {
+    const std::vector<DFConstraint>& validation_constraints, arith::AnalyzerObj* analyzer) {
   MatchState new_match;
 
   std::function<ffi::Optional<Var>(const DFPatternNode*)> query_match_state =
       [&pattern2node, &current_match](const DFPatternNode* pattern) -> ffi::Optional<Var> {
     auto it = pattern2node.find(pattern);
-    ICHECK(it != pattern2node.end())
+    TVM_FFI_ICHECK(it != pattern2node.end())
         << "DFConstraint attempted to access DFPattern " << ffi::GetRef<DFPattern>(pattern)
         << ", which does not appear in the PatternContext";
     const auto& p_node = it->second;
@@ -211,7 +212,7 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsPrimExpr(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = tir::as_const_int(necessary_condition);
+      const auto* known = tirx::as_const_int(necessary_condition);
 
       if (known && *known && is_sufficient) {
         // The condition passes, and the expression provided is both
@@ -243,7 +244,7 @@ static std::optional<MatchState> MatchTree(
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const std::vector<DFConstraint>& validation_constraints,
-    const MatcherUseDefAnalysis& ud_analysis, arith::Analyzer* analyzer) {
+    const MatcherUseDefAnalysis& ud_analysis, arith::AnalyzerObj* analyzer) {
   auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
@@ -293,7 +294,8 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                    const ffi::Array<Binding>& binding_arr,
                                                    const ffi::Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
-  ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
+  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextNode::kMay)
+      << "Only kMay is supported yet.";
   DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
@@ -346,14 +348,14 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
 
   arith::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
-                         ctx->validation_constraints, ud_analysis, &analyzer);
+                         ctx->validation_constraints, ud_analysis, analyzer.get());
   if (!match) {
     return std::nullopt;
   }
 
   ffi::Map<DFPattern, Var> ret;
   for (const auto& [pat, p_node] : pattern2node) {
-    ICHECK(match->matched(p_node));
+    TVM_FFI_ICHECK(match->matched(p_node));
     ret.Set(ffi::GetRef<DFPattern>(pat), ffi::GetRef<Var>(match->matched(p_node)));
   }
   return ret;

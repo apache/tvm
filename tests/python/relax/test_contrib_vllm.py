@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 import numpy as np
 import pytest
+import tvm_ffi
 
-import tvm.testing
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
-
+from tvm.script import tirx as T
 
 has_vllm = tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
 
@@ -40,7 +41,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
         mod = relax.transform.LegalizeOps()(mod)
 
         with tvm.target.Target("cuda"):
-            mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+            mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     with tvm.transform.PassContext():
         ex = tvm.compile(mod, target)
@@ -52,7 +53,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
 
     out = f(*inputs)
 
-    if isinstance(out, tvm.ir.container.Array):
+    if isinstance(out, tvm_ffi.Array):
         return [arr.numpy() for arr in out]
 
     return out.numpy()

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union
 
 import tvm
 import tvm.script
@@ -25,8 +24,8 @@ from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -45,6 +44,23 @@ def test_resize2d():
     x = relax.Var("x", R.Tensor((2, 14, 14, 3), "float32"))
     with bb.function("foo", [x]):
         gv = bb.emit(relax.op.image.resize2d(x, (28, 28), layout="NHWC"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_resize3d():
+    @R.function
+    def foo(x: R.Tensor((2, 3, 8, 8, 8), "float32")) -> R.Tensor((2, 3, 4, 6, 7), "float32"):
+        gv: R.Tensor((2, 3, 4, 6, 7), "float32") = R.image.resize3d(
+            x, size=(4, 6, 7), layout="NCDHW"
+        )
+        return gv
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 8, 8, 8), "float32"))
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.image.resize3d(x, (4, 6, 7), layout="NCDHW"))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])

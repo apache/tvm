@@ -21,6 +21,7 @@
  * \brief Automatic mixed precision pass.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -147,7 +148,7 @@ class DTypeDecisionCollector : public ExprVisitor {
 
   // merge the message for all vars in the expr list
   void RequireArgsToType(ffi::Array<Expr> args, ffi::Array<NType> to) {
-    ICHECK(args.size() == to.size()) << "Invalid target dtypes";
+    TVM_FFI_ICHECK(args.size() == to.size()) << "Invalid target dtypes";
     for (size_t i = 0; i < args.size(); ++i) {
       auto fvisitleaf = [&](const Expr& expr, NType to) {
         if (const auto* var = expr.as<VarNode>()) {
@@ -156,7 +157,7 @@ class DTypeDecisionCollector : public ExprVisitor {
           // Constant can be casted anyway, so we don't need to do anything here
           return;
         } else {
-          LOG(FATAL) << "Unsupported argument type: " << expr->GetTypeKey();
+          TVM_FFI_THROW(InternalError) << "Unsupported argument type: " << expr->GetTypeKey();
         }
       };
       DecomposeNestedMsg(args[i], to[i], fvisitleaf);
@@ -202,7 +203,7 @@ class DTypeDecisionCollector : public ExprVisitor {
       // require inputs to be fp32 (the original dtype)
       RequireArgsToType(call_node->args, fp32_);
     } else {
-      LOG(FATAL) << "Unsupported TMixedPrecisionPolicy: " << policy;
+      TVM_FFI_THROW(InternalError) << "Unsupported TMixedPrecisionPolicy: " << policy;
     }
   }
 
@@ -219,7 +220,7 @@ class DTypeDecisionCollector : public ExprVisitor {
     std::vector<NType> require_rhs;
     const TupleStructInfoNode* sinfo =
         tuple_get_item_node->tuple->struct_info_.as<TupleStructInfoNode>();
-    ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
+    TVM_FFI_ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
     for (size_t i = 0; i < sinfo->fields.size(); ++i) {
       if (i == static_cast<size_t>(tuple_get_item_node->index)) {
         require_rhs.push_back(lhs_type);
@@ -311,7 +312,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   Expr RewriteExpr(const Expr& expr, const NType& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NType, 1> to) -> Expr {
       const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
-      ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
+      TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
@@ -406,7 +407,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   }
 
   void CastIfFp16Only(const Var& var) {
-    ICHECK(builder_->CurrentBlockIsDataFlow());
+    TVM_FFI_ICHECK(builder_->CurrentBlockIsDataFlow());
     // Get the current remapped var
     Var cur_var = GetRemapped(var);
     // Store the tensors that are fp16 only to fp16
@@ -463,7 +464,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     // var = Call(op)
     const auto* op_node = call_node->op.as<OpNode>();
-    ICHECK(op_node != nullptr);
+    TVM_FFI_ICHECK(op_node != nullptr);
     Op op = ffi::GetRef<Op>(op_node);
     if (wrap_param_op.same_as(op)) {
       // wrap_param
@@ -482,7 +483,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (policy == kAlways) {
       opt_new_dtype = fp16_;
       auto attr_map = Op::GetAttrMap<FInferMixedPrecision>("FInferMixedPrecision");
-      ICHECK(attr_map.count(op));
+      TVM_FFI_ICHECK(attr_map.count(op));
       new_call = attr_map[op](new_call, output_dtype_);
     } else if (policy == kFollow) {
       opt_new_dtype = AllFP16Castable(new_call->args) ? fp16_ : fp32_;
@@ -503,7 +504,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       }
 
     } else {
-      LOG(FATAL) << "Unsupported TMixedPrecisionPolicy: " << policy;
+      TVM_FFI_THROW(InternalError) << "Unsupported TMixedPrecisionPolicy: " << policy;
     }
 
     Expr new_value = new_call;
@@ -532,7 +533,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       ExprMutator::VisitBinding_(binding, tuple_node);
       return;
     }
-    ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
+    ffi::ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
     new_tuple->fields = RemapArgs(tuple_node->fields);
     new_tuple->struct_info_ = std::nullopt;
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
@@ -551,7 +552,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       ExprMutator::VisitBinding_(binding, tuple_get_item_node);
       return;
     }
-    ObjectPtr<TupleGetItemNode> new_tuple_get_item =
+    ffi::ObjectPtr<TupleGetItemNode> new_tuple_get_item =
         ffi::make_object<TupleGetItemNode>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
     new_tuple_get_item->struct_info_ = std::nullopt;

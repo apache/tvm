@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """The attributes node used for Relax operators"""
-from tvm.ir import Attrs
+
 import tvm_ffi
+
+from tvm.ir import Attrs
 
 
 @tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")
@@ -67,6 +69,11 @@ class Conv3DAttrs(Attrs):
 @tvm_ffi.register_object("relax.attrs.Conv2DTransposeAttrs")
 class Conv2DTransposeAttrs(Attrs):
     """Attributes for nn.conv2d_transpose"""
+
+
+@tvm_ffi.register_object("relax.attrs.Conv3DTransposeAttrs")
+class Conv3DTransposeAttrs(Attrs):
+    """Attributes for nn.conv3d_transpose"""
 
 
 @tvm_ffi.register_object("relax.attrs.Pool2DAttrs")
@@ -242,6 +249,31 @@ class AttentionAttrs(Attrs):
 @tvm_ffi.register_object("relax.attrs.AllClassNonMaximumSuppressionAttrs")
 class AllClassNonMaximumSuppressionAttrs(Attrs):
     """Attributes for vision.all_class_non_max_suppression"""
+
+
+@tvm_ffi.register_object("relax.attrs.GetValidCountsAttrs")
+class GetValidCountsAttrs(Attrs):
+    """Attributes for vision.get_valid_counts"""
+
+
+@tvm_ffi.register_object("relax.attrs.NonMaximumSuppressionAttrs")
+class NonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.non_max_suppression"""
+
+
+@tvm_ffi.register_object("relax.attrs.ROIAlignAttrs")
+class ROIAlignAttrs(Attrs):
+    """Attributes for vision.roi_align"""
+
+
+@tvm_ffi.register_object("relax.attrs.ROIPoolAttrs")
+class ROIPoolAttrs(Attrs):
+    """Attributes for vision.roi_pool"""
+
+
+@tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
+class MultiboxTransformLocAttrs(Attrs):
+    """Attributes for vision.multibox_transform_loc"""
 
 
 @tvm_ffi.register_object("relax.attrs.Conv1DAttrs")

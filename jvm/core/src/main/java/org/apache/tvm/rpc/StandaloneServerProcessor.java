@@ -33,7 +33,8 @@ public class StandaloneServerProcessor implements ServerProcessor {
     this.server = new ServerSocket(serverPort);
   }
 
-  @Override public void terminate() {
+  @Override
+  public void terminate() {
     try {
       server.close();
     } catch (IOException e) {
@@ -41,7 +42,8 @@ public class StandaloneServerProcessor implements ServerProcessor {
     }
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     try {
       final Socket socket = server.accept();
       final InputStream in = socket.getInputStream();

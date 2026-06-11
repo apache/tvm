@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, line-too-long
 """Depthwise convolution in python"""
+
 import numpy as np
 
 from tvm.topi.nn.utils import get_pad_tuple
+
 from .common import _convolve2d
 
 

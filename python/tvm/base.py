@@ -16,10 +16,14 @@
 # under the License.
 # coding: utf-8
 # pylint: disable=invalid-name, import-outside-toplevel
+# ruff: noqa: F401
 """Base library for TVM."""
-import ctypes
+
 import os
 import sys
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
 
 from . import libinfo
 
@@ -34,16 +38,62 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
 # library loading
 # ----------------------------
 
+# Known per-backend runtime DSOs that, when present, are loaded with
+# RTLD_GLOBAL so their static initializers register the device backend.
+_BACKEND_RUNTIME_LIBS = ["cuda", "vulkan", "opencl", "metal", "rocm", "hexagon", "extra"]
 
-def _load_lib():
-    """Load libary by searching possible path."""
-    lib_path = libinfo.find_lib_path()
-    # The dll search path need to be added explicitly in windows
-    if sys.platform.startswith("win32"):
-        for path in libinfo.get_dll_directories():
-            os.add_dll_directory(path)
-    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
-    return lib, os.path.basename(lib_path[0])
+
+def load_backend_libs(runtime_lib_path: str) -> None:
+    """Try to load each known backend runtime DSO; failures are silent."""
+    runtime_dir = Path(runtime_lib_path).resolve().parent
+    for backend in _BACKEND_RUNTIME_LIBS:
+        try:
+            load_lib_ctypes(
+                package="tvm",
+                target_name=f"tvm_runtime_{backend}",
+                mode="RTLD_GLOBAL",
+                extra_lib_paths=[runtime_dir],
+            )
+        except (OSError, FileNotFoundError, RuntimeError):
+            pass
+
+
+# The TVM C++ side is split into two shared libraries:
+#
+# - ``libtvm_runtime`` — runtime-only sources. Loaded with ``RTLD_GLOBAL`` so
+#   its symbols are exposed to subsequent loads (NVRTC kernels, downstream
+#   modules and so on resolve runtime symbols at link time).
+# - ``libtvm_compiler`` — compiler / IR / transform sources, links against
+#   ``libtvm_runtime``. Loaded with ``RTLD_LOCAL`` so compiler internals
+#   don't leak into the global symbol namespace.
+#
+# If the environment variable ``TVM_USE_RUNTIME_LIB`` is set to ``"1"``, or
+# the compiler library is simply not present (runtime-only wheel), only the
+# runtime is loaded and ``_LIB`` aliases ``_LIB_RUNTIME``.
+_extra_lib_paths = libinfo.package_lib_paths()
+_LIB_RUNTIME = load_lib_ctypes(
+    "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=_extra_lib_paths
+)
+
+# After libtvm_runtime.so is in the global symbol namespace, scan the same
+# directory for per-backend DSOs (libtvm_runtime_cuda.so, etc.) and load each
+# with RTLD_GLOBAL so their static initializers register device backends.
+# Failures are swallowed silently — a missing driver just means that backend
+# is unavailable, not an error.
+load_backend_libs(_LIB_RUNTIME._name)
+
+_RUNTIME_ONLY = os.environ.get("TVM_USE_RUNTIME_LIB") == "1"
+if _RUNTIME_ONLY:
+    _LIB = _LIB_RUNTIME
+else:
+    try:
+        _LIB = load_lib_ctypes(
+            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_extra_lib_paths
+        )
+    except RuntimeError:
+        # Compiler lib not present — fall back to runtime-only mode.
+        _LIB = _LIB_RUNTIME
+        _RUNTIME_ONLY = True
 
 
 try:
@@ -54,11 +104,6 @@ except ImportError:
 
 # version number
 __version__ = libinfo.__version__
-# library instance
-_LIB, _LIB_NAME = _load_lib()
-
-# Whether we are runtime only
-_RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:

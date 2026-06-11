@@ -17,7 +17,8 @@
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.script import relax as R, ir as I
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 @I.ir_module

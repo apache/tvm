@@ -15,9 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E741
 """Common utilities used in Non-maximum suppression operators"""
+
 import tvm
 from tvm import te
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tirx as T
 
 
 def _get_boundaries(output, box_idx):
@@ -55,24 +59,28 @@ def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
     # total area of the figure formed by box a and box b
     # except for overlapping area
     u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-    return tvm.tir.Select(u <= 0.0, 0.0, area / u)
+    return tvm.tirx.Select(u <= 0.0, 0.0, area / u)
 
 
-def binary_search(ib, y, num_boxes, scores, score_threshold, out):
-    """Binary search for score_threshold on scores sorted in descending order"""
-    lo = ib.allocate("int32", (1,), name="lo", scope="local")
-    hi = ib.allocate("int32", (1,), name="hi", scope="local")
+def binary_search(y, num_boxes, scores, score_threshold, out):
+    """Binary search for score_threshold on scores sorted in descending order.
 
-    lo[0] = 0
-    hi[0] = num_boxes.astype("int32")
-
-    with ib.while_loop(lo[0] < hi[0]):
+    Must be called within an IRBuilder context.
+    """
+    out = T.buffer_proxy(out)
+    lo_buf = T.decl_buffer([1], "int32", scope="local")
+    hi_buf = T.decl_buffer([1], "int32", scope="local")
+    lo = T.buffer_proxy(lo_buf)
+    hi = T.buffer_proxy(hi_buf)
+    lo[0] = T.int32(0)
+    hi[0] = tvm.tirx.Cast("int32", num_boxes)
+    with T.While(lo[0] < hi[0]):
         mid = (hi[0] + lo[0]) >> 1
-        with ib.if_scope(scores[y, mid] > score_threshold):
-            lo[0] = mid + 1
-        with ib.else_scope():
-            hi[0] = mid
-
+        with T.If(scores[y, mid] > score_threshold):
+            with T.Then():
+                lo[0] = mid + 1
+            with T.Else():
+                hi[0] = mid
     out[y] = lo[0]
 
 
@@ -126,21 +134,23 @@ def collect_selected_indices(
     num_total_detections=None,
     input_image_size=None,
 ):
-    """Collect selected indices from the core NMS loop into one linear output
+    """Collect selected indices from the core NMS loop into one linear output.
+
     Parameters
     ----------
     num_class : int
-    selected_indices: tvm.te.Tensor
+    selected_indices : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
         of selected boxes by the core NMS loop.
-    num_detections tvm.te.Tensor
+    num_detections : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), representing
-        the number of boxes selected by the core NMS loop, per batch and class
-    row_offsets tvm.te.Tensor
+        the number of boxes selected by the core NMS loop, per batch and class.
+    row_offsets : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), this should be the exclusive scan
-        of num_detections
+        of num_detections.
     ir : function
-        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py.
+
     Returns
     -------
     out : tvm.te.Tensor
@@ -235,24 +245,27 @@ def collect_selected_indices(
 def collect_selected_indices_and_scores(
     selected_indices, selected_scores, num_detections, row_offsets, num_total_detections, ir
 ):
-    """Collect selected indices and scores from the core NMS loop into one linear output
+    """Collect selected indices and scores from the core NMS loop into one linear output.
+
     Parameters
     ----------
-    num_class : int
-    selected_indices: tvm.te.Tensor
+    selected_indices : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the indices
         of selected boxes by the core NMS loop.
-    selected_indices: tvm.te.Tensor
+    selected_scores : tvm.te.Tensor
         2-D tensor with shape (batch_size * num_classes, num_boxes), representing the scores
         of selected boxes by the core NMS loop.
-    num_detections tvm.te.Tensor
+    num_detections : tvm.te.Tensor
         2-D tensor with shape (batch_size, num_classes), representing
-        the number of boxes selected by the core NMS loop, per batch and class
-    row_offsets tvm.te.Tensor
+        the number of boxes selected by the core NMS loop, per batch and class.
+    row_offsets : tvm.te.Tensor
         2-D tensor with shape (batch_size, num_classes), this should be the exclusive scan
-        of num_detections along axis 1
+        of num_detections along axis 1.
+    num_total_detections : tvm.te.Tensor
+        Total number of detections.
     ir : function
-        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py
+        A function to generate IR for CPU or GPU, see its usage in vision/nms.py and cuda/nms.py.
+
     Returns
     -------
     out : [tvm.te.Tensor, tvm.te.Tensor]
@@ -288,77 +301,76 @@ def _all_class_nms_ir(
     nms_loop,
     score_threshold=None,
 ):
-    ib = tvm.tir.ir_builder.create()
-    boxes = ib.buffer_ptr(boxes)
-    sorted_scores = ib.buffer_ptr(sorted_scores)
-    sorted_indices = ib.buffer_ptr(sorted_indices)
-    valid_count = ib.buffer_ptr(valid_count)
-    box_indices = ib.buffer_ptr(box_indices)
-    num_valid_boxes = ib.buffer_ptr(num_valid_boxes)
+    with IRBuilder() as ib:
+        # Wrap buffers with T.buffer_proxy for flat indexing support
+        boxes = T.buffer_proxy(boxes)
+        box_indices = T.buffer_proxy(box_indices)
+        if selected_scores is not None:
+            selected_scores = T.buffer_proxy(selected_scores)
 
-    if selected_scores is not None:
-        selected_scores = ib.buffer_ptr(selected_scores)
+        if isinstance(iou_threshold, float | int):
+            iou_threshold = tvm.tirx.FloatImm("float32", float(iou_threshold))
+        elif isinstance(iou_threshold, te.Tensor):
+            if len(iou_threshold.shape) == 0:
+                iou_threshold = iou_threshold()
+            elif len(iou_threshold.shape) == 1 and iou_threshold.shape[0] == 1:
+                iou_threshold = iou_threshold[0]
+            else:
+                iou_threshold = tvm.tirx.FloatImm("float32", 0.5)
 
-    if isinstance(iou_threshold, float):
-        iou_threshold = tvm.tir.FloatImm("float32", iou_threshold)
-    elif isinstance(iou_threshold, te.Tensor):
-        if len(iou_threshold.shape) == 0:
-            iou_threshold = iou_threshold()
-        elif len(iou_threshold.shape) == 1 and iou_threshold.shape[0] == 1:
-            iou_threshold = iou_threshold[0]
-        else:
-            iou_threshold = tvm.tir.FloatImm("float32", 0.5)
+        if isinstance(max_output_size_per_class, int):
+            max_output_size_per_class = tvm.tirx.const(max_output_size_per_class)
+        elif isinstance(max_output_size_per_class, te.Tensor):
+            if len(max_output_size_per_class.shape) == 0:
+                max_output_size_per_class = max_output_size_per_class()
+            elif (
+                len(max_output_size_per_class.shape) == 1
+                and max_output_size_per_class.shape[0] == 1
+            ):
+                max_output_size_per_class = max_output_size_per_class[0]
+            else:
+                max_output_size_per_class = tvm.tirx.const(1000)
 
-    if isinstance(max_output_size_per_class, int):
-        max_output_size_per_class = tvm.tir.const(max_output_size_per_class)
-    elif isinstance(max_output_size_per_class, te.Tensor):
-        if len(max_output_size_per_class.shape) == 0:
-            max_output_size_per_class = max_output_size_per_class()
-        elif len(max_output_size_per_class.shape) == 1 and max_output_size_per_class.shape[0] == 1:
-            # Use tensor indexing to get the first element
-            max_output_size_per_class = max_output_size_per_class[0]
-        else:
-            max_output_size_per_class = tvm.tir.const(1000)
+        def calc_overlap(i, j, k):
+            offset_j = sorted_indices[i, j] * 4
+            offset_k = sorted_indices[i, k] * 4
+            batch_id = i // num_class
+            base_bbox_idx = batch_id * num_anchors * 4
+            return calculate_overlap(
+                boxes,
+                base_bbox_idx + offset_j,
+                base_bbox_idx + offset_k,
+            )
 
-    def calc_overlap(i, j, k):
-        offset_j = sorted_indices[i, j] * 4
-        offset_k = sorted_indices[i, k] * 4
-        batch_id = i // num_class
-        base_bbox_idx = batch_id * num_anchors * 4
-        return calculate_overlap(
-            boxes,
-            base_bbox_idx + offset_j,
-            base_bbox_idx + offset_k,
+        def on_new_valid_box(tid, num_current_valid_box, i, j):
+            with T.If(tid + 0 == 0):
+                with T.Then():
+                    box_indices[i, num_current_valid_box] = sorted_indices[i, j]
+                    if selected_scores is not None:
+                        selected_scores[i, num_current_valid_box] = sorted_scores[i, j]
+
+        def on_new_invalidated_box(*_):
+            pass
+
+        def needs_bbox_check(*_):
+            return tvm.tirx.const(True)
+
+        nms_loop(
+            batch_class,
+            tvm.tirx.IntImm("int32", -1),  # top_k
+            iou_threshold,
+            max_output_size_per_class,
+            valid_count,
+            on_new_valid_box,
+            on_new_invalidated_box,
+            needs_bbox_check,
+            calc_overlap,
+            sorted_scores,
+            num_valid_boxes,
+            score_threshold,
         )
 
-    def on_new_valid_box(ib, tid, num_current_valid_box, i, j):
-        with ib.if_scope(tid + 0 == 0):
-            box_indices[i, num_current_valid_box] = sorted_indices[i, j]
-
-            if selected_scores is not None:
-                selected_scores[i, num_current_valid_box] = sorted_scores[i, j]
-
-    def on_new_invalidated_box(*_):
-        pass
-
-    def needs_bbox_check(*_):
-        return tvm.tir.const(True)
-
-    return nms_loop(
-        ib,
-        batch_class,
-        tvm.tir.IntImm("int32", -1),  # top_k
-        iou_threshold,
-        max_output_size_per_class,
-        valid_count,
-        on_new_valid_box,
-        on_new_invalidated_box,
-        needs_bbox_check,
-        calc_overlap,
-        sorted_scores,
-        num_valid_boxes,
-        score_threshold,
-    )
+        return ib.get()
 
 
 def run_all_class_nms(
@@ -372,28 +384,30 @@ def run_all_class_nms(
     return_scores=False,
     score_threshold=None,
 ):
-    """The core all class NMS routine
+    """The core all class NMS routine.
+
     Parameters
     ----------
     boxes : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_boxes, 4)
-    sorted_scores: tvm.te.Tensor
-        2-D tensor with shape (batch_size * num_classes, num_boxes)
-        One of the outputs from argsort
-    sorted_indices: tvm.te.Tensor
-        2-D tensor with shape (batch_size * num_classes, num_boxes)
-        The other output from argsort
-    valid_count: tvm.te.Tensor
+    sorted_scores : tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes).
+        One of the outputs from argsort.
+    sorted_indices : tvm.te.Tensor
+        2-D tensor with shape (batch_size * num_classes, num_boxes).
+        The other output from argsort.
+    valid_count : tvm.te.Tensor
         1-D tensor with shape (batch_size * num_classes,), representing
-        the number of boxes whose score is above score_threshold, per batch and class
-    max_output_boxes_per_class : int or tvm.te.Tensor, optional
-        The maxinum number of output selected boxes per class
-    iou_threshold : float or tvm.te.Tensor, optionaIl
-        IoU test threshold
+        the number of boxes whose score is above score_threshold, per batch and class.
+    max_output_size_per_class : int or tvm.te.Tensor, optional
+        The maxinum number of output selected boxes per class.
+    iou_threshold : float or tvm.te.Tensor, optional
+        IoU test threshold.
     nms_loop : function
-        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py
+        A core NMS loop, see its usage in vision/nms.py and cuda/nms.py.
     return_scores : bool, optional
         Whether or not to return selected scores, needed by the tensorflow output format.
+
     Returns
     -------
     out : a list of tvm.te.Tensor
@@ -408,11 +422,11 @@ def run_all_class_nms(
     num_class = batch_class // batch
 
     if return_scores is False:
-        all_class_num0_buf = tvm.tir.decl_buffer(
-            (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8
+        all_class_num0_buf = tvm.tirx.decl_buffer(
+            (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8, layout=None
         )
-        all_class_num1_buf = tvm.tir.decl_buffer(
-            (batch_class,), "int32", "all_class_nms1", data_alignment=8
+        all_class_num1_buf = tvm.tirx.decl_buffer(
+            (batch_class,), "int32", "all_class_nms1", data_alignment=8, layout=None
         )
         extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]
         if score_threshold is not None:

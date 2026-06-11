@@ -16,17 +16,21 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name, unused-argument, not-callable
 import numpy as np
+import pytest
+import tvm_ffi
+
+pytest.importorskip("scipy")
+
 from scipy import special
 
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, relax as R
-from tvm.contrib.hexagon import generate_take_op
-from tvm.contrib.hexagon import hexagon_unary_ops
+from tvm.contrib.hexagon import generate_take_op, hexagon_unary_ops
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 from .infrastructure import quantize_np
-
 
 # Testing the structural and value correctness on replacing unary op with take op.
 
@@ -50,7 +54,7 @@ class Module_tanh:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tanh(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -59,7 +63,7 @@ class Module_tanh:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.tanh"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.tanh"}})
 
 
 @tvm.script.ir_module
@@ -81,7 +85,7 @@ class Module_sqrt:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def sqrt(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -90,7 +94,7 @@ class Module_sqrt:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.sqrt"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.sqrt"}})
 
 
 @tvm.script.ir_module
@@ -112,7 +116,7 @@ class Module_rsqrt:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def rsqrt(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -121,7 +125,7 @@ class Module_rsqrt:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.rsqrt"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.rsqrt"}})
 
 
 @tvm.script.ir_module
@@ -143,7 +147,7 @@ class Module_exp:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def exp(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -152,7 +156,7 @@ class Module_exp:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.exp"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.exp"}})
 
 
 @tvm.script.ir_module
@@ -174,7 +178,7 @@ class Module_erf:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def erf(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -183,7 +187,7 @@ class Module_erf:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.erf"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.erf"}})
 
 
 @tvm.script.ir_module
@@ -205,7 +209,7 @@ class Module_sigmoid:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def sigmoid(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -214,7 +218,7 @@ class Module_sigmoid:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.sigmoid"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.sigmoid"}})
 
 
 @tvm.script.ir_module
@@ -236,7 +240,7 @@ class Module_hardswish:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def hardswish(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -245,7 +249,7 @@ class Module_hardswish:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.hardswish"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.hardswish"}})
 
 
 @tvm.script.ir_module
@@ -267,7 +271,7 @@ class Module_log:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def log(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -276,7 +280,7 @@ class Module_log:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.log"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.log"}})
 
 
 @tvm.script.ir_module
@@ -298,7 +302,7 @@ class Module_abs:
         )
         return out
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def abs(
         rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
         rxplaceholder_1: T.Buffer((), "float32"),
@@ -307,7 +311,7 @@ class Module_abs:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.abs"}})
+        T.func_attr({"tirx.noalias": True, "op_attrs": {"op_name": "qnn.abs"}})
 
 
 # data = np.random.random([1, 2, 2, 2]).astype("float32") : Need to hadcode the data
@@ -389,5 +393,5 @@ def test_structural():
     ]
     for mod in Modules:
         after = generate_take_op.PassReplaceWithTakeOpPrimFuncs()(mod)
-        assert not tvm.ir.structural_equal(after["main"], mod["main"])
+        assert not tvm_ffi.structural_equal(after["main"], mod["main"])
     print("Passed Structural")

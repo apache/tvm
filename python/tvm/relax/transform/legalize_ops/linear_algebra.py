@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
-from tvm import topi, tir, relax, te
+
+from tvm import relax, te, tirx, topi
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem
+from ...expr import Call, Expr, Tuple, TupleGetItem, Var
 from .common import register_legalize
 
 
@@ -60,9 +62,9 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
                     a_dim = a_shape[i if is_a_larger else i - offset]
                     b_dim = b_shape[i if not is_a_larger else i - offset]
                     dim_equal = a_dim == b_dim
-                    if not isinstance(dim_equal, tir.IntImm) or dim_equal == 0:
-                        a_dim_is_one = isinstance(a_dim, tir.IntImm) and a_dim == 1
-                        b_dim_is_one = isinstance(b_dim, tir.IntImm) and b_dim == 1
+                    if not isinstance(dim_equal, tirx.IntImm) or dim_equal == 0:
+                        a_dim_is_one = isinstance(a_dim, tirx.IntImm) and a_dim == 1
+                        b_dim_is_one = isinstance(b_dim, tirx.IntImm) and b_dim == 1
                         a_indices.append(0 if a_dim_is_one else idx_spatial[i])
                         b_indices.append(0 if b_dim_is_one else idx_spatial[i])
                     else:
@@ -106,11 +108,11 @@ def _einsum(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )

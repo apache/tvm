@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-#include "meta_data.h"
+#include "metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -71,6 +71,12 @@ enum class StorageRank {
   kMMAMatrixC = 11,
   /*! \brief Metal SIMD group memory */
   kMetalSimdGroup = 12,
+  /*! \brief Metal cooperative_tensor memory (MetalPerformancePrimitives) */
+  kMetalCooperativeTensor = 13,
+  /*! \brief Trainium sbuf */
+  kTrnSbuf = 14,
+  /*! \brief Trainium psum */
+  kTrnPsum = 15,
 };
 
 /*!
@@ -86,7 +92,7 @@ inline StorageRank DefaultStorageRank(int thread_scope_rank) {
     case 1:
       return StorageRank::kLocal;
     default: {
-      LOG(FATAL) << "unknown rank";
+      TVM_FFI_THROW(InternalError) << "unknown rank";
     }
   }
 }
@@ -129,8 +135,11 @@ struct StorageScope {
         return "m16n8k8.matrixC" + tag;
       case StorageRank::kMetalSimdGroup:
         return "metal.simdgroup" + tag;
+      case StorageRank::kMetalCooperativeTensor:
+        return "metal.cooperative_tensor" + tag;
       default:
-        LOG(FATAL) << "unknown storage scope";
+        TVM_FFI_THROW(InternalError) << "unknown storage scope";
+        return "";
     }
   }
   /*!
@@ -181,8 +190,17 @@ struct StorageScope {
     } else if (s.compare(0, 15, "metal.simdgroup") == 0) {
       r.rank = StorageRank::kMetalSimdGroup;
       r.tag = s.substr(15, std::string::npos);
+    } else if (s.compare(0, 24, "metal.cooperative_tensor") == 0) {
+      r.rank = StorageRank::kMetalCooperativeTensor;
+      r.tag = s.substr(24, std::string::npos);
+    } else if (s.compare(0, 8, "trn.sbuf") == 0) {
+      r.rank = StorageRank::kTrnSbuf;
+      r.tag = s.substr(8, std::string::npos);
+    } else if (s.compare(0, 8, "trn.psum") == 0) {
+      r.rank = StorageRank::kTrnPsum;
+      r.tag = s.substr(8, std::string::npos);
     } else {
-      LOG(FATAL) << "unknown storage scope " << s;
+      TVM_FFI_THROW(InternalError) << "unknown storage scope " << s;
     }
     return r;
   }
@@ -211,17 +229,32 @@ struct ThreadScope {
     } else if (s.compare(0, 10, "threadIdx.") == 0) {
       r.rank = 1;
       r.dim_index = static_cast<int>(s[10] - 'x');
+    } else if (s.compare(0, 14, "clusterCtaIdx.") == 0) {
+      r.rank = 2;
+      r.dim_index = static_cast<int>(s[14] - 'x');
+    } else if (s.compare(0, 23, "preferredClusterCtaIdx.") == 0) {
+      r.rank = 3;
+      r.dim_index = static_cast<int>(s[23] - 'x');
     } else {
-      LOG(FATAL) << "Unknown threadscope " << s;
+      TVM_FFI_THROW(InternalError) << "Unknown threadscope " << s;
     }
     return r;
   }
+
+  /*! \brief Whether the thread scope is a virtual thread */
+  bool IsVirtualThread() const { return rank == 1 && dim_index == -1; }
+  /*! \brief Whether the thread scope is a block */
+  bool IsBlockIdx() const { return rank == 0; }
+  /*! \brief Whether the thread scope is a thread */
+  bool IsThreadIdx() const { return rank == 1 && dim_index != -1; }
+  /*! \brief Whether the thread scope is a cluster */
+  bool IsClusterCtaIdx() const { return rank == 2; }
 };
 
 /*! \brief workload specification */
 struct ThreadWorkLoad {
-  // array, first three are thread configuration.
-  size_t work_size[6];
+  // work_size layout: [0-2] grid, [3-5] block, [6-8] cluster, [9-11] preferred_cluster
+  size_t work_size[12];
   // Dynamic shared memory allocation size in bytes.
   size_t dyn_shmem_size{0};
   /*!
@@ -234,17 +267,28 @@ struct ThreadWorkLoad {
    * \return i-th grid dim
    */
   inline size_t grid_dim(size_t i) const { return work_size[i]; }
+  /*!
+   * \param i The cluster dimension.
+   * \return i-th cluster dim
+   */
+  inline size_t cluster_dim(size_t i) const { return work_size[i + 6]; }
+  /*!
+   * \param i The preferred cluster dimension.
+   * \return i-th preferred cluster dim
+   */
+  inline size_t preferred_cluster_dim(size_t i) const { return work_size[i + 9]; }
 };
+
 /*! \brief Launch parameters configuration */
 class LaunchParamConfig {
  public:
-  void Init(size_t base, const std::vector<std::string>& launch_param_tags) {
+  void Init(size_t base, const ffi::Array<ffi::String>& launch_param_tags) {
     base_ = base;
-    std::vector<bool> filled(6, false);
+    std::vector<bool> filled(12, false);
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
-      const std::string& tag = launch_param_tags[i];
+      std::string tag(launch_param_tags[i]);
       if (tag == launch_param::kUseDynamicSharedMemoryTag) {
-        ICHECK_EQ(i, launch_param_tags.size() - 1)
+        TVM_FFI_ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
       } else if (tag == launch_param::kUseProgramaticDependentLaunch) {
@@ -267,7 +311,7 @@ class LaunchParamConfig {
   // extract workload from arguments.
   ThreadWorkLoad Extract(ffi::PackedArgs args) const {
     ThreadWorkLoad w;
-    std::fill(w.work_size, w.work_size + 6, 1);
+    std::fill(w.work_size, w.work_size + 12, 1);
     const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
 
     for (size_t i = 0; i < arg_index_map_.size(); ++i) {

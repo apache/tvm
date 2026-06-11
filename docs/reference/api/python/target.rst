@@ -21,3 +21,9 @@ tvm.target
     :members:
     :imported-members:
     :autosummary:
+
+tvm.target.tag
+~~~~~~~~~~~~~~
+.. automodule:: tvm.target.tag
+    :members:
+    :imported-members:

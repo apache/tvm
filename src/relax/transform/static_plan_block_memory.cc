@@ -66,18 +66,19 @@
  * during memory planning.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <map>
 #include <set>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../runtime/opencl/texture.h"
 #include "utils.h"
 
 namespace tvm {
@@ -98,7 +99,7 @@ namespace relax {
  * any time we find a tensor satisfying any of the conditions above, we erase
  * its storage token.
  */
-class StorageTokenNode : public Object {
+class StorageTokenNode : public ffi::Object {
  public:
   /*! \brief Reference counter. */
   int ref_counter{0};
@@ -116,7 +117,7 @@ class StorageTokenNode : public Object {
   /*! \brief Get the constant number of bytes that this token requires, or -1 if the number of bytes
    * is symbolic */
   int64_t const_bytes() const {
-    const int64_t* const_val = tir::as_const_int(bytes);
+    const int64_t* const_val = tirx::as_const_int(bytes);
     if (const_val) {
       return *const_val;
     } else {
@@ -125,20 +126,20 @@ class StorageTokenNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to StorageTokenNode.
  * \sa StorageTokenNode
  */
-class StorageToken : public ObjectRef {
+class StorageToken : public ffi::ObjectRef {
  public:
   explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope,
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
-    PrimExpr size = tir::make_const(DataType::Int(64), 1);
+    PrimExpr size = tirx::make_const(DataType::Int(64), 1);
     bool size_computed = false;
 
     if (vdevice.defined()) {
@@ -172,16 +173,16 @@ class StorageToken : public ObjectRef {
       }
     }
 
-    size = tir::make_const(DataType::Int(64), const_coeff) * size;
+    size = tirx::make_const(DataType::Int(64), const_coeff) * size;
 
-    ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
+    ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
     n->vdevice = std::move(vdevice);
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ObjectRef, StorageTokenNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ffi::ObjectRef, StorageTokenNode);
 };
 
 // We use NestedMsg to store the tokens used by each Expr.
@@ -194,7 +195,7 @@ using Tokens = NestedMsg<StorageToken>;
  */
 class TokenAllocatorMixed {
  public:
-  explicit TokenAllocatorMixed(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocatorMixed(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
@@ -205,7 +206,8 @@ class TokenAllocatorMixed {
    */
   ffi::Optional<StorageToken> RequestReuse(StorageToken prototype) {
     // Step 0. Sanity check: the prototype token is supposed not to be allocated with actual storage
-    ICHECK_EQ(prototype->storage_id, -1) << "The token is expected not to be allocated before.";
+    TVM_FFI_ICHECK_EQ(prototype->storage_id, -1)
+        << "The token is expected not to be allocated before.";
     // If the prototype has no reference at all, feel free to allocate new storage.
     // The unused binding can be removed by cleaning passes.
     if (prototype->ref_counter == 0) {
@@ -224,7 +226,7 @@ class TokenAllocatorMixed {
       for (; begin != end; ++begin) {
         StorageToken available_token = begin->second;
         if (analyzer_->CanProveEqual(prototype->bytes, available_token->bytes)) {
-          ICHECK_EQ(available_token->ref_counter, 0)
+          TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
               << "Available tokens are expected to have 0 reference.";
           available_token->ref_counter = prototype->ref_counter;
           pool.erase(begin);
@@ -240,9 +242,9 @@ class TokenAllocatorMixed {
     // Step 3. Search for memory block that equals or is larger than the requested size.
     if (mid != end) {
       StorageToken available_token = mid->second;
-      ICHECK_EQ(available_token->ref_counter, 0)
+      TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
           << "Available tokens are expected to have 0 reference.";
-      ICHECK_LE(size, available_token->const_bytes());
+      TVM_FFI_ICHECK_LE(size, available_token->const_bytes());
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -252,12 +254,12 @@ class TokenAllocatorMixed {
       --mid;
       StorageToken available_token = mid->second;
       int64_t available_size = available_token->const_bytes();
-      ICHECK_EQ(available_token->ref_counter, 0)
+      TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
           << "Available tokens are expected to have 0 reference.";
-      ICHECK_GE(available_size, 0);
-      ICHECK_GE(size, available_size);
+      TVM_FFI_ICHECK_GE(available_size, 0);
+      TVM_FFI_ICHECK_GE(size, available_size);
       // Enlarge the token size.
-      available_token->bytes = tir::make_const(DataType::Int(64), size);
+      available_token->bytes = tirx::make_const(DataType::Int(64), size);
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -274,7 +276,8 @@ class TokenAllocatorMixed {
    */
   StorageToken Alloc(StorageToken prototype, int storage_id) {
     // Sanity check: the prototype token is supposed not to be allocated with actual storage yet
-    ICHECK_EQ(prototype->storage_id, -1) << "The token is expected not to be allocated before.";
+    TVM_FFI_ICHECK_EQ(prototype->storage_id, -1)
+        << "The token is expected not to be allocated before.";
     prototype->storage_id = storage_id;
     full_pool_.push_back(prototype);
     return prototype;
@@ -286,9 +289,10 @@ class TokenAllocatorMixed {
    */
   void Release(StorageToken token) {
     // Sanity check: the token has been allocated with actual storage, and should have 0 reference.
-    ICHECK_GE(token->storage_id, 0)
+    TVM_FFI_ICHECK_GE(token->storage_id, 0)
         << "The token to be released is expected to be allocated before";
-    ICHECK_EQ(token->ref_counter, 0) << "The token to be released is expected to have 0 reference.";
+    TVM_FFI_ICHECK_EQ(token->ref_counter, 0)
+        << "The token to be released is expected to have 0 reference.";
     available_pool_[{token->storage_scope, token->dtype}].insert({token->const_bytes(), token});
   }
 
@@ -310,7 +314,7 @@ class TokenAllocatorMixed {
   };
 
   /*! \brief The arithmetic analyzer. */
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
   /*! \brief The pool of available storage tokens for each storage scope and dtype. */
@@ -338,8 +342,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     // We maintain a block stack for token allocation-site and use-site check.
     block_stack_.push_back(block);
     ExprVisitor::VisitBindingBlock_(block);
-    ICHECK(!block_stack_.empty());
-    ICHECK(block_stack_.back() == block);
+    TVM_FFI_ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(block_stack_.back() == block);
     block_stack_.pop_back();
   }
 
@@ -353,8 +357,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     // We maintain a block stack for token allocation-site and use-site check.
     block_stack_.push_back(block);
     ExprVisitor::VisitBindingBlock_(block);
-    ICHECK(!block_stack_.empty());
-    ICHECK(block_stack_.back() == block);
+    TVM_FFI_ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(block_stack_.back() == block);
     block_stack_.pop_back();
   }
 
@@ -375,10 +379,10 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
       token_map_[tuple_item] = Tokens();
       return;
     }
-    ICHECK(tokens.IsNested());
+    TVM_FFI_ICHECK(tokens.IsNested());
     ffi::Array<Tokens> field_tokens = tokens.NestedArray();
-    ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
-    ICHECK_GE(tuple_item->index, 0);
+    TVM_FFI_ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
+    TVM_FFI_ICHECK_GE(tuple_item->index, 0);
     SetTokens(tuple_item, field_tokens[tuple_item->index]);
   }
 
@@ -404,8 +408,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param ana The analyzer which contains the TIR var upper bounds.
  * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
-                               ffi::Map<tir::Var, arith::IntSet>* dom_map) {
+void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
+                               ffi::Map<tirx::Var, arith::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated bounds to the TIR variables that
@@ -432,8 +436,8 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
-  ffi::Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
-  for (const tir::Var& tir_var : var_in_signature) {
+  ffi::Array<tirx::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
+  for (const tirx::Var& tir_var : var_in_signature) {
     auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
     auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
 
@@ -464,8 +468,8 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
  * \return The upper-bounded shape. When a dimension's upper bound
  * cannot be determined, we keep the dimension unchanged.
  */
-ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::Analyzer* ana,
-                                        const ffi::Map<tir::Var, arith::IntSet>& dom_map) {
+ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::AnalyzerObj* ana,
+                                        const ffi::Map<tirx::Var, arith::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   ffi::Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
@@ -513,7 +517,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    * \return The mapping from each Expr to the token it uses.
    */
   static std::unordered_map<const ExprNode*, Tokens> Initialize(const IRModule& mod,
-                                                                arith::Analyzer* analyzer) {
+                                                                arith::AnalyzerObj* analyzer) {
     StorageAllocatorInit initializer(mod, analyzer);
 
     for (auto it : mod->functions) {
@@ -529,7 +533,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  private:
   using ExprVisitor::VisitExpr_;
 
-  explicit StorageAllocatorInit(const IRModule& ctx_mod, arith::Analyzer* analyzer)
+  explicit StorageAllocatorInit(const IRModule& ctx_mod, arith::AnalyzerObj* analyzer)
       : ctx_mod_(ctx_mod), analyzer_(analyzer) {}
 
   void VisitExpr_(const FunctionNode* func) final {
@@ -565,7 +569,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
         call->op == call_tir_dyn_op) {
       ffi::Array<Expr> args =
           call->op == call_tir_dyn_op ? Downcast<Tuple>(call->args[1])->fields : call->args;
-      ICHECK(!block_stack_.empty());
+      TVM_FFI_ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
         ForEachLeaf(tokens, [](StorageToken token) { token->ref_counter += 1; });
@@ -613,7 +617,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     if (func_it == ctx_mod_->functions.end()) {
       return false;
     }
-    return (*func_it).second->IsInstance<tir::PrimFuncNode>();
+    return (*func_it).second->IsInstance<tirx::PrimFuncNode>();
   }
 
   /*!
@@ -628,12 +632,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - the tensor has known dtype;
     // - no storage token was created for this call before.
     const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-    ICHECK_NOTNULL(sinfo);
+    TVM_FFI_ICHECK_NOTNULL(sinfo);
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    ICHECK_NOTNULL(shape);
-    ICHECK(!sinfo->IsUnknownDtype());
-    ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
-    ICHECK(!token_map_.count(call));
+    TVM_FFI_ICHECK_NOTNULL(shape);
+    TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
+    TVM_FFI_ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
+    TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
     // if the upper bounds of some variables are not provided.
@@ -653,7 +657,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     Tokens tokens(token);
     SetTokens(call, tokens);
-    ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(!block_stack_.empty());
     token2block_[token.get()] = block_stack_.back();
     return tokens;
   }
@@ -685,7 +689,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     Tokens tokens = GetTokens(expr);
     ForEachLeaf(tokens, [this, cur_block](StorageToken token) {
       auto it = this->token2block_.find(token.get());
-      ICHECK(it != this->token2block_.end());
+      TVM_FFI_ICHECK(it != this->token2block_.end());
       if (it->second != cur_block) {
         this->DiscardToken(token);
       }
@@ -720,9 +724,9 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    */
   const IRModule& ctx_mod_;
   /*! \brief The arithmetic analyzer. */
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -746,7 +750,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 class StorageAllocator : public StorageAllocatorBaseVisitor {
  public:
   explicit StorageAllocator(std::unordered_map<const ExprNode*, Tokens> token_map,
-                            arith::Analyzer* analyzer)
+                            arith::AnalyzerObj* analyzer)
       : allocator_(analyzer) {
     this->token_map_ = std::move(token_map);
   }
@@ -780,7 +784,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     // Sanity check: each token allocated inside the block should not be
     // referenced by anyone at the end of the block.
     for (const StorageTokenNode* token : block2tokens[block]) {
-      ICHECK_EQ(token->ref_counter, 0);
+      TVM_FFI_ICHECK_EQ(token->ref_counter, 0);
     }
   }
 
@@ -788,14 +792,14 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op == alloc_tensor_op) {
       auto it = token_map_.find(call);
-      ICHECK(it != token_map_.end());
+      TVM_FFI_ICHECK(it != token_map_.end());
 
       if (it->second.IsNull()) {
         // IsNull being true means the token was discarded, and this alloc_tensor
         // is not considered by the planning.
         return;
       }
-      ICHECK(it->second.IsLeaf());
+      TVM_FFI_ICHECK(it->second.IsLeaf());
       StorageToken new_token = this->RequestReuseOrAlloc(it->second.LeafValue());
 
       // Record that this alloc_tensor is using the token.
@@ -803,7 +807,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       token2cur_tensor_[new_token.get()].push_back(binding->var);
       SetTokens(call, Tokens(new_token));
       // Record that the token is allocated in the current block.
-      ICHECK(!block_stack_.empty());
+      TVM_FFI_ICHECK(!block_stack_.empty());
       std::vector<const StorageTokenNode*>& block_tokens = block2tokens[block_stack_.back()];
       if (std::find(block_tokens.begin(), block_tokens.end(), new_token.get()) ==
           block_tokens.end()) {
@@ -812,13 +816,13 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       return;
     } else if (IsInplaceMemoryOp(call->op)) {
       Tokens tokens = GetTokens(call->args[0]);
-      ICHECK(!tokens.IsNested());
+      TVM_FFI_ICHECK(!tokens.IsNested());
       if (tokens.IsLeaf()) {
         // If the input is using a token, record that the reshape uses the token as well.
         token2cur_tensor_[tokens.LeafValue().get()].push_back(binding->var);
         SetTokens(call, tokens);
       } else {
-        ICHECK(token_map_[call].IsNull());
+        TVM_FFI_ICHECK(token_map_[call].IsNull());
       }
       return;
     }
@@ -829,7 +833,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     for (const Expr& arg : call->args) {
       Tokens tokens = GetTokens(arg);
       ForEachLeaf(tokens, [this](StorageToken token) {
-        ICHECK_GT(token->ref_counter, 0);
+        TVM_FFI_ICHECK_GT(token->ref_counter, 0);
         token->ref_counter -= 1;
         this->CheckForRelease(token);
       });
@@ -852,13 +856,13 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
    */
   void CheckForRelease(StorageToken token) {
     // Sanity check: the token was allocated before and has non-negative reference.
-    ICHECK_GE(token->storage_id, 0);
-    ICHECK_GE(token->ref_counter, 0);
+    TVM_FFI_ICHECK_GE(token->storage_id, 0);
+    TVM_FFI_ICHECK_GE(token->ref_counter, 0);
 
     if (token->ref_counter == 0) {
       allocator_.Release(token);
       auto it = token2cur_tensor_.find(token.get());
-      ICHECK(it != token2cur_tensor_.end());
+      TVM_FFI_ICHECK(it != token2cur_tensor_.end());
       token2cur_tensor_.erase(it);
     }
   }
@@ -898,7 +902,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
+        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), ana_.get(), &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));
@@ -920,10 +924,10 @@ class StorageAllocationRewriter : public ExprMutator {
     auto it = alloc_tensor2token_.find(call);
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.
-      ICHECK_EQ(call->op, alloc_tensor_op);
+      TVM_FFI_ICHECK_EQ(call->op, alloc_tensor_op);
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      ICHECK_NOTNULL(sinfo);
-      ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
+      TVM_FFI_ICHECK_NOTNULL(sinfo);
+      TVM_FFI_ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
       PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
 
       // If the token is visited for the first time, create a storage variable using
@@ -959,13 +963,14 @@ class StorageAllocationRewriter : public ExprMutator {
       // allocate a tensor out from it with the actual symbolic shape.
 
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      ICHECK_NOTNULL(sinfo);
+      TVM_FFI_ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
-      ICHECK_NOTNULL(shape);
-      ffi::Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
+      TVM_FFI_ICHECK_NOTNULL(shape);
+      ffi::Array<PrimExpr> upper_bounded_shape =
+          GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
-        ICHECK(!sinfo->IsUnknownDtype());
-        ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
+        TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
+        TVM_FFI_ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
@@ -991,7 +996,7 @@ class StorageAllocationRewriter : public ExprMutator {
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer ana_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tir::Var, arith::IntSet> dom_map_;
+  ffi::Map<tirx::Var, arith::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!
@@ -1010,9 +1015,9 @@ IRModule StaticPlanBlockMemory(IRModule mod) {
 
   // Step 1. Initialize.
   std::unordered_map<const ExprNode*, Tokens> token_map =
-      StorageAllocatorInit::Initialize(mod, &ana);
+      StorageAllocatorInit::Initialize(mod, ana.get());
   // Step 2. Collect the memory allocation info.
-  StorageAllocator allocator(std::move(token_map), &ana);
+  StorageAllocator allocator(std::move(token_map), ana.get());
   allocator.Allocate(mod);
   // Step 3. Rewrite the function.
   StorageAllocationRewriter rewriter(std::move(mod),  //
@@ -1037,15 +1042,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
                                          VDevice vdevice) {
-  int image_row_align = vdevice->target->GetAttr<Integer>("image_base_address_alignment")
-                            .value_or(Integer(64))
-                            ->value;
+  int image_row_align = static_cast<int>(
+      vdevice->target->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
 
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
-      return *tir::as_const_int(shape[i]);
+      TVM_FFI_ICHECK(tirx::as_const_int(shape[i]))
+          << "Dymamic shapes not suported over texture now";
+      return *tirx::as_const_int(shape[i]);
     }
     int size() { return this->shape.size(); }
   };
@@ -1053,7 +1058,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
 
   size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
                                                      vdevice->memory_scope, image_row_align);
-  return tir::make_const(DataType::Int(64), size);
+  return tirx::make_const(DataType::Int(64), size);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

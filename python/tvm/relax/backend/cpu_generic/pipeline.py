@@ -15,13 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """The Relax CPU backend compilation pipeline and other passes."""
+
 import tvm
 from tvm import relax
 
 
 def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for CPU backend."""
-    return []
+    return [
+        relax.backend.DispatchSampling(),
+        relax.backend.DispatchSortScan(),
+    ]
 
 
 def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument

@@ -75,17 +75,17 @@ function(assign_source_group group)
     endforeach()
 endfunction(assign_source_group)
 
-# From cmake documentation:
+# From CMake documentation:
 # True if the constant is 1, ON, YES, TRUE, Y, or a non-zero number.
 # False if the constant is 0, OFF, NO, FALSE, N, IGNORE, NOTFOUND, the empty string, or ends in the suffix -NOTFOUND.
 # Named boolean constants are case-insensitive.
 #
 # While this regex does contain a check for an empty string that check does not work
-# cmake's regex is weak
+# CMake's regex is weak
 set(IS_FALSE_PATTERN "^[Oo][Ff][Ff]$|^0$|^[Ff][Aa][Ll][Ss][Ee]$|^[Nn][Oo]$|^[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|.*-[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|^$")
 set(IS_TRUE_PATTERN "^[Oo][Nn]$|^[1-9][0-9]*$|^[Tt][Rr][Uu][Ee]$|^[Yy][Ee][Ss]$|^[Yy]$")
 
-# Custom file() macro that automatically uses CONFIGURE_DEPENDS if cmake
+# Custom file() macro that automatically uses CONFIGURE_DEPENDS if CMake
 # supports it. CONFIGURE_DEPENDS scans the globbed directories on each build to
 # check if any files have been added/removed. This has a small build overhead,
 # but ensures that you don't manually have to rerun cmake if files were added.

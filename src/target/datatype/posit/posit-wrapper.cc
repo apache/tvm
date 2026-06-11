@@ -24,7 +24,7 @@
  * To compile TVM with this file,
  * 1. clone the Stillwater Universal repo from here `https://github.com/stillwater-sc/universal`.
  * 2. set `SET_BYODT_POSIT` ON and `UNIVERSAL_PATH` as the path to the folder containing Stillwater
- * Universal in your cmake file
+ * Universal in your CMake file
  *
  * TODO(@gussmith23 @hypercubestart) Link to BYODT docs when they exist?
  */

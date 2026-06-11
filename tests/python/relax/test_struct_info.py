@@ -15,19 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+import tvm_ffi
+
 import tvm
 import tvm.testing
-import pytest
-
-from tvm import relax as rx, TVMError, tir
+from tvm import TVMError, tirx
+from tvm import relax as rx
 
 
 def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     assert xhash == yhash
 
@@ -51,8 +53,8 @@ def test_object_struct_info():
 
 
 def test_shape_type():
-    t0 = rx.ShapeType()
-    t1 = rx.ShapeType()
+    t0 = rx.ShapeType(ndim=-1)
+    t1 = rx.ShapeType(ndim=-1)
     assert t0 == t1
 
 
@@ -90,11 +92,11 @@ def test_prim_struct_info():
 
 
 def test_prim_struct_info_with_expr():
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     sinfo = rx.PrimStructInfo(value=n + 1)
 
     _check_equal(sinfo, rx.PrimStructInfo(value=n + 1))
-    assert not tvm.ir.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
+    assert not tvm_ffi.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
 
     # can turn into str
     str(sinfo)
@@ -106,7 +108,7 @@ def test_prim_struct_info_with_expr():
 
 
 def test_shape_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.ShapeStructInfo([1, n + 1, m])
     s1 = rx.ShapeStructInfo([1, n + 1, m])
@@ -147,7 +149,7 @@ def test_shape_struct_info():
 
 
 def test_tensor_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.TensorStructInfo([1, n + 1, m], "float32")
     s1 = rx.TensorStructInfo(rx.ShapeExpr([1, n + 1, m]), "float32")
@@ -192,7 +194,7 @@ def test_tensor_struct_info():
 
 
 def test_tuple_struct_info():
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.TensorStructInfo([1, 2, m + n], "float32")
     s1 = rx.ObjectStructInfo()
@@ -220,7 +222,7 @@ def test_tuple_struct_info():
 
 def test_func_struct_info():
     def fn_info(c):
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
         x = rx.TensorStructInfo([c, n, m], "float32")
         y = rx.TensorStructInfo([c, n, 1], "float32")
         z = rx.TensorStructInfo([c, n, m], "float32")

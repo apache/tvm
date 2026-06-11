@@ -17,29 +17,32 @@
 # under the License.
 
 import argparse
-import logging
+import configparser
 import datetime
-import os
 import json
+import logging
+import os
 import re
 import shlex
+from collections.abc import Callable
+from typing import Any
 from urllib import error
-from typing import List, Dict, Any, Optional, Callable
-from git_utils import git, parse_remote, GitHubRepo
-from cmd_utils import REPO_ROOT, init_log
+
+from cmd_utils import REPO_ROOT, Sh, init_log
+from git_utils import GitHubRepo, git, parse_remote
 from should_rebuild_docker import docker_api
 
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
-IMAGES_FILE = JENKINS_DIR / "data.py"
+IMAGES_FILE = JENKINS_DIR / "docker-images.ini"
 GENERATE_SCRIPT = JENKINS_DIR / "generate.py"
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
 
 
-def _testing_docker_api(data: Dict[str, Any]) -> Callable[[str], Dict[str, Any]]:
+def _testing_docker_api(data: dict[str, Any]) -> Callable[[str], dict[str, Any]]:
     """Returns a function that can be used in place of docker_api"""
 
-    def mock(url: str) -> Dict[str, Any]:
+    def mock(url: str) -> dict[str, Any]:
         if url in data:
             return data[url]
         else:
@@ -53,11 +56,11 @@ def parse_docker_date(d: str) -> datetime.datetime:
     return datetime.datetime.strptime(d, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
-def check_tag(tag: Dict[str, Any]) -> bool:
+def check_tag(tag: dict[str, Any]) -> bool:
     return re.match(r"^[0-9]+-[0-9]+-[a-z0-9]+$", tag["name"]) is not None
 
 
-def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
+def latest_tag(user: str, repo: str) -> list[dict[str, Any]]:
     """
     Queries Docker Hub and finds the most recent tag for the specified image/repo pair
     """
@@ -72,7 +75,7 @@ def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
     return results[-1]
 
 
-def latest_tlcpackstaging_image(source: str) -> Optional[str]:
+def latest_tlcpackstaging_image(source: str) -> str | None:
     """
     Finds the latest full tag to use in the Jenkinsfile or returns None if no
     update is needed
@@ -88,7 +91,7 @@ def latest_tlcpackstaging_image(source: str) -> Optional[str]:
     logging.info(f"Found latest tlcpackstaging tag:\n{latest_tlcpackstaging_tag}")
 
     if latest_tlcpackstaging_tag["name"] == current_tag:
-        logging.info(f"tlcpackstaging tag is the same as the one in the Jenkinsfile")
+        logging.info("tlcpackstaging tag is the same as the one in the Jenkinsfile")
 
     latest_tlcpack_tag = latest_tag(user="tlcpack", repo=repo)
     logging.info(f"Found latest tlcpack tag:\n{latest_tlcpack_tag}")
@@ -125,33 +128,41 @@ if __name__ == "__main__":
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
 
-    # Read the existing images from the Jenkinsfile
+    # Read the existing images from ci/jenkins/docker-images.ini.
+    # The ini has a single ``[jenkins]`` section with a shared ``ci_tag`` key
+    # and one ``ci_<name>: tlcpack/ci-<name>:%(ci_tag)s`` entry per image.
+    # Resolve each image to its full spec (with interpolation applied) and
+    # check against Docker Hub for newer tags.
     logging.info(f"Reading {IMAGES_FILE}")
+    config = configparser.ConfigParser()
+    config.read(IMAGES_FILE)
     with open(IMAGES_FILE) as f:
-        content = f.readlines()
+        content = f.read()
 
-    # Build a new Jenkinsfile with the latest images from tlcpack or tlcpackstaging
     replacements = {}
-
-    for line in content:
-        m = re.match(r'"tag": "(.*)",', line.strip())
-        if m is not None:
-            image_spec = m.groups()[0]
-            logging.info(f"Found match on line {line.strip()}")
-            new_image = latest_tlcpackstaging_image(image_spec)
-            if new_image is None:
-                logging.info(f"No new image found")
-            else:
-                logging.info(f"Using new image {new_image}")
-                new_line = f'        "tag": "{new_image}",'
-                replacements[line] = new_line
+    for key in config.options("jenkins"):
+        if key == "ci_tag":
+            continue
+        image_spec = config.get("jenkins", key)
+        logging.info(f"Found {key} = {image_spec}")
+        new_image = latest_tlcpackstaging_image(image_spec)
+        if new_image is None:
+            logging.info("No new image found")
+            continue
+        logging.info(f"Using new image {new_image}")
+        # Rewrite the ``ci_<name>:`` line with the resolved tag (breaking
+        # the ``%(ci_tag)s`` interpolation for that single entry) so the
+        # update is unambiguous and doesn't disturb other images that share
+        # the old tag.
+        old_line_re = re.compile(rf"^{re.escape(key)}\s*[:=].*$", re.MULTILINE)
+        new_line = f"{key}: {new_image}"
+        replacements[old_line_re] = new_line
 
     # Re-generate the Jenkinsfiles
     command = f"python3 {shlex.quote(str(GENERATE_SCRIPT))}"
 
-    content = "\n".join(content)
-    for old_line, new_line in replacements.items():
-        content = content.replace(old_line, new_line)
+    for old_line_re, new_line in replacements.items():
+        content = old_line_re.sub(new_line, content)
 
     print(f"Updated to:\n{content}")
 
@@ -170,7 +181,7 @@ if __name__ == "__main__":
     if args.dry_run:
         logging.info("Dry run, would have committed Jenkinsfiles")
     else:
-        logging.info(f"Creating git commit")
+        logging.info("Creating git commit")
         git(["checkout", "-B", BRANCH])
         git(["add", str(JENKINS_DIR.relative_to(REPO_ROOT))])
         git(["config", "user.name", "tvm-bot"])
@@ -178,7 +189,7 @@ if __name__ == "__main__":
         git(["commit", "-m", message])
         git(["push", "--set-upstream", args.remote, BRANCH, "--force"])
 
-    logging.info(f"Sending PR to GitHub")
+    logging.info("Sending PR to GitHub")
     github = GitHubRepo(user=user, repo=repo, token=GITHUB_TOKEN)
     data = {
         "title": title,

@@ -28,8 +28,8 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace relax {
@@ -198,14 +198,14 @@ TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params);
+TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> params);
 
 /*!
  * \brief Bind symbolic vars to constant shape values.
  *
  * \param binding_map The dictionary of symbolic variables and their
  *      constant shape values.  Dictionary keys may be either a
- *      `tir.Var` or a string name of the variable.  If the variables
+ *      `tirx.Var` or a string name of the variable.  If the variables
  *      are referred to by name, the name must uniquely identify a
  *      symbolic variable in each function where it is used.
  *
@@ -215,7 +215,7 @@ TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ObjectRef> params);
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tir::Var, ffi::String>, PrimExpr> binding_map,
+TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map,
                               ffi::Optional<ffi::String> func_name = std::nullopt);
 
 /*!
@@ -262,9 +262,9 @@ TVM_DLL Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cma
 TVM_DLL Pass RealizeVDevice();
 
 /*!
- * \brief Attach layout free buffers to the tir::PrimFunc.
+ * \brief Attach layout free buffers to the tirx::PrimFunc.
  *
- * This pass is used to attach layout free buffers to the tir::PrimFunc according to
+ * This pass is used to attach layout free buffers to the tirx::PrimFunc according to
  * the function usage in the relax function. Currently, the layout free buffers are the model
  * weights and relax constants.
  *
@@ -274,7 +274,7 @@ TVM_DLL Pass RealizeVDevice();
 TVM_DLL Pass AttachAttrLayoutFreeBuffers();
 
 /*!
- * \brief Split the layout rewrite preproc block to a separate tir::PrimFunc.
+ * \brief Split the layout rewrite preproc block to a separate tirx::PrimFunc.
  *
  * This pass is used in the prepack weight after meta_schedule tuning.
  *
@@ -309,7 +309,7 @@ TVM_DLL Pass SplitLayoutRewritePreproc();
  * \return The Pass.
  */
 TVM_DLL Pass
-LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform = Bool(false));
+LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform = false);
 
 /*!
  * \brief Update virtual device.
@@ -364,7 +364,7 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * fused, it needs to be matched with `pattern` and the `check` function needs to return
  * true.
  */
-class FusionPatternNode : public Object {
+class FusionPatternNode : public ffi::Object {
  public:
   /*!
    * \brief The name of pattern. It becomes the value of the kComposite attribute
@@ -410,10 +410,11 @@ class FusionPatternNode : public Object {
         .def_ro("check", &FusionPatternNode::check)
         .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode,
+                                    ffi::Object);
 };
 
-class FusionPattern : public ObjectRef {
+class FusionPattern : public ffi::ObjectRef {
  public:
   FusionPattern(ffi::String name, DFPattern pattern,
                 ffi::Map<ffi::String, DFPattern> annotation_patterns,
@@ -422,13 +423,13 @@ class FusionPattern : public ObjectRef {
   FusionPattern(ffi::String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ObjectRef, FusionPatternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ffi::ObjectRef, FusionPatternNode);
 };
 
 /*!
  * \brief The input of FusionPattern::check.
  */
-class PatternCheckContextNode : public Object {
+class PatternCheckContextNode : public ffi::Object {
  public:
   /*!
    * \brief The expression that's matched with the FusionPattern::pattern.
@@ -469,17 +470,17 @@ class PatternCheckContextNode : public Object {
         .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextNode,
-                                    Object);
+                                    ffi::Object);
 };
 
-class PatternCheckContext : public ObjectRef {
+class PatternCheckContext : public ffi::ObjectRef {
  public:
   PatternCheckContext(Expr matched_expr, ffi::Map<ffi::String, Expr> annotated_expr,
                       ffi::Map<Var, Expr> matched_bindings,
                       ffi::Map<Var, ffi::Array<Var>> var_usages,
                       ffi::Map<Expr, Var> value_to_bound_var);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternCheckContext, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternCheckContext, ffi::ObjectRef,
                                                 PatternCheckContextNode);
 };
 
@@ -598,8 +599,8 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(
-    const ffi::Map<ffi::String, tir::PrimFunc>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<tir::IndexMap>>& op_buffer_transforms,
+    const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+    const ffi::Map<ffi::String, ffi::Array<tirx::IndexMap>>& op_buffer_transforms,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators,
     const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
         input_axis_separators);
@@ -674,20 +675,8 @@ ToMixedPrecision(const DataType& out_dtype,
 TVM_DLL Pass RewriteCUDAGraph();
 
 /*!
- * \brief The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
- *  blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
- *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
- *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
- *  for benchmarking.
- * \param valid_count The number of valid counts to try.
- * \param benchmark Whether to use runner for benchmarking.
- * \return The Pass.
- */
-TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
-
-/*!
  * \brief This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
- * Primarily used to update the VDevice information if any changes occured from the caller.
+ * Primarily used to update the VDevice information if any changes occurred from the caller.
  * This pass recreates the buffers and updates the map.
  */
 TVM_DLL Pass SpecializePrimFuncBasedOnCallSite();

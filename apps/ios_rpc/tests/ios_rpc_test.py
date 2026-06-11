@@ -21,19 +21,17 @@ And configure the proxy host field as commented.
 """
 
 import argparse
-import os
-import re
-import sys
 
 import numpy as np
+
 import tvm
 from tvm import rpc, te
-from tvm.contrib import utils, xcode
+from tvm.support import utils, xcode
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
-target = "llvm -mtriple=%s-apple-darwin" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-apple-darwin"}
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
@@ -51,8 +49,8 @@ def test_rpc_module(host, port, key, mode):
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     temp = utils.tempdir()
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
-    sch = tvm.tir.Schedule(mod)
-    (i,) = sch.get_loops(block=sch.get_block("B"))
+    sch = tvm.s_tir.Schedule(mod)
+    (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
@@ -76,7 +74,7 @@ def test_rpc_module(host, port, key, mode):
     b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("Metal: %g secs/op" % cost)
+    print(f"Metal: {cost:g} secs/op")
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

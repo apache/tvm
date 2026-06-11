@@ -15,24 +15,53 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import jinja2
 import argparse
-import difflib
+import configparser
 import datetime
+import difflib
 import re
 import textwrap
-
-from pathlib import Path
-from typing import List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
-from data import data
-
+import jinja2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
 TEMPLATES_DIR = JENKINS_DIR / "templates"
 GENERATED_DIR = JENKINS_DIR / "generated"
+DOCKER_IMAGES_INI = JENKINS_DIR / "docker-images.ini"
+
+# Platform mapping for the CI image registry. The ini section names are the
+# image names; this dict pins their Jenkins agent label. Keep in sync with
+# the [jenkins] section of docker-images.ini when adding/removing images.
+_IMAGE_PLATFORMS = {
+    "ci_arm": "ARM",
+    "ci_cpu": "CPU",
+    "ci_gpu": "GPU",
+    "ci_lint": "CPU",
+    "ci_wasm": "CPU",
+}
+
+
+def _build_render_context() -> dict:
+    """Build the Jinja render context: image metadata + AWS endpoints."""
+    config = configparser.ConfigParser()
+    config.read(DOCKER_IMAGES_INI)
+    images = [
+        {"name": name, "platform": platform}
+        for name, platform in _IMAGE_PLATFORMS.items()
+        if config.has_option("jenkins", name)
+    ]
+    aws_default_region = "us-west-2"
+    return {
+        "images": images,
+        "aws_default_region": aws_default_region,
+        "aws_ecr_url": f"dkr.ecr.{aws_default_region}.amazonaws.com",
+    }
+
+
+data = _build_render_context()
 
 
 class Change:
@@ -43,7 +72,7 @@ class Change:
 
 @dataclass
 class ChangeData:
-    diff: Optional[str]
+    diff: str | None
     content: str
     destination: Path
     source: Path
@@ -55,7 +84,7 @@ def lines_without_generated_tag(content):
     ]
 
 
-def change_type(lines: List[str]) -> Change:
+def change_type(lines: list[str]) -> Change:
     """
     Return True if 'line' only edits an image tag or if 'line' is not a changed
     line in a diff
@@ -140,7 +169,7 @@ def update_jenkinsfile(source: Path) -> ChangeData:
         )
     ]
     change = change_type(diff)
-    if not args.force and change == Change.IMAGES_ONLY or change == Change.NONE:
+    if (not args.force and change == Change.IMAGES_ONLY) or change == Change.NONE:
         if change != Change.NONE:
             print("Detected only Docker-image name changes, skipping timestamp update")
         new_content = new_content.replace(data["generated_time"], original_timestamp)

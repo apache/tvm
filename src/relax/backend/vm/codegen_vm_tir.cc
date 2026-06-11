@@ -21,17 +21,19 @@
  * \file src/relax/backend/vm/codegen_tir.cc
  * \brief A codegen to generate VMTIR function(that can be compiled) from executable.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 
 #include <cctype>
 #include <string>
@@ -86,24 +88,24 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
 
   PrimExpr RegListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tir::Call(DataType::Handle(), tir::builtin::anylist_getitem(),
-                     {reg_anylist_handle_, ConstInt32(slot)});
+    return tirx::Call(DataType::Handle(), tirx::builtin::anylist_getitem(),
+                      {reg_anylist_handle_, ConstInt32(slot)});
   }
 
   PrimExpr ConstListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tir::Call(DataType::Handle(), tir::builtin::anylist_getitem(),
-                     {const_anylist_handle_, ConstInt32(slot)});
+    return tirx::Call(DataType::Handle(), tirx::builtin::anylist_getitem(),
+                      {const_anylist_handle_, ConstInt32(slot)});
   }
 
   PrimExpr FuncListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tir::Call(DataType::Handle(), tir::builtin::anylist_getitem(),
-                     {func_anylist_handle_, ConstInt32(slot)});
+    return tirx::Call(DataType::Handle(), tirx::builtin::anylist_getitem(),
+                      {func_anylist_handle_, ConstInt32(slot)});
   }
 
-  void EmitStmt(tir::Stmt stmt) {
-    ICHECK(!stmt_stack_.empty());
+  void EmitStmt(tirx::Stmt stmt) {
+    TVM_FFI_ICHECK(!stmt_stack_.empty());
     stmt_stack_.back().emplace_back(stmt);
   }
 
@@ -114,53 +116,54 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(tir::StringImm(name));
+    all_args.push_back(tirx::StringImm(name));
     for (PrimExpr arg : args) {
       all_args.push_back(arg);
     }
     if (dst_anylist_slot >= 0) {
-      this->EmitStmt(tir::Evaluate(
-          tir::Call(DataType::Int(32), tir::builtin::anylist_setitem_call_packed(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tirx::Call(DataType::Int(32), tirx::builtin::anylist_setitem_call_packed(), all_args)));
     } else {
-      this->EmitStmt(
-          tir::Evaluate(tir::Call(DataType::Int(32), tir::builtin::tvm_call_packed(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tirx::Call(DataType::Int(32), tirx::builtin::tvm_call_packed(), all_args)));
     }
   }
 
-  void EmitCallCPacked(const tir::PrimFunc& prim_func, const ffi::Array<PrimExpr>& args,
+  void EmitCallCPacked(const tirx::PrimFunc& prim_func, const ffi::Array<PrimExpr>& args,
                        int64_t dst_anylist_slot = -1) {
     ffi::Optional<ffi::String> gsymbol = prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "All functions must have global symbol at this phase";
+    TVM_FFI_ICHECK(gsymbol.has_value()) << "All functions must have global symbol at this phase";
     ffi::Array<PrimExpr> all_args;
     // negative index indicate return value can be discarded, emit call_packed
     if (dst_anylist_slot >= 0) {
       all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
     }
-    all_args.push_back(tir::StringImm(gsymbol.value()));
+    all_args.push_back(tirx::StringImm(gsymbol.value()));
     for (PrimExpr arg : args) {
       all_args.push_back(arg);
     }
     if (dst_anylist_slot >= 0) {
-      this->EmitStmt(tir::Evaluate(
-          tir::Call(DataType::Int(32), tir::builtin::anylist_setitem_call_cpacked(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tirx::Call(DataType::Int(32), tirx::builtin::anylist_setitem_call_cpacked(), all_args)));
     } else {
-      this->EmitStmt(
-          tir::Evaluate(tir::Call(DataType::Int(32), tir::builtin::tvm_call_cpacked(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tirx::Call(DataType::Int(32), tirx::builtin::tvm_call_cpacked(), all_args)));
     }
   }
 
-  tir::PrimFunc Codegen(const Function& func) {
+  tirx::PrimFunc Codegen(const Function& func) {
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
-                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    TVM_FFI_ICHECK(gsymbol.has_value())
+        << "there should be no local functions in Relax VM codegen phase. "
+           "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
     // initialize the state
     stmt_stack_ = {};
     registers_num_ = 0;
     var_map_.clear();
-    ctx_ptr_ = tir::Var("ctx_ptr", DataType::Handle());
-    reg_anylist_handle_ = tir::Var("r", DataType::Handle());
-    func_anylist_handle_ = tir::Var("f", DataType::Handle());
-    const_anylist_handle_ = tir::Var("c", DataType::Handle());
+    ctx_ptr_ = tirx::Var("ctx_ptr", DataType::Handle());
+    reg_anylist_handle_ = tirx::Var("r", DataType::Handle());
+    func_anylist_handle_ = tirx::Var("f", DataType::Handle());
+    const_anylist_handle_ = tirx::Var("c", DataType::Handle());
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
@@ -171,12 +174,12 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
 
     for (size_t i = 0; i < func->params.size(); ++i) {
       int64_t r = NewRegister();
-      ICHECK_EQ(static_cast<size_t>(r), i);
+      TVM_FFI_ICHECK_EQ(static_cast<size_t>(r), i);
       this->var_map_.insert({func->params[i], RegListGet(r)});
     }
     size_t ret_reg = NewRegister();
 
-    tir::Stmt body = WithNewScope([&]() {
+    tirx::Stmt body = WithNewScope([&]() {
       ffi::Optional<PrimExpr> ret = ExprFunctor::VisitExpr(func->body);
       if (ret.defined()) {
         this->EmitCallPacked("vm.builtin.copy", {ret.value()}, ret_reg);
@@ -189,11 +192,12 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     builder_->EndFunction(gsymbol.value());
 
     Type ret_type = VoidType();
-    ffi::Array<tir::Var> tir_params = {ctx_ptr_, reg_anylist_handle_, const_anylist_handle_,
-                                       func_anylist_handle_};
+    ffi::Array<tirx::Var> tir_params = {ctx_ptr_, reg_anylist_handle_, const_anylist_handle_,
+                                        func_anylist_handle_};
     ffi::String tir_func_name = system_lib_prefix_.value_or("") + "__vmtir__" + gsymbol.value();
-    tir::PrimFunc tir_func(tir_params, body, ret_type, {});
+    tirx::PrimFunc tir_func(tir_params, body, ret_type, {});
     tir_func = WithAttr(tir_func, "global_symbol", tir_func_name);
+    tir_func = WithAttr(tir_func, tvm::attr::kSTir, true);
     registers_num_ = 0;
     var_map_.clear();
     stmt_stack_.clear();
@@ -227,8 +231,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     Call call = ffi::GetRef<Call>(call_node);
 
     if (call_node->op == null_value_op_) {
-      return tir::Call(DataType::Handle(), tir::builtin::reinterpret(),
-                       {IntImm(DataType::Int(64), 0)});
+      return tirx::Call(DataType::Handle(), tirx::builtin::reinterpret(),
+                        {IntImm(DataType::Int(64), 0)});
     }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
@@ -243,7 +247,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVMTIR cannot handle this intrinsic now:\n" << call_node->op;
+        TVM_FFI_THROW(InternalError) << "CodeGenVMTIR cannot handle this intrinsic now:\n"
+                                     << call_node->op;
       }
     } else {
       EmitNormalCall(call, dst_reg);
@@ -260,25 +265,25 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     size_t merge_register = NewRegister();
     PrimExpr cond_value = this->VisitExpr(op->cond).value();
 
-    cond_value = tir::Call(DataType::Bool(), tir::builtin::tvm_call_packed(),
-                           {tir::StringImm("vm.builtin.read_if_cond"), cond_value});
+    cond_value = tirx::Call(DataType::Bool(), tirx::builtin::tvm_call_packed(),
+                            {tirx::StringImm("vm.builtin.read_if_cond"), cond_value});
 
-    tir::Stmt true_branch = WithNewScope([&]() {
+    tirx::Stmt true_branch = WithNewScope([&]() {
       PrimExpr true_value = this->VisitExpr(op->true_branch).value();
       this->EmitCallPacked("vm.builtin.copy", {true_value}, merge_register);
     });
-    tir::Stmt false_branch = WithNewScope([&]() {
+    tirx::Stmt false_branch = WithNewScope([&]() {
       PrimExpr false_value = this->VisitExpr(op->false_branch).value();
       this->EmitCallPacked("vm.builtin.copy", {false_value}, merge_register);
     });
-    this->EmitStmt(tir::IfThenElse(cond_value, true_branch, false_branch));
+    this->EmitStmt(tirx::IfThenElse(cond_value, true_branch, false_branch));
     return RegListGet(merge_register);
   }
 
   ffi::Optional<PrimExpr> VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = this->var_map_.find(var);
-    ICHECK(it != this->var_map_.end()) << "Var " << var << " is not defined";
+    TVM_FFI_ICHECK(it != this->var_map_.end()) << "Var " << var << " is not defined";
     return it->second;
   }
 
@@ -292,7 +297,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       if (auto* int_value = e.as<IntImmNode>()) {
         shape.push_back(int_value->value);
       } else {
-        LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
+        TVM_FFI_THROW(InternalError)
+            << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
     return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
@@ -347,7 +353,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
         } else if (func.as<FunctionNode>()) {
           *kind = VMFuncInfo::FuncKind::kVMTIRFunc;
           return gvar->name_hint;
-        } else if (func.as<tir::PrimFuncNode>()) {
+        } else if (func.as<tirx::PrimFuncNode>()) {
           *kind = VMFuncInfo::FuncKind::kPackedFunc;
           return gvar->name_hint;
         } else {
@@ -365,15 +371,15 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
   // Lookup PrimFunc in the same module
   // We can do direct PrimFunc call in such cases
-  ffi::Optional<tir::PrimFunc> LookupPrimFunc(const ffi::String& name) {
+  ffi::Optional<tirx::PrimFunc> LookupPrimFunc(const ffi::String& name) {
     if (!ctx_mod_->ContainGlobalVar(name)) return std::nullopt;
 
     GlobalVar gvar = ctx_mod_->GetGlobalVar(name);
     auto it = ctx_mod_->functions.find(gvar);
     if (it != ctx_mod_->functions.end()) {
       BaseFunc func = (*it).second;
-      if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
-        return ffi::GetRef<tir::PrimFunc>(prim_func);
+      if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
+        return ffi::GetRef<tirx::PrimFunc>(prim_func);
       }
     }
     return std::nullopt;
@@ -382,7 +388,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   ffi::Optional<PrimExpr> VisitExpr_(const GlobalVarNode* op) final {
     VMFuncInfo::FuncKind kind;
     auto symbol = LookupFunction(ffi::GetRef<Expr>(op), &kind);
-    ICHECK(symbol.has_value());
+    TVM_FFI_ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return FuncListGet(builder_->GetFunction(symbol.value()).value());
   }
@@ -403,7 +409,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 5);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 5);
     ffi::Array<PrimExpr> args;
     for (int i = 0; i < 4; ++i) {
       args.push_back(this->VisitExpr(call_node->args[i]).value());
@@ -415,25 +421,25 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
     if (vdevice.defined()) {
-      args.push_back(tir::StringImm(vdevice.value()->memory_scope));
+      args.push_back(tirx::StringImm(vdevice.value()->memory_scope));
     }
 
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
   int64_t EmitKillObject(const Call& call_node) {
-    ICHECK_EQ(call_node->args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 1);
     PrimExpr arg = this->VisitExpr(call_node->args[0]).value();
 
     // Check the arg is a register.
-    const auto* tir_call = arg.as<tir::CallNode>();
-    ICHECK(tir_call != nullptr);
-    ICHECK(tir_call->op == tir::builtin::anylist_getitem());
-    ICHECK(tir_call->args.size() == 2);
-    ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
-    const auto* p_dst_reg = tir_call->args[1].as<tir::IntImmNode>();
-    ICHECK(p_dst_reg != nullptr);
-    ICHECK(p_dst_reg->dtype == DataType::Int(32));
+    const auto* tir_call = arg.as<tirx::CallNode>();
+    TVM_FFI_ICHECK(tir_call != nullptr);
+    TVM_FFI_ICHECK(tir_call->op == tirx::builtin::anylist_getitem());
+    TVM_FFI_ICHECK(tir_call->args.size() == 2);
+    TVM_FFI_ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
+    const auto* p_dst_reg = tir_call->args[1].as<tirx::IntImmNode>();
+    TVM_FFI_ICHECK(p_dst_reg != nullptr);
+    TVM_FFI_ICHECK(p_dst_reg->dtype == DataType::Int(32));
 
     int64_t dst_reg = p_dst_reg->value;
     this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
@@ -445,7 +451,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     // if context is required, pass as first argument.
     args.push_back(ctx_ptr_);
     auto* func = call_node->args[0].as<ExternFuncNode>();
-    ICHECK(func) << "CallBuiltin comes with extern func";
+    TVM_FFI_ICHECK(func) << "CallBuiltin comes with extern func";
 
     auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
 
@@ -467,7 +473,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     if (symbol.has_value() && kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // primfunc in the same module.
       // use cpacked to directly invoke without named based lookup
-      if (ffi::Optional<tir::PrimFunc> prim_func = LookupPrimFunc(symbol.value())) {
+      if (ffi::Optional<tirx::PrimFunc> prim_func = LookupPrimFunc(symbol.value())) {
         this->EmitCallCPacked(prim_func.value(), args, dst_reg);
       } else {
         this->EmitCallPacked(symbol.value(), args, dst_reg);
@@ -485,10 +491,10 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   template <typename FLambda>
-  tir::Stmt WithNewScope(const FLambda& callback) {
+  tirx::Stmt WithNewScope(const FLambda& callback) {
     stmt_stack_.push_back({});
     callback();
-    tir::Stmt stmt = tir::SeqStmt::Flatten(stmt_stack_.back());
+    tirx::Stmt stmt = tirx::SeqStmt::Flatten(stmt_stack_.back());
     stmt_stack_.pop_back();
     return stmt;
   }
@@ -503,20 +509,20 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
   /*! \brief List to ctx_ptr */
-  tir::Var ctx_ptr_;
+  tirx::Var ctx_ptr_;
   /*! \brief List to store temp object registers */
-  tir::Var reg_anylist_handle_;
+  tirx::Var reg_anylist_handle_;
   /*! \brief List to store closures */
-  tir::Var func_anylist_handle_;
+  tirx::Var func_anylist_handle_;
   /*! \brief List to store constants */
-  tir::Var const_anylist_handle_;
+  tirx::Var const_anylist_handle_;
   /*!
    * \brief Total number of virtual registers allocated.
    * \note The first two registers are reserved for special registers.
    */
   int64_t registers_num_ = 0;
   /*! \brief Stack to build up statements */
-  std::vector<std::vector<tir::Stmt>> stmt_stack_;
+  std::vector<std::vector<tirx::Stmt>> stmt_stack_;
   /*! \brief Map from var to Expr. */
   std::unordered_map<Var, ffi::Optional<PrimExpr>> var_map_;
   /*! \brief the context module. */

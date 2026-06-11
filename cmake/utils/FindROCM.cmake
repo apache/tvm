@@ -29,8 +29,6 @@
 # - ROCM_FOUND
 # - ROCM_INCLUDE_DIRS
 # - ROCM_HIPHCC_LIBRARY
-# - ROCM_MIOPEN_LIBRARY
-# - ROCM_ROCBLAS_LIBRARY
 #
 
 macro(find_rocm use_rocm)
@@ -53,8 +51,6 @@ macro(find_rocm use_rocm)
     if(NOT ROCM_HIPHCC_LIBRARY)
       find_library(ROCM_HIPHCC_LIBRARY hip_hcc ${__rocm_sdk}/lib)
     endif()
-    find_library(ROCM_MIOPEN_LIBRARY MIOpen ${__rocm_sdk}/lib)
-    find_library(ROCM_ROCBLAS_LIBRARY rocblas ${__rocm_sdk}/lib)
     find_library(ROCM_HIPBLAS_LIBRARY hipblas ${__rocm_sdk}/lib)
     find_library(ROCM_HIPBLASLT_LIBRARY hipblaslt ${__rocm_sdk}/lib)
     find_library(ROCM_HSA_LIBRARY hsa-runtime64 ${__rocm_sdk}/lib)
@@ -66,8 +62,6 @@ macro(find_rocm use_rocm)
   if(ROCM_FOUND)
     message(STATUS "Found ROCM_INCLUDE_DIRS=" ${ROCM_INCLUDE_DIRS})
     message(STATUS "Found ROCM_HIPHCC_LIBRARY=" ${ROCM_HIPHCC_LIBRARY})
-    message(STATUS "Found ROCM_MIOPEN_LIBRARY=" ${ROCM_MIOPEN_LIBRARY})
-    message(STATUS "Found ROCM_ROCBLAS_LIBRARY=" ${ROCM_ROCBLAS_LIBRARY})
     message(STATUS "Found ROCM_HIPBLAS_LIBRARY=" ${ROCM_HIPBLAS_LIBRARY})
     message(STATUS "Found ROCM_HIPBLASLT_LIBRARY=" ${ROCM_HIPBLASLT_LIBRARY})
   endif(ROCM_FOUND)

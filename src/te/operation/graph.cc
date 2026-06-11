@@ -26,8 +26,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 #include <vector>
@@ -40,7 +40,7 @@ namespace te {
 ReadGraph CreateReadGraph(const ffi::Array<Operation>& roots) {
   ReadGraph rmap;
   std::vector<Operation> stack;
-  std::unordered_set<const Object*> visited;
+  std::unordered_set<const ffi::Object*> visited;
   // initialize the roots
   for (Operation op : roots) {
     stack.push_back(op);

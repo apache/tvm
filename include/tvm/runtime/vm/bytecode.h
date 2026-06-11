@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_VM_BYTECODE_H_
 #define TVM_RUNTIME_VM_BYTECODE_H_
 
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/logging.h>
 
 #include <iostream>
 #include <vector>
@@ -106,8 +106,9 @@ struct Instruction {
         os << "kFuncIdx";
         break;
       default:
-        LOG(FATAL) << "Internal error: "
-                   << "Invalid ArgKind with integer value " << static_cast<int>(kind);
+        TVM_FFI_THROW(InternalError)
+            << "Internal error: "
+            << "Invalid ArgKind with integer value " << static_cast<int>(kind);
     }
     return os;
   }
@@ -173,8 +174,8 @@ struct Instruction {
     explicit Arg(ExecWord data) : data_(data) {}
     /*! \brief Construct from the kind and value. */
     Arg(ArgKind kind, Index value) {
-      ICHECK_LE(value, kValueMaxLimit);
-      ICHECK_GE(value, kValueMinLimit);
+      TVM_FFI_ICHECK_LE(value, kValueMaxLimit);
+      TVM_FFI_ICHECK_GE(value, kValueMinLimit);
       data_ = (static_cast<ExecWord>(kind) << kValueBit) | (value & kValueMask);
     }
     /*! \brief The underlying stored data. */

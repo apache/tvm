@@ -25,11 +25,13 @@
 #ifndef TVM_RUNTIME_CONST_LOADER_MODULE_H_
 #define TVM_RUNTIME_CONST_LOADER_MODULE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/tensor.h>
-
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -37,15 +39,24 @@ namespace runtime {
 /*!
  * \brief Create a ConstLoader module object.
  *
- * \param const_var_tensor Maps consts var name to Tensor containing data for the var.
+ * \param const_var_tensor Maps const var name to Tensor containing data for the var.
  * \param const_vars_by_symbol Maps the name of a module init function to a list of names of
  * const vars whose data will be passed to that init function.
  *
  * \return The created ConstLoaderModule.
+ *
+ * Dispatches through the FFI registry ("ffi.Module.create.const_loader").
+ * The creator is always available (ConstLoaderModule is a runtime-universal module).
  */
-ffi::Module ConstLoaderModuleCreate(
-    const std::unordered_map<std::string, Tensor>& const_var_tensor,
-    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol);
+inline ffi::Module ConstLoaderModuleCreate(
+    const ffi::Map<ffi::String, Tensor>& const_var_tensor,
+    const ffi::Map<ffi::String, ffi::Array<ffi::String>>& const_vars_by_symbol) {
+  static const auto fcreate = ffi::Function::GetGlobal("ffi.Module.create.const_loader");
+  TVM_FFI_CHECK(fcreate.has_value(), RuntimeError)
+      << "ffi.Module.create.const_loader is not registered in runtime. "
+      << "Ensure libtvm_runtime is loaded.";
+  return (*fcreate)(const_var_tensor, const_vars_by_symbol).cast<ffi::Module>();
+}
 
 }  // namespace runtime
 }  // namespace tvm

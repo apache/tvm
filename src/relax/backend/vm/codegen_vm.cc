@@ -21,13 +21,14 @@
  * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -84,8 +85,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   void Codegen(const Function& func) {
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
-                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    TVM_FFI_ICHECK(gsymbol.has_value())
+        << "there should be no local functions in Relax VM codegen phase. "
+           "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
@@ -96,7 +98,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     for (size_t i = 0; i < func->params.size(); ++i) {
       RegName r = NewRegister();
-      ICHECK_EQ(r, static_cast<RegName>(i));
+      TVM_FFI_ICHECK_EQ(r, static_cast<RegName>(i));
       this->var_arg_map_.insert({func->params[i], Instruction::Arg::Register(r)});
     }
     Instruction::Arg ret = ExprFunctor::VisitExpr(func->body);
@@ -155,7 +157,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call_node->op;
+        TVM_FFI_THROW(InternalError) << "CodeGenVM cannot handle this intrinsic now:\n"
+                                     << call_node->op;
       }
     } else {
       EmitNormalCall(call, dst_reg);
@@ -210,7 +213,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = this->var_arg_map_.find(var);
-    ICHECK(it != this->var_arg_map_.end()) << "Var " << var << " is not defined";
+    TVM_FFI_ICHECK(it != this->var_arg_map_.end()) << "Var " << var << " is not defined";
     return it->second;
   }
 
@@ -232,7 +235,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       if (auto* int_value = e.as<IntImmNode>()) {
         shape.push_back(int_value->value);
       } else {
-        LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
+        TVM_FFI_THROW(InternalError)
+            << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
     return builder_->ConvertConstant(ffi::Shape(shape));
@@ -244,9 +248,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     } else if (auto* float_imm = op->value.as<FloatImmNode>()) {
       return builder_->ConvertConstant(float_imm->value);
     } else {
-      LOG(FATAL) << "PrimValue should only contain constant after  VMShapeLower, "
-                 << "but received " << ffi::GetRef<Expr>(op) << " with type "
-                 << op->value->GetTypeKey();
+      TVM_FFI_THROW(InternalError)
+          << "PrimValue should only contain constant after  VMShapeLower, "
+          << "but received " << ffi::GetRef<Expr>(op) << " with type " << op->value->GetTypeKey();
+      TVM_FFI_UNREACHABLE();
     }
   }
 
@@ -308,7 +313,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       kind = VMFuncInfo::FuncKind::kPackedFunc;
     }
     // declare the function to be safe.
-    ICHECK(symbol.has_value());
+    TVM_FFI_ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return builder_->GetFunction(symbol.value());
   }
@@ -330,7 +335,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 4);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 4);
     // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
@@ -342,7 +347,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 5);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 5);
     std::vector<Instruction::Arg> args;
     for (int i = 0; i < 4; ++i) {
       args.push_back(this->VisitExpr(call_node->args[i]));
@@ -360,9 +365,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   RegName EmitKillObject(const Call& call_node) {
-    ICHECK_EQ(call_node->args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 1);
     Instruction::Arg arg = this->VisitExpr(call_node->args[0]);
-    ICHECK(arg.kind() == Instruction::ArgKind::kRegister)
+    TVM_FFI_ICHECK(arg.kind() == Instruction::ArgKind::kRegister)
         << "Expected the object to be killed to be stored in a register, "
         << "but argument " << call_node->args[0] << " produced VM instruction of type "
         << arg.kind();
@@ -457,33 +462,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * module(s).
  * \return The created module.
  */
-void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runtime::Tensor>& params,
-                 const tvm::ffi::Module& lib, const ffi::Array<ffi::Module>& ext_libs) {
+void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
+                 const ffi::Map<ffi::String, runtime::Tensor>& params, const tvm::ffi::Module& lib,
+                 const ffi::Array<ffi::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
-  std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
+  ffi::Map<ffi::String, ffi::Array<ffi::String>> const_vars_by_symbol;
   for (tvm::ffi::Module mod : ext_libs) {
     auto pf_sym = mod->GetFunction("get_symbol");
     auto pf_var = mod->GetFunction("get_const_vars");
-    std::vector<std::string> symbol_const_vars;
     if (pf_sym.has_value() && pf_var.has_value()) {
       ffi::String symbol = (*pf_sym)().cast<ffi::String>();
       ffi::Array<ffi::String> variables = (*pf_var)().cast<ffi::Array<ffi::String>>();
-      for (size_t i = 0; i < variables.size(); i++) {
-        symbol_const_vars.push_back(variables[i].operator std::string());
-      }
-      ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
-      const_vars_by_symbol[symbol] = symbol_const_vars;
+      TVM_FFI_ICHECK(!const_vars_by_symbol.count(symbol)) << "Found duplicated symbol: " << symbol;
+      const_vars_by_symbol.Set(symbol, variables);
     }
   }
   if (!const_vars_by_symbol.empty() || !params.empty()) {
     // need runtime const information, run link const loader
-    std::unordered_map<std::string, runtime::Tensor> const_var_tensor;
-    for (const auto& [name, param] : params) {
-      const_var_tensor[name] = param;
-    }
-    ffi::Module const_loader_mod =
-        runtime::ConstLoaderModuleCreate(const_var_tensor, const_vars_by_symbol);
+    ffi::Module const_loader_mod = runtime::ConstLoaderModuleCreate(params, const_vars_by_symbol);
     const_loader_mod->ImportModule(lib);
     for (const auto& it : ext_libs) {
       const_loader_mod->ImportModule(it);
@@ -504,7 +501,7 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runti
 ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module> lib,
                    ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
-  ObjectPtr<VMExecutable> executable = builder->Get();
+  ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
   }

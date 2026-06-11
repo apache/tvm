@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 
 """
 Test float to fixed-point conversion. We do it by constructing a numpy array with the
@@ -26,7 +27,9 @@ raised if they happened to be outside of the expected tolerance.
 
 import math
 import struct
+
 import numpy as np
+
 from tvm.topi.hexagon import utils
 
 

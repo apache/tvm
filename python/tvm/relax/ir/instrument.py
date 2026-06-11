@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common relax pass instrumentation across IR variants."""
+
 import tvm
 from tvm import relax
 
@@ -52,7 +53,7 @@ class WellFormedInstrument:
 
     def _check(self, mod, pass_name, name_prefix):
         if pass_name not in self.skip_pass_name:
-            is_well_formed = relax.analysis.well_formed(mod, self.check_struct_info)
+            is_well_formed = relax.analysis.check_well_formed(mod, self.check_struct_info)
             if not is_well_formed:
                 mod.show(name=f"{name_prefix}{pass_name}")
             assert is_well_formed

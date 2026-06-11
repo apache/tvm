@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-08-24T11:52:44.735820
+// Generated at 2026-06-09T19:52:01.285310
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -70,10 +70,8 @@ ci_gpu = ''
 ci_cpu = ''
 ci_minimal = ''
 ci_wasm = ''
-ci_i386 = ''
 ci_cortexm = ''
 ci_arm = ''
-ci_hexagon = ''
 ci_riscv = ''
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -84,8 +82,6 @@ properties([
     string(name: 'ci_arm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
@@ -96,8 +92,6 @@ properties([
   built_ci_arm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
-  built_ci_hexagon = null;
-  built_ci_i386 = null;
   built_ci_lint = null;
   built_ci_wasm = null;
 
@@ -139,12 +133,15 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  if (env.BRANCH_NAME == 'main') {
-    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
-    update_upstream_revision("HEAD")
+  if (env.CHANGE_TARGET) {
+    // This is a PR build, so merge with the latest of the PR's target branch
+    // (e.g. main or a release branch like v0.25.0).
+    merge_with_target()
   } else {
-    // This is PR branch so merge with latest main.
-    merge_with_main()
+    // This is a branch build (main or a release branch). Only set
+    // upstream_revision to HEAD and skip merging to avoid a race with another
+    // commit merged to the branch.
+    update_upstream_revision("HEAD")
   }
 
   sh(
@@ -168,15 +165,16 @@ def update_upstream_revision(git_ref) {
   }
 }
 
-def merge_with_main() {
+def merge_with_target() {
+  def target = env.CHANGE_TARGET
   sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
+    script: "git fetch origin ${target}",
+    label: "Fetch target branch ${target}",
   )
   update_upstream_revision("FETCH_HEAD")
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
+    label: "Merge to origin/${target}"
   )
 }
 
@@ -368,7 +366,7 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -387,16 +385,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_gpu",
             returnStdout: true,
           ).trim()
-          ci_hexagon = sh(
-            script: "cat .docker-image-names/ci_hexagon",
-            label: "Find docker image name for ci_hexagon",
-            returnStdout: true,
-          ).trim()
-          ci_i386 = sh(
-            script: "cat .docker-image-names/ci_i386",
-            label: "Find docker image name for ci_i386",
-            returnStdout: true,
-          ).trim()
           ci_lint = sh(
             script: "cat .docker-image-names/ci_lint",
             label: "Find docker image name for ci_lint",
@@ -412,8 +400,6 @@ def prepare(node_type) {
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-        ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
@@ -422,8 +408,6 @@ def prepare(node_type) {
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
-          echo " ci_hexagon = ${ci_hexagon}"
-          echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
@@ -480,7 +464,7 @@ def make_cpp_tests(image, build_dir) {
 def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
-    label: 'Run cmake build',
+    label: 'Run CMake build',
   )
 }
 def cpp_unittest(image) {
@@ -511,7 +495,7 @@ def run_build(node_type) {
             ], {
             sh (
           script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-          label: 'Create WASM cmake config',
+          label: 'Create WASM CMake config',
         )
         cmake_build(ci_wasm, 'build')
         make_cpp_tests(ci_wasm, 'build')

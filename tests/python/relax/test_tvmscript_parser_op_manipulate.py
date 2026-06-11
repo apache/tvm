@@ -14,19 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731
 
-from typing import Optional, Union
 
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
-from tvm.script import relax as R, ir as I
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -218,9 +219,7 @@ def test_reshape_infer_dim():
 
 def test_split_by_indices():
     @R.function
-    def foo(
-        x: R.Tensor((2, 10, 4), dtype="float32")
-    ) -> R.Tuple(
+    def foo(x: R.Tensor((2, 10, 4), dtype="float32")) -> R.Tuple(
         R.Tensor((2, 0, 4), dtype="float32"),
         R.Tensor((2, 2, 4), dtype="float32"),
         R.Tensor((2, 4, 4), dtype="float32"),
@@ -253,9 +252,7 @@ def test_split_by_indices():
 
 def test_split_by_n_section():
     @R.function
-    def foo(
-        x: R.Tensor((2, 10, 4), dtype="float32")
-    ) -> R.Tuple(
+    def foo(x: R.Tensor((2, 10, 4), dtype="float32")) -> R.Tuple(
         R.Tensor((2, 2, 4), dtype="float32"),
         R.Tensor((2, 2, 4), dtype="float32"),
         R.Tensor((2, 2, 4), dtype="float32"),
@@ -312,9 +309,9 @@ def test_squeeze_with_indices():
 
 def test_collapse_sum_like():
     @R.function
-    def foo(
-        x: R.Tensor((3, 4, 5), "float32"), y: R.Tensor((4, 5), "float32")
-    ) -> R.Tensor((4, 5), "float32"):
+    def foo(x: R.Tensor((3, 4, 5), "float32"), y: R.Tensor((4, 5), "float32")) -> R.Tensor(
+        (4, 5), "float32"
+    ):
         gv: R.Tensor((4, 5), "float32") = R.collapse_sum_like(x, y)
         return gv
 

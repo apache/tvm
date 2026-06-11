@@ -84,9 +84,9 @@ class TrackerClient {
       tracker_sock_ = ConnectWithRetry();
 
       int code = kRPCTrackerMagic;
-      ICHECK_EQ(tracker_sock_.SendAll(&code, sizeof(code)), sizeof(code));
-      ICHECK_EQ(tracker_sock_.RecvAll(&code, sizeof(code)), sizeof(code));
-      ICHECK_EQ(code, kRPCTrackerMagic) << tracker_addr_.c_str() << " is not RPC Tracker";
+      TVM_FFI_ICHECK_EQ(tracker_sock_.SendAll(&code, sizeof(code)), sizeof(code));
+      TVM_FFI_ICHECK_EQ(tracker_sock_.RecvAll(&code, sizeof(code)), sizeof(code));
+      TVM_FFI_ICHECK_EQ(code, kRPCTrackerMagic) << tracker_addr_.c_str() << " is not RPC Tracker";
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo) << ", {\"key\": \"server:" << key_
@@ -95,7 +95,7 @@ class TrackerClient {
 
       // Receive status and validate
       std::string remote_status = tracker_sock_.RecvBytes();
-      ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
+      TVM_FFI_ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
     }
   }
   /*!
@@ -124,7 +124,7 @@ class TrackerClient {
 
       // Receive status and validate
       std::string remote_status = tracker_sock_.RecvBytes();
-      ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
+      TVM_FFI_ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
     } else {
       *matchkey = key_;
     }
@@ -174,7 +174,7 @@ class TrackerClient {
             tracker_sock_.SendBytes(ss.str());
 
             std::string remote_status = tracker_sock_.RecvBytes();
-            ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
+            TVM_FFI_ICHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
             unmatch_period_count = 0;
           }
           continue;
@@ -206,7 +206,7 @@ class TrackerClient {
       auto period = (std::chrono::duration_cast<std::chrono::seconds>(
                          std::chrono::system_clock::now() - tbegin))
                         .count();
-      ICHECK(period < timeout) << "Failed to connect to server" << addr.AsString();
+      TVM_FFI_ICHECK(period < timeout) << "Failed to connect to server" << addr.AsString();
       LOG(WARNING) << "Cannot connect to tracker " << addr.AsString() << " retry in "
                    << retry_period << " seconds.";
       std::this_thread::sleep_for(std::chrono::seconds(retry_period));

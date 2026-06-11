@@ -15,18 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import
+# ruff: noqa: F401
 """The struct info nodes of the Relax language."""
-from typing import List, Optional, Union
+
+from typing import Optional, Union
 
 import tvm_ffi
+from tvm_ffi import Array
+
 import tvm
-
-from tvm.ir import Span, EnvFunc, Array, VDevice
-from tvm.tir import PrimExpr
+from tvm.ir import EnvFunc, Span, VDevice
 from tvm.runtime import DataType
-from .expr import StructInfo, Expr, ShapeExpr
+from tvm.tirx import PrimExpr
 
-from . import _ffi_api, ty, expr
+from . import _ffi_api, expr, ty
+from .expr import Expr, ShapeExpr, StructInfo
 
 
 @tvm_ffi.register_object("relax.ObjectStructInfo")
@@ -49,13 +52,13 @@ class PrimStructInfo(StructInfo):
        value.
     """
 
-    value: Optional[PrimExpr]
+    value: PrimExpr | None
     dtype: str
 
     def __init__(
         self,
-        dtype: Optional[Union[str, DataType]] = None,
-        value: Optional[Union[int, float, PrimExpr]] = None,
+        dtype: str | DataType | None = None,
+        value: int | float | PrimExpr | None = None,
         span: Span = None,
     ) -> None:
         # Guard against incorrect usage.  For backwards compatibility,
@@ -67,7 +70,7 @@ class PrimStructInfo(StructInfo):
         # inline variable definitions when used in a function
         # signature, and requires separate arguments to distinguish
         # the two cases.)
-        if isinstance(dtype, (PrimExpr, int, float)):
+        if isinstance(dtype, PrimExpr | int | float):
             raise TypeError(
                 f"The first positional argument of PrimStructInfo must be the datatype, "
                 f", but received {type(dtype)}.  "
@@ -90,21 +93,17 @@ class PrimStructInfo(StructInfo):
                     "However, the value {value} has dtype {value.dtype}, "
                     "but the specified dtype was {dtype}."
                 )
-            elif isinstance(value, (int, float)):
-                value = tvm.tir.const(value, dtype)
+            elif isinstance(value, int | float):
+                value = tvm.tirx.const(value, dtype)
 
         # Use relax's default integer type if not otherwise specified.
         if isinstance(value, int):
-            value = tvm.tir.IntImm("int64", value)
+            value = tvm.tirx.IntImm("int64", value)
 
         if value is None:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromDtype, dtype, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromDtype, dtype, span)  # type: ignore
         else:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromValue, value, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromValue, value, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.ShapeStructInfo")
@@ -124,15 +123,18 @@ class ShapeStructInfo(StructInfo):
     Do not specify values and ndim at the same time.
     """
 
-    values: Optional[List[PrimExpr]]
+    values: list[PrimExpr] | None
     ndim: int
     span: Span
 
     def __init__(
-        self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
+        self, values: list[PrimExpr] | None = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ShapeStructInfo, values, ndim, span  # type: ignore
+            _ffi_api.ShapeStructInfo,
+            values,
+            ndim,
+            span,  # type: ignore
         )
 
 
@@ -159,24 +161,29 @@ class TensorStructInfo(StructInfo):
     Do not specify shape and ndim at the same time.
     """
 
-    shape: Optional[Expr]
+    shape: Expr | None
     dtype: str
-    vdevice: Optional[VDevice]
+    vdevice: VDevice | None
     ndim: int
     span: Span
 
     def __init__(
         self,
-        shape: Union[Optional[Expr], List[PrimExpr]] = None,
+        shape: Expr | None | list[PrimExpr] = None,
         dtype: str = "float32",
-        vdevice: Union[Optional[VDevice], str] = None,
+        vdevice: VDevice | None | str = None,
         ndim: int = -1,
         span: Span = None,
     ) -> None:
-        if isinstance(shape, (list, tuple, Array)):
+        if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo, shape, dtype, ndim, vdevice, span  # type: ignore
+            _ffi_api.TensorStructInfo,
+            shape,
+            dtype,
+            ndim,
+            vdevice,
+            span,  # type: ignore
         )
 
 
@@ -190,10 +197,10 @@ class TupleStructInfo(StructInfo):
         The struct info of the fields.
     """
 
-    fields: List[StructInfo]
+    fields: list[StructInfo]
     span: Span
 
-    def __init__(self, fields: List[StructInfo], span: Span = None) -> None:
+    def __init__(self, fields: list[StructInfo], span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TupleStructInfo, fields, span)  # type: ignore
 
 
@@ -216,24 +223,28 @@ class FuncStructInfo(StructInfo):
         we still consider it impure.
     """
 
-    params: Optional[List[StructInfo]]
+    params: list[StructInfo] | None
     ret: StructInfo
-    derive_func: Optional[EnvFunc]
+    derive_func: EnvFunc | None
     purity: bool
     span: Span
 
     def __init__(
-        self, params: List[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
+        self, params: list[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo, params, ret, purity, span  # type: ignore
+            _ffi_api.FuncStructInfo,
+            params,
+            ret,
+            purity,
+            span,  # type: ignore
         )
 
     @staticmethod
     def opaque_func(
         *,
-        ret: Optional[StructInfo] = None,
-        derive_func: Optional[Union[str, EnvFunc]] = None,
+        ret: StructInfo | None = None,
+        derive_func: str | EnvFunc | None = None,
         purity: bool = False,
         span: Span = None,
     ) -> "FuncStructInfo":

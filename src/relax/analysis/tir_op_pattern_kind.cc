@@ -18,23 +18,25 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
 
-using namespace tir;
+using namespace tirx;
 
 class PatternKindAnalyzer : public StmtExprVisitor {
  public:
-  explicit PatternKindAnalyzer(const tir::PrimFunc& func) {
-    for (const tir::Var& param : func->params) {
+  explicit PatternKindAnalyzer(const tirx::PrimFunc& func) {
+    for (const tirx::Var& param : func->params) {
       ffi::Optional<Buffer> param_buf = func->buffer_map.Get(param);
       if (param_buf.defined()) {
         param_buffers_.insert(param_buf.value());
@@ -43,7 +45,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  bool IsOutputBlock(const BlockNode* block) {
+  bool IsOutputBlock(const SBlockNode* block) {
     for (const BufferRegion& write_region : block->writes) {
       if (param_buffers_.count(write_region->buffer)) {
         return true;
@@ -68,7 +70,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
       StmtVisitor::VisitStmt(op->body);
@@ -130,9 +132,9 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
     // Step 4. Checking if the block contains reduce axis by looking into block iterators.
     bool has_reduction = false;
-    ffi::Array<tir::Var> reduce_vars;
+    ffi::Array<tirx::Var> reduce_vars;
     for (const IterVar& it : op->iter_vars) {
-      if (it->iter_type == tir::IterVarType::kCommReduce) {
+      if (it->iter_type == tirx::IterVarType::kCommReduce) {
         has_reduction = true;
         reduce_vars.push_back(it->var);
       }
@@ -222,9 +224,9 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i, j] = B[i - j] is injective since the load index vars are only i, j
    */
   static bool IsInjectivePattern(const BufferStore& store, const BufferLoad& load) {
-    std::unordered_set<const tir::VarNode*> vars;
+    std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
-      if (const auto* v = store_index.as<tir::VarNode>()) {
+      if (const auto* v = store_index.as<tirx::VarNode>()) {
         vars.insert(v);
       } else {
         return false;
@@ -232,7 +234,8 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     }
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tir::UsesVar(load_index, [&vars](const tir::VarNode* var) { return !vars.count(var); })) {
+      if (tirx::UsesVar(load_index,
+                        [&vars](const tirx::VarNode* var) { return !vars.count(var); })) {
         return false;
       }
     }
@@ -246,17 +249,17 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      Store = A[i, j] and Load = B[i, j + k] allow data reuse.
    */
   static bool IsAllowReusePattern(const BufferStore& store, const BufferLoad& load) {
-    std::unordered_set<const tir::VarNode*> vars;
+    std::unordered_set<const tirx::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
-      if (const auto* v = index.as<tir::VarNode>()) {
+      if (const auto* v = index.as<tirx::VarNode>()) {
         vars.insert(v);
       } else {
         return false;
       }
     }
     for (const PrimExpr& index : load->indices) {
-      PreOrderVisit(index, [&](const ObjectRef& node) {
-        if (const auto* v = node.as<tir::VarNode>()) {
+      PreOrderVisit(index, [&](const ffi::ObjectRef& node) {
+        if (const auto* v = node.as<tirx::VarNode>()) {
           if (vars.count(v)) {
             vars.erase(v);
           }
@@ -269,7 +272,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
   static PrimExpr RemoveCast(PrimExpr e) {
     for (;;) {
-      if (const auto* cast = e.as<tir::CastNode>()) {
+      if (const auto* cast = e.as<tirx::CastNode>()) {
         e = cast->value;
       } else {
         break;
@@ -281,15 +284,15 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
   static bool IsFMA(const Stmt& body) {
     if (const auto* store = body.as<BufferStoreNode>()) {
-      if (const auto* add = RemoveCast(store->value).as<tir::AddNode>()) {
-        if (const auto* mul = RemoveCast(add->b).as<tir::MulNode>()) {
-          const auto* store_lhs = RemoveCast(add->a).as<tir::BufferLoadNode>();
+      if (const auto* add = RemoveCast(store->value).as<tirx::AddNode>()) {
+        if (const auto* mul = RemoveCast(add->b).as<tirx::MulNode>()) {
+          const auto* store_lhs = RemoveCast(add->a).as<tirx::BufferLoadNode>();
           if (!store_lhs || !store->buffer.same_as(store_lhs->buffer) ||
               !IsSameArray(store->indices, store_lhs->indices)) {
             return false;
           }
-          const auto* lhs = RemoveCast(mul->a).as<tir::BufferLoadNode>();
-          const auto* rhs = RemoveCast(mul->b).as<tir::BufferLoadNode>();
+          const auto* lhs = RemoveCast(mul->a).as<tirx::BufferLoadNode>();
+          const auto* rhs = RemoveCast(mul->b).as<tirx::BufferLoadNode>();
           if (!lhs || !rhs) {
             return false;
           }
@@ -309,10 +312,11 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i] = sum(B[i, j + k]) is not pure reduce
    *      pooling is not pure reduce
    */
-  static bool IsPureReducePattern(ffi::Array<tir::Var> reduce_loops, ffi::Array<PrimExpr> indices) {
+  static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
+                                  ffi::Array<PrimExpr> indices) {
     for (const PrimExpr& e : indices) {
       int id = -1;
-      if (UsesVar(e, [&](const tir::VarNode* var) {
+      if (UsesVar(e, [&](const tirx::VarNode* var) {
             for (size_t i = 0; i < reduce_loops.size(); ++i) {
               if (reduce_loops[i].get() == var) {
                 id = i;
@@ -340,7 +344,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
-  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> param_buffers_;
+  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
 
  public:
   OpPatternKind GetResult() { return kind_; }
@@ -366,27 +370,27 @@ bool HasReshapePattern(const PrimFunc& func) {
         : is_reshape_(false), src_buffer_(src_buffer), dst_buffer_(dst_buffer) {}
 
     void VisitStmt_(const ForNode* loop) final {
-      ana_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      ana_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
-      if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<BlockRealizeNode>())) {
+      if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<SBlockRealizeNode>())) {
         return;
       }
       this->VisitStmt(loop->body);
     }
 
-    void VisitStmt_(const BlockRealizeNode* block_realize) final {
+    void VisitStmt_(const SBlockRealizeNode* block_realize) final {
       // Constructing the mapping from block iterators to iterator
       // binding values. The mapping will be used in the substitution of
       // the flattened buffer access index.
-      const Block& block = block_realize->block;
+      const SBlock& block = block_realize->block;
       const ffi::Array<IterVar>& block_iter = block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = block_realize->iter_values;
-      ICHECK_EQ(block_iter.size(), iter_values.size());
+      TVM_FFI_ICHECK_EQ(block_iter.size(), iter_values.size());
       int n_iter = block_iter.size();
       for (int i = 0; i < n_iter; ++i) {
         // To detect the reshape pattern, we require each block iter to be data-parallel.
-        if (block_iter[i]->iter_type != tir::IterVarType::kDataPar) {
+        if (block_iter[i]->iter_type != tirx::IterVarType::kDataPar) {
           return;
         }
       }
@@ -395,16 +399,16 @@ bool HasReshapePattern(const PrimFunc& func) {
       this->VisitStmt(block);
     }
 
-    void VisitStmt_(const BlockNode* block) final {
+    void VisitStmt_(const SBlockNode* block) final {
       // Step 0. If the block body is a ForNode, recurse into it.
       if (block->body->IsInstance<ForNode>()) {
         this->VisitStmt(block->body);
         return;
       }
 
-      ffi::Map<tir::Var, Range> var_range;
+      ffi::Map<tirx::Var, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
-        ana_.Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
+        ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }
 
@@ -431,19 +435,19 @@ bool HasReshapePattern(const PrimFunc& func) {
       // access (e.g., buf[ax0, ax1, ax2]).
 
       auto f_calc_flattened_idx = [&](const Buffer& buffer, const ffi::Array<PrimExpr>& indices) {
-        ICHECK_EQ(indices.size(), buffer->shape.size());
+        TVM_FFI_ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
         PrimExpr idx = 0;
         for (int i = 0; i < ndim; ++i) {
           idx = idx * buffer->shape[i] + indices[i];
         }
-        idx = ana_.Simplify(idx);
+        idx = ana_->Simplify(idx);
         return arith::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
-            /*input_pred=*/Bool(true),
+            /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
-            /*analyzer=*/&ana_,
+            /*analyzer=*/ana_,
             /*simplify_trivial_iterators=*/true)[0];
       };
 
@@ -454,9 +458,9 @@ bool HasReshapePattern(const PrimFunc& func) {
         }
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
-                this->ana_.CanProveEqual(block->iter_vars[i]->dom->min,
-                                         IntImm(DataType::Int(64), /*value=*/0)) &&
-                this->ana_.CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
+                this->ana_->CanProveEqual(block->iter_vars[i]->dom->min,
+                                          IntImm(DataType::Int(64), /*value=*/0)) &&
+                this->ana_->CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
             return false;
           }
         }
@@ -476,8 +480,8 @@ bool HasReshapePattern(const PrimFunc& func) {
       if (nontrivial_indices.defined()) {
         DataType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var->dtype : DataType::Int(64);
-        tir::Var fused_var("fused", dtype);
-        ffi::Map<tir::Var, PrimExpr> inverse_indices_map;
+        tirx::Var fused_var("fused", dtype);
+        ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
           inverse_indices_map.Set(
@@ -491,11 +495,11 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
-            /*input_pred=*/Bool(true),
+            /*input_pred=*/const_true(),
             /*check_level=*/arith::IterMapLevel::Surjective,
-            /*analyzer=*/&this->ana_,
+            /*analyzer=*/this->ana_,
             /*simplify_trivial_iterators=*/true);
-        ICHECK_EQ(simplify_res.size(), 1);
+        TVM_FFI_ICHECK_EQ(simplify_res.size(), 1);
 
         if (simplify_res[0].same_as(fused_var)) {
           this->is_reshape_ = true;
@@ -508,7 +512,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       PrimExpr src_idx = f_calc_flattened_idx(src_buffer_, buffer_load->indices);
       PrimExpr dst_idx = f_calc_flattened_idx(dst_buffer_, buffer_store->indices);
       // Check if we can prove the equality of flattened indices.
-      if (ana_.CanProveEqual(src_idx, dst_idx)) {
+      if (ana_->CanProveEqual(src_idx, dst_idx)) {
         this->is_reshape_ = true;
         return;
       }
@@ -535,7 +539,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
-  ICHECK(func->body->IsInstance<BlockRealizeNode>());
+  TVM_FFI_ICHECK(func->body->IsInstance<SBlockRealizeNode>());
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 

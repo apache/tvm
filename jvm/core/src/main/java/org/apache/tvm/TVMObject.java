@@ -34,7 +34,8 @@ public class TVMObject extends TVMValue {
     this.handle = 0;
   }
 
-  @Override protected void finalize() throws Throwable {
+  @Override
+  protected void finalize() throws Throwable {
     release();
     super.finalize();
   }

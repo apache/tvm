@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 
@@ -33,16 +33,12 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<EnvFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const EnvFuncNode*>(node.get());
-      p->stream << "EnvFunc(" << op->name << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
-ObjectPtr<Object> CreateEnvNode(const std::string& name) {
+ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
-  ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
+  TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
+  ffi::ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;
@@ -57,7 +53,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("ir.EnvFuncCall",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     EnvFunc env = args[0].cast<EnvFunc>();
-                    ICHECK_GE(args.size(), 1);
+                    TVM_FFI_ICHECK_GE(args.size(), 1);
                     env->func.CallPacked(args.Slice(1), rv);
                   })
       .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });

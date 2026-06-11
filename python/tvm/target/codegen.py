@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Code generation related functions."""
+
+from tvm_ffi import Array
+
 from . import _ffi_api
 from .target import Target
-from ..ir.container import Array
 
 
 def build_module(mod, target):
@@ -56,7 +58,7 @@ def target_has_features(cpu_features, target=None):
         True if target has the feature(s).
     """
     assert isinstance(target, Target) or target is None
-    assert isinstance(cpu_features, (Array, list, tuple, str))
+    assert isinstance(cpu_features, Array | list | tuple | str)
     has_feats = True
     cpu_features = [cpu_features] if isinstance(cpu_features, str) else cpu_features
     for feat in cpu_features:
@@ -203,7 +205,7 @@ def llvm_cpu_has_features(cpu_features, target=None):
         True if target CPU has the feature(s).
     """
     assert isinstance(target, Target) or target is None
-    assert isinstance(cpu_features, (Array, list, tuple, str))
+    assert isinstance(cpu_features, Array | list | tuple | str)
     has_feats = True
     cpu_features = [cpu_features] if isinstance(cpu_features, str) else cpu_features
     for feat in cpu_features:
@@ -226,6 +228,24 @@ def llvm_get_vector_width(target=None):
     """
     assert isinstance(target, Target) or target is None
     return _ffi_api.llvm_get_vector_width(target)
+
+
+def llvm_is_valid_cpu(cpu, triple):
+    """Check if a CPU name is valid for the given LLVM triple.
+
+    Parameters
+    ----------
+    cpu : str
+        The CPU name to check (e.g. "apple-m1").
+    triple : str
+        The LLVM target triple (e.g. "arm64-apple-macos").
+
+    Returns
+    -------
+    is_valid : bool
+        True if the CPU name is recognized by LLVM for the given triple.
+    """
+    return _ffi_api.llvm_is_valid_cpu(cpu, triple)
 
 
 def llvm_version_major(allow_none=False):

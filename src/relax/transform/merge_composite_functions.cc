@@ -54,11 +54,12 @@
  * is important since the dependency relation is transitive.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
 #include "utils.h"
@@ -74,7 +75,7 @@ using Group = GraphPartitioner::Group;
  * dataflow, and returns a mapping from a subexpression to its group. */
 class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
  public:
-  using GroupMap = std::unordered_map<const Object*, Group*>;
+  using GroupMap = std::unordered_map<const ffi::Object*, Group*>;
   using MemoizedExprTranslator<Group*>::VisitExpr_;
 
   CompositeGroupsBuilder(IRModule mod, support::Arena* arena) : mod_(mod), arena_(arena) {}
@@ -108,7 +109,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     if (const auto* node = binding.as<VarBindingNode>()) {
       return VisitBinding_(node);
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
     }
   }
 
@@ -130,7 +131,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     } else if (const auto* node = block.as<BindingBlockNode>()) {
       VisitBindingBlock_(node);
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
     }
   }
 
@@ -197,7 +198,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   void MergeGroup(Group* from, Group* to) {
-    ICHECK_EQ(GetCodegenName(from), GetCodegenName(to));
+    TVM_FFI_ICHECK_EQ(GetCodegenName(from), GetCodegenName(to));
 
     Group* from_root = from->FindRoot();
     Group* to_root = to->FindRoot();
@@ -245,8 +246,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
         return;
       }
 
-      ICHECK(memo_.count(expr)) << "Could not find memo-ized group for expression of type "
-                                << expr->GetTypeKey();
+      TVM_FFI_ICHECK(memo_.count(expr))
+          << "Could not find memo-ized group for expression of type " << expr->GetTypeKey();
       auto arg_group_root = memo_[expr]->FindRoot();
 
       if (arg_group_root == group_root) {

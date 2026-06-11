@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unified type system in the project."""
-import tvm
+
 import tvm_ffi
+
 from tvm.runtime import Scriptable
 
 from . import _ffi_api
@@ -29,7 +30,7 @@ class Type(Node, Scriptable):
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
-        return bool(tvm.ir.structural_equal(self, other))
+        return bool(tvm_ffi.structural_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -122,5 +123,6 @@ class TensorMapType(Type):
 
     def __init__(self, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorMapType, span  # pylint: disable=no-member
+            _ffi_api.TensorMapType,
+            span,  # pylint: disable=no-member
         )

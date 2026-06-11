@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
-import tvm
+
 import tvm_ffi
-from tvm.runtime.object import Object
-from tvm.runtime import Device
+
+import tvm
+from tvm.runtime import Device, Object
+
 from . import _ffi_api
 
 
@@ -28,7 +30,7 @@ class GlobalInfo(Object):
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
-        return tvm.ir.structural_equal(self, other)
+        return tvm_ffi.structural_equal(self, other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -58,7 +60,7 @@ class VDevice(GlobalInfo):
         vdevice_id: int = 0,
         memory_scope: str = "global",
     ) -> None:
-        if isinstance(target, (dict, str)):
+        if isinstance(target, dict | str):
             target = tvm.target.Target(tvm.runtime.convert(target))
         if isinstance(target, Device):
             target = tvm.target.Target.from_device(target)

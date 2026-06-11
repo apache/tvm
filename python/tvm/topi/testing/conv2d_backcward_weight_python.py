@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-nested-blocks
 """Gradient of conv2d with respect to weight in python"""
+
 import numpy as np
 
 

@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name
 """Testing utilities for runtime builtin functions."""
+
 from enum import IntEnum
 
 

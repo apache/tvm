@@ -25,6 +25,8 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_BINARY_H_
 #define TVM_RELAX_OP_DISTRIBUTED_BINARY_H_
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include <algorithm>
 
 #include "utils.h"
@@ -46,7 +48,7 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
   DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
 
   // ndims
-  ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
       << "Unknown ndim is not supported for distributed operators.";
   int output_ndim = std::max(x1_sinfo->ndim, x2_sinfo->ndim);
 
@@ -61,12 +63,11 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
     if (!output_shape.defined()) {
       output_tensor_sinfo = TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
     } else {
-      ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
+      TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
       output_tensor_sinfo = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
     }
   } else {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Cannot infer shape for binary broadcast operator.");
+    TVM_FFI_VISIT_THROW(InternalError, call) << "Cannot infer shape for binary broadcast operator.";
   }
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
 }

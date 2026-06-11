@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable convolution in python"""
+
 import itertools
 import math
+
 import numpy as np
+
 from tvm.topi.nn.utils import get_pad_tuple
 
 
@@ -81,8 +84,8 @@ def deformable_conv2d_nchw_python(
         dilation_h, dilation_w = dilation
 
     def _bilinear(n, c, h, w):
-        y_low = int(math.floor(h))
-        x_low = int(math.floor(w))
+        y_low = math.floor(h)
+        x_low = math.floor(w)
         y_high = y_low + 1
         x_high = x_low + 1
 

@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( file_type asf clang_format cpplint python_format pylint jnilint cppdocs mypy )
+DEFAULT_STEPS=( precommit )
 
 inplace_fix=0
 
@@ -32,57 +32,12 @@ function run_lint_step() {
     fi
 
     case "$1" in
-        file_type)
-            cmd=( python3 tests/lint/check_file_type.py )
+        precommit)
+            cmd=( pre-commit run --all-files )
             ;;
-        asf)
-            cmd=( tests/lint/check_asf_header.sh --local )
-            if [ $inplace_fix -eq 1 ]; then
-                cmd=( "${cmd[@]}" --fix )
-            fi
-            ;;
-        clang_format)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/git-clang-format.sh )
-            else
-                # NOTE: need to run git status to update some docker-side cache. Otherwise,
-                # git-clang-format will fail with "The following files would be modified but have
-                # unstaged changes:"
-                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i --rev origin/main' )
-            fi
-            ;;
-        cpplint)
-            cmd=( tests/lint/cpplint.sh )
-            ;;
-        flake8)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/flake8.sh )
-            else
-                cmd=( tests/lint/flake8.sh --rev origin/main )
-            fi
-            ;;
-        pylint)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/pylint.sh )
-            else
-                cmd=( tests/lint/pylint.sh --rev origin/main )
-            fi
-            ;;
-        python_format)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/git-black.sh )
-            else
-                cmd=( tests/lint/git-black.sh -i --rev origin/main )
-            fi
-            ;;
-        jnilint)
-            cmd=( tests/lint/jnilint.sh )
-            ;;
-        cppdocs)
-            cmd=( tests/lint/cppdocs.sh )
-            ;;
-        mypy)
-            cmd=( tests/scripts/task_mypy.sh )
+        # Legacy aliases — these now delegate to pre-commit
+        cpplint|cppdocs|docker_format|blocklint|file_type|asf|clang_format|python_format|pylint|mypy)
+            cmd=( pre-commit run --all-files )
             ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2
@@ -107,7 +62,6 @@ function run_lint_step() {
 }
 
 if [ $# -eq 0 ]; then
-    # NOTE: matches order in tests/scripts/task_lint.sh
     steps=( "${DEFAULT_STEPS[@]}" )
 else
     steps=( "$@" )

@@ -15,18 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import argparse
-import re
-import os
 import json
+import os
+import re
 import textwrap
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, List, Callable
+from typing import Any
 
-
-from git_utils import GitHubRepo, parse_remote, git
 from cmd_utils import init_log, tags_from_title
-
+from git_utils import GitHubRepo, git, parse_remote
 
 GITHUB_USERNAME_REGEX = re.compile(r"(@[a-zA-Z0-9-]+)", flags=re.MULTILINE)
 OK = object()
@@ -83,7 +83,7 @@ body_checks = [
 ]
 
 
-def run_checks(checks: List[Check], s: str, name: str) -> bool:
+def run_checks(checks: list[Check], s: str, name: str) -> bool:
     print(f"Running checks for {name}")
     print(textwrap.indent(s, prefix="    "))
     passed = True
@@ -91,11 +91,11 @@ def run_checks(checks: List[Check], s: str, name: str) -> bool:
     for i, check in enumerate(checks):
         result = check.check(s)
         if result == OK:
-            print(f"        [{i+1}] {check.check.__name__}: PASSED")
+            print(f"        [{i + 1}] {check.check.__name__}: PASSED")
         else:
             passed = False
             msg = check.error_fn(result)
-            print(f"        [{i+1}] {check.check.__name__}: FAILED: {msg}")
+            print(f"        [{i + 1}] {check.check.__name__}: FAILED: {msg}")
 
     return passed
 

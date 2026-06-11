@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for neural network operators."""
+
 import logging
 import math
-from typing import Optional
 
-from tvm import te, tir, topi
+from tvm import s_tir, te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -42,11 +42,11 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.slayout(call.attrs.data_layout)
+        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv1D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -83,11 +83,11 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.slayout(call.attrs.data_layout)
+        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv2D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -124,11 +124,11 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.slayout(call.attrs.data_layout)
+        kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
-        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+        if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv3D where number of groups is more than one and input or output "
                 "channel size is symbolic cannot be legalized by TOPI at this moment."
@@ -200,7 +200,7 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     dilation = call.attrs.dilation
-    if len(dilation) != 2 or dilation[0] != 1 or dilation[1] != 1:
+    if len(dilation) != 2 or any(d != 1 for d in dilation):
         logging.info(
             "TOPI conv2d_transpose does not support dilations other than 1, "
             "and thus cannot be legalized by TOPI"
@@ -217,6 +217,43 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         output_padding=call.attrs.output_padding,
         groups=call.attrs.groups,
         primfunc_name_hint="conv2d_transpose",
+    )
+
+
+@register_legalize("relax.nn.conv3d_transpose")
+def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
+    # Keep policy in sync with _nn_conv2d_transpose: only lower when TOPI supports
+    # the layout/dilation.
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv3d_transpose does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.data_layout != "NCDHW" or call.attrs.kernel_layout != "IODHW":
+        logging.info(
+            "TOPI conv3d_transpose does not support input layout other than NCDHW, "
+            "and kernel layout other than IODHW, so cannot be legalized by TOPI"
+        )
+        return call
+    dilation = call.attrs.dilation
+    if len(dilation) != 3 or any(d != 1 for d in dilation):
+        logging.info(
+            "TOPI conv3d_transpose does not support dilations other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.group_conv3d_transpose_ncdhw,
+        call.args[0],
+        call.args[1],
+        strides=call.attrs.strides,
+        padding=call.attrs.padding,
+        out_dtype=call.struct_info.dtype,
+        output_padding=call.attrs.output_padding,
+        groups=call.attrs.groups,
+        primfunc_name_hint="conv3d_transpose",
     )
 
 
@@ -407,7 +444,7 @@ def _nn_adaptive_avg_pool1d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool1d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.slayout(layout_str)
             idx_W = layout.index_of("W")
             assert idx_W != -1
             output_size = data.shape[idx_W]
@@ -434,7 +471,7 @@ def _nn_adaptive_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool2d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.slayout(layout_str)
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")
             assert idx_H != -1 and idx_W != -1
@@ -462,7 +499,7 @@ def _nn_adaptive_avg_pool3d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool3d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.slayout(layout_str)
             idx_D = layout.index_of("D")
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")
@@ -497,14 +534,14 @@ def _nn_prelu(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu(x: te.Tensor):
         dtype = x.dtype
-        erf_inp = x * tir.const(0.5**0.5, dtype)
+        erf_inp = x * tirx.const(0.5**0.5, dtype)
 
         if dtype == "float16":
             erf = topi.math.cast(topi.erf(topi.math.cast(erf_inp, "float32")), "float16")
         else:
             erf = topi.erf(erf_inp)
 
-        return x * (tir.const(0.5, dtype) + erf * tir.const(0.5, dtype))
+        return x * (tirx.const(0.5, dtype) + erf * tirx.const(0.5, dtype))
 
     return bb.call_te(te_gelu, call.args[0], primfunc_name_hint="gelu")
 
@@ -514,14 +551,14 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu_tanh(x: te.Tensor):
         dtype = x.dtype
         return (
-            tir.const(0.5, dtype)
+            tirx.const(0.5, dtype)
             * x
             * (
-                tir.const(1.0, dtype)
+                tirx.const(1.0, dtype)
                 + topi.tanh(
-                    tir.const(math.sqrt(2.0 / math.pi), dtype)
+                    tirx.const(math.sqrt(2.0 / math.pi), dtype)
                     * x
-                    * (1 + tir.const(0.044715, dtype) * x * x)
+                    * (1 + tirx.const(0.044715, dtype) * x * x)
                 )
             )
         )
@@ -533,14 +570,14 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
     def te_selu(x: te.Tensor):
         dtype = x.dtype
-        alpha = tir.const(1.6732632423543772848170429916717, dtype)
-        scale = tir.const(1.0507009873554804934193349852946, dtype)
+        alpha = tirx.const(1.6732632423543772848170429916717, dtype)
+        scale = tirx.const(1.0507009873554804934193349852946, dtype)
 
         # Compute SELU
-        # SELU(x) = scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
-        positive_part = topi.maximum(x, tir.const(0, dtype))
+        # SELU(x) = scale*(max(0,x)+min(0,a*(exp(x)-1)))
+        positive_part = topi.maximum(x, tirx.const(0, dtype))
         negative_part = topi.minimum(
-            tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
+            tirx.const(0, dtype), alpha * (topi.exp(x) - tirx.const(1, dtype))
         )
         return scale * (positive_part + negative_part)
 
@@ -669,8 +706,8 @@ def _te_attention(
     k: te.Tensor,
     v: te.Tensor,
     bias: te.Tensor,
-    scale: tir.FloatImm,
-    causal_mask: Optional[str],
+    scale: tirx.FloatImm,
+    causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
     _, seq_len_kv, _, head_dim_v = v.shape
@@ -684,7 +721,7 @@ def _te_attention(
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
-        p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
+        p = topi.divide(p, tirx.sqrt(tirx.Cast(p.dtype, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
@@ -693,9 +730,9 @@ def _te_attention(
         s = topi.nn.softmax(p)
     else:
         if causal_mask == "TopLeft":
-            offset = tir.IntImm("int32", 0)
+            offset = tirx.IntImm("int32", 0)
         elif causal_mask == "BottomRight":
-            offset = tir.abs(seq_len - seq_len_kv).astype("int32")
+            offset = tirx.abs(seq_len - seq_len_kv).astype("int32")
         else:
             raise NotImplementedError()
         p_masked = topi.trilu(p, k=offset, upper=False)
@@ -711,9 +748,9 @@ def _te_attention(
 
 @register_legalize("relax.nn.attention")
 def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],
@@ -728,9 +765,9 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.attention_bias")
 def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],
@@ -775,3 +812,10 @@ def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
         reduction=call.attrs.reduction,
         ignore_index=call.attrs.ignore_index,
     )
+
+
+@register_legalize("relax.nn.batch_flatten")
+def _nn_batch_flatten(bb: BlockBuilder, call: Call) -> Expr:
+    if call.struct_info.shape is None:
+        return call
+    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)

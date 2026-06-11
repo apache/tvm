@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package tvm.script.ir_builder.ir"""
+
 from .frame import IRModuleFrame
 from .ir import (
     decl_function,
@@ -25,6 +27,7 @@ from .ir import (
     module_set_attr,
     module_global_infos,
     lookup_vdevice,
+    lookup_name,
     vdevice,
     dummy_global_info,
 )

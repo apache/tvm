@@ -14,23 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841
 
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 def test_reshape_expand_dims():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(
             rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(
                         rxplaceholder[
@@ -44,7 +47,7 @@ def test_reshape_expand_dims():
                         (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                     ]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def expand_dims(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
             expand_dims: T.Buffer(
@@ -54,16 +57,16 @@ def test_reshape_expand_dims():
             for i0, i1, i2, i3, i4 in T.grid(
                 T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)
             ):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(rxplaceholder[i0_1, i2_1, i4_1])
                     T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1])
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
@@ -75,13 +78,13 @@ def test_reshape_expand_dims():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(
             rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(
                         rxplaceholder[
@@ -95,7 +98,7 @@ def test_reshape_expand_dims():
                         (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) % T.int64(3),
                     ]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def expand_dims(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
             expand_dims: T.Buffer(
@@ -105,16 +108,16 @@ def test_reshape_expand_dims():
             for i0, i1, i2, i3, i4 in T.grid(
                 T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)
             ):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(rxplaceholder[i0_1, i2_1, i4_1])
                     T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1])
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             with R.dataflow():
                 cls = Expected
                 y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
@@ -135,12 +138,12 @@ def test_reshape_pattern_detect():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     for ax0_ax1_ax2_ax3_fused_0 in range(T.int64(10)):
-                        with T.block("T_reshape"):
+                        with T.sblock("T_reshape"):
                             v_ax0 = T.axis.spatial(T.int64(2), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) // T.int64(1310720))
                             v_ax1 = T.axis.spatial(T.int64(4096), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) % T.int64(1310720) // T.int64(320))
                             v_ax2 = T.axis.spatial(T.int64(5), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) % T.int64(320) // T.int64(64))
@@ -149,7 +152,7 @@ def test_reshape_pattern_detect():
                             T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                             T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[(((v_ax2 * T.int64(64) + v_ax3) // T.int64(320) + v_ax1) // T.int64(4096) + v_ax0) % T.int64(2), ((v_ax2 * T.int64(64) + v_ax3) // T.int64(320) + v_ax1) % T.int64(4096), (v_ax2 * T.int64(64) + v_ax3) % T.int64(320)]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def expand_dims(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"),
             expand_dims: T.Buffer(
@@ -160,7 +163,7 @@ def test_reshape_pattern_detect():
             for i0, i1, i2, i3, i4, i5 in T.grid(
                 T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)
             ):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1, i5_1 = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
                     T.reads(rxplaceholder[i0_1, i2_1, i4_1, i5_1])
                     T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1])
@@ -181,23 +184,23 @@ def test_reshape_pattern_detect():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def expand_dims(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"), expand_dims_1: T.Buffer((T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)), "float32")):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1, i5_1 = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
                     T.reads(rxplaceholder[i0_1, i2_1, i4_1, i5_1])
                     T.writes(expand_dims_1[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1])
                     expand_dims_1[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1] = rxplaceholder[i0_1, i2_1, i4_1, i5_1]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     for ax0_ax1_ax2_ax3_fused_0 in range(T.int64(10)):
-                        with T.block("T_reshape"):
+                        with T.sblock("T_reshape"):
                             v_ax0 = T.axis.spatial(T.int64(2), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) // T.int64(1310720))
                             v_ax1 = T.axis.spatial(T.int64(4096), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) % T.int64(1310720) // T.int64(320))
                             v_ax2 = T.axis.spatial(T.int64(5), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) % T.int64(320) // T.int64(64))
@@ -224,16 +227,16 @@ def test_reshape_pattern_detect():
 def test_reshape_dynamic_shape():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.block("T_reshape"):
+                    with T.sblock("T_reshape"):
                         v0 = T.axis.spatial(
                             n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048
                         )
@@ -252,9 +255,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 16, 128), dtype="float16")
-        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(
@@ -266,16 +269,16 @@ def test_reshape_dynamic_shape():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.block("T_reshape"):
+                    with T.sblock("T_reshape"):
                         v0 = T.axis.spatial(
                             n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048
                         )
@@ -294,9 +297,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 16, 128), dtype="float16")
-        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             with R.dataflow():
                 y: R.Tensor((1, 8, 16, 128), dtype="float16") = R.reshape(
                     x, R.shape([1, 8, 16, 128])
@@ -313,13 +316,13 @@ def test_reshape_dynamic_shape():
 def test_reshape_non_dataflow():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(
             rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(
                         rxplaceholder[
@@ -348,7 +351,7 @@ def test_reshape_non_dataflow():
 def test_tuple_get_reshape():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def fused_reshape5(
             lv2_0: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
             lv2_1: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
@@ -357,10 +360,10 @@ def test_tuple_get_reshape():
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4096), T.int64(8), T.int64(40)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(
                         lv2_0[
@@ -409,7 +412,7 @@ def test_tuple_get_reshape():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def fused_reshape5(
             lv2_0: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
             lv2_1: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
@@ -418,10 +421,10 @@ def test_tuple_get_reshape():
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4096), T.int64(8), T.int64(40)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(
                         lv2_0[
@@ -475,26 +478,26 @@ def test_invalid_reshape():
         # The strided_slice op has the reshape pattern, but it can take only a part of the input.
         # It can't be replaced with the reshape op because reshape expects to preserve the "volume"
         # of the input.
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def strided_slice(
             A: T.Buffer((T.int64(1), T.int64(1024)), "int32"),
             T_strided_slice: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
-                with T.block("T_strided_slice"):
+                with T.sblock("T_strided_slice"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1])
                     T.writes(T_strided_slice[v_ax0, v_ax1])
                     T_strided_slice[v_ax0, v_ax1] = A[v_ax0, v_ax1]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_one(
             A: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
             T_add_one: T.buffer((T.int64(1), T.int64(1000)), "int32"),
         ):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
-                with T.block("T_add_one"):
+                with T.sblock("T_add_one"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1])
                     T.writes(T_add_one[v_ax0, v_ax1])
@@ -548,27 +551,27 @@ def test_reshape_scalar():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add(
             A: T.Buffer((T.int64(1),), "float32"),
             B: T.Buffer((T.int64(1),), "float32"),
             T_add: T.Buffer((T.int64(1),), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for ax0 in range(T.int64(1)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(T.int64(1), ax0)
                     T.reads(A[v_ax0], B[v_ax0])
                     T.writes(T_add[v_ax0])
                     T_add[v_ax0] = A[v_ax0] + B[v_ax0]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for ax0 in range(T.int64(1)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(1), ax0)
                     T.reads(A[()])
                     T.writes(T_reshape[v_ax0])
@@ -590,7 +593,7 @@ def test_reshape_scalar():
 
 
 def test_rewrite_static_reshape():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(x: R.Tensor([256], dtype="float32")):
@@ -600,7 +603,7 @@ def test_rewrite_static_reshape():
                 R.output(z)
             return z
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(x: R.Tensor((256,), dtype="float32")):
@@ -612,16 +615,16 @@ def test_rewrite_static_reshape():
                 R.output(z)
             return z
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add(
             y1: T.Buffer((T.int64(64), T.int64(4)), "float32"),
             y2: T.Buffer((T.int64(64), T.int64(4)), "float32"),
             z: T.Buffer((T.int64(64), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
 
             for iters in T.grid(T.int64(64), T.int64(4)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     i, j = T.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 
@@ -683,10 +686,10 @@ def test_rewrite_static_reshape():
 #             y2 = T.match_buffer(y2_handle, [N // 4, 4], "float32")
 #             z = T.match_buffer(z_handle, [N // 4, 4], "float32")
 
-#             T.func_attr({"tir.noalias": True})
+#             T.func_attr({"tirx.noalias": True})
 
 #             for iters in T.grid(T.int64(64), T.int64(4)):
-#                 with T.block("T_add"):
+#                 with T.sblock("T_add"):
 #                     i, j = T.axis.remap("SS", iters)
 #                     z[i, j] = y1[i, j] + y2[i, j]
 
@@ -707,7 +710,7 @@ def test_rewrite_static_reshape():
 
 
 def test_rewrite_dynamic_reshape():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
@@ -718,7 +721,7 @@ def test_rewrite_dynamic_reshape():
                 R.output(z)
             return z
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
@@ -736,7 +739,7 @@ def test_rewrite_dynamic_reshape():
                 R.output(z)
             return z
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add(
             y1_handle: T.handle,
             y2_handle: T.handle,
@@ -747,10 +750,10 @@ def test_rewrite_dynamic_reshape():
             y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")
             z = T.match_buffer(z_handle, [N * 4, T.int64(4)], "float32")
 
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
 
             for iters in T.grid(N * 4, T.int64(4)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     i, j = T.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 

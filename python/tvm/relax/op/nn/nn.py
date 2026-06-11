@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Neural Network (NN) operators"""
-from typing import List, Optional, Tuple, Union
 
 from tvm import DataType, relax
-from tvm.tir import FloatImm
+from tvm.tirx import FloatImm
 
 from ...expr import Expr
 from . import _ffi_api
@@ -27,14 +26,14 @@ from . import _ffi_api
 def conv1d(
     data: Expr,
     weight: Expr,
-    strides: Union[int, Tuple[int]] = 1,
-    padding: Union[int, Tuple[int, ...]] = 0,
-    dilation: Union[int, Tuple[int]] = 1,
+    strides: int | tuple[int] = 1,
+    padding: int | tuple[int, ...] = 0,
+    dilation: int | tuple[int] = 1,
     groups: int = 1,
     data_layout: str = "NCW",
     kernel_layout: str = "OIW",
-    out_layout: Optional[str] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     r"""1D convolution.
 
@@ -125,14 +124,14 @@ def conv1d(
 def conv2d(
     data: Expr,
     weight: Expr,
-    strides: Union[int, Tuple[int, int]] = (1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1),
+    strides: int | tuple[int, int] = (1, 1),
+    padding: int | tuple[int, ...] = (0, 0),
+    dilation: int | tuple[int, int] = (1, 1),
     groups: int = 1,
     data_layout: str = "NCHW",
     kernel_layout: str = "OIHW",
-    out_layout: Optional[str] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     r"""2D convolution.
 
@@ -223,14 +222,14 @@ def conv2d(
 def conv3d(
     data: Expr,
     weight: Expr,
-    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    strides: int | tuple[int, int] = (1, 1, 1),
+    padding: int | tuple[int, ...] = (0, 0, 0),
+    dilation: int | tuple[int, int] = (1, 1, 1),
     groups: int = 1,
     data_layout: str = "NCDHW",
     kernel_layout: str = "OIDHW",
-    out_layout: Optional[str] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     r"""3D convolution.
 
@@ -294,6 +293,10 @@ def conv3d(
     out_dtype : Optional[Union[str, DataType]]
         Specifies the output data type for mixed precision conv2d.
 
+    See Also
+    --------
+    conv3d_transpose : Transposed 3D convolution; paired layouts default to ``NCDHW`` / ``IODHW``.
+
     Returns
     -------
     result : relax.Expr
@@ -323,15 +326,15 @@ def conv3d(
 def conv1d_transpose(
     data: Expr,
     weight: Expr,
-    strides: Union[int, Tuple[int]] = 1,
-    padding: Union[int, Tuple[int, ...]] = 0,
-    output_padding: Union[int, Tuple[int]] = 0,
-    dilation: Union[int, Tuple[int]] = 1,
+    strides: int | tuple[int] = 1,
+    padding: int | tuple[int, ...] = 0,
+    output_padding: int | tuple[int] = 0,
+    dilation: int | tuple[int] = 1,
     groups: int = 1,
     data_layout: str = "NCW",
     kernel_layout: str = "IOW",
-    out_layout: Optional[str] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     r"""1D transposed convolution operator.
 
@@ -414,15 +417,15 @@ def conv1d_transpose(
 def conv2d_transpose(
     data: Expr,
     weight: Expr,
-    strides: Union[int, Tuple[int, int]] = (1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    output_padding: Union[int, Tuple[int, int]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1),
+    strides: int | tuple[int, int] = (1, 1),
+    padding: int | tuple[int, ...] = (0, 0),
+    output_padding: int | tuple[int, int] = (0, 0),
+    dilation: int | tuple[int, int] = (1, 1),
     groups: int = 1,
     data_layout: str = "NCHW",
     kernel_layout: str = "IOHW",
-    out_layout: Optional[str] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     r"""Two dimensional transposed convolution operator.
 
@@ -513,11 +516,114 @@ def conv2d_transpose(
     )
 
 
+def conv3d_transpose(
+    data: Expr,
+    weight: Expr,
+    strides: int | tuple[int, int, int] = (1, 1, 1),
+    padding: int | tuple[int, ...] = (0, 0, 0),
+    output_padding: int | tuple[int, int, int] = (0, 0, 0),
+    dilation: int | tuple[int, int, int] = (1, 1, 1),
+    groups: int = 1,
+    data_layout: str = "NCDHW",
+    kernel_layout: str = "IODHW",
+    out_layout: str | None = None,
+    out_dtype: str | DataType | None = None,
+) -> Expr:
+    r"""Three dimensional transposed convolution operator.
+
+    This operator is intended to be the gradient operator of conv3d. That means, if
+
+    `out = conv3d(data, weight, strides, padding, dilation)`,
+
+    The gradient w.r.t. data can be calculated as follows:
+
+    `data_grad = conv3d_transpose(out_grad, weight, strides, padding, output_padding, dilation)`,
+
+    where `output_padding` is a parameter used to determine the output shape.
+
+    In the default case, where `data_layout == "NCDHW"` and `kernel_layout == "IODHW"`, `data` has
+    shape `(N, in_channel, in_d, in_h, in_w)`, `weight` has shape
+    `(in_channel, out_channel, weight_d, weight_h, weight_w)`, with `in_channel % groups == 0`.
+    The output shape is `(N, out_channel * groups, out_d, out_h, out_w)`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    weight : relax.Expr
+        The weight expressions.
+
+    strides : Union[int, Tuple[int, int, int]]
+        The strides of convolution. It is required to have length either 1 or 3.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1, 3 or 6.
+
+    output_padding : Union[int, Tuple[int, ...]], optional
+        Used to disambiguate the output shape.
+
+    dilation : Union[int, Tuple[int, int, int]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length either 1 or 3.
+
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    data_layout : str
+        Layout of the input.
+
+    kernel_layout : str
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    out_dtype : Optional[Union[str, DataType]]
+        Specifies the output data type for mixed precision conv3d_transpose.
+
+    See Also
+    --------
+    conv3d : Forward 3D convolution (default ``OIDHW`` weights vs. ``IODHW`` here).
+    conv2d_transpose : 2D analogue; legalization supports the same TOPI subset
+                       (canonical layout, dilation 1).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding, padding, padding)
+    if isinstance(output_padding, int):
+        output_padding = (output_padding, output_padding, output_padding)
+
+    return _ffi_api.conv3d_transpose(  # type: ignore
+        data,
+        weight,
+        strides,
+        padding,
+        output_padding,
+        dilation,
+        groups,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
+
 def pad(
     data: Expr,
-    pad_width: Union[List[int], Tuple[int, ...]],
-    pad_mode: Optional[str] = "constant",
-    pad_value: Optional[float] = 0.0,
+    pad_width: list[int] | tuple[int, ...],
+    pad_mode: str | None = "constant",
+    pad_value: float | None = 0.0,
 ):
     r"""Padding
 
@@ -556,7 +662,7 @@ def pixel_shuffle(data: Expr, upscale_factor: int):
     This operator performs the pixel shuffle operation on the input tensor,
     which is often used for efficient sub-pixel convolution in image
     super-resolution tasks. It rearranges elements in a tensor of shape
-    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r`
+    (N, C x r^2, H, W) to a tensor of shape (N, C, H x r, W x r), where `r`
     is the upscale factor.
 
     Parameters
@@ -584,14 +690,14 @@ def pixel_shuffle(data: Expr, upscale_factor: int):
 
 def max_pool1d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1,),
-    strides: Union[int, Tuple[int, int]] = (1,),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1,),
+    pool_size: int | tuple[int, int] = (1,),
+    strides: int | tuple[int, int] = (1,),
+    padding: int | tuple[int, ...] = (0, 0),
+    dilation: int | tuple[int, int] = (1,),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""1D maximum pooling operator.
 
@@ -665,14 +771,14 @@ def max_pool1d(
 
 def max_pool2d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1, 1),
-    strides: Union[int, Tuple[int, int]] = (1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1),
+    pool_size: int | tuple[int, int] = (1, 1),
+    strides: int | tuple[int, int] = (1, 1),
+    padding: int | tuple[int, ...] = (0, 0),
+    dilation: int | tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""2D maximum pooling operator.
 
@@ -753,14 +859,14 @@ def max_pool2d(
 
 def max_pool3d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1, 1, 1),
-    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    pool_size: int | tuple[int, int] = (1, 1, 1),
+    strides: int | tuple[int, int] = (1, 1, 1),
+    padding: int | tuple[int, ...] = (0, 0, 0),
+    dilation: int | tuple[int, int] = (1, 1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCDHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""3D maximum pooling operator.
 
@@ -835,14 +941,14 @@ def max_pool3d(
 
 def avg_pool1d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1,),
-    strides: Union[int, Tuple[int, int]] = (1,),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1,),
+    pool_size: int | tuple[int, int] = (1,),
+    strides: int | tuple[int, int] = (1,),
+    padding: int | tuple[int, ...] = (0, 0),
+    dilation: int | tuple[int, int] = (1,),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
     layout: str = "NCW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""1D average pooling operator.
 
@@ -915,14 +1021,14 @@ def avg_pool1d(
 
 def avg_pool2d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1, 1),
-    strides: Union[int, Tuple[int, int]] = (1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1),
+    pool_size: int | tuple[int, int] = (1, 1),
+    strides: int | tuple[int, int] = (1, 1),
+    padding: int | tuple[int, ...] = (0, 0),
+    dilation: int | tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = False,
     layout: str = "NCHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1003,14 +1109,14 @@ def avg_pool2d(
 
 def avg_pool3d(
     data: Expr,
-    pool_size: Union[int, Tuple[int, int]] = (1, 1, 1),
-    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
-    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
-    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    pool_size: int | tuple[int, int] = (1, 1, 1),
+    strides: int | tuple[int, int] = (1, 1, 1),
+    padding: int | tuple[int, ...] = (0, 0, 0),
+    dilation: int | tuple[int, int] = (1, 1, 1),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
     layout: str = "NCDHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1085,9 +1191,9 @@ def avg_pool3d(
 
 def adaptive_avg_pool1d(
     data: Expr,
-    output_size: Optional[Union[int, Tuple[int]]] = None,
+    output_size: int | tuple[int] | None = None,
     layout: str = "NCW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""1D adaptive average pooling operator. This operator is experimental.
 
@@ -1138,9 +1244,9 @@ def adaptive_avg_pool1d(
 
 def adaptive_avg_pool2d(
     data: Expr,
-    output_size: Optional[Union[int, Tuple[int, int]]] = None,
+    output_size: int | tuple[int, int] | None = None,
     layout: str = "NCHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""2D adaptive average pooling operator. This operator is experimental.
 
@@ -1194,9 +1300,9 @@ def adaptive_avg_pool2d(
 
 def adaptive_avg_pool3d(
     data: Expr,
-    output_size: Optional[Union[int, Tuple[int, int]]] = None,
+    output_size: int | tuple[int, int] | None = None,
     layout: str = "NCDHW",
-    out_layout: Optional[str] = None,
+    out_layout: str | None = None,
 ) -> Expr:
     r"""3D adaptive average pooling operator. This operator is experimental.
 
@@ -1639,7 +1745,7 @@ def layer_norm(
     data: Expr,
     gamma: Expr,
     beta: Expr,
-    axes: Union[int, List[int]],
+    axes: int | list[int],
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
@@ -1702,7 +1808,7 @@ def group_norm(
     beta: Expr,
     num_groups: int,
     channel_axis: int,
-    axes: Union[int, List[int]],
+    axes: int | list[int],
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
@@ -1759,7 +1865,7 @@ def instance_norm(
     gamma: Expr,
     beta: Expr,
     channel_axis: int,
-    axes: List[int],
+    axes: list[int],
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
@@ -1812,7 +1918,7 @@ def instance_norm(
 def rms_norm(
     data: Expr,
     weight: Expr,
-    axes: Union[int, List[int]] = -1,
+    axes: int | list[int] = -1,
     epsilon: float = 1e-5,
 ) -> Expr:
     r"""
@@ -1904,7 +2010,7 @@ def cross_entropy_with_logits(predictions: Expr, labels: Expr) -> Expr:
 def nll_loss(
     predictions: Expr,
     targets: Expr,
-    weights: Optional[Expr] = None,
+    weights: Expr | None = None,
     reduction: str = "mean",
     ignore_index: int = -100,
 ) -> Expr:
@@ -1950,10 +2056,10 @@ def attention(
     query: Expr,
     key: Expr,
     value: Expr,
-    bias: Optional[Expr] = None,
-    scale: Optional[FloatImm] = None,
-    causal_mask: Optional[str] = None,
-    window_size: Optional[int] = None,
+    bias: Expr | None = None,
+    scale: FloatImm | None = None,
+    causal_mask: str | None = None,
+    window_size: int | None = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2034,19 +2140,17 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_bias(
     query: Expr,
     key: Expr,
     value: Expr,
-    bias: Optional[Expr] = None,
-    scale: Optional[FloatImm] = None,
-    causal_mask: Optional[str] = None,
-    window_size: Optional[int] = None,
+    bias: Expr | None = None,
+    scale: FloatImm | None = None,
+    causal_mask: str | None = None,
+    window_size: int | None = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2131,9 +2235,7 @@ def attention_bias(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_var_len(
@@ -2142,11 +2244,11 @@ def attention_var_len(
     values: Expr,
     seqstart_q: Expr,
     max_seqlen_q: Expr,
-    seqstart_k: Optional[Expr] = None,
-    max_seqlen_k: Optional[Expr] = None,
-    scale: Optional[FloatImm] = None,
-    causal_mask: Optional[str] = None,
-    window_size: Optional[int] = None,
+    seqstart_k: Expr | None = None,
+    max_seqlen_k: Expr | None = None,
+    scale: FloatImm | None = None,
+    causal_mask: str | None = None,
+    window_size: int | None = None,
 ) -> Expr:
     """Computes fused multi head attention over batched sequences of variable lengths.
 
@@ -2249,3 +2351,22 @@ def attention_var_len(
         causal_mask,
         window_size,
     )  # type: ignore
+
+
+def batch_flatten(data: Expr) -> Expr:
+    """Flatten all dimensions except the first (batch) dimension.
+
+    This operation flattens a tensor of shape `(N, C, H, W, ...)` into
+    a 2D tensor of shape `(N, C*H*W*...)`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    Returns
+    -------
+    result : relax.Expr
+        The flattened result with shape `(batch_size, flattened_features)`.
+    """
+    return _ffi_api.batch_flatten(data)  # type: ignore

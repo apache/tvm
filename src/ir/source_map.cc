@@ -20,10 +20,12 @@
  * \file source_map.cc
  * \brief The implementation of the source map data structure.
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/transform.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 
@@ -46,14 +48,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("__data_from_json__", SourceName::Get);
 }
 
-ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
+ffi::ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
-  static std::unordered_map<ffi::String, ObjectPtr<SourceNameNode>> source_map;
+  static std::unordered_map<ffi::String, ffi::ObjectPtr<SourceNameNode>> source_map;
 
   auto sn = source_map.find(name);
   if (sn == source_map.end()) {
-    ObjectPtr<SourceNameNode> n = ffi::make_object<SourceNameNode>();
+    ffi::ObjectPtr<SourceNameNode> n = ffi::make_object<SourceNameNode>();
     source_map[name] = n;
     n->name = std::move(name);
     return n;
@@ -62,7 +64,7 @@ ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
   }
 }
 
-ObjectPtr<SourceNameNode> GetSourceNameNodeByStr(const std::string& name) {
+ffi::ObjectPtr<SourceNameNode> GetSourceNameNodeByStr(const std::string& name) {
   return GetSourceNameNode(name);
 }
 
@@ -73,11 +75,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.SourceName", SourceName::Get);
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SourceNameNode*>(ref.get());
-      p->stream << "SourceName(" << node->name << ", " << node << ")";
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<SourceNameNode>().def(
+      refl::type_attr::kRepr, [](SourceName sn, ffi::Function) -> ffi::String {
+        std::ostringstream os;
+        os << "SourceName(" << sn->name << ", " << static_cast<const void*>(sn.get()) << ")";
+        return os.str();
+      });
+}
 
 Span::Span(SourceName source_name, int line, int end_line, int column, int end_column) {
   auto n = ffi::make_object<SpanNode>();
@@ -90,9 +96,9 @@ Span::Span(SourceName source_name, int line, int end_line, int column, int end_c
 }
 
 Span Span::Merge(const Span& other) const {
-  ICHECK(this->defined() && other.defined()) << "Span::Merge: both spans must be defined";
+  TVM_FFI_ICHECK(this->defined() && other.defined()) << "Span::Merge: both spans must be defined";
 
-  ICHECK((*this)->source_name == other->source_name);
+  TVM_FFI_ICHECK((*this)->source_name == other->source_name);
   return Span((*this)->source_name, std::min((*this)->line, other->line),
               std::max((*this)->end_line, other->end_line),
               std::min((*this)->column, other->column),
@@ -150,25 +156,32 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ir.SequentialSpan", [](tvm::ffi::Array<Span> spans) { return SequentialSpan(spans); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source_name << ", " << node->line << ", " << node->end_line
-                << ", " << node->column << ", " << node->end_column << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SequentialSpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SequentialSpanNode*>(ref.get());
-
-      p->stream << "SequentailSpan([ ";
-      int index = 0;
-      const int last = node->spans.size() - 1;
-      while (index < last) {
-        p->stream << node->spans[index++] << ", ";
-      }
-      p->stream << node->spans[last] << " ])";
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<SpanNode>().def(
+      refl::type_attr::kRepr, [](Span span, ffi::Function fn_repr) -> ffi::String {
+        std::ostringstream os;
+        os << "Span(" << fn_repr(ffi::AnyView(span->source_name)).cast<ffi::String>() << ", "
+           << span->line << ", " << span->end_line << ", " << span->column << ", "
+           << span->end_column << ")";
+        return os.str();
+      });
+  refl::TypeAttrDef<SequentialSpanNode>().def(
+      refl::type_attr::kRepr, [](SequentialSpan seq, ffi::Function fn_repr) -> ffi::String {
+        // Fix typo: was "SequentailSpan", now "SequentialSpan"
+        std::ostringstream os;
+        os << "SequentialSpan([ ";
+        const int last = static_cast<int>(seq->spans.size()) - 1;
+        for (int i = 0; i < last; ++i) {
+          os << fn_repr(ffi::AnyView(seq->spans[i])).cast<ffi::String>() << ", ";
+        }
+        if (last >= 0) {
+          os << fn_repr(ffi::AnyView(seq->spans[last])).cast<ffi::String>();
+        }
+        os << " ])";
+        return os.str();
+      });
+}
 
 /*! \brief Construct a source from a string. */
 Source::Source(SourceName src_name, std::string source) {
@@ -203,7 +216,7 @@ Source::Source(SourceName src_name, std::string source) {
 
 tvm::ffi::String Source::GetLine(int line) {
   VLOG(1) << "Source::GetLine: line=" << line;
-  ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
+  TVM_FFI_ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
       << "requested line: " << line << "at index: " << (line - 1)
       << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
 

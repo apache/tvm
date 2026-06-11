@@ -24,14 +24,18 @@
  */
 #include "./static_library.h"
 
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <iostream>
 
+#include "../support/bytes_io.h"
 #include "file_utils.h"
 
 namespace tvm {
@@ -48,7 +52,7 @@ class StaticLibraryNode final : public ffi::ModuleObj {
   const char* kind() const final { return "static_library"; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    const ObjectPtr<Object>& sptr_to_self = ffi::GetObjectPtr<Object>(this);
+    const ffi::ObjectPtr<ffi::Object>& sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
     if (name == "get_func_names") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = func_names_; });
@@ -58,28 +62,26 @@ class StaticLibraryNode final : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(data_);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(data_);
     std::vector<std::string> func_names;
     for (const auto func_name : func_names_) func_names.push_back(func_name);
-    stream->Write(func_names);
-    return ffi::Bytes(buffer);
+    stream.Write(func_names);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(ffi::Bytes bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
     auto n = ffi::make_object<StaticLibraryNode>();
     // load data
     std::string data;
-    ICHECK(stream->Read(&data)) << "Loading data failed";
+    TVM_FFI_ICHECK(stream.Read(&data)) << "Loading data failed";
     n->data_ = std::move(data);
 
     // load func names
     std::vector<std::string> func_names;
-    ICHECK(stream->Read(&func_names)) << "Loading func names failed";
+    TVM_FFI_ICHECK(stream.Read(&func_names)) << "Loading func names failed";
     for (auto func_name : func_names) n->func_names_.push_back(ffi::String(func_name));
 
     return ffi::Module(n);

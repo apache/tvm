@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Type relation and function for type checking."""
+
 import tvm_ffi
 
-from .type import Type, TypeConstraint
 from . import _ffi_api
+from .type import Type, TypeConstraint
 
 
 @tvm_ffi.register_object("TypeCall")

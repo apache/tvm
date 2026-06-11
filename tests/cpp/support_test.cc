@@ -20,29 +20,10 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../src/support/hexdump.h"
 #include "../../src/support/utils.h"
 
 namespace tvm {
 namespace test {
-
-TEST(HexDumpTests, Empty) { EXPECT_EQ("", ::tvm::support::HexDump("")); }
-
-TEST(HexDumpTests, Aligned) {
-  EXPECT_EQ(
-      "0000   01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef  .#Eg.....#Eg....\n"
-      "0010   01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef  .#Eg.....#Eg....\n",
-      ::tvm::support::HexDump("\x01\x23\x45\x67\x89\xab\xcd\xef\x01\x23\x45\x67\x89\xab\xcd\xef"
-                              "\x01\x23\x45\x67\x89\xab\xcd\xef\x01\x23\x45\x67\x89\xab\xcd\xef"));
-}
-
-TEST(HexDumpTests, Unaligned) {
-  EXPECT_EQ(
-      "0000   01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef  .#Eg.....#Eg....\n"
-      "0010   01 23 45 67 89 ab cd ef 01                       .#Eg.....\n",
-      ::tvm::support::HexDump("\x01\x23\x45\x67\x89\xab\xcd\xef\x01\x23\x45\x67\x89\xab\xcd\xef"
-                              "\x01\x23\x45\x67\x89\xab\xcd\xef\x01"));
-}
 
 TEST(HashTests, HashStability) {
   size_t a = 345292;

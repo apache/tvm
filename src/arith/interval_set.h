@@ -26,7 +26,8 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/op.h>
+#include <tvm/ir/cow.h>
+#include <tvm/tirx/op.h>
 
 #include <limits>
 
@@ -121,7 +122,7 @@ class IntervalSet : public IntSet {
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b);
+TVM_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
 
 /*!
  * \brief Create insersection of two IntervalSets.
@@ -130,7 +131,7 @@ TVM_DLL IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b);
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Intersect(Analyzer* analzyer, IntervalSet a, IntervalSet b);
+TVM_DLL IntervalSet Intersect(AnalyzerObj* analzyer, IntervalSet a, IntervalSet b);
 
 }  // namespace arith
 }  // namespace tvm

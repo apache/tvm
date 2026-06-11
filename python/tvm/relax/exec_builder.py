@@ -15,14 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF012
 """A builder to build Relax VM executable."""
+
 from enum import IntEnum
-from typing import Optional, Union, List
-import tvm
+
 import tvm_ffi
-from tvm.runtime.container import ShapeTuple
-from .vm_build import VMExecutable
+from tvm_ffi import Shape
+
+import tvm
+
 from . import _ffi_api
+from .vm_build import VMExecutable
 
 
 class SpecialReg(IntEnum):
@@ -39,10 +43,10 @@ class VMFuncKind(IntEnum):
     VM_FUNC = 1
 
 
-class VMFuncScope(object):
+class VMFuncScope:
     """An object corresponds to each VM function, working as a context manager."""
 
-    stack: List["VMFuncScope"] = []
+    stack: list["VMFuncScope"] = []
 
     def __init__(self, exit_callback):
         self.exit_callback = exit_callback
@@ -90,7 +94,7 @@ class ExecBuilder(tvm_ffi.core.Object):
         _ffi_api.ExecBuilderDeclareFunction(self, func_name, kind)  # type: ignore
 
     def function(
-        self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None
+        self, func_name: str, num_inputs: int | None = 0, param_names: list[str] | None = None
     ) -> VMFuncScope:
         """annotate a VM function."""
         _ffi_api.ExecBuilderEmitFunction(self, func_name, num_inputs, param_names)  # type: ignore
@@ -106,8 +110,8 @@ class ExecBuilder(tvm_ffi.core.Object):
     def emit_call(
         self,
         name: str,
-        args: Optional[List[Union[tvm.runtime.Tensor, tvm.DataType]]] = None,
-        dst: int = None,
+        args: list[tvm.runtime.Tensor | tvm.DataType] | None = None,
+        dst: int | None = None,
     ) -> None:
         """emit a call instruction which calls a packed function."""
         self._check_scope()
@@ -117,10 +121,10 @@ class ExecBuilder(tvm_ffi.core.Object):
         if args is not None:
             for arg in args:
                 if isinstance(arg, tuple):
-                    shape_tuple = ShapeTuple(arg)
+                    shape_tuple = Shape(arg)
                     new_arg = self.convert_constant(shape_tuple)
                     args_.append(new_arg)
-                elif isinstance(arg, (tvm.runtime.Tensor, tvm.DataType, ShapeTuple)):
+                elif isinstance(arg, tvm.runtime.Tensor | tvm.DataType | Shape):
                     new_arg = self.convert_constant(arg)
                     args_.append(new_arg)
                 else:

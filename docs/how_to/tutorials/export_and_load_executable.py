@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _deploy_export_and_load_executable:
@@ -60,6 +61,8 @@ except ImportError:  # pragma: no cover
 # We start with a small PyTorch MLP so the example remains lightweight. The
 # model is exported to a :py:class:`torch.export.ExportedProgram` and then
 # translated into a Relax ``IRModule``.
+
+import tvm_ffi
 
 import tvm
 from tvm import relax
@@ -173,7 +176,7 @@ if RUN_EXAMPLE:
     # TVM returns Array objects for tuple outputs, access via indexing.
     # For models imported from PyTorch, outputs are typically tuples (even for single outputs).
     # For ONNX models, outputs may be a single Tensor directly.
-    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
+    if isinstance(tvm_output, tvm_ffi.Array) and len(tvm_output) > 0:
         result_tensor = tvm_output[0]
     else:
         result_tensor = tvm_output
@@ -262,23 +265,25 @@ if RUN_EXAMPLE:
 #
 #    # Step 6: Extract result (output may be tuple or single Tensor)
 #    # PyTorch models typically return tuples, ONNX models may return a single Tensor
-#    if isinstance(tvm_output, tvm.ir.Array) and len(tvm_output) > 0:
-#        result_tensor = tvm_output[0]
+#    if isinstance(output, tvm_ffi.Array) and len(output) > 0:
+#        result_tensor = output[0]
 #    else:
-#        result_tensor = tvm_output
+#        result_tensor = output
 #
-#    print("Prediction shape:", result.shape)
-#    print("Predicted class:", np.argmax(result.numpy()))
+#    print("Prediction shape:", result_tensor.shape)
+#    print("Predicted class:", np.argmax(result_tensor.numpy()))
 #
 # **Running on GPU:**
 # To run on GPU instead of CPU, make the following changes:
 #
 # 1. **Compile for GPU** (earlier in the tutorial, around line 112):
+#
 #    .. code-block:: python
 #
 #       TARGET = tvm.target.Target("cuda")  # Change from "llvm" to "cuda"
 #
 # 2. **Use GPU device in the script**:
+#
 #    .. code-block:: python
 #
 #       device = tvm.cuda(0)  # Use CUDA device instead of CPU
@@ -296,8 +301,9 @@ if RUN_EXAMPLE:
 #
 # **Deployment Checklist:**
 # When moving to another host (via RPC or SCP), you must copy **both** files:
-#   1. ``mlp_cpu.so`` (or ``mlp_cuda.so`` for GPU) - The compiled model code
-#   2. ``model_params.npz`` - The model parameters (serialized as NumPy arrays)
+#
+# 1. ``mlp_cpu.so`` (or ``mlp_cuda.so`` for GPU) - the compiled model code
+# 2. ``model_params.npz`` - the model parameters, serialized as NumPy arrays
 #
 # The remote machine needs both files in the same directory. The script above
 # assumes they are in ``relax_export_artifacts/`` relative to the script location.
@@ -334,7 +340,7 @@ if RUN_EXAMPLE:
 #    from tvm import relax
 #
 #    # Step 1: Cross-compile for ARM target (on local machine)
-#    TARGET = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+#    TARGET = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 #    executable = tvm.compile(built_mod, target=TARGET)
 #    executable.export_library("mlp_arm.so")
 #
@@ -358,21 +364,21 @@ if RUN_EXAMPLE:
 # FAQ
 # ---
 # **Can I run the ``.so`` as a standalone executable (like ``./mlp_cpu.so``)?**
-#     No. The ``.so`` file is a shared library, not a standalone executable binary.
-#     You cannot run it directly from the terminal. It must be loaded through a TVM
-#     runtime program (as shown in the "Loading and Running" section above). The
-#     ``.so`` bundles VM bytecode and compiled kernels, but still requires the TVM
-#     runtime to execute.
+# No. The ``.so`` file is a shared library, not a standalone executable binary.
+# You cannot run it directly from the terminal. It must be loaded through a TVM
+# runtime program (as shown in the "Loading and Running" section above). The
+# ``.so`` bundles VM bytecode and compiled kernels, but still requires the TVM
+# runtime to execute.
 #
 # **Which devices can run the exported library?**
-#     The target must match the ISA you compiled for (``llvm`` in this example).
-#     As long as the target triple, runtime ABI, and available devices line up,
-#     you can move the artifact between machines. For heterogeneous builds (CPU
-#     plus GPU), ship the extra device libraries as well.
+# The target must match the ISA you compiled for (``llvm`` in this example).
+# As long as the target triple, runtime ABI, and available devices line up,
+# you can move the artifact between machines. For heterogeneous builds (CPU
+# plus GPU), ship the extra device libraries as well.
 #
 # **What about the ``.params`` and ``metadata.json`` files?**
-#     These auxiliary files are only generated in specific configurations. In this
-#     tutorial, since we pass parameters at runtime, they are not generated. When
-#     they do appear, they may be kept alongside the ``.so`` for inspection, but
-#     the essential content is typically embedded in the shared object itself, so
-#     deploying the ``.so`` alone is usually sufficient.
+# These auxiliary files are only generated in specific configurations. In this
+# tutorial, since we pass parameters at runtime, they are not generated. When
+# they do appear, they may be kept alongside the ``.so`` for inspection, but
+# the essential content is typically embedded in the shared object itself, so
+# deploying the ``.so`` alone is usually sufficient.

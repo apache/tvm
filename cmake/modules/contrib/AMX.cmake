@@ -16,7 +16,7 @@
 # under the License.
 
 if(USE_AMX)
-    file(GLOB AMX_RUNTIME_CONFIG src/runtime/contrib/amx/amx_config.cc)
+    file(GLOB AMX_RUNTIME_CONFIG src/runtime/extra/contrib/amx/amx_config.cc)
     list(APPEND COMPILER_SRCS ${AMX_RUNTIME_CONFIG})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=sapphirerapids")
     message(STATUS "Build with Intel AMX support...")

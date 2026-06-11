@@ -95,7 +95,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
   // unwrap RPCObjectRef in case we are directly using it to call LocalSession
   for (int i = 0; i < args.size(); ++i) {
     if (auto opt_rpc_obj = args[i].as<RPCObjectRef>()) {
-      packed_args[i] = static_cast<const Object*>(opt_rpc_obj.value()->object_handle());
+      packed_args[i] = static_cast<const ffi::Object*>(opt_rpc_obj.value()->object_handle());
     } else {
       packed_args[i] = args[i];
     }
@@ -106,7 +106,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
 }
 
 void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, GetDataSize(*to));
+  TVM_FFI_ICHECK_EQ(nbytes, ffi::GetDataSize(*to));
   DLTensor from;
   from.data = from_bytes;
   from.device = {kDLCPU, 0};
@@ -123,7 +123,7 @@ void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes)
 }
 
 void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, ffi::GetDataSize(*from));
+  TVM_FFI_ICHECK_EQ(nbytes, ffi::GetDataSize(*from));
   DLTensor to;
   to.data = to_bytes;
   to.device = {kDLCPU, 0};

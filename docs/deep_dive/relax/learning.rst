@@ -19,7 +19,7 @@
 
 Understand Relax Abstraction
 ============================
-Relax is a graph abstraction used in Apache TVM Unity strategy, which
+Relax is a graph abstraction used in Apache TVM, which
 helps to end-to-end optimize ML models. The principal objective of Relax
 is to depict the structure and data flow of ML models, including the
 dependencies and relationships between different parts of the model, as
@@ -32,7 +32,7 @@ In this chapter, we will use the following model as an example. This is
 a two-layer neural network that consists of two linear operations with
 relu activation.
 
-.. image:: https://mlc.ai/_images/e2e_fashionmnist_mlp_model.png
+.. image:: /_static/img/e2e_fashionmnist_mlp_model.png
    :width: 85%
    :align: center
 
@@ -110,19 +110,23 @@ The code block below shows a low-level numpy implementation of the same model.
     def lnumpy_mlp(data, w0, b0, w1, b1):
         n = data.shape[0]
         lv0 = np.empty((n, 128), dtype="float32")
-        lnumpy_matmul(data, w0, b0, lv0)
+        lnumpy_linear(data, w0, b0, lv0)
 
         lv1 = np.empty((n, 128), dtype="float32")
-        lnumpy_relu(lv0, lv1)
+        lnumpy_relu0(lv0, lv1)
 
         out = np.empty((n, 10), dtype="float32")
-        lnumpy_matmul(lv1, w1, b1, out)
+        lnumpy_linear(lv1, w1, b1, out)
         return out
 
 With the low-level NumPy example in mind, now we are ready to introduce an Relax abstraction
 for the end-to-end model execution. The code block below shows a TVMScript implementation of the model.
 
 .. code:: python
+
+    from tvm.script import ir as I
+    from tvm.script import tirx as T
+    from tvm.script import relax as R
 
     @I.ir_module
     class Module:
@@ -135,13 +139,13 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             Z = T.match_buffer(z, (M, N), "float32")
             Y = T.alloc_buffer((M, N), "float32")
             for i, j, k in T.grid(M, N, K):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         Y[v_i, v_j] = T.float32(0.0)
                     Y[v_i, v_j] = Y[v_i, v_j] + X[v_i, v_k] * W[v_k, v_j]
             for i, j in T.grid(M, N):
-                with T.block("Z"):
+                with T.sblock("Z"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     Z[v_i, v_j] = Y[v_i, v_j] + B[v_j]
 
@@ -151,7 +155,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             X = T.match_buffer(x, (M, N), "float32")
             Y = T.match_buffer(y, (M, N), "float32")
             for i, j in T.grid(M, N):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     Y[v_i, v_j] = T.max(X[v_i, v_j], T.float32(0.0))
 
@@ -167,8 +171,8 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             n = T.int64()
             with R.dataflow():
                 lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv1 = R.call_tir(cls.relu, (lv0,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((b, 10), dtype="float32"))
+                lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
+                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
                 R.output(lv2)
             return lv2
 
@@ -235,8 +239,8 @@ Another important element in a relax function is the R.dataflow() scope annotati
 
     with R.dataflow():
         lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv1 = R.call_tir(cls.relu, (lv0,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((b, 10), dtype="float32"))
+        lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
+        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
         R.output(lv2)
 
 Before we talk about the dataflow block, let us first introduce the concept of **pure** and

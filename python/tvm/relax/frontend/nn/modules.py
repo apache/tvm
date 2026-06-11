@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
+# ruff: noqa: RUF005
 """Builtin Modules."""
-from typing import List, Optional, Sequence, Union
+
+from collections.abc import Sequence
 
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -31,23 +33,23 @@ class IOEffect(Effect):
     debug breakpoints, etc.
     """
 
-    effect: Optional[rx.Var]
+    effect: rx.Var | None
 
     def __init__(self):
         self.effect = None
 
-    def emit_init(self, name_hint, builder: rx.BlockBuilder) -> List[rx.DataflowVar]:
+    def emit_init(self, name_hint, builder: rx.BlockBuilder) -> list[rx.DataflowVar]:
         return [builder.emit(rx.op.null_value(), f"{name_hint}.io")]
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         assert self.effect is None
         effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
         return [effect]
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         (self.effect,) = state_vars
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         result = self.effect
         self.effect = None
         return [result]
@@ -93,17 +95,36 @@ class Identity(Module):
 
 
 class Linear(Module):
-    """
-    Module for linear layer.
+    """Applies a linear transformation :math:`y = xW^T + b`.
+
+    Parameters
+    ----------
+    in_features : Union[int, str, tirx.PrimExpr]
+        Size of each input sample. Can be symbolic.
+
+    out_features : Union[int, str, tirx.PrimExpr]
+        Size of each output sample. Can be symbolic.
+
+    bias : bool
+        If ``True``, adds a learnable bias. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for weight (and bias when *out_dtype* is ``None``).
+        ``None`` uses the default dtype.
+
+    out_dtype : Optional[str]
+        If set, the matmul accumulates in this dtype and the bias is stored in this dtype
+        instead of *dtype*. Useful for mixed-precision (e.g. ``float32`` accumulation with
+        ``float16`` weights).
     """
 
     def __init__(
         self,
-        in_features: Union[int, str, tir.PrimExpr],
-        out_features: Union[int, str, tir.PrimExpr],
+        in_features: int | str | tirx.PrimExpr,
+        out_features: int | str | tirx.PrimExpr,
         bias: bool = True,
-        dtype: Optional[str] = None,
-        out_dtype: Optional[str] = None,
+        dtype: str | None = None,
+        out_dtype: str | None = None,
     ):
         super().__init__()
         self.in_features = in_features
@@ -138,7 +159,7 @@ class Linear(Module):
             x = x + self.bias
         return x
 
-    def to(self, dtype: Optional[str] = None) -> None:
+    def to(self, dtype: str | None = None) -> None:
         """
         Override to() such that we do not convert bias if there is `out_dtype`.
         Otherwise, we might run into dtype mismatch when computing `x + self.bias`
@@ -152,8 +173,36 @@ class Linear(Module):
 
 
 class Conv1D(Module):
-    """
-    Module for conv1d layer.
+    """Applies a 1D convolution over an input signal.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of channels in the input.
+
+    out_channels : int
+        Number of channels produced by the convolution.
+
+    kernel_size : int
+        Size of the convolving kernel.
+
+    stride : int
+        Stride of the convolution. Default: 1.
+
+    padding : int
+        Zero-padding added to both sides of the input. Default: 0.
+
+    dilation : int
+        Spacing between kernel elements. Default: 1.
+
+    groups : int
+        Number of blocked connections from input to output channels. Default: 1.
+
+    bias : bool
+        If ``True``, adds a learnable bias. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for weight and bias. ``None`` uses the default dtype.
     """
 
     def __init__(
@@ -166,7 +215,7 @@ class Conv1D(Module):
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -210,21 +259,52 @@ class Conv1D(Module):
 
 
 class Conv2D(Module):
-    """
-    Module for conv2d layer.
+    """Applies a 2D convolution over an input image.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of channels in the input image.
+
+    out_channels : int
+        Number of channels produced by the convolution.
+
+    kernel_size : Union[List[int], int]
+        Size of the convolving kernel. An int is expanded to a 2-element list.
+
+    stride : int
+        Stride of the convolution. Default: 1.
+
+    padding : int
+        Zero-padding added to both sides of the input. Default: 0.
+
+    dilation : int
+        Spacing between kernel elements. Default: 1.
+
+    groups : int
+        Number of blocked connections from input to output channels. Default: 1.
+
+    bias : bool
+        If ``True``, adds a learnable bias. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for weight and bias. ``None`` uses the default dtype.
+
+    data_layout : str
+        Layout of the input data, e.g. ``"NCHW"`` or ``"NHWC"``. Default: ``"NCHW"``.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Union[List[int], int],
+        kernel_size: list[int] | int,
         stride: int = 1,
         padding: int = 0,
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
         data_layout: str = "NCHW",
     ):
         super().__init__()
@@ -240,7 +320,7 @@ class Conv2D(Module):
         if isinstance(self.in_channels, int):
             in_channels = int(self.in_channels / self.groups)
         else:
-            in_channels = tir.floordiv(self.in_channels, self.groups)
+            in_channels = tirx.floordiv(self.in_channels, self.groups)
 
         # Expand kernel size if provided an integer.
         if isinstance(kernel_size, int):
@@ -284,21 +364,52 @@ class Conv2D(Module):
 
 
 class Conv3D(Module):
-    """
-    Module for conv3d layer.
+    """Applies a 3D convolution over an input volume.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of channels in the input volume.
+
+    out_channels : int
+        Number of channels produced by the convolution.
+
+    kernel_size : Union[List[int], int]
+        Size of the convolving kernel. An int is expanded to a 3-element list.
+
+    stride : Union[List[int], int]
+        Stride of the convolution. Default: 1.
+
+    padding : Union[List[int], int]
+        Zero-padding added to each side of the input. Default: 0.
+
+    dilation : int
+        Spacing between kernel elements. Default: 1.
+
+    groups : int
+        Number of blocked connections from input to output channels. Default: 1.
+
+    bias : bool
+        If ``True``, adds a learnable bias. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for weight and bias. ``None`` uses the default dtype.
+
+    data_layout : str
+        Layout of the input data, e.g. ``"NCDHW"``. Default: ``"NCDHW"``.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Union[List[int], int],
-        stride: Union[List[int], int] = 1,
-        padding: Union[List[int], int] = 0,
+        kernel_size: list[int] | int,
+        stride: list[int] | int = 1,
+        padding: list[int] | int = 0,
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
         data_layout: str = "NCDHW",
     ):
         super().__init__()
@@ -314,7 +425,7 @@ class Conv3D(Module):
         if isinstance(self.in_channels, int):
             in_channels = int(self.in_channels / self.groups)
         else:
-            in_channels = tir.floordiv(self.in_channels, self.groups)
+            in_channels = tirx.floordiv(self.in_channels, self.groups)
 
         # Expand kernel size if given an integer.
         if isinstance(kernel_size, int):
@@ -358,8 +469,39 @@ class Conv3D(Module):
 
 
 class ConvTranspose1D(Module):
-    """
-    Module for ConvTranspose1D layer.
+    """Applies a 1D transposed convolution (fractionally-strided convolution).
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of channels in the input.
+
+    out_channels : int
+        Number of channels produced by the transposed convolution.
+
+    kernel_size : int
+        Size of the convolving kernel.
+
+    stride : int
+        Stride of the convolution. Default: 1.
+
+    padding : int
+        Zero-padding added to both sides of the input. Default: 0.
+
+    output_padding : int
+        Additional size added to one side of the output shape. Default: 0.
+
+    dilation : int
+        Spacing between kernel elements. Default: 1.
+
+    groups : int
+        Number of blocked connections from input to output channels. Default: 1.
+
+    bias : bool
+        If ``True``, adds a learnable bias. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for weight and bias. ``None`` uses the default dtype.
     """
 
     def __init__(
@@ -373,7 +515,7 @@ class ConvTranspose1D(Module):
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -425,16 +567,30 @@ class ConvTranspose1D(Module):
 
 
 class LayerNorm(Module):
-    """
-    Module for Layer Normalization
+    """Applies Layer Normalization over the last dimension.
+
+    Parameters
+    ----------
+    normalized_shape : int
+        Size of the last dimension to normalize over.
+
+    eps : Optional[float]
+        Value added to the denominator for numerical stability. Default: ``1e-5``.
+
+    elementwise_affine : bool
+        If ``True``, learnable affine parameters (weight and bias) are added.
+        Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for the affine parameters. ``None`` uses the default dtype.
     """
 
     def __init__(
         self,
         normalized_shape: int,
-        eps: Optional[float] = 1e-5,
+        eps: float | None = 1e-5,
         elementwise_affine: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.normalized_shape = normalized_shape
@@ -471,17 +627,33 @@ class LayerNorm(Module):
 
 
 class RMSNorm(Module):
-    """
-    Module for rms norm layer.
+    """Applies Root Mean Square Layer Normalization.
+
+    Parameters
+    ----------
+    hidden_size : int
+        Size of the weight parameter.
+
+    axes : Union[int, List[int]]
+        The axes over which to compute the RMS norm.
+
+    epsilon : float
+        Value added to the denominator for numerical stability. Default: ``1e-5``.
+
+    bias : bool
+        If ``True``, adds a learnable bias after normalization. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for the parameters. ``None`` uses the default dtype.
     """
 
     def __init__(
         self,
         hidden_size: int,
-        axes: Union[int, List[int]],
+        axes: int | list[int],
         epsilon: float = 1e-5,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         super().__init__()
         self.epsilon = epsilon
@@ -513,8 +685,24 @@ class RMSNorm(Module):
 
 
 class GroupNorm(Module):
-    """
-    Module for group norm layer.
+    """Applies Group Normalization.
+
+    Parameters
+    ----------
+    num_groups : int
+        Number of groups to separate the channels into.
+
+    num_channels : int
+        Number of channels in the input, must be divisible by *num_groups*.
+
+    eps : float
+        Value added to the denominator for numerical stability. Default: ``1e-5``.
+
+    affine : bool
+        If ``True``, learnable per-channel affine parameters are added. Default: ``True``.
+
+    dtype : Optional[str]
+        Data type for the affine parameters. ``None`` uses the default dtype.
     """
 
     def __init__(
@@ -523,7 +711,7 @@ class GroupNorm(Module):
         num_channels: int,
         eps: float = 1e-5,
         affine: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         super().__init__()
         self.num_groups = num_groups
@@ -536,7 +724,7 @@ class GroupNorm(Module):
             self.weight = None
             self.bias = None
 
-    def forward(self, x: Tensor, channel_axis: int = 1, axes: Optional[List[int]] = None):
+    def forward(self, x: Tensor, channel_axis: int = 1, axes: list[int] | None = None):
         """
         Forward method for group norm layer.
 
@@ -561,20 +749,40 @@ class GroupNorm(Module):
 
 
 class KVCache(Effect):
-    """
-    Effect to implement KVCache.
+    """Managed key-value cache for autoregressive decoding.
+
+    ``KVCache`` is a TVM-specific ``Effect`` that allocates and maintains a runtime cache
+    for storing past key/value tensors in transformer models. Unlike regular ``Module``
+    parameters, effects are registered with the Relax VM and carry mutable state across
+    calls (append, reset) without being passed as explicit function arguments.
+
+    The cache is pre-allocated with shape ``[init_seq_len, *unit_shape]`` and grows via
+    the ``append`` method at runtime. Use ``init_seq_len`` to control the initial
+    allocation size.
+
+    Parameters
+    ----------
+    init_seq_len : int
+        Initial sequence-length capacity of the cache allocation.
+
+    unit_shape : Sequence[int]
+        Shape of a single cache entry excluding the sequence dimension.
+        For multi-head attention this is typically ``[num_heads, head_dim]``.
+
+    dtype : Optional[str]
+        Data type of the cache tensor. ``None`` uses the default dtype.
     """
 
     init_seq_len: int
-    unit_shape: List[int]
+    unit_shape: list[int]
     dtype: str
-    cache: Optional[rx.Var]
+    cache: rx.Var | None
 
     def __init__(
         self,
         init_seq_len: int,
         unit_shape: Sequence[int],
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         if dtype is None:
             dtype = get_default_dtype()
@@ -610,7 +818,7 @@ class KVCache(Effect):
             )
         ]
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         """
         Create the implicit inputs to a relax.Function that represents the KVCache effect.
 
@@ -627,10 +835,10 @@ class KVCache(Effect):
         cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
         return [cache]
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         (self.cache,) = state_vars
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         """
         Finalize the KVCache effect as the implicit return value of a relax.Function.
 
@@ -643,7 +851,7 @@ class KVCache(Effect):
         self.cache = None
         return [result]
 
-    def to(self, dtype: Optional[str] = None) -> None:
+    def to(self, dtype: str | None = None) -> None:
         """
         Convert the KVCache effect to specific dtype.
 
@@ -655,13 +863,13 @@ class KVCache(Effect):
         if dtype is not None:
             self.dtype = dtype
 
-    def view(self, seq_len: tir.Var) -> Tensor:
+    def view(self, seq_len: tirx.Var) -> Tensor:
         """
         View the last elements in KVCache.
 
         Parameters
         ----------
-        seq_len : tir.Var
+        seq_len : tirx.Var
             The number of last elements to view.
 
         Returns
@@ -692,8 +900,7 @@ class KVCache(Effect):
         """
         if new_element.dtype != self.dtype:
             raise TypeError(
-                f'KVCache has been set to use dtype "{self.dtype}", '
-                f'but got "{new_element.dtype}"'
+                f'KVCache has been set to use dtype "{self.dtype}", but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.op.call_inplace_packed(
@@ -707,15 +914,25 @@ class KVCache(Effect):
 
 
 class Embedding(Module):
-    """
-    Module for embedding layer.
+    """A lookup table that retrieves embeddings by index.
+
+    Parameters
+    ----------
+    num : Union[int, str, tirx.PrimExpr]
+        Size of the embedding dictionary (vocabulary size). Can be symbolic.
+
+    dim : Union[int, str, tirx.PrimExpr]
+        Size of each embedding vector. Can be symbolic.
+
+    dtype : Optional[str]
+        Data type of the embedding weight. ``None`` uses the default dtype.
     """
 
     def __init__(
         self,
-        num: Union[int, str, tir.PrimExpr],
-        dim: Union[int, str, tir.PrimExpr],
-        dtype: Optional[str] = None,
+        num: int | str | tirx.PrimExpr,
+        dim: int | str | tirx.PrimExpr,
+        dtype: str | None = None,
     ):
         self.num = num
         self.dim = dim
@@ -748,8 +965,31 @@ class Embedding(Module):
 
 
 class TimestepEmbedding(Module):
-    """
-    Module for HF TimestepEmbedding layer.
+    """MLP that projects timestep embeddings, following the HuggingFace diffusers convention.
+
+    Consists of two linear layers with an activation in between, and an optional
+    conditional projection and post-activation.
+
+    Parameters
+    ----------
+    in_channels : int
+        Dimensionality of the input timestep embedding.
+
+    time_embed_dim : int
+        Dimensionality of the intermediate (hidden) projection.
+
+    act_fn : str
+        Activation function name. Currently only ``"silu"`` is supported.
+
+    out_dim : Optional[int]
+        Dimensionality of the output. If ``None``, defaults to *time_embed_dim*.
+
+    post_act_fn : Optional[str]
+        Optional post-activation applied after the second linear layer.
+
+    cond_proj_dim : Optional[int]
+        If set, adds a linear projection from a conditioning signal of this
+        dimensionality to *in_channels*, which is added to the input sample.
     """
 
     def __init__(
@@ -757,9 +997,9 @@ class TimestepEmbedding(Module):
         in_channels: int,
         time_embed_dim: int,
         act_fn: str = "silu",
-        out_dim: int = None,
-        post_act_fn: Optional[str] = None,
-        cond_proj_dim: Optional[int] = None,
+        out_dim: int | None = None,
+        post_act_fn: str | None = None,
+        cond_proj_dim: int | None = None,
     ):
         self.linear_1 = Linear(in_channels, time_embed_dim)
 
@@ -784,7 +1024,7 @@ class TimestepEmbedding(Module):
             assert self.post_act == "silu", "Only SiLU post-activation supported."
             self.post_act = SiLU()
 
-    def forward(self, sample: Tensor, condition: Optional[Tensor] = None):
+    def forward(self, sample: Tensor, condition: Tensor | None = None):
         """
         Forward method for TimestepEmbedding layer.
 
@@ -815,8 +1055,18 @@ class TimestepEmbedding(Module):
 
 
 class Timesteps(Module):
-    """
-    Module for HF timesteps layer.
+    """Sinusoidal positional embedding for diffusion timesteps (HuggingFace convention).
+
+    Parameters
+    ----------
+    num_channels : int
+        Dimensionality of the embedding (number of sinusoidal channels).
+
+    flip_sin_to_cos : bool
+        If ``True``, swap sin and cos components. Default: ``False``.
+
+    downscale_freq_shift : float
+        Shift applied to the frequency denominator. Default: ``1``.
     """
 
     def __init__(
@@ -863,11 +1113,11 @@ class Attention(Module):
     def __init__(
         self,
         query_dim: int,
-        cross_attention_dim: Optional[int] = None,
+        cross_attention_dim: int | None = None,
         heads: int = 8,
         dim_head: int = 64,
         bias: bool = False,
-        norm_num_groups: Optional[int] = None,
+        norm_num_groups: int | None = None,
         out_bias: bool = True,
         scale_qk: bool = True,
     ):
@@ -899,8 +1149,8 @@ class Attention(Module):
     def forward(
         self,
         hidden_states: Tensor,
-        encoder_hidden_states: Optional[Tensor] = None,
-        attention_mask: Optional[Tensor] = None,
+        encoder_hidden_states: Tensor | None = None,
+        attention_mask: Tensor | None = None,
         **cross_attention_kwargs,
     ):
         """

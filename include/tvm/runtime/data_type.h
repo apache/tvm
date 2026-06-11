@@ -26,8 +26,8 @@
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/logging.h>
 
 #include <cstring>
 #include <string>
@@ -35,8 +35,6 @@
 
 namespace tvm {
 namespace runtime {
-
-using tvm_index_t = ffi::Shape::index_type;
 
 /*!
  * \brief Runtime primitive data type.
@@ -92,22 +90,22 @@ class DataType {
     data_.code = static_cast<uint8_t>(code);
     data_.bits = static_cast<uint8_t>(bits);
     if (is_scalable) {
-      ICHECK(lanes > 1) << "Invalid value for vscale factor" << lanes;
+      TVM_FFI_ICHECK(lanes > 1) << "Invalid value for vscale factor" << lanes;
     }
     data_.lanes = is_scalable ? static_cast<uint16_t>(-lanes) : static_cast<uint16_t>(lanes);
     if (code == kBFloat) {
-      ICHECK_EQ(bits, 16);
+      TVM_FFI_ICHECK_EQ(bits, 16);
     }
     if (code == kFloat8_e3m4 || code == kFloat8_e4m3 || code == kFloat8_e4m3b11fnuz ||
         code == kFloat8_e4m3fn || code == kFloat8_e4m3fnuz || code == kFloat8_e5m2 ||
         code == kFloat8_e5m2fnuz || code == kFloat8_e8m0fnu) {
-      ICHECK_EQ(bits, 8);
+      TVM_FFI_ICHECK_EQ(bits, 8);
     }
     if (code == kFloat6_e2m3fn || code == kFloat6_e3m2fn) {
-      ICHECK_EQ(bits, 6);
+      TVM_FFI_ICHECK_EQ(bits, 6);
     }
     if (code == kFloat4_e2m1fn) {
-      ICHECK_EQ(bits, 4);
+      TVM_FFI_ICHECK_EQ(bits, 4);
     }
   }
   /*! \return The type code. */
@@ -120,7 +118,8 @@ class DataType {
   int lanes() const {
     int lanes_as_int = static_cast<int16_t>(data_.lanes);
     if (lanes_as_int < 0) {
-      LOG(FATAL) << "Can't fetch the lanes of a scalable vector at a compile time.";
+      TVM_FFI_THROW(InternalError)
+          << "Can't fetch the lanes of a scalable vector at a compile time.";
     }
     return lanes_as_int;
   }
@@ -128,7 +127,7 @@ class DataType {
   int vscale_factor() const {
     int lanes_as_int = static_cast<int16_t>(data_.lanes);
     if (lanes_as_int >= -1) {
-      LOG(FATAL) << "A fixed length vector doesn't have a vscale factor.";
+      TVM_FFI_THROW(InternalError) << "A fixed length vector doesn't have a vscale factor.";
     }
     return -lanes_as_int;
   }
@@ -403,10 +402,10 @@ class DataType {
    * \return The type of TVM shape index.
    */
   static DataType ShapeIndex() {
-    if (std::is_signed<tvm_index_t>::value) {
-      return DataType::Int(sizeof(tvm_index_t) * 8);
+    if (std::is_signed<ffi::Shape::index_type>::value) {
+      return DataType::Int(sizeof(ffi::Shape::index_type) * 8);
     } else {
-      return DataType::UInt(sizeof(tvm_index_t) * 8);
+      return DataType::UInt(sizeof(ffi::Shape::index_type) * 8);
     }
   }
 
@@ -427,7 +426,7 @@ inline int GetVectorBytes(DataType dtype) {
       dtype == DataType::Float6E2M3FN() || dtype == DataType::Float6E3M2FN()) {
     return 1;
   }
-  ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
+  TVM_FFI_ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
@@ -449,9 +448,6 @@ inline bool TypeMatch(DLDataType t, int code, int bits, int lanes = 1) {
 inline bool TypeEqual(DLDataType lhs, DLDataType rhs) {
   return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
 }
-
-using ffi::DLDataTypeToString;
-using ffi::StringToDLDataType;
 
 inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) {  // NOLINT(*)
   return os << dtype.operator DLDataType();

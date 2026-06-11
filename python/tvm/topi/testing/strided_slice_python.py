@@ -36,10 +36,11 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end", axes=None)
 
     slice_mode : str, optional
         The slice mode [end, size].
-        end: The default slice mode, ending indices for the slice.
-        size: The input strides will be ignored, input end in this mode indicates
-              the sizeof a slice starting at the location specified by begin. If end[i] is -1,
-              all remaining elements in that dimension are included in the slice.
+
+        - ``"end"``: The default slice mode, ending indices for the slice.
+        - ``"size"``: The input strides will be ignored, input end in this mode indicates
+          the size of a slice starting at the location specified by begin. If end[i] is -1,
+          all remaining elements in that dimension are included in the slice.
 
     axes : list, optional
         Axes along which slicing is applied

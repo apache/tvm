@@ -14,21 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 
 import random
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
 from tvm import relax
-from tvm.contrib import utils
-from typing import List
+from tvm.support import utils
 
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
+    def load_module(name: str, static_modules: list[tvm.runtime.Module]):
         assert len(static_modules) > 0
         if len(static_modules) == 1:
             return static_modules[0]

@@ -17,12 +17,14 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 # pylint: disable=unused-argument, redefined-builtin
 """Bitserial Conv2D operators"""
+
 import tvm
 from tvm import te
+
+from ..utils import get_const_tuple
+from .bitserial_util import bitpack
 from .pad import pad
 from .utils import get_pad_tuple
-from .bitserial_util import bitpack
-from ..utils import get_const_tuple
 
 
 def bitserial_conv2d_nchw(
@@ -81,7 +83,7 @@ def bitserial_conv2d_nchw(
     batch, in_channel, activation_bits, in_height, in_width = Input_q.shape
     num_filter, _, kernel_h, kernel_w, weight_bits = Filter_q.shape
 
-    if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
+    if isinstance(padding, int) or (isinstance(padding, tuple | list) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
     else:
         TPAD, LPAD, DPAD, RPAD = padding
@@ -111,11 +113,11 @@ def bitserial_conv2d_nchw(
             return te.sum(
                 (
                     (
-                        tvm.tir.popcount(
+                        tvm.tirx.popcount(
                             PadInput_q[nn, rc, b1, yy * stride_h + ry, xx * stride_w + rx]
                             & Filter_q[ff, rc, ry, rx, b2]
                         )
-                        - tvm.tir.popcount(
+                        - tvm.tirx.popcount(
                             PadInput_q[nn, rc, b1, yy * stride_h + ry, xx * stride_w + rx]
                             & ~Filter_q[ff, rc, ry, rx, b2]
                         )
@@ -131,7 +133,7 @@ def bitserial_conv2d_nchw(
             b1b2 = (b1 + b2).astype(out_dtype)
             return te.sum(
                 (
-                    tvm.tir.popcount(
+                    tvm.tirx.popcount(
                         PadInput_q[nn, rc, b1, yy * stride_h + ry, xx * stride_w + rx]
                         & Filter_q[ff, rc, ry, rx, b2]
                     )
@@ -205,7 +207,7 @@ def bitserial_conv2d_nhwc(
         kernel_h, kernel_w, _, _, num_filter = get_const_tuple(Filter_q.shape)
     batch, in_height, in_width, in_channel_q, _ = get_const_tuple(Input_q.shape)
 
-    if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
+    if isinstance(padding, int) or (isinstance(padding, tuple | list) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
     else:
         TPAD, LPAD, DPAD, RPAD = padding
@@ -235,11 +237,11 @@ def bitserial_conv2d_nhwc(
             return te.sum(
                 (
                     (
-                        tvm.tir.popcount(
+                        tvm.tirx.popcount(
                             PadInput_q[nn, yy * stride_h + ry, xx * stride_w + rx, rc, b1]
                             & Filter_q[ry, rx, rc, ff, b2]
                         )
-                        - tvm.tir.popcount(
+                        - tvm.tirx.popcount(
                             PadInput_q[nn, yy * stride_h + ry, xx * stride_w + rx, rc, b1]
                             & ~Filter_q[ry, rx, rc, ff, b2]
                         )
@@ -255,7 +257,7 @@ def bitserial_conv2d_nhwc(
             b1b2 = (b1 + b2).astype(out_dtype)
             return te.sum(
                 (
-                    tvm.tir.popcount(
+                    tvm.tirx.popcount(
                         PadInput_q[nn, yy * stride_h + ry, xx * stride_w + rx, rc, b1]
                         & Filter_q[ry, rx, rc, ff, b2]
                     )

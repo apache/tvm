@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" benchmark_elemwise_add """
+"""benchmark_elemwise_add"""
 
 import os
 import os.path
@@ -27,7 +27,7 @@ import pytest
 import tvm.script
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from . import benchmark_util as bu
 from .infrastructure import get_hexagon_target
@@ -84,7 +84,7 @@ _HOST_OUTPUT_DIR = tempfile.mkdtemp()
 _PRIMFUNC_NAME = "elemwise_add"
 
 print("-" * 80)
-print("OUTPUT DIRECTORY: {}".format(_HOST_OUTPUT_DIR))
+print(f"OUTPUT DIRECTORY: {_HOST_OUTPUT_DIR}")
 print("-" * 80)
 print()
 
@@ -141,10 +141,10 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         """Elementwise STIR module for benchmarking"""
 
         # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.handle, b: T.handle, c: T.handle):
             # We exchange data between function by handles, which are similar to pointer.
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
             A = T.match_buffer(a, shape, dtype=dtype)
             B = T.match_buffer(b, shape, dtype=dtype)

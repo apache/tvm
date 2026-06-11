@@ -24,13 +24,14 @@
  *        Ideally should be used before constant folding and eliminating unused bindings.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -51,8 +52,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
         InferSymbolicVarMap({{binding->var, binding->value}}, builder_->GetAnalyzer());
     for (const auto& [tir_var, prim_expr] : tir_var_map) {
       if (auto it = known_values_.find(tir_var); it != known_values_.end()) {
-        CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr))
-            << "ValueError: "
+        TVM_FFI_CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr), ValueError)
             << "MatchCast statements must be consistent.  "
             << "However, the definition of Relax variable " << it->second.source->var
             << " implies that TIR variable " << tir_var << " is " << it->second.expr
@@ -93,7 +93,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // within each branch.
     auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
 
-    StructuralEqual struct_equal;
+    ffi::StructuralEqual struct_equal;
     if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
       auto output_var = Var("then_branch_with_dyn", new_sinfo);
 
@@ -119,13 +119,14 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (known_values_.empty()) {
       return expr;
     }
-    PrimExpr output = tir::Substitute(expr, [this](const tir::Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto it = known_values_.find(var); it != known_values_.end()) {
-        return it->second.expr;
-      } else {
-        return std::nullopt;
-      }
-    });
+    PrimExpr output =
+        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+          if (auto it = known_values_.find(var); it != known_values_.end()) {
+            return it->second.expr;
+          } else {
+            return std::nullopt;
+          }
+        });
     if (output.same_as(expr)) {
       return expr;
     }
@@ -140,13 +141,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     MatchCast source;
   };
 
-  std::unordered_map<tir::Var, KnownValue> known_values_;
+  std::unordered_map<tirx::Var, KnownValue> known_values_;
 };
 
 struct CanonicalizationPlan {
   ffi::Map<Id, Var> replace_usage;
   ffi::Map<Id, Var> replace_binding;
-  std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual> bindings_to_remove;
+  std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
   ffi::Map<Id, Constant> inline_constant;
 };
 
@@ -250,14 +251,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
-    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
@@ -352,9 +353,10 @@ class CanonicalizePlanner : public ExprVisitor {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetStructInfo(binding->var),
+                                      GetStructInfo(match_cast->value));
       } else {
-        LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
+        TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }
     }();
 
@@ -456,10 +458,10 @@ class BindingCanonicalizer : public ExprMutator {
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
     auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set;
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars;
+    std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> disqualified_set;
+    std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> output_vars;
 
-    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
+    std::unordered_map<DataflowVar, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> candidates;
     for (int i = new_block->bindings.size() - 1; i >= 0; i--) {
       auto binding = new_block->bindings[i];
       auto var = binding->var;
@@ -539,7 +541,7 @@ class BindingCanonicalizer : public ExprMutator {
               VarBinding(binding->var, candidates.at(Downcast<DataflowVar>(var_binding->value)));
           new_bindings.push_back(new_binding);
         } else {
-          CHECK(false) << "Invalid binding";  // never happens
+          TVM_FFI_ICHECK(false) << "Invalid binding";  // never happens
         }
       } else {
         new_bindings.push_back(binding);

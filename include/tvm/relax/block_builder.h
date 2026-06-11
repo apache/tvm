@@ -25,11 +25,10 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
-#include <tvm/runtime/object.h>
+#include <tvm/runtime/base.h>
 
 namespace tvm {
 namespace relax {
@@ -63,7 +62,7 @@ namespace relax {
  * allow logically grouped implementation and internal data
  * structures that are hidden from the users.
  */
-class BlockBuilderNode : public Object {
+class BlockBuilderNode : public ffi::Object {
  public:
   //-------------------------------
   // Global Context management
@@ -112,12 +111,6 @@ class BlockBuilderNode : public Object {
    * \param function The updated function.
    */
   virtual void UpdateFunction(const GlobalVar& gv, BaseFunc function) = 0;
-
-  /*!
-   * \brief Report an error during transformation construction.
-   * \param diagnostic The diagnostic information.
-   */
-  [[noreturn]] virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
 
   //-------------------------------
   // Scope management
@@ -255,13 +248,13 @@ class BlockBuilderNode : public Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer* GetAnalyzer() = 0;
+  virtual arith::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);
 };
 
-class BlockBuilder : public ObjectRef {
+class BlockBuilder : public ffi::ObjectRef {
  public:
   /*!
    * \brief Create a BlockBuilder.
@@ -318,7 +311,7 @@ class BlockBuilder : public ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ObjectRef, BlockBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils, popen_pool
-import sys
-import numpy as np
 import subprocess
-import tvm.testing
+import sys
+
+import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm import te
+from tvm.support import cc, popen_pool, utils
 
 runtime_py = """
 import os
@@ -42,27 +44,27 @@ print("Finish runtime checking...")
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()
 
     def save_object(names):
         n = te.size_var("n")
-        Ab = tvm.tir.decl_buffer((n,), dtype)
+        Ab = tvm.tirx.decl_buffer((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:
-        stmt = tvm.tir.For(
+        stmt = tvm.tirx.For(
             i,
             0,
             n - 1,
-            tvm.tir.ForKind.SERIAL,
-            tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tirx.ForKind.SERIAL,
+            tvm.tirx.BufferStore(Ab, tvm.tirx.BufferLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
-            tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
+            tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.tir.build(mod, target=target)
+        m = tvm.tirx.build(mod, target=target)
         for name in names:
             m.write_to_file(name)
 
@@ -96,12 +98,14 @@ def test_dso_module_load(target):
 
 @tvm.testing.requires_gpu
 def test_device_module_dump():
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
@@ -111,7 +115,7 @@ def test_device_module_dump():
     def check_device(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         temp = utils.tempdir()
         f = tvm.compile(sch.mod, target=device)
@@ -137,7 +141,7 @@ def test_device_module_dump():
     def check_c(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
         a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
@@ -153,6 +157,8 @@ def test_device_module_dump():
 @tvm.testing.requires_llvm
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     nn = 12
     n = tvm.runtime.convert(nn)
@@ -164,8 +170,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.tir.build(mod1, "llvm")
-        fadd2 = tvm.tir.build(mod2, "llvm")
+        fadd1 = tvm.tirx.build(mod1, "llvm")
+        fadd2 = tvm.tirx.build(mod2, "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -190,8 +196,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.tir.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.tir.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.tirx.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
+        fadd2 = tvm.tirx.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -200,8 +206,9 @@ def test_combine_module_llvm():
         cc.create_shared(path_dso, [path1, path2])
 
         def popen_check():
-            import tvm.runtime
             import ctypes
+
+            import tvm.runtime
 
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)

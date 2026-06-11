@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501
 """Generator for CUTLASS attention kernels."""
+
 from .library import substitute_template
 
 
@@ -24,7 +26,7 @@ def instantiate_attention_template(attrs):
     based on a template and the provided attribute map."""
 
     bias_template = """
-  CHECK(${bias}->ndim == 4); // B, N, S, S'
+  TVM_FFI_ICHECK(${bias}->ndim == 4); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
   p.bias_strideM = ${bias_strideM};
@@ -44,9 +46,9 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${query}->data);
   p.key_ptr = reinterpret_cast<T *>(${key}->data);
   p.value_ptr = reinterpret_cast<T *>(${value}->data);
-  CHECK(${query}->ndim == 4); // B, S, N, H
-  CHECK(${key}->ndim == 4); // B, S', N, H
-  CHECK(${value}->ndim == 4); // B, S', N, H'
+  TVM_FFI_ICHECK(${query}->ndim == 4); // B, S, N, H
+  TVM_FFI_ICHECK(${key}->ndim == 4); // B, S', N, H
+  TVM_FFI_ICHECK(${value}->ndim == 4); // B, S', N, H'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -67,7 +69,7 @@ def instantiate_attention_template(attrs):
   p.query_ptr = reinterpret_cast<T *>(${qkv}->data);
   p.key_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads;
   p.value_ptr = reinterpret_cast<T *>(${qkv}->data) + p.head_dim * p.num_heads * 2;
-  CHECK(${qkv}->ndim == 3); // B, S, NH + NH + NH'
+  TVM_FFI_ICHECK(${qkv}->ndim == 3); // B, S, NH + NH + NH'
 
   // stride for N
   p.q_strideH = p.head_dim; // H
@@ -130,7 +132,7 @@ def instantiate_attention_template(attrs):
 
 
   p.o_strideM = p.head_dim_value * p.num_heads; // H' * N
-  CHECK(out0->ndim == 4); // B, S, N, H'
+  TVM_FFI_ICHECK(out0->ndim == 4); // B, S, N, H'
 
   ${qkv_template}
   ${bias_template}
@@ -146,7 +148,7 @@ def instantiate_attention_template(attrs):
     }();
   }
 
-  CHECK(Attention::check_supported(p));
+  TVM_FFI_ICHECK(Attention::check_supported(p));
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${query}->device.device_id));
 
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
@@ -189,32 +191,32 @@ def instantiate_flash_attention_template(attrs):
 
     flash_attn::flash_attention_forward(
                             static_cast<const cutlass::half_t*>(${query}->data),
-    			    static_cast<const cutlass::half_t*>(${key}->data),
-    			    static_cast<const cutlass::half_t*>(${value}->data),
-    			    static_cast<cutlass::half_t*>(out0->data),
-    			    ${num_batches},
-    			    ${num_queries},
-    			    ${num_keys},
-    			    ${num_q_heads},
-    			    ${num_kv_heads},
-    			    ${head_dim},
-    			    q_batch_stride,
-    			    k_batch_stride,
-    			    v_batch_stride,
-    			    o_batch_stride,
-    			    q_head_stride,
-    			    k_head_stride,
-    			    v_head_stride,
-    			    o_head_stride,
-    			    q_row_stride,
-    			    k_row_stride,
-    			    v_row_stride,
-    			    o_row_stride,
-    			    ${scale},
-    			    ${is_causal},
+                    static_cast<const cutlass::half_t*>(${key}->data),
+                    static_cast<const cutlass::half_t*>(${value}->data),
+                    static_cast<cutlass::half_t*>(out0->data),
+                    ${num_batches},
+                    ${num_queries},
+                    ${num_keys},
+                    ${num_q_heads},
+                    ${num_kv_heads},
+                    ${head_dim},
+                    q_batch_stride,
+                    k_batch_stride,
+                    v_batch_stride,
+                    o_batch_stride,
+                    q_head_stride,
+                    k_head_stride,
+                    v_head_stride,
+                    o_head_stride,
+                    q_row_stride,
+                    k_row_stride,
+                    v_row_stride,
+                    o_row_stride,
+                    ${scale},
+                    ${is_causal},
                             ${window_size_left},
                             ${window_size_right},
-    			    stream);
+                    stream);
     """
 
     template_stacked = """
@@ -239,32 +241,32 @@ def instantiate_flash_attention_template(attrs):
 
     flash_attn::flash_attention_forward(
                             static_cast<const cutlass::half_t*>(${qkv}->data),
-    			    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * ${num_q_heads},
-    			    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * (${num_q_heads} + ${num_kv_heads}),
-    			    static_cast<cutlass::half_t*>(out0->data),
-    			    ${num_batches},
-    			    ${num_queries},
-    			    ${num_keys},
-    			    ${num_q_heads},
-    			    ${num_kv_heads},
-    			    ${head_dim},
-    			    q_batch_stride,
-    			    k_batch_stride,
-    			    v_batch_stride,
-    			    o_batch_stride,
-    			    q_head_stride,
-    			    k_head_stride,
-    			    v_head_stride,
-    			    o_head_stride,
-    			    q_row_stride,
-    			    k_row_stride,
-    			    v_row_stride,
-    			    o_row_stride,
-    			    ${scale},
-    			    ${is_causal},
+                    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * ${num_q_heads},
+                    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * (${num_q_heads} + ${num_kv_heads}),
+                    static_cast<cutlass::half_t*>(out0->data),
+                    ${num_batches},
+                    ${num_queries},
+                    ${num_keys},
+                    ${num_q_heads},
+                    ${num_kv_heads},
+                    ${head_dim},
+                    q_batch_stride,
+                    k_batch_stride,
+                    v_batch_stride,
+                    o_batch_stride,
+                    q_head_stride,
+                    k_head_stride,
+                    v_head_stride,
+                    o_head_stride,
+                    q_row_stride,
+                    k_row_stride,
+                    v_row_stride,
+                    o_row_stride,
+                    ${scale},
+                    ${is_causal},
                             ${window_size_left},
                             ${window_size_right},
-    			    stream);
+                    stream);
     """
 
     if "qkv" in attrs:
@@ -295,31 +297,31 @@ def instantiate_flash_attention_var_len_template(attrs):
 
     flash_attn::flash_attention_var_len_forward(
                             static_cast<const cutlass::half_t*>(${query}->data),
-    			    static_cast<const cutlass::half_t*>(${key}->data),
-    			    static_cast<const cutlass::half_t*>(${value}->data),
+                    static_cast<const cutlass::half_t*>(${key}->data),
+                    static_cast<const cutlass::half_t*>(${value}->data),
                             static_cast<const int*>(${seqstart_q}->data),
                             static_cast<const int*>(${seqstart_k}->data),
-    			    static_cast<cutlass::half_t*>(out0->data),
-    			    batch_size,
-    			    _max_seqlen_q,
-    			    _max_seqlen_k,
-    			    ${num_q_heads},
-    			    ${num_kv_heads},
-    			    ${head_dim},
-    			    q_head_stride,
-    			    k_head_stride,
-    			    v_head_stride,
-    			    o_head_stride,
-    			    q_row_stride,
-    			    k_row_stride,
-    			    v_row_stride,
-    			    o_row_stride,
-    			    ${scale},
-    			    ${is_causal},
+                    static_cast<cutlass::half_t*>(out0->data),
+                    batch_size,
+                    _max_seqlen_q,
+                    _max_seqlen_k,
+                    ${num_q_heads},
+                    ${num_kv_heads},
+                    ${head_dim},
+                    q_head_stride,
+                    k_head_stride,
+                    v_head_stride,
+                    o_head_stride,
+                    q_row_stride,
+                    k_row_stride,
+                    v_row_stride,
+                    o_row_stride,
+                    ${scale},
+                    ${is_causal},
                             // For SWA, is_causal must be false.
                             ${is_causal} ? _max_seqlen_k : ${window_size_left},
                             ${window_size_right},
-    			    stream);
+                    stream);
     """
 
     return substitute_template(template, attrs)

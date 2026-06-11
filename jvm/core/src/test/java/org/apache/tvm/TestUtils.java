@@ -19,10 +19,8 @@ package org.apache.tvm;
  * under the License.
  */
 
-
-import org.apache.tvm.rpc.Server;
-
 import java.io.IOException;
+import org.apache.tvm.rpc.Server;
 
 public class TestUtils {
   public static class RefInt {

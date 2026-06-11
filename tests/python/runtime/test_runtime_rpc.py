@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E712, F841
 
+import gc
 import multiprocessing
 import os
 import stat
@@ -22,22 +24,23 @@ import sys
 import tempfile
 import time
 
-import pytest
 import numpy as np
+import pytest
+import tvm_ffi
+
+pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
 
 import tvm
 import tvm.testing
-
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils, cc
-from tvm.rpc.tracker import Tracker
+from tvm import rpc, te
 from tvm.rpc.proxy import Proxy
-from tvm.script import ir as I, tir as T
-
+from tvm.rpc.tracker import Tracker
+from tvm.script import ir as I
+from tvm.script import tirx as T
+from tvm.support import cc, utils
 
 if __name__ == "__main__":
-    # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
+    # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.
     tvm.testing.main()
 
 
@@ -72,7 +75,7 @@ def test_bigendian_rpc():
 
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
-        B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
+        B = te.compute(A.shape, lambda i: A[i] + tvm.tirx.const(1, A.dtype))
         f = tvm.compile(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
@@ -88,7 +91,7 @@ def test_bigendian_rpc():
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)
-    target = "llvm -mtriple=powerpc-linux-gnu"
+    target = {"kind": "llvm", "mtriple": "powerpc-linux-gnu"}
     for dtype in ["float32", "float64", "int32", "int8"]:
         verify_rpc(remote, target, (10,), dtype)
 
@@ -119,8 +122,8 @@ def test_rpc_runtime_string():
 
     def check_remote():
         func = client.get_function("rpc.test.runtime_str_concat")
-        x = tvm.runtime.container.String("abc")
-        y = tvm.runtime.container.String("def")
+        x = tvm_ffi.core.String("abc")
+        y = tvm_ffi.core.String("def")
         assert str(func(x, y)) == "abcdef"
 
     check_remote()
@@ -255,7 +258,7 @@ def test_rpc_remote_module():
         b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op" % cost)
+        print(f"{cost:g} secs/op")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # Download the file from the remote
@@ -314,13 +317,13 @@ def test_rpc_remote_module():
         temp = utils.tempdir()
         dev = remote.cl(0)
 
-        s = tvm.tir.Schedule(mod)
+        s = tvm.s_tir.Schedule(mod)
 
-        x = s.get_loops(s.get_block("B"))
+        x = s.get_loops(s.get_sblock("B"))
         xo, xi = s.split(x, factors=[None, 32])
         s.bind(xo, "blockIdx.x")
         s.bind(xi, "threadIdx.x")
-        f = tvm.compile(s.mod, "opencl --host=llvm")
+        f = tvm.compile(s.mod, tvm.target.Target("opencl", host="llvm"))
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)
@@ -387,21 +390,21 @@ def test_rpc_session_constructor_args():
 
 @tvm.testing.requires_rpc
 def test_rpc_return_tensor():
-    # start server
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1")
-
-    m = client.get_function("rpc.test.remote_return_nd")
-    get_arr = m("get_arr")
-    ref_count = m("ref_count")
-    get_elem = m("get_elem")
-    get_arr_elem = m("get_arr_elem")
-
-    # array test
     def run_arr_test():
+        server = rpc.Server(key="x1")
+        client = rpc.connect("127.0.0.1", server.port, key="x1")
+        m = client.get_function("rpc.test.remote_return_nd")
+        get_arr = m("get_arr")
+        get_elem = m("get_elem")
+        get_arr_elem = m("get_arr_elem")
+
         arr = get_arr()
         assert get_elem(0) == 0.0
         assert get_arr_elem(arr, 0) == 0.0
+
+        del arr
+        gc.collect()
+        assert get_elem(0) == 0.0
 
     run_arr_test()
 
@@ -410,8 +413,8 @@ def test_rpc_return_tensor():
 def test_rpc_return_remote_object():
     def check(client, is_local):
         make_shape = client.get_function("ffi.Shape")
-        get_elem = client.get_function("testing.GetShapeElem")
-        get_size = client.get_function("testing.GetShapeSize")
+        get_elem = client.get_function("rpc.testing.GetShapeElem")
+        get_size = client.get_function("rpc.testing.GetShapeSize")
         shape = make_shape(2, 3)
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
@@ -495,7 +498,7 @@ def test_rpc_tracker_register(device_key):
     def exist_address(summary, key, host, port):
         server_info = summary["server_info"]
         for device in server_info:
-            if device["key"] == "server:%s" % key:
+            if device["key"] == f"server:{key}":
                 addr = device["addr"]
                 if (host is None or host == addr[0]) and port == addr[1]:
                     return True
@@ -671,11 +674,11 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_without_arg() -> T.int64:
             return T.int64(42)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 

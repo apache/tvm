@@ -23,14 +23,14 @@
  * store into global scope avoiding unnecessary device copy.
  */
 
-#include <tvm/node/serialization.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/index_map.h>
+#include <tvm/tirx/index_map.h>
 
 #include <tuple>
 
@@ -54,21 +54,20 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
   auto rewriter = [=](Expr expr, ffi::Map<DFPattern, Expr> matches) -> Expr {
     const auto* call_tir = matches[pat_call_tir].as<CallNode>();
-    ICHECK(call_tir) << "InternalError: "
-                     << "Match of relax.call_tir operator should produce Call, "
-                     << "but instead produces " << matches[pat_call_tir] << " with type "
-                     << matches[pat_call_tir]->GetTypeKey();
+    TVM_FFI_CHECK(call_tir, InternalError)
+        << "Match of relax.call_tir operator should produce Call, "
+        << "but instead produces " << matches[pat_call_tir] << " with type "
+        << matches[pat_call_tir]->GetTypeKey();
 
     const auto* out = matches[pattern_out].as<CallNode>();
-    ICHECK(out) << "InternalError: "
-                << "Match of relax.to_vdevice operator should produce Call, "
-                << "but instead produces " << matches[pattern_out] << " with type "
-                << matches[pattern_out]->GetTypeKey();
+    TVM_FFI_CHECK(out, InternalError) << "Match of relax.to_vdevice operator should produce Call, "
+                                      << "but instead produces " << matches[pattern_out]
+                                      << " with type " << matches[pattern_out]->GetTypeKey();
 
     const auto* vdev_attrs = out->attrs.as<ToVDeviceAttrs>();
-    ICHECK(vdev_attrs) << "InternalError: "
-                       << "Attributes for relax.to_vdevice operator should be ToVDeviceAttrs, "
-                       << "but were instead " << out->attrs << " with type " << out->GetTypeKey();
+    TVM_FFI_CHECK(vdev_attrs, InternalError)
+        << "Attributes for relax.to_vdevice operator should be ToVDeviceAttrs, "
+        << "but were instead " << out->attrs << " with type " << out->GetTypeKey();
 
     const auto* tir_out_sinfo = call_tir->sinfo_args[0].as<TensorStructInfoNode>();
     if (!tir_out_sinfo) return expr;

@@ -16,101 +16,48 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.10.0"]
+requires = ["scikit-build-core>=0.11", "setuptools-scm>=8"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "tvm"
-# Note: Call version.py to update the version before building the wheel
-version = "0.23.dev0"
+name = "apache-tvm"
+# The version is derived from the most recent Git tag by setuptools_scm at build
+# time (see [tool.setuptools_scm]); no manual version stamping is required.
+dynamic = ["version"]
 description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
-license = { text = "Apache-2.0" }
-requires-python = ">=3.9"
-authors = [
-    { name = "Apache TVM Community", email = "dev@tvm.apache.org" }
-]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Apache TVM Community", email = "dev@tvm.apache.org" }]
 keywords = ["machine learning", "compiler", "deep learning", "inference"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Education",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-# Core dependencies - these are the minimum required for basic TVM functionality
 dependencies = [
-    "apache-tvm-ffi",
-    "cloudpickle",
-    "ml_dtypes",
-    "numpy",
-    "packaging",
-    "psutil",
-    "scipy",
-    "tornado",
-    "typing_extensions",
+  "apache-tvm-ffi>=0.1.12",
+  "ml_dtypes",
+  "numpy",
+  "typing_extensions",
 ]
 
-# Optional dependencies for different features
 [project.optional-dependencies]
-# Model importers
-importer-coreml = ["coremltools"]
-importer-keras = ["tensorflow", "tensorflow-estimator"]
-importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
-importer-pytorch = ["torch", "torchvision"]
-importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
-importer-tflite = ["tflite"]
-importer-paddle = ["paddlepaddle"]
-
-# AutoTVM and autoscheduler
-autotvm = ["xgboost"]
-autoscheduler = ["xgboost"]
-
-# Development and testing
-dev = [
-    "black",
-    "isort",
-    "mypy",
-    "pylint",
-    "pytest",
-    "pytest-xdist",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-benchmark",
-    "pytest-timeout",
-    "pytest-rerunfailures",
-    "pytest-repeat",
-    "pytest-xdist",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-benchmark",
-    "pytest-timeout",
-    "pytest-rerunfailures",
-    "pytest-repeat",
-]
-
-# All optional dependencies (excluding dev)
-all = [
-    "coremltools",
-    "tensorflow",
-    "tensorflow-estimator",
-    "future",
-    "onnx",
-    "onnxoptimizer",
-    "onnxruntime",
-    "torch",
-    "torchvision",
-    "tflite",
-    "paddlepaddle",
-    "xgboost",
-]
+torch = ["torch"]
+cuda = ["cuda-python"]
+meta-schedule = ["xgboost"]
+popen-pool = ["psutil", "cloudpickle"]
+rpc = ["tornado", "psutil", "cloudpickle"]
+all = ["xgboost", "psutil", "cloudpickle", "tornado"]
 
 [project.urls]
 Homepage = "https://tvm.apache.org/"
@@ -118,66 +65,94 @@ Documentation = "https://tvm.apache.org/docs/"
 Repository = "https://github.com/apache/tvm"
 "Bug Tracker" = "https://github.com/apache/tvm/issues"
 
+[dependency-groups]
+torch = ["torch"]
+popen-pool = ["psutil", "cloudpickle"]
+test = [
+  "pytest",
+  "pytest-xdist",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-benchmark",
+  "pytest-timeout",
+  "pytest-rerunfailures",
+  "pytest-repeat",
+  { include-group = "torch" },
+  { include-group = "popen-pool" },
+]
+lint = ["ruff", "pre-commit"]
+dev = [{ include-group = "test" }, { include-group = "lint" }]
+
 [tool.scikit-build]
-# Point to the root CMakeLists.txt
-cmake.source-dir = "."
 cmake.build-type = "Release"
-
-# Configure the wheel to be Python version-agnostic
 wheel.py-api = "py3"
-
-# Build configuration
-build-dir = "build"
-
-# CMake configuration - ensure proper installation paths
-cmake.args = ["-DTVM_BUILD_PYTHON_MODULE=ON"]
+build-dir = "build/{wheel_tag}"
 
 # Wheel configuration
 wheel.packages = ["python/tvm"]
 wheel.install-dir = "tvm"
 
+# Derive the project version from the Git tag via setuptools_scm
+# (configured under [tool.setuptools_scm]).
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+
 # Source distribution configuration
 sdist.include = [
-    # Build files
-    "/CMakeLists.txt",
-    "/pyproject.toml",
-    "/cmake/**/*",
-    "/  */*",
+  # Build files
+  "/CMakeLists.txt",
+  "/pyproject.toml",
+  "/cmake/**/*",
 
-    # Source code
-    "/src/**/*.cc",
-    "/src/**/*.h",
-    "/include/**/*.h",
+  # Source code
+  "/src/**/*.cc",
+  "/src/**/*.h",
+  "/include/**/*.h",
 
-    # Python source
-    "/python/tvm/**/*.py",
-    "/python/tvm/**/*.pyi",
+  # Python source
+  "/python/tvm/**/*.py",
+  "/python/tvm/**/*.pyi",
 
-    # Documentation and metadata
-    "/docs/**/*",
-    "/LICENSE",
-    "/README.md",
-    "/NOTICE",
+  # Documentation and metadata
+  "/docs/**/*",
+  "/LICENSE",
+  "/README.md",
+  "/NOTICE",
 
-    # Tests
-    "/tests/**/*",
+  # Tests
+  "/tests/**/*",
 ]
 
 sdist.exclude = [
-    "**/.git",
-    "**/.github",
-    "**/__pycache__",
-    "**/*.pyc",
-    "build",
-    "dist",
-    "**/3rdparty/*/docs",
-    "**/3rdparty/*/media",
-    "**/3rdparty/*/examples",
-    "**/3rdparty/*/test",
+  "**/.git",
+  "**/.github",
+  "**/__pycache__",
+  "**/*.pyc",
+  "build",
+  "dist",
+  "**/3rdparty/*/docs",
+  "**/3rdparty/*/media",
+  "**/3rdparty/*/examples",
+  "**/3rdparty/*/test",
 ]
 
 # Logging
 logging.level = "INFO"
+
+[tool.scikit-build.cmake.define]
+TVM_BUILD_PYTHON_MODULE = "ON"
+USE_CUDA = "OFF"
+BUILD_TESTING = "OFF"
+
+[tool.setuptools_scm]
+# Version comes from the most recent Git tag (vMAJOR.MINOR.devN or vMAJOR.MINOR.PATCH).
+# guess-next-dev reproduces the previous version.py behaviour for vMAJOR.MINOR.devN
+# tags (e.g. v0.25.dev0 + N commits -> 0.25.devN). local_scheme = "no-local-version"
+# drops the +g<hash> local segment: PyPI rejects local versions on upload, and
+# this matches the public version the old version.py stamped.
+version_file = "python/tvm/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.25.dev0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -185,86 +160,97 @@ addopts = "-v --tb=short"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-
-[tool.isort]
-profile = "black"
-src_paths = ["python", "tests/python"]
-
-[tool.black]
-line-length = 100
-target-version = ['py36']
-include = '(\.pyi?$)'
-exclude = '''
-
-(
-  /(
-      \.github
-    | \.tvm
-    | \.tvm_test_data
-    | \.vscode
-    | \.venv
-    | 3rdparty
-    | build\/
-    | cmake\/
-    | conda\/
-    | docker\/
-    | docs\/
-    | golang\/
-    | include\/
-    | jvm\/
-    | licenses\/
-    | nnvm\/
-    | rust\/
-    | src\/
-    | vta\/
-    | web\/
-  )/
-)
-'''
-
-[tool.ruff]
-# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
-select = ["E", "F", "I"]
-ignore = []
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "UP", "W", "ARG", "B", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ICN", "Q", "T20", "TID", "TCH", "RUF"]
-unfixable = []
-
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".darcs",
-    ".git",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "3rdparty",
+markers = [
+  "adreno_clml: Mark a test as using adreno_clml",
+  "adreno_opencl_vulkan: Mark a test as using adreno_opencl_vulkan",
+  "adreno_vulkan: Mark a test as using adreno_vulkan",
+  "adreno_opencl: Mark a test as using adreno_opencl",
+  "adreno_opencl_real: Mark a test as using adreno_opencl_real",
 ]
 
+[tool.ruff]
+include = [
+  "python/**/*.py",
+  "tests/**/*.py",
+  "docs/**/*.py",
+  "apps/**/*.py",
+  "ci/scripts/**/*.py",
+  "conftest.py",
+  "jvm/**/*.py",
+  "web/tests/**/*.py",
+]
 line-length = 100
 indent-width = 4
+target-version = "py310"
+exclude = ["3rdparty", "build", "dist", ".venv", ".ruff_cache", "node_modules"]
 
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors, https://docs.astral.sh/ruff/rules/#pycodestyle-e-w
+  "F",   # pyflakes, https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "I",   # isort, https://docs.astral.sh/ruff/rules/#isort-i
+  "UP",  # pyupgrade, https://docs.astral.sh/ruff/rules/#pyupgrade-up
+  "RUF", # ruff, https://docs.astral.sh/ruff/rules/#ruff-specific-rules-ruf
+]
+ignore = [
+  # pyupgrade (style preference or low-value)
+  "UP028", # yield-in-for-loop — sometimes clearer to keep
+  "UP030", # format-literals — minor
+  "UP031", # printf-string-formatting — style preference
+  # ruff (preview rules, not yet stable)
+  "RUF043", # pytest-raises-ambiguous-pattern
+  "RUF059", # unused-unpacked-variable
+]
+fixable = ["ALL"]
+unfixable = []
 
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F405"]
+"python/tvm/relax/op/nn/nn.py" = ["E501"]
+"docs/how_to/tutorials/mix_python_and_tvm_with_pymodule.py" = ["RUF003"]
+"python/tvm/relax/frontend/tflite/tflite_frontend.py" = ["E501"]
+"python/tvm/relax/transform/legalize_ops/nn.py" = ["E501"]
+# Scope-id declarations like ``lane_id = Tx.lane_id([32])`` register a TIR
+# scope_id for side effect; the Python handle is often unused. Silence F841
+# for paths that heavily use this idiom.
+"tests/python/tirx/**/*.py" = ["F841"]
 
-[tool.ruff.mccabe]
-max-complexity = 10
-
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["tvm"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.cibuildwheel]
+# Skip win32, i686 (32-bit), and musllinux wheels.
+skip = "*-win32 *-manylinux_i686 *-musllinux*"
+build-verbosity = 1
+test-requires = ["pytest", "numpy"]
+test-command = "pytest -vvs {project}/tests/python/all-platform-minimal-test"
+
+[tool.cibuildwheel.linux]
+repair-wheel-command = "auditwheel repair --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so --exclude 'libcuda.so.*' --exclude 'libcudart.so.*' --exclude 'libnvrtc.so.*' --exclude 'libnvrtc-builtins.so.*' -w {dest_dir} {wheel}"
+
+[tool.cibuildwheel.macos]
+# delocate breaks libtvm_runtime.dylib's ad-hoc signature (it links the excluded
+# libtvm_ffi.dylib) and arm64 dyld kills an unsigned Mach-O, so re-sign + repack.
+repair-wheel-command = '''
+set -euo pipefail
+DELOCATE_TMP_DIR="$(mktemp -d)"
+delocate-wheel --ignore-missing-dependencies --exclude libtvm_ffi.dylib --require-archs {delocate_archs} -w "$DELOCATE_TMP_DIR" -v {wheel}
+python -m pip install -q wheel
+TMP_DIR="$(mktemp -d)"
+python -m wheel unpack "$DELOCATE_TMP_DIR"/*.whl -d "$TMP_DIR"
+find "$TMP_DIR" -type f \( -name "*.dylib" -o -name "*.so" \) -exec codesign --force --sign - {} +
+python -m wheel pack "$TMP_DIR"/*/ -d {dest_dir}
+rm -rf "$DELOCATE_TMP_DIR" "$TMP_DIR"
+'''
+
+[tool.cibuildwheel.windows]
+before-build = 'python -m pip install "delvewheel>=1.12.0"'
+repair-wheel-command = 'delvewheel repair --analyze-existing --ignore-existing --exclude "*tvm_ffi*.dll" --exclude tvm_runtime_cuda.dll --exclude nvcuda.dll --exclude cudart64_13.dll --exclude nvrtc64_130_0.dll -w {dest_dir} {wheel}'

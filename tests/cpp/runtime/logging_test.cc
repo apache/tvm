@@ -72,14 +72,14 @@ TEST(TvmLogDebugSettings, VLogEnabledComplex) {
 
 TEST(TvmLogDebugSettings, IllFormed) {
   MATCH_THROW(
-      TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), InternalError,
+      TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), tvm::ffi::Error,
       ::testing::HasSubstr("TVM_LOG_DEBUG ill-formed at position 11: invalid level: \"bogus;\""));
 
-  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2;bar/baz.cc=2"), InternalError,
+  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2;bar/baz.cc=2"), tvm::ffi::Error,
               ::testing::HasSubstr(
                   "TVM_LOG_DEBUG ill-formed at position 8: invalid level: \"2;bar/baz.cc=2\""));
 
-  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2,bar/baz.cc+2"), InternalError,
+  MATCH_THROW(TvmLogDebugSettings::ParseSpec("DEFAULT=2,bar/baz.cc+2"), tvm::ffi::Error,
               ::testing::HasSubstr("TVM_LOG_DEBUG ill-formed at position 22: expecting "
                                    "\"=<level>\" after \"bar/baz.cc+2\""));
 }

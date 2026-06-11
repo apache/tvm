@@ -41,7 +41,8 @@ class NativeLibraryLoader {
        */
       if (!"Windows".equals(getUnifiedOSName())) {
         Runtime.getRuntime().addShutdownHook(new Thread() {
-          @Override public void run() {
+          @Override
+          public void run() {
             for (File f : tempDir.listFiles()) {
               System.err.println("Deleting " + f.getAbsolutePath());
               if (!f.delete()) {
@@ -85,7 +86,8 @@ class NativeLibraryLoader {
     }
     System.err.println("Attempting to load " + loadLibname);
     extractResourceFileToTempDir(loadLibname, new Action() {
-      @Override public void invoke(File target) {
+      @Override
+      public void invoke(File target) {
         System.err.println("Loading library from " + target.getPath());
         System.load(target.getPath());
       }

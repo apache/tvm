@@ -20,6 +20,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
 #define TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
@@ -33,12 +34,12 @@ namespace distributed {
  * \brief Pattern match op to a TIR function and look it up.
  * \return The TIR function, or nullopt if pattern match fails.
  */
-inline ffi::Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
+inline ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
   const GlobalVar& global_var = Downcast<GlobalVar>(op);
   // NOTE: as check works for nullptr(returns null)
   ffi::Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
-  if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
-    return ffi::GetRef<tir::PrimFunc>(pfunc);
+  if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {
+    return ffi::GetRef<tirx::PrimFunc>(pfunc);
   }
   return std::nullopt;
 }

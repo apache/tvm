@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
-  ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
+  ffi::ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
   n->target = std::move(tgt);
   n->vdevice_id = std::move(dev_id);
   n->memory_scope = std::move(mem_scope);

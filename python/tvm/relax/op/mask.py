@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Operators with mask."""
-from . import _ffi_api
+
 from ..expr import Expr
+from . import _ffi_api
 
 
 def masked_fill(x: Expr, mask: Expr, value: Expr):

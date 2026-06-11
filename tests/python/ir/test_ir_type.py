@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821
 """Test type nodes in the IR"""
+
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def check_json_roundtrip(node):
@@ -37,7 +39,7 @@ def test_func_type():
     tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
-    assert tf.span == None
+    assert tf.span is None
     # TODO make sure we can set span
     str(tf)
     check_json_roundtrip(tf)

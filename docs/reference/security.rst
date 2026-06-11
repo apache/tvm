@@ -43,7 +43,41 @@ The runtime depends on a limited set of system calls(e.g. malloc) in the system 
 TVM RPC server assumes that the user is trusted and needs to be used in a trusted network environment
 and encrypted channels. It allows writings of arbitrary files into the server and provide
 full remote code execution capabilities to anyone who can access this API.
+All of the TVM APIs are designed to be used by trusted users, for APIs that involves URL,
+we expect users to put in only trusted URLs.
 
 
-AutoTVM data exchange between the tracker, server and client are in plain-text.
+RPC data exchange between the tracker, server and client are in plain-text.
 It is recommended to use them under trusted networking environment or encrypted channels.
+
+
+Loading serialized artifacts must only be done with input from a trusted source.
+
+
+Security Advisories
+-------------------
+
+Subroutine Cache Hash Collision
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``SubroutineMixin._get_subroutine()`` in ``python/tvm/relax/frontend/nn/subroutine.py``
+used ``tvm_ffi.structural_hash`` as the sole cache lookup key without a subsequent
+``structural_equal`` verification. If two different ``arg_sinfo`` values produced the
+same 64-bit hash, the cache would return a previously compiled function with
+mismatched parameter shapes, leading to silently incorrect compiled output.
+
+**Severity**: Low. The ``structural_hash`` function returns a 64-bit integer.
+A natural hash collision requires approximately 2^32 distinct inputs (birthday bound),
+making accidental collision extremely unlikely in normal compilation workflows.
+The issue is primarily a correctness defect rather than a practically exploitable
+security vulnerability.
+
+**Root Cause**: The subroutine cache (``cls._gvar``) was keyed by
+``(structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)``.
+A hash match was treated as proof of structural equality, skipping the necessary
+``structural_equal`` check.
+
+**Fix**: The cache now stores a list of ``(arg_sinfo, result)`` pairs per hash bucket.
+On lookup, each candidate is verified with ``structural_equal`` before returning.
+This follows the standard hash-table pattern: hash for bucket selection, equality
+for final verification.

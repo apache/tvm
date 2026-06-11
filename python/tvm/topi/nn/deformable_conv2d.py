@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable Conv2D operators"""
+
 import tvm
 from tvm import te
 
-from .utils import get_pad_tuple
-from ..utils import get_const_tuple
 from ..cpp.utils import bilinear_sample_nchw, bilinear_sample_nhwc
+from ..utils import get_const_tuple
+from .utils import get_pad_tuple
 
 
 def deformable_conv2d_nchw(
@@ -91,12 +92,12 @@ def deformable_conv2d_nchw(
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    zero = tvm.tir.const(0.0, data.dtype)
+    zero = tvm.tirx.const(0.0, data.dtype)
 
     def _bilinear(n, c, h, w):
-        outside = tvm.tir.any(h < 0, w < 0, h >= in_height, w >= in_width)
+        outside = tvm.tirx.any(h < 0, w < 0, h >= in_height, w >= in_width)
         val = bilinear_sample_nchw(data, (n, c, h, w), in_height - 1, in_width - 1)
-        return tvm.tir.if_then_else(outside, zero, val)
+        return tvm.tirx.if_then_else(outside, zero, val)
 
     data_deform = te.compute(
         (batch, in_channel, kernel_h, kernel_w, out_height, out_width),
@@ -199,12 +200,12 @@ def deformable_conv2d_nhwc(
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    zero = tvm.tir.const(0.0, data.dtype)
+    zero = tvm.tirx.const(0.0, data.dtype)
 
     def _bilinear(n, h, w, c):
-        outside = tvm.tir.any(h < 0, w < 0, h >= in_height, w >= in_width)
+        outside = tvm.tirx.any(h < 0, w < 0, h >= in_height, w >= in_width)
         val = bilinear_sample_nhwc(data, (n, h, w, c), in_height - 1, in_width - 1)
-        return tvm.tir.if_then_else(outside, zero, val)
+        return tvm.tirx.if_then_else(outside, zero, val)
 
     data_deform = te.compute(
         (batch, kernel_h, kernel_w, in_channel, out_height, out_width),

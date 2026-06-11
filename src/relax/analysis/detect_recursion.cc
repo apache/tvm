@@ -24,10 +24,11 @@
  * \brief Analysis to detect global recursive or mutually recursive functions.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/tirx/expr_functor.h>
 
 namespace tvm {
 namespace relax {

@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install cuda-python
+uv pip install cuda-python==12.8.0

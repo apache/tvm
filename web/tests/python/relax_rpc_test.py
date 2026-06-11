@@ -16,11 +16,13 @@
 # under the License.
 """Test relax vm through rpc."""
 
-import tvm
 import numpy as np
-from tvm import rpc, relax
-from tvm.contrib import utils, tvmjs
+
+import tvm
+from tvm import relax, rpc
+from tvm.contrib import tvmjs
 from tvm.script import relax as R
+from tvm.support import utils
 
 proxy_host = "127.0.0.1"
 proxy_port = 9090
@@ -37,10 +39,10 @@ def get_model():
             return lv0
 
     mod = pipeline(Mod)
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     # manually transform loop
     sch.work_on("add")
-    (i,) = sch.get_loops(block=sch.get_block("T_add"))
+    (i,) = sch.get_loops(block=sch.get_sblock("T_add"))
     i0, i1 = sch.split(i, [None, 128])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
@@ -54,7 +56,9 @@ def test_rpc():
     dtype = "float32"
     temp = utils.tempdir()
     wasm_path = temp.relpath("relax.wasm")
-    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target(
+        "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    )
 
     mod = get_model()
     ex = relax.build(mod, target)

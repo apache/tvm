@@ -16,19 +16,22 @@
 # under the License.
 
 if(USE_METAL)
-  message(STATUS "Build with Metal support")
+  message(STATUS "Build metal device runtime")
   find_library(METAL_LIB Metal)
   find_library(FOUNDATION_LIB Foundation)
   tvm_file_glob(GLOB RUNTIME_METAL_SRCS src/runtime/metal/*.mm)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${METAL_LIB} ${FOUNDATION_LIB})
-  list(APPEND RUNTIME_SRCS ${RUNTIME_METAL_SRCS})
 
-  if(USE_MPS)
-    tvm_file_glob(GLOB MPS_CONTRIB_SRC src/runtime/contrib/mps/*.mm)
-    list(APPEND RUNTIME_SRCS ${MPS_CONTRIB_SRC})
-    find_library(MPS_CONTRIB_LIB MetalPerformanceShaders)
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${MPS_CONTRIB_LIB})
+  add_library(tvm_runtime_metal_objs OBJECT ${RUNTIME_METAL_SRCS})
+  target_link_libraries(tvm_runtime_metal_objs PUBLIC tvm_ffi_header)
+  set_target_properties(tvm_runtime_metal_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  if(TVM_VISIBILITY_FLAG)
+    target_compile_options(tvm_runtime_metal_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
   endif()
-else(USE_METAL)
-  list(APPEND COMPILER_SRCS src/target/opt/build_metal_off.cc)
+  add_library(tvm_runtime_metal SHARED $<TARGET_OBJECTS:tvm_runtime_metal_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_metal)
+  target_link_libraries(tvm_runtime_metal PUBLIC tvm_runtime ${METAL_LIB} ${FOUNDATION_LIB})
+  tvm_configure_target_library(tvm_runtime_metal RUNTIME_MODULE)
 endif(USE_METAL)
+# When USE_METAL=OFF the codegen-side fallback in
+# src/target/metal/metal_fallback_module.cc handles construction; no opt
+# stub is needed (it is always compiled via CODEGEN_SRCS in CMakeLists.txt).

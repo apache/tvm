@@ -120,7 +120,7 @@ uint32_t HexagonUserDMA::DMAGroupsInFlight(uint32_t queue_id) {
 HexagonUserDMA::HexagonUserDMA() {
   // reset DMA engine
   unsigned int status = Init();
-  CHECK_EQ(status, DM0_STATUS_IDLE);
+  TVM_FFI_ICHECK_EQ(status, DM0_STATUS_IDLE);
 
   auto desc_in_flight = [](dma_desc_2d_t* dma_desc) {
     unsigned int done = dma_desc_get_done(dma_desc);

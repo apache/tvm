@@ -16,14 +16,14 @@
 # under the License.
 
 
+import numpy as np
+import pytest
+
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.script import relax as R
-
-import numpy as np
-import pytest
 
 param_specification = tvm.testing.parameter("by_string", "by_var")
 param_shape = tvm.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")
@@ -35,7 +35,7 @@ def test_bind_tensor_param(param_specification, param_shape, tensor_param_dtype)
         shape = [16]
         ndim = -1
     elif param_shape == "dynamic_shape":
-        shape = [tir.Var("N", "int64")]
+        shape = [tirx.Var("N", "int64")]
         ndim = -1
     elif param_shape == "ndim":
         shape = None
@@ -80,7 +80,7 @@ def test_bind_shape_param(param_shape):
         shape = [16]
         ndim = -1
     elif param_shape == "dynamic_shape":
-        shape = [tir.Var("N", "int64")]
+        shape = [tirx.Var("N", "int64")]
         ndim = -1
     elif param_shape == "ndim":
         shape = None
@@ -115,8 +115,8 @@ def test_bind_prim_value(prim_value_dtype):
     if prim_value_dtype != "int64":
         pytest.xfail(reason="Currently, only support int64 as known symbolic value")
 
-    N = tir.Var("N", prim_value_dtype)
-    value = tir.const(16, prim_value_dtype)
+    N = tirx.Var("N", prim_value_dtype)
+    value = tirx.const(16, prim_value_dtype)
 
     @R.function
     def before(A: R.Prim(value=N)) -> R.Prim(value=N):

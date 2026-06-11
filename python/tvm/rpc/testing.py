@@ -16,8 +16,10 @@
 # under the License.
 
 # pylint: disable=invalid-name,unnecessary-comprehension
-""" Testing functions for the RPC server."""
+"""Testing functions for the RPC server."""
+
 import numpy as np
+
 import tvm
 
 
@@ -61,7 +63,12 @@ def _my_module(name):
     if name == "get_arr":
         return lambda: nd
     if name == "ref_count":
-        return lambda: tvm.testing.object_use_count(nd)
+        # Imported lazily: rpc.server imports this module to register the
+        # rpc.test.* helpers, so a top-level ``import tvm.testing`` would drag
+        # tvm.testing (which imports pytest) into the plain ``import tvm`` path.
+        from tvm.testing import object_use_count
+
+        return lambda: object_use_count(nd)
     if name == "get_elem":
         return lambda idx: nd.numpy()[idx]
     if name == "get_arr_elem":

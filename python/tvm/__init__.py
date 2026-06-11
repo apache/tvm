@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,6 +17,7 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
+
 import multiprocessing
 import sys
 import os
@@ -28,7 +30,7 @@ from .base import TVMError, __version__, _RUNTIME_ONLY
 
 # top-level alias
 # tvm.runtime
-from .runtime.object import Object
+from .runtime import Object
 from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
 from .runtime._tensor import vpi, rocm, ext_dev, hexagon
 from .runtime import DataType, DataTypeCode
@@ -40,11 +42,14 @@ from . import error
 from .ir import IRModule
 from .ir import transform
 from .ir import instrument
-from .ir import container
 from . import ir
 
-# tvm.tir
-from . import tir
+# tvm.script — must be imported before any dialect package so that
+# tvm.script.register_dialect is reachable when dialect __init__.py files run.
+from . import script
+
+# tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
+from . import tirx
 
 # tvm.target
 from . import target
@@ -61,12 +66,18 @@ from . import arith
 # support infra
 from . import support
 
-# Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc
+# Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
+from .support import rocm as _rocm, nvcc as _nvcc
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
+    # tile_primitive imports both Python Op class declarations (Zero, Add, ...)
+    # and per-target dispatch schedule registrations. Must run before relax so
+    # any relax pass that looks up a schedule sees them.
+    from .tirx.operator import tile_primitive
+
+    # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
     from . import relax
 
 # NOTE: This file should be python2 compatible so we can
@@ -81,9 +92,7 @@ def _should_print_backtrace():
     try:
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
-        raise ValueError(
-            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
-        )
+        raise ValueError(f"invalid value for TVM_BACKTRACE {tvm_backtrace}, please set to 0 or 1.")
 
     return in_pytest or tvm_backtrace
 

@@ -19,6 +19,8 @@
 
 #include "nn.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -26,17 +28,16 @@ namespace distributed {
 StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
       GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   TensorStructInfo input_tensor_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
 
   if (input_tensor_sinfo->IsUnknownNdim()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Input of distributed operator must have known ndim");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
   }
   if (!input_tensor_sinfo->IsUnknownDtype() && !input_tensor_sinfo->dtype.is_float()) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Softmax requires the input tensor to have float "
-                                                "dtype. However, the given input dtype is "
-                                             << input_tensor_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call) << "Softmax requires the input tensor to have float "
+                                            "dtype. However, the given input dtype is "
+                                         << input_tensor_sinfo->dtype;
   }
   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
   NormalizeAxis(call, ctx, input_tensor_sinfo->ndim, attrs->axis);

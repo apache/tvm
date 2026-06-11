@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, unused-variable
 """Gradient of pooling in python"""
+
 import numpy as np
 
 

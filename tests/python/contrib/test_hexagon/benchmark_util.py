@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 
-""" Utility functions used for benchmarks """
+"""Utility functions used for benchmarks"""
 
 import csv
 import os
@@ -200,7 +201,7 @@ def get_benchmark_id(keys_dict):
     # Sniff for shape-like lists, because we want them in a form that's both
     # readable and filesystem-friendly...
     for k, v in keys_dict_copy.items():
-        if isinstance(v, (list, tuple)):
+        if isinstance(v, list | tuple):
             v_str = "_".join([str(x) for x in v])
             keys_dict_copy[k] = v_str
 

@@ -21,12 +21,13 @@
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 
 #include <vector>
 
@@ -35,13 +36,13 @@
 namespace tvm {
 namespace relax {
 
-std::vector<size_t> GetUsedTensorArgIndices(const tir::PrimFunc& fn, size_t num_args) {
+std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num_args) {
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
     if (auto buffer = fn->buffer_map.Get(fn->params[i])) {
       auto buffer_var = buffer.value()->data;
-      if (tir::UsesVar(fn->body,
-                       [=](const tir::VarNode* var) { return var == buffer_var.get(); })) {
+      if (tirx::UsesVar(fn->body,
+                        [=](const tirx::VarNode* var) { return var == buffer_var.get(); })) {
         indices.push_back(i);
       }
     }
@@ -85,7 +86,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     // relax.reshape op, which will be lowered to calls of the ExternFunc
     // vm.builtin.reshape in the VMBuiltinLower pass.
 
-    auto prim_fn = Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
+    auto prim_fn = Downcast<tirx::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
     auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
     auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
@@ -109,9 +110,9 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const auto* func = mod_->functions.Get(global_var).value().as<tir::PrimFuncNode>();
-    ICHECK_NOTNULL(func);
-    if (!HasReshapePattern(ffi::GetRef<tir::PrimFunc>(func))) {
+    const auto* func = mod_->functions.Get(global_var).value().as<tirx::PrimFuncNode>();
+    TVM_FFI_ICHECK_NOTNULL(func);
+    if (!HasReshapePattern(ffi::GetRef<tirx::PrimFunc>(func))) {
       return false;
     }
 
@@ -119,14 +120,14 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
+    TVM_FFI_ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
     TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->struct_info_.value());
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
 
     if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
       return false;
     }
-    ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
+    TVM_FFI_ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
     if (inp_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
       return false;
     }
@@ -143,7 +144,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     };
     auto inp_count = product(inp_sinfo->GetShape().value());
     auto res_count = product(res_sinfo->GetShape().value());
-    if (!arith::Analyzer().CanProveEqual(inp_count, res_count)) {
+    if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }
 

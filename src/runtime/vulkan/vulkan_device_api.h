@@ -26,8 +26,8 @@
 #include <string>
 #include <vector>
 
-#include "../thread_map.h"
 #include "../workspace_pool.h"
+#include "thread_map.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_device.h"
 #include "vulkan_instance.h"

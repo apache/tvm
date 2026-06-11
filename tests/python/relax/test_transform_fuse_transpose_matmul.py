@@ -16,17 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
-import numpy as np
+from tvm.script import tirx as T
 
 
 def test_transform_fuse_transpose_matmul():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(
@@ -39,18 +40,18 @@ def test_transform_fuse_transpose_matmul():
                 R.output(o)
             return o
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def NT_matmul(
             x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.block("NT_matmul"):
+                with T.sblock("NT_matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(x[v_i0, v_k], w[v_i1, v_k])
                     T.writes(NT_matmul[v_i0, v_i1])
@@ -82,7 +83,7 @@ def test_transform_fuse_transpose_matmul():
 def test_transform_fuse_transpose_matmul_const():
     w = relax.const(np.random.uniform(-1e-3, 1e-3, (128, 256)), "float32")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(
@@ -94,18 +95,18 @@ def test_transform_fuse_transpose_matmul_const():
                 R.output(o)
             return o
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def NT_matmul(
             x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.block("NT_matmul"):
+                with T.sblock("NT_matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(x[v_i0, v_k], w[v_i1, v_k])
                     T.writes(NT_matmul[v_i0, v_i1])

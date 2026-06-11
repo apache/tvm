@@ -50,15 +50,15 @@ TEST(RingBuffer, ReadWithCallback) {
 
   auto callback0 = [](const char* data, size_t size) -> size_t {
     const int* iptr = reinterpret_cast<const int*>(data);
-    ICHECK_EQ(iptr[0], 1);
-    ICHECK_EQ(iptr[1], 2);
+    TVM_FFI_ICHECK_EQ(iptr[0], 1);
+    TVM_FFI_ICHECK_EQ(iptr[1], 2);
     return size;
   };
   buffer.ReadWithCallback(callback0, 2 * sizeof(int));
   auto callback1 = [](const char* data, size_t size) -> size_t {
     const int* iptr = reinterpret_cast<const int*>(data);
-    ICHECK_EQ(iptr[0], 3);
-    ICHECK_EQ(iptr[1], 4);
+    TVM_FFI_ICHECK_EQ(iptr[0], 3);
+    TVM_FFI_ICHECK_EQ(iptr[1], 4);
     return size;
   };
   buffer.ReadWithCallback(callback1, 2 * sizeof(int));

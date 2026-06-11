@@ -19,10 +19,10 @@
 
 import logging
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import time
+from pathlib import Path
 
 LOG = logging.getLogger("download")
 
@@ -166,7 +166,7 @@ def download_testdata(url, relpath, module=None, overwrite=False):
         module_path = ""
     elif isinstance(module, str):
         module_path = module
-    elif isinstance(module, (list, tuple)):
+    elif isinstance(module, list | tuple):
         module_path = Path(*module)
     else:
         raise ValueError("Unsupported module: " + module)

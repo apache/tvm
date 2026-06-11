@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -63,8 +63,8 @@ def test_ewise_fma_infer_struct_info():
 
 def test_ewise_fma_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     y0 = relax.Var("y", R.Tensor((m, n), "float32"))
     y1 = relax.Var("y", R.Tensor(dtype="float32", ndim=2))
@@ -121,9 +121,9 @@ def test_ewise_fma_infer_struct_info_dtype_mismatch():
     z0 = relax.Var("z", R.Tensor((2, 3), "float32"))
     z1 = relax.Var("z", R.Tensor((2, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y0, z0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y1, z1))
 
 
@@ -135,9 +135,9 @@ def test_ewise_fma_infer_struct_info_ndim_mismatch():
     z0 = relax.Var("z", R.Tensor((2, 3), "float32"))
     z1 = relax.Var("z", R.Tensor(dtype="float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.ewise_fma(x, y1, z0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.ewise_fma(x, y0, z1))
 
 
@@ -159,9 +159,9 @@ def test_ewise_fma_infer_struct_info_wrong_input_type():
     y1 = relax.Var("y", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
     z = relax.Var("z", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y0, z))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ewise_fma(x, y1, z))
 
 

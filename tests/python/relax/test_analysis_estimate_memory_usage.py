@@ -14,17 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
 import tvm.testing
-from tvm.script import relax as R, tir as T
 from tvm.relax.analysis import estimate_memory_usage
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 def test_basic():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(
             rxplaceholder: T.Buffer(T.int64(8), "float32"),
             rxplaceholder_1: T.Buffer((), "float32"),
@@ -32,34 +34,34 @@ def test_basic():
         ):
             T.evaluate(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def reshape(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             T_reshape: T.Buffer(T.int64(8), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def relu(
             rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")
         ):
             T.evaluate(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def log(
             rxplaceholder: T.Buffer(T.int64(10), "float32"),
             compute: T.Buffer(T.int64(10), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def exp(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"),
             compute: T.Buffer((T.int64(2), T.int64(4)), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def pad(
             rxplaceholder: T.Buffer(T.int64(8), "float32"),
             PadInput: T.Buffer(T.int64(10), "float32"),

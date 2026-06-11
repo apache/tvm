@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Loss functions definitions."""
-from __future__ import absolute_import
+
 from . import cpp
 
 

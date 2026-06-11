@@ -18,10 +18,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tir
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_op_correctness():
@@ -131,7 +131,7 @@ def test_full_infer_struct_info():
 
 def test_full_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
+    a = tirx.Var("a", "int64")
     v = relax.Var("v", R.Tensor((), "float32"))
     s0 = relax.ShapeExpr((a, 3))
     s1 = relax.Var("s", relax.ShapeStructInfo((a, 3)))
@@ -191,22 +191,22 @@ def test_full_infer_struct_info_fill_value_not_scalar_tensor():
     v4 = relax.Var("v", relax.TensorStructInfo(s1, "float32"))
     v5 = relax.Var("v", relax.TensorStructInfo(s2, "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v5))
 
 
 def test_full_shape_not_tuple():
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     v = relax.Var("v", R.Tensor((), "float32"))
 
     with pytest.raises(TypeError):
@@ -222,11 +222,11 @@ def test_full_infer_struct_info_wrong_input_type():
     v2 = relax.Var("v", relax.FuncStructInfo([], R.Tensor((), "float32")))
     s = relax.Var("s", R.Tensor((2, 3)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.full(s, v0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full((2, 3), v2))
 
 
@@ -291,8 +291,8 @@ def test_full_like_infer_struct_info():
 
 def test_full_like_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
     v = relax.Var("v", R.Tensor((), "float16"))
@@ -361,17 +361,17 @@ def test_full_like_infer_struct_info_fill_value_not_scalar_tensor():
     v4 = relax.Var("v", relax.TensorStructInfo(s1, "float32"))
     v5 = relax.Var("v", relax.TensorStructInfo(s2, "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.full_like(x, v5))
 
 
@@ -383,11 +383,11 @@ def test_full_like_infer_struct_info_wrong_input_type():
     v0 = relax.Var("v", R.Tensor(()))
     v1 = relax.Var("v", relax.ShapeStructInfo(()))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.full_like(x0, v0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.full_like(x1, v0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.full_like(x2, v1))
 
 
@@ -416,8 +416,8 @@ def test_ones_zeros_infer_struct_info():
 
 def test_ones_zeros_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     s0 = relax.ShapeExpr((m, n))
     s1 = relax.Var("s", relax.ShapeStructInfo((m, n)))
 
@@ -447,7 +447,7 @@ def test_ones_zeros_infer_struct_info_more_input_dtype():
 
 
 def test_ones_zeros_shape_not_tuple():
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
 
     with pytest.raises(TypeError):
         relax.op.ones(10, "float32")
@@ -458,11 +458,11 @@ def test_ones_zeros_shape_not_tuple():
 def test_ones_zeros_wrong_dtype():
     with pytest.raises(TypeError):
         relax.op.ones((2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.ones((2, 3), "")
     with pytest.raises(TypeError):
         relax.op.zeros((2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.zeros((2, 3), "")
 
 
@@ -471,9 +471,9 @@ def test_ones_zeros_infer_struct_info_wrong_input_type():
     s0 = relax.Var("s", R.Tensor((2, 3)))
     s1 = relax.Var("s", relax.FuncStructInfo([], R.Tensor((2, 3))))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ones(s0, "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.zeros(s1, "float32"))
 
 
@@ -502,8 +502,8 @@ def test_ones_like_zeros_like_infer_struct_info():
 
 def test_ones_like_zeros_like_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
 
@@ -539,9 +539,9 @@ def test_ones_like_zeros_like_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.ones_like(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.zeros_like(x1))
 
 
@@ -557,9 +557,9 @@ def test_eye_infer_struct_info():
 
 def test_eye_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
-    k = tir.Var("k", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    k = tirx.Var("k", "int64")
 
     _check_inference(bb, relax.op.eye(n), relax.TensorStructInfo((n, n), "float32"))
     _check_inference(bb, relax.op.eye(n, m), relax.TensorStructInfo((n, m), "float32"))
@@ -583,10 +583,10 @@ def test_eye_like_infer_struct_info():
 
 def test_eye_like_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
-    m = tir.Var("m", "int64")
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((n, m), "float32"))
-    k = tir.Var("k", "int64")
+    k = tirx.Var("k", "int64")
 
     _check_inference(bb, relax.op.eye_like(x), relax.TensorStructInfo((n, m), "float32"))
     _check_inference(bb, relax.op.eye_like(x, k=k), relax.TensorStructInfo((n, m), "float32"))
@@ -597,9 +597,9 @@ def test_eye_like_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.eye_like(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.eye_like(x1))
 
 
@@ -619,9 +619,9 @@ def test_arange_infer_struct_info():
 
 def test_arange_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    start = tir.Var("start", "int64")
-    stop = tir.Var("stop", "int64")
-    step = tir.Var("step", "int64")
+    start = tirx.Var("start", "int64")
+    stop = tirx.Var("stop", "int64")
+    step = tirx.Var("step", "int64")
 
     _check_inference(bb, relax.op.arange(stop), relax.TensorStructInfo((stop,), "int64"))
     _check_inference(bb, relax.op.arange(1, stop), relax.TensorStructInfo((stop - 1,), "int64"))
@@ -639,9 +639,9 @@ def test_arange_infer_struct_info_shape_var():
         relax.TensorStructInfo(((stop + step - start - 1) // step,), "int64"),
     )
 
-    start = tir.Var("start", "float32")
-    stop = tir.Var("stop", "float32")
-    step = tir.Var("step", "float32")
+    start = tirx.Var("start", "float32")
+    stop = tirx.Var("stop", "float32")
+    step = tirx.Var("step", "float32")
 
     _check_inference(
         bb,
@@ -695,9 +695,9 @@ def test_tril_triu_infer_struct_info():
 def test_tril_triu_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((a, b, c), "float32"))
     x1 = relax.Var("x", R.Tensor((a, b, c)))
     x2 = relax.Var("x", R.Tensor((a, b, c), "float32", vdev0))
@@ -755,21 +755,21 @@ def test_tril_triu_infer_struct_info_less_than_two_ndim():
     x6 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
     x7 = relax.Var("x", relax.TensorStructInfo(s3, "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.tril(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.triu(x1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.tril(x2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.triu(x3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.tril(x4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.triu(x5))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.tril(x6))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.triu(x7))
 
 
@@ -778,9 +778,9 @@ def test_tril_triu_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.tril(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.triu(x1))
 
 

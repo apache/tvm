@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Callable
+from collections.abc import Callable
+
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -123,10 +124,10 @@ def test_statistical_infer_struct_info():
 
 def test_statistical_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
 
     _check_inference(bb, relax.op.min(x, axis=[1, 2]), relax.TensorStructInfo((a, d), "float32"))
@@ -184,15 +185,15 @@ def test_statistical_infer_struct_info_axis_out_of_range_repetitive():
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[4]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x1, axis=[3, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[-1, 3]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x1, axis=[-4, -4]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.mean(x0, axis=[-5]))
 
 
@@ -201,9 +202,9 @@ def test_statistical_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.variance(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.variance(x1))
 
 
@@ -239,9 +240,9 @@ def test_scan_op_infer_struct_info(scan_op: Callable):
 
 def test_scan_op_infer_struct_info_shape_symbolic(scan_op: Callable):
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(bb, scan_op(x, axis=1), relax.TensorStructInfo((a, b, c), "float32"))
@@ -270,9 +271,9 @@ def test_scan_opinfer_struct_info_wrong_input_type(scan_op: Callable):
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(scan_op(x0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(scan_op(x1, axis=1))
 
 
@@ -381,10 +382,10 @@ def test_statistical_ext_infer_struct_info():
 
 def test_statistical_ext_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
-    a = tir.Var("a", "int64")
-    b = tir.Var("b", "int64")
-    c = tir.Var("c", "int64")
-    d = tir.Var("d", "int64")
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    c = tirx.Var("c", "int64")
+    d = tirx.Var("d", "int64")
     x = relax.Var("x", R.Tensor((a, b, c, d), "float32"))
 
     _check_inference(
@@ -495,9 +496,9 @@ def test_statistical_ext_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.median(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.median(x1))
 
 

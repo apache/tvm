@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
@@ -45,6 +46,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AssignDocNode::RegisterReflection();
   IfDocNode::RegisterReflection();
   WhileDocNode::RegisterReflection();
+  BreakDocNode::RegisterReflection();
+  ContinueDocNode::RegisterReflection();
   ForDocNode::RegisterReflection();
   ScopeDocNode::RegisterReflection();
   ExprStmtDocNode::RegisterReflection();
@@ -77,13 +80,13 @@ ExprDoc ExprDocNode::Call(ffi::Array<ExprDoc, void> args, ffi::Array<ffi::String
 ExprDoc ExprDoc::operator[](ffi::Array<Doc> indices) const { return (*get())[indices]; }
 
 StmtBlockDoc::StmtBlockDoc(ffi::Array<StmtDoc> stmts) {
-  ObjectPtr<StmtBlockDocNode> n = ffi::make_object<StmtBlockDocNode>();
+  ffi::ObjectPtr<StmtBlockDocNode> n = ffi::make_object<StmtBlockDocNode>();
   n->stmts = stmts;
   this->data_ = std::move(n);
 }
 
 LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path) {
-  ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
+  ffi::ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
   n->value = value;
   if (object_path.defined()) {
     n->source_paths.push_back(object_path.value());
@@ -92,20 +95,20 @@ LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_p
 }
 
 IdDoc::IdDoc(ffi::String name) {
-  ObjectPtr<IdDocNode> n = ffi::make_object<IdDocNode>();
+  ffi::ObjectPtr<IdDocNode> n = ffi::make_object<IdDocNode>();
   n->name = name;
   this->data_ = std::move(n);
 }
 
 AttrAccessDoc::AttrAccessDoc(ExprDoc value, ffi::String name) {
-  ObjectPtr<AttrAccessDocNode> n = ffi::make_object<AttrAccessDocNode>();
+  ffi::ObjectPtr<AttrAccessDocNode> n = ffi::make_object<AttrAccessDocNode>();
   n->value = value;
   n->name = name;
   this->data_ = std::move(n);
 }
 
 IndexDoc::IndexDoc(ExprDoc value, ffi::Array<Doc> indices) {
-  ObjectPtr<IndexDocNode> n = ffi::make_object<IndexDocNode>();
+  ffi::ObjectPtr<IndexDocNode> n = ffi::make_object<IndexDocNode>();
   n->value = value;
   n->indices = indices;
   this->data_ = std::move(n);
@@ -113,7 +116,7 @@ IndexDoc::IndexDoc(ExprDoc value, ffi::Array<Doc> indices) {
 
 CallDoc::CallDoc(ExprDoc callee, ffi::Array<ExprDoc> args, ffi::Array<ffi::String> kwargs_keys,
                  ffi::Array<ExprDoc> kwargs_values) {
-  ObjectPtr<CallDocNode> n = ffi::make_object<CallDocNode>();
+  ffi::ObjectPtr<CallDocNode> n = ffi::make_object<CallDocNode>();
   n->callee = callee;
   n->args = args;
   n->kwargs_keys = kwargs_keys;
@@ -122,33 +125,33 @@ CallDoc::CallDoc(ExprDoc callee, ffi::Array<ExprDoc> args, ffi::Array<ffi::Strin
 }
 
 OperationDoc::OperationDoc(OperationDocNode::Kind kind, ffi::Array<ExprDoc> operands) {
-  ObjectPtr<OperationDocNode> n = ffi::make_object<OperationDocNode>();
+  ffi::ObjectPtr<OperationDocNode> n = ffi::make_object<OperationDocNode>();
   n->kind = kind;
   n->operands = operands;
   this->data_ = std::move(n);
 }
 
 LambdaDoc::LambdaDoc(ffi::Array<IdDoc> args, ExprDoc body) {
-  ObjectPtr<LambdaDocNode> n = ffi::make_object<LambdaDocNode>();
+  ffi::ObjectPtr<LambdaDocNode> n = ffi::make_object<LambdaDocNode>();
   n->args = args;
   n->body = body;
   this->data_ = std::move(n);
 }
 
 TupleDoc::TupleDoc(ffi::Array<ExprDoc> elements) {
-  ObjectPtr<TupleDocNode> n = ffi::make_object<TupleDocNode>();
+  ffi::ObjectPtr<TupleDocNode> n = ffi::make_object<TupleDocNode>();
   n->elements = elements;
   this->data_ = std::move(n);
 }
 
 ListDoc::ListDoc(ffi::Array<ExprDoc> elements) {
-  ObjectPtr<ListDocNode> n = ffi::make_object<ListDocNode>();
+  ffi::ObjectPtr<ListDocNode> n = ffi::make_object<ListDocNode>();
   n->elements = elements;
   this->data_ = std::move(n);
 }
 
 DictDoc::DictDoc(ffi::Array<ExprDoc> keys, ffi::Array<ExprDoc> values) {
-  ObjectPtr<DictDocNode> n = ffi::make_object<DictDocNode>();
+  ffi::ObjectPtr<DictDocNode> n = ffi::make_object<DictDocNode>();
   n->keys = keys;
   n->values = values;
   this->data_ = std::move(n);
@@ -156,7 +159,7 @@ DictDoc::DictDoc(ffi::Array<ExprDoc> keys, ffi::Array<ExprDoc> values) {
 
 SliceDoc::SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
                    ffi::Optional<ExprDoc> step) {
-  ObjectPtr<SliceDocNode> n = ffi::make_object<SliceDocNode>();
+  ffi::ObjectPtr<SliceDocNode> n = ffi::make_object<SliceDocNode>();
   n->start = start;
   n->stop = stop;
   n->step = step;
@@ -164,12 +167,12 @@ SliceDoc::SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
 }
 
 AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation) {
-  CHECK(rhs.defined() || annotation.defined())
-      << "ValueError: At least one of rhs and annotation needs to be non-null for AssignDoc.";
-  CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr)
-      << "ValueError: annotation can only be nonnull if lhs is an identifier.";
+  TVM_FFI_CHECK(rhs.defined() || annotation.defined(), ValueError)
+      << "At least one of rhs and annotation needs to be non-null for AssignDoc.";
+  TVM_FFI_CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr, ValueError)
+      << "annotation can only be nonnull if lhs is an identifier.";
 
-  ObjectPtr<AssignDocNode> n = ffi::make_object<AssignDocNode>();
+  ffi::ObjectPtr<AssignDocNode> n = ffi::make_object<AssignDocNode>();
   n->lhs = lhs;
   n->rhs = rhs;
   n->annotation = annotation;
@@ -177,10 +180,10 @@ AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<Expr
 }
 
 IfDoc::IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch, ffi::Array<StmtDoc> else_branch) {
-  CHECK(!then_branch.empty() || !else_branch.empty())
-      << "ValueError: At least one of the then branch or else branch needs to be non-empty.";
+  TVM_FFI_CHECK(!then_branch.empty() || !else_branch.empty(), ValueError)
+      << "At least one of the then branch or else branch needs to be non-empty.";
 
-  ObjectPtr<IfDocNode> n = ffi::make_object<IfDocNode>();
+  ffi::ObjectPtr<IfDocNode> n = ffi::make_object<IfDocNode>();
   n->predicate = predicate;
   n->then_branch = then_branch;
   n->else_branch = else_branch;
@@ -188,14 +191,24 @@ IfDoc::IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch, ffi::Array<Stmt
 }
 
 WhileDoc::WhileDoc(ExprDoc predicate, ffi::Array<StmtDoc> body) {
-  ObjectPtr<WhileDocNode> n = ffi::make_object<WhileDocNode>();
+  ffi::ObjectPtr<WhileDocNode> n = ffi::make_object<WhileDocNode>();
   n->predicate = predicate;
   n->body = body;
   this->data_ = std::move(n);
 }
 
+BreakDoc::BreakDoc() {
+  ffi::ObjectPtr<BreakDocNode> n = ffi::make_object<BreakDocNode>();
+  this->data_ = std::move(n);
+}
+
+ContinueDoc::ContinueDoc() {
+  ffi::ObjectPtr<ContinueDocNode> n = ffi::make_object<ContinueDocNode>();
+  this->data_ = std::move(n);
+}
+
 ForDoc::ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
-  ObjectPtr<ForDocNode> n = ffi::make_object<ForDocNode>();
+  ffi::ObjectPtr<ForDocNode> n = ffi::make_object<ForDocNode>();
   n->lhs = lhs;
   n->rhs = rhs;
   n->body = body;
@@ -203,7 +216,7 @@ ForDoc::ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
 }
 
 ScopeDoc::ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
-  ObjectPtr<ScopeDocNode> n = ffi::make_object<ScopeDocNode>();
+  ffi::ObjectPtr<ScopeDocNode> n = ffi::make_object<ScopeDocNode>();
   n->lhs = lhs;
   n->rhs = rhs;
   n->body = body;
@@ -211,7 +224,7 @@ ScopeDoc::ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> 
 }
 
 ScopeDoc::ScopeDoc(ExprDoc rhs, ffi::Array<StmtDoc> body) {
-  ObjectPtr<ScopeDocNode> n = ffi::make_object<ScopeDocNode>();
+  ffi::ObjectPtr<ScopeDocNode> n = ffi::make_object<ScopeDocNode>();
   n->lhs = std::nullopt;
   n->rhs = rhs;
   n->body = body;
@@ -219,27 +232,27 @@ ScopeDoc::ScopeDoc(ExprDoc rhs, ffi::Array<StmtDoc> body) {
 }
 
 ExprStmtDoc::ExprStmtDoc(ExprDoc expr) {
-  ObjectPtr<ExprStmtDocNode> n = ffi::make_object<ExprStmtDocNode>();
+  ffi::ObjectPtr<ExprStmtDocNode> n = ffi::make_object<ExprStmtDocNode>();
   n->expr = expr;
   this->data_ = std::move(n);
 }
 
 AssertDoc::AssertDoc(ExprDoc test, ffi::Optional<ExprDoc> msg) {
-  ObjectPtr<AssertDocNode> n = ffi::make_object<AssertDocNode>();
+  ffi::ObjectPtr<AssertDocNode> n = ffi::make_object<AssertDocNode>();
   n->test = test;
   n->msg = msg;
   this->data_ = std::move(n);
 }
 
 ReturnDoc::ReturnDoc(ExprDoc value) {
-  ObjectPtr<ReturnDocNode> n = ffi::make_object<ReturnDocNode>();
+  ffi::ObjectPtr<ReturnDocNode> n = ffi::make_object<ReturnDocNode>();
   n->value = value;
   this->data_ = std::move(n);
 }
 
 FunctionDoc::FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
                          ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body) {
-  ObjectPtr<FunctionDocNode> n = ffi::make_object<FunctionDocNode>();
+  ffi::ObjectPtr<FunctionDocNode> n = ffi::make_object<FunctionDocNode>();
   n->name = name;
   n->args = args;
   n->decorators = decorators;
@@ -249,7 +262,7 @@ FunctionDoc::FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<Expr
 }
 
 ClassDoc::ClassDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body) {
-  ObjectPtr<ClassDocNode> n = ffi::make_object<ClassDocNode>();
+  ffi::ObjectPtr<ClassDocNode> n = ffi::make_object<ClassDocNode>();
   n->name = name;
   n->decorators = decorators;
   n->body = body;
@@ -257,14 +270,25 @@ ClassDoc::ClassDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDo
 }
 
 CommentDoc::CommentDoc(ffi::String comment) {
-  ObjectPtr<CommentDocNode> n = ffi::make_object<CommentDocNode>();
+  ffi::ObjectPtr<CommentDocNode> n = ffi::make_object<CommentDocNode>();
   n->comment = comment;
   this->data_ = std::move(n);
 }
 
 DocStringDoc::DocStringDoc(ffi::String docs) {
-  ObjectPtr<DocStringDocNode> n = ffi::make_object<DocStringDocNode>();
+  ffi::ObjectPtr<DocStringDocNode> n = ffi::make_object<DocStringDocNode>();
   n->comment = docs;
+  this->data_ = std::move(n);
+}
+
+OpCallDoc::OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
+                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch) {
+  ffi::ObjectPtr<OpCallDocNode> n = ffi::make_object<OpCallDocNode>();
+  n->callee = callee;
+  n->args = args;
+  n->workspace = workspace;
+  n->config = config;
+  n->dispatch = dispatch;
   this->data_ = std::move(n);
 }
 
@@ -404,6 +428,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.BreakDoc", []() { return BreakDoc(); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ContinueDoc", []() { return ContinueDoc(); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "script.printer.ForDoc",
       [](ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) { return ForDoc(lhs, rhs, body); });
@@ -462,6 +496,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocStringDoc",
                         [](ffi::String docs) { return DocStringDoc(docs); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.OpCallDoc",
+                        [](ExprDoc callee, ffi::Array<Doc> args, DictDoc workspace, DictDoc config,
+                           ffi::Optional<ExprDoc> dispatch) {
+                          return OpCallDoc(callee, args, workspace, config, dispatch);
+                        });
 }
 
 }  // namespace printer

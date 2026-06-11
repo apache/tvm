@@ -23,11 +23,12 @@
  * \brief Run codegen for annotated relax functions.
  */
 
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/runtime/module.h>
 
 #include "../../support/ordered_set.h"
 #include "utils.h"
@@ -45,7 +46,7 @@ class CodeGenRunner : ExprMutator {
                ffi::Array<ffi::String> entry_function_names) {
     IRModule mod = builder_->GetContextIRModule();
 
-    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
+    support::OrderedSet<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> entry_functions;
     // Any user-provided functions are treated as entry functions.
     for (const auto& name : entry_function_names) {
       entry_functions.insert(mod->GetGlobalVar(name));
@@ -92,7 +93,7 @@ class CodeGenRunner : ExprMutator {
       // Some backends (e.g. TensorRT) expect constants to be passed when they are instantiated
       ffi::Map<ffi::String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
-        ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
+        TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
         constants.Set(name, constant->data);
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
@@ -132,7 +133,7 @@ class CodeGenRunner : ExprMutator {
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
-          ICHECK(RemoveFuncAttrFunc.has_value());
+          TVM_FFI_ICHECK(RemoveFuncAttrFunc.has_value());
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
           builder_->UpdateFunction(gvar, func);
@@ -174,7 +175,7 @@ class CodeGenRunner : ExprMutator {
     std::unordered_map<std::string, ffi::Array<Function>> target_functions;
 
     for (const auto& entry : mod->functions) {
-      if (entry.second->IsInstance<tir::PrimFuncNode>()) {
+      if (entry.second->IsInstance<tirx::PrimFuncNode>()) {
         continue;
       }
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
@@ -196,7 +197,7 @@ class CodeGenRunner : ExprMutator {
       // Get the codegen with its ffi key.
       ffi::String codegen_name = "relax.ext." + target;
       const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
-      ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
+      TVM_FFI_ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
       ffi::Array<ffi::Module> compiled_functions =
           (*codegen)(functions, options, constant_names).cast<ffi::Array<ffi::Module>>();

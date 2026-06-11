@@ -15,29 +15,41 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731
 """Default legalization function for creation operators."""
-from typing import Optional
 
 import numpy as np
 
-from tvm import tir, topi
+from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, PrimValue, const
+from ...expr import Call, Expr, PrimValue, ShapeExpr, const
+from ...struct_info import ShapeStructInfo
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
-def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> LegalizeFunc:
+def _full(is_like: bool, fill_value: float | None, primfunc_name: str) -> LegalizeFunc:
     def full_call_te(bb: BlockBuilder, call: Call) -> Expr:
         _fill_value = (
             _try_convert_to_scalar_const(call.args[1], python_native=True)
             if fill_value is None
             else fill_value
         )
+        shape = call.args[0].struct_info.shape if is_like else call.args[0]
+
+        if isinstance(shape, ShapeExpr):
+            output_shape = shape.values
+        else:
+            assert isinstance(shape.struct_info, ShapeStructInfo)
+            assert shape.struct_info.ndim >= 0
+
+            shape = bb.emit(shape)
+            output_shape = [tirx.Var(f"s{i}", "int64") for i in range(shape.struct_info.ndim)]
+            bb.match_cast(shape, ShapeStructInfo(output_shape))
 
         return bb.call_te(
             topi.full,
-            call.args[0].struct_info.shape if is_like else call.args[0],
+            output_shape,
             call.struct_info.dtype,
             _fill_value,
             primfunc_name_hint=primfunc_name,
@@ -108,7 +120,7 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
     dtype = call.attrs.dtype
 
     def is_const_scalar(x: PrimValue):
-        return isinstance(x.value, (tir.IntImm, tir.FloatImm))
+        return isinstance(x.value, tirx.IntImm | tirx.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)

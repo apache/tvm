@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union
 
 import tvm
 import tvm.script
@@ -25,8 +24,8 @@ from tvm.script import relax as R
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)
@@ -37,9 +36,9 @@ def _check(
 
 def test_conv1d():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((16, 3, 5), "float16")
-    ) -> R.Tensor((2, 16, 224), "float16"):
+    def foo(x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((16, 3, 5), "float16")) -> R.Tensor(
+        (2, 16, 224), "float16"
+    ):
         gv: R.Tensor((2, 16, 224), "float16") = R.nn.conv1d(x, w, out_dtype="float16")
         return gv
 
@@ -55,9 +54,9 @@ def test_conv1d():
 
 def test_conv1d_transpose():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((3, 16, 5), "float16")
-    ) -> R.Tensor((2, 16, 232), "float16"):
+    def foo(x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((3, 16, 5), "float16")) -> R.Tensor(
+        (2, 16, 232), "float16"
+    ):
         gv: R.Tensor((2, 16, 232), "float16") = R.nn.conv1d_transpose(x, w, out_dtype="float16")
         return gv
 
@@ -109,11 +108,49 @@ def test_conv2d_transpose():
     _check(foo, bb.get()["foo"])
 
 
-def test_max_pool2d():
+def test_conv3d():
     @R.function
     def foo(
-        x: R.Tensor((1, 1, 32, 32), dtype="float32")
-    ) -> R.Tensor((1, 1, 30, 30), dtype="float32"):
+        x: R.Tensor((2, 3, 8, 8, 8), "float16"), w: R.Tensor((6, 3, 3, 3, 3), "float16")
+    ) -> R.Tensor((2, 6, 6, 6, 6), "float16"):
+        gv: R.Tensor((2, 6, 6, 6, 6), "float16") = R.nn.conv3d(x, w, out_dtype="float16")
+        return gv
+
+    x = relax.Var("x", R.Tensor([2, 3, 8, 8, 8], "float16"))
+    w = relax.Var("w", R.Tensor([6, 3, 3, 3, 3], "float16"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w]):
+        gv = bb.emit(relax.op.nn.conv3d(x, w, out_dtype="float16"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_conv3d_transpose():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 8, 8, 8), "float16"), w: R.Tensor((3, 6, 3, 3, 3), "float16")
+    ) -> R.Tensor((2, 6, 10, 10, 10), "float16"):
+        gv: R.Tensor((2, 6, 10, 10, 10), "float16") = R.nn.conv3d_transpose(
+            x, w, out_dtype="float16"
+        )
+        return gv
+
+    x = relax.Var("x", R.Tensor([2, 3, 8, 8, 8], "float16"))
+    w = relax.Var("w", R.Tensor([3, 6, 3, 3, 3], "float16"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w]):
+        gv = bb.emit(relax.op.nn.conv3d_transpose(x, w, out_dtype="float16"))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_max_pool2d():
+    @R.function
+    def foo(x: R.Tensor((1, 1, 32, 32), dtype="float32")) -> R.Tensor(
+        (1, 1, 30, 30), dtype="float32"
+    ):
         gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.max_pool2d(x, pool_size=(3,))
         return gv
 
@@ -128,9 +165,9 @@ def test_max_pool2d():
 
 def test_avg_pool2d():
     @R.function
-    def foo(
-        x: R.Tensor((1, 1, 32, 32), dtype="float32")
-    ) -> R.Tensor((1, 1, 30, 30), dtype="float32"):
+    def foo(x: R.Tensor((1, 1, 32, 32), dtype="float32")) -> R.Tensor(
+        (1, 1, 30, 30), dtype="float32"
+    ):
         gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.avg_pool2d(x, pool_size=(3,))
         return gv
 
@@ -285,9 +322,9 @@ def test_group_norm():
 
 def test_dropout():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32")
-    ) -> R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")):
+    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tuple(
+        R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")
+    ):
         gv: R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")) = R.nn.dropout(
             x, rate=0.5
         )

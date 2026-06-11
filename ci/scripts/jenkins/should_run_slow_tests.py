@@ -16,14 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import argparse
+import os
 import textwrap
-from typing import Tuple, List, Optional
 
-
-from git_utils import GitHubRepo, parse_remote, git
-
+from git_utils import GitHubRepo, git, parse_remote
 
 SLOW_TEST_TRIGGERS = [
     "@tvm-bot run slow tests",
@@ -35,7 +32,7 @@ SLOW_TEST_TRIGGERS = [
 ]
 
 
-def check_match(s: str, searches: List[str]) -> Tuple[bool, Optional[str]]:
+def check_match(s: str, searches: list[str]) -> tuple[bool, str | None]:
     for search in searches:
         if search in s:
             return True, search

@@ -22,7 +22,7 @@
  * \brief The bytecode for Relax virtual machine.
  */
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 #include <tvm/runtime/vm/bytecode.h>
 
 #include <functional>

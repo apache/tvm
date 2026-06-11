@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tir-learning:
+.. _tirx-learning:
 
 Understand TensorIR Abstraction
 ===============================
@@ -59,6 +59,8 @@ language called TVMScript, which is a domain-specific dialect embedded in python
 
 .. code:: python
 
+    from tvm.script import tirx as T
+
     @tvm.script.ir_module
     class MyModule:
         @T.prim_func
@@ -67,7 +69,7 @@ language called TVMScript, which is a domain-specific dialect embedded in python
                     C: T.Buffer((128, 128), "float32")):
             Y = T.alloc_buffer((128, 128), dtype="float32")
             for i, j, k in T.grid(128, 128, 128):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     vi = T.axis.spatial(128, i)
                     vj = T.axis.spatial(128, j)
                     vk = T.axis.reduce(128, k)
@@ -75,7 +77,7 @@ language called TVMScript, which is a domain-specific dialect embedded in python
                         Y[vi, vj] = T.float32(0)
                     Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
             for i, j in T.grid(128, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(128, i)
                     vj = T.axis.spatial(128, j)
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
@@ -137,12 +139,12 @@ Loop Iterations
 Computational Block
 ~~~~~~~~~~~~~~~~~~~
 A significant distinction lies in computational statements:
-**TensorIR incorporates an additional construct termed** ``T.block``.
+**TensorIR incorporates an additional construct termed** ``T.sblock``.
 
 .. code:: python
 
     # TensorIR
-    with T.block("Y"):
+    with T.sblock("Y"):
         vi = T.axis.spatial(128, i)
         vj = T.axis.spatial(128, j)
         vk = T.axis.reduce(128, k)
@@ -206,7 +208,7 @@ error because the loop expects an iterator of size 128, but we only bound it to 
 
     # wrong program due to loop and block iteration mismatch
     for i in range(127):
-        with T.block("C"):
+        with T.sblock("C"):
             vi = T.axis.spatial(128, i)
             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
             error here due to iterator size mismatch
@@ -242,12 +244,12 @@ So we can also write the programs as follows.
                     C: T.Buffer((128, 128), "float32")):
             Y = T.alloc_buffer((128, 128), dtype="float32")
             for i, j, k in T.grid(128, 128, 128):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         Y[vi, vj] = T.float32(0)
                     Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
             for i, j in T.grid(128, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))

@@ -25,14 +25,14 @@
 #ifndef TVM_IR_OP_H_
 #define TVM_IR_OP_H_
 
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/attr_registry_map.h>
-#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <utility>
@@ -43,6 +43,41 @@ namespace tvm {
 // forward declare name.
 template <typename>
 class OpAttrMap;
+
+/*!
+ * \brief Information about an input field of an Op (name, type, description).
+ *
+ *  Populated via OpRegEntry::add_argument and consumed both by
+ *  internal sanity checks / error messages and by external tooling
+ *  that wants to introspect an Op's argument schema.
+ */
+class ArgumentInfoNode : public ffi::Object {
+ public:
+  /*! \brief name of the field */
+  ffi::String name;
+  /*! \brief type docstring information in str. */
+  ffi::String type_info;
+  /*! \brief detailed description of the type */
+  ffi::String description;
+
+  static void RegisterReflection() {
+    namespace rfl = ffi::reflection;
+    rfl::ObjectDef<ArgumentInfoNode>()
+        .def_ro("name", &ArgumentInfoNode::name)
+        .def_ro("type_info", &ArgumentInfoNode::type_info)
+        .def_ro("description", &ArgumentInfoNode::description);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoNode, ffi::Object);
+};
+
+/*! \brief Managed reference to ArgumentInfoNode. */
+class ArgumentInfo : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+};
 
 // TODO(tvm-team): migrate low-level intrinsics to use Op
 /*!
@@ -68,7 +103,7 @@ class OpNode : public RelaxExprNode {
    */
   ffi::String description;
   /* \brief Information of input arguments to the operator */
-  ffi::Array<AttrFieldInfo> arguments;
+  ffi::Array<ArgumentInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
@@ -293,7 +328,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 };
 
 // internal macros to make
-#define TVM_OP_REGISTER_VAR_DEF static DMLC_ATTRIBUTE_UNUSED ::tvm::OpRegEntry& __make_##Op
+#define TVM_OP_REGISTER_VAR_DEF [[maybe_unused]] static ::tvm::OpRegEntry& __make_##Op
 
 /*!
  * \def TVM_REGISTER_OP
@@ -310,8 +345,8 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
  *
  * \endcode
  */
-#define TVM_REGISTER_OP(OpName)                          \
-  TVM_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
+#define TVM_REGISTER_OP(OpName)                              \
+  TVM_FFI_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::OpRegEntry::RegisterOrGet(OpName).set_name()
 
 // implementations
@@ -330,11 +365,11 @@ inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*
 
 inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
                                             const std::string& description) {
-  auto n = ffi::make_object<AttrFieldInfoNode>();
+  auto n = ffi::make_object<ArgumentInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;
-  get()->arguments.push_back(AttrFieldInfo(n));
+  get()->arguments.push_back(ArgumentInfo(n));
   return *this;
 }
 
@@ -364,7 +399,7 @@ inline OpRegEntry& OpRegEntry::set_support_level(int32_t n) {  // NOLINT(*)
 template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
-  ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
+  TVM_FFI_ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
@@ -373,7 +408,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
 
 template <typename ValueType>
 inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
-  ICHECK(expr.defined());
+  TVM_FFI_ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
     return this->map_.get(ffi::GetRef<Op>(op), def_value);
   } else {

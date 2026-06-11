@@ -24,9 +24,9 @@
 #ifndef TVM_TOPI_ELEMWISE_H_
 #define TVM_TOPI_ELEMWISE_H_
 
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
@@ -151,8 +151,7 @@ inline Tensor fast_tanh(const Tensor& x, std::string name = "T_fast_tanh",
  */
 inline Tensor identity(const Tensor& x, std::string name = "T_identity",
                        std::string tag = kElementWise) {
-  return compute(
-      x->shape, [&](const ffi::Array<Var>& i) { return x(i); }, name, tag);
+  return compute(x->shape, [&](const ffi::Array<Var>& i) { return x(i); }, name, tag);
 }
 
 /*!
@@ -166,8 +165,7 @@ inline Tensor identity(const Tensor& x, std::string name = "T_identity",
  */
 inline Tensor negative(const Tensor& x, std::string name = "T_negative",
                        std::string tag = kElementWise) {
-  return compute(
-      x->shape, [&](const ffi::Array<Var>& i) { return -x(i); }, name, tag);
+  return compute(x->shape, [&](const ffi::Array<Var>& i) { return -x(i); }, name, tag);
 }
 
 /*!
@@ -181,8 +179,7 @@ inline Tensor negative(const Tensor& x, std::string name = "T_negative",
  */
 inline Tensor logical_not(const Tensor& x, std::string name = "T_logical_not",
                           std::string tag = kElementWise) {
-  return compute(
-      x->shape, [&](const ffi::Array<Var>& i) { return !x(i); }, name, tag);
+  return compute(x->shape, [&](const ffi::Array<Var>& i) { return !x(i); }, name, tag);
 }
 
 /*!
@@ -196,8 +193,7 @@ inline Tensor logical_not(const Tensor& x, std::string name = "T_logical_not",
  */
 inline Tensor bitwise_not(const Tensor& x, std::string name = "T_bitwise_not",
                           std::string tag = kElementWise) {
-  return compute(
-      x->shape, [&](const ffi::Array<Var>& i) { return ~x(i); }, name, tag);
+  return compute(x->shape, [&](const ffi::Array<Var>& i) { return ~x(i); }, name, tag);
 }
 
 /*!
@@ -216,8 +212,8 @@ inline Tensor sign(const Tensor& x, std::string name = "T_sign", std::string tag
         PrimExpr zero = make_zero(x->dtype);
         PrimExpr one = make_const(x->dtype, 1);
         PrimExpr minus_one = make_const(x->dtype, -1);
-        auto s1 = tvm::tir::Select((x(i) < zero), minus_one, zero);
-        auto s2 = tvm::tir::Select((x(i) > zero), one, s1);
+        auto s1 = tvm::tirx::Select((x(i) < zero), minus_one, zero);
+        auto s2 = tvm::tirx::Select((x(i) > zero), one, s1);
         return s2;
       },
       name, tag);
@@ -288,7 +284,7 @@ inline Tensor cast(const Tensor& x, DataType type, std::string name = "T_cast",
           if (expr.dtype().lanes() == type.lanes()) {
             return expr;
           } else if (expr.dtype().lanes() == 1 && type.is_vector()) {
-            return tvm::tir::Broadcast(expr, type.lanes());
+            return tvm::tirx::Broadcast(expr, type.lanes());
           }
         }
 
@@ -324,7 +320,7 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
  */
 inline Tensor elemwise_sum(const ffi::Array<Tensor>& xs, std::string name = "T_elemwise_sum",
                            std::string tag = kElementWise) {
-  ICHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
+  TVM_FFI_ICHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
   return compute(
       xs[0]->shape,
       [&](const ffi::Array<Var>& i) {
@@ -354,8 +350,7 @@ inline Tensor full(const ffi::Array<PrimExpr>& shape, DataType dtype, const Prim
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
-  return compute(
-      shape, [&](const ffi::Array<Var>& i) { return ev; }, name, tag);
+  return compute(shape, [&](const ffi::Array<Var>& i) { return ev; }, name, tag);
 }
 
 /*!
@@ -372,8 +367,7 @@ inline Tensor full(const ffi::Array<PrimExpr>& shape, DataType dtype, const Prim
 inline Tensor full_like(const Tensor& x, const PrimExpr fill_value,
                         std::string name = "T_full_like", std::string tag = kElementWise) {
   PrimExpr ev = cast(x->dtype, fill_value);
-  return compute(
-      x->shape, [&](const ffi::Array<Var>& i) { return ev; }, name, tag);
+  return compute(x->shape, [&](const ffi::Array<Var>& i) { return ev; }, name, tag);
 }
 
 /*!
@@ -447,8 +441,7 @@ inline Tensor fast_exp(const Tensor& x, std::string name = "T_fast_exp",
     auto ret = fast_exp_float32(x, name, tag);
     return ret;
   } else {
-    return compute(
-        x->shape, [&](const ffi::Array<Var>& i) { return ::tvm::exp(x(i)); }, name, tag);
+    return compute(x->shape, [&](const ffi::Array<Var>& i) { return ::tvm::exp(x(i)); }, name, tag);
   }
 }
 

@@ -21,24 +21,15 @@
 
 #include "llvm_instance.h"
 
-#include <dmlc/base.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/StringRef.h>
-#if TVM_LLVM_VERSION >= 150
 #include <llvm/IR/FMF.h>
-#else
-#include <llvm/IR/Operator.h>
-#endif
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/MC/MCSubtargetInfo.h>
-#if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
-#else
-#include <llvm/Support/TargetRegistry.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ErrorOr.h>
@@ -55,10 +46,10 @@
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 
 #include <atomic>
@@ -79,7 +70,7 @@
 namespace llvm {
 #if TVM_LLVM_VERSION < 170
 // SubtargetSubTypeKV view
-template <ArrayRef<SubtargetSubTypeKV> MCSubtargetInfo::*Member>
+template <ArrayRef<SubtargetSubTypeKV> MCSubtargetInfo::* Member>
 struct ArchViewer {
   friend ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
 };
@@ -87,7 +78,7 @@ template struct ArchViewer<&MCSubtargetInfo::ProcDesc>;
 ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo);
 #endif
 // SubtargetFeatureKV view
-template <ArrayRef<SubtargetFeatureKV> MCSubtargetInfo::*Member>
+template <ArrayRef<SubtargetFeatureKV> MCSubtargetInfo::* Member>
 struct FeatViewer {
   friend ArrayRef<SubtargetFeatureKV>& featViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
 };
@@ -145,7 +136,7 @@ std::string Join(std::string sep, llvm::ArrayRef<std::string> strings) {
 
 LLVMInstance::LLVMInstance() {
   // Call InitializeLLVM before anything else.
-  static const bool DMLC_ATTRIBUTE_UNUSED init_llvm = InitializeLLVM();
+  [[maybe_unused]] static const bool init_llvm = InitializeLLVM();
   ctx_ = std::make_shared<llvm::LLVMContext>();
 }
 
@@ -161,7 +152,7 @@ std::unique_ptr<llvm::Module> LLVMInstance::LoadIR(const std::string& file_name)
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> maybe_buffer =
       llvm::MemoryBuffer::getFileAsStream(file_name);
   if (std::error_code ec = maybe_buffer.getError()) {
-    LOG(FATAL) << ec.message();
+    TVM_FFI_THROW(InternalError) << ec.message();
   }
   return ParseBuffer(**maybe_buffer);
 }
@@ -173,7 +164,7 @@ std::unique_ptr<llvm::Module> LLVMInstance::ParseBuffer(const llvm::MemoryBuffer
     std::string message;
     llvm::raw_string_ostream ostream(message);
     error.print(/*ProgName=*/nullptr, ostream, /*ShowColors=*/false, /*ShowKindLabel=*/true);
-    LOG(FATAL) << ostream.str();
+    TVM_FFI_THROW(InternalError) << ostream.str();
   }
 
   return module;
@@ -200,9 +191,10 @@ std::ostream& operator<<(std::ostream& os, const LLVMTargetInfo::Option& opt) {
 }
 
 LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target)
-    : LLVMTargetInfo(instance, target->Export()) {}
+    : LLVMTargetInfo(instance, target->ToConfig()) {}
 
-LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target) {
+LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
+                               const ffi::Map<ffi::String, ffi::Any>& target) {
   triple_ = Downcast<ffi::String>(target.Get("mtriple").value_or(ffi::String("default")));
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
@@ -217,9 +209,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   // llvm module target
   if (Downcast<ffi::String>(target.Get("kind").value()) == "llvm") {
     // legalize -mcpu with the target -mtriple
-    auto arches = GetAllLLVMTargetArches();
-    bool has_arch =
-        std::any_of(arches.begin(), arches.end(), [&](const auto& var) { return var == cpu_; });
+    bool has_arch = IsValidCPU(cpu_);
     if (!has_arch) {
       // Flag an error, but don't abort. This mimicks the behaviour of 'llc' to
       // give the code a chance to run with a less-specific target.
@@ -232,7 +222,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("cl-opt"))) {
-    llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
+    auto& options = llvm::cl::getRegisteredOptions();
     bool parse_error = false;
     for (const ffi::String& s : v.value()) {
       Option opt = ParseOptionString(s);
@@ -240,7 +230,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
         parse_error = true;
         continue;
       }
+#if TVM_LLVM_VERSION >= 220
+      if (options.find(opt.name) != options.end()) {
+#else
       if (options.count(opt.name)) {
+#endif
         llvm_options_.push_back(opt);
       } else {
         // Flag an error, but don't abort. LLVM flags may change, and this would
@@ -248,7 +242,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
         LOG(ERROR) << "\"" << opt.name << "\" is not an LLVM option, option ignored";
       }
     }
-    ICHECK(!parse_error) << "there were errors parsing command-line options";
+    TVM_FFI_ICHECK(!parse_error) << "there were errors parsing command-line options";
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
@@ -259,7 +253,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     } else if (value == "soft") {
       float_abi = llvm::FloatABI::Soft;
     } else {
-      LOG(FATAL) << "invalid -mfloat-abi option " << value;
+      TVM_FFI_THROW(InternalError) << "invalid -mfloat-abi option " << value;
     }
   }
 
@@ -269,7 +263,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
     } else {
-      LOG(FATAL) << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
+      TVM_FFI_THROW(InternalError)
+          << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
     }
   }
 
@@ -278,7 +273,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
           Downcast<ffi::Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
-      LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
+      TVM_FFI_THROW(InternalError) << "Invalid -vector-width value: " << vector_width_;
     }
   }
 
@@ -287,7 +282,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
     // code model
     code_model_ = llvm::CodeModel::Medium;
-#if TVM_LLVM_VERSION >= 140
     // get VLEN from the LLVM backend (zvlXXXb)
     ffi::Map<ffi::String, ffi::String> features = GetAllLLVMCpuFeatures();
     // check vector ISA
@@ -306,17 +300,15 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
         }
       }
     }
-#endif
   }
 
   // Target options
-#if TVM_LLVM_VERSION < 50
-  target_options_.LessPreciseFPMADOption = true;
-#endif
   // In clang, these are fed from LangOpts which describe language specific features
   // TODO(AndrewZhaoLuo): figure out how these relate to fast math flags
   target_options_.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+#if TVM_LLVM_VERSION < 220
   target_options_.UnsafeFPMath = false;
+#endif
   target_options_.NoInfsFPMath = false;
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
@@ -371,18 +363,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     }
   };
   if (GetBoolFlag("fast-math")) {
-#if TVM_LLVM_VERSION >= 60
     fast_math_flags_.setFast();
-#else
-    fast_math_flags_.setUnsafeAlgebra();
-#endif
   } else {
-#if TVM_LLVM_VERSION >= 50
     // This option was added in 5.x, and has a boolean argument,
     // unlike the rest of options at the time.
     fast_math_flags_.setAllowContract(GetBoolFlag("fast-math-contract"));
-#endif
-#if TVM_LLVM_VERSION >= 70
     fast_math_flags_.setNoNaNs(GetBoolFlag("fast-math-nnan"));
     fast_math_flags_.setNoInfs(GetBoolFlag("fast-math-ninf"));
     fast_math_flags_.setNoSignedZeros(GetBoolFlag("fast-math-nsz"));
@@ -390,17 +375,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     fast_math_flags_.setAllowContract(GetBoolFlag("fast-math-contract"));
     fast_math_flags_.setAllowReassoc(GetBoolFlag("fast-math-reassoc"));
     fast_math_flags_.setApproxFunc(GetBoolFlag("fast-math-afn"));
-#else
-    // LLVM 4.x, 5.x, and 6.x
-    if (GetBoolFlag("fast-math-nnan")) fast_math_flags_.setNoNaNs();
-    if (GetBoolFlag("fast-math-ninf")) fast_math_flags_.setNoInfs();
-    if (GetBoolFlag("fast-math-nsz")) fast_math_flags_.setNoSignedZeros();
-    if (GetBoolFlag("fast-math-arcp")) fast_math_flags_.setAllowReciprocal();
-#if TVM_LLVM_VERSION >= 60
-    if (GetBoolFlag("fast-math-reassoc")) fast_math_flags_.setAllowReassoc();
-    if (GetBoolFlag("fast-math-afn")) fast_math_flags_.setApproxFunc();
-#endif
-#endif
   }
 }
 
@@ -412,11 +386,18 @@ LLVMTargetInfo::~LLVMTargetInfo() = default;
 static const llvm::Target* CreateLLVMTargetInstance(const std::string triple,
                                                     const bool allow_missing = true) {
   std::string error;
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple);
+#endif
   // create LLVM instance
   // required mimimum: llvm::InitializeAllTargets()
+#if TVM_LLVM_VERSION >= 220
+  const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple_obj, error);
+#else
   const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple, error);
+#endif
   if (!allow_missing && !llvm_instance) {
-    ICHECK(llvm_instance) << "LLVM instance error: `" << error << "`";
+    TVM_FFI_ICHECK(llvm_instance) << "LLVM instance error: `" << error << "`";
   }
 
   return llvm_instance;
@@ -432,9 +413,15 @@ static std::unique_ptr<llvm::TargetMachine> CreateLLVMTargetMachine(
 #else
     const llvm::CodeGenOptLevel& opt_level = llvm::CodeGenOptLevel(0)) {
 #endif
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple);
+  llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
+      triple_obj, cpu, features, target_options, reloc_model, code_model, opt_level);
+#else
   llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
       triple, cpu, features, target_options, reloc_model, code_model, opt_level);
-  ICHECK(tm != nullptr);
+#endif
+  TVM_FFI_ICHECK(tm != nullptr);
 
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
@@ -448,8 +435,39 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
         CreateLLVMTargetMachine(llvm_instance, triple_, cpu_, GetTargetFeatureString(),
                                 target_options_, reloc_model_, code_model_, opt_level_);
   }
-  ICHECK(target_machine_ != nullptr);
+  TVM_FFI_ICHECK(target_machine_ != nullptr);
   return target_machine_.get();
+}
+
+bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
+  auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
+  if (!llvm_instance) return false;
+  // Use isCPUStringValid which correctly handles CPU aliases
+  // (e.g. apple-m1 in LLVM 22+) that don't appear in getAllProcessorDescriptions().
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple_);
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_obj, "", ""));
+#else
+  std::unique_ptr<llvm::MCSubtargetInfo> mc_info(
+      llvm_instance->createMCSubtargetInfo(triple_, "", ""));
+#endif
+  if (mc_info && mc_info->isCPUStringValid(cpu)) {
+    return true;
+  }
+  // Fallback: on older LLVM versions (e.g. 19), isCPUStringValid may not
+  // recognize valid CPUs like apple-m1 that do appear in the processor
+  // enumeration. Check getAllProcessorDescriptions as a fallback.
+  if (mc_info) {
+#if TVM_LLVM_VERSION >= 170
+    for (const auto& desc : mc_info->getAllProcessorDescriptions()) {
+      if (cpu == desc.Key) {
+        return true;
+      }
+    }
+#endif
+  }
+  return false;
 }
 
 std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
@@ -457,114 +475,109 @@ std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
 }
 
 std::string LLVMTargetInfo::str() const {
-  std::ostringstream os;
-  os << "llvm";
+  ffi::json::Object obj;
+
+  obj.Set(ffi::String("kind"), ffi::String("llvm"));
+
   if (!triple_.empty()) {
-    os << " -mtriple=" << triple_;
+    obj.Set(ffi::String("mtriple"), ffi::String(triple_));
   }
   if (!cpu_.empty() && cpu_ != defaults::cpu) {
-    os << " -mcpu=" << cpu_;
+    obj.Set(ffi::String("mcpu"), ffi::String(cpu_));
   }
   if (!attrs_.empty()) {
-    os << " -mattr=" << GetTargetFeatureString();
+    ffi::Array<ffi::Any> arr;
+    for (const auto& attr : attrs_) {
+      arr.push_back(ffi::String(attr));
+    }
+    obj.Set(ffi::String("mattr"), arr);
   }
 
   switch (target_options_.FloatABIType) {
     case llvm::FloatABI::Soft:
-      os << " -mfloat-abi=soft";
+      obj.Set(ffi::String("mfloat-abi"), ffi::String("soft"));
       break;
     case llvm::FloatABI::Hard:
-      os << " -mfloat-abi=hard";
+      obj.Set(ffi::String("mfloat-abi"), ffi::String("hard"));
       break;
     case llvm::FloatABI::Default:
       break;
   }
   if (!target_options_.MCOptions.ABIName.empty()) {
-    os << " -mabi=" << target_options_.MCOptions.ABIName;
+    obj.Set(ffi::String("mabi"), ffi::String(target_options_.MCOptions.ABIName));
   }
 
   bool do_individual = true;
-#if TVM_LLVM_VERSION >= 60
   if (fast_math_flags_.isFast()) {
-    os << " -fast-math";
+    obj.Set(ffi::String("fast-math"), true);
     do_individual = false;
   }
-#else
-  if (fast_math_flags_.unsafeAlgebra()) {
-    os << " -fast-math";
-    do_individual = false;
-  }
-#endif
 
   if (do_individual) {
-    if (fast_math_flags_.noNaNs()) os << " -fast-math-nnan";
-    if (fast_math_flags_.noInfs()) os << " -fast-math-ninf";
-    if (fast_math_flags_.noSignedZeros()) os << " -fast-math-nsz";
-    if (fast_math_flags_.allowReciprocal()) os << " -fast-math-arcp";
-#if TVM_LLVM_VERSION >= 50
-    if (fast_math_flags_.allowContract()) os << " -fast-math-contract";
-#endif
-#if TVM_LLVM_VERSION >= 60
-    if (fast_math_flags_.allowReassoc()) os << " -fast-math-reassoc";
-    if (fast_math_flags_.approxFunc()) os << " -fast-math-afn";
-#endif
+    if (fast_math_flags_.noNaNs()) obj.Set(ffi::String("fast-math-nnan"), true);
+    if (fast_math_flags_.noInfs()) obj.Set(ffi::String("fast-math-ninf"), true);
+    if (fast_math_flags_.noSignedZeros()) obj.Set(ffi::String("fast-math-nsz"), true);
+    if (fast_math_flags_.allowReciprocal()) obj.Set(ffi::String("fast-math-arcp"), true);
+    if (fast_math_flags_.allowContract()) obj.Set(ffi::String("fast-math-contract"), true);
+    if (fast_math_flags_.allowReassoc()) obj.Set(ffi::String("fast-math-reassoc"), true);
+    if (fast_math_flags_.approxFunc()) obj.Set(ffi::String("fast-math-afn"), true);
   }
 
 #if TVM_LLVM_VERSION <= 170
   if (opt_level_ != defaults::opt_level) {
-    os << " -opt-level=";
+    int64_t level = 0;
     switch (opt_level_) {
       case llvm::CodeGenOpt::None:
-        os << "0";
+        level = 0;
         break;
       case llvm::CodeGenOpt::Less:
-        os << "1";
+        level = 1;
         break;
       case llvm::CodeGenOpt::Default:
-        os << "2";
+        level = 2;
         break;
       case llvm::CodeGenOpt::Aggressive:
-        os << "3";
+        level = 3;
         break;
     }
+    obj.Set(ffi::String("opt-level"), level);
   }
 #else
   if (opt_level_ != defaults::opt_level) {
-    os << " -opt-level=";
+    int64_t level = 0;
     switch (opt_level_) {
       case llvm::CodeGenOptLevel::None:
-        os << "0";
+        level = 0;
         break;
       case llvm::CodeGenOptLevel::Less:
-        os << "1";
+        level = 1;
         break;
       case llvm::CodeGenOptLevel::Default:
-        os << "2";
+        level = 2;
         break;
       case llvm::CodeGenOptLevel::Aggressive:
-        os << "3";
+        level = 3;
         break;
     }
+    obj.Set(ffi::String("opt-level"), level);
   }
 #endif
 
-  if (size_t num = llvm_options_.size(); num > 0) {
-    os << " -cl-opt=";
-    std::vector<std::string> opts;
+  if (!llvm_options_.empty()) {
+    ffi::Array<ffi::Any> arr;
     for (const Option& opt : llvm_options_) {
-      std::stringstream os;
-      os << opt;
-      opts.emplace_back(os.str());
+      std::stringstream opt_s;
+      opt_s << opt;
+      arr.push_back(ffi::String(opt_s.str()));
     }
-    auto* quote = num > 1 ? "'" : "";
-    os << quote << Join(",", opts) << quote;
+    obj.Set(ffi::String("cl-opt"), arr);
   }
 
   if (jit_engine_ != "orcjit") {
-    os << " -jit=" << jit_engine_;
+    obj.Set(ffi::String("jit"), ffi::String(jit_engine_));
   }
 
-  return os.str();
+  return std::string(ffi::json::Stringify(obj));
 }
 
 LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str) {
@@ -666,7 +679,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       part_this++;  // Only advance if we saw ":".
       if (part_this < part_end) {
         auto& p1 = parts[part_this];
-        ICHECK(!p1.empty()) << "tokenizing error";  // This shouldn't happen.
+        TVM_FFI_ICHECK(!p1.empty()) << "tokenizing error";  // This shouldn't happen.
         if (p1 != "=") {
           part_this++;
           if (p1 == "bool") {
@@ -784,7 +797,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
     }
   }
 
-  ICHECK(type != Option::OptType::Invalid);
+  TVM_FFI_ICHECK(type != Option::OptType::Invalid);
   opt.type = type;
   return opt;
 }
@@ -793,7 +806,7 @@ bool LLVMTargetInfo::MatchesGlobalState() const {
   for (const Option& opt : GetCommandLineOptions()) {
     Option current_opt = opt;
     GetOptionValue(&current_opt);
-    ICHECK(current_opt.type != Option::OptType::Invalid);
+    TVM_FFI_ICHECK(current_opt.type != Option::OptType::Invalid);
     switch (current_opt.type) {
       case Option::OptType::Bool:
         if (current_opt.value.b != opt.value.b) return false;
@@ -814,8 +827,22 @@ bool LLVMTargetInfo::MatchesGlobalState() const {
 }
 
 void LLVMTargetInfo::GetOptionValue(LLVMTargetInfo::Option* opt) const {
-  llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
-  llvm::cl::Option* base_op = options[opt->name];
+  auto& options = llvm::cl::getRegisteredOptions();
+  llvm::cl::Option* base_op = nullptr;
+#if TVM_LLVM_VERSION >= 220
+  auto it = options.find(opt->name);
+  if (it != options.end()) {
+    base_op = it->second;
+  }
+#else
+  if (options.count(opt->name)) {
+    base_op = options[opt->name];
+  }
+#endif
+  if (base_op == nullptr) {
+    opt->type = Option::OptType::Invalid;
+    return;
+  }
 
   if (opt->type == Option::OptType::Bool) {
     auto* bool_op = static_cast<llvm::cl::opt<bool>*>(base_op);
@@ -946,7 +973,7 @@ LLVMTarget::LLVMTarget(LLVMInstance& instance, const LLVMTargetInfo& target_info
   }
 
   if (modified_llvm_state_) {
-    ICHECK(!ApplyLLVMOptions(true));
+    TVM_FFI_ICHECK(!ApplyLLVMOptions(true));
   } else {
     modified_llvm_state_ = ApplyLLVMOptions(true);
   }
@@ -966,7 +993,7 @@ LLVMTarget::~LLVMTarget() {
 }
 
 llvm::LLVMContext* LLVMTarget::GetContext() const {
-  ICHECK(!ctx_.expired()) << "LLVM scope has been deleted";
+  TVM_FFI_ICHECK(!ctx_.expired()) << "LLVM scope has been deleted";
   return ctx_.lock().get();
 }
 
@@ -974,18 +1001,19 @@ std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
   if (llvm::Metadata* tvm_target = module.getModuleFlag("tvm_target")) {
     auto* mdstr = llvm::cast<llvm::MDString>(tvm_target);
     llvm::StringRef meta = mdstr->getString();
+    // Accept both JSON form (starts with '{') and legacy CLI form (starts with 'llvm')
 #if TVM_LLVM_VERSION >= 180
-    if (meta.starts_with("llvm")) {
+    if (meta.starts_with("{") || meta.starts_with("llvm")) {
 #else
-    if (meta.startswith("llvm")) {
+    if (meta.startswith("{") || meta.startswith("llvm")) {
 #endif
       return meta.str();
     }
   }
 #if TVM_LLVM_VERSION >= 210
-  return "llvm -mtriple " + module.getTargetTriple().str();
+  return "{\"kind\": \"llvm\", \"mtriple\": \"" + module.getTargetTriple().str() + "\"}";
 #else
-  return "llvm -mtriple " + module.getTargetTriple();
+  return "{\"kind\": \"llvm\", \"mtriple\": \"" + module.getTargetTriple() + "\"}";
 #endif
 }
 
@@ -995,7 +1023,7 @@ void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {
 }
 
 bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
-  llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
+  auto& options = llvm::cl::getRegisteredOptions();
   bool changed = false;
 
 #define HANDLE_OPTION_VALUE(option, new_val, saved_val)                  \
@@ -1015,7 +1043,20 @@ bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
     const Option& new_opt = new_options[i];
     const Option& saved_opt = saved_llvm_options_[i];
 
-    llvm::cl::Option* base_op = options[new_opt.name];
+    llvm::cl::Option* base_op = nullptr;
+#if TVM_LLVM_VERSION >= 220
+    auto it = options.find(new_opt.name);
+    if (it != options.end()) {
+      base_op = it->second;
+    }
+#else
+    if (options.count(new_opt.name)) {
+      base_op = options[new_opt.name];
+    }
+#endif
+    if (base_op == nullptr) {
+      TVM_FFI_THROW(InternalError) << "LLVM option not found: " << new_opt.name;
+    }
 
     if (new_opt.type == Option::OptType::Bool) {
       auto* bool_op = static_cast<llvm::cl::opt<bool>*>(base_op);
@@ -1030,7 +1071,7 @@ bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
       auto* str_op = static_cast<llvm::cl::opt<std::string>*>(base_op);
       HANDLE_OPTION_VALUE(str_op, new_opt.value.s, saved_opt.value.s);
     } else {
-      LOG(FATAL) << "unexpected type in option " << new_opt;
+      TVM_FFI_THROW(InternalError) << "unexpected type in option " << new_opt;
     }
 
     if (dry_run && changed) {

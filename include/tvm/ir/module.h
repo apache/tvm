@@ -28,6 +28,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
@@ -54,7 +55,7 @@ class IRModule;
  *  but we mutate the Module while optimizing programs.
  * \sa IRModule
  */
-class IRModuleNode : public Object {
+class IRModuleNode : public ffi::Object {
  public:
   /*! \brief A map from ids to all global functions. */
   ffi::Map<GlobalVar, BaseFunc> functions;
@@ -84,7 +85,7 @@ class IRModuleNode : public Object {
    * \code
    *
    *  void GetAttrExample(const IRModule& mod) {
-   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<int64_t>("AttrKey", 0);
    *  }
    *
    * \endcode
@@ -239,11 +240,9 @@ class IRModuleNode : public Object {
    */
   TVM_DLL std::unordered_set<ffi::String> Imports() const;
 
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IRModule", IRModuleNode, ffi::Object);
 
  private:
   friend class IRModule;
@@ -253,7 +252,7 @@ class IRModuleNode : public Object {
  * \brief Managed reference class to IRModuleNode.
  * \sa IRModuleNode
  */
-class IRModule : public ObjectRef {
+class IRModule : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor
@@ -272,15 +271,15 @@ class IRModule : public ObjectRef {
    * \brief constructor
    * \param n The object pointer.
    */
-  explicit IRModule(ObjectPtr<IRModuleNode> n) : ObjectRef(n) {}
+  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {}
   /*!
    * \brief constructor with UnsafeInit
    */
-  explicit IRModule(ffi::UnsafeInit tag) : ObjectRef(tag) {}
+  explicit IRModule(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*! \return mutable pointers to the node. */
   IRModuleNode* operator->() const {
     auto* ptr = get_mutable();
-    ICHECK(ptr != nullptr);
+    TVM_FFI_ICHECK(ptr != nullptr);
     return static_cast<IRModuleNode*>(ptr);
   }
 
@@ -315,15 +314,6 @@ namespace attr {
  * Type: String
  */
 constexpr const char* kModuleName = "mod_name";
-
-/*
- * \brief All the runtime::Tensors extracted from PrimFunc tir::AllocateConst nodes. The
- * node will record the index into this array. See also kConstNameToConstant below, which is
- * the analog for Realy Functions.
- *
- * Type: ffi::Array<runtime::Tensor>
- */
-constexpr const char* kConstants = "constants";
 
 /*!
  * \brief All the runtime::Modules accumulated during compilation by external codegen. These
@@ -366,7 +356,6 @@ constexpr const char* kSystemLibPrefix = "system_lib_prefix";
  * \brief All the named runtime::Tensors accumulated during compilation by external codegen.
  * Generally the associated runtime::Module will indicate it requires bindings for these names,
  * and during module initialization these bindings will be recovered from a ConstLoaderModule.
- * See also kConstantsArray above, which is the analog for PrimFuncs.
  *
  * Type: ffi::Map<ffi::String, runtime::Tensor>
  */

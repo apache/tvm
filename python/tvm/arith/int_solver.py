@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """integer constraints data structures and solvers"""
+
 import tvm_ffi
+
 from tvm.runtime import Object
+
 from . import _ffi_api
 
 
@@ -73,9 +76,9 @@ class IntConstraints(Object):
 
     Parameters
     ----------
-    variables : List[tvm.tir.Var]
+    variables : List[tvm.tirx.Var]
         The variables in the constraints. Must be integers
-    ranges    : Map[tvm.tir.Var, tvm.ir.Range]
+    ranges    : Map[tvm.tirx.Var, tvm.ir.Range]
         The ranges of the variables.
     relations : List[tvm.ir.PrimExpr]
         The relations between the variables (either equations or inequalities)
@@ -105,10 +108,10 @@ class IntConstraintsTransform(Object):
         source integer constraints, e.g., {a + b = 0 | a >= 0, b >= 0}
     dst : arith.IntConstraints
         integer constraints equivalent to the source, e.g., {m - n = 0 | m >= 0, n <= 0}
-    src_to_dst : Map[tvm.tir.Var, tvm.ir.PrimExpr]
+    src_to_dst : Map[tvm.tirx.Var, tvm.ir.PrimExpr]
         mapping from variables in the src to the variables in the dst,
                 e.g., {a -> m, b -> -n}
-    dst_to_src : Map[tvm.tir.Var, tvm.ir.PrimExpr]
+    dst_to_src : Map[tvm.tirx.Var, tvm.ir.PrimExpr]
         mapping from variables in the dst to the variables in the src,
         e.g., {m -> a, n -> -b}
     """
@@ -126,9 +129,9 @@ def solve_linear_equations(equations, variables=None, ranges=None):
     ----------
     equations: List[tvm.ir.PrimExpr] or IntConstraints
         The equations of the variables
-    variables : Optional[List[tvm.tir.Var]]
+    variables : Optional[List[tvm.tirx.Var]]
         The variables in the system.
-    ranges    : Optional[Map[tvm.tir.Var, tvm.ir.Range]]
+    ranges    : Optional[Map[tvm.tirx.Var, tvm.ir.Range]]
         The ranges of the variables.
 
     Returns
@@ -154,9 +157,9 @@ def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_ran
     ----------
     equations   : List[tvm.ir.PrimExpr] or IntConstraints
         The inequalities of the variables
-    variables   : Optional[List[tvm.tir.Var]]
+    variables   : Optional[List[tvm.tirx.Var]]
         The variables in the system.
-    ranges      : Optional[Map[tvm.tir.Var, tvm.ir.Range]]
+    ranges      : Optional[Map[tvm.tirx.Var, tvm.ir.Range]]
         The ranges of the variables.
     deskew_range: Optional[bool]
         Whether deskew the result ranges to be started from zero.

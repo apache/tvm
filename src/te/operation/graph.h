@@ -25,7 +25,7 @@
 #define TVM_TE_OPERATION_GRAPH_H_
 
 #include <tvm/te/operation.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {

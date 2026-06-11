@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to BLAS libraries."""
+
 import tvm
 from tvm import te
+
 from ..topi.nn.utils import get_pad_tuple
 
 
@@ -45,7 +47,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     return te.extern(
         (n, m),
         [lhs, rhs],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.dnnl.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
@@ -140,7 +142,7 @@ def dnnl_conv2d(
     return te.extern(
         out_shape,
         [src, weights],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.dnnl.conv2d",
             ins[0],
             ins[1],

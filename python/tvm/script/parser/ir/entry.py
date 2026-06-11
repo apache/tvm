@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-outside-toplevel
 """The entry point of TVM parser for ir module."""
 
 import inspect
-from typing import Callable, Optional, Type
+from collections.abc import Callable
 
-from tvm.ir import IRModule, GlobalVar
-from tvm.relax.expr import ExternFunc
-from tvm.relax.base_py_module import BasePyModule
 from tvm import cpu, ir
+from tvm.ir import GlobalVar, IRModule
 
 from .._core import parse, utils
 
@@ -30,7 +29,9 @@ from .._core import parse, utils
 # this formulation allows us to support having @I.ir_module
 # appear as a decorator by itself or to have optional arguments
 # like @I.ir_module(check_well_formed=False)
-def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRModule:
+def ir_module(
+    mod: type | None = None, check_well_formed: bool = True, s_tir: bool = False
+) -> IRModule:
     """The parsing method for ir module, by using `@ir_module` as decorator.
 
     Parameters
@@ -47,6 +48,9 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
         The parsed ir module.
     """
 
+    # Capture stack outside wrapper (wrapper adds to the stack)
+    outer_stack = inspect.stack()
+
     def decorator_wrapper(mod):
         if not inspect.isclass(mod):
             raise TypeError(f"Expect a class, but got: {mod}")
@@ -54,9 +58,17 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
         # Check BasePyModule inheritance
         base_py_module_inherited = any(base.__name__ == "BasePyModule" for base in mod.__bases__)
 
-        m = parse(mod, utils.inspect_class_capture(mod), check_well_formed=check_well_formed)
+        extra_vars = utils.inspect_class_capture(mod)
+        # Resolve closure variables hidden by PEP 563 (annotation-only names)
+        utils.resolve_closure_vars(mod, extra_vars, outer_stack)
+        m = parse(mod, extra_vars, check_well_formed=check_well_formed, s_tir=s_tir)
 
         if base_py_module_inherited:
+            # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
+            # because tvm.script is loaded before tvm.relax during tvm initialization.
+            from tvm.relax.base_py_module import BasePyModule
+            from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
+
             # Collect pyfunc methods
             pyfunc_methods = [
                 name
@@ -102,7 +114,6 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
                     self.original_class = original_class
 
                 def __call__(self, device=None, target=None):
-
                     if device is None:
                         device = cpu(0)
 

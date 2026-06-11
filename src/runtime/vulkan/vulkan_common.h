@@ -20,10 +20,10 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
 
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -37,9 +37,6 @@ namespace vulkan {
 
 /*! \brief Maximum number of GPU supported in VulkanModule. */
 static constexpr const int kVulkanMaxNumDevice = 8;
-
-/*! \brief TVM Vulkan binary pack magic number */
-static constexpr const int kVulkanModuleMagic = 0x02700027;
 
 const int kMaxPushConstantsBytes = 128;
 
@@ -93,10 +90,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                       \
-  {                                                                   \
-    ICHECK(__e == VK_SUCCESS) << "Vulkan Error, code=" << __e << ": " \
-                              << vulkan::VKGetErrorString(__e);       \
+#define VULKAN_CHECK_ERROR(__e)                                                   \
+  {                                                                               \
+    TVM_FFI_ICHECK(__e == VK_SUCCESS)                                             \
+        << "Vulkan Error, code=" << __e << ": " << vulkan::VKGetErrorString(__e); \
   }
 
 #define VULKAN_CALL(func)    \

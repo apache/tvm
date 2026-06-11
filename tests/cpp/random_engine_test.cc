@@ -19,12 +19,12 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/support/random_engine.h>
+#include <tvm/s_tir/random_engine.h>
 
 TEST(RandomEngine, Randomness) {
   int64_t rand_state = 0;
 
-  tvm::support::LinearCongruentialEngine rng(&rand_state);
+  tvm::s_tir::LinearCongruentialEngine rng(&rand_state);
   rng.Seed(0x114514);
 
   bool covered[100];
@@ -33,33 +33,33 @@ TEST(RandomEngine, Randomness) {
     covered[rng() % 100] = true;
   }
   for (int i = 0; i < 100; i++) {
-    ICHECK(covered[i]);
+    TVM_FFI_ICHECK(covered[i]);
   }
 }
 
 TEST(RandomEngine, Reproducibility) {
   int64_t rand_state_a = 0, rand_state_b = 0;
-  tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
+  tvm::s_tir::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x23456789);
   rng_b.Seed(0x23456789);
 
   for (int i = 0; i < 100000; i++) {
-    ICHECK_EQ(rng_a(), rng_b());
+    TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
   }
 }
 
 TEST(RandomEngine, Serialization) {
   int64_t rand_state_a = 0, rand_state_b = 0;
-  tvm::support::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
+  tvm::s_tir::LinearCongruentialEngine rng_a(&rand_state_a), rng_b(&rand_state_b);
 
   rng_a.Seed(0x56728);
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
+  for (int i = 0; i < 100000; i++) TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
 
   for (int i = 0; i < 123456; i++) rng_a();
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
+  for (int i = 0; i < 100000; i++) TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
 }

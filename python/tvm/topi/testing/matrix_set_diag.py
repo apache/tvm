@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """MatrixSetDiag in Python"""
+
 import numpy as np
 
 
@@ -54,7 +55,7 @@ def matrix_set_diag(input_np, diagonal, k=0, align="RIGHT_LEFT"):
     rows = input_np.shape[-2]
 
     onlyOneDiagonal = True
-    if isinstance(k, (tuple, list)):
+    if isinstance(k, tuple | list):
         if len(k) < 2 or k[0] == k[1]:
             k = k[0]
         else:

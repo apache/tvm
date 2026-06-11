@@ -17,12 +17,16 @@
 # pylint: disable=invalid-name, no-member
 
 """Executable object for TVM Runtime"""
-from typing import Any, Callable, Dict, List, Optional
+
+from collections.abc import Callable
+from typing import Any
+
+from tvm_ffi import Function
 
 import tvm
+from tvm.support import utils as _utils
 
-from tvm.contrib import utils as _utils
-from . import PackedFunc, Module
+from . import Module
 
 
 class Executable:
@@ -31,10 +35,10 @@ class Executable:
     def __init__(self, mod: Module):
         """Initialize the Executable object."""
         self.mod: Module = mod
-        self._jitted_mod: Optional[Module] = None
+        self._jitted_mod: Module | None = None
 
-    def __getitem__(self, name: str) -> PackedFunc:
-        """Get the PackedFunc from the jitted module."""
+    def __getitem__(self, name: str) -> Function:
+        """Get the Function from the jitted module."""
         return self.jit().get_function(name, query_imports=True)
 
     def __call__(self, *args, **kwargs) -> Any:
@@ -44,15 +48,15 @@ class Executable:
     def jit(
         self,
         *,
-        fcompile: Optional[Callable[[str, List[str], Dict[str, Any]], None]] = None,
-        addons: Optional[List[str]] = None,
+        fcompile: Callable[[str, list[str], dict[str, Any]], None] | None = None,
+        addons: list[str] | None = None,
         force_recompile: bool = False,
         **kwargs,
     ) -> Module:
         """Just-in-time compile and link the modules.
 
         The Executable returned by tvm.compile may not be directly
-        runnable as they may contain cuda source files and objects that
+        runnable as they may contain CUDA source files and objects that
         are yet to be compiled and linked.
         This function helps to create a runtime.Module for these cases.
 

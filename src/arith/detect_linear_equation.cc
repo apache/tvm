@@ -24,16 +24,16 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
 // Linear equation, the components can be undefined.
 struct LinearEqEntry {
@@ -108,7 +108,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     }
     return ret;
   }
-  LinearEqEntry VisitExprDefault_(const Object* op, const PrimExpr& e) final {
+  LinearEqEntry VisitExprDefault_(const ffi::Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     if (UsesVar(e, [this](const VarNode* var) { return var == var_.get(); })) {
       fail_ = true;
@@ -174,7 +174,7 @@ bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
-  auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
+  auto fvisit = [&bmap, &flag, &var](const ffi::ObjectRef& n) {
     if (const VarNode* v = n.as<VarNode>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
@@ -215,7 +215,7 @@ bool DetectClipBound(const PrimExpr& cond,
   LinearEqEntry ret;
   Analyzer analyzer;
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
-  ret.coeff = analyzer.Simplify(ret.coeff);
+  ret.coeff = analyzer->Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
 
   ffi::Optional<PrimExpr> min_value;
@@ -268,7 +268,7 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
-  SplitCommExpr<tir::AndNode>(analyzer.Simplify(e), &splits);
+  SplitCommExpr<tirx::AndNode>(analyzer->Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();
@@ -280,10 +280,10 @@ ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& v
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {
-      e.min_value = analyzer.Simplify(e.min_value);
+      e.min_value = analyzer->Simplify(e.min_value);
     }
     if (e.max_value.defined()) {
-      e.max_value = analyzer.Simplify(e.max_value);
+      e.max_value = analyzer->Simplify(e.max_value);
     }
     ret.push_back(e.min_value);
     ret.push_back(e.max_value);

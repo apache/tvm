@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -24,9 +25,9 @@ from .int_set import (
     estimate_region_strict_bound,
     estimate_region_upper_bound,
 )
-from .analyzer import ModularSet, ConstIntBound, Analyzer, ProofStrength, Extension
+from .analyzer import ModularSet, ConstIntBound, Analyzer, ProofStrength, Extension, CompareResult
 from .bound import deduce_bound
-from .pattern import detect_linear_equation, detect_clip_bound, detect_common_subexpr
+from .pattern import detect_linear_equation, detect_clip_bound
 from .int_solver import solve_linear_equations, solve_linear_inequalities
 from .iter_affine_map import IterMapExpr, IterMark, IterSplitExpr, IterSumExpr
 from .iter_affine_map import (

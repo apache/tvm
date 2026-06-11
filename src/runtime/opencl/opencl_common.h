@@ -24,13 +24,13 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/runtime/timer.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -71,10 +71,10 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
-#include "../texture.h"
 #include "../thread_storage_scope.h"
+#include "texture.h"
 
 namespace tvm {
 namespace runtime {
@@ -206,15 +206,18 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   } else if (dtype == DataType::UInt(32)) {
     return CL_UNSIGNED_INT32;
   }
-  LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
+  TVM_FFI_THROW(InternalError) << "data type is not supported in OpenCL runtime yet: " << dtype;
 }
 
 /*!
  * \brief Protected OpenCL call
  * \param func Expression to call.
  */
-#define OPENCL_CHECK_ERROR(e) \
-  { ICHECK(e == CL_SUCCESS) << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); }
+#define OPENCL_CHECK_ERROR(e)                                             \
+  {                                                                       \
+    TVM_FFI_ICHECK(e == CL_SUCCESS)                                       \
+        << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); \
+  }
 
 #define OPENCL_CALL(func)  \
   {                        \
@@ -281,17 +284,17 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
   cl_command_queue GetQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
   // get the event queue of the context
   std::vector<cl_event>& GetEventQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return events[dev.device_id];
   }
@@ -466,7 +469,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNodeBase(std::unordered_map<std::string, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
   ~OpenCLModuleNodeBase();
 
@@ -495,7 +498,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
   // In case of static destruction order problem.
   cl::OpenCLWorkspace* workspace_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
   // Mapping from primitive name to cl program for each device.
@@ -508,14 +511,17 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
 
 class OpenCLModuleNode : public OpenCLModuleNodeBase {
  public:
-  explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
+  explicit OpenCLModuleNode(ffi::Bytes code, ffi::String fmt,
+                            ffi::Map<ffi::String, FunctionInfo> fmap,
+                            ffi::Map<ffi::String, ffi::String> source)
+      : OpenCLModuleNodeBase(fmap),
+        code_(std::move(code)),
+        fmt_(std::move(fmt)),
+        source_(std::move(source)) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
-  void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
   ffi::Bytes SaveToBytes() const final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
@@ -528,13 +534,15 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                           const std::string& func_name, const KTRefEntry& e) override;
 
  private:
-  // the binary data
-  std::string data_;
-  // The format
-  std::string fmt_;
-  // The OpenCL source.
-  std::string source_;
-  // parsed kernel data
+  // The single-binary code payload: for fmt=="cl" the bytes are the
+  // OpenCL C source; for fmt=="xclbin"/"awsxclbin"/"aocx" the bytes
+  // are a pre-compiled OpenCL binary.
+  ffi::Bytes code_;
+  // The format identifier ("cl" / "xclbin" / "awsxclbin" / "aocx").
+  ffi::String fmt_;
+  // In-memory source map for InspectSource — never serialized.
+  ffi::Map<ffi::String, ffi::String> source_;
+  // parsed kernel data (computed in Init from code_ when fmt_ == "cl").
   std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 

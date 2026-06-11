@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for unary operators."""
-from tvm import topi, te
+
+from tvm import te, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -37,6 +38,9 @@ register_legalize("relax.cos", _call_topi_without_attr(topi.cos, "tir_cos"))
 register_legalize("relax.cosh", _call_topi_without_attr(topi.cosh, "tir_cosh"))
 register_legalize("relax.exp", _call_topi_without_attr(topi.exp, "tir_exp"))
 register_legalize("relax.floor", _call_topi_without_attr(topi.floor, "tir_floor"))
+register_legalize("relax.isfinite", _call_topi_without_attr(topi.isfinite, "tir_isfinite"))
+register_legalize("relax.isinf", _call_topi_without_attr(topi.isinf, "tir_isinf"))
+register_legalize("relax.isnan", _call_topi_without_attr(topi.isnan, "tir_isnan"))
 register_legalize("relax.log", _call_topi_without_attr(topi.log, "tir_log"))
 register_legalize("relax.logical_not", _call_topi_without_attr(topi.logical_not, "tir_logical_not"))
 register_legalize("relax.negative", _call_topi_without_attr(topi.negative, "tir_negative"))

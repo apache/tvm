@@ -31,8 +31,8 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/serializer.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <atomic>
 #include <functional>
@@ -42,23 +42,18 @@
 namespace tvm {
 namespace runtime {
 
-using ffi::GetDataSize;
-using ffi::IsAligned;
-using ffi::IsContiguous;
-
 /*!
  * \brief Managed Tensor.
  *  The array is backed by reference counted blocks.
  */
 class Tensor : public tvm::ffi::Tensor {
  public:
-  using Container = ffi::TensorObj;
   Tensor() = default;
   /*!
    * \brief constructor.
-   * \param data ObjectPtr to the data container.
+   * \param data ffi::ObjectPtr to the data container.
    */
-  explicit Tensor(ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
+  explicit Tensor(ffi::ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
   explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
@@ -90,7 +85,7 @@ class Tensor : public tvm::ffi::Tensor {
    *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
+  TVM_RUNTIME_DLL void CopyFromBytes(const void* data, size_t nbytes);
   /*!
    * \brief Copy data content into another array.
    * \param other The source array to be copied from.
@@ -106,7 +101,7 @@ class Tensor : public tvm::ffi::Tensor {
    *        Must be equal to the size of the Tensor.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
+  TVM_RUNTIME_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
    * \brief Copy the data to another device.
    * \param dev The target device.
@@ -114,19 +109,19 @@ class Tensor : public tvm::ffi::Tensor {
    * \return The array under another device.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL Tensor CopyTo(const Device& dev,
-                        ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
+  TVM_RUNTIME_DLL Tensor CopyTo(const Device& dev,
+                                ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
   /*!
    * \brief Load Tensor from stream
    * \param stream The input data stream
    * \return Whether load is successful
    */
-  inline bool Load(dmlc::Stream* stream);
+  inline bool Load(support::Stream* stream);
   /*!
    * \brief Save Tensor to stream
    * \param stream The output data stream
    */
-  inline void Save(dmlc::Stream* stream) const;
+  inline void Save(support::Stream* stream) const;
 
   /*!
    * \brief Create a Tensor that shares the data memory with the current one.
@@ -148,8 +143,8 @@ class Tensor : public tvm::ffi::Tensor {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
-                            uint64_t relative_byte_offset = 0) const;
+  TVM_RUNTIME_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
+                                    uint64_t relative_byte_offset = 0) const;
   /*!
    * \brief Create an empty Tensor.
    * \param shape The shape of the new array.
@@ -158,16 +153,16 @@ class Tensor : public tvm::ffi::Tensor {
    * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                              ffi::Optional<ffi::String> mem_scope = std::nullopt);
+  TVM_RUNTIME_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                                      ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
    * \param to The target array.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
-                                 TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
+                                         TVMStreamHandle stream = nullptr);
 
   /*!
    * \brief Function to copy data from one array to a byte buffer.
@@ -176,8 +171,8 @@ class Tensor : public tvm::ffi::Tensor {
    * \param nbytes The size of the data buffer.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
-                                  TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
+                                          TVMStreamHandle stream = nullptr);
 
   /*!
    * \brief Function to copy data from one array to a byte buffer.
@@ -186,8 +181,28 @@ class Tensor : public tvm::ffi::Tensor {
    * \param nbytes The size of the data buffer.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
-                                    TVMStreamHandle stream = nullptr);
+  TVM_RUNTIME_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
+                                            TVMStreamHandle stream = nullptr);
+
+  /*!
+   * \brief Check if two tensors share the same underlying storage.
+   *
+   * This detects runtime storage aliasing (e.g. views from CreateView, etc.) but does
+   * not imply either tensor was created by CreateView.
+   *
+   * \param a The first tensor.
+   * \param b The second tensor.
+   * \return True if the tensors share the same storage.
+   */
+  TVM_RUNTIME_DLL static bool IsStorageShared(const DLTensor* a, const DLTensor* b);
+
+  /*!
+   * \brief Tensor overload of IsStorageShared.
+   * \param a The first tensor.
+   * \param b The second tensor.
+   * \return True if the tensors share the same storage.
+   */
+  static bool IsStorageShared(const Tensor& a, const Tensor& b);
 };
 
 /*!
@@ -195,34 +210,34 @@ class Tensor : public tvm::ffi::Tensor {
  * \param strm The output stream
  * \param tensor The tensor to be saved.
  */
-inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
+inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor);
 
 inline void Tensor::CopyFrom(const DLTensor* other) {
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   CopyFromTo(other, get_mutable());
 }
 
 inline void Tensor::CopyFrom(const Tensor& other) {
-  ICHECK(data_ != nullptr);
-  ICHECK(other.data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(other.data_ != nullptr);
   CopyFromTo(other.get_mutable(), get_mutable());
 }
 
 inline void Tensor::CopyTo(DLTensor* other) const {
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   CopyFromTo(get_mutable(), other);
 }
 
 inline void Tensor::CopyTo(const Tensor& other) const {
-  ICHECK(data_ != nullptr);
-  ICHECK(other.data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(other.data_ != nullptr);
   CopyFromTo(get_mutable(), other.get_mutable());
 }
 
 /*! \brief Magic number for Tensor file */
 constexpr uint64_t kTVMTensorMagic = 0xDD5E40F096B4A13F;
 
-inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
+inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor) {
   uint64_t header = kTVMTensorMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
@@ -251,38 +266,39 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   int64_t data_byte_size = type_bytes * num_elems;
   strm->Write(data_byte_size);
 
-  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
+  if (TVM_FFI_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
       ffi::IsContiguous(*tensor) && tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size);
-    if (!DMLC_IO_NO_ENDIAN_SWAP) {
-      dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
+    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), bytes.data(), data_byte_size);
+    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+      ffi::ByteSwap(bytes.data(), type_bytes, num_elems);
     }
-    strm->Write(dmlc::BeginPtr(bytes), data_byte_size);
+    strm->Write(bytes.data(), data_byte_size);
   }
   return true;
 }
 
-inline void Tensor::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operator->()); }
+inline void Tensor::Save(support::Stream* strm) const { SaveDLTensor(strm, operator->()); }
 
-inline bool Tensor::Load(dmlc::Stream* strm) {
+inline bool Tensor::Load(support::Stream* strm) {
   uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
-  ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
   Device dev;
   int ndim;
   DLDataType dtype;
-  ICHECK(strm->Read(&dev)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
-  ICHECK_EQ(dev.device_type, kDLCPU) << "Invalid DLTensor device: can only save as CPU tensor";
+  TVM_FFI_ICHECK(strm->Read(&dev)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK_EQ(dev.device_type, kDLCPU)
+      << "Invalid DLTensor device: can only save as CPU tensor";
   std::vector<int64_t> shape(ndim);
   if (ndim != 0) {
-    ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
+    TVM_FFI_ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
   Tensor ret = Tensor::Empty(ffi::Shape(shape), dtype, dev);
   int64_t num_elems = 1;
@@ -291,15 +307,15 @@ inline bool Tensor::Load(dmlc::Stream* strm) {
     num_elems *= ret->shape[i];
   }
   int64_t data_byte_size;
-  ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
-  ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
   auto read_ret = strm->Read(ret->data, data_byte_size);
   // Only check non-empty data
   if (ndim > 0 && shape[0] != 0) {
-    ICHECK(read_ret) << "Invalid DLTensor file format";
+    TVM_FFI_ICHECK(read_ret) << "Invalid DLTensor file format";
   }
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
+  if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    ffi::ByteSwap(ret->data, elem_bytes, num_elems);
   }
   *this = ret;
   return true;

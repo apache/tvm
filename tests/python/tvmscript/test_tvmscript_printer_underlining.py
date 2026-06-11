@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional
 
 import pytest
 from tvm_ffi.access_path import AccessPath
+
+from tvm.script import ir as I
+from tvm.script import tirx as T
 from tvm.script.printer.doc import (
     ExprStmtDoc,
     IdDoc,
@@ -27,14 +29,13 @@ from tvm.script.printer.doc import (
     StmtBlockDoc,
 )
 from tvm.script.printer.doc_printer import to_python_script
-from tvm.script import ir as I, tir as T
 
 
 def make_path(name: str) -> AccessPath:
     return AccessPath.root().attr(name)
 
 
-def make_id_doc(name: str, path_name: Optional[str] = None) -> IdDoc:
+def make_id_doc(name: str, path_name: str | None = None) -> IdDoc:
     if path_name is None:
         path_name = name
     doc = IdDoc(name)
@@ -401,7 +402,7 @@ def test_longer_prefix_must_win():
 
 
 def test_underline_from_obj():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(a: T.int32, b: T.int32):
         T.evaluate(a)
         T.evaluate(b)
@@ -413,9 +414,10 @@ def test_underline_from_obj():
     result = func.with_attr("global_symbol", "main").script(obj_to_underline=[func.params[0]])
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
+        # from tvm.tirx.layout import Axis
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(a: T.int32, b: T.int32):
             T.evaluate(a)
                        ^
@@ -431,7 +433,7 @@ def test_underline_from_obj():
 
 
 def test_underline_from_multi_obj():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func():
         T.evaluate(-1)
         T.evaluate(1)
@@ -452,9 +454,10 @@ def test_underline_from_multi_obj():
     )
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
+        # from tvm.tirx.layout import Axis
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             T.evaluate(-1)
             T.evaluate(1)
@@ -473,7 +476,7 @@ def test_underline_from_multi_obj():
 
 
 def test_underline_func():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func():
         T.evaluate(0)
 
@@ -484,10 +487,11 @@ def test_underline_func():
     )
     assert result == format_script(
         """
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
+        # from tvm.tirx.layout import Axis
 
-        @T.prim_func
-        ^^^^^^^^^^^^
+        @T.prim_func(s_tir=True)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
         def main():
         ^^^^^^^^^^^
             T.evaluate(0)
@@ -499,7 +503,7 @@ def test_underline_func():
 def test_underline_func_in_irmodule():
     @I.ir_module
     class irmodule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func():
             T.evaluate(0)
 
@@ -511,12 +515,13 @@ def test_underline_func_in_irmodule():
     assert result == format_script(
         """
         # from tvm.script import ir as I
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
+        # from tvm.tirx.layout import Axis
 
         @I.ir_module
         class Module:
-            @T.prim_func
-            ^^^^^^^^^^^^
+            @T.prim_func(s_tir=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
                 T.evaluate(0)
@@ -528,7 +533,7 @@ def test_underline_func_in_irmodule():
 def test_underline_irmodule():
     @I.ir_module
     class irmodule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func():
             T.evaluate(0)
 
@@ -540,14 +545,15 @@ def test_underline_irmodule():
     assert result == format_script(
         """
         # from tvm.script import ir as I
-        # from tvm.script import tir as T
+        # from tvm.script import tirx as T
+        # from tvm.tirx.layout import Axis
 
         @I.ir_module
         ^^^^^^^^^^^^
         class Module:
         ^^^^^^^^^^^^^
-            @T.prim_func
-            ^^^^^^^^^^^^
+            @T.prim_func(s_tir=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
                 T.evaluate(0)

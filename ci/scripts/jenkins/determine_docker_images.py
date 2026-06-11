@@ -15,18 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import argparse
+import configparser
 import datetime
 import json
 import logging
 import urllib.error
-import configparser
-
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
+from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
-from cmd_utils import init_log, REPO_ROOT
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
@@ -35,7 +35,7 @@ IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
 TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
-def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
+def docker_api(url: str, use_pagination: bool = False) -> dict[str, Any]:
     """
     Run a paginated fetch from the public Docker Hub API
     """
@@ -70,10 +70,27 @@ def image_exists(spec: str) -> bool:
         return False
 
 
+def lookup_image_tag(name: str) -> str:
+    """Resolve image ``name`` (e.g. ``ci_cpu``) to its tag string from the ini.
+
+    Pure ini read — no Docker Hub query, no tlcpackstaging fallback. Used by
+    ``docker/dev_common.sh`` for local-dev image-name shortcuts where the
+    full Hub-existence check is unnecessary.
+    """
+    config = configparser.ConfigParser()
+    config.read(IMAGE_TAGS_FILE)
+    return config.get("jenkins", name)
+
+
 if __name__ == "__main__":
     init_log()
     parser = argparse.ArgumentParser(
         description="Writes out Docker images names to be used to .docker-image-names/"
+    )
+    parser.add_argument(
+        "--lookup-only",
+        metavar="NAME",
+        help="Print the tag for NAME from the ini and exit (no Docker Hub query, no fallback).",
     )
     parser.add_argument(
         "--testing-docker-data",
@@ -89,6 +106,11 @@ if __name__ == "__main__":
         help="(testing only) Folder to write image names to",
     )
     args, other = parser.parse_known_args()
+
+    if args.lookup_only:
+        print(lookup_image_tag(args.lookup_only))
+        raise SystemExit(0)
+
     name_dir = Path(args.base_dir)
 
     if args.testing_images_data:

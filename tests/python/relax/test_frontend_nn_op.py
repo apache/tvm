@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
+# ruff: noqa: E501, F841
 import numpy as np
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, s_tir, tirx
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -341,9 +343,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -460,7 +460,7 @@ def test_create():
             triu_out = op.triu(x)
             full_with_scalar_out = op.full([10, 10], fill_value=10)  # type: ignore
             full_with_FloatImm_out = op.full(
-                [10, 10], fill_value=tir.FloatImm(dtype="float32", value=10)
+                [10, 10], fill_value=tirx.FloatImm(dtype="float32", value=10)
             )
             full_with_Tensor_out = op.full(
                 [10, 10], fill_value=Tensor.from_scalar(10, dtype="float32")
@@ -503,9 +503,9 @@ def test_timestep_embedding():
             return get_timestep_out
 
     @R.function
-    def test(
-        x: R.Tensor((3,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+    def test(x: R.Tensor((3,), dtype="float32"), _io: R.Object) -> R.Tuple(
+        R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+    ):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
@@ -556,9 +556,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
@@ -589,14 +589,14 @@ def test_tensor_expr_op():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
@@ -633,7 +633,7 @@ def test_tensor_ir_op():
     fused_heads = num_q_heads + num_kv_heads * 2
     dtype = "float16"
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_q: T.handle,
@@ -658,7 +658,7 @@ def test_tensor_ir_op():
         T.evaluate(offset)
 
     class Model(Module):
-        def test(self, qkv: Tensor, offset: tir.Var):
+        def test(self, qkv: Tensor, offset: tirx.Var):
             tensor_expr_op_out = op.tensor_ir_op(
                 fused_rope,
                 "llama_fused_rope",
@@ -672,9 +672,9 @@ def test_tensor_ir_op():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def llama_fused_rope(var_qkv: T.handle, var_q: T.handle, var_k: T.handle, var_v: T.handle, offset: T.int64):
             batch_size, seq_len = T.int64(), T.int64()
             qkv = T.match_buffer(var_qkv, (batch_size, seq_len, 24, 16), "float16")
@@ -721,11 +721,11 @@ def test_tensor_ir_inplace_op():
     hidden_size = 4096
     dtype = "float16"
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
         seq_len = T.int64()
@@ -733,7 +733,7 @@ def test_tensor_ir_inplace_op():
         pos = T.match_buffer(var_pos, (seq_len,), "int32")
         embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
         for ax0, ax1 in T.grid(seq_len, hidden_size):
-            with T.block("T_take"):
+            with T.sblock("T_take"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(weight[pos[v0], v1], pos[v0])
                 T.writes(embeddings[v0, v1])
@@ -752,13 +752,13 @@ def test_tensor_ir_inplace_op():
             )
             return tensor_expr_op_out
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def inplace_take(
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             vocab_size = T.int64()
             weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
             seq_len = T.int64()
@@ -766,7 +766,7 @@ def test_tensor_ir_inplace_op():
             pos = T.match_buffer(var_pos, (seq_len,), "int32")
             embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
             for ax0, ax1 in T.grid(seq_len, hidden_size):
-                with T.block("T_take"):
+                with T.sblock("T_take"):
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(weight[pos[v0], v1], pos[v0])
                     T.writes(embeddings[v0, v1])
@@ -825,7 +825,7 @@ def test_tensor_ir_inplace_op():
 
 
 def test_tensor_ir_op_no_tir_var():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def tir_func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.evaluate(0)
 
@@ -839,9 +839,9 @@ def test_tensor_ir_op_no_tir_var():
             )
             return tensor_expr_op_out
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
             T.evaluate(0)
 
@@ -872,7 +872,7 @@ def test_extern():
             return tensor_expr_op_out
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
@@ -938,7 +938,7 @@ def test_multinomial_from_uniform():
             return z0
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
@@ -976,9 +976,9 @@ def test_multinomial_from_uniform():
     target = tvm.target.Target("cuda", host="llvm")
     with target:
         mod = relax.backend.DispatchSampling()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(str(target), 0)
+    dev = tvm.device(target.kind.name, 0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -1020,9 +1020,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             return z0
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle):
             batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
@@ -1032,9 +1032,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
-                with T.block("T_get_index_from_sorted"):
+                with T.sblock("T_get_index_from_sorted"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
                     T.writes(output_index[v_ax0, 0])
@@ -1045,16 +1045,16 @@ def test_sample_top_p_top_k_from_sorted_prob():
                             if usample[v_ax0, T.int64(0)] >= cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1)] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]:
                                 output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
             batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
             top_p = T.match_buffer(B, (batch, 1))
             top_k = T.match_buffer(C, (batch, 1), "int64")
             renorm_prob = T.match_buffer(D, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
                     T.writes(renorm_prob[v_ax0, 0])
@@ -1107,9 +1107,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
@@ -1148,20 +1148,20 @@ def test_renormalize_top_p_top_k_prob():
             return z0
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            T.func_attr({"tirx.noalias": True})
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.block("filter_with_top_p_top_k"):
+                with T.sblock("filter_with_top_p_top_k"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(B[v_i, T.int64(0)], A[v_i, v_j])
                     T.writes(filter_with_top_p_top_k[v_i, v_j])
                     filter_with_top_p_top_k[v_i, v_j] = T.Select(B[v_i, T.int64(0)] <= A[v_i, v_j], A[v_i, v_j], T.float32(0))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             sorted_prob = T.match_buffer(A, (batch, vocab_size))
@@ -1169,9 +1169,9 @@ def test_renormalize_top_p_top_k_prob():
             top_p = T.match_buffer(C, (batch, 1))
             top_k = T.match_buffer(D, (batch, 1), "int64")
             cutoff = T.match_buffer(E, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
                     T.writes(cutoff[v_ax0, 0])
@@ -1224,10 +1224,10 @@ def test_renormalize_top_p_top_k_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
@@ -1257,7 +1257,7 @@ def test_sort_argsort_topk():
             z2 = op.topk(x, k=2, axis=-1)
             return z0, z1, z2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def foo(x: R.Tensor(("seq_len", 64), dtype="float16")):

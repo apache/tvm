@@ -15,18 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Indexing operators."""
-from typing import Optional, Union
 
 from tvm.ir.expr import PrimExpr
 
-from . import _ffi_api
 from ..expr import Expr
-from .. import args_converter
+from ..utils import convert_to_expr
+from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
-def take(x: Expr, indices: Expr, axis: Optional[int] = None, mode: str = "fast") -> Expr:
+def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") -> Expr:
     """Take elements from a tensor along an axis.
     Its semantic is mostly similar to `numpy.take`
     (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
@@ -59,13 +58,12 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None, mode: str = "fast")
     return _ffi_api.take(x, indices, axis, mode)  # type: ignore
 
 
-@args_converter.auto
 def strided_slice(
     x: Expr,
     axes: Expr,
     begin: Expr,
     end: Expr,
-    strides: Optional[Expr] = None,
+    strides: Expr | None = None,
     assume_inbound: bool = False,
 ) -> Expr:
     """Strided slice of a tensor.
@@ -102,6 +100,11 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
+    axes = convert_to_expr(axes)
+    begin = convert_to_expr(begin)
+    end = convert_to_expr(end)
+    if strides is not None:
+        strides = convert_to_expr(strides)
     return _ffi_api.strided_slice(x, axes, begin, end, strides, assume_inbound)  # type: ignore
 
 

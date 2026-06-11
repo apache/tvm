@@ -27,7 +27,7 @@
 ) %}
   sh (
     script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-    label: 'Create WASM cmake config',
+    label: 'Create WASM CMake config',
   )
   cmake_build(ci_wasm, 'build')
   make_cpp_tests(ci_wasm, 'build')

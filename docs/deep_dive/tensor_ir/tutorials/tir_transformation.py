@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
-.. _tir-transform:
+.. _tirx-transform:
 
 Transformation
 --------------
@@ -25,7 +26,7 @@ transformations of primitive tensor functions.
 """
 
 ######################################################################
-# In the :ref:`previous section <tir-learning>`, we have given an example of how to write
+# In the :ref:`previous section <tirx-learning>`, we have given an example of how to write
 # ``mm_relu`` using TensorIR. In practice, there can be multiple ways to implement
 # the same functionality, and each implementation can result in different performance.
 #
@@ -37,29 +38,32 @@ transformations of primitive tensor functions.
 
 import tvm
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
 class MyModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        T.func_attr({"tir.noalias": True})
-        Y = T.alloc_buffer((128, 128))
-        for i, j, k in T.grid(128, 128, 128):
-            with T.block("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    Y[vi, vj] = T.float32(0)
-                Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
-        for i, j in T.grid(128, 128):
-            with T.block("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
+        T.func_attr({"tirx.noalias": True})
+        with T.sblock("root"):
+            T.reads()
+            T.writes()
+            Y = T.sblock_alloc_buffer((128, 128))
+            for i, j, k in T.grid(128, 128, 128):
+                with T.sblock("Y"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        Y[vi, vj] = T.float32(0)
+                    Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
+            for i, j in T.grid(128, 128):
+                with T.sblock("C"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
 ######################################################################
@@ -78,7 +82,7 @@ c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.tir.build(mod, target="llvm")
+    lib = tvm.tirx.build(mod, target="llvm")
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)
@@ -95,7 +99,7 @@ evaluate(MyModule)
 # We initiate the process of code transformation by establishing a Schedule helper class,
 # utilizing the provided **MyModule** as input.
 
-sch = tvm.tir.Schedule(MyModule)
+sch = tvm.s_tir.Schedule(MyModule)
 
 ######################################################################
 # Loop Tiling
@@ -103,13 +107,13 @@ sch = tvm.tir.Schedule(MyModule)
 # Subsequently, we execute the requisite operations to acquire a reference to
 # block **Y** and its associated loops.
 
-block_Y = sch.get_block("Y")
+block_Y = sch.get_sblock("Y")
 i, j, k = sch.get_loops(block_Y)
 
 ######################################################################
 # We now proceed to execute the transformations. The initial modification involves
 # splitting loop ``j`` into two separate loops, with the inner loop possessing a
-# length of 4. It is crucial to understand that the transformation process is procedural;
+# length of 8. It is crucial to understand that the transformation process is procedural;
 # thus, inadvertent execution of the block twice will yield an error stating the
 # non-existence of variable ``j``.
 
@@ -122,7 +126,7 @@ sch.mod.show()
 
 ######################################################################
 # Following the initial transformation phase, two supplementary loops, ``j_0`` and ``j_1``,
-# have been generated with respective ranges of 32 and 4. The subsequent
+# have been generated with respective ranges of 16 and 8. The subsequent
 # action involves reordering these two loops.
 
 sch.reorder(j0, k, j1)
@@ -136,7 +140,7 @@ evaluate(sch.mod)
 # variant. First, we employ a primitive known as **reverse_compute_at** to relocate block
 # **C** to an inner loop of **Y**.
 
-block_C = sch.get_block("C")
+block_C = sch.get_sblock("C")
 sch.reverse_compute_at(block_C, j0)
 sch.mod.show()
 

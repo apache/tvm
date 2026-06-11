@@ -17,13 +17,15 @@
  * under the License.
  */
 
+#include "../../src/runtime/threading_backend.h"
+
 #include <gtest/gtest.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <thread>
 #include <unordered_map>

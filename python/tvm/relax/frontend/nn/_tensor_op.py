@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Adding member operators to nn.Tensor."""
-from typing import Optional
 
-from tvm import tir
+from tvm import tirx
 
 
 def _op():
@@ -31,9 +31,9 @@ def _convert_scalar(scalar, ref) -> "Tensor":
 
     if isinstance(scalar, Tensor):
         return scalar
-    if isinstance(scalar, (tir.FloatImm, tir.IntImm)):
+    if isinstance(scalar, tirx.FloatImm | tirx.IntImm):
         return Tensor.from_scalar(scalar.value, dtype=ref.dtype)
-    if isinstance(scalar, (int, float)):
+    if isinstance(scalar, int | float):
         return Tensor.from_scalar(scalar, dtype=ref.dtype)
     return scalar
 
@@ -100,5 +100,5 @@ class _TensorOp:
     def permute_dims(self, *axes):
         return _op().permute_dims(self, axes)
 
-    def repeat(self, repeats: int, axis: Optional[int] = None):
+    def repeat(self, repeats: int, axis: int | None = None):
         return _op().repeat(self, repeats, axis)

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
-import re
 
 default_team_id = "3FR42MXLK9"
 default_tvm_build_dir = "path-to-tvm-ios-build-folder"
@@ -28,13 +27,11 @@ parser.add_argument(
     "--team_id",
     type=str,
     required=True,
-    help="Apple Developer Team ID.\n\
+    help=f"Apple Developer Team ID.\n\
                     Can be found here:\n\
                     \n\
                     https://developer.apple.com/account/#/membership\n\
-                    (example: {})".format(
-        default_team_id
-    ),
+                    (example: {default_team_id})",
 )
 
 parser.add_argument(

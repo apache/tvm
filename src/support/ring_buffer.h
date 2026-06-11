@@ -24,7 +24,7 @@
 #ifndef TVM_SUPPORT_RING_BUFFER_H_
 #define TVM_SUPPORT_RING_BUFFER_H_
 
-#include <tvm/runtime/logging.h>
+#include <tvm/ffi/error.h>
 
 #include <algorithm>
 #include <cstring>
@@ -98,7 +98,7 @@ class RingBuffer {
    * \param size The number of bytes to read.
    */
   void Read(void* data, size_t size) {
-    ICHECK_GE(bytes_available_, size);
+    TVM_FFI_ICHECK_GE(bytes_available_, size);
     size_t ncopy = std::min(size, ring_.size() - head_ptr_);
     memcpy(data, &ring_[0] + head_ptr_, ncopy);
     if (ncopy < size) {
@@ -120,7 +120,7 @@ class RingBuffer {
   template <typename FSend>
   size_t ReadWithCallback(FSend fsend, size_t max_nbytes) {
     size_t size = std::min(max_nbytes, bytes_available_);
-    ICHECK_NE(size, 0U);
+    TVM_FFI_ICHECK_NE(size, 0U);
     size_t ncopy = std::min(size, ring_.size() - head_ptr_);
     size_t nsend = fsend(&ring_[0] + head_ptr_, ncopy);
     if (ncopy == nsend && ncopy < size) {

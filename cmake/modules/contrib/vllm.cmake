@@ -17,9 +17,11 @@
 
 if(USE_VLLM)
   message(STATUS "Build with vllm paged attention kernel.")
-  include_directories(src/runtime/contrib/vllm)
+  include_directories(src/runtime/extra/contrib/vllm)
   enable_language(CUDA)
 
-  tvm_file_glob(GLOB VLLM_CONTRIB_SRC src/runtime/contrib/vllm/*.cu src/runtime/contrib/vllm/*.cc)
-  list(APPEND RUNTIME_SRCS ${VLLM_CONTRIB_SRC})
+  tvm_file_glob(GLOB VLLM_CONTRIB_SRC src/runtime/extra/contrib/vllm/*.cu src/runtime/extra/contrib/vllm/*.cc)
+  add_library(tvm_vllm_objs OBJECT ${VLLM_CONTRIB_SRC})
+  target_link_libraries(tvm_vllm_objs PRIVATE tvm_runtime_extra_defs)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_vllm_objs)
 endif(USE_VLLM)

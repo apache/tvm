@@ -19,6 +19,7 @@
 
 /*! \file src/relax/transform/lazy_transform_params.cc */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -37,11 +38,10 @@ namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
   if (auto opt_int_imm = func->GetAttr<IntImm>(attr::kNumInput)) {
     int64_t num_input_params = opt_int_imm.value()->value;
-    CHECK_GE(num_input_params, 0) << "ValueError: "
-                                  << "Annotation for attr::kNumInput (\"" << attr::kNumInput
-                                  << "\") must be non-negative, but was " << num_input_params;
-    CHECK_LE(static_cast<size_t>(num_input_params), func->params.size())
-        << "ValueError: "
+    TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
+        << "Annotation for attr::kNumInput (\"" << attr::kNumInput
+        << "\") must be non-negative, but was " << num_input_params;
+    TVM_FFI_CHECK_LE(static_cast<size_t>(num_input_params), func->params.size(), ValueError)
         << "Annotation for attr::kNumInput (\"" << attr::kNumInput << "\") specifies "
         << num_input_params << " parameters to be provided at runtime, "
         << "but the function only accepts " << func->params.size() << " parameters in total";
@@ -74,10 +74,10 @@ class LazyInputMutator : public ExprMutator {
 
     auto array_externally_visible_vars =
         DefinableTIRVarsInStructInfo(TupleStructInfo(new_params.Map(GetStructInfo)));
-    std::unordered_set<tir::Var> externally_visible_vars(array_externally_visible_vars.begin(),
-                                                         array_externally_visible_vars.end());
+    std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
+                                                          array_externally_visible_vars.end());
     StructInfo new_ret_struct_info = EraseToWellDefined(
-        func->ret_struct_info, [&](const tir::Var& var) -> ffi::Optional<PrimExpr> {
+        func->ret_struct_info, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
             return var;
           } else {

@@ -23,12 +23,16 @@ Using TVM's CI
 .. contents::
   :local:
 
-TVM primarily uses Jenkins for running Linux continuous integration (CI) tests on
-`branches <https://ci.tlcpack.ai/job/tvm/>`_
-`pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
-build configuration specified in a `Jenkinsfile <https://github.com/apache/tvm/blob/main/ci/jenkins/templates/>`_.
-Jenkins is the only CI step that is codified to block merging. TVM is also tested minimally
-against Windows and MacOS using GitHub Actions.
+TVM uses a combination of Jenkins and GitHub Actions for continuous integration (CI).
+
+- **Jenkins** runs Linux CI tests on
+  `branches <https://ci.tlcpack.ai/job/tvm/>`_ and
+  `pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
+  build configuration specified in `Jenkinsfile templates <https://github.com/apache/tvm/blob/main/ci/jenkins/templates/>`_.
+  Jenkins is the primary CI step that is codified to block merging.
+- **GitHub Actions** runs `linting <https://github.com/apache/tvm/blob/main/.github/workflows/lint.yml>`_
+  (via pre-commit hooks) on pushes and pull requests, as well as minimal
+  Windows and macOS build-and-test jobs.
 
 This page describes how contributors and committers can use TVM's CI to verify their code. You can
 read more about the design of TVM CI in the `tlc-pack/ci <https://github.com/tlc-pack/ci>`_ repo.
@@ -36,10 +40,11 @@ read more about the design of TVM CI in the `tlc-pack/ci <https://github.com/tlc
 For Contributors
 ----------------
 
-A standard CI run looks something like this viewed in `Jenkins' BlueOcean viewer <https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity>`_.
+A standard Jenkins CI run looks something like this viewed in `Jenkins' BlueOcean viewer <https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity>`_.
 CI runs usually take a couple hours to complete and pull requests (PRs) cannot be merged before CI
 has successfully completed. To diagnose failing steps, click through to the failing
-pipeline stage then to the failing step to see the output logs.
+pipeline stage then to the failing step to see the output logs. For GitHub Actions jobs (lint,
+Windows, macOS), check the "Actions" tab on the pull request or repository page.
 
 .. image:: https://github.com/tlc-pack/web-data/raw/main/images/contribute/ci.png
   :width: 800
@@ -55,7 +60,7 @@ Jenkins Logs
 """"""""""""
 
 .. |pytest| replace:: ``pytest``
-.. _pytest: https://docs.pytest.org/en/6.2.x/
+.. _pytest: https://docs.pytest.org/en/stable/
 
 The first place to look for a failure is in the CI logs, follow the red Xs on
 the failing job to view the logs. Note:
@@ -113,11 +118,11 @@ Dealing with Flakiness
 ^^^^^^^^^^^^^^^^^^^^^^
 
 If you notice a failure on your PR that seems unrelated to your change, you should
-search [recent GitHub issues related to flaky tests](https://github.com/apache/tvm/issues?q=is%3Aissue+%5BCI+Problem%5D+Flaky+>) and
-[file a new issue](https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D+>)
+search `recent GitHub issues related to flaky tests <https://github.com/apache/tvm/issues?q=is%3Aissue+%5BCI+Problem%5D+Flaky>`_ and
+`file a new issue <https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D>`_
 if you don't see any reports of the failure. If a certain test or class of tests affects
-several PRs or commits on `main` with flaky failures, the test should be disabled via
-[pytest's @xfail decorator](https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail) with [`strict=False`](https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter) and the relevant issue linked in the
+several PRs or commits on ``main`` with flaky failures, the test should be disabled via
+`pytest's @xfail decorator <https://docs.pytest.org/en/stable/how-to/skipping.html#xfail-mark-test-functions-as-expected-to-fail>`_ with `strict=False <https://docs.pytest.org/en/stable/how-to/skipping.html#strict-parameter>`_ and the relevant issue linked in the
 disabling PR.
 
 .. code-block:: python
@@ -142,12 +147,13 @@ Skipping CI
 ^^^^^^^^^^^
 
 For reverts and trivial forward fixes, adding ``[skip ci]`` to the revert's
-PR title will cause CI to shortcut and only run lint. Committers should
+PR title will cause Jenkins CI to shortcut and only run lint. Committers should
 take care that they only merge CI-skipped PRs to fix a failure on ``main`` and
 not in cases where the submitter wants to shortcut CI to merge a change faster.
-The PR title is checked when the build is first run (specifically during the lint
+The PR title is checked when the build is first run (specifically during the Jenkins lint
 step, so changes after that has run do not affect CI and will require the job to
-be re-triggered by another ``git push``).
+be re-triggered by another ``git push``). Note that GitHub Actions lint always
+runs independently via pre-commit hooks.
 
 .. code-block:: bash
 

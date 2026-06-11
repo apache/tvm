@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """
 Test TVMScript @I.pyfunc decorator functionality.
 
@@ -24,16 +25,19 @@ This test verifies:
 4. ExternFunc nodes are created for Python functions
 """
 
+import numpy as np
 import pytest
 import torch
+
 import tvm
 from tvm import relax
-from tvm.script import ir as I, relax as R, tir as T
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class TestPyFuncModule(BasePyModule):
     """Test module with Python functions using @I.pyfunc decorator."""
 
@@ -54,18 +58,18 @@ class TestPyFuncModule(BasePyModule):
         result = torch.nn.functional.dropout(result, p=0.1, training=False)
         return result * 10.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def simple_tir_func(
         var_A: T.handle,
         var_B: T.handle,
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tirx.noalias": True})
         n = T.int32()
         A = T.match_buffer(var_A, (n,), "float32")
         B = T.match_buffer(var_B, (n,), "float32")
 
         for i in T.grid(n):
-            with T.block("copy"):
+            with T.sblock("copy"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 

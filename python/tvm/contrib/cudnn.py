@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """External function interface to CuDNN v7 library."""
+
 # pylint: disable-msg=C0103
 import ctypes
-import numpy as np
-import tvm
 
+import numpy as np
 import tvm_ffi
+
+import tvm
 from tvm import te
 
 # algos can be read from cudnn.h
@@ -61,50 +64,20 @@ def algo_to_index(algo_type, algo_name):
 
     Parameters
     ----------
-        algo_type : str
-            ["fwd", "bwd_filter", "bwd_data]
+    algo_type : str
+        One of ``"fwd"``, ``"bwd_filter"``, or ``"bwd_data"``.
 
-        algo_name : str
-            algorithm name in cudnn definition
-            fwd = [
-                "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_GEMM",
-                "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT",
-                "CUDNN_CONVOLUTION_FWD_ALGO_FFT",
-                "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD",
-                "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_FWD_ALGO_COUNT",
-            ]
-            bwd_filter = [
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0",
-                # non-deterministic
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3",
-                # non-deterministic, algo0 with workspaceS
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD",
-                # not implemented
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT",
-            ]
-            bwd_data = [
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_0",
-                # non-deterministic
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_1",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED",
-                "CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT",
-            ]
+    algo_name : str
+        Algorithm name as defined in cuDNN. For example:
+
+        * fwd: ``CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM``, etc.
+        * bwd_filter: ``CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0``, etc.
+        * bwd_data: ``CUDNN_CONVOLUTION_BWD_DATA_ALGO_0``, etc.
 
     Returns
     -------
-        algo: int
-            algorithm index
+    algo : int
+        Algorithm index
 
     """
     idx = -1
@@ -236,10 +209,10 @@ def conv_output_shape(
 
     x_lanes = tvm.runtime.DataType(data_dtype).lanes
     assert x_chan * x_lanes == w_chan_input * groups, (
-        "Mismatched dimensions, data has {} channels/group "
-        "(dimension {} with {} lanes/value, {} groups), "
-        "but weights require {} input channels/group"
-    ).format(x_chan // groups, x_chan, x_lanes, groups, w_chan_input)
+        f"Mismatched dimensions, data has {x_chan // groups} channels/group "
+        f"(dimension {x_chan} with {x_lanes} lanes/value, {groups} groups), "
+        f"but weights require {w_chan_input} input channels/group"
+    )
 
     output_dims = []
     for x_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
@@ -600,7 +573,7 @@ def conv_forward(
 
     x_shape = list(x.shape)
 
-    if isinstance(x.shape[0], tvm.tir.expr.IntImm):
+    if isinstance(x.shape[0], tvm.tirx.expr.IntImm):
         oshape = conv_output_shape(
             tensor_format,
             pad,
@@ -655,7 +628,7 @@ def conv_forward(
         return te.extern(
             oshape,
             [x, w],
-            lambda ins, outs: tvm.tir.call_packed(
+            lambda ins, outs: tvm.tirx.call_packed(
                 "tvm.contrib.cudnn.conv2d.forward",
                 conv_mode,
                 tensor_format,
@@ -678,7 +651,7 @@ def conv_forward(
     return te.extern(
         oshape,
         [x, w],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv3d.forward",
             conv_mode,
             tensor_format,
@@ -750,9 +723,9 @@ def conv_backward_data(
     conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    assert isinstance(
-        dy.shape[0], tvm.tir.expr.IntImm
-    ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
+    assert isinstance(dy.shape[0], tvm.tirx.expr.IntImm), (
+        "Dynamic batch is not supported for cudnn conv2d backwad data yet."
+    )
 
     dx_shape = conv_dgrad_shape(
         tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding, groups
@@ -779,7 +752,7 @@ def conv_backward_data(
     return te.extern(
         dx_shape,
         [dy, w],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_data",
             conv_mode,
             tensor_format,
@@ -844,16 +817,16 @@ def conv_backward_filter(
 
     x_shape = list(x.shape)
 
-    assert isinstance(
-        x.shape[0], tvm.tir.expr.IntImm
-    ), "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
+    assert isinstance(x.shape[0], tvm.tirx.expr.IntImm), (
+        "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
+    )
 
     ic_ind = 1 if tensor_format == 0 else 3
 
     if groups > 1:
-        assert (
-            x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups
-        ), "Only depthwise wgrad supported for groups > 1."
+        assert x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups, (
+            "Only depthwise wgrad supported for groups > 1."
+        )
         ic = 1
     else:
         ic = x_shape[ic_ind]
@@ -880,7 +853,7 @@ def conv_backward_filter(
     return te.extern(
         dw_shape,
         [dy, x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_filter",
             conv_mode,
             tensor_format,
@@ -920,7 +893,7 @@ def softmax(x, axis=-1):
     return te.extern(
         x.shape,
         [x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.softmax.forward", ins[0], outs[0], axis
         ),
         name="y",
@@ -946,7 +919,7 @@ def log_softmax(x, axis=-1):
     return te.extern(
         x.shape,
         [x],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.cudnn.log_softmax.forward", ins[0], outs[0], axis
         ),
         name="y",

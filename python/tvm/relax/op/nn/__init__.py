@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Neural network related operators."""
+
 from .nn import (
     adaptive_avg_pool1d,
     adaptive_avg_pool2d,
@@ -25,12 +27,14 @@ from .nn import (
     avg_pool1d,
     avg_pool2d,
     avg_pool3d,
+    batch_flatten,
     batch_norm,
     conv1d,
     conv1d_transpose,
     conv2d,
     conv2d_transpose,
     conv3d,
+    conv3d_transpose,
     cross_entropy_with_logits,
     dropout,
     gelu,

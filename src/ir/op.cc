@@ -25,33 +25,35 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/module.h>
-#include <tvm/tir/op_attr_types.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include <memory>
 
-#include "../node/attr_registry.h"
+#include "attr_registry.h"
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() { OpNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ArgumentInfoNode::RegisterReflection();
+  OpNode::RegisterReflection();
+}
 
 using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
-using tir::FLowerIntrinsic;
+using tirx::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
 // find operator by name
 const Op& Op::Get(const ffi::String& name) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
-  ICHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
+  TVM_FFI_CHECK(reg != nullptr, AttributeError) << "Operator " << name << " is not registered";
   return reg->op();
 }
 
 OpRegEntry::OpRegEntry(uint32_t reg_index) {
-  ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
+  ffi::ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
   op_ = Op(n);
 }
@@ -109,8 +111,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ir.RegisterOp",
            [](ffi::String op_name, ffi::String descr) {
              const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
-             ICHECK(reg == nullptr)
-                 << "AttributeError: Operator " << op_name << " is registered before";
+             TVM_FFI_CHECK(reg == nullptr, AttributeError)
+                 << "Operator " << op_name << " is registered before";
              auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
              op.describe(descr);
            })
@@ -141,7 +143,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (attr_key == "num_inputs" && plevel > 128) {
                reg.set_num_inputs(value.cast<int>());
              } else if (attr_key == "attrs_type_key" && plevel > 128) {
-               LOG(FATAL) << "attrs type key no longer supported";
+               TVM_FFI_THROW(InternalError) << "attrs type key no longer supported";
              } else {
                reg.set_attr(attr_key, value, plevel);
              }
@@ -161,10 +163,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("__data_from_json__", [](const ffi::String& name) -> Op { return Op::Get(name); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const OpNode*>(ref.get());
-      p->stream << "Op(" << node->name << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace tvm

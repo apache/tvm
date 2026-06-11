@@ -19,9 +19,17 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
-#include <tvm/node/serialization.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/serialization.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/base.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/ir_docsifier.h>
+#include <tvm/script/printer/printer.h>
 
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -33,22 +41,13 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-#define TVM_SCRIPT_REPR(ObjectType, Method)                   \
-  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                  \
-      .set_dispatch<ObjectType>(RedirectedReprPrinterMethod); \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method);
+// Note: the `TVM_SCRIPT_REPR` macro is intentionally duplicated in each
+// dialect-local `src/<dialect>/script/printer/utils.h`. Keeping a single
+// definition here would force the dialect headers to depend on this shared
+// header, which the per-dialect restructure aims to avoid for cross-directory
+// references. See each `<dialect>/script/printer/utils.h` for the macro.
 
-inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
-  try {
-    p->stream << TVMScriptPrinter::Script(obj, std::nullopt);
-  } catch (const tvm::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                 << e.what();
-    p->stream << obj->GetTypeKey() << '(' << obj.get() << ')';
-  }
-}
-
-inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
+inline std::string Docsify(const ffi::ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, AccessPath::Root());
   bool move_source_paths = false;
@@ -65,14 +64,18 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     }
     move_source_paths = true;
   } else {
-    LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unexpected doc type: " << doc->GetTypeKey();
   }
   std::ostringstream os;
   if (!d->metadata.empty()) {
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                SaveJSON(ffi::Map<ffi::String, ffi::Any>(d->metadata.begin(), d->metadata.end())),
+                ffi::json::Stringify(
+                    ffi::ToJSONGraph(
+                        ffi::Map<ffi::String, ffi::Any>(d->metadata.begin(), d->metadata.end()),
+                        ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+                    2),
                 false, false)
          << "\"\"\")\n";
     } else {
@@ -98,18 +101,21 @@ inline ExprDoc IR(const IRDocsifier& d, const ffi::String& attr) {
 
 /*! \brief Creates the TIR common prefix, which is by default `T` */
 inline ExprDoc TIR(const IRDocsifier& d, const ffi::String& attr) {
-  d->ir_usage.insert("tir");
-  return IdDoc(d->cfg->tir_prefix)->Attr(attr);
+  d->ir_usage.insert("tirx");
+  return IdDoc(d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T"))->Attr(attr);
 }
+
+/*! \brief Alias for TIR — historical TIRx name used by tirx printer code */
+inline ExprDoc TIRx(const IRDocsifier& d, const ffi::String& attr) { return TIR(d, attr); }
 
 /*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   d->ir_usage.insert("relax");
-  return IdDoc(d->cfg->relax_prefix)->Attr(attr);
+  return IdDoc(d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R"))->Attr(attr);
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
+  return dtype.is_void() ? "void" : ffi::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */
@@ -119,11 +125,17 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("ir")) {
       stmts.push_back(CommentDoc("from tvm.script import ir as " + d->cfg->ir_prefix));
     }
-    if (d->ir_usage.count("tir")) {
-      stmts.push_back(CommentDoc("from tvm.script import tir as " + d->cfg->tir_prefix));
+    if (d->ir_usage.count("tirx")) {
+      stmts.push_back(CommentDoc("from tvm.script import tirx as " +
+                                 d->cfg->GetExtraConfig<ffi::String>("tirx.prefix", "T")));
+      // Layout sugar like `4 @ Axis.laneid` references registered axes via the
+      // `Axis` class attribute. Mirror the `Axis` injection in `_default_globals`
+      // so readers see the dependency. Decorative only.
+      stmts.push_back(CommentDoc("from tvm.tirx.layout import Axis"));
     }
     if (d->ir_usage.count("relax")) {
-      stmts.push_back(CommentDoc("from tvm.script import relax as " + d->cfg->relax_prefix));
+      stmts.push_back(CommentDoc("from tvm.script import relax as " +
+                                 d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R")));
     }
     stmts.push_back(CommentDoc(""));
     stmts.push_back(Downcast<StmtDoc>(doc));

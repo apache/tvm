@@ -25,18 +25,18 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 
 namespace tvm {
 namespace arith {
 
-using tir::Region;
-using tir::Stmt;
-using tir::Var;
-using tir::VarNode;
+using tirx::Region;
+using tirx::Stmt;
+using tirx::Var;
+using tirx::VarNode;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,
@@ -77,7 +77,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_stores If stores are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Region DomainTouched(const Stmt& body, const tir::Buffer& buffer, bool consider_loads,
+Region DomainTouched(const Stmt& body, const tirx::Buffer& buffer, bool consider_loads,
                      bool consider_stores);
 
 }  // namespace arith

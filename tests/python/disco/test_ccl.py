@@ -24,15 +24,18 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
 from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.vm import VirtualMachine
+from tvm.s_tir import dlight as dl
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
-_ccl = [get_global_func("runtime.disco.compiled_ccl")()]
+_compiled_ccl = get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+if _compiled_ccl is None:
+    pytest.skip("Disco CCL is not enabled in this TVM build", allow_module_level=True)
+_ccl = [_compiled_ccl()]
 
 
 def create_device_target(ccl):
@@ -247,9 +250,9 @@ def test_scatter(session_kind, ccl, use_explicit_output, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -286,9 +289,9 @@ def test_group_scatter(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -331,9 +334,9 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.scatter_from_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -355,9 +358,9 @@ def test_gather(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.gather_to_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -386,9 +389,9 @@ def test_group_gather(session_kind, ccl, capfd):
     )
 
     captured = capfd.readouterr()
-    assert (
-        not captured.err
-    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+    assert not captured.err, (
+        "No warning messages should be generated from disco.Session.gather_to_worker0"
+    )
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)

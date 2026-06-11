@@ -24,6 +24,8 @@ import inspect
 import re
 import typing
 
+import tvm_ffi
+
 from tvm import ir, relax
 from tvm.relax.frontend import nn
 
@@ -57,7 +59,7 @@ def _get_struct_info(arg):
         return arg.struct_info_
     elif isinstance(arg, nn.Tensor):
         return arg._expr.struct_info_
-    elif isinstance(arg, (tuple, list, ir.Array)):
+    elif isinstance(arg, tuple | list | tvm_ffi.Array):
         return relax.TupleStructInfo([_get_struct_info(field) for field in arg])
     else:
         raise TypeError(f"Cannot find struct info for {arg} of type {type(arg)}")
@@ -141,10 +143,15 @@ class SubroutineMixin:
 
         arg_sinfo = _get_struct_info([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
-        lookup_key = (ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
+        lookup_key = (
+            old_forward,
+            tvm_ffi.structural_hash(arg_sinfo, map_free_vars=True),
+            is_dataflow,
+        )
 
-        if lookup_key in cls._gvar:
-            return cls._gvar[lookup_key]
+        for cached_sinfo, cached_result in cls._gvar.get(lookup_key, []):
+            if tvm_ffi.structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
+                return cached_result
 
         func_name = _camel_to_snake(cls.__name__)
         func_params = [relax.Var(name, sinfo) for name, sinfo in zip(func_args, arg_sinfo.fields)]
@@ -168,12 +175,14 @@ class SubroutineMixin:
             gvar = block_builder.emit_func_output(out)
 
         # The relax.Var instances in model_params, along with any
-        # tir.Var instances in the struct info, appear in both the
+        # tirx.Var instances in the struct info, appear in both the
         # calling scope and as parameters for the subroutine.  To
         # maintain SSA, replace all relax and TIR variables in the
         # subroutine.
         mod = block_builder.get()
         mod.update_func(gvar, relax.utils.copy_with_new_vars(mod[gvar]))
 
-        cls._gvar[lookup_key] = (gvar, is_nn_tensor_output)
-        return cls._gvar[lookup_key]
+        result = (gvar, is_nn_tensor_output)
+        bucket = cls._gvar.setdefault(lookup_key, [])
+        bucket.append((arg_sinfo, result))
+        return result

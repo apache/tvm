@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """
 Test PyTorch integration with TVM Relax.
 
@@ -25,17 +26,20 @@ This test verifies:
 5. Error handling and edge cases
 """
 
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
+
 import tvm
-from tvm import relax, tir
-from tvm.script import ir as I, relax as R, tir as T
+from tvm import relax, tirx
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class PyTorchIntegrationModule(BasePyModule):
     """Test module for PyTorch integration with TVM."""
 
@@ -58,7 +62,7 @@ class PyTorchIntegrationModule(BasePyModule):
 
         return lv3
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul(
         var_A: T.handle,
         var_B: T.handle,
@@ -71,7 +75,7 @@ class PyTorchIntegrationModule(BasePyModule):
         C = T.match_buffer(var_C, (n, 20), "float32")
 
         for i, j, k in T.grid(n, 20, 16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)

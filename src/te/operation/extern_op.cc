@@ -25,20 +25,15 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 namespace tvm {
 namespace te {
-using namespace tir;
+using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 
-// ExternOpNode
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ExternOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ExternOpNode*>(node.get());
-      p->stream << "extern(" << op->name << ", " << op << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
 
@@ -58,14 +53,14 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
-  ICHECK_EQ(inputs.size(), input_placeholders.size());
+  TVM_FFI_ICHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
-    ICHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    TVM_FFI_ICHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
+    TVM_FFI_ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
-      ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+      TVM_FFI_ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
     }
-    ICHECK_EQ(input_placeholders[i]->strides.size(), 0U);
+    TVM_FFI_ICHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);

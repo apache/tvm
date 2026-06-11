@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """
 .. _tutorial-cross-compilation-and-rpc:
 
@@ -51,7 +52,9 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 #   git clone --recursive https://github.com/apache/tvm tvm
 #   cd tvm
-#   make runtime -j2
+#   mkdir build && cd build
+#   cp ../cmake/config.cmake .
+#   cmake .. && cmake --build . --parallel $(nproc)
 #
 # After building the runtime successfully, we need to set environment variables
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
@@ -81,7 +84,6 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
-
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
 # -------------------------------------------------
@@ -93,13 +95,12 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 # Here we will declare a simple kernel on the local machine:
 
-
 import numpy as np
+import tvm_ffi
 
 import tvm
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils
+from tvm import rpc, te
+from tvm.support import utils
 
 n = tvm.runtime.convert(1024)
 A = te.placeholder((n,), name="A")
@@ -108,7 +109,7 @@ mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbo
 
 ######################################################################
 # Then we cross compile the kernel.
-# The target should be 'llvm -mtriple=armv7l-linux-gnueabihf' for
+# The target should be {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"} for
 # Raspberry Pi 3B, but we use 'llvm' here to make this tutorial runnable
 # on our webpage building server. See the detailed note in the following block.
 
@@ -117,7 +118,7 @@ local_demo = True
 if local_demo:
     target = "llvm"
 else:
-    target = "llvm -mtriple=armv7l-linux-gnueabihf"
+    target = {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}
 
 func = tvm.compile(mod, target=target)
 # save the lib at a local temp folder
@@ -132,8 +133,8 @@ func.export_library(path)
 #   to False and replace :code:`target` in :code:`build` with the appropriate
 #   target triple for your device. The target triple which might be
 #   different for different devices. For example, it is
-#   :code:`'llvm -mtriple=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
-#   :code:`'llvm -mtriple=aarch64-linux-gnu'` for RK3399.
+#   :code:`{"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}` for Raspberry Pi 3B and
+#   :code:`{"kind": "llvm", "mtriple": "aarch64-linux-gnu"}` for RK3399.
 #
 #   Usually, you can query the target by running :code:`gcc -v` on your
 #   device, and looking for the line starting with :code:`Target:`
@@ -195,10 +196,198 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 # function over number times, measures the cost per run on the remote
 # device and returns the measured cost. Network overhead is excluded.
 
-time_f = func.time_evaluator(func.entry_name, dev, number=10)
+time_f = func.time_evaluator("add_one", dev, number=10)
 cost = time_f(a, b).mean
-print("%g secs/op" % cost)
+print(f"{cost:g} secs/op")
 
+######################################################################
+# Scale RPC to Shared Devices
+# ---------------------------
+#
+# The direct RPC server used above is the simplest way to run on one remote
+# device.  In shared environments, the same compile/upload/run flow is usually
+# kept, but the connection is managed by an RPC tracker and, when needed, an
+# RPC proxy.
+#
+# This setup is useful when:
+#
+# - multiple users or CI jobs share a small number of boards,
+# - devices are registered by key rather than by fixed IP address,
+# - the host cannot directly reach the device because of the network layout, or
+# - the target device only has the minimal runtime stack needed for execution.
+#
+# The pieces fit together as follows:
+#
+# - **RPC server**: runs on the target device and executes uploaded modules.
+# - **RPC tracker**: runs on a host and assigns matching RPC servers to clients.
+# - **RPC proxy**: forwards traffic when the client cannot connect directly to
+#   the RPC server.
+#
+# .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/dev/how-to/rpc_system_suggested_arch.svg
+#    :align: center
+#    :width: 85%
+#
+# In the figure above, machine A connects through the tracker.  Machine B runs
+# an RPC proxy because machines C and D are not directly reachable from A.  The
+# tracker keeps a queue per RPC key.  If a matching server is available, it is
+# assigned to the client; otherwise, the request waits in that key's queue.
+#
+# Start the Tracker and Proxy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# The tracker and proxy generally run on a host machine, not on the target
+# device.  They do not require target-specific drivers.
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.rpc_tracker --host RPC_TRACKER_IP --port 9190 --port-end 9191
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.rpc_proxy \
+#       --host RPC_PROXY_IP \
+#       --port 9090 \
+#       --port-end 9091 \
+#       --tracker RPC_TRACKER_IP:RPC_TRACKER_PORT
+#
+# Replace the host names, ports, and port ranges for your environment.  The
+# ``--port-end`` option is useful in CI because it prevents the service from
+# silently choosing an unexpected port.
+#
+# Package a Minimal RPC Runtime
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# If the target can build TVM directly, install TVM on the target and launch
+# the RPC server there.  Otherwise, cross-compile the TVM runtime and package
+# it with the Python RPC server.
+#
+# A typical CMake toolchain file for 64-bit ARM Linux looks like this:
+#
+# .. code-block:: cmake
+#
+#   set(CMAKE_SYSTEM_NAME Linux)
+#   set(root_dir "/XXX/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu")
+#
+#   set(CMAKE_C_COMPILER "${root_dir}/bin/aarch64-linux-gnu-gcc")
+#   set(CMAKE_CXX_COMPILER "${root_dir}/bin/aarch64-linux-gnu-g++")
+#   set(CMAKE_SYSROOT "${root_dir}/aarch64-linux-gnu/libc")
+#
+#   set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+#   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+#
+# Build the runtime from the TVM repository root.  Enable target-specific
+# options such as ``USE_OPENCL`` or vendor runtime support in ``config.cmake``.
+# Build any target-specific runtime libraries that your deployment needs, such
+# as ``tvm_runtime_opencl`` for OpenCL.
+#
+# .. code-block:: shell
+#
+#   mkdir cross_build
+#   cd cross_build
+#   cp ../cmake/config.cmake ./
+#
+#   # Enable other options as needed, e.g. USE_OPENCL or vendor runtimes.
+#   sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
+#
+#   cmake -DCMAKE_TOOLCHAIN_FILE=/YYY/aarch64-linux-gnu.cmake -DCMAKE_BUILD_TYPE=Release ..
+#   cmake --build . --target runtime -j
+#   # Optional example when USE_OPENCL is enabled:
+#   # cmake --build . --target tvm_runtime_opencl -j
+#   cd ..
+#
+# Then package the Python RPC server with the cross-compiled runtime and copy
+# it to the device.
+#
+# .. code-block:: shell
+#
+#   rm -rf tvm_runtime_package
+#   mkdir tvm_runtime_package
+#   cp -a python tvm_runtime_package/
+#   cp cross_build/lib/libtvm_ffi.so tvm_runtime_package/python/tvm/
+#   cp cross_build/lib/libtvm_runtime*.so tvm_runtime_package/python/tvm/
+#   tar -czf tvm_runtime.tar.gz -C tvm_runtime_package python
+#
+# On the target device:
+#
+# .. code-block:: shell
+#
+#   tar -xzf tvm_runtime.tar.gz
+#   export PYTHONPATH=`pwd`/python:${PYTHONPATH}
+#
+# Launch the Server
+# ~~~~~~~~~~~~~~~~~
+#
+# Launch the RPC server on the target device.  Use the proxy form when the
+# server connects through an RPC proxy; otherwise connect directly to the
+# tracker.
+#
+# .. code-block:: shell
+#
+#   # Through an RPC proxy.
+#   python3 -m tvm.exec.rpc_server \
+#       --host RPC_PROXY_IP \
+#       --port RPC_PROXY_PORT \
+#       --through-proxy \
+#       --key RPC_KEY
+#
+#   # Directly to an RPC tracker.
+#   python3 -m tvm.exec.rpc_server \
+#       --tracker RPC_TRACKER_IP:RPC_TRACKER_PORT \
+#       --key RPC_KEY
+#
+# Query the tracker from the host to confirm that the servers are visible:
+#
+# .. code-block:: shell
+#
+#   python3 -m tvm.exec.query_rpc_tracker --host RPC_TRACKER_IP --port RPC_TRACKER_PORT
+#
+# If three servers connect through a proxy, the output should look similar to:
+#
+# .. code-block:: text
+#
+#   Tracker address RPC_TRACKER_IP:RPC_TRACKER_PORT
+#
+#   Server List
+#   ----------------------------
+#   server-address  key
+#   ----------------------------
+#   RPC_PROXY_IP:RPC_PROXY_PORT       server:proxy[RPC_KEY0,RPC_KEY1,RPC_KEY2]
+#   ----------------------------
+#
+#   Queue Status
+#   ---------------------------------------
+#   key               total  free  pending
+#   ---------------------------------------
+#   RPC_KEY0          0      0     3
+#   ---------------------------------------
+#
+# Once the tracker assigns a server, the client-side code still follows the
+# same pattern used earlier in this tutorial.  Only the session creation
+# changes from a direct connection to a tracker request:
+#
+# .. code-block:: python
+#
+#   tracker = rpc.connect_tracker("RPC_TRACKER_IP", RPC_TRACKER_PORT)
+#   remote = tracker.request("RPC_KEY", priority=0, session_timeout=600)
+#
+# After that, use the same ``remote.upload()``, ``remote.load_module()``, remote
+# device creation, and ``time_evaluator`` flow shown above.
+#
+# Troubleshooting Minimal Device Environments
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Some target devices have intentionally small Python environments.  The TVM
+# runtime itself does not require full NumPy support for RPC execution, but the
+# Python RPC server may import modules that import ``numpy``.  If installing or
+# cross-compiling NumPy is not practical, a small ``numpy.py`` shim in the
+# device's Python ``site-packages`` directory can be enough for server startup.
+#
+# If ``cloudpickle`` is missing, copy it from another Python environment into
+# the device's ``site-packages`` directory.  It is a pure Python package, so it
+# usually does not need cross-compilation.
+#
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC
 # ---------------------------------
@@ -216,9 +405,10 @@ print("%g secs/op" % cost)
 #
 # .. code-block:: bash
 #
-#    cp cmake/config.cmake .
+#    mkdir -p build && cd build
+#    cp ../cmake/config.cmake .
 #    sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake
-#    make runtime -j4
+#    cmake .. && cmake --build . --parallel $(nproc)
 #
 # The following function shows how we run an OpenCL kernel remotely
 
@@ -228,12 +418,12 @@ def run_opencl():
     # them according to your environment.
     opencl_device_host = "10.77.1.145"
     opencl_device_port = 9090
-    target = tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
+    target = tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 
     # create schedule for the above "add one" compute declaration
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tvm.tir.Schedule(mod)
-    (x,) = sch.get_loops(block=sch.get_block("B"))
+    sch = tvm.s_tir.Schedule(mod)
+    (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(x, [None, 32])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -356,23 +546,23 @@ def run_pytorch_model_via_rpc():
         # Choose the appropriate target for your device:
         #
         # ARM devices:
-        #   - Raspberry Pi 3/4 (32-bit): "llvm -mtriple=armv7l-linux-gnueabihf"
-        #   - Raspberry Pi 4 (64-bit) / Jetson: "llvm -mtriple=aarch64-linux-gnu"
-        #   - Android: "llvm -mtriple=aarch64-linux-android"
+        #   - Raspberry Pi 3/4 (32-bit): {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}
+        #   - Raspberry Pi 4 (64-bit) / Jetson: {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}
+        #   - Android: {"kind": "llvm", "mtriple": "aarch64-linux-android"}
         #
         # x86 servers:
-        #   - Linux x86_64: "llvm -mtriple=x86_64-linux-gnu"
-        #   - With AVX-512: "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"
+        #   - Linux x86_64: {"kind": "llvm", "mtriple": "x86_64-linux-gnu"}
+        #   - With AVX-512: {"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "skylake-avx512"}
         #
         # RISC-V:
-        #   - RV64: "llvm -mtriple=riscv64-unknown-linux-gnu"
+        #   - RV64: {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu"}
         #
         # GPU targets:
-        #   - CUDA: tvm.target.Target("cuda", host="llvm -mtriple=x86_64-linux-gnu")
-        #   - OpenCL: tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
+        #   - CUDA: tvm.target.Target("cuda", host={"kind": "llvm", "mtriple": "x86_64-linux-gnu"})
+        #   - OpenCL: tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         #
         # For this example, we use ARM 64-bit
-        target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+        target = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         print(f"Cross-compiling for target: {target}")
 
     # Apply optimization pipeline
@@ -463,33 +653,49 @@ def run_pytorch_model_via_rpc():
     # Step 5: Run Inference on Remote Device
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Execute the model on the remote ARM device and retrieve results
+    #
+    # Note: When running VM over RPC, we use set_input() and invoke_stateful()
+    # instead of direct function call (vm["main"](...)). This is because RPC
+    # transmits tensors as DLTensor*, while VM builtins expect ffi.Tensor.
+    # The set_input API handles this conversion internally.
 
     # Prepare input data
     input_data = np.random.randn(1, 1, 28, 28).astype("float32")
     remote_input = tvm.runtime.tensor(input_data, dev)
 
-    # Run inference on remote device
-    output = vm["main"](remote_input, *remote_params)
+    # Run inference using set_input + invoke_stateful for RPC compatibility
+    vm.set_input("main", remote_input, *remote_params)
+    vm.invoke_stateful("main")
+    output = vm.get_outputs("main")
 
     # Extract result (handle both tuple and single tensor outputs)
-    if isinstance(output, tvm.ir.Array) and len(output) > 0:
+    if isinstance(output, tvm_ffi.Array) and len(output) > 0:
         result = output[0]
     else:
         result = output
 
     # Retrieve result from remote device to local
     result_np = result.numpy()
-    print(f"Inference completed on remote device")
+    print("Inference completed on remote device")
     print(f"  Output shape: {result_np.shape}")
     print(f"  Predicted class: {np.argmax(result_np)}")
+
+    ######################################################################
+    # Alternative: Direct Function Call (Local Only)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Note: The direct call syntax vm["main"](input, *params) works for
+    # local execution but may fail over RPC due to type mismatch between
+    # DLTensor* (RPC) and ffi.Tensor (VM builtins). For RPC, always use
+    # the set_input + invoke_stateful pattern shown above.
 
     ######################################################################
     # Step 6: Performance Evaluation (Optional)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Measure inference time on the remote device, excluding network overhead
+    # Note: For RPC, use invoke_stateful with time_evaluator
 
-    time_f = vm.time_evaluator("main", dev, number=10, repeat=3)
-    prof_res = time_f(remote_input, *remote_params)
+    time_f = vm.time_evaluator("invoke_stateful", dev, number=10, repeat=3)
+    prof_res = time_f("main")
     print(f"Inference time on remote device: {prof_res.mean * 1000:.2f} ms")
 
     ######################################################################
@@ -513,7 +719,7 @@ def run_pytorch_model_via_rpc():
     #
     #    .. code-block:: python
     #
-    #       from tvm import dlight as dl
+    #       from tvm.s_tir import dlight as dl
     #       with target:
     #           mod = dl.ApplyDefaultSchedule()(mod)
     #
@@ -527,12 +733,12 @@ def run_pytorch_model_via_rpc():
     #
     #       # Example: ARM with NEON
     #       target = tvm.target.Target(
-    #           "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
+    #           {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": "+neon"}
     #       )
     #
     #       # Example: x86 with AVX-512
     #       target = tvm.target.Target(
-    #           "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"
+    #           {"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "skylake-avx512"}
     #       )
     #
     # See :doc:`e2e_opt_model </how_to/tutorials/e2e_opt_model>` for detailed

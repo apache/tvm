@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tag class for TVM operators."""
-import warnings
+
 import functools
+import warnings
 
 
-class TagScope(object):
+class TagScope:
     """Tag scope object to set tag for operators, working as context
     manager and decorator both. See also tag_scope.
     """
@@ -90,6 +91,6 @@ def tag_scope(tag):
         # or use tag_scope as decorator
         @tvm.te.tag_scope(tag="conv")
         def compute_relu(data):
-            return te.compute(data.shape, lambda *i: tvm.tir.Select(data(*i) < 0, 0.0, data(*i)))
+            return te.compute(data.shape, lambda *i: tvm.tirx.Select(data(*i) < 0, 0.0, data(*i)))
     """
     return TagScope(tag)

@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/hipblas/codegen.cc
  * \brief Implementation of the HIPBLAS JSON serializer.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 
@@ -48,12 +49,12 @@ class HipblasJSONSerializer : public JSONSerializer {
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -63,7 +64,7 @@ class HipblasJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 3);
+    TVM_FFI_ICHECK(inputs_tmp.size() <= 3);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);

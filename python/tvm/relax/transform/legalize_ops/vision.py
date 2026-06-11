@@ -15,64 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 """Default legalization function for vision network related operators."""
-from tvm import topi, te
-from tvm import relax
+
+from tvm import relax, te, tirx, topi
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Call, Expr, TupleGetItem
 from .common import register_legalize
-
-
-def _create_onnx_nms_te(boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold):
-    """Create a proper NMS implementation that follows the correct algorithm"""
-    scores_shape = list(scores.shape)
-    if len(scores_shape) == 3:
-        batch, num_classes, _ = scores_shape
-    elif len(scores_shape) == 2:
-        num_classes, _ = scores_shape
-        batch = 1
-    else:
-        raise ValueError(f"Unexpected scores shape: {scores_shape}")
-
-    if hasattr(max_output_boxes_per_class, "data"):
-        max_boxes = int(max_output_boxes_per_class.data.numpy())
-    else:
-        max_boxes = 3  # Default value
-
-    expected_detections = batch * num_classes * max_boxes
-
-    selected_indices_full, _ = topi.vision.all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
-    )
-
-    def slice_to_onnx_shape(data, expected_size):
-        def compute_element(i, j):
-            return tvm.tir.if_then_else(i < expected_size, data[i, j], tvm.tir.Cast("int64", 0))
-
-        return te.compute((expected_size, 3), compute_element, name="sliced_indices")
-
-    sliced_indices = slice_to_onnx_shape(selected_indices_full, expected_detections)
-
-    actual_detections = te.compute(
-        (1,), lambda i: tvm.tir.Cast("int64", expected_detections), name="actual_detections"
-    )
-
-    return [sliced_indices, actual_detections]
 
 
 @register_legalize("relax.vision.all_class_non_max_suppression")
 def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
-    """Legalize all_class_non_max_suppression with fixed shape output.
+    """Legalize all_class_non_max_suppression with dynamic output trimming.
 
-    Note: This implementation outputs fixed-size tensors with trailing garbage data.
-    Only the first `num_total_detection` rows contain valid data. Users should use
-    the `valid_count` tensor to determine how many rows are actually valid.
+    This implementation uses dynamic_strided_slice to trim the NMS output to only
+    contain valid detections, improving memory efficiency and ONNX compatibility.
 
-    For complete ONNX compatibility, users can post-process the output:
-    ```python
-    selected_indices, valid_count = nms_output
-    actual_count = int(valid_count.numpy()[0])
-    valid_indices = selected_indices.numpy()[:actual_count, :]
-    ```
+    Returns
+    -------
+    result : Expr
+        The legalized NMS result.
+
+        - For ONNX output format, returns a tuple of
+          `(trimmed_indices, num_total_detections)`, where `trimmed_indices`
+          contains only valid detection indices.
+        - For TensorFlow output format, returns the TOPI result directly to
+          preserve the `(selected_indices, selected_scores, num_detections)`
+          layout expected by the Relax op.
     """
     boxes = call.args[0]
     scores = call.args[1]
@@ -105,16 +73,121 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
         output_format,
     )
 
-    # TODO: Implement dynamic output trimming for better memory efficiency
-    # Current approach returns fixed-size output with trailing garbage data
-    # Future improvements could include:
-    # 1. Dynamic strided_slice based on num_total_detections
-    # 2. Custom Relax operator with true dynamic shapes
-    # 3. VM builtin functions for runtime shape adjustment
-    # 4. Symbolic shape inference in Relax IR
-    #
-    # For now, users should trim manually:
-    # actual_count = int(num_total_detections.numpy()[0])
-    # valid_indices = selected_indices.numpy()[:actual_count, :]
+    if output_format == "tensorflow":
+        return nms_result
 
-    return nms_result
+    selected_indices = block_builder.emit(TupleGetItem(nms_result, 0))
+    num_total_detections = block_builder.emit(TupleGetItem(nms_result, 1))
+
+    # Build slicing parameters using TE to avoid high-level Relax ops during legalization
+    def build_begin():
+        return te.compute((2,), lambda i: tirx.const(0, "int64"), name="begin")
+
+    def build_strides():
+        return te.compute((2,), lambda i: tirx.const(1, "int64"), name="strides")
+
+    def build_end(count_tensor):
+        # end = [count_tensor[0], 3]
+        def compute_end(i):
+            return tirx.if_then_else(
+                i == 0,
+                tirx.Cast("int64", count_tensor[0]),
+                tirx.const(3, "int64"),
+            )
+
+        return te.compute((2,), compute_end, name="end")
+
+    begin = block_builder.call_te(build_begin)
+    strides = block_builder.call_te(build_strides)
+    end = block_builder.call_te(build_end, num_total_detections)
+
+    # Apply dynamic strided slice to trim to valid detections only
+    trimmed_indices = block_builder.emit(
+        relax.op.dynamic_strided_slice(selected_indices, begin, end, strides)
+    )
+
+    # Return trimmed indices along with num_total_detections for compatibility
+    return relax.Tuple([trimmed_indices, num_total_detections])
+
+
+@register_legalize("relax.vision.roi_align")
+def _roi_align(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.roi_align,
+        call.args[0],
+        call.args[1],
+        pooled_size=call.attrs.pooled_size,
+        spatial_scale=call.attrs.spatial_scale,
+        mode=call.attrs.mode,
+        sample_ratio=call.attrs.sample_ratio,
+        aligned=call.attrs.aligned,
+        layout=call.attrs.layout,
+    )
+
+
+@register_legalize("relax.vision.get_valid_counts")
+def _get_valid_counts(block_builder: BlockBuilder, call: Call) -> Expr:
+    return block_builder.call_te(
+        topi.vision.get_valid_counts,
+        call.args[0],
+        score_threshold=call.attrs.score_threshold,
+        id_index=call.attrs.id_index,
+        score_index=call.attrs.score_index,
+    )
+
+
+@register_legalize("relax.vision.non_max_suppression")
+def _non_max_suppression(block_builder: BlockBuilder, call: Call) -> Expr:
+    return block_builder.call_te(
+        topi.vision.non_max_suppression,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        max_output_size=call.attrs.max_output_size,
+        iou_threshold=call.attrs.iou_threshold,
+        force_suppress=call.attrs.force_suppress,
+        top_k=call.attrs.top_k,
+        coord_start=call.attrs.coord_start,
+        score_index=call.attrs.score_index,
+        id_index=call.attrs.id_index,
+        return_indices=call.attrs.return_indices,
+        invalid_to_bottom=call.attrs.invalid_to_bottom,
+        soft_nms_sigma=call.attrs.soft_nms_sigma,
+        score_threshold=call.attrs.score_threshold,
+    )
+
+
+@register_legalize("relax.vision.roi_pool")
+def _roi_pool(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.vision.roi_pool,
+        call.args[0],
+        call.args[1],
+        pooled_size=call.attrs.pooled_size,
+        spatial_scale=call.attrs.spatial_scale,
+        layout=call.attrs.layout,
+    )
+
+
+@register_legalize("relax.vision.multibox_transform_loc")
+def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
+    variances = tuple(float(x) for x in call.attrs.variances)
+
+    def _te(cls_pred, loc_pred, anchor):
+        return topi.vision.multibox_transform_loc(
+            cls_pred,
+            loc_pred,
+            anchor,
+            variances,
+            clip=call.attrs.clip,
+            threshold=call.attrs.threshold,
+            keep_background=call.attrs.keep_background,
+        )
+
+    return bb.call_te(
+        _te,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        primfunc_name_hint="multibox_transform_loc",
+    )

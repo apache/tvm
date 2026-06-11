@@ -20,6 +20,7 @@
  * \file src/relax/transform/lower_alloc_tensor.cc
  * \brief Lower any relax.builtin.alloc_tensor remaining after static planning
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -41,9 +42,10 @@ class Mutator : public ExprMutator {
     static const Op& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     if (op->op.same_as(alloc_tensor_op)) {
-      CHECK_EQ(op->args.size(), 4) << "Op " << op->op << " should have three arguments, "
-                                   << "[shape, dtype, runtime_device_index, storage_scope].  "
-                                   << "However, received " << ffi::GetRef<Call>(op);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 4)
+          << "Op " << op->op << " should have three arguments, "
+          << "[shape, dtype, runtime_device_index, storage_scope].  "
+          << "However, received " << ffi::GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
       auto dtype = Downcast<DataTypeImm>(op->args[1]);
@@ -62,14 +64,15 @@ class Mutator : public ExprMutator {
           }
         }
 
-        LOG(FATAL) << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
-                   << "or a variable that holds a ShapeExpr.  "
-                   << "However, received argument " << shape_arg << " with struct info " << sinfo;
+        TVM_FFI_THROW(InternalError)
+            << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
+            << "or a variable that holds a ShapeExpr.  "
+            << "However, received argument " << shape_arg << " with struct info " << sinfo;
         TVM_FFI_UNREACHABLE();
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {
-        PrimExpr nbytes = tir::make_const(DataType::Int(64), dtype->value.bytes());
+        PrimExpr nbytes = tirx::make_const(DataType::Int(64), dtype->value.bytes());
         for (const auto& dim : shape) {
           nbytes *= dim;
         }
@@ -86,7 +89,7 @@ class Mutator : public ExprMutator {
 
       if (vdevice.defined()) {
         std::string dev_kind = vdevice.value()->target->kind->name;
-        PrimExpr dev_size = tir::make_const(DataType::Int(64), 1);
+        PrimExpr dev_size = tirx::make_const(DataType::Int(64), 1);
         if (vdevice.value()->memory_scope != "global") {
           auto device_size_handler =
               tvm::ffi::Function::GetGlobal(std::string("DeviceGetMemSize.") + dev_kind);

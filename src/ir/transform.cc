@@ -21,25 +21,28 @@
  * \file src/ir/transform.cc
  * \brief Infrastructure for transformation passes.
  */
-#include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/repr_printer.h>
-#include <tvm/node/structural_hash.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 
+#include <optional>
+#include <sstream>
 #include <stack>
+#include <string>
 
 namespace tvm {
 namespace transform {
 
-using tvm::ReprPrinter;
 using tvm::ffi::Any;
 
-TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", bool);
 
 struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -54,26 +57,29 @@ struct PassContextThreadLocalEntry {
 };
 
 /*! \brief Thread local store to hold the pass context. */
-typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> PassContextThreadLocalStore;
+static PassContextThreadLocalEntry* PassContextThreadLocalStoreGet() {
+  static thread_local PassContextThreadLocalEntry inst;
+  return &inst;
+}
 
 void PassContext::EnterWithScope() {
   InstrumentEnterPassContext();
 
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
   entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
-  ICHECK(!entry->context_stack.empty());
-  ICHECK(entry->context_stack.top().same_as(*this));
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
+  TVM_FFI_ICHECK(!entry->context_stack.empty());
+  TVM_FFI_ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 
   InstrumentExitPassContext();
 }
 
 PassContext PassContext::Current() {
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
   if (!entry->context_stack.empty()) {
     return entry->context_stack.top();
   } else {
@@ -105,7 +111,7 @@ class PassConfigManager {
  public:
   void Register(std::string key, ffi::String value_type_str,
                 std::function<ffi::Any(ffi::Any)> legalization) {
-    ICHECK_EQ(key2vtype_.count(key), 0U);
+    TVM_FFI_ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_str = value_type_str;
     info.legalization = legalization;
@@ -119,22 +125,21 @@ class PassConfigManager {
       auto it = key2vtype_.find(key);
       if (it == key2vtype_.end()) {
         std::ostringstream os;
-        os << "AttributeError: Invalid config option \'" << key << "\' candidates are:";
+        os << "Invalid config option \'" << key << "\' candidates are:";
         int counter = 0;
         for (const auto& [key, value] : key2vtype_) {
           os << ' ';
           if (counter++ != 0) os << ',';
           os << key;
         }
-        LOG(FATAL) << os.str();
+        TVM_FFI_THROW(AttributeError) << os.str();
       }
       const auto& info = it->second;
 
-      ICHECK(value != nullptr) << "AttributeError: " << key << " is None";
+      TVM_FFI_CHECK(value != nullptr, AttributeError) << key << " is None";
 
-      ICHECK(info.legalization) << "AttributeError: "
-                                << "Config option \'" << key
-                                << "\' was defined without a legalization function.";
+      TVM_FFI_CHECK(info.legalization, AttributeError)
+          << "Config option \'" << key << "\' was defined without a legalization function.";
       auto legalized = info.legalization(value);
       if (!legalized.same_as(value)) {
         update.emplace_back(key, legalized);
@@ -290,9 +295,87 @@ IRModule Pass::operator()(IRModule mod) const {
   return this->operator()(std::move(mod), PassContext::Current());
 }
 
+namespace {
+/*! \brief Marker line that precedes the TVMScript-rendered location block. */
+constexpr const char* kLocationMarker = "Location (TVMScript):";
+
+/*!
+ * \brief Render `node` as TVMScript with `path` underlined, via the script
+ *        printer global registry, so src/ir does not link against the printer.
+ *
+ * Returns the rendered snippet, or std::nullopt if the printer entry is
+ * unavailable or throws.
+ */
+std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
+                                                     const ffi::reflection::AccessPath& path) {
+  namespace ffi = tvm::ffi;
+  auto config_fn = ffi::Function::GetGlobal("node.PrinterConfig");
+  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScript");
+  if (!config_fn.has_value() || !script_fn.has_value()) return std::nullopt;
+  try {
+    ffi::Map<ffi::String, ffi::Any> config_dict;
+    config_dict.Set("path_to_underline", ffi::Array<ffi::reflection::AccessPath>{path});
+    // Show enough context that a small function renders in full (no
+    // "(... N lines skipped ...)" marker), while still bounding a large
+    // module. A small TIR/Relax function is ~8-15 lines; 10 lines of context
+    // on each side of the underline covers it end-to-end.
+    config_dict.Set("num_context_lines", static_cast<int>(10));
+    ffi::Any cfg = (*config_fn)(config_dict);
+    ffi::Any rendered = (*script_fn)(node, cfg);
+    return rendered.cast<ffi::String>().operator std::string();
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+}  // namespace
+
+ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod,
+                                      ffi::String pass_name, ffi::Optional<GlobalVar> func) {
+  namespace ffi = tvm::ffi;
+  // No visit-context payload => nothing to resolve; return the error untouched.
+  // (The enriched error below drops the payload, so an outer catch that
+  // re-enriches lands here and returns unchanged — no double location block.)
+  auto visit_ctx = ffi::VisitErrorContext::TryGetFromError(err);
+  if (!visit_ctx) return err;
+
+  // Resolve + render against the local function when requested, else the module.
+  // Fall back to the module root if the function is missing or yields no path.
+  ffi::ObjectRef root = mod;
+  if (func.has_value()) {
+    if (auto bf = mod->functions.Get(func.value())) {
+      root = bf.value();
+    } else {
+      func = ffi::Optional<GlobalVar>(std::nullopt);
+    }
+  }
+
+  auto try_render = [&](const ffi::ObjectRef& search_root) -> std::optional<std::string> {
+    auto paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value(),
+                                                         /*allow_prefix_match=*/true);
+    if (paths.empty()) return std::nullopt;
+    return RenderScriptWithUnderline(search_root, paths[0]);
+  };
+
+  std::optional<std::string> snippet = try_render(root);
+  if (!snippet && func.has_value()) {
+    // Function-local resolution failed; retry against the whole module.
+    snippet = try_render(mod);
+  }
+  if (!snippet) return err;
+
+  // Append the pass name + underlined TVMScript location. Preserve kind,
+  // original message, and backtrace; drop the VisitErrorContext payload so an
+  // outer catch does not re-enrich.
+  std::ostringstream suffix;
+  suffix << "\n\nError in pass: " << pass_name << "\n"
+         << kLocationMarker << "\n"
+         << snippet.value();
+  return ffi::Error(err.kind(), err.message() + suffix.str(), err.backtrace());
+}
+
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
-  ICHECK(node != nullptr);
+  TVM_FFI_ICHECK(node != nullptr);
   const PassInfo& pass_info = node->Info();
   if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
     DLOG(INFO) << "Skipping pass : " << pass_info->name
@@ -300,7 +383,11 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
     return mod;
   }
   IRModule ret;
-  if (pass_ctx->GetConfig<Bool>("testing.immutable_module", Bool(false)).value()) {
+  // Error enrichment happens in the leaf pass executors (ModulePassNode /
+  // FunctionPassNode), not here — guarding the generic funnel (which also wraps
+  // Sequential) would re-resolve FindAccessPaths against a mutated post-pass
+  // module and double-wrap the message.
+  if (pass_ctx->GetConfig<bool>("testing.immutable_module", false).value()) {
     ret = Pass::AssertImmutableModule(mod, node, pass_ctx);
   } else {
     ret = node->operator()(std::move(mod), pass_ctx);
@@ -311,10 +398,10 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
 
 IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
                                      const PassContext& pass_ctx) {
-  size_t before_pass_hash = tvm::StructuralHash()(mod);
+  size_t before_pass_hash = ffi::StructuralHash()(mod);
   IRModule copy_mod = mod;
   IRModule ret = node->operator()(mod, pass_ctx);
-  size_t after_pass_hash = tvm::StructuralHash()(copy_mod);
+  size_t after_pass_hash = ffi::StructuralHash()(copy_mod);
   if (before_pass_hash != after_pass_hash) {
     // The chance of getting a hash conflict between a module and the same module but mutated
     // must be very low.
@@ -392,34 +479,23 @@ ModulePass::ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
 
 // Module -> Module optimizations.
 IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  DiagnosticContext previous = DiagnosticContext::Default(mod);
-
-  if (pass_ctx->diag_ctx) {
-    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
-    pass_ctx->diag_ctx = previous;
-    previous = tmp;
-  } else {
-    pass_ctx->diag_ctx = previous;
-  }
-
-  ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
   const PassInfo& pass_info = Info();
-  ICHECK(mod.defined()) << "The input module must be set.";
+  TVM_FFI_ICHECK(mod.defined()) << "The input module must be set.";
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
 
-  mod = pass_func(std::move(mod), pass_ctx);
+  // The module is the access-path root for any visit-context error the pass
+  // body throws. Enrich at this leaf executor so the message surfaces a precise,
+  // TVMScript-rendered location.
+  IRModule input_mod = mod;
+  try {
+    mod = pass_func(std::move(mod), pass_ctx);
+  } catch (ffi::Error& err) {
+    throw EnrichPassErrorWithContext(err, input_mod, pass_info->name);
+  }
 
-  ICHECK(mod.defined()) << "The return value of a module pass must be set.";
-
-  ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
-  pass_ctx->diag_ctx.value().Render();
-  pass_ctx->diag_ctx = previous;
+  TVM_FFI_ICHECK(mod.defined()) << "The return value of a module pass must be set.";
 
   return mod;
 }
@@ -448,8 +524,8 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
   // 3. Build a dependency graph. Probably we need to update the pass list.
-  LOG(FATAL) << "Pass dependency has not been resolved yet."
-             << "\n";
+  TVM_FFI_THROW(InternalError) << "Pass dependency has not been resolved yet."
+                               << "\n";
 }
 
 Pass GetPass(const ffi::String& pass_name) {
@@ -459,7 +535,7 @@ Pass GetPass(const ffi::String& pass_name) {
   } else {
     f = tvm::ffi::Function::GetGlobal("transform." + pass_name);
   }
-  ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
+  TVM_FFI_ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
   return (*f)().cast<Pass>();
 }
 
@@ -469,7 +545,7 @@ Pass GetPass(const ffi::String& pass_name) {
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
     VLOG(0) << "Running pass " << pass->Info()->name;
-    ICHECK(pass.defined()) << "Found undefined pass for optimization.";
+    TVM_FFI_ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!pass_ctx.PassEnabled(pass_info)) {
       VLOG(0) << "skipping disabled pass '" << pass_info->name << "'";
@@ -504,23 +580,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
-      auto* node = static_cast<const PassInfoNode*>(ref.get());
-      p->stream << "The meta data of the pass - ";
-      p->stream << "pass name: " << node->name;
-      p->stream << ", opt_level: " << node->opt_level;
-      if (node->required.empty()) {
-        p->stream << ", required passes: []\n";
-      } else {
-        p->stream << ", required passes: ["
-                  << "\n";
-        for (const auto& it : node->required) {
-          p->stream << it << ", ";
-        }
-        p->stream << "]\n";
-      }
-    });
+// Pattern A (RM): auto-default repr from reflection for PassInfoNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   PassContextNode::RegisterReflection();
@@ -544,13 +604,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const ModulePassNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run Module pass: " << info->name << " at the optimization level "
-                << info->opt_level;
-    });
+// Pattern A (RM): auto-default repr from reflection for ModulePassNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -565,19 +619,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const SequentialNode*>(ref.get());
-      const PassInfo info = node->Info();
-      p->stream << "Run Sequential pass: " << info->name << " at the optimization level "
-                << info->opt_level << ". ";
-      p->stream << "The passes will be executed are: [";
-      for (const auto& it : node->passes) {
-        const PassInfo pass_info = it->Info();
-        p->stream << pass_info->name << " ";
-      }
-      p->stream << "]";
-    });
+// Pattern A (RM): auto-default repr from reflection for SequentialNode.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -601,19 +643,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PassContextNode*>(ref.get());
-      p->stream << "Pass context information: "
-                << "\n";
-      p->stream << "\topt_level: " << node->opt_level << "\n";
-
-      p->stream << "\trequired passes: " << node->required_pass << "\n";
-      p->stream << "\tdisabled passes: " << node->disabled_pass << "\n";
-      p->stream << "\tinstruments: " << node->instruments << "\n";
-
-      p->stream << "\tconfig: " << node->config << "\n";
-    });
+// Pattern A (RM): auto-default repr from reflection for PassContextNode.
 
 class PassContext::Internal {
  public:

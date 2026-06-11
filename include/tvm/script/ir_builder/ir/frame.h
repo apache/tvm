@@ -23,7 +23,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/node.h>
 #include <tvm/script/ir_builder/base.h>
 
 #include <vector>
@@ -74,7 +73,7 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
  */
 class IRModuleFrame : public IRBuilderFrame {
  public:
-  explicit IRModuleFrame(ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
+  explicit IRModuleFrame(ffi::ObjectPtr<IRModuleFrameNode> data) : IRBuilderFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRModuleFrame, IRBuilderFrame, IRModuleFrameNode);

@@ -14,28 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 
+import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax
-from tvm.script import relax as R, tir as T
-from tvm.script import ir as I
-import numpy as np
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 @pytest.mark.parametrize("consume_params", [True, False])
 def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ) -> None:
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[o, i, h, w] = w1[i, o, h, w]
 
@@ -97,12 +102,12 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -170,12 +175,12 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -477,7 +482,7 @@ def test_share_identical_transform_across_multiple_functions():
     functions must be usable with the same shared transform.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -511,7 +516,7 @@ def test_share_identical_transform_across_multiple_functions():
                 R.output(output)
             return output
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -568,7 +573,7 @@ def test_incompatible_weights_in_shared_transform_raises_error():
     Here, `func1` accepts one model weight, but `func2` accepts two.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -610,7 +615,7 @@ def test_incompatible_shape_in_shared_transform_raises_error():
     requires shape `[128, 256]`.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -655,7 +660,7 @@ def test_incompatible_dtype_in_shared_transform_raises_error():
     `func2` requires "float16".
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -705,7 +710,7 @@ def test_share_transform_across_multiple_functions_has_intersection_of_transform
     functions must be usable with the same shared transform.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -749,7 +754,7 @@ def test_share_transform_across_multiple_functions_has_intersection_of_transform
                 R.output(y)
             return y
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -830,7 +835,7 @@ def test_share_transforms_with_different_binding_order():
     order by name.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -864,7 +869,7 @@ def test_share_transforms_with_different_binding_order():
                 R.output(output)
             return output
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -925,7 +930,7 @@ def test_share_transforms_resulting_in_identical_functions():
     interface must be preserved.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -959,7 +964,7 @@ def test_share_transforms_resulting_in_identical_functions():
                 R.output(output)
             return output
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -1025,7 +1030,7 @@ def test_share_transform_across_specified_functions():
     does not have any parameter transformations lifted out.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -1083,7 +1088,7 @@ def test_share_transform_across_specified_functions():
                 R.output(y)
             return y
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -1175,7 +1180,7 @@ def test_share_transform_with_unused_parameter():
     in other functions can still be lifted out.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -1206,7 +1211,7 @@ def test_share_transform_with_unused_parameter():
                 R.output(y1)
             return y1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -1274,7 +1279,7 @@ def test_share_transform_with_no_shared_preprocessing():
     order by name.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def func1(
@@ -1302,7 +1307,7 @@ def test_share_transform_with_no_shared_preprocessing():
                 R.output(y1)
             return y1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def transform_params(
@@ -1366,7 +1371,7 @@ def test_stop_lifting():
                 R.output(y)
             return y
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def func1(
@@ -1408,7 +1413,7 @@ def test_symbolic_var_1():
                 zeros = R.zeros((n, n), "float32")
             return shape
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
@@ -1432,15 +1437,15 @@ def test_symbolic_var_1():
 
 
 def test_symbolic_var_2():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def zeros(var_T_full: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
             for ax0, ax1 in T.grid(n, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads()
                     T.writes(T_full[v_ax0, v_ax1])
@@ -1458,16 +1463,16 @@ def test_symbolic_var_2():
                 R.output()
             return shape
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def zeros(var_T_full: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(n, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads()
                     T.writes(T_full[v_ax0, v_ax1])
@@ -1496,7 +1501,7 @@ def test_symbolic_var_2():
 
 
 def test_symbolic_var_from_shape():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(
@@ -1524,19 +1529,19 @@ def test_symbolic_var_from_shape():
                 R.output(A_scale)
             return A_scale
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
             Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for j in range(16):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     vj = T.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -1578,15 +1583,15 @@ def test_symbolic_var_from_shape():
                 R.output(output)
             return output
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
             Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for j in range(16):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     vj = T.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
@@ -1617,7 +1622,7 @@ def test_symbolic_var_in_param_shape():
                 R.output(conv2)
             return conv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main_transform_params(
@@ -1717,9 +1722,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor(("k",), dtype="float32"))
-        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+        def main_transform_params(params: R.Tuple(R.Tensor(("k",), dtype="float32"))) -> R.Tuple(
+            R.Tensor(dtype="float32", ndim=1)
+        ):
             R.func_attr({"num_input": 0})
             k = T.int64()
             with R.dataflow():
@@ -1806,7 +1811,7 @@ def test_only_lift_when_variable_uses_constants():
 def test_lift_transform_is_idempotent(shared_transform):
     """Multiple applicates of LiftTransformParams are allowed"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1835,7 +1840,7 @@ def test_lift_transform_when_one_already_exists():
     """If the module already contains `transform_params`, the
     functions are composed together"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(

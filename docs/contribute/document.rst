@@ -61,7 +61,7 @@ How-to Guides
 These are step by step guides on how to solve particular problems. The user can
 ask meaningful questions, and the documents provide answers. An examples of
 this type of document might be, "how do I compile an optimized model for ARM
-architecture?" or "how do I compile and optimize a TensorFlow model?" These
+architecture?" or "how do I compile and optimize a PyTorch model?" These
 documents should be open enough that a user could see how to apply it to a new
 use case. Practical usability is more important than completeness. The title
 should tell the user what problem the how-to is solving.
@@ -127,7 +127,7 @@ documents will be produced.
 Technical Details
 *****************
 
-We use the `Sphinx <http://sphinx-doc.org>`_ for the main documentation.
+We use the `Sphinx <https://www.sphinx-doc.org>`_ for the main documentation.
 Sphinx supports both reStructuredText and markdown. When possible, we
 encourage reStructuredText as it has richer features. Note that the
 Python doc-string and tutorials allow you to embed reStructuredText syntax.
@@ -142,8 +142,8 @@ Python Reference Documentation
 
 We use the `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format to
 document the function and classes. The following snippet gives an example
-docstring. We always document all the public functions, when necessary,
-provide an usage example of the features we support (as shown below).
+docstring. We always document all the public functions, and when necessary,
+provide a usage example of the features we support (as shown below).
 
 .. code:: python
 
@@ -179,8 +179,8 @@ Be careful to leave blank lines between sections of your documents. In the
 above case, there has to be a blank line before ``Parameters``, ``Returns`` and
 ``Examples`` in order for the doc to be built correctly. To add a new function to
 the docs, we need to add the `sphinx.autodoc
-<http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_ rules to
-`docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_).
+<https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html>`_ rules to
+`docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_.
 You can refer to the existing files under this folder on how to add the
 functions.
 
@@ -209,8 +209,8 @@ Sphinx Gallery How-Tos
 ----------------------
 
 We use `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build many
-Python how-tos. You can find the source code under `gallery
-<https://github.com/apache/tvm/tree/main/gallery>`_.
+Python how-tos. You can find the source code under `docs/how_to/tutorials
+<https://github.com/apache/tvm/tree/main/docs/how_to/tutorials>`_.
 One thing that worth noting is that the comment blocks are written in
 reStructuredText instead of markdown so be aware of the syntax.
 
@@ -222,7 +222,8 @@ existing environment to demonstrate the usage.
 
 If you add a new categorization of how-to, you will need to add references to
 `conf.py <https://github.com/apache/tvm/tree/main/docs/conf.py>`_ and the
-`how-to index <https://github.com/apache/tvm/tree/main/docs/how-to/index.rst>`_
+`top-level docs index <https://github.com/apache/tvm/tree/main/docs/index.rst>`_
+(how-to entries are registered there directly, not in a separate how-to index).
 
 Refer to Another Location in the Document
 -----------------------------------------
@@ -247,7 +248,7 @@ Image files created for TVM documentation should reside in the `<https://github.
 repository, while the `.rst` files *using* those images should reside in the main TVM repostitory
 (`<https://github.com/apache/tvm>`_).
 
-This will require two Github Pull Requests, one for the image files and another for the `.rst` files.
+This will require two GitHub Pull Requests, one for the image files and another for the `.rst` files.
 Discussion between the contributor and reviewers may be necessary to coordinate the review process.
 
 *IMPORTANT NOTE:* When using two Pull Requests as described above, please merge the

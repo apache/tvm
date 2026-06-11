@@ -47,8 +47,12 @@ ffi::String NameSupplyNode::ReserveName(const ffi::String& name, bool add_prefix
 ffi::String NameSupplyNode::FreshName(const ffi::String& name, bool add_prefix,
                                       bool add_underscore) {
   ffi::String unique_name = name;
+  if (unique_name.empty()) {
+    // Special case for empty name, set to "v".
+    unique_name = "v";
+  }
   if (add_prefix) {
-    unique_name = add_prefix_to_name(name);
+    unique_name = add_prefix_to_name(unique_name);
   }
   unique_name = GetUniqueName(unique_name, add_underscore);
   return unique_name;

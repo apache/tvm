@@ -30,10 +30,10 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in Conv1d operator */
-struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Conv1DAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -70,14 +70,14 @@ struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
         .def_ro("out_dtype", &Conv1DAttrs::out_dtype,
                 "Output data type, set to explicit type under mixed precision setting");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DAttrs", Conv1DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DAttrs", Conv1DAttrs, AttrsNode);
 };  // struct Conv1dAttrs
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Conv2DAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -116,14 +116,14 @@ struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
         .def_ro("out_dtype", &Conv2DAttrs::out_dtype,
                 "Output data type, set to explicit type under mixed precision setting");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DAttrs", Conv2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DAttrs", Conv2DAttrs, AttrsNode);
 };  // struct Conv2dAttrs
 
 /*! \brief Attributes used in Conv3d operator */
-struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Conv3DAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -164,15 +164,15 @@ struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
         .def_ro("out_dtype", &Conv3DAttrs::out_dtype,
                 "Output data type, set to explicit type under mixed precision setting");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DAttrs", Conv3DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DAttrs", Conv3DAttrs, AttrsNode);
 };  // struct Conv3dAttrs
 
 /*! \brief Attributes used in Conv1DTranspose operator */
-struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> output_padding;
-  ffi::Array<IntImm> dilation;
+struct Conv1DTransposeAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -213,15 +213,15 @@ struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> 
                 "Output data type, set to explicit type under mixed precision setting");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DTransposeAttrs", Conv1DTransposeAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct Conv1DTransposeAttrs
 
 /*! \brief Attributes used in Conv2d operator */
-struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> output_padding;
-  ffi::Array<IntImm> dilation;
+struct Conv2DTransposeAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -264,15 +264,68 @@ struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> 
                 "Output data type, set to explicit type under mixed precision setting");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DTransposeAttrs", Conv2DTransposeAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct Conv2DTransposeAttrs
 
+/*! \brief Attributes used in Conv3dTranspose operator */
+struct Conv3DTransposeAttrs : public AttrsNode {
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
+  int groups;
+  ffi::String data_layout;
+  ffi::String kernel_layout;
+  ffi::String out_layout;
+  DataType out_dtype;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<Conv3DTransposeAttrs>()
+        .def_ro("strides", &Conv3DTransposeAttrs::strides,
+                "Specifies the strides of the convolution.")
+        .def_ro("padding", &Conv3DTransposeAttrs::padding,
+                "If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back/bottom/right will use same padding as front/top/left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)")
+        .def_ro("output_padding", &Conv3DTransposeAttrs::output_padding,
+                "Used to disambiguate the output shape.")
+        .def_ro("dilation", &Conv3DTransposeAttrs::dilation,
+                "Specifies the dilation rate to use for dilated convolution.")
+        .def_ro("groups", &Conv3DTransposeAttrs::groups,
+                "Number of groups to split the input into for grouped convolution. The number of "
+                "input and "
+                "output channels should be divisible by the number of groups.")
+        .def_ro("data_layout", &Conv3DTransposeAttrs::data_layout,
+                "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Convolution is applied on the 'D', 'H', and"
+                "'W' dimensions.")
+        .def_ro(
+            "kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
+            "Dimension ordering of weight. Can be 'IODHW', etc."
+            "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
+            "width"
+            "dimensions respectively.")
+        .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
+                "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
+                "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                "dimensions respectively. Default to be same as input layout.")
+        .def_ro("out_dtype", &Conv3DTransposeAttrs::out_dtype,
+                "Output data type, set to explicit type under mixed precision setting");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DTransposeAttrs", Conv3DTransposeAttrs,
+                                    AttrsNode);
+};  // struct Conv3DTransposeAttrs
+
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
-struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Pool1DAttrs : public AttrsNode {
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -305,15 +358,15 @@ struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
                 "'N', 'C', 'W' stands for batch, channel, and width"
                 "dimensions respectively. Pooling is applied on the 'W' dimensions.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool1DAttrs", Pool1DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool1DAttrs", Pool1DAttrs, AttrsNode);
 };  // struct Pool1dAttrs
 
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
-struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Pool2DAttrs : public AttrsNode {
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -348,15 +401,15 @@ struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
                 "dimensions respectively. Pooling is applied on the 'H' and"
                 "'W' dimensions.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool2DAttrs", Pool2DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool2DAttrs", Pool2DAttrs, AttrsNode);
 };  // struct Pool2dAttrs
 
 /*! \brief Attributes used in max_pool3d and avg_pool3d operator */
-struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+struct Pool3DAttrs : public AttrsNode {
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -391,12 +444,12 @@ struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
                 "dimensions respectively. Pooling is applied on the 'D', 'H' and"
                 "'W' dimensions.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool3DAttrs", Pool3DAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Pool3DAttrs", Pool3DAttrs, AttrsNode);
 };  // struct Pool3dAttrs
 
 /*! \brief Attributes for 1d adaptive pool operator */
-struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+struct AdaptivePool1DAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
@@ -416,12 +469,12 @@ struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
                 "'W' dimensions.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool1DAttrs", AdaptivePool1DAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct AdaptivePool1DAttrs
 
 /*! \brief Attributes for 2d adaptive pool operator */
-struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+struct AdaptivePool2DAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
@@ -441,12 +494,12 @@ struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
                 "'W' dimensions.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool2DAttrs", AdaptivePool2DAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct AdaptivePool2DAttrs
 
 /*! \brief Attributes for 3d adaptive pool operator */
-struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+struct AdaptivePool3DAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
@@ -466,11 +519,11 @@ struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
                 "'W' dimensions.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AdaptivePool3DAttrs", AdaptivePool3DAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct AdaptivePool3DAttrs
 
 /*! \brief Attributes used in softmax operators */
-struct SoftmaxAttrs : public AttrsNodeReflAdapter<SoftmaxAttrs> {
+struct SoftmaxAttrs : public AttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -478,11 +531,11 @@ struct SoftmaxAttrs : public AttrsNodeReflAdapter<SoftmaxAttrs> {
     refl::ObjectDef<SoftmaxAttrs>().def_ro("axis", &SoftmaxAttrs::axis,
                                            "The axis to sum over when computing softmax.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftmaxAttrs", SoftmaxAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftmaxAttrs", SoftmaxAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in softmax operators */
-struct LeakyReluAttrs : public AttrsNodeReflAdapter<LeakyReluAttrs> {
+struct LeakyReluAttrs : public AttrsNode {
   double alpha;
 
   static void RegisterReflection() {
@@ -490,11 +543,11 @@ struct LeakyReluAttrs : public AttrsNodeReflAdapter<LeakyReluAttrs> {
     refl::ObjectDef<LeakyReluAttrs>().def_ro("alpha", &LeakyReluAttrs::alpha,
                                              "The slope of the negative part.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LeakyReluAttrs", LeakyReluAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LeakyReluAttrs", LeakyReluAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in softplus operators */
-struct SoftplusAttrs : public AttrsNodeReflAdapter<SoftplusAttrs> {
+struct SoftplusAttrs : public AttrsNode {
   double beta;
   double threshold;
 
@@ -506,11 +559,11 @@ struct SoftplusAttrs : public AttrsNodeReflAdapter<SoftplusAttrs> {
         .def_ro("threshold", &SoftplusAttrs::threshold,
                 "Value determining when to use linear approximation for numerical stability.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftplusAttrs", SoftplusAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftplusAttrs", SoftplusAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in PReLU operator */
-struct PReluAttrs : public AttrsNodeReflAdapter<PReluAttrs> {
+struct PReluAttrs : public AttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -518,11 +571,11 @@ struct PReluAttrs : public AttrsNodeReflAdapter<PReluAttrs> {
     refl::ObjectDef<PReluAttrs>().def_ro("axis", &PReluAttrs::axis,
                                          "The axis along which the alpha values are applied.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PReluAttrs", PReluAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PReluAttrs", PReluAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in batch_norm operator */
-struct BatchNormAttrs : public AttrsNodeReflAdapter<BatchNormAttrs> {
+struct BatchNormAttrs : public AttrsNode {
   int axis;
   double epsilon;
   bool center;
@@ -545,12 +598,12 @@ struct BatchNormAttrs : public AttrsNodeReflAdapter<BatchNormAttrs> {
         .def_ro("training", &BatchNormAttrs::training,
                 "Whether we are training (i.e., not in eval mode).");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BatchNormAttrs", BatchNormAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BatchNormAttrs", BatchNormAttrs, AttrsNode);
 };  // struct BatchNormAttrs
 
 /*! \brief Attributes used in layer_norm operator */
-struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
-  ffi::Array<Integer> axes;
+struct LayerNormAttrs : public AttrsNode {
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -567,14 +620,14 @@ struct LayerNormAttrs : public AttrsNodeReflAdapter<LayerNormAttrs> {
         .def_ro("scale", &LayerNormAttrs::scale,
                 "Indicating if the gamma scale will be multiplied.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayerNormAttrs", LayerNormAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayerNormAttrs", LayerNormAttrs, AttrsNode);
 };  // struct LayerNormAttrs
 
 /*! \brief Attributes used in group_norm operator */
-struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
+struct GroupNormAttrs : public AttrsNode {
   int num_groups;
   int channel_axis;
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -596,13 +649,13 @@ struct GroupNormAttrs : public AttrsNodeReflAdapter<GroupNormAttrs> {
         .def_ro("scale", &GroupNormAttrs::scale,
                 "Indicating if the gamma scale will be multiplied.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GroupNormAttrs", GroupNormAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GroupNormAttrs", GroupNormAttrs, AttrsNode);
 };  // struct GroupNormAttrs
 
 /*! \brief Attributes used in instance_norm operator */
-struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
+struct InstanceNormAttrs : public AttrsNode {
   int channel_axis;
-  ffi::Array<Integer> axes;
+  ffi::Array<int64_t> axes;
   double epsilon;
   bool center;
   bool scale;
@@ -621,13 +674,12 @@ struct InstanceNormAttrs : public AttrsNodeReflAdapter<InstanceNormAttrs> {
         .def_ro("scale", &InstanceNormAttrs::scale,
                 "Indicating if the gamma scale will be multiplied.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InstanceNormAttrs", InstanceNormAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InstanceNormAttrs", InstanceNormAttrs, AttrsNode);
 };  // struct InstanceNormAttrs
 
 /*! \brief Attributes used in rms_norm operator */
-struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
-  ffi::Array<Integer> axes;
+struct RMSNormAttrs : public AttrsNode {
+  ffi::Array<int64_t> axes;
   double epsilon;
 
   static void RegisterReflection() {
@@ -638,11 +690,11 @@ struct RMSNormAttrs : public AttrsNodeReflAdapter<RMSNormAttrs> {
         .def_ro("epsilon", &RMSNormAttrs::epsilon,
                 "Small float added to variance to avoid dividing by zero");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RMSNormAttrs", RMSNormAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RMSNormAttrs", RMSNormAttrs, AttrsNode);
 };  // struct RMSNormAttrs
 
 /*! \brief Attributes used in nll_loss operator */
-struct NLLLossAttrs : public AttrsNodeReflAdapter<NLLLossAttrs> {
+struct NLLLossAttrs : public AttrsNode {
   ffi::String reduction;
   int ignore_index;
 
@@ -655,11 +707,11 @@ struct NLLLossAttrs : public AttrsNodeReflAdapter<NLLLossAttrs> {
                 refl::DefaultValue("mean"))
         .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NLLLossAttrs", NLLLossAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NLLLossAttrs", NLLLossAttrs, AttrsNode);
 };  // struct NLLLossAttrs
 
 /*! \brief Attributes used in dropout operator */
-struct DropoutAttrs : public AttrsNodeReflAdapter<DropoutAttrs> {
+struct DropoutAttrs : public AttrsNode {
   double rate;
 
   static void RegisterReflection() {
@@ -668,11 +720,11 @@ struct DropoutAttrs : public AttrsNodeReflAdapter<DropoutAttrs> {
         "rate", &DropoutAttrs::rate,
         "Fraction of the input that gets dropped out during training time");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DropoutAttrs", DropoutAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DropoutAttrs", DropoutAttrs, AttrsNode);
 };  // struct DropoutAttrs
 
 /*! \brief Attributes used in Attention operator */
-struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
+struct AttentionAttrs : public AttrsNode {
   ffi::Optional<FloatImm> scale;
   ffi::Optional<ffi::String> causal_mask;
   ffi::Optional<IntImm> window_size;
@@ -688,12 +740,12 @@ struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
         .def_ro("window_size", &AttentionAttrs::window_size,
                 "The size of the window for sliding-window attention.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AttentionAttrs", AttentionAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AttentionAttrs", AttentionAttrs, AttrsNode);
 };  // struct AttentionAttrs
 
 /*! \brief Attributes used for the padding operator */
-struct PadAttrs : public AttrsNodeReflAdapter<PadAttrs> {
-  ffi::Array<Integer> pad_width;
+struct PadAttrs : public AttrsNode {
+  ffi::Array<int64_t> pad_width;
   double pad_value = 0.0;
   tvm::ffi::String pad_mode;
 
@@ -711,11 +763,11 @@ struct PadAttrs : public AttrsNodeReflAdapter<PadAttrs> {
                 "\"reflect\" pads by reflecting values with respect to the edges.",
                 refl::DefaultValue("constant"));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PadAttrs", PadAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PadAttrs", PadAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used for the pixel shuffle operator */
-struct PixelShuffleAttrs : public AttrsNodeReflAdapter<PixelShuffleAttrs> {
+struct PixelShuffleAttrs : public AttrsNode {
   int upscale_factor;
 
   static void RegisterReflection() {
@@ -724,8 +776,7 @@ struct PixelShuffleAttrs : public AttrsNodeReflAdapter<PixelShuffleAttrs> {
                                                 &PixelShuffleAttrs::upscale_factor,
                                                 "Scale factor for spatial upsampling.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PixelShuffleAttrs", PixelShuffleAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PixelShuffleAttrs", PixelShuffleAttrs, AttrsNode);
 };
 
 }  // namespace relax

@@ -24,6 +24,7 @@
 
 #include "grad.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -50,7 +51,7 @@ TVM_REGISTER_OP("relax.grad.no_grad")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The corresponding input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNoGrad)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.start_checkpoint */
 Expr start_checkpoint(Expr input) {
@@ -65,8 +66,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument of relax.op.grad.start_checkpoint should be a Var.");
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument of relax.op.grad.start_checkpoint should be a Var.";
   }
   return GetStructInfo(call->args[0]);
 }
@@ -75,7 +76,7 @@ TVM_REGISTER_OP("relax.grad.start_checkpoint")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The tensor marking the input of the checkpoint stage.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStartCheckpoint)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.end_checkpoint */
 Expr end_checkpoint(Expr input) {
@@ -90,8 +91,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
   if (!call->args[0].as<VarNode>()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument of relax.op.grad.end_checkpoint should be a Var.");
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument of relax.op.grad.end_checkpoint should be a Var.";
   }
   return GetStructInfo(call->args[0]);
 }
@@ -100,12 +101,12 @@ TVM_REGISTER_OP("relax.grad.end_checkpoint")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The output of the checkpoint stage.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEndCheckpoint)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.nll_loss_backward */
 Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
                        ffi::Optional<Expr> weights, ffi::String reduction, int ignore_index) {
-  ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
+  ffi::ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
   attrs->reduction = reduction;
   attrs->ignore_index = ignore_index;
@@ -138,18 +139,18 @@ TVM_REGISTER_OP("relax.grad.nll_loss_backward")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLossBackward)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.max_pool2d_backward */
-Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
@@ -173,18 +174,18 @@ TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2DBackward)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.avg_pool2d_backward */
-Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
@@ -208,12 +209,12 @@ TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAvgPool2DBackward)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.grad.take_backward */
 
 Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t> axis) {
-  ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
+  ffi::ObjectPtr<TakeAttrs> attrs = ffi::make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.grad.take_backward");
@@ -236,7 +237,7 @@ TVM_REGISTER_OP("relax.grad.take_backward")
     .add_argument("x", "Tensor", "The source tensor.")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTakeBackward)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

@@ -15,31 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: F841
 import tvm.testing
 from tvm.script.parser import ir as I
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def test_str_metadata():
-    # This test is to check we reuse the existing metadata element for the same tir.StringImm
-    # So metadata["tir.StringImm"][0] will occur in the printed script for three times
+    # This test is to check we reuse the existing metadata element for the same tirx.StringImm
+    # So metadata["tirx.StringImm"][0] will occur in the printed script for three times
     str_imm = T.StringImm("aaa\nbbb\n")
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def foo() -> None:
             A = str_imm
             B = str_imm
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def foo1() -> None:
             A = str_imm
 
     printed_str = Module.script(verbose_expr=True)
     assert (
-        printed_str.count('metadata["tir.StringImm"][0]') == 3
-        and printed_str.count('metadata["tir.StringImm"][1]') == 0
+        printed_str.count('metadata["tirx.StringImm"][0]') == 3
+        and printed_str.count('metadata["tirx.StringImm"][1]') == 0
     )
 
 

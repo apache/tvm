@@ -25,17 +25,18 @@
 #define TVM_ARITH_INT_SET_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/tir/expr.h>
+#include <tvm/tirx/expr.h>
 
 #include <unordered_map>
 
 namespace tvm {
 namespace arith {
 
-using tir::IterVar;
-using tir::Var;
-using tir::VarNode;
+using tirx::IterVar;
+using tirx::Var;
+using tirx::VarNode;
 
+class AnalyzerObj;
 class Analyzer;
 
 //-----------------------------------------------
@@ -54,16 +55,16 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  *        represent a set of integers in one dimension.
  * \sa IntSet
  */
-class IntSetNode : public Object {
+class IntSetNode : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to IntSetNode.
  * \sa IntSetNode
  */
-class IntSet : public ObjectRef {
+class IntSet : public ffi::ObjectRef {
  public:
   /*!
    * \brief Find a range that covers the region.
@@ -96,7 +97,7 @@ class IntSet : public ObjectRef {
    * \param ana Analyzer used in the proof.
    * \return Whether we can prove it is a single point
    */
-  bool CanProveSinglePoint(Analyzer* ana) const;
+  bool CanProveSinglePoint(const Analyzer& ana) const;
   // TODO(tvm-team): update all CanProve to explicitly take
   // analyzer to encourage more analyzer reuse
   /*! \return Whether the set is proved to be bigger than 0 */
@@ -161,7 +162,7 @@ class IntSet : public ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
 };
 
 //-----------------------------------------------
@@ -199,7 +200,7 @@ IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const tirx::VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains is union over
  *  all the possible conditional values in dom_map.
@@ -236,7 +237,7 @@ IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_ma
  */
 ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, IntSet>& dom_map);
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectPtrHash, ObjectPtrEqual>;
+using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
@@ -302,7 +303,7 @@ ffi::Map<Var, arith::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
  */
 TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
-    arith::Analyzer* analyzer);
+    const arith::Analyzer& analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate.
@@ -316,7 +317,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
  */
 TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
-    arith::Analyzer* analyzer);
+    const arith::Analyzer& analyzer);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate
@@ -331,7 +332,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
 TVM_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
                                                     const ffi::Map<Var, Range>& var_dom,
                                                     const PrimExpr& predicate,
-                                                    arith::Analyzer* analyzer);
+                                                    const arith::Analyzer& analyzer);
 
 }  // namespace arith
 }  // namespace tvm

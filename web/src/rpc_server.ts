@@ -131,7 +131,6 @@ export class RPCServer {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onClose(_event: CloseEvent): void {
     if (this.inst !== undefined) {
       this.globalObjects.forEach(obj => {
@@ -152,7 +151,6 @@ export class RPCServer {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onOpen(_event: Event): void {
     // Send the headers
     let bkey = StringToUint8Array("server:" + this.key);
@@ -223,18 +221,33 @@ export class RPCServer {
     if (this.inst === undefined) {
       // initialize server.
       const reader = new ByteStreamReader(body);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const code = reader.readU32();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const ver = Uint8ArrayToString(reader.readByteArray());
       const nargs = reader.readU32();
+
+      // nargs=0 means no session_constructor_args (LocalSession request).
+      // WASM RPC requires ["rpc.WasmSession", wasm_binary]. Wait for proper init.
+      if (nargs === 0) {
+        this.log("Received LocalSession init (nargs=0), waiting for WasmSession init...");
+        this.requestBytes(SizeOf.I64);
+        this.state = RPCServerState.ReceivePacketHeader;
+        return;
+      }
+
       const args = [];
       for (let i = 0; i < nargs; ++i) {
         const typeIndex = reader.readU32();
         if (typeIndex === TypeIndex.kTVMFFIRawStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
+        } else if (typeIndex === TypeIndex.kTVMFFIStr) {
+          reader.readU32(); // skip duplicate type_index
+          const str = Uint8ArrayToString(reader.readByteArray());
+          args.push(str);
         } else if (typeIndex === TypeIndex.kTVMFFIByteArrayPtr) {
+          args.push(reader.readByteArray());
+        } else if (typeIndex === TypeIndex.kTVMFFIBytes) {
+          reader.readU32(); // skip duplicate type_index
           args.push(reader.readByteArray());
         } else {
           throw new Error("cannot support type index " + typeIndex);
@@ -360,10 +373,8 @@ export class RPCServer {
       const localSession = flocal();
       assert(localSession instanceof runtime.Module);
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       this.inst.registerFunc(
         "rpc.WasmSession",
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (_args: unknown): runtime.Module => {
           return localSession;
         }
@@ -404,7 +415,6 @@ export class RPCServer {
   }
 
   private handleInitHeaderKey(): void {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const remoteKey = Uint8ArrayToString(
       this.readFromBuffer(this.remoteKeyLength)
     );

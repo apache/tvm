@@ -15,17 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import argparse
 import fnmatch
-from typing import Optional
 
 from git_utils import git
 
-
 globs = [
     "*.md",
-    "conda/*",
     ".github/*",
     ".asf.yaml",
     ".gitignore",
@@ -33,11 +31,11 @@ globs = [
     "NOTICE",
     "KEYS",
     "tests/lint/*",
-    "tests/scripts/task_lint.sh",
+    ".pre-commit-config.yaml",
 ]
 
 
-def match_any(f: str) -> Optional[str]:
+def match_any(f: str) -> str | None:
     for glob in globs:
         if fnmatch.fnmatch(f, glob):
             return glob

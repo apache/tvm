@@ -23,12 +23,12 @@
  */
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/timer.h>
 
 #include <cstring>
 
@@ -135,7 +135,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     *rv = value;
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
-    ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
+    TVM_FFI_ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLCUDAHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
@@ -216,7 +216,7 @@ class CUDADeviceAPI final : public DeviceAPI {
       CUDA_CALL(cudaSetDevice(dev_to.device_id));
       GPUCopy(from, to, size, cudaMemcpyHostToDevice, cu_stream);
     } else {
-      LOG(FATAL) << "expect copy from/to GPU or between GPU";
+      TVM_FFI_THROW(InternalError) << "expect copy from/to GPU or between GPU";
     }
   }
 
@@ -274,11 +274,12 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 };
 
-typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
-
 CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
 
-CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
+CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
+  static thread_local CUDAThreadEntry inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -333,11 +334,11 @@ class CUDATimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.cuda",
+  refl::GlobalDef().def("runtime.timer.cuda",
                         [](Device dev) { return Timer(ffi::make_object<CUDATimerNode>()); });
 }
 
-TVM_DLL ffi::String GetCudaFreeMemory() {
+TVM_RUNTIME_DLL ffi::String GetCudaFreeMemory() {
   size_t free_mem, total_mem;
   CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
   std::stringstream ss;
@@ -359,7 +360,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_DLL int GetCudaDeviceCount() {
+TVM_RUNTIME_DLL int GetCudaDeviceCount() {
   int count;
   CUDA_CALL(cudaGetDeviceCount(&count));
   return count;
@@ -398,14 +399,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("runtime.cuTensorMapEncodeTiled", [](ffi::PackedArgs args,
                                                                     ffi::Any* rv) {
-    CHECK_GE(args.size(), 4) << "init_cuTensorMap expects at least 4 arguments";
+    TVM_FFI_ICHECK_GE(args.size(), 4) << "init_cuTensorMap expects at least 4 arguments";
     size_t arg_cnt = 0;
     CUtensorMap* tensor_map = static_cast<CUtensorMap*>(args[arg_cnt++].cast<void*>());
     runtime::DataType tensor_dtype = args[arg_cnt++].cast<runtime::DataType>();
-    uint32_t tensor_rank = static_cast<uint32_t>(args[arg_cnt++].cast<int32_t>());
+    int32_t raw_tensor_rank = args[arg_cnt++].cast<int32_t>();
+    TVM_FFI_ICHECK_GT(raw_tensor_rank, 0) << "tensorRank must be non-zero";
+    TVM_FFI_ICHECK_LE(raw_tensor_rank, 5)
+        << "cuTensorMapEncodeTiled only supports up to 5D tensors";
+    uint32_t tensor_rank = static_cast<uint32_t>(raw_tensor_rank);
     void* tensor_ptr = static_cast<void*>(args[arg_cnt++].cast<void*>());
 
-    CHECK_EQ(args.size(), 4 + tensor_rank * 4 + 3)
+    TVM_FFI_ICHECK_EQ(args.size(), 4 + tensor_rank * 4 + 3)
         << "cuTensorMapEncodeTiled expects " << 4 + tensor_rank * 4 + 3 << " arguments"
         << "tensor_map, tensor_dtype, tensor_rank, tensor_ptr, global_shape(" << tensor_rank
         << "), global_strides(" << tensor_rank - 1 << "), shared_shape(" << tensor_rank
@@ -413,30 +418,43 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         << ", l2_promotion_kind, oob_fill_kind";
 
     std::vector<cuuint64_t> global_shape(tensor_rank);
-    std::vector<cuuint64_t> global_strides(tensor_rank);
-    std::vector<uint32_t> shared_shape(tensor_rank);
-    std::vector<uint32_t> shared_strides(tensor_rank);
+    std::vector<cuuint64_t> global_strides(
+        std::max<size_t>(tensor_rank > 0 ? tensor_rank - 1 : 0, 1));
+    std::vector<uint32_t> box_dim(tensor_rank);
+    std::vector<uint32_t> element_strides(tensor_rank);
     for (size_t i = 0; i < tensor_rank; ++i) {
-      global_shape[i] = static_cast<cuuint64_t>(args[arg_cnt++].cast<int64_t>());
+      int64_t value = args[arg_cnt++].cast<int64_t>();
+      TVM_FFI_ICHECK_GT(value, 0) << "globalDim[" << i << "] must be non-zero";
+      TVM_FFI_ICHECK_LE(static_cast<uint64_t>(value), uint64_t{1} << 32)
+          << "globalDim[" << i << "] must be less than or equal to 2^32";
+      global_shape[i] = static_cast<cuuint64_t>(value);
     }
     for (size_t i = 0; i < tensor_rank - 1; ++i) {
-      global_strides[i] = static_cast<cuuint64_t>(args[arg_cnt++].cast<int64_t>());
-      CHECK_EQ(global_strides[i] % 16, 0) << "global strides must be multiple of 16";
+      int64_t value = args[arg_cnt++].cast<int64_t>();
+      TVM_FFI_ICHECK_GE(value, 0) << "globalStrides[" << i << "] must be non-negative";
+      global_strides[i] = static_cast<cuuint64_t>(value);
+      TVM_FFI_ICHECK_EQ(global_strides[i] % 16, 0) << "global strides must be multiple of 16";
+      TVM_FFI_ICHECK_LT(global_strides[i], uint64_t{1} << 40)
+          << "globalStrides[" << i << "] must be less than 2^40";
     }
     for (size_t i = 0; i < tensor_rank; ++i) {
-      shared_shape[i] = static_cast<uint32_t>(args[arg_cnt++].cast<int32_t>());
-      CHECK_GE(shared_shape[i], 0) << "boxDim must be non-negative";
-      CHECK_LE(shared_shape[i], 256) << "boxDim must be less than or equal to 256";
+      int32_t value = args[arg_cnt++].cast<int32_t>();
+      TVM_FFI_ICHECK_GT(value, 0) << "boxDim[" << i << "] must be non-zero";
+      TVM_FFI_ICHECK_LE(value, 256) << "boxDim[" << i << "] must be less than or equal to 256";
+      box_dim[i] = static_cast<uint32_t>(value);
     }
     for (size_t i = 0; i < tensor_rank; ++i) {
-      shared_strides[i] = static_cast<uint32_t>(args[arg_cnt++].cast<int32_t>());
+      int32_t value = args[arg_cnt++].cast<int32_t>();
+      TVM_FFI_ICHECK_GT(value, 0) << "elementStrides[" << i << "] must be non-zero";
+      TVM_FFI_ICHECK_LE(value, 8) << "elementStrides[" << i << "] must be less than or equal to 8";
+      element_strides[i] = static_cast<uint32_t>(value);
     }
     auto interleaved_kind = static_cast<CUtensorMapInterleave>(args[arg_cnt++].cast<int>());
     auto swizzle_kind = static_cast<CUtensorMapSwizzle>(args[arg_cnt++].cast<int>());
     auto l2_promotion_kind = static_cast<CUtensorMapL2promotion>(args[arg_cnt++].cast<int>());
     auto oob_fill_kind = static_cast<CUtensorMapFloatOOBfill>(args[arg_cnt++].cast<int>());
 
-    ICHECK_EQ(tensor_dtype.lanes(), 1)
+    TVM_FFI_ICHECK_EQ(tensor_dtype.lanes(), 1)
         << "Expect tensor_dtype to have lanes=1, but get " << tensor_dtype;
     CUtensorMapDataType cu_dtype;
     switch (tensor_dtype.code()) {
@@ -453,7 +471,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             cu_dtype = CU_TENSOR_MAP_DATA_TYPE_INT64;
             break;
           default:
-            LOG(FATAL) << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+            TVM_FFI_THROW(InternalError)
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kUInt:
@@ -472,7 +491,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             cu_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT64;
             break;
           default:
-            LOG(FATAL) << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+            TVM_FFI_THROW(InternalError)
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kFloat:
@@ -488,7 +508,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             cu_dtype = CU_TENSOR_MAP_DATA_TYPE_FLOAT64;
             break;
           default:
-            LOG(FATAL) << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+            TVM_FFI_THROW(InternalError)
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kBFloat:
@@ -498,7 +519,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             cu_dtype = CU_TENSOR_MAP_DATA_TYPE_BFLOAT16;
             break;
           default:
-            LOG(FATAL) << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+            TVM_FFI_THROW(InternalError)
+                << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
         }
         break;
       case DataType::kFloat8_e4m3fn:
@@ -509,33 +531,162 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         // NV float8 e5m2
         cu_dtype = CU_TENSOR_MAP_DATA_TYPE_UINT8;
         break;
+      case DataType::kFloat4_e2m1fn:
+#if (CUDA_VERSION >= 12080)
+        // Packed FP4 in GMEM, unpacked into SMEM/TMEM-facing tiles.
+        cu_dtype = CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B;
+        break;
+#else
+        TVM_FFI_THROW(InternalError)
+            << "float4_e2m1fn TensorMap requires CUDA support for "
+               "CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B";
+#endif
       default:
-        LOG(FATAL) << "Unsupported data type " << runtime::DLDataTypeToString(tensor_dtype);
+        TVM_FFI_THROW(InternalError)
+            << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
     }
 
-    // sanity checks per cuTensorMapEncodeTiled requirements
-    // see
-    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TENSOR__MEMORY.html#group__CUDA__TENSOR__MEMORY_1ga7c7d2aaac9e49294304e755e6f341d7
-    CHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b1111), 0);    // 16-byte alignment
-    CHECK_EQ((reinterpret_cast<uint64_t>(tensor_map) & 0b111111), 0);  // 64-byte alignment
-    CHECK_LE(tensor_rank, 5) << "cuTensorMapEncodeTiled only supports up to 5D tensors";
+    auto is_valid_interleave = interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE ||
+                               interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_16B ||
+                               interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B;
+    TVM_FFI_ICHECK(is_valid_interleave)
+        << "Unsupported interleave enum value: " << static_cast<int>(interleaved_kind);
 
-    if (swizzle_kind == CU_TENSOR_MAP_SWIZZLE_32B) {
-      CHECK_LE(shared_shape[0] * tensor_dtype.bytes(), 32)
+    auto is_valid_swizzle =
+        swizzle_kind == CU_TENSOR_MAP_SWIZZLE_NONE || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_32B ||
+        swizzle_kind == CU_TENSOR_MAP_SWIZZLE_64B || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
+    is_valid_swizzle = is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
+#endif
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B
+    is_valid_swizzle =
+        is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B;
+#endif
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B
+    is_valid_swizzle = is_valid_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
+#endif
+    TVM_FFI_ICHECK(is_valid_swizzle)
+        << "Unsupported swizzle enum value: " << static_cast<int>(swizzle_kind);
+
+    auto is_valid_l2_promotion = l2_promotion_kind == CU_TENSOR_MAP_L2_PROMOTION_NONE ||
+                                 l2_promotion_kind == CU_TENSOR_MAP_L2_PROMOTION_L2_64B ||
+                                 l2_promotion_kind == CU_TENSOR_MAP_L2_PROMOTION_L2_128B ||
+                                 l2_promotion_kind == CU_TENSOR_MAP_L2_PROMOTION_L2_256B;
+    TVM_FFI_ICHECK(is_valid_l2_promotion)
+        << "Unsupported l2Promotion enum value: " << static_cast<int>(l2_promotion_kind);
+
+    auto is_valid_oob_fill = oob_fill_kind == CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE ||
+                             oob_fill_kind == CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA;
+    TVM_FFI_ICHECK(is_valid_oob_fill)
+        << "Unsupported oobFill enum value: " << static_cast<int>(oob_fill_kind);
+
+    bool is_packed_16u4_align8 = false;
+#ifdef CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B
+    is_packed_16u4_align8 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B;
+#endif
+    bool is_packed_16u4_align16 = false;
+#ifdef CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B
+    is_packed_16u4_align16 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B;
+#endif
+    bool is_packed_16u6_align16 = false;
+#ifdef CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B
+    is_packed_16u6_align16 = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B;
+#endif
+    auto is_packed_align16 = is_packed_16u4_align16 || is_packed_16u6_align16;
+    auto is_packed_dtype = is_packed_16u4_align8 || is_packed_align16;
+    auto is_floating_dtype = cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT16 ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT32 ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT64 ||
+                             cu_dtype == CU_TENSOR_MAP_DATA_TYPE_BFLOAT16;
+#ifdef CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ
+    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ;
+#endif
+#ifdef CU_TENSOR_MAP_DATA_TYPE_TFLOAT32
+    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32;
+#endif
+#ifdef CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ
+    is_floating_dtype = is_floating_dtype || cu_dtype == CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ;
+#endif
+
+    auto is_128b_swizzle = swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B;
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B
+    is_128b_swizzle = is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B;
+#endif
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B
+    is_128b_swizzle =
+        is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B;
+#endif
+#ifdef CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B
+    is_128b_swizzle = is_128b_swizzle || swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B;
+#endif
+
+    // Host-side validation for documented cuTensorMapEncodeTiled requirements.
+    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TENSOR__MEMORY.html#group__CUDA__TENSOR__MEMORY_1ga7c7d2aaac9e49294304e755e6f341d7
+    TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b1111), 0);    // 16-byte alignment
+    TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_map) & 0b111111), 0);  // 64-byte alignment
+
+    if (interleaved_kind != CU_TENSOR_MAP_INTERLEAVE_NONE) {
+      TVM_FFI_ICHECK_GE(tensor_rank, 3U)
+          << "tensorRank must be greater than or equal to 3 when interleave is not NONE";
+    }
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B || is_packed_align16) {
+      TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b11111), 0)
+          << "globalAddress must be 32-byte aligned";
+    }
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B || is_packed_align16) {
+      for (size_t i = 0; i < global_strides.size(); ++i) {
+        TVM_FFI_ICHECK_EQ(global_strides[i] % 32, 0)
+            << "globalStrides[" << i << "] must be a multiple of 32";
+      }
+    }
+    if (is_packed_align16) {
+      TVM_FFI_ICHECK_EQ(global_shape[0] % 128, 0)
+          << "globalDim[0] must be a multiple of 128 for packed 16U4/16U6 align16 formats";
+      TVM_FFI_ICHECK_EQ(box_dim[0], 128U)
+          << "boxDim[0] must be 128 for packed 16U4/16U6 align16 formats";
+    }
+    if (is_packed_16u4_align8) {
+      TVM_FFI_ICHECK_EQ(global_shape[0] % 2, 0)
+          << "globalDim[0] must be a multiple of 2 for packed 16U4 align8 format";
+    }
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE && !is_packed_dtype) {
+      uint64_t inner_box_bytes = static_cast<uint64_t>(box_dim[0]) * tensor_dtype.bytes();
+      TVM_FFI_ICHECK_EQ(inner_box_bytes % 16, 0)
+          << "boxDim[0] * elementSizeInBytes(tensorDataType) must be a multiple of 16 bytes";
+    }
+    if (oob_fill_kind == CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA) {
+      TVM_FFI_ICHECK(is_floating_dtype)
+          << "CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA requires a floating-point "
+             "tensorDataType";
+      TVM_FFI_ICHECK(!is_packed_dtype)
+          << "CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA is not supported for packed "
+             "tensorDataType";
+    }
+
+    if (is_packed_16u6_align16 && is_128b_swizzle) {
+      TVM_FFI_ICHECK_EQ(interleaved_kind, CU_TENSOR_MAP_INTERLEAVE_NONE)
+          << "packed 16U6 align16 formats require interleave NONE for 128B swizzles";
+    }
+
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE && !is_packed_dtype &&
+        swizzle_kind == CU_TENSOR_MAP_SWIZZLE_32B) {
+      TVM_FFI_ICHECK_LE(box_dim[0] * tensor_dtype.bytes(), 32)
           << "CU_TENSOR_MAP_SWIZZLE_32B implies the bounding box inner dimension will be <= 32.";
-    } else if (swizzle_kind == CU_TENSOR_MAP_SWIZZLE_64B) {
-      CHECK_LE(shared_shape[0] * tensor_dtype.bytes(), 64)
+    } else if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE && !is_packed_dtype &&
+               swizzle_kind == CU_TENSOR_MAP_SWIZZLE_64B) {
+      TVM_FFI_ICHECK_LE(box_dim[0] * tensor_dtype.bytes(), 64)
           << "CU_TENSOR_MAP_SWIZZLE_64B implies the bounding box inner dimension will be <= 64.";
-    } else if (swizzle_kind == CU_TENSOR_MAP_SWIZZLE_128B) {
-      CHECK_LE(shared_shape[0] * tensor_dtype.bytes(), 128)
+    } else if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE && !is_packed_dtype &&
+               is_128b_swizzle) {
+      TVM_FFI_ICHECK_LE(box_dim[0] * tensor_dtype.bytes(), 128)
           << "CU_TENSOR_MAP_SWIZZLE_128B implies the bounding box inner dimension will be <= "
              "128.";
     }
 
     const cuuint64_t* global_shape_ptr = global_shape.data();
     const cuuint64_t* global_strides_ptr = global_strides.data();
-    const uint32_t* shared_shape_ptr = shared_shape.data();
-    const uint32_t* shared_strides_ptr = shared_strides.data();
+    const uint32_t* shared_shape_ptr = box_dim.data();
+    const uint32_t* shared_strides_ptr = element_strides.data();
 
     CUresult res =
         cuTensorMapEncodeTiled(tensor_map, cu_dtype, tensor_rank, tensor_ptr, global_shape_ptr,
@@ -561,21 +712,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       }
       std::cout << "\n";
       std::cout << "global prob stride: ";
-      for (size_t i = 0; i < tensor_rank; i++) {
+      for (size_t i = 0; i < global_strides.size(); i++) {
         std::cout << global_strides[i] << " ";
       }
       std::cout << "\n";
       std::cout << "smem box shape: ";
       for (size_t i = 0; i < tensor_rank; i++) {
-        std::cout << shared_shape[i] << " ";
+        std::cout << box_dim[i] << " ";
       }
       std::cout << "\n";
       std::cout << "smem box stride: ";
       for (size_t i = 0; i < tensor_rank; i++) {
-        std::cout << shared_strides[i] << " ";
+        std::cout << element_strides[i] << " ";
       }
       std::cout << "\n";
-      CHECK_EQ(res, CUDA_SUCCESS) << "Error in cuTensorMapEncodeTiled: " << errstr;
+      TVM_FFI_ICHECK_EQ(res, CUDA_SUCCESS) << "Error in cuTensorMapEncodeTiled: " << errstr;
     }
   });
 }

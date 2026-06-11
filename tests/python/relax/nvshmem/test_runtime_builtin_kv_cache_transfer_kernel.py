@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import numpy as np
 import pytest
+from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
 from tvm.runtime import Device
-from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
-
 
 page_size = 4
 num_layers = 4
@@ -55,7 +55,7 @@ def test_kv_transfer_without_disco():
     init_func(uid, 2, rank)
     empty_func = tvm.get_global_func("runtime.disco.nvshmem.empty")
     pages = empty_func(
-        ShapeTuple((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
+        Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
     )
     position_map_array = [0, 1, 2, 3, 4, 5, 10, 11, 12, 15, 16, 17, 18, 19, 25, 27]
     np.random.seed(0)
@@ -109,7 +109,7 @@ def test_kv_transfer_page_to_page_without_disco():
     init_func(uid, 2, rank)
     empty_func = tvm.get_global_func("runtime.disco.nvshmem.empty")
     pages = empty_func(
-        ShapeTuple((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
+        Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
     )
     rank_1_position_map_array = [0, 1, 2, 3, 4, 5, 10, 11, 12, 15, 16, 17, 18, 19, 25, 27]
     rank_0_position_map_array = list(reversed(rank_1_position_map_array))
@@ -175,7 +175,7 @@ def test_kv_transfer_with_disco():
     init_func(uid, 4, rank * 2)
     empty_func = sess.get_global_func("runtime.disco.nvshmem.empty")
     pages = empty_func(
-        ShapeTuple((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)),
+        Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)),
         "float16",
         Device(device_type=0, device_id=0),
     )
@@ -200,7 +200,7 @@ def test_kv_transfer_with_disco():
         f_view_func = sess.get_global_func("runtime.TVMTensorCreateView")
         layer_view = f_view_func(
             pages,
-            ShapeTuple([num_pages, 2, num_kv_heads, page_size, head_dim]),
+            Shape([num_pages, 2, num_kv_heads, page_size, head_dim]),
             "float16",
             layer_id * num_pages * 2 * num_kv_heads * page_size * head_dim * 2,
         )

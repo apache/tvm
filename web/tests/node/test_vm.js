@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/* eslint-disable no-undef */
 // Load Emscripten Module, need to change path to root/lib
 const path = require("path");
 const fs = require("fs");

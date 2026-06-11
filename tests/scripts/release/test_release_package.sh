@@ -47,7 +47,15 @@ fi
 mkdir test_tvm_${version_rc}
 cd test_tvm_${version_rc}
 
-echo "[1/9] Downloading from apache.org ..."
+echo "[setup] Create an isolated virtualenv ..."
+# Used for the build, dependency install, and import below so this script never
+# pollutes the caller's environment and works on PEP 668 "externally-managed"
+# system pythons. Requires the venv module (e.g. the python3-venv package on Debian).
+python3 -m venv .venv
+export PATH="$PWD/.venv/bin:$PATH"
+python3 -m pip install --upgrade pip
+
+echo "[1/10] Downloading from apache.org ..."
 mkdir apache
 cd apache
 wget -c https://dist.apache.org/repos/dist/dev/tvm/tvm-${apache_prefix}/apache-tvm-src-${version_rc}.tar.gz.sha512
@@ -56,7 +64,7 @@ wget -c https://dist.apache.org/repos/dist/dev/tvm/tvm-${apache_prefix}/apache-t
 md5sum ./* > ./md5sum.txt
 cd -
 
-echo "[2/9] Downloading from github.com ..."
+echo "[2/10] Downloading from github.com ..."
 mkdir github
 cd github
 wget -c https://github.com/apache/tvm/releases/download/${version_rc}/apache-tvm-src-${version_rc}.tar.gz.sha512
@@ -65,37 +73,51 @@ wget -c https://github.com/apache/tvm/releases/download/${version_rc}/apache-tvm
 md5sum ./* > ./md5sum.txt
 cd -
 
-echo "[3/9] Check difference between github.com and apache.org ..."
+echo "[3/10] Check difference between github.com and apache.org ..."
 diff github/md5sum.txt ./apache/md5sum.txt
 
-echo "[4/9] Checking asc ..."
+echo "[4/10] Checking asc ..."
 cd github
 gpg --verify ./apache-tvm-src-${version_rc}.tar.gz.asc ./apache-tvm-src-${version_rc}.tar.gz
 
-echo "[5/9] Checking sha512 ..."
+echo "[5/10] Checking sha512 ..."
 sha512sum -c ./apache-tvm-src-${version_rc}.tar.gz.sha512
 
-echo "[6/9] Unzip ..."
+echo "[6/10] Unzip ..."
 tar -zxf apache-tvm-src-${version_rc}.tar.gz
 
-echo "[7/9] Checking whether binary in source code ..."
-output=`find apache-tvm-src-${version} -type f -exec file {} + | grep -w "ELF\|shared object"`
+echo "[7/10] Checking whether binary in source code ..."
+output=`find apache-tvm-src-${version} -type f -exec file {} + | grep -w "ELF\|shared object" || true`
 if [[ -n "$output" ]]; then
     echo "Error: ELF or shared object files found:"
     echo "$output"
     exit 1
 fi
 
-echo "[8/9] Compile and Python Import on Linux ..."
+echo "[8/10] Compile and Python Import on Linux ..."
 cd apache-tvm-src-${version}
 mkdir build
 cd build
 cp ../cmake/config.cmake .
 cmake ..
-make -j4
+make -j16
 cd ..
 
-echo "[9/9] Import TVM and print path ..."
+echo "[9/10] Install Python runtime dependencies (declared in the source pyproject.toml) ..."
+# Single source of truth: install exactly the runtime deps the release declares, so
+# this never needs version/list maintenance when the project's dependencies change.
+deps=$(python3 - <<'PY'
+import re
+
+text = open("pyproject.toml").read()
+match = re.search(r"(?ms)^dependencies\s*=\s*\[(.*?)\]", text)
+print(" ".join(re.findall(r'"([^"]+)"', match.group(1))))
+PY
+)
+echo "Installing declared runtime deps: ${deps}"
+python3 -m pip install ${deps}
+
+echo "[10/10] Import TVM and print path ..."
 export TVM_HOME=$(pwd)
-export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
+export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH:-}
 python3 -c "import tvm; print(tvm.__path__)"

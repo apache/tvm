@@ -22,73 +22,20 @@
  */
 #include "file_utils.h"
 
-#include <dmlc/json.h>
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/error.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/logging.h>
-#include <tvm/runtime/serializer.h>
+#include <tvm/support/io.h>
 
 #include <fstream>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "../support/bytes_io.h"
+
 namespace tvm {
 namespace runtime {
-
-void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
-  std::vector<std::string> sarg_types(arg_types.size());
-  for (size_t i = 0; i < arg_types.size(); ++i) {
-    sarg_types[i] = DLDataTypeToString(arg_types[i]);
-  }
-  writer->BeginObject();
-  writer->WriteObjectKeyValue("name", name);
-  writer->WriteObjectKeyValue("arg_types", sarg_types);
-  writer->WriteObjectKeyValue("launch_param_tags", launch_param_tags);
-  std::vector<int> iarg_extra_tags(arg_extra_tags.size());
-  for (size_t i = 0; i < arg_extra_tags.size(); ++i) {
-    iarg_extra_tags[i] = static_cast<int>(arg_extra_tags[i]);
-  }
-  writer->WriteObjectKeyValue("arg_extra_tags", iarg_extra_tags);
-  writer->EndObject();
-}
-
-void FunctionInfo::Load(dmlc::JSONReader* reader) {
-  dmlc::JSONObjectReadHelper helper;
-  std::vector<std::string> sarg_types;
-  helper.DeclareField("name", &name);
-  helper.DeclareField("arg_types", &sarg_types);
-  helper.DeclareOptionalField("launch_param_tags", &launch_param_tags);
-  helper.DeclareOptionalField("thread_axis_tags",
-                              &launch_param_tags);  // for backward compatibility
-  std::vector<int> iarg_extra_tags;
-  helper.DeclareOptionalField("arg_extra_tags", &iarg_extra_tags);
-  arg_extra_tags.resize(iarg_extra_tags.size());
-  for (size_t i = 0; i < arg_extra_tags.size(); ++i) {
-    arg_extra_tags[i] = static_cast<ArgExtraTags>(iarg_extra_tags[i]);
-  }
-  helper.ReadAllFields(reader);
-  arg_types.resize(sarg_types.size());
-  for (size_t i = 0; i < arg_types.size(); ++i) {
-    arg_types[i] = StringToDLDataType(sarg_types[i]);
-  }
-}
-
-void FunctionInfo::Save(dmlc::Stream* writer) const {
-  writer->Write(name);
-  writer->Write(arg_types);
-  writer->Write(launch_param_tags);
-  writer->Write(arg_extra_tags);
-}
-
-bool FunctionInfo::Load(dmlc::Stream* reader) {
-  if (!reader->Read(&name)) return false;
-  if (!reader->Read(&arg_types)) return false;
-  if (!reader->Read(&launch_param_tags)) return false;
-  if (!reader->Read(&arg_extra_tags)) return false;
-  return true;
-}
 
 std::string GetFileFormat(const std::string& file_name, const std::string& format) {
   std::string fmt = format;
@@ -133,7 +80,7 @@ std::string GetMetaFilePath(const std::string& file_name) {
 
 void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
   std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   // get its size:
   fs.seekg(0, std::ios::end);
   size_t size = static_cast<size_t>(fs.tellg());
@@ -144,34 +91,40 @@ void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 
 void SaveMetaDataToFile(const std::string& file_name,
-                        const std::unordered_map<std::string, FunctionInfo>& fmap) {
-  std::string version = "0.1.0";
+                        const ffi::Map<ffi::String, FunctionInfo>& fmap) {
+  namespace json = ::tvm::ffi::json;
+  json::Object root;
+  root.Set("tvm_version", ffi::String("0.1.0"));
+  json::Object func_info;
+  for (const auto& kv : fmap) {
+    func_info.Set(kv.first, kv.second->SaveToJSON());
+  }
+  root.Set("func_info", std::move(func_info));
   std::ofstream fs(file_name.c_str());
-  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
-  dmlc::JSONWriter writer(&fs);
-  writer.BeginObject();
-  writer.WriteObjectKeyValue("tvm_version", version);
-  writer.WriteObjectKeyValue("func_info", fmap);
-  writer.EndObject();
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open file " << file_name;
+  fs << std::string(json::Stringify(root, 2));
   fs.close();
 }
 
-void LoadMetaDataFromFile(const std::string& file_name,
-                          std::unordered_map<std::string, FunctionInfo>* fmap) {
+void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, FunctionInfo>* fmap) {
+  namespace json = ::tvm::ffi::json;
   std::ifstream fs(file_name.c_str());
-  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
-  std::string version;
-  dmlc::JSONReader reader(&fs);
-  dmlc::JSONObjectReadHelper helper;
-  helper.DeclareField("tvm_version", &version);
-  helper.DeclareField("func_info", fmap);
-  helper.ReadAllFields(&reader);
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open file " << file_name;
+  std::string content((std::istreambuf_iterator<char>(fs)), std::istreambuf_iterator<char>());
   fs.close();
+  auto root = json::Parse(content).cast<json::Object>();
+  // tvm_version is ignored
+  auto func_info_obj = root.at("func_info").cast<json::Object>();
+  for (const auto& kv : func_info_obj) {
+    auto info_node = ffi::make_object<FunctionInfoObj>();
+    info_node->LoadFromJSON(kv.second.cast<json::Object>());
+    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+  }
 }
 
 void RemoveFile(const std::string& file_name) {
@@ -181,38 +134,38 @@ void RemoveFile(const std::string& file_name) {
 
 void CopyFile(const std::string& src_file_name, const std::string& dest_file_name) {
   std::ifstream src(src_file_name, std::ios::binary);
-  ICHECK(src) << "Unable to open source file '" << src_file_name << "'";
+  TVM_FFI_ICHECK(src) << "Unable to open source file '" << src_file_name << "'";
 
   std::ofstream dest(dest_file_name, std::ios::binary | std::ios::trunc);
-  ICHECK(dest) << "Unable to destination source file '" << src_file_name << "'";
+  TVM_FFI_ICHECK(dest) << "Unable to destination source file '" << src_file_name << "'";
 
   dest << src.rdbuf();
 
   src.close();
   dest.close();
 
-  ICHECK(dest) << "File-copy operation failed."
-               << " src='" << src_file_name << "'"
-               << " dest='" << dest_file_name << "'";
+  TVM_FFI_ICHECK(dest) << "File-copy operation failed."
+                       << " src='" << src_file_name << "'"
+                       << " dest='" << dest_file_name << "'";
 }
 
 ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
-  dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
+  support::BytesInStream strm(param_blob);
   return LoadParams(&strm);
 }
-ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm) {
+ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
   ffi::Map<ffi::String, Tensor> params;
   uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
 
   std::vector<std::string> names;
-  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&names)) << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-  ICHECK(size == names.size()) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     // The data_entry is allocated on device, Tensor.load always load the array into CPU.
     Tensor temp;
@@ -222,7 +175,7 @@ ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm) {
   return params;
 }
 
-void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params) {
+void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& params) {
   std::vector<std::string> names;
   std::vector<const DLTensor*> arrays;
   for (auto& p : params) {
@@ -244,15 +197,19 @@ void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params)
 }
 
 std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
-  std::string bytes;
-  dmlc::MemoryStringStream strm(&bytes);
-  dmlc::Stream* fo = &strm;
-  SaveParams(fo, params);
-  return bytes;
+  std::string result;
+  support::BytesOutStream strm(&result);
+  SaveParams(&strm, params);
+  return result;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<FunctionInfoObj>()
+      .def_ro("name", &FunctionInfoObj::name)
+      .def_ro("arg_types", &FunctionInfoObj::arg_types)
+      .def_ro("launch_param_tags", &FunctionInfoObj::launch_param_tags)
+      .def_ro("arg_extra_tags", &FunctionInfoObj::arg_extra_tags);
   refl::GlobalDef()
       .def("runtime.SaveParams",
            [](const ffi::Map<ffi::String, Tensor>& params) {
@@ -265,9 +222,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              SaveParams(&strm, params);
            })
       .def("runtime.LoadParams", [](const ffi::Bytes& s) { return ::tvm::runtime::LoadParams(s); })
-      .def("runtime.LoadParamsFromFile", [](const ffi::String& path) {
-        tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
-        return LoadParams(&strm);
+      .def("runtime.LoadParamsFromFile",
+           [](const ffi::String& path) {
+             tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
+             return LoadParams(&strm);
+           })
+      // Registry: "runtime.LoadMetaDataFromJSON" — parse a tvm_meta.json
+      // string into Map<String, FunctionInfo>.  Used by Python callers that
+      // build FunctionInfo maps in-memory (e.g. tirx external_kernel) without
+      // a disk round-trip.
+      .def("runtime.LoadMetaDataFromJSON", [](const ffi::String& json_str) {
+        namespace json = ::tvm::ffi::json;
+        ffi::Map<ffi::String, FunctionInfo> fmap;
+        auto root = json::Parse(std::string(json_str)).cast<json::Object>();
+        auto func_info_obj = root.at("func_info").cast<json::Object>();
+        for (const auto& kv : func_info_obj) {
+          auto info_node = ffi::make_object<FunctionInfoObj>();
+          info_node->LoadFromJSON(kv.second.cast<json::Object>());
+          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+        }
+        return fmap;
       });
 }
 

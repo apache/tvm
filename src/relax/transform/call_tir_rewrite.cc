@@ -21,13 +21,14 @@
  * \brief Perform explicit tensor allocation for call_tir,
  *        call_tir_inplace, and call_dps_packed.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 #include "utils.h"
 
@@ -78,7 +79,7 @@ class CallTIRMutator : public ExprMutator {
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
-        ICHECK(tensor_sinfo->shape.defined())
+        TVM_FFI_ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
         int dev_index = 0;
         ffi::String scope = "global";
@@ -98,11 +99,10 @@ class CallTIRMutator : public ExprMutator {
                                         "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
-          ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
+          TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0] != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
-          outs.push_back(
-              Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0].IntValue()]);
+          outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
         }
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
@@ -110,11 +110,11 @@ class CallTIRMutator : public ExprMutator {
         for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
           const auto& field = tuple_sinfo->fields[i];
 
-          ICHECK(field->IsInstance<TensorStructInfoNode>())
+          TVM_FFI_ICHECK(field->IsInstance<TensorStructInfoNode>())
               << "call_tir expects Tuple of TensorStructInfo, but got " << field
               << " as an element of TupleStructInfo";
           const auto& field_tensor = Downcast<TensorStructInfo>(field);
-          ICHECK(field_tensor->shape.defined())
+          TVM_FFI_ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
 
@@ -125,7 +125,7 @@ class CallTIRMutator : public ExprMutator {
             scope = field_tensor->vdevice.value()->memory_scope;
           }
 
-          if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
+          if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
             outs.push_back(builder_->Emit(Call(alloc_tensor_op,
                                                {Downcast<ShapeExpr>(field_tensor->shape.value()),
                                                 DataTypeImm(field_tensor->dtype),
@@ -133,14 +133,14 @@ class CallTIRMutator : public ExprMutator {
                                                Attrs(), {field_tensor}),
                                           "alloc"));
           } else {
-            outs.push_back(Downcast<Tuple>(call->args[1])
-                               ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
+            outs.push_back(
+                Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[i]]);
           }
         }
       } else {
-        LOG(FATAL) << "TypeError: The struct info of call_tir expects to be TensorStructInfo or "
-                      "TupleStructInfo, but got"
-                   << expr->struct_info_;
+        TVM_FFI_THROW(TypeError) << "The struct info of call_tir expects to be TensorStructInfo or "
+                                    "TupleStructInfo, but got"
+                                 << expr->struct_info_;
       }
 
       ffi::Array<Expr> args;
@@ -151,7 +151,7 @@ class CallTIRMutator : public ExprMutator {
           args.insert(args.end(), outs.begin(), outs.end());
         } else {
           for (size_t i = 0; i < outs.size(); i++) {
-            if (inplace_attrs->inplace_indices[i].IntValue() == -1) {
+            if (inplace_attrs->inplace_indices[i] == -1) {
               args.push_back(outs[i]);
             }
           }

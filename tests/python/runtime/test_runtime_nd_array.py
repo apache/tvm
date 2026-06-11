@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import tvm
-import tvm.testing
+# ruff: noqa: F811
 
 import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
 
 
 def test_1d_full_view_of_1d_arr():

@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
+from tvm import relax
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 def test_image_resize2d():
@@ -37,15 +40,15 @@ def test_image_resize2d():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
-                with T.block("resize"):
+                with T.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[i0_1, T.max(T.min(T.Div(i1_1, T.int64(2)), T.int64(7)), T.int64(0)), T.max(T.min(T.Div(i2_1, T.int64(2)), T.int64(7)), T.int64(0)), i3_1])
+                    T.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
                     T.writes(resize[i0_1, i1_1, i2_1, i3_1])
-                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Div(i1_1, T.int64(2)), T.int64(7)), T.int64(0)), T.max(T.min(T.Div(i2_1, T.int64(2)), T.int64(7)), T.int64(0)), i3_1]
+                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i1_1))), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i2_1))), T.int64(7)), T.int64(0)), i3_1]
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
@@ -76,9 +79,9 @@ def test_image_resize2d_symbolic():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             c = T.int64()
             h = T.int64()
             n = T.int64()
@@ -88,7 +91,7 @@ def test_image_resize2d_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w, T.int64(16)], dtype="float32")
             resize = T.match_buffer(var_resize, [n, c, oh, ow, T.int64(16)], dtype="float32")
             for i0, i1, i2, i3, i4 in T.grid(n, c, oh, ow, T.int64(16)):
-                with T.block("resize"):
+                with T.sblock("resize"):
                     i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     T.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h, T.int64(1)), T.int64(0) : T.max(w, T.int64(1)), i4_1])
                     T.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
@@ -97,6 +100,78 @@ def test_image_resize2d_symbolic():
 
     mod = LegalizeOps()(Resize2D)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_image_affine_grid():
+    # fmt: off
+    @tvm.script.ir_module
+    class AffineGrid:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv: R.Tensor((2, 2, 16, 16), "float32") = R.image.affine_grid(theta, size=(16, 16))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
+            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
+            with T.sblock("root"):
+                T.reads()
+                T.writes()
+                for n, dim, i, j in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                    with T.sblock("compute"):
+                        v_n, v_dim, v_i, v_j = T.axis.remap("SSSS", [n, dim, i, j])
+                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        T.writes(compute[v_n, v_dim, v_i, v_j])
+                        compute[v_n, v_dim, v_i, v_j] = theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_j) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(2)]
+    # fmt: on
+
+    mod = LegalizeOps()(AffineGrid)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_image_resize3d():
+    # fmt: off
+    @tvm.script.ir_module
+    class Resize3D:
+        @R.function
+        def main(x: R.Tensor((2, 3, 8, 8, 8), "float32")) -> R.Tensor((2, 3, 4, 6, 7), "float32"):
+            gv: R.Tensor((2, 3, 4, 6, 7), "float32") = R.image.resize3d(
+                x,
+                size=(4, 6, 7),
+                layout="NCDHW",
+                method="nearest_neighbor",
+                coordinate_transformation_mode="asymmetric",
+                rounding_method="floor",
+            )
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Resize3D)
+
+    seen_call_tir = False
+    seen_resize3d_relax_op = False
+
+    def _visit(expr):
+        nonlocal seen_call_tir, seen_resize3d_relax_op
+        if isinstance(expr, relax.Call):
+            if isinstance(expr.op, tvm.ir.Op):
+                if expr.op.name == "relax.call_tir":
+                    seen_call_tir = True
+                if expr.op.name == "relax.image.resize3d":
+                    seen_resize3d_relax_op = True
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert seen_call_tir
+    assert not seen_resize3d_relax_op
 
 
 if __name__ == "__main__":

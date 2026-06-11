@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Dilate operation in python"""
+
 import numpy as np
 
 
@@ -43,9 +44,9 @@ def dilate_python(input_np, strides, dilation_value=0.0, out_dtype=None):
         n-D, the same layout as Input.
 
     """
-    assert len(input_np.shape) == len(
-        strides
-    ), f"Input dimension and strides size dismatch : {len(input_np.shape)} vs {len(strides)}"
+    assert len(input_np.shape) == len(strides), (
+        f"Input dimension and strides size dismatch : {len(input_np.shape)} vs {len(strides)}"
+    )
 
     if out_dtype is None:
         out_dtype = input_np.dtype

@@ -20,7 +20,7 @@ tvm.topi
 .. automodule:: tvm.topi
    :members:
    :imported-members:
-   :noindex: AssertStmt
+   :noindex:
    :autosummary:
 
 tvm.topi.nn
@@ -37,3 +37,29 @@ tvm.topi.image
    :members:
    :imported-members:
    :autosummary:
+
+tvm.topi.vision
+~~~~~~~~~~~~~~~
+.. automodule:: tvm.topi.vision
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.topi.gpu
+~~~~~~~~~~~~
+.. automodule:: tvm.topi.gpu
+   :members:
+   :imported-members:
+   :noindex:
+
+tvm.topi.cpp
+~~~~~~~~~~~~
+.. automodule:: tvm.topi.cpp
+   :members:
+   :imported-members:
+
+tvm.topi.testing
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.topi.testing
+   :members:
+   :imported-members:

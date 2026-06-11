@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import tvm
 import tvm.testing
 from tvm import relax
@@ -21,12 +22,8 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 
 
-class ExtractCompare(tvm.testing.CompareBeforeAfter):
-    transform = relax.transform.ConvertToDataflow()
-
-
 # functions that will not change
-class TestTrivial(ExtractCompare):
+def test_trivial():
     @I.ir_module
     class Before:
         # already a DF block
@@ -69,8 +66,11 @@ class TestTrivial(ExtractCompare):
 
     Expected = Before
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestBasic(ExtractCompare):
+
+def test_basic():
     @I.ir_module
     class Before:
         @R.function
@@ -91,8 +91,11 @@ class TestBasic(ExtractCompare):
                 R.output(v)
             return v
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestMultipleBlocks(ExtractCompare):
+
+def test_multiple_blocks():
     @I.ir_module
     class Before:
         @R.function(pure=False)
@@ -125,8 +128,11 @@ class TestMultipleBlocks(ExtractCompare):
                 R.output(d)
             return d
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestExtractInsideBranches(ExtractCompare):
+
+def test_extract_inside_branches():
     @I.ir_module
     class Before:
         @R.function(pure=False)
@@ -179,8 +185,11 @@ class TestExtractInsideBranches(ExtractCompare):
                 R.output(f)
             return f
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestTreatNonCallAsPure(ExtractCompare):
+
+def test_treat_non_call_as_pure():
     @I.ir_module
     class Before:
         @R.function
@@ -251,8 +260,11 @@ class TestTreatNonCallAsPure(ExtractCompare):
                 R.output(w)
             return w
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestImpureInnerFunction(ExtractCompare):
+
+def test_impure_inner_function():
     @I.ir_module
     class Before:
         @R.function(pure=False)
@@ -310,8 +322,11 @@ class TestImpureInnerFunction(ExtractCompare):
                 R.output(c)
             return c
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestPureInnerFunction(ExtractCompare):
+
+def test_pure_inner_function():
     @I.ir_module
     class Before:
         @R.function
@@ -351,8 +366,11 @@ class TestPureInnerFunction(ExtractCompare):
                 R.output(q)
             return q
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestImpureExternalFunction(ExtractCompare):
+
+def test_impure_external_function():
     @I.ir_module
     class Before:
         @R.function(pure=False)
@@ -391,8 +409,11 @@ class TestImpureExternalFunction(ExtractCompare):
             q = Expected.extra(z, w)
             return q
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestPureExternalFunction(ExtractCompare):
+
+def test_pure_external_function():
     @I.ir_module
     class Before:
         @R.function
@@ -429,8 +450,11 @@ class TestPureExternalFunction(ExtractCompare):
                 R.output(q)
             return q
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestMergeWithPrecedingDataflowBlock(ExtractCompare):
+
+def test_merge_with_preceding_dataflow_block():
     @I.ir_module
     class Before:
         @R.function
@@ -458,8 +482,11 @@ class TestMergeWithPrecedingDataflowBlock(ExtractCompare):
                 R.output(v)
             return v
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestMergeWithNextDataflowBlock(ExtractCompare):
+
+def test_merge_with_next_dataflow_block():
     @I.ir_module
     class Before:
         @R.function
@@ -488,8 +515,11 @@ class TestMergeWithNextDataflowBlock(ExtractCompare):
                 R.output(v)
             return v
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestPreserveExistingDataflowBlocksAtBeginning(ExtractCompare):
+
+def test_preserve_existing_dataflow_blocks_at_beginning():
     """Preserve existing DataflowBlocks
 
     This is a regression test.  In previous implementations, a
@@ -541,8 +571,11 @@ class TestPreserveExistingDataflowBlocksAtBeginning(ExtractCompare):
 
             return (A1, B3)
 
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestPreserveExistingDataflowBlocksAtEnd(ExtractCompare):
+
+def test_preserve_existing_dataflow_blocks_at_end():
     """Preserve existing DataflowBlocks
 
     This is a regression test.  In previous implementations, a
@@ -593,6 +626,9 @@ class TestPreserveExistingDataflowBlocksAtEnd(ExtractCompare):
                 R.output(A1)
 
             return (A1, B3)
+
+    After = relax.transform.ConvertToDataflow()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

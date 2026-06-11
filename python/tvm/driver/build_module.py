@@ -17,26 +17,27 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
+
 import warnings
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import tvm
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
 from tvm.target import Target
-from tvm.tir import PrimFunc
+from tvm.tirx import PrimFunc
 
 
 def build(
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Union[str, Target]] = None,
-    pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
+    mod: PrimFunc | IRModule,
+    target: str | Target | None = None,
+    pipeline: str | tvm.transform.Pass | None = "default",
 ):
     """
     Build a function with a signature, generating code for devices
     coupled with target information.
 
-    This function is deprecated. Use `tvm.compile` or `tvm.tir.build` instead.
+    This function is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.
 
     Parameters
     ----------
@@ -53,13 +54,13 @@ def build(
         A module combining both host and device code.
     """
     warnings.warn(
-        "build is deprecated. Use `tvm.compile` or `tvm.tir.build` instead.",
+        "build is deprecated. Use `tvm.compile` or `tvm.tirx.build` instead.",
         DeprecationWarning,
     )
-    return tvm.tir.build(mod, target, pipeline)
+    return tvm.tirx.build(mod, target, pipeline)
 
 
-def _contains_relax(mod: Union[PrimFunc, IRModule]) -> bool:
+def _contains_relax(mod: PrimFunc | IRModule) -> bool:
     if isinstance(mod, PrimFunc):
         return False
     if isinstance(mod, IRModule):
@@ -69,11 +70,11 @@ def _contains_relax(mod: Union[PrimFunc, IRModule]) -> bool:
 
 
 def compile(  # pylint: disable=redefined-builtin
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Target] = None,
+    mod: PrimFunc | IRModule,
+    target: Target | None = None,
     *,
-    relax_pipeline: Optional[Union[tvm.transform.Pass, Callable, str]] = "default",
-    tir_pipeline: Optional[Union[tvm.transform.Pass, Callable, str]] = "default",
+    relax_pipeline: tvm.transform.Pass | Callable | str | None = "default",
+    tir_pipeline: tvm.transform.Pass | Callable | str | None = "default",
 ) -> Executable:
     """
     Compile an IRModule to a runtime executable.
@@ -107,5 +108,5 @@ def compile(  # pylint: disable=redefined-builtin
             relax_pipeline=relax_pipeline,
             tir_pipeline=tir_pipeline,
         )
-    lib = tvm.tir.build(mod, target, pipeline=tir_pipeline)
+    lib = tvm.tirx.build(mod, target, pipeline=tir_pipeline)
     return Executable(lib)

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 import sys
 
 import numpy as np
@@ -25,13 +26,17 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 try:
     import triton
     import triton.language as tl
+    from packaging import version
 except ImportError:
     pytestmark = pytest.skip("Triton is not available", allow_module_level=True)
+else:
+    if version.parse(triton.__version__) < version.parse("3.3.0"):
+        pytestmark = pytest.skip("Triton >= 3.3.0 is required", allow_module_level=True)
 
 
 @tvm.testing.requires_cuda
@@ -54,16 +59,16 @@ def test_tir_triton_integration():
         output = x + y
         tl.store(output_ptr + offsets, output, mask=mask)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
             T.func_attr({"global_symbol": "add"})
             m = T.int64()
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             output = T.match_buffer(output_handle, (m,), "float32")
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 BLOCK_SIZE = T.meta_var(64)
@@ -75,6 +80,7 @@ def test_tir_triton_integration():
                     output.data,
                     m,
                     BLOCK_SIZE,
+                    num_warps=8,
                 )
 
         @R.function
@@ -85,15 +91,17 @@ def test_tir_triton_integration():
                 R.output(output)
             return output
 
-    @I.ir_module
+    # Constexpr parameters (BLOCK_SIZE) stay in the kernel arguments, and the
+    # thread extent is 256 because the kernel is compiled with num_warps=8.
+    @I.ir_module(s_tir=True)
     class Parsed:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
             output = T.match_buffer(output_handle, (m,))
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 T.call_packed(
@@ -102,7 +110,8 @@ def test_tir_triton_integration():
                     y.data,
                     output.data,
                     m,
-                    128,
+                    64,
+                    256,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                 )
 

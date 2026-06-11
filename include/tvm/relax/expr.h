@@ -22,14 +22,14 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/node/node.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/object.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/runtime/tensor.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <functional>
 
@@ -46,7 +46,7 @@ using ExprNode = RelaxExprNode;
  *
  * \note Do not create Id directly, they are created in Var.
  */
-class IdNode : public Object {
+class IdNode : public ffi::Object {
  public:
   /*!
    * \brief The name of the variable,
@@ -62,10 +62,10 @@ class IdNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, ffi::Object);
 };
 
-class Id : public ObjectRef {
+class Id : public ffi::ObjectRef {
  public:
   /*!
    * \brief The constructor
@@ -73,7 +73,7 @@ class Id : public ObjectRef {
    */
   TVM_DLL explicit Id(ffi::String name_hint);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ObjectRef, IdNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ffi::ObjectRef, IdNode);
 };
 
 /*!
@@ -105,7 +105,7 @@ class Id : public ObjectRef {
  * and help us to simplify our assumption
  * during struct info deduction.
  */
-class StructInfoNode : public Object {
+class StructInfoNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -122,16 +122,16 @@ class StructInfoNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to StructInfoNode.
  * \sa StructInfoNode
  */
-class StructInfo : public ObjectRef {
+class StructInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ObjectRef, StructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ffi::ObjectRef, StructInfoNode);
 };
 
 /*!
@@ -297,7 +297,7 @@ class TupleGetItem : public Expr {
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item,
                         ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
-                        ffi::Optional<Integer> opt_index = ffi::Optional<Integer>(),
+                        ffi::Optional<int64_t> opt_index = ffi::Optional<int64_t>(),
                         ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*!
@@ -564,7 +564,7 @@ class DataTypeImm : public LeafExpr {
 };
 
 /*! \brief The base class of a variable binding in Relax. */
-class BindingNode : public Object {
+class BindingNode : public ffi::Object {
  public:
   mutable Span span;
   /*! \brief The return variable to bound to. */
@@ -574,22 +574,26 @@ class BindingNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingNode>()
         .def_ro("span", &BindingNode::span, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDef());
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefRecursive());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Binding", BindingNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Binding", BindingNode, ffi::Object);
 };
 
-class Binding : public ObjectRef {
+class Binding : public ffi::ObjectRef {
  protected:
   Binding() = default;
 
  public:
-  explicit Binding(ObjectPtr<BindingNode> n) : ObjectRef(n) {}
-  explicit Binding(ffi::UnsafeInit tag) : ObjectRef(tag) {}
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(Binding);
+  explicit Binding(ffi::ObjectPtr<BindingNode> n) : ffi::ObjectRef(n) {}
+  explicit Binding(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
+  Binding(const Binding&) = default;
+  Binding(Binding&&) = default;
+  Binding& operator=(const Binding&) = default;
+  Binding& operator=(Binding&&) = default;
   const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
   const BindingNode* get() const { return operator->(); }
   using ContainerType = BindingNode;
@@ -613,7 +617,9 @@ class MatchCastNode : public BindingNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
-        .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
+        // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
+        .def_ro("struct_info", &MatchCastNode::struct_info,
+                refl::AttachFieldFlag::SEqHashDefRecursive());
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
@@ -657,7 +663,7 @@ class VarBinding : public Binding {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
 
-class BindingBlockNode : public Object {
+class BindingBlockNode : public ffi::Object {
  public:
   ffi::Array<Binding> bindings;
   mutable Span span;
@@ -671,13 +677,13 @@ class BindingBlockNode : public Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.BindingBlock", BindingBlockNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.BindingBlock", BindingBlockNode, ffi::Object);
 };
 
-class BindingBlock : public ObjectRef {
+class BindingBlock : public ffi::ObjectRef {
  public:
   TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ObjectRef, BindingBlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ffi::ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
 };
@@ -819,7 +825,7 @@ class FunctionNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FunctionNode>()
-        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("body", &FunctionNode::body)
         .def_ro("ret_struct_info", &FunctionNode::ret_struct_info)
         .def_ro("is_pure", &FunctionNode::is_pure);
@@ -949,19 +955,19 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
  * `relax::Var` allows it to be used as a key in STL tables.  For
  * `relax::Expr`, the user must specify the type of equality used
  * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
- * `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ * `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
  */
 template <>
 struct std::hash<tvm::relax::Var> {
   std::size_t operator()(const tvm::relax::Var& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
+    return tvm::ffi::ObjectPtrHash()(var);
   }
 };
 
 template <>
 struct std::equal_to<tvm::relax::Var> {
   bool operator()(const tvm::relax::Var& var_a, const tvm::relax::Var& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 

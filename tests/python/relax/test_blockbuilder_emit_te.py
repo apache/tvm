@@ -14,20 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" This file tests advanced emit_te features with help of TVMScript assertion"""
+"""This file tests advanced emit_te features with help of TVMScript assertion"""
+
 # The tests here depend on tvmscript
+
 import tvm
-from tvm import te, tir
 from tvm import relax as rx
+from tvm import te, tirx
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
-from tvm.script.parser import tir as T
+from tvm.script.parser import tirx as T
 
 
 def test_emit_te_with_symbolic_arg():
     bb = rx.BlockBuilder()
-    m = tir.Var("m", "int64")
+    m = tirx.Var("m", "int64")
     x = rx.Var("x", R.Tensor([10], "float32"))
     y = rx.Var("y", R.Shape([m]))
 
@@ -40,25 +42,25 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             B: T.Buffer((T.int64(10),), "float32"),
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
-                with T.block("B"):
+                with T.sblock("B"):
                     v_i = T.axis.spatial(T.int64(10), i)
                     T.writes(B[v_i])
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(
-            x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])
-        ) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+            (10,), dtype="float32"
+        ):
             m = T.int64()
             cls = Expected
             gv = R.call_tir(
@@ -81,7 +83,7 @@ def test_symbolic_shape_in_prim_value():
     def from_builder():
         bb = rx.BlockBuilder()
         A = rx.Var("A", R.Tensor([16, 16], "float32"))
-        tir_i = tvm.tir.Var("tir_i", "int64")
+        tir_i = tvm.tirx.Var("tir_i", "int64")
         relax_i = rx.Var("relax_i", R.Prim(value=tir_i))
 
         with bb.function("main", params=[A, relax_i]):
@@ -90,18 +92,18 @@ def test_symbolic_shape_in_prim_value():
 
         return bb.get()
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
             Output: T.Buffer(T.int64(16), "float32"),
             row_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
 
-            for i in range(A.shape[1]):
-                with T.block("slice"):
+            for i in T.serial(T.int64(0), A.shape[1]):
+                with T.sblock("slice"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 

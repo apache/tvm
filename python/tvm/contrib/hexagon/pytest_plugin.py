@@ -16,20 +16,25 @@
 # under the License.
 
 # pylint: disable=invalid-name,redefined-outer-name
-""" Hexagon testing fixtures used to deduce testing argument
-    values from testing parameters """
+"""Hexagon testing fixtures used to deduce testing argument
+values from testing parameters"""
+
+from __future__ import annotations
 
 import os
 import random
-from typing import Optional, Union
+import socket
+from typing import TYPE_CHECKING
 
 import pytest
 
 import tvm
-import tvm.rpc.tracker
-from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
-from tvm.contrib.hexagon.session import Session
-from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
+import tvm.rpc
+import tvm.testing
+
+if TYPE_CHECKING:
+    from tvm.contrib.hexagon.build import HexagonLauncherRPC
+    from tvm.contrib.hexagon.session import Session
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -37,13 +42,16 @@ TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
+HEXAGON_SIMULATOR_NAME = "simulator"
 RNG_SEEDED = False
 
-HEXAGON_AOT_LLVM_TARGET = (
-    "llvm -keys=hexagon,cpu "
-    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
-    "-mcpu=hexagonv68 -mtriple=hexagon"
-)
+HEXAGON_AOT_LLVM_TARGET = {
+    "kind": "llvm",
+    "keys": ["hexagon", "cpu"],
+    "mattr": ["+hvxv68", "+hvx-length128b", "+hvx-qfloat", "-hvx-ieee-fp"],
+    "mcpu": "hexagonv68",
+    "mtriple": "hexagon",
+}
 
 
 @tvm.testing.fixture
@@ -64,7 +72,7 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-def android_serial_number() -> Optional[str]:
+def android_serial_number() -> str | None:
     """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
@@ -104,15 +112,20 @@ def get_free_port() -> int:
         if port > LISTEN_PORT_MAX:
             port = LISTEN_PORT_MIN
 
-    while tvm.contrib.hexagon.build._is_port_in_use(port):
+    while _is_port_in_use(port):
         port = port + 1 if port < LISTEN_PORT_MAX else LISTEN_PORT_MIN
 
     PREVIOUS_PORT = port
     return port
 
 
+def _is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return sock.connect_ex(("localhost", port)) == 0
+
+
 @pytest.fixture(scope="session")
-def _tracker_info() -> Union[str, int]:
+def _tracker_info() -> str | int:
     env_tracker_host = os.getenv(TVM_TRACKER_HOST, default="")
     env_tracker_port = os.getenv(TVM_TRACKER_PORT, default="")
 
@@ -137,8 +150,12 @@ def _tracker_info() -> Union[str, int]:
 
     else:
         # No tracker is provided to the tests, so we should start one
-        # for the tests to use.
-        tracker = tvm.rpc.tracker.Tracker("127.0.0.1", get_free_port())
+        # for the tests to use. Import tvm.rpc.tracker lazily since it
+        # requires the optional tornado package.
+        pytest.importorskip("tornado", reason="tvm.rpc.tracker requires tornado")
+        from tvm.rpc.tracker import Tracker
+
+        tracker = Tracker("127.0.0.1", get_free_port())
         try:
             yield (tracker.host, tracker.port)
         finally:
@@ -192,6 +209,8 @@ def hexagon_server_process(
     if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
         yield None
     else:
+        from tvm.contrib.hexagon.build import HexagonLauncher
+
         # Requesting these fixtures sets up a local tracker, if one
         # hasn't been provided to us.  Delaying the evaluation of
         # these fixtures avoids starting a tracker unless necessary.
@@ -265,6 +284,9 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
+    from tvm.contrib.hexagon.build import HexagonLauncher
+
+    launcher = None
     try:
         if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
@@ -279,10 +301,11 @@ def hexagon_launcher(
             )
         yield launcher
     finally:
-        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
-            launcher.stop_server()
-        elif not hexagon_debug:
-            launcher.cleanup_directory()
+        if launcher is not None:
+            if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
+                launcher.stop_server()
+            elif not hexagon_debug:
+                launcher.cleanup_directory()
 
 
 @pytest.fixture
@@ -315,8 +338,10 @@ aot_host_target = tvm.testing.parameter(HEXAGON_AOT_LLVM_TARGET)
 @tvm.testing.fixture
 def aot_target(aot_host_target):
     if aot_host_target == "c":
-        yield tvm.target.hexagon("v68")
-    elif aot_host_target.startswith("llvm"):
+        yield tvm.target.Target({"kind": "hexagon", "mtriple": "hexagon", "mcpu": "hexagonv68"})
+    elif isinstance(aot_host_target, dict) and aot_host_target.get("kind") == "llvm":
+        yield aot_host_target
+    elif isinstance(aot_host_target, str) and aot_host_target.startswith("llvm"):
         yield aot_host_target
     else:
         assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."

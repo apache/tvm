@@ -26,24 +26,24 @@
 #define TVM_RELAX_TIR_PATTERN_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/function.h>
+#include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace relax {
 
-using TIRPattern = tir::PrimFunc;
+using TIRPattern = tirx::PrimFunc;
 
 /*
  * \brief The match result of a TIR pattern.
  */
-class MatchResultNode : public Object {
+class MatchResultNode : public ffi::Object {
  public:
-  /*! The matched tir pattern*/
+  /*! The matched tirx pattern*/
   TIRPattern pattern;
   /*! \brief The evaluated values of symbolic vars. */
   ffi::Array<PrimExpr> symbol_values;
   /*! \brief The matched buffers of input and output. */
-  ffi::Array<tir::Buffer> matched_buffers;
+  ffi::Array<tirx::Buffer> matched_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -52,24 +52,24 @@ class MatchResultNode : public Object {
         .def_ro("symbol_values", &MatchResultNode::symbol_values)
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.MatchResult", MatchResultNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to MatchResultNode.
  */
-class MatchResult : public ObjectRef {
+class MatchResult : public ffi::ObjectRef {
  public:
   /*!
    * \brief Constructor
-   * \param pattern The matched tir pattern.
+   * \param pattern The matched tirx pattern.
    * \param symbol_values The evaluated values of symbolic vars.
    * \param matched_buffers The matched buffers of input and output.
    */
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
-                               ffi::Array<tir::Buffer> matched_buffers);
+                               ffi::Array<tirx::Buffer> matched_buffers);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ObjectRef, MatchResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
 };
 
 using FCodegen = ffi::TypedFunction<ffi::Array<ffi::Any>(ffi::Array<MatchResult> match_results)>;

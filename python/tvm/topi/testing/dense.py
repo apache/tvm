@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Dense in python"""
+
 import numpy as np
 
 

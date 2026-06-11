@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import pytest
-from typing import Tuple, List
 import torch
 
 import tvm
 import tvm.testing
-from tvm import tir
-from tvm.relax.frontend.nn import spec
+from tvm import tirx
 from tvm.relax.frontend import nn
+from tvm.relax.frontend.nn import spec
 
 
 @pytest.mark.parametrize("debug", [True, False])
@@ -52,7 +52,7 @@ def test_jit_int_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: nn.Tensor, i: tir.Var):
+        def forward(self, x: nn.Tensor, i: tirx.Var):
             y = nn.add(x, x)
             y = nn.reshape(y, (i, 5, 5))
             return y
@@ -74,7 +74,7 @@ def test_jit_with_effect(debug):
         def __init__(self):
             self.cache = nn.KVCache(10, [10, 5])
 
-        def forward(self, x: nn.Tensor, total_seq_len: tir.Var):
+        def forward(self, x: nn.Tensor, total_seq_len: tirx.Var):
             self.cache.append(x)
             y = self.cache.view(total_seq_len)
             return y
@@ -107,7 +107,7 @@ def test_jit_tuple_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor]):
             assert isinstance(x, tuple)
             x0 = x[0]
             x1 = x[1]
@@ -142,7 +142,7 @@ def test_jit_list_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: List[nn.Tensor]):
+        def forward(self, x: list[nn.Tensor]):
             assert isinstance(x, list)
             x0 = x[0]
             x1 = x[1]
@@ -177,7 +177,7 @@ def test_jit_tuple_input_with_int(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor, int]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor, int]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)

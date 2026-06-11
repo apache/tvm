@@ -16,12 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name
 """Testing utilities for relax VM"""
-from typing import Any, List
+
+from typing import Any
+
 import numpy as np  # type: ignore
 
 import tvm
 from tvm import relax
-from tvm.runtime.object import Object
+from tvm.runtime import Object
 
 
 @tvm.register_global_func("test.vm.move")
@@ -43,7 +45,7 @@ def mul(a, b):
 
 @tvm.register_global_func("test.vm.equal_zero")
 def equal_zero(a):
-    ret = np.all((a.numpy() == 0))
+    ret = np.all(a.numpy() == 0)
     return tvm.runtime.tensor(ret)
 
 
@@ -73,7 +75,7 @@ def get_device_id(device):
     return device.index
 
 
-def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
+def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any]) -> Object:
     # uses save_function to create a closure with the given inputs
     # and ensure the result is the same
     # (assumes the functions return tensors and that they're idempotent)
@@ -86,5 +88,5 @@ def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any
 
 
 @tvm.register_global_func("test.vm.check_if_defined")
-def check_if_defined(obj: tvm.Object) -> tvm.tir.IntImm:
+def check_if_defined(obj: tvm.Object) -> tvm.tirx.IntImm:
     return tvm.runtime.convert(obj is not None)

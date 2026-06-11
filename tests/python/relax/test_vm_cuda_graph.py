@@ -14,21 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import tvm
-import tvm.testing
-
-from tvm import relax
-from tvm.script import tir as T, relax as R, ir as I
+# ruff: noqa: E501
 
 import numpy as np
 import pytest
 
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 # fmt: off
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
@@ -48,13 +49,13 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
-        with T.block("root"):
+        with T.sblock("root"):
             for i in T.thread_binding(16, thread="threadIdx.x"):
                 for j in range(16):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] + T.float32(1)
 
@@ -138,7 +139,7 @@ def test_capture_error_is_recoverable():
         _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
         return arg_tensor
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
@@ -155,7 +156,7 @@ def test_capture_error_is_recoverable():
         Module = tvm.ir.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
-                tvm.tir.transform.DefaultGPUSchedule(),
+                tvm.s_tir.transform.DefaultGPUSchedule(),
                 tvm.relax.transform.RemovePurityChecking(),
                 tvm.relax.transform.CallTIRRewrite(),
                 tvm.relax.transform.StaticPlanBlockMemory(),

@@ -58,14 +58,10 @@ github:
     main:
       required_status_checks:
         contexts:
-          - unity/pr-head
           - arm/pr-head
           - cpu/pr-head
           - docker/pr-head
           - gpu/pr-head
-          - hexagon/pr-head
-          - i386/pr-head
-          - lint/pr-head
           - wasm/pr-head
 
       required_pull_request_reviews:

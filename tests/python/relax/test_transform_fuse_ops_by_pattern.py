@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E741, F841
 import numpy as np
 import pytest
 
@@ -23,15 +24,15 @@ from tvm.relax.backend.cuda.cublas import partition_for_cublas
 from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.dpl.pattern import (
     is_op,
+    is_tuple,
     is_tuple_get_item,
     make_fused_bias_activation_pattern,
     wildcard,
-    is_tuple,
 )
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
@@ -611,9 +612,9 @@ def test_compare_with_merge_composite_path():
     mod1 = relax.transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(
         mod
     )
-    assert tvm.relax.analysis.well_formed(mod1)
+    tvm.relax.analysis.well_formed(mod1)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def fused_relax_multiply_cutlass(
@@ -652,9 +653,9 @@ def test_compare_with_merge_composite_path():
         mod
     )
     mod2 = relax.transform.MergeCompositeFunctions()(mod2)
-    assert tvm.relax.analysis.well_formed(mod2)
+    tvm.relax.analysis.well_formed(mod2)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def fused_relax_multiply1_cutlass(
@@ -697,15 +698,15 @@ def test_multiple_entries_multiple_calls_same_extern():
 
 
 def test_ignore_call_tir():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dReLUCallTIR:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.block("root"):
+                with T.sblock("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[i, j, k, l] = T.max(data[i, j, k, l], 0.0)
 
@@ -725,16 +726,16 @@ def test_ignore_call_tir():
 
             return relu1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dReLUCallTIR_partitioned:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def relu(
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.block("root"):
+                with T.sblock("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(data[i, j, k, l])
                     T.writes(out[i, j, k, l])
@@ -778,7 +779,7 @@ def test_ignore_call_tir():
 
 
 def test_unused():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dReLU:
         @R.function
         def main(
@@ -792,7 +793,7 @@ def test_unused():
 
             return conv1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dReLU_partitioned:
         @R.function(private=True)
         def fused_relax_nn_conv2d(
@@ -848,7 +849,7 @@ def test_check_pattern():
 def test_bind_constants():
     weight = np.random.randn(64, 64, 3, 3).astype("float32")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dWithConstantWeight:
         @R.function
         def main(
@@ -860,7 +861,7 @@ def test_bind_constants():
                 R.output(conv1)
             return conv1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Conv2dWithConstantWeight_partitioned:
         @R.function(private=True)
         def fused_relax_nn_conv2d(
@@ -908,9 +909,9 @@ def test_split():
     @tvm.script.ir_module
     class Expected1:
         @R.function(private=True)
-        def fused_relax_split(
-            inp: R.Tensor((16, 32), dtype="float32")
-        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
+        def fused_relax_split(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tuple(
+            R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+        ):
             R.func_attr({"Composite": "x.split", "Primitive": True})
             with R.dataflow():
                 gv: R.Tuple(
@@ -934,12 +935,12 @@ def test_split():
                 R.output(out)
             return out
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function(private=True)
-        def fused_relax_split_relax_add(
-            inp: R.Tensor((16, 32), dtype="float32")
-        ) -> R.Tensor((16, 16), dtype="float32"):
+        def fused_relax_split_relax_add(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tensor(
+            (16, 16), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.split", "Primitive": True})
             with R.dataflow():
                 tup: R.Tuple(
@@ -980,12 +981,12 @@ def test_clip():
             R.output(gv)
         return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function(private=True)
-        def fused_relax_clip(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1016,12 +1017,12 @@ def test_clip():
             R.output(gv0, gv1)
         return gv0, gv1
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function(private=True)
-        def fused_relax_clip(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1031,9 +1032,9 @@ def test_clip():
             return gv
 
         @R.function(private=True)
-        def fused_relax_clip1(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip1(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1043,9 +1044,9 @@ def test_clip():
             return gv
 
         @R.function
-        def main(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(
+            R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")
+        ):
             cls = Expected2
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
@@ -1058,7 +1059,7 @@ def test_clip():
 
 
 def test_matmul_add3():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1086,7 +1087,7 @@ def test_matmul_add3():
 def test_intermediate_var_to_var_binding():
     """test the intermediate binding y1 will break the fusion"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(
@@ -1136,7 +1137,7 @@ def test_error_on_repeated_variable_definitions():
 
 
 def test_matmul_symbolic_var():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(
@@ -1151,7 +1152,7 @@ def test_matmul_symbolic_var():
                 R.output(out)
             return out
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -1257,7 +1258,7 @@ def test_dataflow_inside_branch():
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(
@@ -1276,7 +1277,7 @@ def test_dataflow_inside_branch():
                     R.output(out)
             return out
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -1361,7 +1362,7 @@ def test_concat():
             R.output(gv)
         return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function(private=True)
         def fused_relax_abs_relax_abs_relax_concat(
@@ -1380,9 +1381,9 @@ def test_concat():
             x: R.Tensor((10,), dtype="float32"), y: R.Tensor((10,), dtype="float32")
         ) -> R.Tensor((20,), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor(
-                    (20,), dtype="float32"
-                ) = Expected1.fused_relax_abs_relax_abs_relax_concat(x, y)
+                lv: R.Tensor((20,), dtype="float32") = (
+                    Expected1.fused_relax_abs_relax_abs_relax_concat(x, y)
+                )
                 gv: R.Tensor((20,), dtype="float32") = R.nn.relu(lv)
                 R.output(gv)
             return gv
@@ -1393,7 +1394,7 @@ def test_concat():
 
     check(mod, [("x.concat_abs_abs", pat_clip)], Expected1)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function(private=True)
         def fused_relax_concat(

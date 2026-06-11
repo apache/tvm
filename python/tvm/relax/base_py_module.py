@@ -14,17 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821
 """BasePyModule: Base class for IRModules with Python function support."""
 
 import inspect
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
+from tvm_ffi import Function
+
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import IRModule
-from tvm.runtime import Device, Tensor, PackedFunc
+from tvm.runtime import Device, Tensor
 from tvm.target import Target
 
 try:
@@ -64,7 +67,7 @@ class BasePyModule:
         self,
         ir_mod: IRModule,
         device: Device,
-        target: Optional[Target] = None,
+        target: Target | None = None,
     ):
         """Initialize BasePyModule with JIT compilation and DLPack conversion."""
         self.device = device
@@ -98,12 +101,12 @@ class BasePyModule:
 
         self.__getattr__ = _getattr_python_function
 
-        self.compiled_tir_funcs: Dict[str, PackedFunc] = {}
-        self.extern_funcs: Dict[str, PackedFunc] = {}
-        self.tir_func_names: List[str] = []
-        self.relax_func_names: List[str] = []
-        self.relax_vm: Optional[relax.VirtualMachine] = None
-        self.pyfuncs: Dict[str, Any] = {}
+        self.compiled_tir_funcs: dict[str, Function] = {}
+        self.extern_funcs: dict[str, Function] = {}
+        self.tir_func_names: list[str] = []
+        self.relax_func_names: list[str] = []
+        self.relax_vm: relax.VirtualMachine | None = None
+        self.pyfuncs: dict[str, Any] = {}
 
         if target is None:
             target = Target.from_device(device)
@@ -120,7 +123,7 @@ class BasePyModule:
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
         for global_var, func in self.ir_mod.functions_items():
-            if isinstance(func, tir.PrimFunc):
+            if isinstance(func, tirx.PrimFunc):
                 self.tir_func_names.append(global_var.name_hint)
             elif isinstance(func, relax.Function):
                 self.relax_func_names.append(global_var.name_hint)
@@ -132,7 +135,7 @@ class BasePyModule:
             {
                 gv: func
                 for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, tir.PrimFunc)
+                if isinstance(func, tirx.PrimFunc)
             }
         )
         if tir_mod:
@@ -144,14 +147,7 @@ class BasePyModule:
             except Exception as error:
                 print(f"Warning: Failed to compile one or more TIR functions: {error}")
 
-        relax_mod = tvm.IRModule(
-            {
-                gv: func
-                for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, relax.Function)
-            }
-        )
-        if relax_mod:
+        if self.relax_func_names:
             try:
                 exec_mod = tvm.compile(self.ir_mod, target=self.target)
                 self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
@@ -292,8 +288,8 @@ class BasePyModule:
         sinfo_list = out_sinfo if isinstance(out_sinfo, list) else [out_sinfo]
         out_tensors = []
         for sinfo in sinfo_list:
-            if isinstance(sinfo, (tuple, list)) and all(
-                isinstance(x, (int, np.integer)) for x in sinfo
+            if isinstance(sinfo, tuple | list) and all(
+                isinstance(x, int | np.integer) for x in sinfo
             ):
                 out_tensors.append(torch.zeros(list(map(int, sinfo)), dtype=torch.float32))
                 continue
@@ -308,13 +304,12 @@ class BasePyModule:
         return out_tensors
 
     def _infer_concrete_shape_from_args(self, shape, in_args):
-
         concrete = []
         symbolic_positions = []
         for idx, dim in enumerate(shape):
-            if isinstance(dim, (int, np.integer)):
+            if isinstance(dim, int | np.integer):
                 concrete.append(int(dim))
-            elif isinstance(dim, tir.IntImm):
+            elif isinstance(dim, tirx.IntImm):
                 concrete.append(int(dim.value))
             else:
                 concrete.append(None)
@@ -325,10 +320,10 @@ class BasePyModule:
 
         candidates = []
         if in_args is not None:
-            if not isinstance(in_args, (list, tuple)):
+            if not isinstance(in_args, list | tuple):
                 in_args = [in_args]
             for obj in in_args:
-                if hasattr(obj, "shape") and isinstance(obj.shape, (tuple, list)):
+                if hasattr(obj, "shape") and isinstance(obj.shape, tuple | list):
                     try:
                         candidates.append(tuple(int(x) for x in obj.shape))
                         continue
@@ -365,13 +360,13 @@ class BasePyModule:
         return dtype_mapping.get(str(tvm_dtype), torch.float32)
 
     def _convert_pytorch_to_tvm(
-        self, tensors: Union[Any, List[Any], Tuple[Any, ...]]
-    ) -> Union[Tensor, List[Tensor]]:
+        self, tensors: Any | list[Any] | tuple[Any, ...]
+    ) -> Tensor | list[Tensor]:
         """Convert PyTorch tensors to TVM Tensors using DLPack."""
         # pylint: disable=import-outside-toplevel
         import torch
 
-        if isinstance(tensors, (list, tuple)):
+        if isinstance(tensors, list | tuple):
             return [self._convert_single_pytorch_to_tvm(t) for t in tensors]
         return self._convert_single_pytorch_to_tvm(tensors)
 
@@ -423,10 +418,10 @@ class BasePyModule:
             ) from error
 
     def _convert_tvm_to_pytorch(
-        self, tvm_tensors: Union[Any, List[Any]]
-    ) -> Union["torch.Tensor", List["torch.Tensor"]]:
+        self, tvm_tensors: Any | list[Any]
+    ) -> Union["torch.Tensor", list["torch.Tensor"]]:
         """Convert TVM Tensors to PyTorch tensors using DLPack."""
-        if isinstance(tvm_tensors, (list, tuple)):
+        if isinstance(tvm_tensors, list | tuple):
             return [self._convert_single_tvm_to_pytorch(tensor) for tensor in tvm_tensors]
         return self._convert_single_tvm_to_pytorch(tvm_tensors)
 
@@ -456,7 +451,7 @@ class BasePyModule:
             numpy_array = tvm_tensor.numpy()
             return torch.from_numpy(numpy_array)
 
-    def get_function(self, name: str) -> Optional[PackedFunc]:
+    def get_function(self, name: str) -> Function | None:
         """Get a compiled function by name."""
         if name in self.compiled_tir_funcs:
             return self.compiled_tir_funcs[name]
@@ -471,10 +466,10 @@ class BasePyModule:
                 print(f"Warning: Failed to get Relax function '{name}': {error}")
         return None
 
-    def list_functions(self) -> Dict[str, List[str]]:
+    def list_functions(self) -> dict[str, list[str]]:
         """List all available functions."""
         return {
-            "tir": self.tir_func_names,
+            "tirx": self.tir_func_names,
             "relax": self.relax_func_names,
             "extern": list(self.extern_funcs.keys()),
         }
@@ -503,13 +498,10 @@ class BasePyModule:
     def script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -519,6 +511,7 @@ class BasePyModule:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
+        extra_config: dict | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format with Python function support.
 
@@ -530,10 +523,7 @@ class BasePyModule:
             name=name,
             show_meta=show_meta,
             ir_prefix=ir_prefix,
-            tir_prefix=tir_prefix,
-            relax_prefix=relax_prefix,
             module_alias=module_alias,
-            buffer_dtype=buffer_dtype,
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             verbose_expr=verbose_expr,
@@ -543,6 +533,7 @@ class BasePyModule:
             syntax_sugar=syntax_sugar,
             show_object_address=show_object_address,
             show_all_struct_info=show_all_struct_info,
+            extra_config=extra_config,
         )
 
         # If there are no Python functions, return the base script
@@ -584,7 +575,7 @@ class BasePyModule:
 
         return "\n".join(result_lines)
 
-    def _get_function_source(self, func: callable) -> Optional[str]:
+    def _get_function_source(self, func: callable) -> str | None:
         """Get the source code of a Python function."""
         try:
             source = inspect.getsource(func)
@@ -609,9 +600,7 @@ class BasePyModule:
 
         return "\n".join(formatted_lines)
 
-    def show(
-        self, style: Optional[str] = None, black_format: Optional[bool] = None, **kwargs
-    ) -> None:
+    def show(self, style: str | None = None, black_format: bool | None = None, **kwargs) -> None:
         """A sugar for print highlighted TVM script with Python function support.
 
         This method extends the standard IRModule show() method to handle

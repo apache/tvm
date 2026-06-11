@@ -28,9 +28,8 @@
 #include <tvm/ffi/string.h>
 
 #include <string>
-#include <unordered_map>
 
-#include "meta_data.h"
+#include "metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,7 +38,7 @@ namespace runtime {
  * \param file_name The name of the file.
  * \param format The format of the file.
  */
-std::string GetFileFormat(const std::string& file_name, const std::string& format);
+TVM_RUNTIME_DLL std::string GetFileFormat(const std::string& file_name, const std::string& format);
 
 /*!
  * \return the directory in which TVM stores cached files.
@@ -51,7 +50,7 @@ std::string GetCacheDir();
  * \brief Get meta file path given file name and format.
  * \param file_name The name of the file.
  */
-std::string GetMetaFilePath(const std::string& file_name);
+TVM_RUNTIME_DLL std::string GetMetaFilePath(const std::string& file_name);
 
 /*!
  * \brief Get file basename (i.e. without leading directories)
@@ -65,30 +64,30 @@ std::string GetFileBasename(const std::string& file_name);
  * \param file_name The name of the file.
  * \param data The data to be loaded.
  */
-void LoadBinaryFromFile(const std::string& file_name, std::string* data);
+TVM_RUNTIME_DLL void LoadBinaryFromFile(const std::string& file_name, std::string* data);
 
 /*!
  * \brief Load binary file into a in-memory buffer.
  * \param file_name The name of the file.
  * \param data The binary data to be saved.
  */
-void SaveBinaryToFile(const std::string& file_name, const std::string& data);
+TVM_RUNTIME_DLL void SaveBinaryToFile(const std::string& file_name, const std::string& data);
 
 /*!
  * \brief Save meta data to file.
  * \param file_name The name of the file.
  * \param fmap The function info map.
  */
-void SaveMetaDataToFile(const std::string& file_name,
-                        const std::unordered_map<std::string, FunctionInfo>& fmap);
+TVM_RUNTIME_DLL void SaveMetaDataToFile(const std::string& file_name,
+                                        const ffi::Map<ffi::String, FunctionInfo>& fmap);
 
 /*!
  * \brief Load meta data to file.
  * \param file_name The name of the file.
  * \param fmap The function info map.
  */
-void LoadMetaDataFromFile(const std::string& file_name,
-                          std::unordered_map<std::string, FunctionInfo>* fmap);
+TVM_RUNTIME_DLL void LoadMetaDataFromFile(const std::string& file_name,
+                                          ffi::Map<ffi::String, FunctionInfo>* fmap);
 
 /*!
  * \brief Copy the content of an existing file to another file.
@@ -116,7 +115,7 @@ ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob);
  * \param strm Stream to load parameters from.
  * \return Map of parameter name to parameter value.
  */
-ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm);
+ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm);
 /*!
  * \brief Serialize parameters to a byte array.
  * \param params Parameters to save.
@@ -128,34 +127,37 @@ std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params);
  * \param strm Stream to write to.
  * \param params Parameters to save.
  */
-void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params);
+void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& params);
 
 /*!
  * \brief A dmlc stream which wraps standard file operations.
  */
-struct SimpleBinaryFileStream : public dmlc::Stream {
+struct SimpleBinaryFileStream : public support::Stream {
  public:
+  using Stream::Read;
+  using Stream::Write;
+
   SimpleBinaryFileStream(const std::string& path, std::string mode) {
     const char* fname = path.c_str();
 
-    CHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
+    TVM_FFI_ICHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
     read_ = mode == "rb";
     fp_ = std::fopen(fname, mode.c_str());
-    CHECK(fp_ != nullptr) << "Unable to open file " << path;
+    TVM_FFI_ICHECK(fp_ != nullptr) << "Unable to open file " << path;
   }
   virtual ~SimpleBinaryFileStream(void) { this->Close(); }
   virtual size_t Read(void* ptr, size_t size) {
-    CHECK(read_) << "File opened in write-mode, cannot read.";
-    CHECK(fp_ != nullptr) << "File is closed";
+    TVM_FFI_ICHECK(read_) << "File opened in write-mode, cannot read.";
+    TVM_FFI_ICHECK(fp_ != nullptr) << "File is closed";
     return std::fread(ptr, 1, size, fp_);
   }
   virtual size_t Write(const void* ptr, size_t size) {
-    CHECK(!read_) << "File opened in read-mode, cannot write.";
-    CHECK(fp_ != nullptr) << "File is closed";
+    TVM_FFI_ICHECK(!read_) << "File opened in read-mode, cannot write.";
+    TVM_FFI_ICHECK(fp_ != nullptr) << "File is closed";
     size_t nwrite = std::fwrite(ptr, 1, size, fp_);
     int err = std::ferror(fp_);
 
-    CHECK_EQ(err, 0) << "SimpleBinaryFileStream.Write incomplete: " << std::strerror(err);
+    TVM_FFI_ICHECK_EQ(err, 0) << "SimpleBinaryFileStream.Write incomplete: " << std::strerror(err);
     return nwrite;
   }
   inline void Close(void) {

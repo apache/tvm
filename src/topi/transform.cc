@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("topi.transpose",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = transpose(args[0].cast<te::Tensor>(),
-                                    args[1].cast<ffi::Optional<ffi::Array<Integer>>>());
+                                    args[1].cast<ffi::Optional<ffi::Array<int64_t>>>());
                   })
       .def_packed("topi.flip",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -68,8 +68,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("topi.sliding_window",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = sliding_window(args[0].cast<te::Tensor>(), args[1].cast<int>(),
-                                         args[2].cast<ffi::Array<Integer>>(),
-                                         args[3].cast<ffi::Array<Integer>>());
+                                         args[2].cast<ffi::Array<int64_t>>(),
+                                         args[3].cast<ffi::Array<int64_t>>());
                   })
       .def_packed("topi.squeeze",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                              args[2].cast<int>());
                     } else {
                       *rv = split_indices_array(args[0].cast<te::Tensor>(),
-                                                args[1].cast<ffi::Array<Integer>>(),
+                                                args[1].cast<ffi::Array<PrimExpr>>(),
                                                 args[2].cast<int>());
                     }
                   })
@@ -116,7 +116,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               int batch_dims = args[2].cast<int>();
               *rv = take(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), batch_dims, mode);
             } else {
-              ICHECK_EQ(args.size(), 5) << "topi.take expects 4 or 5 arguments";
+              TVM_FFI_ICHECK_EQ(args.size(), 5) << "topi.take expects 4 or 5 arguments";
               int batch_dims = args[2].cast<int>();
               int axis = args[3].cast<int>();
               auto mode = args[4].cast<std::string>();
@@ -154,7 +154,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.tile",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<Integer>>());
+                    *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<int64_t>>());
+                  })
+      .def_packed("topi.dyn_tile",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    *rv = dyn_tile(args[0].cast<te::Tensor>(), args[1].cast<ffi::Array<PrimExpr>>(),
+                                   args[2].cast<int>());
                   })
       .def_packed("topi.gather",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -192,7 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                      args[2].cast<bool>(), args[3].cast<bool>());
                         break;
                       default:
-                        ICHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
+                        TVM_FFI_ICHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
                     }
                   })
       .def_packed("topi.tensordot",
@@ -215,13 +220,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::Array<PrimExpr> begin = args[1].cast<ffi::Array<PrimExpr>>();
             ffi::Array<PrimExpr> end = args[2].cast<ffi::Array<PrimExpr>>();
             ffi::Array<PrimExpr> strides = args[3].cast<ffi::Array<PrimExpr>>();
-            ffi::Array<Integer> axes = args[4].cast<ffi::Array<Integer>>();
+            ffi::Array<int64_t> axes = args[4].cast<ffi::Array<int64_t>>();
             bool assume_inbound = args[6].cast<bool>();
             if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
                 IsConstIntArray(x->shape)) {
-              ffi::Array<Integer> begin_static = args[1].cast<ffi::Array<Integer>>();
-              ffi::Array<Integer> end_static = args[2].cast<ffi::Array<Integer>>();
-              ffi::Array<Integer> strides_static = args[3].cast<ffi::Array<Integer>>();
+              ffi::Array<ffi::Optional<IntImm>> begin_static =
+                  args[1].cast<ffi::Array<ffi::Optional<IntImm>>>();
+              ffi::Array<ffi::Optional<IntImm>> end_static =
+                  args[2].cast<ffi::Array<ffi::Optional<IntImm>>>();
+              ffi::Array<IntImm> strides_static = args[3].cast<ffi::Array<IntImm>>();
               auto slice_mode = args[5].cast<std::string>();
               if (axes.size()) {
                 *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes,

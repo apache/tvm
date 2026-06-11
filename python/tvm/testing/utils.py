@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 # pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
@@ -38,7 +39,7 @@ of tests (using `pytest -m gpu`).
 
 Unfortunately, many tests are written like this:
 
-.. python::
+.. code-block:: python
 
     def test_something():
         for target in all_targets():
@@ -62,38 +63,39 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 
 """
-import inspect
+
 import copy
 import copyreg
 import ctypes
 import functools
+import inspect
 import itertools
 import logging
 import os
 import pickle
 import platform
+import shutil
 import sys
 import textwrap
 import time
-import shutil
-
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Callable, Union, List, Tuple
+from typing import ClassVar
 
-import pytest
+import ml_dtypes
 import numpy as np
+import pytest
 
 import tvm
 import tvm.arith
-import tvm.tir
-import tvm.te
-
-from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
+import tvm.support.utils
+import tvm.te
+import tvm.tirx
+from tvm.contrib import cudnn
 from tvm.error import TVMError
-import tvm.contrib.utils
-
+from tvm.support import nvcc, rocm
+from tvm.target import codegen
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 IS_IN_CI = os.getenv("CI", "") == "true"
@@ -193,9 +195,7 @@ def check_numerical_grads(
     for x_name, grad in grad_values.items():
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
-                "Gradient wrt '{}' has unexpected shape {}, expected {} ".format(
-                    x_name, grad.shape, input_values[x_name].shape
-                )
+                f"Gradient wrt '{x_name}' has unexpected shape {grad.shape}, expected {input_values[x_name].shape} "
             )
 
         ngrad = np.zeros_like(grad)
@@ -235,8 +235,8 @@ def check_numerical_grads(
 
         if not (np.isfinite(dist) and np.isfinite(grad_norm)):
             raise ValueError(
-                "NaN or infinity detected during numerical gradient checking wrt '{}'\n"
-                "analytical grad = {}\n numerical grad = {}\n".format(x_name, grad, ngrad)
+                f"NaN or infinity detected during numerical gradient checking wrt '{x_name}'\n"
+                f"analytical grad = {grad}\n numerical grad = {ngrad}\n"
             )
 
         # we multiply atol by this number to make it more universal for different sizes
@@ -244,22 +244,11 @@ def check_numerical_grads(
 
         if dist > atol * sqrt_n + rtol * grad_norm:
             raise AssertionError(
-                "Analytical and numerical grads wrt '{}' differ too much\n"
-                "analytical grad = {}\n numerical grad = {}\n"
-                "{}% of elements differ, first 10 of wrong positions: {}\n"
+                f"Analytical and numerical grads wrt '{x_name}' differ too much\n"
+                f"analytical grad = {grad}\n numerical grad = {ngrad}\n"
+                f"{wrong_percentage}% of elements differ, first 10 of wrong positions: {wrong_positions[:10]}\n"
                 "distance > atol*sqrt(n) + rtol*grad_norm\n"
-                "distance {} > {}*{} + {}*{}".format(
-                    x_name,
-                    grad,
-                    ngrad,
-                    wrong_percentage,
-                    wrong_positions[:10],
-                    dist,
-                    atol,
-                    sqrt_n,
-                    rtol,
-                    grad_norm,
-                )
+                f"distance {dist} > {atol}*{sqrt_n} + {rtol}*{grad_norm}"
             )
 
         max_diff = np.max(np.abs(ngrad - grad))
@@ -280,39 +269,41 @@ def assert_prim_expr_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.tir.PrimExpr
+    lhs : tvm.tirx.PrimExpr
         The left operand.
 
-    rhs : tvm.tir.PrimExpr
+    rhs : tvm.tirx.PrimExpr
         The left operand.
     """
     ana = tvm.arith.Analyzer()
     if not ana.can_prove_equal(lhs, rhs):
-        raise ValueError("{} and {} are not equal".format(lhs, rhs))
+        raise ValueError(f"{lhs} and {rhs} are not equal")
 
 
 def check_bool_expr_is_true(bool_expr, vranges, cond=None):
     """Check that bool_expr holds given the condition cond
     for every value of free variables from vranges.
 
-    for example, 2x > 4y solves to x > 2y given x in (0, 10) and y in (0, 10)
-    here bool_expr is x > 2y, vranges is {x: (0, 10), y: (0, 10)}, cond is 2x > 4y
-    We creates iterations to check,
-    for x in range(10):
-      for y in range(10):
-        assert !(2x > 4y) || (x > 2y)
+    For example, ``2x > 4y`` solves to ``x > 2y`` given ``x in (0, 10)``
+    and ``y in (0, 10)``. Here bool_expr is ``x > 2y``,
+    vranges is ``{x: (0, 10), y: (0, 10)}``, cond is ``2x > 4y``.
+    We create iterations to check::
+
+        for x in range(10):
+            for y in range(10):
+                assert !(2x > 4y) || (x > 2y)
 
     Parameters
     ----------
     bool_expr : tvm.ir.PrimExpr
         Boolean expression to check
-    vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
+    vranges: Dict[tvm.tirx.expr.Var, tvm.ir.Range]
         Free variables and their ranges
     cond: tvm.ir.PrimExpr
         extra conditions needs to be satisfied.
     """
     if cond is not None:
-        bool_expr = tvm.te.any(tvm.tir.Not(cond), bool_expr)
+        bool_expr = tvm.te.any(tvm.tirx.Not(cond), bool_expr)
 
     def _run_expr(expr, vranges):
         """Evaluate expr for every value of free variables
@@ -321,7 +312,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         def _compute_body(*us):
             vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-            return tvm.tir.stmt_functor.substitute(expr, vmap)
+            return tvm.tirx.stmt_functor.substitute(expr, vmap)
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.runtime.empty(A.shape, A.dtype)]
@@ -337,8 +328,8 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
         ana = tvm.arith.Analyzer()
         raise AssertionError(
-            "Expression {}\nis not true on {}\n"
-            "Counterexample: {}".format(ana.simplify(bool_expr), vranges, counterex)
+            f"Expression {ana.simplify(bool_expr)}\nis not true on {vranges}\n"
+            f"Counterexample: {counterex}"
         )
 
 
@@ -349,7 +340,7 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     ----------
     constraints_trans : arith.IntConstraintsTransform
         Integer constraints transformation
-    vranges: Dict[tvm.tir.Var, tvm.ir.Range]
+    vranges: Dict[tvm.tirx.Var, tvm.ir.Range]
         Free variables and their ranges
     """
     if vranges is None:
@@ -361,28 +352,28 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
         all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
         # Check that the transformation is injective
-        cond_on_vars = tvm.tir.const(1, "bool")
+        cond_on_vars = tvm.tirx.const(1, "bool")
         for v in constraints1.variables:
             if v in varmap:
                 # variable mapping is consistent
-                v_back = ana.simplify(tvm.tir.stmt_functor.substitute(varmap[v], backvarmap))
+                v_back = ana.simplify(tvm.tirx.stmt_functor.substitute(varmap[v], backvarmap))
                 cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
-        cond_subst = tvm.tir.stmt_functor.substitute(
-            tvm.te.all(tvm.tir.const(1, "bool"), *constraints2.relations), backvarmap
+        cond_subst = tvm.tirx.stmt_functor.substitute(
+            tvm.te.all(tvm.tirx.const(1, "bool"), *constraints2.relations), backvarmap
         )
         # We have to include relations from vranges too
         for v in constraints2.variables:
             if v in constraints2.ranges:
                 r = constraints2.ranges[v]
                 range_cond = tvm.te.all(v >= r.min, v < r.min + r.extent)
-                range_cond = tvm.tir.stmt_functor.substitute(range_cond, backvarmap)
+                range_cond = tvm.tirx.stmt_functor.substitute(range_cond, backvarmap)
                 cond_subst = tvm.te.all(cond_subst, range_cond)
         cond_subst = ana.simplify(cond_subst)
         check_bool_expr_is_true(
             tvm.te.all(cond_subst, cond_on_vars),
             all_vranges,
-            cond=tvm.te.all(tvm.tir.const(1, "bool"), *constraints1.relations),
+            cond=tvm.te.all(tvm.tirx.const(1, "bool"), *constraints1.relations),
         )
 
     _check_forward(
@@ -408,13 +399,24 @@ def _get_targets(target_names=None):
 
     targets = []
     for target in target_names:
-        target_kind = target.split()[0]
+        if isinstance(target, dict):
+            target_kind = target["kind"]
+        else:
+            target_kind = target.split()[0]
 
         if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
-            is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
+            is_enabled = tvm.support.libinfo().get("USE_CUDNN", "OFF").lower() in [
+                "on",
+                "true",
+                "1",
+            ]
             is_runnable = is_enabled and cudnn.exists()
         elif target_kind == "hexagon":
-            is_enabled = tvm.support.libinfo()["USE_HEXAGON"].lower() in ["on", "true", "1"]
+            is_enabled = tvm.support.libinfo().get("USE_HEXAGON", "OFF").lower() in [
+                "on",
+                "true",
+                "1",
+            ]
             # If Hexagon has compile-time support, we can always fall back
             is_runnable = is_enabled and "ANDROID_SERIAL_NUMBER" in os.environ
         else:
@@ -452,10 +454,10 @@ DEFAULT_TEST_TARGETS = [
     "llvm",
     "cuda",
     "nvptx",
-    "vulkan -from_device=0",
+    {"kind": "vulkan", "from_device": 0},
     "opencl",
-    "opencl -device=mali",
-    "opencl -device=intel_graphics",
+    {"kind": "opencl", "device": "mali"},
+    {"kind": "opencl", "device": "intel_graphics"},
     "metal",
     "rocm",
     "hexagon",
@@ -474,7 +476,7 @@ def device_enabled(target):
 
     Parameters
     ----------
-    target : str
+    target : str or Dict[str, Any] or tvm.target.Target
         Target string to check against
 
     Returns
@@ -493,9 +495,14 @@ def device_enabled(target):
     Here, `test_body` will only be reached by with `target="cuda"` on gpu test
     nodes and `target="llvm"` on cpu test nodes.
     """
-    assert isinstance(target, str), "device_enabled requires a target as a string"
-    # only check if device name is found, sometime there are extra flags
-    target_kind = target.split(" ")[0]
+    if isinstance(target, dict):
+        target_kind = target["kind"]
+    elif hasattr(target, "kind"):
+        target_kind = target.kind.name
+    else:
+        assert isinstance(target, str), "device_enabled requires a target as a string"
+        # Target strings may include extra flags; only compare the kind.
+        target_kind = target.split(" ")[0]
     return any(target_kind == t["target_kind"] for t in _get_targets() if t["is_runnable"])
 
 
@@ -520,7 +527,7 @@ def enabled_targets():
         A list of pairs of all enabled devices and the associated context
 
     """
-    return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
+    return [(t["target"], tvm.device(t["target_kind"])) for t in _get_targets() if t["is_runnable"]]
 
 
 class Feature:
@@ -605,18 +612,18 @@ class Feature:
 
     """
 
-    _all_features = {}
+    _all_features: ClassVar[dict[str, "Feature"]] = {}
 
     def __init__(
         self,
         name: str,
-        long_name: Optional[str] = None,
-        cmake_flag: Optional[str] = None,
-        target_kind_enabled: Optional[str] = None,
-        compile_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        target_kind_hardware: Optional[str] = None,
-        run_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        parent_features: Optional[Union[str, List[str]]] = None,
+        long_name: str | None = None,
+        cmake_flag: str | None = None,
+        target_kind_enabled: str | None = None,
+        compile_time_check: Callable[[], bool | str] | None = None,
+        target_kind_hardware: str | None = None,
+        run_time_check: Callable[[], bool | str] | None = None,
+        parent_features: str | list[str] | None = None,
     ):
         self.name = name
         self.long_name = long_name or name
@@ -659,8 +666,12 @@ class Feature:
 
         if self.target_kind_enabled is not None:
             target_kind = self.target_kind_enabled.split()[0]
+
+            def _kind_of(enabled):
+                return enabled["kind"] if isinstance(enabled, dict) else enabled.split()[0]
+
             yield pytest.mark.skipif(
-                all(enabled.split()[0] != target_kind for enabled in _tvm_test_targets()),
+                all(_kind_of(enabled) != target_kind for enabled in _tvm_test_targets()),
                 reason=(
                     f"{self.target_kind_enabled} tests disabled "
                     f"by TVM_TEST_TARGETS environment variable"
@@ -981,28 +992,16 @@ requires_vulkan = Feature(
 )
 
 # Mark a test as requiring OpenCLML support in build.
-requires_openclml = Feature(
-    "OpenCLML",
-    "CLML",
-    cmake_flag="USE_CLML",
-    target_kind_enabled="opencl",
-)
+requires_openclml = Feature("OpenCLML", "CLML", cmake_flag="USE_CLML", target_kind_enabled="opencl")
 
 # Mark a test as requiring NNAPI support in build.
-requires_nnapi = Feature(
-    "NNAPI",
-    "NNAPI",
-    cmake_flag="USE_NNAPI_CODEGEN",
-)
+requires_nnapi = Feature("NNAPI", "NNAPI", cmake_flag="USE_NNAPI_CODEGEN")
 
 # Mark a test as requiring CUTLASS to run
 requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
 
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
-
-# Mark a test as requiring libtorch to run
-requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
 
 # Mark a test as requiring the MRVL Library
 requires_mrvl = Feature("mrvl", "Marvell", cmake_flag="USE_MRVL")
@@ -1036,7 +1035,7 @@ requires_aprofile_aem_fvp = Feature(
 def _has_cpu_feat(features):
     cpu = codegen.llvm_get_system_cpu()
     triple = codegen.llvm_get_system_triple()
-    target = "llvm -mtriple=%s -mcpu=%s" % (triple, cpu)
+    target = {"kind": "llvm", "mtriple": triple, "mcpu": cpu}
     has_feat = codegen.target_has_features(features, tvm.target.Target(target))
 
     return has_feat
@@ -1073,7 +1072,7 @@ requires_aarch64_sme = Feature(
 requires_x86_vnni = Feature(
     "x86_vnni",
     "x86 VNNI Extensions",
-    run_time_check=lambda: (_has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni")),
+    run_time_check=lambda: _has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni"),
 )
 
 
@@ -1087,26 +1086,50 @@ requires_x86_avx512 = Feature(
 
 
 requires_x86_amx = Feature(
-    "x86_amx",
-    "x86 AMX Extensions",
-    run_time_check=lambda: _has_cpu_feat("amx-int8"),
+    "x86_amx", "x86 AMX Extensions", run_time_check=lambda: _has_cpu_feat("amx-int8")
 )
 
 
 def _cmake_flag_enabled(flag):
-    flag = tvm.support.libinfo()[flag]
+    flag = tvm.support.libinfo().get(flag, "OFF")
 
     # Because many of the flags can be library flags, we check if the
     # flag is not disabled, rather than checking if it is enabled.
     return flag.lower() not in ["off", "false", "0"]
 
 
+def _parse_target_entry(entry):
+    """Parse a target entry from TVM_TEST_TARGETS env var.
+
+    Entries can be plain kind names (e.g. "llvm") or JSON dicts
+    (e.g. '{"kind": "opencl", "device": "mali"}').
+    """
+    entry = entry.strip()
+    if entry.startswith("{"):
+        import json  # pylint: disable=import-outside-toplevel
+
+        return json.loads(entry)
+    return entry
+
+
 def _tvm_test_targets():
     target_str = os.environ.get("TVM_TEST_TARGETS", "").strip()
     if target_str:
-        # Use dict instead of set for de-duplication so that the
-        # targets stay in the order specified.
-        return list({t.strip(): None for t in target_str.split(";") if t.strip()})
+        # De-duplicate while preserving order. dict items can't be hashed
+        # directly, so use their str() form as the dedup key.
+        targets = []
+        seen = set()
+        for t in target_str.split(";"):
+            t = t.strip()
+            if not t:
+                continue
+            parsed = _parse_target_entry(t)
+            key = str(parsed)
+            if key in seen:
+                continue
+            seen.add(key)
+            targets.append(parsed)
+        return targets
 
     return DEFAULT_TEST_TARGETS
 
@@ -1203,7 +1226,7 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     return inner
 
 
-def requires_cuda_compute_version(major_version, minor_version=0):
+def requires_cuda_compute_version(major_version, minor_version=0, exact=False):
     """Mark a test as requiring at least a compute architecture
 
     Unit test marked with this decorator will run only if the CUDA
@@ -1224,8 +1247,8 @@ def requires_cuda_compute_version(major_version, minor_version=0):
     """
     min_version = (major_version, minor_version)
     try:
-        arch = tvm.contrib.nvcc.get_target_compute_version()
-        compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+        arch = tvm.support.nvcc.get_target_compute_version()
+        compute_version = tvm.support.nvcc.parse_compute_version(arch)
     except ValueError:
         # No GPU present.  This test will be skipped from the
         # requires_cuda() marks as well.
@@ -1235,7 +1258,7 @@ def requires_cuda_compute_version(major_version, minor_version=0):
     compute_version_str = ".".join(str(v) for v in compute_version)
     requires = [
         pytest.mark.skipif(
-            compute_version < min_version,
+            compute_version < min_version or (exact and compute_version != min_version),
             reason=f"Requires CUDA compute >= {min_version_str}, but have {compute_version_str}",
         ),
         *requires_cuda.marks(),
@@ -1654,7 +1677,7 @@ def fixture(func=None, *, cache_return_value=False):
     return wraps(func)
 
 
-def get_dtype_range(dtype: str) -> Tuple[int, int]:
+def get_dtype_range(dtype: str) -> tuple[int, int]:
     """
     Produces the min,max for a give data type.
 
@@ -1723,17 +1746,15 @@ class _DeepCopyAllowedClasses(dict):
             "https://github.com/apache/tvm-rfcs/blob/main/rfcs/0007-parametrized-unit-tests.md"
         )
         raise TypeError(
-            (
-                f"Cannot copy fixture of type {cls.__name__}.  TVM fixture caching "
-                "is limited to objects that explicitly provide the ability "
-                "to be copied (e.g. through __deepcopy__, __getstate__, or __setstate__),"
-                "and forbids the use of the default `object.__reduce__` and "
-                "`object.__reduce_ex__`.  For third-party classes that are "
-                "safe to use with copy.deepcopy, please add the class to "
-                "the arguments of _DeepCopyAllowedClasses in tvm.testing._fixture_cache.\n"
-                "\n"
-                f"For discussion on this restriction, please see {rfc_url}."
-            )
+            f"Cannot copy fixture of type {cls.__name__}.  TVM fixture caching "
+            "is limited to objects that explicitly provide the ability "
+            "to be copied (e.g. through __deepcopy__, __getstate__, or __setstate__),"
+            "and forbids the use of the default `object.__reduce__` and "
+            "`object.__reduce_ex__`.  For third-party classes that are "
+            "safe to use with copy.deepcopy, please add the class to "
+            "the arguments of _DeepCopyAllowedClasses in tvm.testing._fixture_cache.\n"
+            "\n"
+            f"For discussion on this restriction, please see {rfc_url}."
         )
 
 
@@ -1837,8 +1858,8 @@ def terminate_self():
 
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    arch = tvm.support.nvcc.get_target_compute_version()
+    major, minor = tvm.support.nvcc.parse_compute_version(arch)
     return major >= 8 and minor != 9
 
 
@@ -1938,7 +1959,7 @@ def strtobool(val):
 
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
-    sys.exit(pytest.main([test_file] + sys.argv[1:]))
+    sys.exit(pytest.main([test_file, *sys.argv[1:]]))
 
 
 class CompareBeforeAfter:
@@ -1961,7 +1982,7 @@ class CompareBeforeAfter:
 
     `before` / `Before` may be any one of the following.
 
-    - An instance of `tvm.tir.PrimFunc`.  This is allowed, but is not
+    - An instance of `tvm.tirx.PrimFunc`.  This is allowed, but is not
       the preferred method, as any errors in constructing the
       `PrimFunc` occur while collecting the test, preventing any other
       tests in the same file from being run.
@@ -1970,13 +1991,13 @@ class CompareBeforeAfter:
       The ``@T.prim_func`` decoration will be applied when running the
       test, rather than at module import.
 
-    - A method that takes no arguments and returns a `tvm.tir.PrimFunc`
+    - A method that takes no arguments and returns a `tvm.tirx.PrimFunc`
 
-    - A pytest fixture that returns a `tvm.tir.PrimFunc`
+    - A pytest fixture that returns a `tvm.tirx.PrimFunc`
 
     `expected` / `Expected` may be any one of the following.  The type of
     `expected` / `Expected` defines the test being performed.  If `expected`
-    provides a `tvm.tir.PrimFunc`, the result of the transformation
+    provides a `tvm.tirx.PrimFunc`, the result of the transformation
     must match `expected`.  If `expected` is an exception, then the
     transformation must raise that exception type.
 
@@ -1994,10 +2015,10 @@ class CompareBeforeAfter:
     Examples
     --------
 
-    .. python::
+    .. code-block:: python
 
         class TestRemoveIf(tvm.testing.CompareBeforeAfter):
-            transform = tvm.tir.transform.Simplify()
+            transform = tvm.tirx.transform.StmtSimplify()
 
             def before(A: T.Buffer(1, "int32")):
                 if True:
@@ -2031,7 +2052,7 @@ class CompareBeforeAfter:
 
     @classmethod
     def _normalize_ir_module(cls, func):
-        if isinstance(func, (tvm.tir.PrimFunc, tvm.IRModule)):
+        if isinstance(func, tvm.tirx.PrimFunc | tvm.IRModule):
 
             def inner(self):
                 # pylint: disable=unused-argument
@@ -2099,7 +2120,7 @@ class CompareBeforeAfter:
             def inner(obj):
                 if isinstance(obj, tvm.IRModule):
                     return module_transform(obj)
-                elif isinstance(obj, tvm.tir.PrimFunc):
+                elif isinstance(obj, tvm.tirx.PrimFunc):
                     mod = tvm.IRModule({"main": obj})
                     mod = module_transform(mod)
                     return mod["main"]
@@ -2159,12 +2180,12 @@ class CompareBeforeAfter:
                     )
                 )
 
-        elif isinstance(expected, (tvm.tir.PrimFunc, tvm.ir.IRModule)):
+        elif isinstance(expected, tvm.tirx.PrimFunc | tvm.ir.IRModule):
             after = transform(before)
 
             try:
                 # overwrite global symbol so it doesn't come up in the comparison
-                if isinstance(after, tvm.tir.PrimFunc):
+                if isinstance(after, tvm.tirx.PrimFunc):
                     after = after.with_attr("global_symbol", "main")
                     expected = expected.with_attr("global_symbol", "main")
                 tvm.ir.assert_structural_equal(after, expected)
@@ -2181,6 +2202,64 @@ class CompareBeforeAfter:
             raise TypeError(
                 f"tvm.testing.CompareBeforeAfter requires the `expected` fixture "
                 f"to return either `Exception`, an `Exception` subclass, "
-                f"or an instance of `tvm.tir.PrimFunc`.  "
+                f"or an instance of `tvm.tirx.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
+
+
+ml_dtypes_dict = {
+    "float8_e4m3fn": ml_dtypes.float8_e4m3fn,
+    "float8_e5m2": ml_dtypes.float8_e5m2,
+    "bfloat16": ml_dtypes.bfloat16,
+    "int4": ml_dtypes.int4,
+}
+
+
+def np_dtype_from_str(dtype: str) -> np.dtype:
+    """Convert a string dtype to a numpy dtype."""
+    return np.dtype(ml_dtypes_dict[dtype]) if dtype in ml_dtypes_dict else np.dtype(dtype)
+
+
+def generate_random_array(dtype: str, shape: tuple) -> np.ndarray:
+    """
+    Generate a random array by generating random bits and casting to the target dtype.
+
+    Supported dtypes:
+      - "int8", "uint8", "float16", "float32", "bfloat16", "float8_e4m3fn", "float8_e5m2"
+    """
+    try:
+        np_dtype = np_dtype_from_str(dtype)
+
+    except TypeError:
+        raise ValueError("Provided dtype is not a valid numpy dtype.")
+
+    # Determine the bit length for this dtype.
+    bit_length = np_dtype.itemsize * 8
+
+    # Choose an appropriate unsigned container type.
+    if bit_length <= 8:
+        container = np.uint8
+    elif bit_length <= 16:
+        container = np.uint16
+    elif bit_length <= 32:
+        container = np.uint32
+    elif bit_length <= 64:
+        container = np.uint64
+    else:
+        raise ValueError(f"Unsupported dtype bit length: {bit_length}")
+
+    # Generate random integers in the full range of the bit length.
+    random_ints = np.random.randint(0, 2**bit_length, size=shape, dtype=container)
+    # Reinterpret the bit pattern as the desired dtype.
+    res = random_ints.view(np_dtype)
+    with np.errstate(invalid="ignore"):
+        invalid_indices = np.where(~np.isfinite(res))
+    for idx in zip(*invalid_indices):
+        while True:
+            with np.errstate(invalid="ignore"):
+                if np.isfinite(res[idx]):
+                    break
+            # Generate a new random value for this specific position
+            new_random_int = np.random.randint(0, 2**bit_length, size=1, dtype=container)
+            res[idx] = new_random_int.view(np_dtype)[0]
+    return res

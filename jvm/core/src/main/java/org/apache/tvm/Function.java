@@ -72,7 +72,8 @@ public class Function extends TVMObject {
    * Easy for user to get the instance from returned TVMValue.
    * @return this
    */
-  @Override public Function asFunction() {
+  @Override
+  public Function asFunction() {
     return this;
   }
 

@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for binary operators."""
+
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc, _try_convert_to_scalar_const, register_legalize
+from .common import LegalizeFunc, TEFunc, _try_convert_to_scalar_const, register_legalize
 
 
 def _binary(te_func: TEFunc) -> LegalizeFunc:
@@ -47,6 +49,7 @@ register_legalize("relax.floor_divide", _binary(topi.floor_divide))
 register_legalize("relax.log_add_exp", _binary(topi.log_add_exp))
 register_legalize("relax.multiply", _binary(topi.multiply))
 register_legalize("relax.power", _binary(topi.power))
+register_legalize("relax.atan2", _binary(topi.atan2))
 register_legalize("relax.subtract", _binary(topi.subtract))
 register_legalize("relax.equal", _binary(topi.equal))
 register_legalize("relax.mod", _binary(topi.mod))

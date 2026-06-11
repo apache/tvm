@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
+# ruff: noqa: F401, RUF005
 """Runtime Tensor API"""
+
 import ctypes
 import warnings
 from typing import Optional
@@ -28,10 +30,11 @@ except ImportError:
     ml_dtypes = None
 
 import tvm_ffi
-from tvm_ffi import device, DLDeviceType
+from tvm_ffi import DLDeviceType, device
 
 import tvm
 from tvm.runtime import Device
+
 from . import _ffi_api
 
 
@@ -83,7 +86,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if isinstance(value, Tensor):
             if not value.same_as(self):
                 value.copyto(self)
-        elif isinstance(value, (np.ndarray, np.generic)):
+        elif isinstance(value, np.ndarray | np.generic):
             self.copyfrom(value)
         else:
             raise TypeError(f"type {type(value)} not supported")
@@ -108,7 +111,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if not isinstance(source_array, np.ndarray):
             try:
                 source_array = np.array(source_array, dtype=self.dtype)
-            except:
+            except Exception:
                 raise TypeError(
                     f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
@@ -246,7 +249,7 @@ class Tensor(tvm_ffi.core.Tensor):
         _ffi_api.TVMTensorCopyFromTo(self, target_nd)
         return target_nd
 
-    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
+    def _create_view(self, shape, dtype: str | None = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -263,7 +266,7 @@ class Tensor(tvm_ffi.core.Tensor):
 
         Parameters
         ----------
-        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+        shape: Union[tvm_ffi.Shape, Sequence[typing.SupportsInt]]
 
             The shape of the view.
 
@@ -285,8 +288,8 @@ class Tensor(tvm_ffi.core.Tensor):
 
         """
 
-        if not isinstance(shape, tvm.runtime.ShapeTuple):
-            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+        if not isinstance(shape, tvm_ffi.Shape):
+            shape = tvm_ffi.Shape([int(dim) for dim in shape])
 
         if dtype is None:
             dtype = self.dtype
@@ -299,7 +302,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
 
     Parameters
     ----------
-    shape : Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+    shape : Union[tvm_ffi.Shape, Sequence[typing.SupportsInt]]
         The shape of the array.
 
     dtype : type or str
@@ -317,8 +320,8 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
         The array tvm supported.
     """
     device = device or cpu()
-    if not isinstance(shape, tvm.runtime.ShapeTuple):
-        shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+    if not isinstance(shape, tvm_ffi.Shape):
+        shape = tvm_ffi.Shape([int(dim) for dim in shape])
     dtype = tvm_ffi.dtype(dtype)
     arr = _ffi_api.TVMTensorAllocWithScope(shape, dtype, device, mem_scope)
     return arr
@@ -345,8 +348,8 @@ def tensor(arr, device=None, mem_scope=None):
     """
     device = device or cpu()
 
-    if not isinstance(arr, (np.ndarray, Tensor)):
-        arr = np.array(arr)
+    if not isinstance(arr, np.ndarray | Tensor):
+        arr = np.asarray(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 
 

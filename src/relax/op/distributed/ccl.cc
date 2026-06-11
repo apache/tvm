@@ -26,7 +26,7 @@ namespace distributed {
 
 StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;

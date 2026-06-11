@@ -18,6 +18,9 @@
  */
 #include "nms.h"
 
+#include <tvm/arith/analyzer.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
@@ -25,7 +28,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/relax/attrs/vision.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/runtime/object.h>
 
 #include <utility>
 #include <vector>
@@ -33,7 +35,11 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK() { AllClassNonMaximumSuppressionAttrs::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  AllClassNonMaximumSuppressionAttrs::RegisterReflection();
+  GetValidCountsAttrs::RegisterReflection();
+  NonMaximumSuppressionAttrs::RegisterReflection();
+}
 
 /* relax.vision.all_class_non_max_suppression */
 
@@ -60,10 +66,10 @@ StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx)
   tvm::ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto boxes_sinfo = input_sinfo[0];
   const auto scores_sinfo = input_sinfo[1];
-  ICHECK(!boxes_sinfo->IsUnknownNdim()) << "Only support known ndim";
-  ICHECK(!scores_sinfo->IsUnknownNdim()) << "Only support known ndim";
-  ICHECK_EQ(boxes_sinfo->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
-  ICHECK_EQ(scores_sinfo->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
+  TVM_FFI_ICHECK(!boxes_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  TVM_FFI_ICHECK(!scores_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  TVM_FFI_ICHECK_EQ(boxes_sinfo->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
+  TVM_FFI_ICHECK_EQ(scores_sinfo->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
 
   const auto batch = boxes_sinfo->shape.as<ShapeExprNode>()->values[0];
   const auto num_classes = scores_sinfo->shape.as<ShapeExprNode>()->values[1];
@@ -108,7 +114,259 @@ TVM_REGISTER_OP("relax.vision.all_class_non_max_suppression")
     .add_argument("score_threshold", "Tensor",
                   "The score threshold to filter out low score boxes early.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllClassNMS)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
+
+/* relax.vision.get_valid_counts */
+
+Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score_index) {
+  auto attrs = tvm::ffi::make_object<GetValidCountsAttrs>();
+  attrs->score_threshold = score_threshold;
+  attrs->id_index = id_index;
+  attrs->score_index = score_index;
+
+  static const Op& op = Op::Get("relax.vision.get_valid_counts");
+  return Call(op, {std::move(data)}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.vision.get_valid_counts", get_valid_counts);
+}
+
+StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "get_valid_counts expects 1 argument, got " << call->args.size();
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (data_sinfo == nullptr) {
+    TVM_FFI_VISIT_THROW(TypeError, call) << "get_valid_counts expects input data to be a Tensor.";
+  }
+  if (data_sinfo->ndim != -1 && data_sinfo->ndim != 3) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "get_valid_counts expects 3-D input, got ndim " << data_sinfo->ndim;
+  }
+
+  const auto* attrs = call->attrs.as<GetValidCountsAttrs>();
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid get_valid_counts attrs";
+  auto vdev = data_sinfo->vdevice;
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape == nullptr) {
+    tvm::ffi::Array<StructInfo> fields = {TensorStructInfo(DataType::Int(32), /*ndim=*/1, vdev),
+                                          TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev),
+                                          TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+    return TupleStructInfo(fields);
+  }
+
+  auto batch = data_shape->values[0];
+  auto num_anchors = data_shape->values[1];
+  auto elem_length = data_shape->values[2];
+  const auto* elem_length_imm = elem_length.as<IntImmNode>();
+  if (elem_length_imm != nullptr) {
+    if (attrs->score_index < 0 || attrs->score_index >= elem_length_imm->value) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "get_valid_counts expects score_index to be in range [0, " << elem_length_imm->value
+          << "), but got " << attrs->score_index;
+    }
+    if (attrs->id_index < -1 || attrs->id_index >= elem_length_imm->value) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "get_valid_counts expects id_index to be in range [-1, " << elem_length_imm->value
+          << "), but got " << attrs->id_index;
+    }
+  }
+
+  tvm::ffi::Array<StructInfo> fields = {
+      TensorStructInfo(ShapeExpr({batch}), DataType::Int(32), vdev),
+      TensorStructInfo(ShapeExpr({batch, num_anchors, elem_length}), data_sinfo->dtype, vdev),
+      TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev)};
+  return TupleStructInfo(fields);
+}
+
+TVM_REGISTER_OP("relax.vision.get_valid_counts")
+    .set_attrs_type<GetValidCountsAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor",
+                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGetValidCounts)
+    .set_attr<bool>("FPurity", true);
+
+/* relax.vision.non_max_suppression */
+
+Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_output_size,
+                         double iou_threshold, bool force_suppress, int top_k, int coord_start,
+                         int score_index, int id_index, bool return_indices, bool invalid_to_bottom,
+                         double soft_nms_sigma, double score_threshold) {
+  auto attrs = tvm::ffi::make_object<NonMaximumSuppressionAttrs>();
+  attrs->max_output_size = max_output_size;
+  attrs->iou_threshold = iou_threshold;
+  attrs->force_suppress = force_suppress;
+  attrs->top_k = top_k;
+  attrs->coord_start = coord_start;
+  attrs->score_index = score_index;
+  attrs->id_index = id_index;
+  attrs->return_indices = return_indices;
+  attrs->invalid_to_bottom = invalid_to_bottom;
+  attrs->soft_nms_sigma = soft_nms_sigma;
+  attrs->score_threshold = score_threshold;
+
+  static const Op& op = Op::Get("relax.vision.non_max_suppression");
+  return Call(op, {std::move(data), std::move(valid_count), std::move(indices)}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.vision.non_max_suppression", non_max_suppression);
+}
+
+StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 3) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "non_max_suppression expects 3 arguments, got " << call->args.size();
+  }
+
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* valid_count_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  if (data_sinfo == nullptr) {
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "non_max_suppression expects input data to be a Tensor.";
+  }
+  if (valid_count_sinfo == nullptr) {
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "non_max_suppression expects valid_count to be a Tensor.";
+  }
+  if (indices_sinfo == nullptr) {
+    TVM_FFI_VISIT_THROW(TypeError, call) << "non_max_suppression expects indices to be a Tensor.";
+  }
+  if (data_sinfo->ndim != -1 && data_sinfo->ndim != 3) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "non_max_suppression expects 3-D input, got ndim " << data_sinfo->ndim;
+  }
+  if (valid_count_sinfo->ndim != -1 && valid_count_sinfo->ndim != 1) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "non_max_suppression expects valid_count to be 1-D, got ndim "
+        << valid_count_sinfo->ndim;
+  }
+  if (indices_sinfo->ndim != -1 && indices_sinfo->ndim != 2) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "non_max_suppression expects indices to be 2-D, got ndim " << indices_sinfo->ndim;
+  }
+  if (!valid_count_sinfo->IsUnknownDtype() && valid_count_sinfo->dtype != DataType::Int(32)) {
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "non_max_suppression expects valid_count to have dtype int32, got "
+        << valid_count_sinfo->dtype;
+  }
+  if (!indices_sinfo->IsUnknownDtype() && indices_sinfo->dtype != DataType::Int(32)) {
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "non_max_suppression expects indices to have dtype int32, got " << indices_sinfo->dtype;
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* valid_count_shape = valid_count_sinfo->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape != nullptr) {
+    arith::Analyzer analyzer = ctx->GetAnalyzer();
+    PrimExpr batch = data_shape->values[0];
+    PrimExpr num_anchors = data_shape->values[1];
+    if (valid_count_shape != nullptr &&
+        !analyzer->CanProveEqual(valid_count_shape->values[0], batch)) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "non_max_suppression expects valid_count to have shape [batch_size]. "
+             "However, the given data tensor has batch size `"
+          << batch << "` and the given valid_count tensor has shape " << valid_count_sinfo->shape;
+    }
+    if (indices_shape != nullptr) {
+      if (!analyzer->CanProveEqual(indices_shape->values[0], batch) ||
+          !analyzer->CanProveEqual(indices_shape->values[1], num_anchors)) {
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "non_max_suppression expects indices to have shape [batch_size, num_anchors]. "
+               "However, the given data tensor has shape "
+            << data_sinfo->shape << " and the given indices tensor has shape "
+            << indices_sinfo->shape;
+      }
+    }
+  }
+
+  const auto* attrs = call->attrs.as<NonMaximumSuppressionAttrs>();
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid non_max_suppression attrs";
+  auto vdev = data_sinfo->vdevice;
+  if (data_shape != nullptr) {
+    const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
+    if (elem_length_imm != nullptr) {
+      int64_t elem_length = elem_length_imm->value;
+      if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "non_max_suppression expects score_index to be in range [0, " << elem_length
+            << "), but got " << attrs->score_index;
+      }
+      if (attrs->coord_start < 0 || attrs->coord_start + 3 >= elem_length) {
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "non_max_suppression expects coord_start to reference four "
+               "consecutive box coordinates within elem_length "
+            << elem_length << ", but got " << attrs->coord_start;
+      }
+      if (attrs->id_index < -1 || attrs->id_index >= elem_length) {
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "non_max_suppression expects id_index to be in range [-1, " << elem_length
+            << "), but got " << attrs->id_index;
+      }
+    }
+  }
+
+  if (attrs->return_indices) {
+    if (attrs->soft_nms_sigma > 0.0) {
+      // Soft-NMS returns (out_data[batch, num_anchors, elem_length],
+      //                   box_indices[batch, num_anchors],
+      //                   valid_box_count[batch, 1])
+      if (data_shape == nullptr) {
+        tvm::ffi::Array<StructInfo> fields = {
+            TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev),
+            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),
+            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+        return TupleStructInfo(fields);
+      }
+      auto batch = data_shape->values[0];
+      auto num_anchors = data_shape->values[1];
+      tvm::ffi::Array<StructInfo> fields = {
+          TensorStructInfo(ffi::GetRef<ShapeExpr>(data_shape), data_sinfo->dtype, vdev),
+          TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
+          TensorStructInfo(ShapeExpr({batch, IntImm(DataType::Int(64), 1)}), DataType::Int(32),
+                           vdev)};
+      return TupleStructInfo(fields);
+    }
+
+    // Hard NMS returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])
+    if (data_shape == nullptr) {
+      tvm::ffi::Array<StructInfo> fields = {TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev),
+                                            TensorStructInfo(DataType::Int(32), /*ndim=*/2, vdev)};
+      return TupleStructInfo(fields);
+    }
+    auto batch = data_shape->values[0];
+    auto num_anchors = data_shape->values[1];
+    tvm::ffi::Array<StructInfo> fields = {
+        TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
+        TensorStructInfo(ShapeExpr({batch, IntImm(DataType::Int(64), 1)}), DataType::Int(32),
+                         vdev)};
+    return TupleStructInfo(fields);
+  }
+
+  // Returns modified data tensor with the same shape as input.
+  if (const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>()) {
+    return TensorStructInfo(ffi::GetRef<ShapeExpr>(data_shape), data_sinfo->dtype, vdev);
+  }
+  return TensorStructInfo(data_sinfo->dtype, /*ndim=*/3, vdev);
+}
+
+TVM_REGISTER_OP("relax.vision.non_max_suppression")
+    .set_attrs_type<NonMaximumSuppressionAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor",
+                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+    .add_argument("valid_count", "Tensor", "1-D tensor for valid number of boxes.")
+    .add_argument("indices", "Tensor", "2-D tensor with shape [batch_size, num_anchors].")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNMS)
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

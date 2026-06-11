@@ -111,8 +111,9 @@ void conv_layer_int8_hvx_whole(DLTensor& cr_out, const DLTensor& cr_act,  // NOL
   HVX_Vector wgt_zp_vec = Q6_Vb_vsplat_R(wgt_zp_i8);
   HVX_VectorPair wgt_zp_vec_pair = Q6_Wh_vsxt_Vb(wgt_zp_vec);
 
-  ICHECK_EQ(a_depth, cr_filt.shape[2]) << "input depth should match weights input channels";
-  ICHECK_EQ(o_depth, cr_filt.shape[3]) << "output depth should match the weights output channel";
+  TVM_FFI_ICHECK_EQ(a_depth, cr_filt.shape[2]) << "input depth should match weights input channels";
+  TVM_FFI_ICHECK_EQ(o_depth, cr_filt.shape[3])
+      << "output depth should match the weights output channel";
 
   uint32_t scale_u = static_cast<uint32_t>(fixed_final_scale);
   HVX_Vector scale_vec = Q6_V_vsplat_R(scale_u);
@@ -231,31 +232,32 @@ void conv_layer_int8_hvx_whole(DLTensor& cr_out, const DLTensor& cr_act,  // NOL
 
 int conv2d_packed_quant(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val) {
   namespace conv_utils = tvm::runtime::hexagon::conv_utils;
-  ICHECK_EQ(num_args, 13) << "Unexpected number of arguments";
-  ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(num_args, 13) << "Unexpected number of arguments";
+  TVM_FFI_ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
       << "First argument is expected to be the input tensor";  // Input activations
-  ICHECK_EQ(args[1].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(args[1].type_index, kTVMFFIDLTensorPtr)
       << "Second argument is expected to be the weights tensor";  // Weights
-  ICHECK_EQ(args[2].type_index, kTVMFFIFloat)
+  TVM_FFI_ICHECK_EQ(args[2].type_index, kTVMFFIFloat)
       << "Third argument is expected to be the activation scale";
-  ICHECK_EQ(args[3].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[3].type_index, kTVMFFIInt)
       << "Fourth argument is expected to be the activation zero point";
-  ICHECK_EQ(args[4].type_index, kTVMFFIFloat)
+  TVM_FFI_ICHECK_EQ(args[4].type_index, kTVMFFIFloat)
       << "Fifth argument is expected to be the weight scale";
-  ICHECK_EQ(args[5].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[5].type_index, kTVMFFIInt)
       << "Sixth argument is expected to be the weight zero point";
-  ICHECK_EQ(args[6].type_index, kTVMFFIFloat)
+  TVM_FFI_ICHECK_EQ(args[6].type_index, kTVMFFIFloat)
       << "Seventh argument is expected to be the output scale";
-  ICHECK_EQ(args[7].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[7].type_index, kTVMFFIInt)
       << "Eigth argument is expected to be the output zero point";
-  ICHECK_EQ(args[8].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[8].type_index, kTVMFFIInt)
       << "Nineth argument is expected to be the stride_h";  // stride_h
-  ICHECK_EQ(args[9].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[9].type_index, kTVMFFIInt)
       << "Tenth argument is expected to be the stride_w";  // stride_w
-  ICHECK_EQ(args[10].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[10].type_index, kTVMFFIInt)
       << "Eleventh argument is expected to be fixed final scale";
-  ICHECK_EQ(args[11].type_index, kTVMFFIInt) << "Twelfth argument is expected to be scale factor";
-  ICHECK_EQ(args[12].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(args[11].type_index, kTVMFFIInt)
+      << "Twelfth argument is expected to be scale factor";
+  TVM_FFI_ICHECK_EQ(args[12].type_index, kTVMFFIDLTensorPtr)
       << "Thirteenth argument is expected to be the output tensor";  // output
 
   auto* act_flat = static_cast<DLTensor*>(args[0].v_ptr);
@@ -263,10 +265,10 @@ int conv2d_packed_quant(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val
   auto* out_flat = static_cast<DLTensor*>(args[12].v_ptr);
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";
+  TVM_FFI_ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(out_flat->shape[0], 1) << "Output batch size more than 1 is not supported yet";
+  TVM_FFI_ICHECK_EQ(out_flat->shape[0], 1) << "Output batch size more than 1 is not supported yet";
 
   float act_scale = args[2].v_float64;
   int act_zp = args[3].v_int64;
@@ -289,7 +291,7 @@ int conv2d_packed_quant(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val
   LOG_INFO << "fixed_final_scale: " << fixed_final_scale << ", scale_factor: " << scale_factor;
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
-  ICHECK(device_api != nullptr);
+  TVM_FFI_ICHECK(device_api != nullptr);
   tvm::ffi::String vtcm_scope = "global.vtcm";
 
   auto act_vtcm =

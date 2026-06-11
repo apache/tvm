@@ -19,6 +19,8 @@
 
 #include "statistical.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include <vector>
 namespace tvm {
 namespace relax {
@@ -42,10 +44,10 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
   } else if (!attrs->axis.defined()) {
     out_ndim = 0;
   } else if (data_sinfo->IsUnknownNdim()) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Input of distributed operator must be known ndim");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known ndim";
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   // The inference rule for reduction operator output shapes:
@@ -58,8 +60,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
   if (data_shape == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Input of distributed operator must be known shape");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known shape";
   }
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
@@ -70,7 +71,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
       out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   TensorStructInfo output_tensor_sinfo = TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
 
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReduce);

@@ -16,7 +16,8 @@
 # under the License.
 """Parser dispatching infrastructure"""
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from .doc import AST
 
@@ -25,10 +26,10 @@ if TYPE_CHECKING:
 
 
 ParseMethod = Callable[["Parser", AST], None]
-ParseVTable: Dict[Tuple[str, str], ParseMethod] = {}
+ParseVTable: dict[tuple[str, str], ParseMethod] = {}
 
 OpMethod = Callable[..., Any]
-OpVTable: Dict[Tuple[Type, AST, int], OpMethod] = {}
+OpVTable: dict[tuple[type, AST, int], OpMethod] = {}
 
 
 def register(token: str, type_name: str):
@@ -65,8 +66,8 @@ def register(token: str, type_name: str):
 def get(
     token: str,
     type_name: str,
-    default: Optional[ParseMethod] = None,
-) -> Optional[ParseMethod]:
+    default: ParseMethod | None = None,
+) -> ParseMethod | None:
     """Get a registered method for a dispatch token and type name,
     or return a default method if no registered methods with this dispatch token and type name.
 
@@ -89,13 +90,13 @@ def get(
     return ParseVTable.get((token, type_name), default)
 
 
-def register_op(operand_type: Type, op_node_type: AST, operand_index: int):
+def register_op(operand_type: type, op_node_type: AST, operand_index: int):
     """Register a method for a operand type, AST operator node and operand index.
 
     Parameters
     ----------
     operand_type : Type
-        The type of operands, e.g., tir.PrimExpr, tir.IterVar.
+        The type of operands, e.g., tirx.PrimExpr, tirx.IterVar.
 
     op_node_type : AST
         The doc AST operator node type, e.g., doc.Add, doc.Eq.
@@ -124,17 +125,17 @@ def register_op(operand_type: Type, op_node_type: AST, operand_index: int):
 
 
 def get_op(
-    operand_type: Type,
-    op_node_type: Type,
+    operand_type: type,
+    op_node_type: type,
     operand_index: int,
-    default: Optional[OpMethod] = None,
-) -> Optional[OpMethod]:
+    default: OpMethod | None = None,
+) -> OpMethod | None:
     """Register a method for a operand type, AST operator node and operand index.
 
     Parameters
     ----------
     operand_type : Type
-        The type of operands, e.g., tir.PrimExpr, tir.IterVar.
+        The type of operands, e.g., tirx.PrimExpr, tirx.IterVar.
 
     op_node_type : AST
         The doc AST operator node type, e.g., doc.Add, doc.Eq.

@@ -16,16 +16,18 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Struct Info for distributed tensor."""
-import enum
-from typing import List
-import tvm_ffi
-from tvm.relax.struct_info import StructInfo, TensorStructInfo
-from tvm.ir import Span
-from tvm.runtime.object import Object
-from tvm import TVMError
 
-from .global_info import DeviceMesh
+import enum
+
+import tvm_ffi
+
+from tvm import TVMError
+from tvm.ir import Span
+from tvm.relax.struct_info import StructInfo, TensorStructInfo
+from tvm.runtime import Object
+
 from . import _ffi_api
+from .global_info import DeviceMesh
 
 
 class PlacementSpecKind(enum.IntEnum):
@@ -90,7 +92,7 @@ class Placement(Object):
         The placement spec for each dimension of the device mesh.
     """
 
-    def __init__(self, dim_specs: List[PlacementSpec]):
+    def __init__(self, dim_specs: list[PlacementSpec]):
         self.__init_handle_by_constructor__(_ffi_api.Placement, dim_specs)  # type: ignore
 
     @staticmethod
@@ -137,5 +139,9 @@ class DTensorStructInfo(StructInfo):
         span: Span = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.DTensorStructInfo, tensor_sinfo, device_mesh, placement, span  # type: ignore
+            _ffi_api.DTensorStructInfo,
+            tensor_sinfo,
+            device_mesh,
+            placement,
+            span,  # type: ignore
         )

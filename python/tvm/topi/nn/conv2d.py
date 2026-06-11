@@ -16,14 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin
+# ruff: noqa: F841, RUF005
 """Conv2D operators"""
-from __future__ import absolute_import as _abs
 
 import re
 from collections import namedtuple
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
+
 import tvm
 from tvm import te
 
@@ -115,20 +116,20 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
     pt, pl, pb, pr = get_pad_tuple(
         padding,
         (get_const_int((KH - 1) * dilation_h + 1), get_const_int((KW - 1) * dilation_w + 1)),
     )
     GRPS = CI // CIG
-    if isinstance(stride, (tuple, list)):
+    if isinstance(stride, tuple | list):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    assert (data.dtype == kernel.dtype) or (
-        data.dtype == "uint8" and kernel.dtype == "int8"
-    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    assert (data.dtype == kernel.dtype) or (data.dtype == "uint8" and kernel.dtype == "int8"), (
+        f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    )
     return Workload(
         data.dtype,
         out_dtype,
@@ -312,9 +313,9 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
+    HSTR, WSTR = stride if isinstance(stride, tuple | list) else (stride, stride)
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
@@ -352,8 +353,8 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
 
     if groups == 1:
         ic = te.reduce_axis((0, in_channel), name="ic")
@@ -405,9 +406,8 @@ def conv2d_NCHWc_OIHWo(
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
     kernel : tvm.te.Tensor
-        6-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
-         num_filter_block]
+        6-D with shape ``[num_filter_chunk, in_channel_chunk, filter_height,
+        filter_width, num_filter_block]``.
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -437,9 +437,9 @@ def conv2d_NCHWc_OIHWo(
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
+    HSTR, WSTR = stride if isinstance(stride, tuple | list) else (stride, stride)
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
@@ -479,8 +479,8 @@ def conv2d_NCHWc_OIHWo(
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tirx.indexdiv
+    idxmod = tvm.tirx.indexmod
 
     def compute_conv2d(*args):
         n, occ, oh, ow, ocb = args
@@ -569,9 +569,9 @@ def conv2d_NCHWc_int8(
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
+    HSTR, WSTR = stride if isinstance(stride, tuple | list) else (stride, stride)
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
@@ -732,14 +732,14 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
 def conv(
     inp: te.Tensor,
     filt: te.Tensor,
-    stride: Union[int, Sequence[int]],
-    padding: Union[int, Sequence[int]],
-    dilation: Union[int, Sequence[int]],
+    stride: int | Sequence[int],
+    padding: int | Sequence[int],
+    dilation: int | Sequence[int],
     groups: int,
     data_layout: str,
     kernel_layout: str = "",
-    out_dtype: Union[str, None] = None,
-    auto_scheduler_rewritten_layout: Optional[str] = None,
+    out_dtype: str | None = None,
+    auto_scheduler_rewritten_layout: str | None = None,
     meta_schedule_original_shape=None,
     auto_scheduler_should_rewrite_layout: bool = False,
 ):
@@ -984,8 +984,8 @@ def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     """
     n, oc_chunk, oh, ow, oc_bn = get_const_tuple(packed_out.shape)
 
-    idxmod = tvm.tir.indexmod
-    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tirx.indexmod
+    idxdiv = tvm.tirx.indexdiv
 
     oshape = (n, oc_chunk * oc_bn, oh, ow)
     unpacked_out = te.compute(

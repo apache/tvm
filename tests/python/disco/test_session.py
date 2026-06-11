@@ -14,25 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Basic tests for a Disco session"""
+
 # pylint: disable=missing-docstring
+import subprocess
+import sys
 import tempfile
+import threading
 
 import numpy as np
 import pytest
-import subprocess
-import threading
-import sys
+from tvm_ffi import Shape
+from tvm_ffi.core import String
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm.runtime import ShapeTuple, String
+from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
+from tvm.script import tirx as T
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -82,7 +85,7 @@ class SocketSessionTester:
 
         cmd = "tvm.exec.disco_remote_socket_session"
         self.remote_nodes = []
-        for _ in range(num_nodes - 1):
+        for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [
@@ -183,10 +186,10 @@ def test_shape_tuple(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.shape_tuple")
-    result: di.DRef = func(ShapeTuple([1, 2, 3]))
+    result: di.DRef = func(Shape([1, 2, 3]))
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
-        assert isinstance(value, ShapeTuple)
+        assert isinstance(value, Shape)
         assert list(value) == [1, 2, 3, 4, 5]
 
 
@@ -196,12 +199,12 @@ def test_vm_module(session_kind):
     sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestMod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
@@ -240,26 +243,26 @@ def test_vm_multi_func(session_kind):
     sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TestMod:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("t1"):
+                with T.sblock("t1"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
-                with T.block("t2"):
+                with T.sblock("t2"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @R.function
-        def transpose_1(
-            A: R.Tensor((8, 16), dtype="float32")
-        ) -> R.Tensor((16, 8), dtype="float32"):
+        def transpose_1(A: R.Tensor((8, 16), dtype="float32")) -> R.Tensor(
+            (16, 8), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
@@ -268,9 +271,9 @@ def test_vm_multi_func(session_kind):
             return B
 
         @R.function
-        def transpose_2(
-            A: R.Tensor((16, 8), dtype="float32")
-        ) -> R.Tensor((8, 16), dtype="float32"):
+        def transpose_2(A: R.Tensor((16, 8), dtype="float32")) -> R.Tensor(
+            (8, 16), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():

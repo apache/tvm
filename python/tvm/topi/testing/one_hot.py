@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """OneHot in python"""
+
 import numpy as np
 
 

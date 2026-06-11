@@ -14,29 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-
-# needed for attrs
-import tvm.testing
+# ruff: noqa: F841
 import pytest
+import tvm_ffi
 
-
-def test_make_attrs():
-    with pytest.raises(TypeError):
-        x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
-
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
-    assert x.name == "xx"
-    assert x.padding[0].value == 3
-    assert x.padding[1].value == 4
-    assert x.axis == 10
-
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
-    y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
-    z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
-    assert not tvm.ir.structural_equal(x, y)
-    assert tvm.ir.structural_equal(x, x)
-    assert tvm.ir.structural_equal(y, z)
+import tvm
 
 
 def test_dict_attrs():
@@ -57,12 +39,24 @@ def test_attrs_equal():
     dattr1 = tvm.ir.make_node("ir.DictAttrs", y=[10, 20], x=1)
     dattr2 = tvm.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm.ir.assert_structural_equal(dattr0, dattr1)
-    assert not tvm.ir.structural_equal(dattr0, dattr2)
-    assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))
-    assert not tvm.ir.structural_equal([1, 2], tvm.runtime.convert(1))
+    assert not tvm_ffi.structural_equal(dattr0, dattr2)
+    assert not tvm_ffi.structural_equal({"x": 1}, tvm.runtime.convert(1))
+    assert not tvm_ffi.structural_equal([1, 2], tvm.runtime.convert(1))
+
+
+def test_assert_structural_equal_reports_mismatch():
+    dattr0 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 30])
+
+    with pytest.raises(ValueError) as err:
+        tvm.ir.assert_structural_equal(dattr0, dattr1)
+
+    message = str(err.value)
+    assert "StructuralEqual check failed" in message
+    assert "caused by lhs at" in message
+    assert "and rhs at" in message
 
 
 if __name__ == "__main__":
-    test_make_attrs()
     test_dict_attrs()
     test_attrs_equal()

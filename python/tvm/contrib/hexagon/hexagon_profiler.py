@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=consider-using-with
+# ruff: noqa: RUF005
 
 """Define HexagonProfiler class to enable profiling for Hexagon"""
 
 import os
 import subprocess
-from tvm.ir.transform import PassContext
+
 from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
-from tvm.contrib import utils
+from tvm.ir.transform import PassContext
+from tvm.support import utils
 
 
 class HexagonProfiler:
@@ -50,7 +52,7 @@ class HexagonProfiler:
         if self._android_serial_number is None:
             raise RuntimeError("ANDROID_SERIAL_NUMBER must be set for profiling")
 
-        if ("tir.instrument_lwp", True) in config.items():
+        if ("tirx.instrument_lwp", True) in config.items():
             # Set profiling mode
             self._profiling_mode = "lwp"
 

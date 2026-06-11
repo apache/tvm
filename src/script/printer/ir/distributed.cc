@@ -17,9 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/expr.h>
-#include <tvm/relax/distributed/global_info.h>
 
-#include "../relax/utils.h"
 #include "./utils.h"
 namespace tvm {
 namespace script {
@@ -31,7 +29,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Array<ExprDoc> results;
       results.reserve(s);
       for (int i = 0; i < s; ++i) {
-        results.push_back(d->AsDoc<ExprDoc>(Integer(n[i]), n_p->ArrayItem(i)));
+        results.push_back(d->AsDoc<ExprDoc>(IntImm(DataType::Int(32), n[i]), n_p->ArrayItem(i)));
       }
       return TupleDoc(results);
     });

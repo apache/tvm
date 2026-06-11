@@ -31,22 +31,17 @@ namespace te {
 
 TVM_FFI_STATIC_INIT_BLOCK() { PlaceholderOpNode::RegisterReflection(); }
 
-// PlaceholderOpNode
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const PlaceholderOpNode*>(node.get());
-      p->stream << "placeholder(" << op->name << ", " << op << ")";
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 int PlaceholderOpNode::num_outputs() const { return 1; }
 
 DataType PlaceholderOpNode::output_dtype(size_t i) const {
-  ICHECK_EQ(i, 0U);
+  TVM_FFI_ICHECK_EQ(i, 0U);
   return dtype;
 }
 
 ffi::Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
-  ICHECK_EQ(i, 0U);
+  TVM_FFI_ICHECK_EQ(i, 0U);
   return shape;
 }
 
@@ -72,7 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       } else if (auto arg_array = shape_arg.as<ffi::Array<PrimExpr>>()) {
         return arg_array.value();
       } else {
-        LOG(FATAL) << "Variant did not contain either allowed type";
+        TVM_FFI_THROW(InternalError) << "Variant did not contain either allowed type";
       }
     }();
     return placeholder(shape, dtype, name);

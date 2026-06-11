@@ -52,8 +52,6 @@ include_directories(SYSTEM
 link_directories(${QURT_LIB_DIRS})
 
 add_definitions(-D_MACH_I32=int)
-add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
-add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 # Extra compile flags (both C and C++).
 set(EXTRA_COMP_FLAGS

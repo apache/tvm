@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,25 +17,25 @@
 # under the License.
 """TVM runtime namespace."""
 
-from tvm_ffi import convert
+from tvm_ffi import convert, Object
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
+# Import _ffi_node_api for its side effect of installing AsRepr as
+# tvm_ffi.core.__object_repr__ so TVM IR objects use the rich C++ ReprPrinter.
+from . import _ffi_node_api
+
 # class exposures
-from .packed_func import PackedFunc
-from .object import Object
 from .script_printer import Scriptable
 from .object_generic import ObjectConvertible
 from .device import Device
 from ._tensor import Tensor, tensor, empty
 from .module import Module
-from .profiling import Report
 from .executable import Executable
 
 # function exposures
 from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
-from .container import String, ShapeTuple
 from .object_generic import const
 from .params import (
     save_param_dict,
@@ -43,6 +44,11 @@ from .params import (
     load_param_dict_from_file,
 )
 
-from . import disco
+try:
+    from . import disco
+except (ImportError, ValueError):
+    # disco C++ runtime is in libtvm_runtime_extra which may not be present.
+    # Make the disco module optional.
+    disco = None  # type: ignore[assignment]
 
-from .support import _regex_match
+from tvm_ffi import Shape as ShapeTuple

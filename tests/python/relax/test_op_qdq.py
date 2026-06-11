@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir import Op
 from tvm.script import relax as R
 
@@ -53,7 +53,7 @@ def test_qdq_op_infer_struct_info():
 
 def test_qdq_op_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((n, 3), "float32"))
     dx = relax.Var("dx", R.Tensor((n, 3), "int8"))
     s = relax.Var("s", R.Tensor([3], "float32"))
@@ -70,7 +70,7 @@ def test_qdq_op_infer_struct_info_symbolic():
 
 def test_qdq_float8_e4m3fn_op_infer_struct_info_symbolic():
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((n, 3), "float32"))
     dx = relax.Var("dx", R.Tensor((n, 3), "float8_e4m3fn"))
     s = relax.Var("s", R.Tensor([3], "float32"))
@@ -90,7 +90,7 @@ def test_qdq_float8_e4m3fn_op_infer_struct_info_symbolic():
 def test_qdq_float8_e5m2_op_infer_struct_info_symbolic():
     dtype = "float8_e5m2"
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((n, 3), "float32"))
     dx = relax.Var("dx", R.Tensor((n, 3), dtype))
     s = relax.Var("s", R.Tensor([3], "float32"))

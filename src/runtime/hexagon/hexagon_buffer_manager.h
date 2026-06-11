@@ -48,9 +48,9 @@ class HexagonBufferManager {
   void FreeHexagonBuffer(void* ptr) {
     std::lock_guard<std::mutex> lock(map_mutex_);
     auto it = hexagon_buffer_map_.find(ptr);
-    CHECK(it != hexagon_buffer_map_.end())
+    TVM_FFI_ICHECK(it != hexagon_buffer_map_.end())
         << "Attempt made to free unknown or already freed allocation";
-    CHECK(it->second != nullptr);
+    TVM_FFI_ICHECK(it->second != nullptr);
     hexagon_buffer_map_.erase(it);
   }
   /*!

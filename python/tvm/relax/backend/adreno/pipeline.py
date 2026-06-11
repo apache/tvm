@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """The Relax Adreno GPU backend compilation pipeline and other passes."""
+
 import tvm
-from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 
@@ -24,7 +24,10 @@ from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for Adreno GPU backend."""
     if "clml" in target.keys:
-        return [relax.backend.adreno.clml.OpenCLMLOffLoad()]
+        return [
+            relax.backend.adreno.clml.OpenCLMLOffLoadForLLM(target),
+            relax.backend.adreno.clml.OpenCLMLOffLoad(),
+        ]
     else:
         return []
 
@@ -41,7 +44,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
     pass_list.extend(
         [
-            tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
             relax.transform.DecomposeOpsForInference(),
         ]
     )
@@ -83,6 +86,8 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
                 relax.transform.SpecializePrimFuncBasedOnCallSite(),
             ]
         )
+    from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
+
     pass_list.extend([relax.transform.Normalize()])
     pass_list.extend(
         [

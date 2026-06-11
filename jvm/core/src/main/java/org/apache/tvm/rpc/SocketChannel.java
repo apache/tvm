@@ -19,12 +19,11 @@
 
 package org.apache.tvm.rpc;
 
+import java.io.IOException;
+import java.net.Socket;
 import org.apache.tvm.Function;
 import org.apache.tvm.TVMValue;
 import org.apache.tvm.TVMValueBytes;
-
-import java.io.IOException;
-import java.net.Socket;
 
 public class SocketChannel {
   private final Socket socket;
@@ -34,7 +33,8 @@ public class SocketChannel {
   }
 
   private Function fsend = Function.convertFunc(new Function.Callback() {
-    @Override public Object invoke(TVMValue... args) {
+    @Override
+    public Object invoke(TVMValue... args) {
       byte[] data = args[0].asBytes();
       try {
         socket.getOutputStream().write(data);
@@ -47,7 +47,8 @@ public class SocketChannel {
   });
 
   private Function frecv = Function.convertFunc(new Function.Callback() {
-    @Override public Object invoke(TVMValue... args) {
+    @Override
+    public Object invoke(TVMValue... args) {
       long size = args[0].asLong();
       try {
         return new TVMValueBytes(Utils.recvAll(socket.getInputStream(), (int) size));

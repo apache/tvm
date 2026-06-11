@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Bitserial Dense operator."""
-from __future__ import absolute_import
+
 import tvm
 from tvm import te
 from tvm.topi.utils import get_const_tuple
+
 from .bitserial_util import bitpack
 
 
@@ -57,8 +58,8 @@ def bitserial_dense(
         oshape,
         lambda i, j: te.sum(
             (
-                tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k])
-                - tvm.tir.popcount(~weight_packed[j, wb, k] & data_packed[i, db, k])
+                tvm.tirx.popcount(weight_packed[j, wb, k] & data_packed[i, db, k])
+                - tvm.tirx.popcount(~weight_packed[j, wb, k] & data_packed[i, db, k])
             ).astype(out_dtype)
             << (db + wb).astype(out_dtype),
             axis=[wb, db, k],
@@ -69,7 +70,7 @@ def bitserial_dense(
     matmul = te.compute(
         oshape,
         lambda i, j: te.sum(
-            tvm.tir.popcount(weight_packed[j, wb, k] & data_packed[i, db, k]).astype(out_dtype)
+            tvm.tirx.popcount(weight_packed[j, wb, k] & data_packed[i, db, k]).astype(out_dtype)
             << (db + wb).astype(out_dtype),
             axis=[wb, db, k],
         ),

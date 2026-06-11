@@ -19,27 +19,27 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_single_buffer():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W: T.Buffer((224, 224), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
-            W_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            W_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -58,27 +58,27 @@ def test_single_buffer():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_weight_prepack(
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
 
@@ -105,29 +105,29 @@ def test_single_buffer():
 
 
 def test_multiple_buffers():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W1: T.Buffer((224, 224), "float32"),
             W2: T.Buffer((224, 224), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            W1_rewrite = T.alloc_buffer((4, 4, 56, 56))
-            W2_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            W1_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
+            W2_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W1_rewrite"):
+                with T.sblock("W1_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W1_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W1[vi, vj]
             for i, j in T.grid(224, 224):
-                with T.block("W2_rewrite"):
+                with T.sblock("W2_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W2[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = (
@@ -151,9 +151,9 @@ def test_multiple_buffers():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W1_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
@@ -161,7 +161,7 @@ def test_multiple_buffers():
             Out: T.Buffer((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = (
@@ -170,7 +170,7 @@ def test_multiple_buffers():
                         + W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_weight_prepack(
             W1: T.Buffer((224, 224), "float32"),
             W2: T.Buffer((224, 224), "float32"),
@@ -178,11 +178,11 @@ def test_multiple_buffers():
             W2_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
-                with T.block("W1_rewrite"):
+                with T.sblock("W1_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W1_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W1[vi, vj]
             for i, j in T.grid(224, 224):
-                with T.block("W2_rewrite"):
+                with T.sblock("W2_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W2[vi, vj]
 
@@ -217,23 +217,23 @@ def test_multiple_buffers():
 
 
 def test_attr_inheritance():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func(
             X: T.Buffer((224, 224), "float32"),
             W: T.Buffer((224, 224), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            T.func_attr({"layout_free_buffers": [1], "tir.noalias": True})
-            W_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True})
+            W_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -252,29 +252,29 @@ def test_attr_inheritance():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_prepacked(
             X: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_func_weight_prepack(
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
 

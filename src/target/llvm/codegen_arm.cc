@@ -24,12 +24,10 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/IntrinsicsARM.h>
+#include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
-#include <llvm/IR/IntrinsicsARM.h>
-#endif
-#include <llvm/Target/TargetMachine.h>
 
 #include "codegen_cpu.h"
 
@@ -66,7 +64,7 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
 }
 
 PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
-  using namespace tir;
+  using namespace tirx;
   const PrimExpr& e = call->args[1];
   llvm::Intrinsic::ID ctpop_id = llvm::Intrinsic::ctpop;
   llvm::Intrinsic::ID vpaddlu_id = llvm::Intrinsic::arm_neon_vpaddlu;
@@ -78,7 +76,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
     ffi::Array<PrimExpr> vcnt_args;
     vcnt_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
     vcnt_args.push_back(e);
-    return tir::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt_args);
+    return tirx::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt_args);
   }
 
   // Popcount lowering rule:
@@ -97,17 +95,17 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   PrimExpr input8 = reinterpret(uint8_type, e);
   // Popcount 8bit->8bit
   const CallNode* c0 = input8.as<CallNode>();
-  ICHECK(c0 != nullptr);
+  TVM_FFI_ICHECK(c0 != nullptr);
   ffi::Array<PrimExpr> vcnt8_args;
   vcnt8_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
   vcnt8_args.push_back(input8);
-  PrimExpr vcnt8 = tir::Call(uint8_type, builtin_call_llvm_pure_intrin_, vcnt8_args);
+  PrimExpr vcnt8 = tirx::Call(uint8_type, builtin_call_llvm_pure_intrin_, vcnt8_args);
 
   // Accumulation 8->16bit
   ffi::Array<PrimExpr> vcnt16_args;
   vcnt16_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt16_args.push_back(vcnt8);
-  PrimExpr vcnt16 = tir::Call(uint16_type, builtin_call_llvm_pure_intrin_, vcnt16_args);
+  PrimExpr vcnt16 = tirx::Call(uint16_type, builtin_call_llvm_pure_intrin_, vcnt16_args);
   if (call->dtype.bits() == 16) {
     return vcnt16;
   }
@@ -116,7 +114,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   ffi::Array<PrimExpr> vcnt32_args;
   vcnt32_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt32_args.push_back(vcnt16);
-  PrimExpr vcnt32 = tir::Call(uint32_type, builtin_call_llvm_pure_intrin_, vcnt32_args);
+  PrimExpr vcnt32 = tirx::Call(uint32_type, builtin_call_llvm_pure_intrin_, vcnt32_args);
   if (call->dtype.bits() == 32) {
     return vcnt32;
   }
@@ -125,7 +123,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   ffi::Array<PrimExpr> vcnt64_args;
   vcnt64_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt64_args.push_back(vcnt32);
-  return tir::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt64_args);
+  return tirx::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt64_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

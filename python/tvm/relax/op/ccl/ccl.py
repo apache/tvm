@@ -16,8 +16,8 @@
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
 
-from . import _ffi_api
 from ...expr import Expr
+from . import _ffi_api
 
 
 def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disable=invalid-name

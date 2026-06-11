@@ -14,16 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
-from collections import ChainMap, OrderedDict
-from functools import partial
-from typing import Callable, Dict, List, Optional, Tuple
 
-import torch
-from torch import fx
+import contextlib
+from collections import ChainMap, OrderedDict
+from collections.abc import Callable
+from functools import partial
+
+try:
+    import torch
+    from torch import fx
+except ImportError as err:
+    raise ImportError(
+        "torch is required by the PyTorch frontend. Install it with: pip install torch"
+    ) from err
+
 import tvm
 from tvm import relax
 
@@ -112,6 +121,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             x = self.block_builder.emit(relax.op.astype(x, "float32"))
 
         return self.block_builder.emit(relax.op.rsqrt(x))
+
+    def _to_sparse(self, node: fx.Node) -> relax.Var:
+        """Fallback for sparse conversion: Relax does not support sparse tensors yet."""
+        args = self.retrieve_args(node)
+        return args[0]
 
     ########## Neural Network ##########
 
@@ -290,7 +304,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if size is None:
             shape = self.shape_of(x)
             assert isinstance(shape, relax.ShapeExpr)
-            if isinstance(scale_factor, (tuple, list)):
+            if isinstance(scale_factor, tuple | list):
                 assert len(scale_factor) == len(shape) - 2
                 size = tuple(
                     int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
@@ -471,9 +485,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm.tir.IntImm) else seq_len
-        batch_size = int(batch_size) if isinstance(batch_size, tvm.tir.IntImm) else batch_size
-        input_size = int(input_size) if isinstance(input_size, tvm.tir.IntImm) else input_size
+        seq_len = int(seq_len) if isinstance(seq_len, tvm.tirx.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
         # Extract hidden size from the LSTM parameters
         # The parameters are: [weight_ih, weight_hh, bias_ih, bias_hh]
         # weight_ih shape: (4 * hidden_size, input_size)
@@ -775,9 +789,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm.tir.IntImm) else seq_len
-        batch_size = int(batch_size) if isinstance(batch_size, tvm.tir.IntImm) else batch_size
-        input_size = int(input_size) if isinstance(input_size, tvm.tir.IntImm) else input_size
+        seq_len = int(seq_len) if isinstance(seq_len, tvm.tirx.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
 
         # Extract hidden size from parameters
         # For bidirectional: params has weights for both directions
@@ -928,10 +942,43 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         end_val = node.args[3] if len(node.args) > 3 else None
         step = node.args[4] if len(node.args) > 4 else 1
 
+        # Resolve fx.Node references (e.g. symbolic sizes from dynamic shapes)
+        if isinstance(start, fx.Node):
+            start = self.env[start]
+        if isinstance(end_val, fx.Node):
+            end_val = self.env[end_val]
+        if isinstance(step, fx.Node):
+            step = self.env[step]
+
         if start is None:
             start = 0
         if end_val is None:
             end_val = sys.maxsize
+
+        # Skip identity slice (start=0, end>=maxsize, step=1) which is commonly
+        # emitted by torch.export for dynamic shapes. Without this, strided_slice
+        # produces shapes like T.min(9223372036854775807, s) that don't simplify,
+        # causing downstream shape inference failures.
+        if (
+            isinstance(start, int)
+            and isinstance(end_val, int)
+            and isinstance(step, int)
+            and start == 0
+            and end_val >= sys.maxsize
+            and step == 1
+        ):
+            return x
+
+        # Skip identity slice where end_val is a symbolic expression equal to the
+        # tensor's own dimension size (common with dynamic shapes).
+        if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
+            in_shape = self.shape_of(x)
+            if in_shape is not None and isinstance(end_val, tvm.tirx.PrimExpr):
+                actual_dim = dim if dim >= 0 else len(in_shape) + dim
+                dim_expr = in_shape[actual_dim]
+                if isinstance(dim_expr, tvm.tirx.PrimExpr):
+                    if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
+                        return x
 
         axes = [dim]
         begin = [start]
@@ -983,9 +1030,30 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             relax.op.hamming_window(window_size, periodic, alpha, beta, dtype)
         )
 
+    def _randn(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        args = self.retrieve_args(node)
+        size = args[0] if isinstance(args[0], list | tuple) else (args[0],)
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        data = np.random.randn(*size).astype(dtype)
+        return self.block_builder.emit(relax.const(data, dtype))
+
+    def _randn_like(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        x_sinfo = x.struct_info
+        shape = [int(s) for s in x_sinfo.shape]
+        dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_sinfo.dtype, self.env)
+        data = np.random.randn(*shape).astype(dtype)
+        return self.block_builder.emit(relax.const(data, dtype))
+
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], list | tuple) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -1057,6 +1125,63 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 layout="NCHW",
                 padding_mode=padding_mode,
                 align_corners=align_corners,
+            )
+        )
+
+    def _affine_grid_generator(self, node: fx.Node) -> relax.Var:
+        """Convert torch.nn.functional.affine_grid to relax.op.image.affine_grid."""
+        args = self.retrieve_args(node)
+        theta = args[0]  # [N, 2, 3]
+        size = args[1]  # [N, C, H, W]
+        align_corners = args[2] if len(args) > 2 else False
+
+        if not align_corners:
+            raise NotImplementedError(
+                "affine_grid with align_corners=False is not yet supported in TVM"
+            )
+
+        # Extract spatial dimensions (H, W) from PyTorch's [N, C, H, W] size
+        target_h = size[2]
+        target_w = size[3]
+
+        # Relax affine_grid outputs [N, 2, H, W]
+        grid = self.block_builder.emit(relax.op.image.affine_grid(theta, (target_h, target_w)))
+        # Permute to PyTorch convention [N, H, W, 2]
+        return self.block_builder.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
+
+    def _torchvision_roi_align(self, node: fx.Node) -> relax.Var:
+        """Convert torchvision.ops.roi_align to relax.op.vision.roi_align."""
+        args = self.retrieve_args(node)
+        data = args[0]
+        rois = args[1]
+        spatial_scale = args[2] if len(args) > 2 else 1.0
+        pooled_height = args[3] if len(args) > 3 else 1
+        pooled_width = args[4] if len(args) > 4 else pooled_height
+        sampling_ratio = args[5] if len(args) > 5 else -1
+        aligned = args[6] if len(args) > 6 else False
+
+        if aligned:
+            batch_indices = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[0], end=[1])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
+            )
+            boxes = self.block_builder.emit(
+                relax.op.subtract(boxes, relax.const(0.5, rois.struct_info.dtype))
+            )
+            rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
+
+        return self.block_builder.emit(
+            relax.op.vision.roi_align(
+                data,
+                rois,
+                pooled_size=(pooled_height, pooled_width),
+                spatial_scale=spatial_scale,
+                sample_ratio=sampling_ratio,
+                aligned=aligned,
+                layout="NCHW",
+                mode="avg",
             )
         )
 
@@ -1137,8 +1262,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
 
         # Only handle view-like cases where the provided strides align with a contiguous layout.
-        can_check = all(isinstance(dim, (int, tvm.tir.IntImm)) for dim in size) and all(
-            isinstance(st, (int, tvm.tir.IntImm)) for st in stride
+        can_check = all(isinstance(dim, int | tvm.tirx.IntImm) for dim in size) and all(
+            isinstance(st, int | tvm.tirx.IntImm) for st in stride
         )
         if can_check:
             expected_stride = []
@@ -1163,11 +1288,225 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _symbolic_comparison(self, _: fx.Node) -> relax.Expr:
         return self.block_builder.emit(relax.const(True, dtype="bool"))
 
+    ########## Higher-Order Ops ##########
+
+    @staticmethod
+    def _has_cond_op(nodes) -> bool:
+        """Check whether any node in the FX graph is a `torch.ops.higher_order.cond`."""
+        for node in nodes:
+            if node.op == "call_function" and node.target.__name__ == "cond":
+                try:
+                    if node.target.__module__ == "torch.ops.higher_order":
+                        return True
+                except AttributeError:
+                    pass
+        return False
+
+    def _translate_fx_graph(
+        self,
+        graph_module,  # torch.fx.GraphModule or ExportedProgram
+        nodes,  # list[fx.Node]
+        inputs_vars: dict,  # name -> relax.Var for placeholders
+        custom_ops: set[str] | None = None,
+    ) -> tuple:
+        """Translate FX graph nodes, populating self.env.
+
+        Returns the raw output args from the output node (a tuple or relax.Tuple).
+        Handles placeholder, get_attr, call_function, and output node types.
+        """
+        custom_ops = custom_ops or set()
+        output_args = None
+
+        for node in nodes:
+            if node.op == "placeholder":
+                if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
+                    continue
+                if node.name in inputs_vars:
+                    self.env[node] = inputs_vars[node.name]
+                # else: already set (e.g. branch subgraph placeholders)
+            elif node.op == "output":
+                args = self.retrieve_args(node)
+                assert len(args) == 1
+                output_args = args[0]
+                break
+            elif node.op == "get_attr":
+                self.env[node] = getattr(graph_module, node.target)
+            elif node.op == "call_function":
+                func_name = node.target.__name__
+                if func_name in custom_ops:
+                    self.env[node] = self.convert_map[func_name](node, self)
+                else:
+                    self.env[node] = self.convert_map[func_name](node)
+            else:
+                raise ValueError(f"Unsupported op {node.op}")
+
+        assert output_args is not None
+        return self._flatten_output_args(output_args)
+
+    @staticmethod
+    def _flatten_output_args(output_args) -> tuple[relax.Expr, ...]:
+        """Flatten output args into a tuple of Relax expressions.
+
+        ExportedProgram output trees contain nested Python tuple/list containers
+        (e.g. mutation outputs + user tuple outputs). Emitting nested Python tuples
+        directly through FFI may construct invalid Relax tuples.
+        """
+
+        flattened: list[relax.Expr] = []
+
+        def _visit(value):
+            if isinstance(value, relax.Expr):
+                flattened.append(value)
+            elif isinstance(value, list | tuple):
+                for item in value:
+                    _visit(item)
+            elif value is None:
+                # Preserve explicit None outputs as Relax null objects.
+                flattened.append(relax.op.null_value())
+            else:
+                raise ValueError(f"Unsupported output type in exported graph output: {type(value)}")
+
+        _visit(output_args)
+
+        if not flattened:
+            raise ValueError("Exported graph produced no Relax outputs")
+
+        return tuple(flattened)
+
+    def _import_branch_subgraph(
+        self,
+        graph_module,  # torch.fx.GraphModule
+        operands: list[relax.Expr],
+        name_hint: str,
+    ) -> tvm.ir.GlobalVar:
+        """Translate a branch subgraph (GraphModule) into a Relax function in the IRModule.
+
+        Parameters
+        ----------
+        graph_module : torch.fx.GraphModule
+            The branch subgraph (e.g. true_graph_0 / false_graph_0).
+        operands : list[relax.Expr]
+            The operands passed to the cond; used to derive parameter struct_info.
+        name_hint : str
+            A hint for the function name (e.g. "cond_true_branch_0").
+
+        Returns
+        -------
+        gv : tvm.ir.GlobalVar
+            The GlobalVar referring to the newly added Relax function.
+        """
+        # Cache: avoid importing the same subgraph twice.
+        cache_key = id(graph_module)
+        if not hasattr(self, "_branch_cache"):
+            self._branch_cache: dict[int, tvm.ir.GlobalVar] = {}
+        if not hasattr(self, "_branch_counter"):
+            self._branch_counter: int = 0
+        if cache_key in self._branch_cache:
+            return self._branch_cache[cache_key]
+
+        # Generate a unique function name.
+        unique_name = f"{name_hint}_{self._branch_counter}"
+        self._branch_counter += 1
+
+        # Save translator state so we can restore after subgraph import.
+        saved_env = self.env
+        self.env = {}
+        try:
+            # Collect placeholder nodes and build Relax params with fresh symbolic vars.
+            nodes = list(graph_module.graph.nodes)
+            placeholders = [n for n in nodes if n.op == "placeholder"]
+            params = []
+            for ph, operand in zip(placeholders, operands):
+                if hasattr(operand, "struct_info") and isinstance(
+                    operand.struct_info, relax.TensorStructInfo
+                ):
+                    orig_si = operand.struct_info
+                    # Create fresh SizeVars to avoid sharing with the caller function.
+                    if orig_si.shape is not None:
+                        new_shape = [
+                            tvm.tirx.SizeVar(s.name, s.dtype)
+                            if isinstance(s, tvm.tirx.SizeVar)
+                            else s
+                            for s in orig_si.shape
+                        ]
+                        si = relax.TensorStructInfo(new_shape, orig_si.dtype)
+                    else:
+                        si = orig_si
+                elif hasattr(operand, "struct_info"):
+                    si = operand.struct_info
+                else:
+                    si = relax.ObjectStructInfo()
+                param = relax.Var(ph.name, si)
+                params.append(param)
+                self.env[ph] = param
+
+            # Build the branch function (using a plain BindingBlock, not DataflowBlock).
+            with self.block_builder.function(name=unique_name, params=params):
+                inner = self._translate_fx_graph(graph_module, nodes, {})
+                if isinstance(inner, tuple | list):
+                    if len(inner) == 1:
+                        output_expr = self.block_builder.emit(inner[0])
+                    else:
+                        output_expr = relax.Tuple([self.block_builder.emit(v) for v in inner])
+                else:
+                    output_expr = self.block_builder.emit(inner)
+                self.block_builder.emit_func_output(output_expr)
+        finally:
+            # Restore translator state.
+            self.env = saved_env
+
+        # Get the GlobalVar for the function we just built.
+        gv = self.block_builder.get().get_global_var(unique_name)
+        self._branch_cache[cache_key] = gv
+        return gv
+
+    def _cond(self, node: fx.Node) -> relax.Expr:
+        """Convert torch.ops.higher_order.cond to relax.If.
+
+        FX graph structure:
+            %pred = call_function[target=aten.gt.Scalar](...)
+            %true_graph_0 = get_attr[target=true_graph_0]
+            %false_graph_0 = get_attr[target=false_graph_0]
+            %cond = call_function[target=higher_order.cond](
+                args=(%pred, %true_graph_0, %false_graph_0, (%operands...))
+            )
+        """
+        pred_node, true_graph_node, false_graph_node = node.args[0], node.args[1], node.args[2]
+        operand_nodes = node.args[3]
+
+        # Resolve the predicate.
+        pred = self.env[pred_node]
+
+        # Resolve operands (tuple of FX nodes).
+        operands = [self.env[n] for n in operand_nodes]
+
+        # Resolve branch subgraphs (GraphModule instances stored via get_attr).
+        true_graph = self.env[true_graph_node]
+        false_graph = self.env[false_graph_node]
+
+        # Static predicate: if pred is a Python bool, pick one branch.
+        if isinstance(pred, bool):
+            chosen = true_graph if pred else false_graph
+            gv = self._import_branch_subgraph(chosen, operands, "cond_static_branch")
+            return self.block_builder.emit(relax.Call(gv, operands))
+
+        # Import both branches as Relax functions.
+        true_gv = self._import_branch_subgraph(true_graph, operands, "cond_true_branch")
+        false_gv = self._import_branch_subgraph(false_graph, operands, "cond_false_branch")
+
+        # Build the If expression.
+        # true/false branches of relax.If are SeqExpr bodies, so we construct
+        # the call expressions that will be the body of each branch.
+        true_call = relax.Call(true_gv, operands)
+        false_call = relax.Call(false_gv, operands)
+        if_expr = relax.If(pred, true_call, false_call)
+        return self.block_builder.emit(if_expr, name_hint="cond_result")
+
     ########## Others ##########
 
     def create_convert_map(
         self,
-    ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
+    ) -> dict[str, Callable[[fx.Node], relax.Var]]:
         import operator
 
         return {
@@ -1217,8 +1556,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log2.default": self._log2,
             "log10.default": self._log10,
             "log1p.default": self._log1p,
-            "logical_not.default": self._unary_op(relax.op.logical_not),
-            "logical_and.default": self._binary_op(relax.op.logical_and, operator.and_),
+            "logical_not.default": self._logical_not,
+            "logical_and.default": self._logical_and,
             "log_softmax.int": self._log_softmax,
             "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
@@ -1254,6 +1593,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
             "tanh.default": self._unary_op(relax.op.tanh),
+            "to_sparse.default": self._to_sparse,
             "tril.default": self._tril_triu(relax.op.tril),
             "triu.default": self._tril_triu(relax.op.triu),
             "trunc.default": self._unary_op(relax.op.trunc),
@@ -1310,7 +1650,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
             ),
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
-            "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
+            "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
@@ -1475,6 +1815,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "new_zeros.default": self._new_zeros,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
+            "randn.default": self._randn,
+            "randn_like.default": self._randn_like,
             "ones_like.default": lambda node: self.block_builder.emit(
                 relax.op.ones_like(self.env[node.args[0]])
             ),
@@ -1482,6 +1824,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "zeros.default": self._zeros,
             "zeros_like.default": self._zeros_like,
             "grid_sampler_2d.default": self._grid_sampler_2d,
+            "affine_grid_generator.default": self._affine_grid_generator,
+            "roi_align.default": self._torchvision_roi_align,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
@@ -1496,27 +1840,31 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_assert_scalar.default": lambda node: self.env[node.args[0]],
             "ge": self._symbolic_comparison,
             "le": self._symbolic_comparison,
+            "gt": self._symbolic_comparison,
+            "lt": self._symbolic_comparison,
+            # higher-order ops
+            "cond": self._cond,
         }
 
     def _process_derived_symbol(
-        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
-    ) -> Tuple[str, Optional[tvm.tir.PrimExpr]]:
+        self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tirx.Var]
+    ) -> tuple[str, tvm.tirx.PrimExpr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 
         if isinstance(symbol, sympy.Symbol):
             return str(symbol), None
 
-        if not isinstance(symbol, (sympy.Add, sympy.Mul)):
+        if not isinstance(symbol, sympy.Add | sympy.Mul):
             return str(symbol), None
 
         tir_expr = None
         for arg in symbol.args:
             if isinstance(arg, sympy.Integer):
-                term = tvm.tir.IntImm("int64", int(arg))
+                term = tvm.tirx.IntImm("int64", int(arg))
             elif isinstance(arg, sympy.Symbol):
                 term = torch_symbol_to_relax_var.setdefault(
-                    str(arg), tvm.tir.SizeVar(str(arg), "int64")
+                    str(arg), tvm.tirx.SizeVar(str(arg), "int64")
                 )
             else:
                 _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
@@ -1531,25 +1879,25 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             elif isinstance(symbol, sympy.Add):
                 tir_expr = tir_expr + term
 
-        if isinstance(tir_expr, tvm.tir.Add):
+        if isinstance(tir_expr, tvm.tirx.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
                     return f"{var.name}___{const.value}", tir_expr
 
-        if isinstance(tir_expr, tvm.tir.Mul):
+        if isinstance(tir_expr, tvm.tirx.Mul):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tir.IntImm) and isinstance(var, tvm.tir.Var):
+                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
                     return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
+    ) -> tuple[dict[str, relax.Var], dict[str, relax.Var], dict[str, tuple[int, int | None]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
-        torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        torch_symbol_to_relax_var: dict[str, tvm.tirx.Var] = {}
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
@@ -1602,7 +1950,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     )
 
                     size_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tir.SizeVar(symbol_name, "int64")
+                        symbol_name, tvm.tirx.SizeVar(symbol_name, "int64")
                     )
                     relax_shape.append(size_var)
                 else:
@@ -1623,9 +1971,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
-        custom_convert_map: Optional[
-            Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-        ],
+        custom_convert_map: dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]] | None,
     ) -> tvm.IRModule:
         """Convert a PyTorch ExportedProgram to a Relax program."""
 
@@ -1663,49 +2009,42 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if upper_bounds:
                 func_attrs["tir_var_upper_bound"] = upper_bounds
 
-        nodes: List[fx.Node] = exported_program.graph.nodes
+        nodes: list[fx.Node] = exported_program.graph.nodes
 
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
 
+        # When the graph contains torch.cond, we must avoid DataflowBlock
+        # because relax.If cannot appear inside a dataflow region.
+        use_dataflow = not self._has_cond_op(nodes)
+
         with self.block_builder.function(
             name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
-            output = None
-            with self.block_builder.dataflow():
-                # Translate the model.
-                for node in nodes:
-                    if node.op == "placeholder":
-                        if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
-                            # Ignore sym input
-                            continue
+            with contextlib.ExitStack() as stack:
+                if use_dataflow:
+                    stack.enter_context(self.block_builder.dataflow())
 
-                        self.env[node] = inputs_vars[node.name]
-                    elif node.op == "output":
-                        args = self.retrieve_args(node)
-                        assert len(args) == 1
-                        assert isinstance(args[0], (tuple, relax.Tuple))
+                output_args = self._translate_fx_graph(
+                    exported_program.graph_module, nodes, inputs_vars, custom_ops
+                )
+                output_args = self._flatten_output_args(output_args)
 
-                        if unwrap_unit_return_tuple and len(args[0]) == 1:
-                            output = self.block_builder.emit_output(args[0][0])
-                        elif no_bind_return_tuple:
-                            output = []
-                            for ret in args[0]:
-                                output.append(self.block_builder.emit_output(ret))
-                        else:
-                            output = self.block_builder.emit_output(args[0])
-                        break
-                    elif node.op == "get_attr":
-                        self.env[node] = getattr(exported_program.graph_module, node.target)
-                    elif node.op == "call_function":
-                        func_name = node.target.__name__
-                        if func_name in custom_ops:
-                            self.env[node] = self.convert_map[func_name](node, self)
-                        else:
-                            self.env[node] = self.convert_map[func_name](node)
+                if unwrap_unit_return_tuple and len(output_args) == 1:
+                    ret = output_args[0]
+                elif no_bind_return_tuple:
+                    ret = output_args
+                else:
+                    ret = output_args
+
+                if use_dataflow:
+                    if no_bind_return_tuple:
+                        output = [self.block_builder.emit_output(r) for r in ret]
                     else:
-                        raise ValueError(f"Unsupported op {node.op}")
-            assert output is not None
+                        output = self.block_builder.emit_output(ret)
+                else:
+                    output = list(ret) if no_bind_return_tuple else ret
+
             self.block_builder.emit_func_output(output)
 
         to_bind_parameters = ChainMap(
@@ -1742,9 +2081,9 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    custom_convert_map: Optional[
-        Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-    ] = None,
+    custom_convert_map: (
+        dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]] | None
+    ) = None,
     run_ep_decomposition: bool = True,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program
@@ -1812,8 +2151,28 @@ def from_exported_program(
         # Use the importer to import the ExportedProgram to Relax.
         mod: tvm.IRModule = from_exported_program(exported_program)
     """
+
+    def _is_sparse_tensor(value: object) -> bool:
+        if not isinstance(value, torch.Tensor):
+            return False
+        try:
+            return value.layout != torch.strided
+        except RuntimeError:
+            return False
+
+    def _has_sparse_tensors(ep: torch.export.ExportedProgram) -> bool:
+        from itertools import chain
+
+        all_potential_tensors = chain(
+            (t for _, t in ep.named_buffers()),
+            (t for _, t in ep.named_parameters()),
+            ep.constants.values(),
+            ep.tensor_constants.values(),
+        )
+        return any(_is_sparse_tensor(t) for t in all_potential_tensors)
+
     # Conditionally decompose into Core ATen operators
-    if run_ep_decomposition:
+    if run_ep_decomposition and not _has_sparse_tensors(exported_program):
         exported_program = exported_program.run_decompositions()
 
     return ExportedProgramImporter().from_exported_program(

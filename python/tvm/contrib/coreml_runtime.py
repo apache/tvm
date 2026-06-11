@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """CoreML runtime that load and run coreml models."""
+
 import tvm_ffi
+
 from ..rpc import base as rpc_base
 
 
 def create(symbol, compiled_model_path, device):
     """Create a runtime executor module given a coreml model and context.
+
     Parameters
     ----------
     symbol : str
@@ -47,7 +50,7 @@ def create(symbol, compiled_model_path, device):
     return CoreMLModule(fcreate(symbol, compiled_model_path))
 
 
-class CoreMLModule(object):
+class CoreMLModule:
     """Wrapper runtime module.
 
     This is a thin wrapper of the underlying TVM module.

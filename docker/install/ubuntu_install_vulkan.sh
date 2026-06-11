@@ -22,7 +22,12 @@ set -o pipefail
 VULKAN_VERSION=1.4.309
 UBUNTU_VERSION=jammy
 
-wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -
-wget -qO /etc/apt/sources.list.d/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list http://packages.lunarg.com/vulkan/${VULKAN_VERSION}/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list
+wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc \
+	| gpg --dearmor -o /usr/share/keyrings/lunarg-vulkan.gpg
+wget -qO /tmp/lunarg-vulkan.list \
+	http://packages.lunarg.com/vulkan/${VULKAN_VERSION}/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list
+sed -E 's|^deb(-src)? |deb\1 [signed-by=/usr/share/keyrings/lunarg-vulkan.gpg] |' /tmp/lunarg-vulkan.list \
+	> /etc/apt/sources.list.d/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list
+rm -f /tmp/lunarg-vulkan.list
 apt-get update
 apt-install-and-clear -y vulkan-sdk

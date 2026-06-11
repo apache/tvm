@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,7 +20,6 @@
 
 Used to verify the correctness of operators in TOPI .
 """
-from __future__ import absolute_import as _abs
 
 from .conv1d_ncw_python import conv1d_ncw_python, group_conv1d_ncw_python
 from .conv2d_hwcn_python import conv2d_hwcn_python
@@ -54,9 +54,11 @@ from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
 from .gather_python import gather_python
 from .gather_nd_python import gather_nd_python
+from .get_valid_counts_python import get_valid_counts_python
 from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
 from .batch_norm import batch_norm
+from .nms_python import non_max_suppression_python
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
 from .poolnd_python import poolnd_python

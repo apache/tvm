@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
+
 import os
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
 from tvm_ffi.access_path import AccessPath
+
 from tvm.runtime import Object
 
 from . import _ffi_node_api
@@ -32,8 +34,6 @@ class PrinterConfig(Object):
     binding_names: Sequence[str]
     show_meta: bool
     ir_prefix: str
-    tir_prefix: str
-    relax_prefix: str
     module_alias: str
     buffer_dtype: str
     int_dtype: str
@@ -44,20 +44,18 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
-    show_all_struct_info: bool
-    path_to_underline: Optional[List[AccessPath]]
-    path_to_annotate: Optional[Dict[AccessPath, str]]
-    obj_to_underline: Optional[List[AccessPath]]
-    obj_to_annotate: Optional[Dict[AccessPath, str]]
+    extra_config: dict
+    path_to_underline: list[AccessPath] | None
+    path_to_annotate: dict[AccessPath, str] | None
+    obj_to_underline: list[AccessPath] | None
+    obj_to_annotate: dict[AccessPath, str] | None
 
     def __init__(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
         buffer_dtype: str = "float32",
         int_dtype: str = "int32",
@@ -65,22 +63,21 @@ class PrinterConfig(Object):
         verbose_expr: bool = False,
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
+        num_context_lines: int | None = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        extra_config: dict | None = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
-        cfg = {
+        cfg: dict = {
             "show_meta": show_meta,
             "ir_prefix": ir_prefix,
-            "tir_prefix": tir_prefix,
-            "relax_prefix": relax_prefix,
             "module_alias": module_alias,
             "buffer_dtype": buffer_dtype,
             "int_dtype": int_dtype,
@@ -91,17 +88,21 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
-            "show_all_struct_info": show_all_struct_info,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
             "obj_to_annotate": obj_to_annotate,
+            # Dialect-specific config via dotted keys in extra_config
+            "relax.show_all_struct_info": show_all_struct_info,
         }
 
         if name is not None:
             cfg["name"] = name
+        if extra_config is not None:
+            cfg["extra_config"] = extra_config
         self.__init_handle_by_constructor__(
-            _ffi_node_api.PrinterConfig, cfg  # type: ignore # pylint: disable=no-member
+            _ffi_node_api.PrinterConfig,
+            cfg,  # type: ignore # pylint: disable=no-member
         )
 
 
@@ -120,13 +121,10 @@ class Scriptable:
     def script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -136,10 +134,11 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        extra_config: dict | None = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -151,15 +150,9 @@ class Scriptable:
             Whether to print the meta data of the object
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
-        tir_prefix : str = "T"
-            The prefix of AST nodes from tvm.tir
-        relax_prefix : str = "R"
-            The prefix of AST nodes from tvm.relax
         module_alias : str = "cls"
             The alias of the current module at cross-function call,
             Directly use module name if it's empty.
-        buffer_dtype : str = "float32"
-            The default data type of buffer
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -180,6 +173,10 @@ class Scriptable:
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
+        extra_config : Optional[dict] = None
+            Dialect-specific configuration passed through to PrinterConfig.extra_config.
+            Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
+            ``{"tirx.prefix": "T"}``.
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -195,16 +192,47 @@ class Scriptable:
             The TVM Script of the given TVM IR
 
         """
+        # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
+        # printing a PrimFunc / IRModule that has no s_tir-tagged content.
+        # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
+        # flavor -- they have no enclosing function to indicate tirx vs s_tir.
+        merged_extra: dict = {}
+        if extra_config is not None:
+            merged_extra.update(extra_config)
+
+        # Only auto-switch if the caller has not already set a tirx.prefix override.
+        if "tirx.prefix" not in merged_extra:
+            from tvm.ir import IRModule  # pylint: disable=import-outside-toplevel
+            from tvm.tirx import PrimFunc  # pylint: disable=import-outside-toplevel
+
+            switch_to_tirx = False
+            if isinstance(self, PrimFunc):
+                attrs = getattr(self, "attrs", None)
+                if attrs is None or not attrs.get("s_tir", False):
+                    switch_to_tirx = True
+            elif isinstance(self, IRModule):
+                any_prim = False
+                any_s_tir = False
+                for _, base_func in self.functions.items():
+                    if isinstance(base_func, PrimFunc):
+                        any_prim = True
+                        if getattr(base_func, "attrs", None) and base_func.attrs.get(
+                            "s_tir", False
+                        ):
+                            any_s_tir = True
+                            break
+                if any_prim and not any_s_tir:
+                    switch_to_tirx = True
+            if switch_to_tirx:
+                merged_extra["tirx.prefix"] = "T"
+
         return _script(
             self,
             PrinterConfig(
                 name=name,
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
-                tir_prefix=tir_prefix,
-                relax_prefix=relax_prefix,
                 module_alias=module_alias,
-                buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
@@ -214,6 +242,7 @@ class Scriptable:
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
                 show_all_struct_info=show_all_struct_info,
+                extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -224,13 +253,10 @@ class Scriptable:
     def _relax_script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -239,10 +265,11 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        extra_config: dict | None = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
         return _relax_script(
             self,
@@ -250,10 +277,7 @@ class Scriptable:
                 name=name,
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
-                tir_prefix=tir_prefix,
-                relax_prefix=relax_prefix,
                 module_alias=module_alias,
-                buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
@@ -262,6 +286,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
+                extra_config=extra_config,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -271,16 +296,13 @@ class Scriptable:
 
     def show(
         self,
-        style: Optional[str] = None,
-        black_format: Optional[bool] = None,
+        style: str | None = None,
+        black_format: bool | None = None,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
-        tir_prefix: str = "T",
-        relax_prefix: str = "R",
         module_alias: str = "cls",
-        buffer_dtype: str = "float32",
         int_dtype: str = "int32",
         float_dtype: str = "void",
         verbose_expr: bool = False,
@@ -290,10 +312,11 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        extra_config: dict | None = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> None:
         """A sugar for print highlighted TVM script.
 
@@ -328,15 +351,9 @@ class Scriptable:
             Whether to print the meta data of the object
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
-        tir_prefix : str = "T"
-            The prefix of AST nodes from tvm.tir
-        relax_prefix : str = "R"
-            The prefix of AST nodes from tvm.relax
         module_alias : str = "cls"
             The alias of the current module at cross-function call,
             Directly use module name if it's empty.
-        buffer_dtype : str = "float32"
-            The default data type of buffer
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -357,6 +374,8 @@ class Scriptable:
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
             required for unambiguous round-trip of Relax -> TVMScript -> Relax.
+        extra_config : Optional[dict] = None
+            Dialect-specific configuration passed through to PrinterConfig.extra_config.
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -367,9 +386,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
-            cprint,
-        )
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")
@@ -380,10 +397,7 @@ class Scriptable:
                 name=name,
                 show_meta=show_meta,
                 ir_prefix=ir_prefix,
-                tir_prefix=tir_prefix,
-                relax_prefix=relax_prefix,
                 module_alias=module_alias,
-                buffer_dtype=buffer_dtype,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 verbose_expr=verbose_expr,
@@ -393,6 +407,7 @@ class Scriptable:
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
                 show_all_struct_info=show_all_struct_info,
+                extra_config=extra_config,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,

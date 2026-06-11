@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-from . import _ffi_api, tensor, Tensor
+
+from . import Tensor, _ffi_api, tensor
 
 
 def _to_tensor(params):
@@ -89,7 +90,7 @@ def load_param_dict(param_bytes):
     params : dict of str to Tensor
         The parameter dictionary.
     """
-    if isinstance(param_bytes, (bytes, str)):
+    if isinstance(param_bytes, bytes | str):
         param_bytes = bytearray(param_bytes)
     return _ffi_api.LoadParams(param_bytes)
 

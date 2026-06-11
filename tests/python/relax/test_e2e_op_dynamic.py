@@ -14,16 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 import numpy as np
 import pytest
+
 import tvm
-from tvm import relax
-import tvm.topi.testing
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
 
-# TODO(tvm-team): `tir.transform.DefaultGPUSchedule` does not work.
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
+import tvm.topi.testing
+from tvm import relax
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tirx as T
+
+# TODO(tvm-team): `tirx.transform.DefaultGPUSchedule` does not work.
 target, dev = "llvm", tvm.cpu()
 
 

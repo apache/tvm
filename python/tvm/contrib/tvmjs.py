@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401
 """Namespace to store utilities for building web runtime."""
+
 import hashlib
 import json
 import math
@@ -23,8 +25,9 @@ import shutil
 
 # pylint: disable=unused-import
 import sys
+from collections.abc import Iterator, Mapping
 from types import GeneratorType
-from typing import Any, Iterator, Mapping, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -34,10 +37,8 @@ except ImportError:
     ml_dtypes = None
 
 import tvm
-from tvm.libinfo import find_lib_path
 from tvm.runtime import DataType
-
-from .emcc import create_tvmjs_wasm
+from tvm.support.emcc import create_tvmjs_wasm, find_wasm_lib
 
 
 def _convert_f32_to_bf16(value):
@@ -79,7 +80,7 @@ class TensorCacheShardingManager:
         cache_dir: str,
         prefix: str,
         shard_cap_nbytes: int,
-        initial_shard_records: Optional[Mapping[str, Any]] = None,
+        initial_shard_records: Mapping[str, Any] | None = None,
     ):
         self.cache_dir = cache_dir
         self.prefix = prefix
@@ -88,8 +89,8 @@ class TensorCacheShardingManager:
         self.shard_records = []
         self.shard_cap_nbytes = shard_cap_nbytes
         self.counter = 0
-        self.name_to_record: Mapping[str, Tuple[int, Mapping[str, Any]]] = {}
-        self.updated_shards: Set[int] = set()
+        self.name_to_record: Mapping[str, tuple[int, Mapping[str, Any]]] = {}
+        self.updated_shards: set[int] = set()
 
         if initial_shard_records is not None:
             self.shard_records = initial_shard_records
@@ -199,10 +200,8 @@ class TensorCacheShardingManager:
 
 
 def dump_tensor_cache(
-    params: Union[
-        Mapping[str, Union[np.ndarray, tvm.runtime.Tensor]],
-        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.Tensor]]],
-    ],
+    params: Mapping[str, np.ndarray | tvm.runtime.Tensor]
+    | Iterator[tuple[str, np.ndarray | tvm.runtime.Tensor]],
     cache_dir: str,
     encode_format="f32-to-bf16",
     meta_data=None,
@@ -254,12 +253,12 @@ def dump_tensor_cache(
 
     f32_to_bf16_triggered = False
 
-    print("Start storing to cache %s" % cache_dir)
+    print(f"Start storing to cache {cache_dir}")
     shard_cap_nbytes = shard_cap_mb * (1 << 20)
 
     nd_cache_json = os.path.join(cache_dir, "tensor-cache.json")
     if update_if_exists and os.path.exists(nd_cache_json):
-        with open(nd_cache_json, "r") as infile:
+        with open(nd_cache_json) as infile:
             old_data = json.load(infile)
             if meta_data is None:
                 meta_data = old_data["metadata"]
@@ -304,7 +303,7 @@ def dump_tensor_cache(
 
         counter += 1
         if show_progress:
-            last_cmd = "[%04d] saving %s" % (counter, k)
+            last_cmd = f"[{counter:04d}] saving {k}"
             flush = "\r" + (" " * max_out_length) + "\r"
             max_out_length = max(len(last_cmd), max_out_length)
             sys.stdout.write(flush + last_cmd)
@@ -315,8 +314,7 @@ def dump_tensor_cache(
     with open(nd_cache_json, "w") as outfile:
         json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
     print(
-        "\nAll finished, %d total shards committed, record saved to %s"
-        % (shard_manager.counter, nd_cache_json)
+        f"\nAll finished, {shard_manager.counter} total shards committed, record saved to {nd_cache_json}"
     )
 
     if f32_to_bf16_triggered:
@@ -329,7 +327,7 @@ def dump_tensor_cache(
         # also dump a file that contains bf16
         with open(b16_nd_cache_json, "w") as outfile:
             json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
-        print("Also saved a bf16 record to %s" % b16_nd_cache_json)
+        print(f"Also saved a bf16 record to {b16_nd_cache_json}")
 
 
 def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
@@ -348,7 +346,7 @@ def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
         cachepath = os.path.join(cachepath, "tensor-cache.json")
 
     cachedir = os.path.dirname(cachepath)
-    json_info = json.loads(open(cachepath, "r").read())
+    json_info = json.loads(open(cachepath).read())
     result_dict = {}
 
     for shard_rec in json_info["records"]:
@@ -410,11 +408,11 @@ def export_runtime(runtime_dir):
         + " cd /path/to/tvm/web; make; npm run bundle"
     )
 
-    jsbundle = find_lib_path("tvmjs.bundle.js", optional=True)
+    jsbundle = find_wasm_lib("tvmjs.bundle.js", optional=True)
     if not jsbundle:
         raise RuntimeError("Cannot find tvmjs.bundle.js, " + web_hint)
 
-    wasi = find_lib_path("tvmjs_runtime.wasi.js", optional=True)
+    wasi = find_wasm_lib("tvmjs_runtime.wasi.js", optional=True)
     if not wasi:
         raise RuntimeError("Cannot find tvmjs_runtime.wasi.js, " + web_hint)
 

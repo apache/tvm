@@ -78,12 +78,10 @@ endif()
 
 
 if(NOT USE_HEXAGON)
-  # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
-  # and some stuff needed by cpptests (this part is a temporary workaround
-  # until e2e support for Hexagon is enabled).
-  if(BUILD_FOR_HOST)
-    list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-  endif()
+  # USE_HEXAGON=OFF: codegen still works through the per-backend fallback
+  # module (src/target/hexagon/hexagon_fallback_module.cc), which is always
+  # compiled into libtvm via CODEGEN_SRCS.  No opt-stub registration is
+  # needed.
   return()
 endif()
 
@@ -121,7 +119,8 @@ function(add_hexagon_wrapper_paths)
 endfunction()
 
 if(BUILD_FOR_HEXAGON)
-  # Common sources for TVM runtime with Hexagon support
+  # When building FOR Hexagon (the DSP itself), all runtime sources go into
+  # the single libtvm_runtime (static or shared). No per-backend DSO split.
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
   )
@@ -142,15 +141,6 @@ if(${supported_arch_index} EQUAL -1)
 endif()
 
 if(BUILD_FOR_HEXAGON)
-  if(DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
-    file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/hexagon/*.cc"
-    )
-    if(${supported_arch_index} EQUAL -1)
-      # Exclude User DMA files when building for archs below v68
-      list(REMOVE_ITEM RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/hexagon_user_dma_tests.cc")
-    endif()
-  endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
     QURT_INCLUDE  QURT_INCLUDE_DIRS
@@ -167,7 +157,7 @@ if(BUILD_FOR_HEXAGON)
 
   set(USE_CUSTOM_LOGGING ON) # To use a custom logger
 
-# QHL support.
+  # QHL support.
   if(USE_HEXAGON_QHL)
     file_glob_append(TVM_QHL_WRAPPER_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/qhl/*.cc"
@@ -212,10 +202,10 @@ if(BUILD_FOR_HEXAGON)
   # Include hexagon external library runtime sources
   if(USE_HEXAGON_EXTERNAL_LIBS)
     # Check if the libs are provided as an absolute path
-    if (EXISTS ${USE_HEXAGON_EXTERNAL_LIBS})
+    if(EXISTS ${USE_HEXAGON_EXTERNAL_LIBS})
     # Check if the libs are provided as a git url
     elseif(USE_HEXAGON_EXTERNAL_LIBS MATCHES "\.git$")
-      if (NOT DEFINED HEXAGON_EXTERNAL_LIBS_SHA)
+      if(NOT DEFINED HEXAGON_EXTERNAL_LIBS_SHA)
         message(FATAL_ERROR "HEXAGON_EXTERNA_LIBS_SHA must be set when "
           "USE_HEXAGON_EXTERNAL_LIBS is set to a git repository")
       endif()
@@ -235,7 +225,7 @@ if(BUILD_FOR_HEXAGON)
       "${USE_HEXAGON_EXTERNAL_LIBS}/src/runtime/hexagon/*.cc"
     )
     list(APPEND RUNTIME_HEXAGON_SRCS "${HEXAGON_EXTERNAL_RUNTIME_SRCS}")
-    if (EXISTS "${USE_HEXAGON_EXTERNAL_LIBS}/HexagonExternalCompileFlags.cmake")
+    if(EXISTS "${USE_HEXAGON_EXTERNAL_LIBS}/HexagonExternalCompileFlags.cmake")
       # External libraries will define HEXAGON_EXTERNAL_LIBS_COMPILE_FLAGS,
       # changing this variable name will break downstream external libraries.
       include("${USE_HEXAGON_EXTERNAL_LIBS}/HexagonExternalCompileFlags.cmake")
@@ -299,8 +289,8 @@ if(USE_HEXAGON_RPC)
 
     # Include the generic RPC code into the TVM runtime.
     list(APPEND RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/minrpc/minrpc_server.h"
-      "${TVMRT_SOURCE_DIR}/minrpc/rpc_reference.h"
+      "${TVMRT_SOURCE_DIR}/rpc/minrpc/minrpc_server.h"
+      "${TVMRT_SOURCE_DIR}/rpc/minrpc/rpc_reference.h"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_endpoint.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"
@@ -340,4 +330,21 @@ if(USE_HEXAGON_RPC)
   endif()
 endif()   # USE_HEXAGON_RPC
 
-list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${TVM_QHL_WRAPPER_SRCS})
+# When building for the Hexagon DSP itself, all sources fold into
+# libtvm_runtime (static/shared). When building for a host with
+# USE_HEXAGON=ON, create a separate libtvm_runtime_hexagon.so.
+if(BUILD_FOR_HEXAGON)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${TVM_QHL_WRAPPER_SRCS})
+elseif(USE_HEXAGON)
+  message(STATUS "Build hexagon device runtime")
+  add_library(tvm_runtime_hexagon_objs OBJECT ${RUNTIME_HEXAGON_SRCS} ${TVM_QHL_WRAPPER_SRCS})
+  target_link_libraries(tvm_runtime_hexagon_objs PUBLIC tvm_ffi_header)
+  set_target_properties(tvm_runtime_hexagon_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  if(TVM_VISIBILITY_FLAG)
+    target_compile_options(tvm_runtime_hexagon_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
+  endif()
+  add_library(tvm_runtime_hexagon SHARED $<TARGET_OBJECTS:tvm_runtime_hexagon_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_hexagon)
+  target_link_libraries(tvm_runtime_hexagon PUBLIC tvm_runtime)
+  tvm_configure_target_library(tvm_runtime_hexagon RUNTIME_MODULE)
+endif()

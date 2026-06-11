@@ -55,7 +55,7 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
     out_ndim = kUnknownNDim;
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   // The inference rule for reduction operator output shapes:
@@ -87,35 +87,35 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
       out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 InferLayoutOutput InferLayoutStatistical(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
-  ICHECK(attrs != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
   int ndim = tensor_sinfo->ndim;
 
-  ffi::Array<Integer> axis;
+  ffi::Array<int64_t> axis;
   if (attrs->axis.defined()) {
     axis = attrs->axis.value();
   } else {
     axis.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      axis.push_back(Integer(i));
+      axis.push_back(i);
     }
   }
 
   std::string axis_str(ndim, '0');
-  for (const auto& iter : axis) {
-    axis_str[(iter->value + ndim) % ndim] = '#';
+  for (int64_t iter : axis) {
+    axis_str[(iter + ndim) % ndim] = '#';
   }
   for (int i = 0, j = 0; i < ndim; ++i) {
     if (axis_str[i] != '#') {
@@ -131,10 +131,10 @@ InferLayoutOutput InferLayoutStatistical(
                                     [](unsigned char c) { return std::isdigit(c); }),
                      new_axis_str.end());
 
-  ffi::Array<Integer> new_axis;
+  ffi::Array<int64_t> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
     if (new_axis_str.at(i) == '#') {
-      new_axis.push_back(Integer(i));
+      new_axis.push_back(static_cast<int64_t>(i));
     }
   }
   std::string output_layout;
@@ -145,10 +145,10 @@ InferLayoutOutput InferLayoutStatistical(
     output_layout.push_back(output_layout_ref[i]);
   }
 
-  ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
+  ffi::ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;
   return InferLayoutOutput({exisiting_layout},
-                           {attrs->keepdims ? exisiting_layout : Layout(output_layout)},
+                           {attrs->keepdims ? exisiting_layout : SLayout(output_layout)},
                            Attrs(new_attrs));
 }
 
@@ -198,7 +198,7 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
     out_ndim = kUnknownNDim;
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   // The inference rule for median operator output shapes:
@@ -232,7 +232,7 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
       out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
 
   if (!attrs->axis.defined() || axes.size() > 1)
     return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
@@ -244,11 +244,11 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
 
 /* relax.cumprod */
 Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtype,
-             Bool exclusive) {
+             bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
   attrs->dtype = std::move(dtype.value_or(DataType::Void()));
-  attrs->exclusive = std::move(exclusive);
+  attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumprod");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
@@ -264,14 +264,14 @@ TVM_REGISTER_OP("relax.cumprod")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.cumsum */
-Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtype, Bool exclusive) {
+Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DataType> dtype, bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
   attrs->dtype = std::move(dtype.value_or(DataType::Void()));
-  attrs->exclusive = std::move(exclusive);
+  attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumsum");
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
@@ -287,11 +287,11 @@ TVM_REGISTER_OP("relax.cumsum")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.median */
-Expr median(Expr data, ffi::Optional<ffi::Array<Integer>> axis, bool keepdims) {
-  ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>();
+Expr median(Expr data, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
+  ffi::ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op& op = Op::Get("relax.median");
@@ -307,7 +307,7 @@ TVM_REGISTER_OP("relax.median")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatisticalExtension)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 RELAX_REGISTER_STATISTICAL_OP_INTERFACE(max);
 RELAX_REGISTER_STATISTICAL_OP_INTERFACE(mean);

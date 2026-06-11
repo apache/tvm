@@ -62,7 +62,7 @@ GlobalVarSupply::GlobalVarSupply(const IRModule module)
 void GlobalVarSupplyNode::ReserveGlobalVar(const GlobalVar& var, bool allow_conflict) {
   name_supply_->ReserveName(var->name_hint, false);
   if (!allow_conflict) {
-    ICHECK(name_to_var_map_.count(var->name_hint) == 0)
+    TVM_FFI_ICHECK(name_to_var_map_.count(var->name_hint) == 0)
         << "GlobalVar " << var << " conflicts by name in this supply.";
   }
   name_to_var_map_[var->name_hint] = var;
@@ -87,7 +87,7 @@ GlobalVar GlobalVarSupplyNode::UniqueGlobalFor(const ffi::String& name, bool add
 
 GlobalVar GlobalVarSupplyNode::FreshGlobal(ffi::String name, bool add_prefix) {
   ffi::String final_name = name_supply_->FreshName(name, add_prefix);
-  ICHECK(name_to_var_map_.find(final_name) == name_to_var_map_.end())
+  TVM_FFI_ICHECK(name_to_var_map_.find(final_name) == name_to_var_map_.end())
       << "GlobalVar already exists for name " << final_name;
   GlobalVar var = GlobalVar(final_name);
   name_to_var_map_.emplace(final_name, var);

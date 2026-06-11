@@ -23,8 +23,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/with_context.h>
 #include <tvm/script/printer/ir_docsifier.h>
-#include <tvm/support/with.h>
 
 #include <string>
 #include <utility>
@@ -49,7 +49,7 @@ class IRFrameNode : public FrameNode {
 class IRFrame : public Frame {
  public:
   explicit IRFrame(const IRDocsifier& d) {
-    ObjectPtr<IRFrameNode> n = ffi::make_object<IRFrameNode>();
+    ffi::ObjectPtr<IRFrameNode> n = ffi::make_object<IRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
     n->global_infos = nullptr;
@@ -59,8 +59,8 @@ class IRFrame : public Frame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRFrame, Frame, IRFrameNode);
 };
 
-/*! \brief Redirected method for the ReprPrinter */
-inline std::string ReprPrintIR(const ObjectRef& obj, const PrinterConfig& cfg) {
+/*! \brief Redirected method for the ffi repr hook */
+inline std::string ReprPrintIR(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   IRDocsifier d(cfg);
   With<IRFrame> f(d);
   (*f)->AddDispatchToken(d, "ir");

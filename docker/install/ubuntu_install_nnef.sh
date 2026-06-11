@@ -20,5 +20,5 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install \
+uv pip install \
     nnef==1.0.8

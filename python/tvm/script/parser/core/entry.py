@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser."""
+
 import inspect
-from typing import Any, Dict, Union
+from typing import Any
 
 import tvm
-from tvm.relax import ExternFunc
+
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -35,24 +36,36 @@ WELL_FORMED_ERROR_MESSAGE = (
 )
 
 
-def _default_globals() -> Dict[str, Any]:
-    from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+def _default_globals() -> dict[str, Any]:
+    # lazy import here to avoid circular deps
+    from tvm.script import tirx as _tirx_dsl  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import (
+        ir,  # pylint: disable=import-outside-toplevel
+        relax,  # pylint: disable=import-outside-toplevel
+    )
+    from tvm.script.parser import tirx as _tirx_parser  # pylint: disable=import-outside-toplevel
+    from tvm.script.tirx import tile as _tirx_tile  # pylint: disable=import-outside-toplevel
+    from tvm.tirx import layout as _tirx_layout  # pylint: disable=import-outside-toplevel
 
-    extra_vars = {
+    # Expose the layout `Axis` class so printed layout sugar like
+    # `4 @ Axis.laneid` round-trips without per-script imports. Injecting just
+    # `Axis` (one short symbol) avoids name collisions with common user shape
+    # vars like `m`, `P`, `F` that registered axes happen to share names with.
+    return {
         "tvm": tvm,
         "I": ir,
         "ir": ir,
-        "T": tir,
-        "tir": tir,
+        "T": _tirx_parser,
+        "tir": _tirx_parser,
         "R": relax,
         "relax": relax,
+        "Tx": _tirx_tile,
+        "tirx": _tirx_dsl,
+        "Axis": _tirx_layout.Axis,
     }
-    return extra_vars
 
 
-def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def scan_macro(program: Any | str, extra_vars: dict[str, Any] | None = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
     # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
@@ -61,9 +74,10 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
 
 
 def parse(
-    program: Union[doc.AST, Any, str],
-    extra_vars: Dict[str, Any] = None,
+    program: doc.AST | Any | str,
+    extra_vars: dict[str, Any] | None = None,
     check_well_formed: bool = True,
+    s_tir: bool = False,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
@@ -116,17 +130,20 @@ def parse(
 
         source_ast = source.as_ast()
 
-        if isinstance(ret, (IRModule, tvm.relax.Function)) and not tvm.relax.analysis.well_formed(
-            ret
-        ):
+        if isinstance(
+            ret, IRModule | tvm.relax.Function
+        ) and not tvm.relax.analysis.check_well_formed(ret):
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:
-            tvm.tir.analysis.verify_well_formed(check_ret)
+            if s_tir:
+                tvm.tirx.analysis.verify_well_formed(check_ret)
+            else:
+                tvm.tirx.analysis.verify_tirx_well_formed(check_ret)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,
-                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
+                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {err!s}",
             )
     return ret
 
@@ -169,7 +186,7 @@ def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
         irmodule.pyfuncs = {}
 
     for global_var, func in irmodule.functions_items():
-        if not isinstance(func, ExternFunc):
+        if not isinstance(func, tvm.relax.ExternFunc):
             continue
         if not func.attrs.get("is_pyfunc", False):
             continue

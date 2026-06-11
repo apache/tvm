@@ -18,17 +18,17 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tir
-from tvm.script import tir as T
 import tvm.ir
+import tvm.testing
+from tvm import tirx
+from tvm.script import tirx as T
 
 
 def test_simplify_reshape_flattened_index():
     ana = tvm.arith.Analyzer()
 
-    i0 = tir.Var("i0", "int64")
-    i1 = tir.Var("i1", "int64")
+    i0 = tirx.Var("i0", "int64")
+    i1 = tirx.Var("i1", "int64")
     ana.bind(i0, tvm.ir.Range(0, 8))
     ana.bind(i1, tvm.ir.Range(0, 3))
 
@@ -57,23 +57,23 @@ dtype = tvm.testing.parameter(
 def test_can_prove_self_identity(dtype):
     ana = tvm.arith.Analyzer()
 
-    n = tir.Var("n", dtype)
+    n = tirx.Var("n", dtype)
     assert ana.can_prove(n == n)
 
 
 def test_can_prove_self_equal_to_self(dtype):
     ana = tvm.arith.Analyzer()
 
-    n = tir.Var("n", dtype)
+    n = tirx.Var("n", dtype)
     assert ana.can_prove_equal(n, n)
 
 
 def test_simplify_symbolic_comparison():
     ana = tvm.arith.Analyzer()
 
-    i0 = tir.Var("i0", "int64")
-    i1 = tir.Var("i1", "int64")
-    n, m = tvm.tir.SizeVar("n", "int64"), tvm.tir.SizeVar("m", "int64")
+    i0 = tirx.Var("i0", "int64")
+    i1 = tirx.Var("i1", "int64")
+    n, m = tvm.tirx.SizeVar("n", "int64"), tvm.tirx.SizeVar("m", "int64")
     outer = (n + 31) // 32
     ana.bind(i0, tvm.ir.Range(0, outer))
     ana.bind(i1, tvm.ir.Range(0, 32))
@@ -87,6 +87,11 @@ def test_simplify_symbolic_comparison():
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
 
 
+# These tests exercised arith::CanProve's substitution-based proof loop for
+# vscale-bearing expressions (iterating over known vscale values for a VLA target).
+# That loop has been removed -- arith no longer attempts target-dependent proofs
+# about scalable-vector lengths. The LOG(WARNING) for non-VLA targets is also gone.
+@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
 @pytest.mark.parametrize(
     "expression",
     [
@@ -99,32 +104,37 @@ def test_simplify_symbolic_comparison():
 def test_simplify_vscale_comparison_with_sve_target(expression):
     ana = tvm.arith.Analyzer()
 
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         assert ana.can_prove(expression)
 
 
+@pytest.mark.xfail(
+    reason="arith no longer emits a LOG(WARNING) for vscale proofs on non-VLA targets"
+)
 def test_simplify_vscale_comparison_without_sve_target(capfd):
     ana = tvm.arith.Analyzer()
-    vs = tvm.tir.vscale()
+    vs = tvm.tirx.vscale()
 
     with pytest.raises(AssertionError):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"}):
             assert ana.can_prove(vs * 32 < vs * 64)
 
-    warning_msg = (
+    warning_prefix = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
+        "VLA targets, but the target was "
     )
     capture = capfd.readouterr().err
-    assert warning_msg in capture
+    assert warning_prefix in capture
+    assert '"kind":"llvm"' in capture
+    assert '"mtriple":"aarch64-linux-gnu"' in capture
 
 
 def test_regression_simplify_inf_recursion():
     ana = tvm.arith.Analyzer()
-    cond = tir.Var("cond", "int32")
+    cond = tirx.Var("cond", "int32")
 
-    res = (tvm.tir.NE(cond, 0).astype("int8") - tvm.tir.NE(cond, 0).astype("int8")).astype(
+    res = (tvm.tirx.NE(cond, 0).astype("int8") - tvm.tirx.NE(cond, 0).astype("int8")).astype(
         "int32"
     ) == 0
     # regression in a previous case
@@ -132,24 +142,38 @@ def test_regression_simplify_inf_recursion():
     ana.rewrite_simplify(res)
 
 
+def test_bind_allow_override():
+    ana = tvm.arith.Analyzer()
+    x = tirx.Var("x", "int64")
+
+    ana.bind(x, tvm.ir.Range(0, 10))
+    ana.bind(x, tvm.ir.Range(0, 5), allow_override=True)
+    assert ana.can_prove(x < 5)
+
+    with pytest.raises(
+        tvm.error.TVMError, match="Trying to update var 'x' with a different const bound"
+    ):
+        ana.bind(x, tvm.ir.Range(0, 3))
+
+
 def test_simplify_floor_mod_with_linear_offset():
     """
     Test that the floor_mod is simplified correctly when the offset is linear.
     """
     ana = tvm.arith.Analyzer()
-    past_decoder_sequence_length = tir.Var("past_decoder_sequence_length", "int64")
+    past_decoder_sequence_length = tirx.Var("past_decoder_sequence_length", "int64")
     expr1 = (past_decoder_sequence_length + 1) * 64
     divisor1 = (past_decoder_sequence_length + 1) * 32
-    assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor1), 0)
+    assert ana.can_prove_equal(tvm.tirx.floormod(expr1, divisor1), 0)
     divisor2 = 32 * (past_decoder_sequence_length + 1)
-    assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor2), 0)
+    assert ana.can_prove_equal(tvm.tirx.floormod(expr1, divisor2), 0)
 
 
 def test_simplify_float_division():
     # Test for the discussion:
     # https://discuss.tvm.apache.org/t/discuss-is-constant-division-to-multiplication-rewrite-in-tvm-necessary/18615
     ana = tvm.arith.Analyzer()
-    x = tir.Var("x", "float32")
+    x = tirx.Var("x", "float32")
     ry = x / 27
     # in old version, the division will be rewritten into x * T.float32(1 / 27)
     sy = ana.rewrite_simplify(ry)

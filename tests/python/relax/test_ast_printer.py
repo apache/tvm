@@ -14,19 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F811, F841
 import re
 from functools import partial
-from typing import Dict
 
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # Overload dump_ast to test both struct info and type annotations
 dump_ast = partial(dump_ast, include_struct_info_annotations=True)
@@ -57,7 +58,7 @@ def normalize(func: rx.Function) -> rx.Function:
     return mod["main"]
 
 
-def assert_fields(nodename: str, fields: Dict[str, str], target: str) -> None:
+def assert_fields(nodename: str, fields: dict[str, str], target: str) -> None:
     """
     Given a target string, ensure that the string defines the specified node
     and that the given mappings of fields to values are present in the string.
@@ -103,8 +104,8 @@ def test_dataflow_var() -> None:
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -140,8 +141,8 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -159,8 +160,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -194,8 +195,8 @@ def test_seq_expr() -> None:
 
 
 def test_shape_expr() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tirx.Var("m", dtype="int32")
+    n = tirx.Var("n", dtype="int32")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
@@ -254,7 +255,7 @@ def test_shape_expr():
 
 def test_types():
     printer = ASTPrinter()
-    assert strip_whitespace(printer.visit_type_(rx.ShapeType())) == "ShapeType(ndim=-1)"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=-1))) == "ShapeType(ndim=-1)"
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
     object_type = rx.ObjectType()
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
@@ -264,7 +265,7 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(tensor_type)) == "TensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
-    tuple_type = rx.TupleType([rx.ShapeType(), object_type])
+    tuple_type = rx.TupleType([rx.ShapeType(ndim=-1), object_type])
     assert_fields(
         "TupleType",
         {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
@@ -291,7 +292,7 @@ def test_struct_info():
     assert printer.visit_struct_info_(empty_ssi) == "ShapeStructInfo(ndim=-1)"
 
     # include some dimensions
-    shape_info = rx.ShapeStructInfo([tir.IntImm("int64", 1), tir.IntImm("int64", 2)])
+    shape_info = rx.ShapeStructInfo([tirx.IntImm("int64", 1), tirx.IntImm("int64", 2)])
     assert strip_whitespace(printer.visit_struct_info_(shape_info)) == strip_whitespace(
         """
         ShapeStructInfo(
@@ -437,15 +438,15 @@ def test_call_tir():
     # also from test_parser
     @tvm.script.ir_module
     class TestCallTIR:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def addone(A_handle: T.handle, B_handle: T.handle) -> None:
             m = T.int64()
             n = T.int64()
             A = T.match_buffer(A_handle, (m, n), "float32")
             B = T.match_buffer(B_handle, (m, n), "float32")
-            T.func_attr(({"global_symbol": "addone"}))
+            T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m, n):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 
@@ -649,7 +650,7 @@ def test_tuple_get_item():
 
 
 def test_prim_value():
-    prim_value = rx.PrimValue(tir.IntImm("int64", 1))
+    prim_value = rx.PrimValue(tirx.IntImm("int64", 1))
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """

@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_bind_tensors():
@@ -103,9 +103,9 @@ def test_bind_shape():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Shape([1, "m"]), w0: R.Shape(["m", "n"]), w1: R.Shape([3, 10])
-        ) -> R.Shape([1, 3]):
+        def main(x: R.Shape([1, "m"]), w0: R.Shape(["m", "n"]), w1: R.Shape([3, 10])) -> R.Shape(
+            [1, 3]
+        ):
             n = T.int64()
             with R.dataflow():
                 lv0 = R.call_dps_packed("test0", (x, w0), out_sinfo=R.Tensor((1, n)))

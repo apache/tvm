@@ -25,7 +25,6 @@ import EmccWASI from "./tvmjs_runtime_wasi";
  */
 export function getPerformance(): Performance {
   if (typeof performance === "undefined") {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const performanceNode = require("perf_hooks");
     return performanceNode.performance as Performance;
   } else {
@@ -39,7 +38,6 @@ export function getPerformance(): Performance {
  */
 export function createWebSocket(url: string): WebSocket {
   if (typeof WebSocket === "undefined") {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const WebSocket = require("ws");
     return new WebSocket(url);
   } else {

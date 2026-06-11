@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,10 +17,9 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
+
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
-
-from .type_converter import args_converter
 
 # Expr
 from .expr import (
@@ -120,3 +120,7 @@ from . import utils
 from .vm_build import build, VMExecutable
 
 from .binding_rewrite import DataflowBlockRewrite
+
+import tvm.script
+
+tvm.script.register_dialect("relax", "tvm.relax.script")

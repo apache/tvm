@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,4 +18,5 @@
 """
 Tools for converting ONNX graphs into Relax graphs.
 """
+
 from .onnx_frontend import from_onnx

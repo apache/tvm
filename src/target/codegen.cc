@@ -21,37 +21,39 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/module.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/transform.h>
 
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <sstream>
 #include <unordered_set>
 #include <vector>
+
+#include "../support/bytes_io.h"
 
 namespace tvm {
 namespace codegen {
 
 ffi::Module Build(IRModule mod, Target target) {
-  if (transform::PassContext::Current()
-          ->GetConfig<Bool>("tir.disable_assert", Bool(false))
-          .value()) {
-    mod = tir::transform::SkipAssert()(mod);
+  if (transform::PassContext::Current()->GetConfig<bool>("tirx.disable_assert", false).value()) {
+    mod = tirx::transform::SkipAssert()(mod);
   }
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
   const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
-  ICHECK(bf.has_value()) << build_f_name << " is not enabled";
+  TVM_FFI_ICHECK(bf.has_value()) << build_f_name << " is not enabled";
   return (*bf)(mod, target).cast<ffi::Module>();
 }
 
@@ -60,28 +62,28 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(ffi::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
+  void SerializeModuleToBytes(support::Stream* stream, bool export_dso) {
     // Always _import_tree
     stream->Write(import_tree_row_ptr_);
     stream->Write(import_tree_child_indices_);
     for (const auto& group : mod_group_vec_) {
-      ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
+      TVM_FFI_ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
       // we prioritize export dso when a module is both serializable and exportable
       if (export_dso) {
         if (group[0]->GetPropertyMask() & ffi::Module::kCompilationExportable) {
           std::string mod_type_key = "_lib";
           stream->Write(mod_type_key);
         } else if (group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable) {
-          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+          TVM_FFI_ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
           std::string mod_type_key = group[0]->kind();
           stream->Write(mod_type_key);
           std::string bytes = group[0]->SaveToBytes();
           stream->Write(bytes);
         }
       } else {
-        ICHECK(group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable)
+        TVM_FFI_ICHECK(group[0]->GetPropertyMask() & ffi::Module::kBinarySerializable)
             << group[0]->kind() << " is not binary serializable.";
-        ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+        TVM_FFI_ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->kind();
         stream->Write(mod_type_key);
         std::string bytes = group[0]->SaveToBytes();
@@ -106,7 +108,7 @@ class ModuleSerializer {
     uint64_t module_index = 0;
 
     auto fpush_imports_to_stack = [&](ffi::ModuleObj* node) {
-      for (Any m : node->imports()) {
+      for (ffi::Any m : node->imports()) {
         ffi::ModuleObj* next = m.cast<ffi::Module>().operator->();
         if (visited.count(next) == 0) {
           visited.insert(next);
@@ -174,7 +176,7 @@ class ModuleSerializer {
     for (size_t parent_index = 0; parent_index < mod_group_vec_.size(); ++parent_index) {
       child_indices.clear();
       for (const auto* m : mod_group_vec_[parent_index]) {
-        for (Any im : m->imports()) {
+        for (ffi::Any im : m->imports()) {
           uint64_t mod_index = mod2index_.at(im.cast<ffi::Module>().operator->());
           // skip cycle when dso modules are merged together
           if (mod_index != parent_index) {
@@ -189,8 +191,8 @@ class ModuleSerializer {
       // Check cycles due to merging dso exportable modules.
       if (child_indices.size() != 0) {
         // The index is supposed to follow the topological order.
-        CHECK_LT(parent_index, child_indices[0])
-            << "RuntimeError: Cannot export due to multiple dso-exportables "
+        TVM_FFI_CHECK_LT(parent_index, child_indices[0], RuntimeError)
+            << "Cannot export due to multiple dso-exportables "
             << "that cannot be merged without creating a cycle in the import tree. "
             << "Related module keys: parent=" << mod_group_vec_[parent_index][0]->kind()
             << ", child=" << mod_group_vec_[child_indices[0]][0]->kind();
@@ -212,41 +214,40 @@ class ModuleSerializer {
 };
 
 std::string SerializeModuleToBytes(const ffi::Module& mod, bool export_dso) {
-  std::string bin;
-  dmlc::MemoryStringStream ms(&bin);
-  dmlc::Stream* stream = &ms;
+  std::string result;
+  support::BytesOutStream stream(&result);
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModuleToBytes(stream, export_dso);
-  return bin;
+  module_serializer.SerializeModuleToBytes(&stream, export_dso);
+  return result;
 }
 
 ffi::Module DeserializeModuleFromBytes(std::string blob) {
-  dmlc::MemoryStringStream ms(&blob);
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(blob);
 
   std::vector<ffi::Module> modules;
   std::vector<uint64_t> import_tree_row_ptr;
   std::vector<uint64_t> import_tree_child_indices;
 
-  stream->Read(&import_tree_row_ptr);
-  stream->Read(&import_tree_child_indices);
+  stream.Read(&import_tree_row_ptr);
+  stream.Read(&import_tree_child_indices);
 
   uint64_t size = import_tree_row_ptr.size() - 1;
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
-    ICHECK(stream->Read(&tkey));
+    TVM_FFI_ICHECK(stream.Read(&tkey));
     // "_lib" serves as a placeholder in the module import tree to indicate where
     // to place the DSOModule
-    ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
+    TVM_FFI_ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
     if (tkey == "_import_tree") {
-      ICHECK(stream->Read(&import_tree_row_ptr));
-      ICHECK(stream->Read(&import_tree_child_indices));
+      TVM_FFI_ICHECK(stream.Read(&import_tree_row_ptr));
+      TVM_FFI_ICHECK(stream.Read(&import_tree_child_indices));
     } else {
       std::string bytes;
-      ICHECK(stream->Read(&bytes));
+      TVM_FFI_ICHECK(stream.Read(&bytes));
       auto loader = ffi::Function::GetGlobal("ffi.Module.load_from_bytes." + tkey);
-      ICHECK(loader.has_value()) << "ffi.Module.load_from_bytes." << tkey << " is not enabled";
+      TVM_FFI_ICHECK(loader.has_value())
+          << "ffi.Module.load_from_bytes." << tkey << " is not enabled";
       auto m = (*loader)(ffi::Bytes(bytes)).cast<ffi::Module>();
       modules.emplace_back(m);
     }
@@ -255,12 +256,12 @@ ffi::Module DeserializeModuleFromBytes(std::string blob) {
   for (size_t i = 0; i < modules.size(); ++i) {
     for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
       auto child_index = import_tree_child_indices[j];
-      ICHECK(child_index < modules.size());
+      TVM_FFI_ICHECK(child_index < modules.size());
       modules[i]->ImportModule(modules[child_index]);
     }
   }
 
-  ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
+  TVM_FFI_ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
   // invariance: root module is always at location 0.
   // The module order is collected via DFS
   ffi::Module root_mod = modules[0];
@@ -281,7 +282,7 @@ std::string PackImportsToBytes(const ffi::Module& mod) {
 std::string PackImportsToC(const ffi::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
   if (c_symbol_prefix.length() != 0) {
-    CHECK(system_lib)
+    TVM_FFI_ICHECK(system_lib)
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
@@ -326,7 +327,7 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
                               const std::string& llvm_target_string,
                               const std::string& c_symbol_prefix) {
   if (c_symbol_prefix.length() != 0) {
-    CHECK(system_lib)
+    TVM_FFI_ICHECK(system_lib)
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
@@ -336,7 +337,7 @@ ffi::Module PackImportsToLLVM(const ffi::Module& mod, bool system_lib,
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
   const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
-  ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
+  TVM_FFI_ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix)
       .cast<ffi::Module>();
 }

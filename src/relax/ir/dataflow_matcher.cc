@@ -25,14 +25,16 @@
 #include "dataflow_matcher.h"
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/node/structural_equal.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/op.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/tirx/op.h>
 
 #include <array>
 #include <cstddef>
@@ -53,6 +55,7 @@ namespace tvm {
 namespace relax {
 
 using tvm::arith::Analyzer;
+using tvm::arith::AnalyzerObj;
 
 /*!
  * \brief Match the attributes of an object.
@@ -67,7 +70,7 @@ bool MatchAttrs(const Any& attrs, const ffi::Map<ffi::String, ffi::Any>& attribu
       auto attr_name = kv.first;
       auto attr_value = kv.second;
       if (dict_attrs->dict.count(attr_name)) {
-        if (!StructuralEqual()(attr_value, dict_attrs->dict[attr_name])) {
+        if (!ffi::StructuralEqual()(attr_value, dict_attrs->dict[attr_name])) {
           return false;
         }
       } else {
@@ -82,14 +85,14 @@ bool MatchAttrs(const Any& attrs, const ffi::Map<ffi::String, ffi::Any>& attribu
         << "Type " << attrs.GetTypeKey() << " do not have reflection metadata";
     size_t match_count = 0;
     bool success = true;
-    const Object* obj = attrs.cast<const Object*>();
+    const ffi::Object* obj = attrs.cast<const ffi::Object*>();
     ffi::reflection::ForEachFieldInfoWithEarlyStop(
         type_info, [&](const TVMFFIFieldInfo* field_info) {
           ffi::String field_name(field_info->name);
           if (attributes.count(field_name)) {
             ffi::reflection::FieldGetter field_getter(field_info);
             ffi::Any field_value = field_getter(obj);
-            if (!StructuralEqual()(attributes[field_name], field_value)) {
+            if (!ffi::StructuralEqual()(attributes[field_name], field_value)) {
               success = false;
               return true;
             }
@@ -145,7 +148,7 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
 }
 
 bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr0) {
-  CHECK(pattern.defined()) << "Null pattern found when matching against " << expr0;
+  TVM_FFI_ICHECK(pattern.defined()) << "Null pattern found when matching against " << expr0;
 
   auto expr = UnwrapBindings(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
@@ -194,7 +197,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       if (Op::HasAttrMap(attr_name)) {
         auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
         if (op_map.count(op)) {
-          matches &= StructuralEqual()(attr_value, op_map[op]);
+          matches &= ffi::StructuralEqual()(attr_value, op_map[op]);
         } else {
           matches = false;
         }
@@ -207,8 +210,8 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   } else if (auto* op = expr.as<FunctionNode>()) {
     matches = true;
     for (auto kv : attributes) {
-      if (matches && op->attrs.defined() && op->attrs->dict.count(kv.first)) {
-        matches &= StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
+      if (matches && op->attrs->dict.count(kv.first)) {
+        matches &= ffi::StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
       } else {
         matches = false;
         break;
@@ -332,7 +335,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr0) {
   auto expr = UnwrapBindings(expr0, var2val_);
-  return StructuralEqual()(op->expr, expr);
+  return ffi::StructuralEqual()(op->expr, expr);
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr0) {
@@ -414,7 +417,8 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
   if (const auto* tuple_node = expr.as<TupleNode>()) {
     if (op->fields.size() == tuple_node->fields.size()) {
       constexpr int8_t kUnknown = -1;
-      ICHECK_LE(op->fields.size(), std::numeric_limits<uint8_t>::max()) << "Too many fields!";
+      TVM_FFI_ICHECK_LE(op->fields.size(), std::numeric_limits<uint8_t>::max())
+          << "Too many fields!";
       // dynamic programming.
       std::vector<int8_t> match_cache(op->fields.size() * op->fields.size(), kUnknown);
       std::vector<bool> field_match_bitmap(op->fields.size(), false);
@@ -457,8 +461,8 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
   }
 
   auto sort_key = [](PrimExpr expr) -> ffi::String {
-    if (const auto* equal = expr.as<tir::EQNode>()) {
-      if (const auto* var = equal->a.as<tir::VarNode>()) {
+    if (const auto* equal = expr.as<tirx::EQNode>()) {
+      if (const auto* var = equal->a.as<tirx::VarNode>()) {
         return var->name_hint;
       }
     }
@@ -468,19 +472,19 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
       constraints.begin(), constraints.end(),
       [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
 
-  PrimExpr sorted_condition = Bool(true);
+  PrimExpr sorted_condition = tirx::const_true();
   for (const PrimExpr& constraint : constraints) {
     sorted_condition = sorted_condition && constraint;
   }
 
-  return analyzer_.Simplify(sorted_condition);
+  return analyzer_->Simplify(sorted_condition);
 }
 
-static bool ShapeEqual(Analyzer* analyzer, const ffi::Array<PrimExpr>& lhs,
+static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tir::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tirx::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 
@@ -488,7 +492,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   // no need to jump, as var.shape == value.shape
   if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
-      return ShapeEqual(&analyzer_, op->shape, shape_expr->values) &&
+      return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
     }
   }
@@ -501,7 +505,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
   bool all_shapes_defined = true;
 
   // The expression that must be true in order
-  PrimExpr all_dimensions_equal = Bool(true);
+  PrimExpr all_dimensions_equal = IntImm(DataType::Bool(), 1);
 
   for (const auto& arg : args) {
     if (auto opt_var = match_state(arg.get())) {
@@ -520,7 +524,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
       if (!opt_var_shape.defined()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
-        return {PrimExpr(Bool(false)), true};
+        return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
       }
       auto var_shape = opt_var_shape.value();
 
@@ -537,7 +541,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
           // The shapes have different dimensionality.  No need to
           // perform potentially-expensive simplifications, because
           // the dimensions do not match.
-          return {PrimExpr(Bool(false)), true};
+          return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
         }
 
       } else {
@@ -561,7 +565,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = UnwrapBindings(expr0, var2val_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
-    return ShapeEqual(&analyzer_, op->fields, shape_expr->values);
+    return ShapeEqual(analyzer_.get(), op->fields, shape_expr->values);
   return false;
 }
 
@@ -569,7 +573,8 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
   // no need to jump, as var.dtype == value.dtype
   auto expr_sinfo = expr.as<ExprNode>()->struct_info_;
   if (const TensorStructInfoNode* tensor_sinfo = expr_sinfo.as<TensorStructInfoNode>()) {
-    return (StructuralEqual()(op->dtype, tensor_sinfo->dtype)) && VisitDFPattern(op->pattern, expr);
+    return (ffi::StructuralEqual()(op->dtype, tensor_sinfo->dtype)) &&
+           VisitDFPattern(op->pattern, expr);
   }
   return false;
 }

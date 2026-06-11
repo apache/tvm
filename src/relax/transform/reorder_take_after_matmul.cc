@@ -56,15 +56,13 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     auto indices = matches[pat_indices];
 
     const auto* take_call = matches[pat_rhs].as<CallNode>();
-    ICHECK(take_call) << "InternalError: "
-                      << "Match of relax.take operator should produce Call, "
-                      << "but instead produces " << matches[pat_rhs] << " with type "
-                      << matches[pat_rhs]->GetTypeKey();
+    TVM_FFI_CHECK(take_call, InternalError) << "Match of relax.take operator should produce Call, "
+                                            << "but instead produces " << matches[pat_rhs]
+                                            << " with type " << matches[pat_rhs]->GetTypeKey();
     const auto* attrs = take_call->attrs.as<TakeAttrs>();
-    ICHECK(attrs) << "InternalError: "
-                  << "Attributes for relax.take operator should be TakeAttrs, "
-                  << "but were instead " << take_call->attrs << " with type "
-                  << take_call->GetTypeKey();
+    TVM_FFI_CHECK(attrs, InternalError)
+        << "Attributes for relax.take operator should be TakeAttrs, "
+        << "but were instead " << take_call->attrs << " with type " << take_call->GetTypeKey();
 
     const auto* lhs_sinfo = lhs->struct_info_.as<TensorStructInfoNode>();
     if (!lhs_sinfo) return expr;
@@ -114,7 +112,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       // indices.shape = [batch1]
 
       // reordered_weight.shape = [infeatures, table_size, outfeatures]
-      auto reordered_weight = permute_dims(weights, ffi::Array{Integer(1), Integer(0), Integer(2)});
+      auto reordered_weight = permute_dims(weights, ffi::Array<int64_t>{1, 0, 2});
       // fused_weight.shape = [infeatures, table_size * outfeatures]
       auto fused_weight = reshape(reordered_weight,
                                   ShapeExpr({weight_shape[1], weight_shape[0] * weight_shape[2]}));

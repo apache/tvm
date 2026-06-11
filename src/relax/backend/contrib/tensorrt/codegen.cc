@@ -21,12 +21,13 @@
  * \file src/relax/backend/contrib/tensorrt/codegen.cc
  * \brief Implementation of the TensorRT JSON serializer.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
-// TODO(sunggg): add operator attribute when it's ready
-// #include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/logging.h>
 
 #include <memory>
 #include <string>
@@ -45,8 +46,8 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompilerConfigNode> {
-  ffi::Array<Integer> tensorrt_version;
+struct TensorRTCompilerConfigNode : public ffi::Object {
+  ffi::Array<int64_t> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
   bool remove_no_mac_subgraphs;
@@ -58,7 +59,7 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
     refl::ObjectDef<TensorRTCompilerConfigNode>()
         .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
-                refl::DefaultValue(ffi::Array<Integer>({6, 0, 1})))
+                refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
                 "Use implicit batch", refl::DefaultValue(true))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
@@ -71,12 +72,12 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
-                                    TensorRTCompilerConfigNode, BaseAttrsNode);
+                                    TensorRTCompilerConfigNode, ffi::Object);
 };
 
-class TensorRTCompilerConfig : public Attrs {
+class TensorRTCompilerConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, ffi::ObjectRef,
                                                 TensorRTCompilerConfigNode);
 };
 
@@ -106,8 +107,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetGenericAttributes(const CallNode* call_node) {
     OpAttrExtractor extractor(node_);
-    const Object* attr_obj = call_node->attrs.get();
-    extractor.Extract(const_cast<Object*>(attr_obj));
+    const ffi::Object* attr_obj = call_node->attrs.get();
+    extractor.Extract(const_cast<ffi::Object*>(attr_obj));
   }
 
   TensorRTJSONSerializer* serializer_;
@@ -136,11 +137,11 @@ class TensorRTJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(opt_composite.has_value());
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     // Collect the constants and attributes of all operator calls inside the composite body.
@@ -179,29 +180,17 @@ class TensorRTJSONSerializer : public JSONSerializer {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
+      cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
-    ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    std::vector<std::string> tensorrt_version = {
-        std::to_string(cfg.value()->tensorrt_version[0].IntValue()),
-        std::to_string(cfg.value()->tensorrt_version[1].IntValue()),
-        std::to_string(cfg.value()->tensorrt_version[2].IntValue())};
-    std::vector<std::string> use_implicit_batch = {std::to_string(cfg.value()->use_implicit_batch)};
-    std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
-    std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
-    std::vector<std::string> use_uint8 = {std::to_string(cfg.value()->use_uint8)};
-    std::vector<dmlc::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
-        use_fp16_attr, use_uint8_attr;
-    tensorrt_version_attr.emplace_back(tensorrt_version);
-    use_implicit_batch_attr.emplace_back(use_implicit_batch);
-    max_workspace_size_attr.emplace_back(max_workspace_size);
-    use_fp16_attr.emplace_back(use_fp16);
-    use_uint8_attr.emplace_back(use_uint8);
-    node->SetAttr("tensorrt_version", tensorrt_version_attr);
-    node->SetAttr("use_implicit_batch", use_implicit_batch_attr);
-    node->SetAttr("max_workspace_size", max_workspace_size_attr);
-    node->SetAttr("use_fp16", use_fp16_attr);
-    node->SetAttr("use_uint8", use_uint8_attr);
+    TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
+    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],
+                                            cfg.value()->tensorrt_version[1],
+                                            cfg.value()->tensorrt_version[2]};
+    node->SetAttr("tensorrt_version", std::move(tensorrt_version));
+    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
+    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));
+    node->SetAttr("use_fp16", static_cast<int64_t>(cfg.value()->use_fp16));
+    node->SetAttr("use_uint8", static_cast<int64_t>(cfg.value()->use_uint8));
   }
 
  private:
@@ -266,9 +255,9 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
  * runtime is not enabled.
  */
-ffi::Array<Integer> GetTensorRTVersion() {
+ffi::Array<int64_t> GetTensorRTVersion() {
 #if TVM_GRAPH_EXECUTOR_TENSORRT
-  return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
+  return {NV_TENSORRT_MAJOR, NV_TENSORRT_MINOR, NV_TENSORRT_PATCH};
 #else
   return {};
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT

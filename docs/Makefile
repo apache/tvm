@@ -75,7 +75,6 @@ clean:
 	rm -rf gen_modules
 	rm -rf user_tutorials
 	rm -rf tutorials
-	rm -rf vta/tutorials
 
 staging:
 	# Prepare the staging directory.  Sphinx gallery automatically

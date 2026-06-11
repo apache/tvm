@@ -23,12 +23,12 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(
         arg0: T.Buffer((2, 2), "float32"),
         arg1: T.Buffer((2, 2), "float32"),
@@ -37,7 +37,7 @@ class Module:
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
             for ax1 in range(2):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(2, ax0)
                     v_ax1 = T.axis.spatial(2, ax1)
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])

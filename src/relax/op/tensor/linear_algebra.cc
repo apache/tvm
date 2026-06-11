@@ -24,6 +24,7 @@
 
 #include "linear_algebra.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/topi/einsum.h>
 
@@ -42,7 +43,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.matmul */
 
 Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype) {
-  ObjectPtr<MatmulAttrs> attrs = ffi::make_object<MatmulAttrs>();
+  ffi::ObjectPtr<MatmulAttrs> attrs = ffi::make_object<MatmulAttrs>();
   attrs->out_dtype = out_dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.matmul");
@@ -86,18 +87,16 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   int x1_ndim = x1_sinfo->ndim;
   int x2_ndim = x2_sinfo->ndim;
   if (x1_ndim == 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul operands must not be scalar.  "
-                     << "However, the expression " << call << " has a LHS of " << lhs
-                     << " with struct info " << x1_sinfo
-                     << ", which is scalar (zero-dimensional) tensor.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul operands must not be scalar.  "
+        << "However, the expression " << call << " has a LHS of " << lhs << " with struct info "
+        << x1_sinfo << ", which is scalar (zero-dimensional) tensor.";
   }
   if (x2_ndim == 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul operands must not be scalar.  "
-                     << "However, the expression " << call << " has a RHS of " << rhs
-                     << " with struct info " << x2_sinfo
-                     << ", which is scalar (zero-dimensional) tensor.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul operands must not be scalar.  "
+        << "However, the expression " << call << " has a RHS of " << rhs << " with struct info "
+        << x2_sinfo << ", which is scalar (zero-dimensional) tensor.";
   }
 
   int x1_prepended = 0;
@@ -134,16 +133,15 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(out_dtype, output_ndim);
   }
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr x1_reduction_length = x1_shape->values[x1_sinfo->ndim - 1];
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
   if (analyzer->CanProve(x1_reduction_length != x2_reduction_length)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul requires the reduction length of the operands to be equal.  "
-                     << "However, the LHS " << lhs << " has shape " << x1_sinfo->shape
-                     << ", while the RHS " << rhs << " has shape " << x2_sinfo->shape
-                     << ".  The reduction dimensions of " << x1_reduction_length << " and "
-                     << x2_reduction_length << " are not equal.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Matmul requires the reduction length of the operands to be equal.  "
+        << "However, the LHS " << lhs << " has shape " << x1_sinfo->shape << ", while the RHS "
+        << rhs << " has shape " << x2_sinfo->shape << ".  The reduction dimensions of "
+        << x1_reduction_length << " and " << x2_reduction_length << " are not equal.";
   }
 
   ffi::Array<PrimExpr> output_shape = output_shape_prefix.value();
@@ -153,7 +151,7 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   if (!x2_appended) {
     output_shape.push_back(x2_shape->values[x2_ndim - 1]);
   }
-  ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
   if (vdev.defined()) {
     return TensorStructInfo(ShapeExpr(output_shape), out_dtype, vdev);
   }
@@ -171,12 +169,12 @@ TVM_REGISTER_OP("relax.matmul")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMatmul)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.einsum */
 
 Expr einsum(Expr operands, ffi::String subscripts) {
-  ObjectPtr<EinsumAttrs> attrs = ffi::make_object<EinsumAttrs>();
+  ffi::ObjectPtr<EinsumAttrs> attrs = ffi::make_object<EinsumAttrs>();
   attrs->subscripts = std::move(subscripts);
 
   static const Op& op = Op::Get("relax.einsum");
@@ -190,14 +188,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Einsum op should take 1 argument");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Einsum op should take 1 argument";
   }
   ffi::Array<TensorStructInfo> operands_tensor_sinfo =
       GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (operands_tensor_sinfo.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Einsum op expects at least one tensor in the input Tuple. However, the "
-                        "given input Tuple is empty.");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Einsum op expects at least one tensor in the input Tuple. However, the "
+           "given input Tuple is empty.";
   }
 
   const auto* attrs = call->attrs.as<EinsumAttrs>();
@@ -228,10 +226,10 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   for (TensorStructInfo tensor_sinfo : operands_tensor_sinfo) {
     // Check the input tuple consists of tensors with same dtype
     if (tensor_sinfo->dtype != operand_dtype) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Einsum expects all input tensors to have the same dtype. However, the "
-                          "input contains tensors with dtype "
-                       << operand_dtype << " and " << tensor_sinfo->dtype);
+      TVM_FFI_VISIT_THROW(TypeError, call)
+          << "Einsum expects all input tensors to have the same dtype. However, the "
+             "input contains tensors with dtype "
+          << operand_dtype << " and " << tensor_sinfo->dtype;
     }
 
     // Get input shapes
@@ -259,7 +257,7 @@ TVM_REGISTER_OP("relax.einsum")
     .set_num_inputs(1)
     .add_argument("operands", "Tensor", "The input tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.outer */
 
@@ -280,8 +278,7 @@ StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
 
   // Ensure both inputs are 1D tensors
   if (x1_sinfo->ndim != 1 || x2_sinfo->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "torch.outer requires both inputs to be 1D tensors.");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "torch.outer requires both inputs to be 1D tensors.";
   }
 
   // Determine output shape
@@ -300,7 +297,7 @@ TVM_REGISTER_OP("relax.outer")
     .add_argument("x2", "Tensor", "The second input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOuter)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

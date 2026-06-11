@@ -15,22 +15,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, F401
 
 import argparse
+import csv
 import os
 import pickle
-from pathlib import Path
-import csv
 import sys
-from typing import Callable, Dict, List, Any
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "github"))
 
-from git_utils import git, GitHubRepo
+from git_utils import GitHubRepo, git
 from github_tag_teams import tags_from_title
-
 
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
@@ -137,7 +138,7 @@ def fetch_pr_data(args, cache):
 
 
 def write_csv(
-    filename: str, data: List[Dict[str, Any]], threshold_filter: Callable[[Dict[str, Any]], bool]
+    filename: str, data: list[dict[str, Any]], threshold_filter: Callable[[dict[str, Any]], bool]
 ) -> None:
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, quotechar='"')
@@ -176,7 +177,7 @@ def write_csv(
                     category,
                     "n/a",
                     item["committedDate"],
-                    f'https://github.com/apache/tvm/pull/{pr["number"]}',
+                    f"https://github.com/apache/tvm/pull/{pr['number']}",
                     author,
                     "/".join(tags),
                     pr["title"].replace(",", " "),

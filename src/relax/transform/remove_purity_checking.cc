@@ -20,6 +20,7 @@
  * \file src/relax/transform/remove_purity_checking.cc
  * \brief Apply kForcePure in all pure functions and unwrap all calls to pure overrides
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>

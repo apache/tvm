@@ -29,7 +29,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/data_layout.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -74,9 +73,9 @@ using VarDTypeMap = std::unordered_map<Var, NType>;
 using FInferMixedPrecision =
     ffi::TypedFunction<Call(const Call& call_node, const DataType& out_dtype)>;
 
-ffi::Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
 
-ffi::Array<ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

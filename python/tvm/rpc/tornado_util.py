@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Utilities used in tornado."""
 
-import socket
 import errno
+import socket
+
 from tornado import ioloop
 
 
-class TCPHandler(object):
+class TCPHandler:
     """TCP socket handler backed tornado event loop.
 
     Parameters
@@ -61,7 +63,7 @@ class TCPHandler(object):
             try:
                 self._ioloop.remove_handler(self._sock.fileno())
                 self._sock.close()
-            except socket.error:
+            except OSError:
                 pass
             self._sock = None
             self.on_close()
@@ -69,7 +71,7 @@ class TCPHandler(object):
     def write_message(self, message, binary=True):
         assert binary
         if self._sock is None:
-            raise IOError("socket is already closed")
+            raise OSError("socket is already closed")
         self._pending_write.append(message)
         self._update_write()
 
@@ -93,7 +95,7 @@ class TCPHandler(object):
                     self._pending_write[0] = msg[nsend:]
                 else:
                     self._pending_write.pop(0)
-            except socket.error as err:
+            except OSError as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
                 self.on_error(err)
@@ -119,7 +121,7 @@ class TCPHandler(object):
                 return True
             # normal close, remote is closed
             self.close()
-        except socket.error as err:
+        except OSError as err:
             if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 pass
             else:

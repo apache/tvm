@@ -24,7 +24,7 @@
 #ifndef TVM_RELAX_STRUCT_INFO_FUNCTOR_H_
 #define TVM_RELAX_STRUCT_INFO_FUNCTOR_H_
 
-#include <tvm/node/functor.h>
+#include <tvm/ir/node_functor.h>
 #include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/struct_info.h>
 
@@ -37,11 +37,13 @@ template <typename FStructInfo>
 class StructInfoFunctor;
 
 // functions to be overriden.
-#define STRUCT_INFO_FUNCTOR_DEFAULT \
-  { return VisitStructInfoDefault_(op, std::forward<Args>(args)...); }
+#define STRUCT_INFO_FUNCTOR_DEFAULT                                  \
+  {                                                                  \
+    return VisitStructInfoDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define TVM_STRUCT_INFO_FUNCTOR_DISPATCH(OP)                                                     \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {           \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {      \
     return self->VisitStructInfo_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
@@ -49,7 +51,7 @@ template <typename R, typename... Args>
 class StructInfoFunctor<R(const StructInfo& n, Args...)> {
  private:
   using TSelf = StructInfoFunctor<R(const StructInfo& n, Args...)>;
-  using FStructInfo = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FStructInfo = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
@@ -72,7 +74,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitStructInfo(const StructInfo& n, Args... args) {
-    ICHECK(n.defined());
+    TVM_FFI_ICHECK(n.defined());
     static FStructInfo vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -91,8 +93,8 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfo_(const FuncStructInfoNode* op,
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfoDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+  virtual R VisitStructInfoDefault_(const ffi::Object* op, Args...) {
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }
 

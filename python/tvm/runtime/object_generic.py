@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Common implementation of object generic related logic"""
+
 # pylint: disable=unused-import, invalid-name
 from tvm_ffi import ObjectConvertible
+
 from . import _ffi_node_api
 
 

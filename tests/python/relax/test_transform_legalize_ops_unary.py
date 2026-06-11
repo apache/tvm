@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
+
 import tvm
-from tvm import topi
-import tvm.testing
-from tvm.relax.transform import LegalizeOps
 import tvm.script
+import tvm.testing
+from tvm import topi
+from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: str):
@@ -87,6 +89,9 @@ def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype
         ("exp", R.exp, topi.exp, "float32"),
         ("floor", R.floor, topi.floor, "float32"),
         ("floor", R.floor, topi.identity, "int32"),
+        ("isfinite", R.isfinite, topi.isfinite, "float32"),
+        ("isinf", R.isinf, topi.isinf, "float32"),
+        ("isnan", R.isnan, topi.isnan, "float32"),
         ("log", R.log, topi.log, "float32"),
         ("negative", R.negative, topi.negative, "float32"),
         ("round", R.round, topi.round, "float32"),

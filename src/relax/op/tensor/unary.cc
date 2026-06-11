@@ -74,13 +74,13 @@ TVM_REGISTER_OP("relax.clip")
     .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
     .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr clip(Expr x, Expr min, Expr max) {
-  CHECK(min->IsInstance<PrimValueNode>())
+  TVM_FFI_ICHECK(min->IsInstance<PrimValueNode>())
       << "The argument `min` of relax.clip is expected to be a PrimValue, but got "
       << min->GetTypeKey();
-  CHECK(max->IsInstance<PrimValueNode>())
+  TVM_FFI_ICHECK(max->IsInstance<PrimValueNode>())
       << "The argument `max` of relax.clip is expected to be a PrimValue, but got "
       << max->GetTypeKey();
   static const Op& op = Op::Get("relax.clip");

@@ -20,6 +20,7 @@
  * \file src/relax/backend/vm/vm_shape_lower.cc
  * \brief Lower the function boundary type checks and symbolic shape computations.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
@@ -27,10 +28,10 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/runtime/vm/builtin.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -69,7 +70,7 @@ struct MatchShapeTodoItem {
 
 /*! \brief Slot map used for shape lowering. */
 using PrimExprSlotMap =
-    std::unordered_map<PrimExpr, PrimExprSlot*, StructuralHash, tir::ExprDeepEqual>;
+    std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
 
 // Collector to collect PrimExprSlotMap
 class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
@@ -245,10 +246,10 @@ class VMShapeLowerMutator
       this->builder_->EmitNormalized(shape_heap_binding);
       std::vector<MatchShapeTodoItem> match_todos;
       size_t num_input = func->params.size();
-      if (auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
+      if (auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
         // If the function has the attribute 'num_input', do shape checking on for the real inputs
         // and skip weights.
-        num_input = static_cast<size_t>(opt_num_input.value()->value);
+        num_input = static_cast<size_t>(opt_num_input.value());
       }
       for (size_t i = 0; i < func->params.size(); ++i) {
         StructInfo sinfo = GetStructInfo(func->params[i]);
@@ -304,11 +305,11 @@ class VMShapeLowerMutator
   void PopulateSlotInfo() {
     for (auto& kv : slot_map_) {
       auto* slot = kv.second;
-      if (!slot->expr.as<tir::VarNode>()) {
-        ffi::Array<tir::Var> dep_vars = tir::UndefinedVars(slot->expr);
+      if (!slot->expr.as<tirx::VarNode>()) {
+        ffi::Array<tirx::Var> dep_vars = tirx::UndefinedVars(slot->expr);
         for (auto var : dep_vars) {
           auto it = slot_map_.find(var);
-          ICHECK(it != slot_map_.end())
+          TVM_FFI_ICHECK(it != slot_map_.end())
               << "Var " << var << "is not defined in the function but is referenced by "
               << slot->expr;
           auto* var_slot = it->second;
@@ -348,8 +349,8 @@ class VMShapeLowerMutator
   // Expr mutation overloading.
   //-------------------------------------------------------
   Expr VisitExpr_(const FunctionNode* op) final {
-    LOG(FATAL) << "VMShapeLower do not work for local functions, make sure "
-               << " to run it after LambdaLift";
+    TVM_FFI_THROW(InternalError) << "VMShapeLower do not work for local functions, make sure "
+                                 << " to run it after LambdaLift";
     return ffi::GetRef<Expr>(op);
   }
 
@@ -361,9 +362,9 @@ class VMShapeLowerMutator
               PrimValue::Int64(int_expr->value)};
     } else {
       auto it = slot_map_.find(expr);
-      ICHECK(it != slot_map_.end());
+      TVM_FFI_ICHECK(it != slot_map_.end());
       auto* slot = it->second;
-      ICHECK(slot->value_computed)
+      TVM_FFI_ICHECK(slot->value_computed)
           << "PrimExpr " << expr << " in function " << current_gvar_ << " has not been computed";
       return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
               PrimValue::Int64(slot->index)};
@@ -455,15 +456,15 @@ class VMShapeLowerMutator
     }
 
     auto it = slot_map_.find(expr);
-    ICHECK(it != slot_map_.end());
+    TVM_FFI_ICHECK(it != slot_map_.end());
     auto* slot = it->second;
     if (slot->value_computed) {
       return {MatchShapeCode::kAssertEqualToLoad, PrimValue::Int64(slot->index)};
     }
 
     // the value is not yet computed
-    ICHECK(!require_value_computed) << "PrimExpr " << expr << " is not computed";
-    if (expr.as<tir::VarNode>()) {
+    TVM_FFI_ICHECK(!require_value_computed) << "PrimExpr " << expr << " is not computed";
+    if (expr.as<tirx::VarNode>()) {
       // It is a var we will populate it in this round.
 
       slot->value_computed = true;
@@ -508,7 +509,7 @@ class VMShapeLowerMutator
       Expr match_op;
       if (item.input->struct_info_.as<PrimStructInfoNode>()) {
         match_op = builtin_match_prim_value_;
-        ICHECK_EQ(item.pattern.size(), 1);
+        TVM_FFI_ICHECK_EQ(item.pattern.size(), 1);
       } else {
         match_op = builtin_match_shape_;
         args.push_back(PrimValue::Int64(item.pattern.size()));
@@ -541,7 +542,7 @@ class VMShapeLowerMutator
     std::vector<PrimExprSlot*> to_compute;
     for (PrimExprSlot* slot : ready_vars_) {
       for (PrimExprSlot* user : slot->user_slots) {
-        ICHECK_GT(user->outstanding_defs, 0);
+        TVM_FFI_ICHECK_GT(user->outstanding_defs, 0);
         user->outstanding_defs -= 1;
         if (user->outstanding_defs == 0) {
           to_compute.push_back(user);
@@ -565,40 +566,41 @@ class VMShapeLowerMutator
   size_t EmitOutstandingPrimExprCompute() {
     std::vector<PrimExprSlot*> to_compute = GetReadyPrimExprSlots();
     if (to_compute.size() == 0) return 0;
-    ICHECK_GT(heap_size_->value, 0);
+    TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
-    tir::Var heap("heap", DataType::Handle());
+    tirx::Var heap("heap", DataType::Handle());
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tir::Buffer buffer = tir::decl_buffer(buffer_shape, ShapeDType(), "H", "global");
-    ffi::Map<tir::Var, tir::Buffer> buffer_map;
+    tirx::Buffer buffer = tirx::decl_buffer(buffer_shape, ShapeDType(), "H", "global");
+    ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
     buffer_map.Set(heap, buffer);
 
-    auto var_map = [&](const tir::Var& var) -> ffi::Optional<PrimExpr> {
+    auto var_map = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
       auto it = slot_map_.find(var);
-      ICHECK(it != slot_map_.end());
-      return tir::BufferLoad(buffer, {IntImm(ShapeDType(), it->second->index)});
+      TVM_FFI_ICHECK(it != slot_map_.end());
+      return tirx::BufferLoad(buffer, {IntImm(ShapeDType(), it->second->index)});
     };
 
-    ffi::Array<tir::Stmt> seq;
+    ffi::Array<tirx::Stmt> seq;
     for (PrimExprSlot* slot : to_compute) {
-      ICHECK(!slot->value_computed);
+      TVM_FFI_ICHECK(!slot->value_computed);
       slot->value_computed = true;
-      PrimExpr value = tir::Substitute(slot->expr, var_map);
-      seq.push_back(tir::BufferStore(buffer, value, {IntImm(ShapeDType(), slot->index)}));
+      PrimExpr value = tirx::Substitute(slot->expr, var_map);
+      seq.push_back(tirx::BufferStore(buffer, value, {IntImm(ShapeDType(), slot->index)}));
     }
 
-    tir::Stmt body = tir::SeqStmt::Flatten(seq);
-    ffi::Array<tir::Var> params{heap};
+    tirx::Stmt body = tirx::SeqStmt::Flatten(seq);
+    ffi::Array<tirx::Var> params{heap};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
-    tir::PrimFunc shape_func(params, body, ret_type, buffer_map);
+    tirx::PrimFunc shape_func(params, body, ret_type, buffer_map);
+    shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, true);
+          WithAttr<tirx::PrimFunc>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
@@ -711,9 +713,10 @@ class VMShapeLowerMutator
     } else if (op->shape.as<VarNode>()) {
       // NOTE: This part of the logic is left empty for future support as it is less common.
       // Future implementors: we can emit a binding here and assert here.
-      LOG(FATAL) << "Cannot handle Tensor shape pattern where a var appears multiple times";
+      TVM_FFI_THROW(InternalError)
+          << "Cannot handle Tensor shape pattern where a var appears multiple times";
     } else {
-      ICHECK(!op->shape.defined()) << "Can only handle tensor shape pattern var";
+      TVM_FFI_ICHECK(!op->shape.defined()) << "Can only handle tensor shape pattern var";
     }
   }
 
@@ -739,8 +742,8 @@ class VMShapeLowerMutator
                         std::vector<MatchShapeTodoItem>* match_todos) final {
     auto* value_tinfo = GetStructInfoAs<TupleStructInfoNode>(value);
     if (value_tinfo) {
-      CHECK_EQ(value_tinfo->fields.size(), op->fields.size())
-          << "TypeError: " << err_ctx << " during match-cast we find tuple size mismatch";
+      TVM_FFI_CHECK_EQ(value_tinfo->fields.size(), op->fields.size(), TypeError)
+          << err_ctx << " during match-cast we find tuple size mismatch";
     }
     if (always_check || !value_tinfo) {
       // check_tuple_info(value, tuple_size)

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F401
 
 #
 # documentation build configuration file, created by
@@ -29,17 +28,16 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-from functools import partial
 import gc
-from importlib import import_module
 import inspect
-from hashlib import md5
 import os
-from pathlib import Path
 import re
 import sys
+from functools import partial
+from hashlib import md5
+from importlib import import_module
+from pathlib import Path
 from textwrap import dedent, indent
-from typing import List
 from unittest.mock import patch
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -60,30 +58,19 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020 - 2023, %s" % author
+copyright = f"2020 - 2026, {author}"
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
 
 
-def git_describe_version(original_version):
-    """Get git describe version."""
-    ver_py = tvm_path.joinpath("version.py")
-    libver = {"__file__": ver_py}
-    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
-    _, gd_version = libver["git_describe_version"]()
-    if gd_version != original_version:
-        print("Use git describe based version %s" % gd_version)
-    return gd_version
-
-
 # Version information.
 import tvm
-from tvm import topi
-from tvm import te
-from tvm import testing
+from tvm import te, testing, topi
 
-version = git_describe_version(tvm.__version__)
+# The version is derived from the Git tag by setuptools_scm at build time and exposed
+# as tvm.__version__ (see [tool.setuptools_scm] in pyproject.toml).
+version = tvm.__version__
 release = version
 
 
@@ -187,7 +174,7 @@ def save_rst_example(
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
 COMMENT_DIRECTIVE_RE = re.compile(r"^\.\.(?: .*)?\n(?:(?:  .*)?\n)*", flags=re.M)
-ADMONITION_DIRECTIVE_RE = re.compile(rf"^\.\. admonition:: *(.*)\n((?:(?:  .*)?\n)*)\n", flags=re.M)
+ADMONITION_DIRECTIVE_RE = re.compile(r"^\.\. admonition:: *(.*)\n((?:(?:  .*)?\n)*)\n", flags=re.M)
 
 
 @monkey_patch("sphinx_gallery.notebook", "rst2md")
@@ -231,7 +218,7 @@ def install_request_hook(gallery_conf, fname):
     testing.utils.install_request_hook(depth=3)
 
 
-INSTALL_TVM_DEV = f"""\
+INSTALL_TVM_DEV = """\
 %%shell
 # Installs the latest dev build of TVM from PyPI. If you wish to build
 # from source, see https://tvm.apache.org/docs/install/from_source.html
@@ -243,21 +230,19 @@ INSTALL_TVM_FIXED = f"""\
 # from source, see https://tvm.apache.org/docs/install/from_source.html
 pip install apache-tvm=={version}"""
 
-INSTALL_TVM_CUDA_DEV = f"""\
-%%shell
-# Installs the latest dev build of TVM from PyPI, with CUDA enabled. To use this,
-# you must request a Google Colab instance with a GPU by going to Runtime ->
-# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see https://tvm.apache.org/docs/install/from_source.html
-pip install tlcpack-nightly-cu113 --pre -f https://tlcpack.ai/wheels"""
+INSTALL_TVM_CUDA_DEV = """\
+%%markdown
+> **Note:** This tutorial requires a CUDA-enabled build of TVM.
+> Pre-built CUDA wheels are not currently available on PyPI.
+> Please build TVM from source with CUDA enabled before running this notebook:
+> https://tvm.apache.org/docs/install/from_source.html"""
 
 INSTALL_TVM_CUDA_FIXED = f"""\
-%%shell
-# Installs TVM version {version} from PyPI, with CUDA enabled. To use this,
-# you must request a Google Colab instance with a GPU by going to Runtime ->
-# Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see https://tvm.apache.org/docs/install/from_source.html
-pip install apache-tvm-cu113=={version} --no-index  -f https://tlcpack.ai/wheels"""
+%%markdown
+> **Note:** This tutorial requires a CUDA-enabled build of TVM (version {version}).
+> Pre-built CUDA wheels are not currently available on PyPI.
+> Please build TVM from source with CUDA enabled before running this notebook:
+> https://tvm.apache.org/docs/install/from_source.html"""
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "jupyter_notebook")
@@ -273,7 +258,7 @@ def jupyter_notebook(script_blocks, gallery_conf, target_dir, real_func):
     """
 
     requires_cuda = CURRENT_FILE_CONF.get("requires_cuda", False)
-    fixed_version = not "dev" in version
+    fixed_version = "dev" not in version
 
     if fixed_version and requires_cuda:
         install_block = INSTALL_TVM_CUDA_FIXED
@@ -395,11 +380,11 @@ latex_elements = {}
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, "%s.tex" % project, project, author, "manual"),
+    (main_doc, f"{project}.tex", project, author, "manual"),
 ]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
+    "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     # "numpy": ("https://numpy.org/doc/stable", None),
     # "scipy": ("https://docs.scipy.org/doc/scipy", None),
     # "matplotlib": ("https://matplotlib.org/", None),
@@ -440,7 +425,7 @@ class WithinSubsectionOrder:
         ):
             index = within_subsection_order[self.src_dir].index(filename)
             assert index < 1e10
-            return "\0%010d" % index
+            return f"\0{index:010d}"
 
         # Otherwise, sort by filename
         return filename
@@ -454,8 +439,7 @@ def force_gc(gallery_conf, fname):
     gc.collect()
 
 
-# Skips certain files to avoid dependency issues
-filename_pattern_default = "^(?!.*micro_mlperftiny.py).*$"
+filename_pattern_default = ".*"
 
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
@@ -472,9 +456,8 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
-    "reset_modules": ("matplotlib", "seaborn", force_gc),
+    "reset_modules": ("matplotlib", "seaborn", force_gc, install_request_hook),
     "promote_jupyter_magic": True,
-    "reset_modules": (install_request_hook),
 }
 
 autodoc_default_options = {
@@ -484,21 +467,19 @@ autodoc_default_options = {
 # Maps the original namespace to list of potential modules
 # that we can import alias from.
 tvm_alias_check_map = {
-    "tvm.te": ["tvm.tir"],
-    "tvm.tir": ["tvm.ir", "tvm.runtime"],
+    "tvm.te": ["tvm.tirx"],
+    "tvm.tirx": ["tvm.ir", "tvm.runtime"],
 }
 
 ## Setup header and other configs
 import tlcpack_sphinx_addon
 
-footer_copyright = "© 2024 Apache Software Foundation | All rights reserved"
+footer_copyright = "© 2026 Apache Software Foundation | All rights reserved"
 footer_note = " ".join(
     """
-Copyright © 2024 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+Copyright © 2026 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
-the Apache Software Foundation.""".split(
-        "\n"
-    )
+the Apache Software Foundation.""".split("\n")
 ).strip()
 
 header_logo = "https://tvm.apache.org/assets/images/logo.svg"
@@ -508,7 +489,7 @@ header_links = [
     ("Community", "https://tvm.apache.org/community"),
     ("Download", "https://tvm.apache.org/download"),
     ("Docs", "https://tvm.apache.org/docs"),
-    ("Github", "https://github.com/apache/tvm/"),
+    ("GitHub", "https://github.com/apache/tvm/"),
 ]
 
 header_dropdown = {
@@ -559,6 +540,13 @@ html_context = {
         "v0.14.0/",
         "v0.15.0/",
         "v0.16.0/",
+        "v0.17.0/",
+        "v0.18.0/",
+        "v0.19.0/",
+        "v0.20.0/",
+        "v0.21.0/",
+        "v0.22.0/",
+        "v0.23.0/",
     ],
     "display_github": True,
     "github_user": "apache",
@@ -609,21 +597,27 @@ def update_alias_docstring(name, obj, lines):
 
         if hasattr(sys.modules[amod], target_name):
             obj_type = ":py:func" if callable(obj) else ":py:class"
-            lines.append(".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
+            lines.append(f".. rubric:: Alias of {obj_type}:`{amod}.{target_name}`")
 
 
 tvm_class_name_rewrite_map = {
-    "tvm.tir": ["Var", "Call"],
-    "tvm.relax": ["Var", "Call"],
+    "tvm.tirx": ["Var", "Call"],
+    "tvm.relax": ["Var", "Call", "StringImm"],
     "tvm.relax.frontend.nn": ["Module"],
 }
 
+# When documenting modules under these prefixes, prefer types from the mapped module
+# to resolve ambiguous cross-references (e.g. Var exists in both tvm.tirx and tvm.relax).
+tvm_module_type_preference = {
+    "tvm.s_tir": "tvm.tirx",
+}
 
-def distinguish_class_name(name: str, lines: List[str]):
+
+def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
 
     In the whole TVM, there are many classes with the same name but in different modules,
-    e.g. ``tir.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
+    e.g. ``tirx.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
     by adding the module name as prefix.
 
     To be specific, this function will check the current object name, and if it in the specific
@@ -665,6 +659,83 @@ def strip_ipython_magic(app, docname, source):
     """
     for i in range(len(source)):
         source[i] = re.sub(r"%%.*\n\s*", "", source[i])
+
+
+def _patch_python_domain_find_obj():
+    """Patch PythonDomain.find_obj to resolve ambiguous cross-references.
+
+    Sphinx's ``warn-missing-reference`` event is only fired for unresolved
+    references. Ambiguous short names such as ``StringImm`` already have
+    multiple matches at ``PythonDomain.find_obj`` time, so the disambiguation
+    needs to happen here instead.
+    """
+    from sphinx.domains.python import PythonDomain
+
+    if getattr(PythonDomain.find_obj, "_tvm_patched", False):
+        return
+
+    _original_find_obj = PythonDomain.find_obj
+
+    def _common_prefix_len(lhs: str, rhs: str) -> int:
+        count = 0
+        for lpart, rpart in zip(lhs.split("."), rhs.split(".")):
+            if lpart != rpart:
+                break
+            count += 1
+        return count
+
+    def _dedup_find_obj(self, env, modname, classname, name, objtype, searchmode=0):
+        matches = _original_find_obj(self, env, modname, classname, name, objtype, searchmode)
+        if len(matches) <= 1:
+            return matches
+
+        short_name = name.rsplit(".", 1)[-1]
+
+        # Prefer a single canonical (non-aliased) entry if Sphinx already found one.
+        canonical_matches = [match for match in matches if not match[1].aliased]
+        if len(canonical_matches) == 1:
+            return canonical_matches
+
+        # Use TVM's module context for the known short names we rewrite in docstrings.
+        if modname:
+            candidate_modules = sorted(
+                (
+                    module_name
+                    for module_name, class_names in tvm_class_name_rewrite_map.items()
+                    if short_name in class_names and modname.startswith(module_name)
+                ),
+                key=len,
+                reverse=True,
+            )
+            for module_name in candidate_modules:
+                target_name = f"{module_name}.{short_name}"
+                context_matches = [match for match in matches if match[0] == target_name]
+                if len(context_matches) == 1:
+                    return context_matches
+
+            # Fall back to the unique match that best shares the current module prefix.
+            match_scores = {match[0]: _common_prefix_len(modname, match[0]) for match in matches}
+            best_score = max(match_scores.values())
+            if best_score > 1:
+                best_matches = [match for match in matches if match_scores[match[0]] == best_score]
+                if len(best_matches) == 1:
+                    return best_matches
+
+            # Check module type preference for cross-module resolution
+            # (e.g. tvm.s_tir.analysis uses types from tvm.tirx).
+            for prefix, preferred_mod in tvm_module_type_preference.items():
+                if modname.startswith(prefix):
+                    preferred = [m for m in matches if m[0].startswith(preferred_mod + ".")]
+                    if len(preferred) >= 1:
+                        return preferred[:1]
+
+        return matches
+
+    _dedup_find_obj._tvm_patched = True
+    PythonDomain.find_obj = _dedup_find_obj
+
+
+_patch_python_domain_find_obj()
 
 
 def setup(app):

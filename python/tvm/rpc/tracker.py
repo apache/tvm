@@ -42,18 +42,20 @@ List of available APIs:
 # pylint: disable=invalid-name
 
 import asyncio
+import errno
 import heapq
+import json
 import logging
 import socket
-import threading
-import errno
 import struct
-import json
 import sys
-from tvm.contrib.popen_pool import PopenWorker
+import threading
+
+from tvm.support.popen_pool import PopenWorker
 
 try:
     from tornado import ioloop
+
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
@@ -75,8 +77,14 @@ logger.addHandler(console_handler)
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+# Maximum size in bytes for a single tracker message. Tracker frames carry
+# small JSON command tuples; 1 MiB is well above any legitimate payload and
+# bounds memory growth when a peer sends an oversized or malformed size
+# header on the wire.
+MAX_TRACKER_MSG_BYTES = 1 << 20
 
-class Scheduler(object):
+
+class Scheduler:
     """Abstract interface of scheduler."""
 
     def put(self, value):
@@ -171,7 +179,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
     """
 
     def __init__(self, tracker, sock, addr):
-        super(TCPEventHandler, self).__init__(sock)
+        super().__init__(sock)
         self._data = bytearray()
         self._tracker = tracker
         self._msg_size = 0
@@ -185,7 +193,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
     def name(self):
         """name of connection"""
-        return f"TCPSocket: {str(self._addr)}"
+        return f"TCPSocket: {self._addr!s}"
 
     def summary(self):
         """Summary of this connection"""
@@ -222,14 +230,27 @@ class TCPEventHandler(tornado_util.TCPHandler):
             if self._msg_size == 0:
                 if len(self._data) >= 4:
                     self._msg_size = struct.unpack("<i", self._data[:4])[0]
+                    if self._msg_size <= 0 or self._msg_size > MAX_TRACKER_MSG_BYTES:
+                        logger.warning(
+                            "Invalid msg_size %d from %s; closing connection",
+                            self._msg_size,
+                            self.name(),
+                        )
+                        self.close()
+                        return
+                    del self._data[:4]
                 else:
                     return
-            if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
-                msg = py_str(bytes(self._data[4 : 4 + self._msg_size]))
-                del self._data[: 4 + self._msg_size]
+            if self._msg_size != 0 and len(self._data) >= self._msg_size:
+                msg = py_str(bytes(self._data[: self._msg_size]))
+                del self._data[: self._msg_size]
                 self._msg_size = 0
-                # pylint: disable=broad-except
-                self.call_handler(json.loads(msg))
+                try:
+                    self.call_handler(json.loads(msg))
+                except Exception:  # pylint: disable=broad-except
+                    logger.warning("Error handling message from %s", self.name(), exc_info=True)
+                    self.close()
+                    return
             else:
                 return
 
@@ -265,7 +286,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                     return False
                 try:
                     self.ret_value([TrackerCode.SUCCESS, value])
-                except (socket.error, IOError):
+                except OSError:
                     return False
                 return True
 
@@ -303,7 +324,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self.close()
 
 
-class TrackerServerHandler(object):
+class TrackerServerHandler:
     """Tracker that tracks the resources."""
 
     def __init__(self, sock, stop_key):
@@ -324,7 +345,7 @@ class TrackerServerHandler(object):
             try:
                 conn, addr = self._sock.accept()
                 TCPEventHandler(self, conn, addr)
-            except socket.error as err:
+            except OSError as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
 
@@ -383,7 +404,7 @@ def _tracker_server(listen_sock, stop_key):
     handler.run()
 
 
-class PopenTrackerServerState(object):
+class PopenTrackerServerState:
     """Internal PopenTrackerServer State"""
 
     current = None
@@ -409,7 +430,7 @@ class PopenTrackerServerState(object):
                 sock.bind((host, my_port))
                 self.port = my_port
                 break
-            except socket.error as sock_err:
+            except OSError as sock_err:
                 if sock_err.errno in [errno.EADDRINUSE]:
                     continue
                 raise sock_err
@@ -434,7 +455,7 @@ def _popen_start_tracker_server(
     return (state.port, state.stop_key)
 
 
-class Tracker(object):
+class Tracker:
     """Start RPC tracker on a separate process.
 
     Python implementation based on PopenWorker.

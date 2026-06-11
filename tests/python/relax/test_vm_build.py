@@ -14,22 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 import ctypes
-from typing import Tuple, Callable
+from collections.abc import Callable
 
 import numpy as np
 import pytest
+import tvm_ffi
+from tvm_ffi import Shape
 
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, rpc, te, tir, topi
-from tvm.contrib import utils, cc, popen_pool
+from tvm import relax, rpc, te, tirx, topi
 from tvm.relax.testing import nn
-from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.testing.vm import check_saved_func
-from tvm.runtime import ShapeTuple
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tirx as T
+from tvm.support import cc, popen_pool, utils
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -185,7 +189,7 @@ def test_vm_compile_e2e(exec_mode):
 def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -196,7 +200,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -227,7 +231,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
 def test_call_tir_inplace_e2e_simple(exec_mode):
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -235,9 +239,9 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
             out1: T.Buffer((2, 3), "int32"),
         ):
             # copies the contents of C into A, B, and out1
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(C[ax0, ax1])
                     T.writes(A[ax0, ax1], B[ax0, ax1], out1[ax0, ax1])
@@ -286,21 +290,21 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     # read and write from the same tensor
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
             # sums A and B, storing the result in A
-            T.func_attr({"tir.noalias": True})
+            T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(A[ax0, ax1], B[ax0, ax1])
                     T.writes(A[ax0, ax1])
                     A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tensor((2, 3), "int32"):
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
+            (2, 3), "int32"
+        ):
             res = R.call_tir_inplace(
                 TestCallTIRInplaceE2ERW.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32")
             )
@@ -328,7 +332,7 @@ def test_vm_emit_te_extern(exec_mode):
         print("skip because extern function is not available")
         return
     bb = relax.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor([n, m], "float32"))
     y = relax.Var("y", R.Tensor([m, n], "float32"))
 
@@ -352,12 +356,12 @@ def test_vm_emit_te_extern(exec_mode):
 def test_vm_emit_te_concat(exec_mode):
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([m], "float32"))
 
     def te_func(A, B):
-        C = te.compute((n + m), lambda i: tvm.tir.if_then_else(i < n, A[i], B[i - n]))
+        C = te.compute((n + m), lambda i: tvm.tirx.if_then_else(i < n, A[i], B[i - n]))
         return C
 
     with bb.function("rx_func", [x, y]):
@@ -388,7 +392,7 @@ def test_vm_emit_te_concat(exec_mode):
 
 def test_vm_emit_te_dtype_change(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     # convert a tensor with dtype of float32 to int16
@@ -417,11 +421,11 @@ def test_vm_emit_te_dtype_change(exec_mode):
 
 def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     def te_func(A):
-        C = te.compute((tir.floordiv(n, 2),), lambda i: A[i] + 1)
+        C = te.compute((tirx.floordiv(n, 2),), lambda i: A[i] + 1)
         return C
 
     with bb.function("rx_func", [x]):
@@ -482,8 +486,8 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    sch = tvm.tir.Schedule(mod, debug_mask="all")
-    loops = sch.get_loops(sch.get_block(name="T_add", func_name="add"))
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
+    loops = sch.get_loops(sch.get_sblock(name="T_add", func_name="add"))
     sch.bind(loops[0], "threadIdx.x")
 
     exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
@@ -496,7 +500,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
 
 def test_vm_relax_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([(n // 2) + 1], "float32"))
 
@@ -527,7 +531,7 @@ def test_vm_relax_symbolic_shape(exec_mode):
 
 
 def test_vm_relax_symbolic_shape_tuple(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(shape: R.Shape(["m", "n"])):
@@ -541,17 +545,17 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
     func = vm["main"]
 
-    assert func(ShapeTuple([2, 3])) == (4, 9)
+    assert func(Shape([2, 3])) == (4, 9)
 
     with pytest.raises(ValueError):
-        func(ShapeTuple([2, 3, 4]))
+        func(Shape([2, 3, 4]))
 
     with pytest.raises(TypeError):
         func(R.prim_value(2))
 
 
 def test_vm_relax_symbolic_prim_value(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(shape: R.Prim(value="n")):
@@ -567,13 +571,13 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
     assert func(2) == 4
 
     with pytest.raises(TypeError):
-        func(ShapeTuple([2]))
+        func(Shape([2]))
 
 
 def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
     """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(
@@ -595,13 +599,13 @@ def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
 
     func = vm["main"]
 
-    assert func(2, ShapeTuple([4, 12]), 6) == (4, 7)
+    assert func(2, Shape([4, 12]), 6) == (4, 7)
 
     with pytest.raises(RuntimeError):
-        func(2, ShapeTuple([4, 12]), 1)
+        func(2, Shape([4, 12]), 1)
 
     with pytest.raises(tvm.TVMError):
-        func(ShapeTuple([2]))
+        func(Shape([2]))
 
 
 @pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
@@ -613,7 +617,7 @@ def test_vm_relax_prim_value_fp32(exec_mode):
     any type that can be represented as a single primitive value.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(
@@ -645,7 +649,7 @@ def test_vm_relax_prim_value_fp32(exec_mode):
 def test_vm_relax_dyn_tir_shape(exec_mode):
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
 
     def te_func(A):
         C = te.compute((n + 1), lambda i: A[i])
@@ -677,7 +681,7 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
 
 def test_vm_tuple(exec_mode):
     bb = relax.BlockBuilder()
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
 
     with bb.function("rx_func"):
         x = nn.Placeholder((n,), dtype="float32", name="x")
@@ -743,10 +747,10 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             _ = cls.copy(x, y)
             return y
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi0, vi1 = T.axis.remap("SS", [i0, i1])
                     B[vi0, vi1] = A[vi0, vi1]
 
@@ -762,7 +766,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
 def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -773,7 +777,7 @@ def test_sub_func_call(exec_mode):
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -938,7 +942,7 @@ def test_time_evaluator(exec_mode):
 
 @tvm.script.ir_module
 class TestVMSetInput:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
         T.func_attr({"global_symbol": "test_vm_mul"})
         m = T.int32()
@@ -948,7 +952,7 @@ class TestVMSetInput:
         C = T.match_buffer(z, (m, n))
 
         for i, j in T.grid(m, n):
-            with T.block("mul"):
+            with T.sblock("mul"):
                 vi = T.axis.spatial(m, i)
                 vj = T.axis.spatial(n, j)
                 with T.init():
@@ -964,9 +968,7 @@ class TestVMSetInput:
 
     # nested tuple too
     @R.function
-    def test_vm_nested_tuple(
-        x: R.Tensor((), "int32")
-    ) -> R.Tuple(
+    def test_vm_nested_tuple(x: R.Tensor((), "int32")) -> R.Tuple(
         R.Tuple(
             R.Tensor((), "int32"),
             R.Tuple(
@@ -985,11 +987,13 @@ class TestVMSetInput:
 
 
 def test_multi_systemlib(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     @tvm.script.ir_module
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
@@ -1006,7 +1010,7 @@ def test_multi_systemlib(exec_mode):
     class ModB:
         I.module_attrs({"system_lib_prefix": "libB_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
@@ -1043,8 +1047,8 @@ def test_multi_systemlib(exec_mode):
         vmA = relax.VirtualMachine(tvm.runtime.system_lib("libA_"), tvm.cpu())
         vmB = relax.VirtualMachine(tvm.runtime.system_lib("libB_"), tvm.cpu())
 
-        retA = vmA["main"](tvm.runtime.ShapeTuple([1]))
-        retB = vmB["main"](tvm.runtime.ShapeTuple([2]))
+        retA = vmA["main"](tvm_ffi.Shape([1]))
+        retB = vmB["main"](tvm_ffi.Shape([2]))
         np.testing.assert_equal(retA.numpy(), np.array([0, 0]).astype("float32"))
         np.testing.assert_equal(retB.numpy(), np.array([1, 1]).astype("float32"))
 
@@ -1108,7 +1112,7 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod, exec_mode, temp) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, exec_mode, temp) -> tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.build(mod, target, exec_mode=exec_mode)
@@ -1190,6 +1194,7 @@ def test_save_function_kwargs(exec_mode):
 
 
 def test_save_function_kwargs_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     run_on_rpc(TestVMSetInput, save_function_kwargs_trial, exec_mode)
 
 
@@ -1209,6 +1214,7 @@ def test_save_function_time_evaluator(exec_mode):
 
 
 def test_save_function_time_evaluator_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial, exec_mode)
 
 
@@ -1223,6 +1229,7 @@ def test_set_input_stateless_failure(exec_mode):
 
 
 def test_set_input_stateless_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
 
@@ -1235,6 +1242,7 @@ def test_set_input_invoke_failure(exec_mode):
 
 
 def test_set_input_invoke_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
 
@@ -1247,6 +1255,7 @@ def test_set_input_get_failure(exec_mode):
 
 
 def test_set_input_get_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
@@ -1260,7 +1269,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
 
@@ -1279,7 +1288,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
     seq = tvm.ir.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
-            tvm.dlight.ApplyDefaultSchedule(tvm.dlight.gpu.Fallback()),
+            tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),
         ],
         name="LegalizeAndSchedule",
     )

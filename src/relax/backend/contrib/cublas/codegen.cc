@@ -21,9 +21,10 @@
  * \file src/relax/backend/contrib/cublas/codegen.cc
  * \brief Implementation of the CUBLAS JSON serializer.
  */
+#include <builtin_fp16.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/builtin_fp16.h>
 
 #include <string>
 
@@ -48,12 +49,12 @@ class CublasJSONSerializer : public JSONSerializer {
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -63,7 +64,7 @@ class CublasJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 4);
+    TVM_FFI_ICHECK(inputs_tmp.size() <= 4);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -86,16 +87,14 @@ class CublasJSONSerializer : public JSONSerializer {
         auto sinfo = Downcast<TensorStructInfo>(const_expr->struct_info_);
         float alpha = 1.0;
         if (sinfo->dtype == DataType::Float(16)) {
-          alpha = __gnu_h2f_ieee(static_cast<uint16_t*>(const_expr->data->data)[0]);
+          alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+              static_cast<uint16_t*>(const_expr->data->data)[0]);
         } else {
-          ICHECK(sinfo->dtype == DataType::Float(32));
+          TVM_FFI_ICHECK(sinfo->dtype == DataType::Float(32));
           alpha = static_cast<float*>(const_expr->data->data)[0];
         }
 
-        std::vector<std::string> dq_scale = {backend::to_str(alpha)};
-        std::vector<dmlc::any> dq_scale_attr;
-        dq_scale_attr.emplace_back(dq_scale);
-        node->SetAttr("dq_scale", dq_scale_attr);
+        node->SetAttr("dq_scale", static_cast<double>(alpha));
       }
     }
 

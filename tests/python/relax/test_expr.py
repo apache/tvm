@@ -14,20 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F811
 import numpy as np
+import pytest
+import tvm_ffi
+
 import tvm
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
+from tvm.relax.expr import make_shape
 from tvm.script import relax as R
-import pytest
 
 
 def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     assert xhash == yhash
 
@@ -103,8 +107,8 @@ def test_tuple_sinfo_requires_fields_with_known_sinfo():
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -126,8 +130,8 @@ def test_match_cast() -> None:
 
 
 def test_match_cast() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     ivalue = rx.Var("input_value")
     sinfo = rx.TensorStructInfo([n, m], "float32")
     b0 = rx.MatchCast(rx.Var("v"), ivalue, sinfo)
@@ -145,8 +149,8 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -160,8 +164,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -208,8 +212,8 @@ def test_shape_of():
 
 
 def test_shape_expr():
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
+    m = tirx.Var("m", dtype="int64")
+    n = tirx.Var("n", dtype="int64")
     s = rx.ShapeExpr([m, n])
     assert s.values[0] == m
     assert s.values[1] == n
@@ -235,7 +239,7 @@ def test_shape_expr():
     assert x.struct_info.shape[1] == 20
     tvm.ir.assert_structural_equal(x.struct_info.shape.struct_info, R.Shape((10, 20)))
 
-    m = tir.Var("m", "int32")
+    m = tirx.Var("m", "int32")
     with pytest.raises(
         tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"
     ):
@@ -243,14 +247,14 @@ def test_shape_expr():
 
 
 def test_prim_value():
-    pv = rx.PrimValue(tir.IntImm("int64", 1))
+    pv = rx.PrimValue(tirx.IntImm("int64", 1))
     assert pv.value.value == 1
-    _check_equal(pv, rx.PrimValue(tir.IntImm("int64", 1)))
+    _check_equal(pv, rx.PrimValue(tirx.IntImm("int64", 1)))
     _check_json_roundtrip(pv)
 
 
 def test_prim_value_with_var():
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n)
     assert pv.value.same_as(n)
     tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n))
@@ -259,7 +263,7 @@ def test_prim_value_with_var():
 
 
 def test_prim_value_with_expr():
-    n = tir.Var("n", "int64")
+    n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n + 1)
     tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n + 1))
     _check_equal(pv, rx.PrimValue(n + 1))
@@ -300,6 +304,25 @@ def test_call_raises_error_for_invalid_function():
 
     with pytest.raises(ValueError):
         rx.Call(func, [arg])
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
+
+
+def test_make_shape_invalid_type():
+    with pytest.raises(TypeError):
+        make_shape(123)
+
+
+def test_make_shape_valid_list():
+    shape = make_shape([1, 2, 3])
+    assert len(shape) == 3
+
+
+def test_make_shape_valid_tuple():
+    shape = make_shape((4, 5))
+    assert len(shape) == 2
 
 
 if __name__ == "__main__":

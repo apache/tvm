@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF005
 """Default legalization function for manipulate operators."""
-from typing import Optional
 
 import tvm
-from tvm import topi, tir, relax, te
+from tvm import relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.struct_info import TensorStructInfo
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm.tir.expr import IntImm
+from tvm.tirx.expr import IntImm
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem, ShapeExpr
-from .common import TEFunc, LegalizeFunc, register_legalize
+from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
+from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _reshape(
@@ -59,11 +60,11 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
@@ -107,7 +108,7 @@ def _permute_dims(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.split")
 def _split(bb: BlockBuilder, call: Call) -> Expr:
-    if isinstance(call.attrs.indices_or_sections, tir.IntImm):
+    if isinstance(call.attrs.indices_or_sections, tirx.IntImm):
         indices_or_sections = call.attrs.indices_or_sections.value
     else:
         indices_or_sections = call.attrs.indices_or_sections
@@ -127,23 +128,23 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
     # Follow bindings to find the actual tuple
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
 
     # Extract fields from either Tuple or bound Var
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
 
-    return bb.call_te(topi.stack, fields, 0 if call.attrs.axis is None else call.attrs.axis.value)
+    return bb.call_te(topi.stack, fields, 0 if call.attrs.axis is None else call.attrs.axis)
 
 
 @register_legalize("relax.repeat")
 def _repeat(bb: BlockBuilder, call: Call) -> Expr:
-    def te_repeat(data: te.Tensor, repeats: IntImm, axis: Optional[IntImm]):
+    def te_repeat(data: te.Tensor, repeats: IntImm, axis: IntImm | None):
         if axis is None:
             # flatten data
             out_shape = data.shape[0]
@@ -221,11 +222,11 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
@@ -234,10 +235,16 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+def _is_gpu_target():
+    target = tvm.target.Target.current(allow_none=True)
+    return target is not None and "gpu" in target.keys
+
+
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
+    te_func = topi.gpu.scatter_elements if _is_gpu_target() else topi.scatter_elements
     return bb.call_te(
-        topi.scatter_elements,
+        te_func,
         call.args[0],
         call.args[1],
         call.args[2],
@@ -249,10 +256,12 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.scatter_nd")
 def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
     # TODO(relax-team): Support native scatter_nd without te extern
+    base_te = topi.gpu.scatter_nd if _is_gpu_target() else topi.scatter_nd
+
     def scatter_nd(data, indices, updates, reduction):
         axes = list(range(len(indices.shape)))
         indices = topi.transpose(indices, axes[-1:] + axes[:-1])
-        return topi.scatter_nd(data, indices, updates, reduction)
+        return base_te(data, indices, updates, reduction)
 
     return bb.call_te(
         scatter_nd,
@@ -265,7 +274,6 @@ def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.slice_scatter")
 def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
-
     return bb.call_te(
         topi.slice_scatter,
         call.args[0],
@@ -309,27 +317,27 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
             name=name,
         )
 
-    def set_axis_sep(axis_sep: list, sch: tir.schedule, buffer_type: str):
+    def set_axis_sep(axis_sep: list, sch: s_tir.schedule, buffer_type: str):
         sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
 
-    index_map: tvm.tir.IndexMap = call.attrs.index_map
+    index_map: tvm.tirx.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
     if pad_value is not None:
         pad_value = pad_value.value
     else:
         if "int" in call.args[0].struct_info.dtype:
-            pad_value = int(0)
+            pad_value = 0
         else:
-            pad_value = float(0.0)
+            pad_value = 0.0
 
-    axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
-    input_axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
+    axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
+    input_axis_separators: tvm.tirx.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
 
     # Convert to list from array
     axis_separators = [int(sep) for sep in axis_separators]
     primfunc_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
-    if not isinstance(padding_predicate, tvm.tir.expr.IntImm):
+    if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
         primfunc_name += "_axis_separator"
@@ -337,7 +345,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         te_layout_transform, call.args[0], primfunc_name
     )
     # Create TIR schedule to apply layout changes with axis separators
-    sch = tir.Schedule(tir_func)
+    sch = tvm.s_tir.Schedule(tir_func)
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
     set_axis_sep(axis_separators, sch, "write")
     if input_axis_separators is not None:

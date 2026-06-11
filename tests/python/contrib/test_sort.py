@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 """Configure pytest"""
+
 # pylint: disable=invalid-name
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te
@@ -34,7 +37,7 @@ def test_sort():
     out = te.extern(
         data.shape,
         [data, sort_num],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
         ),
         dtype="int32",
@@ -71,7 +74,7 @@ def test_sort_np():
     out = te.extern(
         data.shape,
         [data, sort_num],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
         ),
         dtype="int32",

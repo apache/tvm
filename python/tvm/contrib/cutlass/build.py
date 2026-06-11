@@ -15,19 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
+# ruff: noqa: F821
 """Driver for partitioning and building a Relax module for CUTLASS offload."""
+
 import itertools
 import logging
 import multiprocessing
 import operator
 import os
+from collections.abc import Sequence
 from functools import reduce
-from typing import Optional, Sequence
+
 from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax, runtime
-from tvm.contrib.nvcc import get_cuda_version
+from tvm.support.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 
 from .gen_conv2d import CutlassConv2DProfiler
@@ -105,7 +108,7 @@ def select_gemm_kernel(
 ):
     """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
     workloads."""
-    if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+    if any(isinstance(s, tvm.tirx.Any) for s in [MM, KK, NN]):
         out = cutlass_profiler.get_default(
             op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32, batched=batched
         )
@@ -246,7 +249,7 @@ def handle_conv2d(
     else:
         conv_kind = ConvKind.Fprop
 
-    if any(isinstance(s, tvm.tir.Any) for s in d_shape):
+    if any(isinstance(s, tvm.tirx.Any) for s in d_shape):
         out = cutlass_profiler.get_default(
             op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32, conv_kind, strides
         )
@@ -360,7 +363,7 @@ def tune_cutlass_kernels(
     return mod, num_cutlass_partition
 
 
-def _get_call_node(expr: relax.Expr, op_name: str) -> Optional[relax.Call]:
+def _get_call_node(expr: relax.Expr, op_name: str) -> relax.Call | None:
     node = None
 
     def fvisit(e):
@@ -378,10 +381,10 @@ def _extract_relax_function_signature(f):
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
         if isinstance(sinfo, relax.TensorStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
-            signature["arg%d_dtype" % i] = sinfo.dtype
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.shape)
+            signature[f"arg{i}_dtype"] = sinfo.dtype
         elif isinstance(sinfo, relax.ShapeStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.values)
         else:
             raise NotImplementedError()
 
@@ -414,7 +417,7 @@ def is_shape_valid_for_cutlass_matmul(
     as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
     (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
     """
-    if not isinstance(lhs_shape[-1], (tvm.tir.expr.IntImm, int)):
+    if not isinstance(lhs_shape[-1], tvm.tirx.expr.IntImm | int):
         # Reduction axis must be constant
         return False
 
@@ -815,7 +818,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif "layer_norm" in op_type or "rms_norm" in op_type:
             return self.handle_norm(f, op_type)
 
-        raise ValueError("Unsupported composite {}".format(op_type))
+        raise ValueError(f"Unsupported composite {op_type}")
 
     def visit_span(self, span):
         return span

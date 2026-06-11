@@ -25,8 +25,7 @@
 #define TVM_TARGET_TAG_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/attr_registry_map.h>
-#include <tvm/node/node.h>
+#include <tvm/ir/attr_registry_map.h>
 #include <tvm/target/target.h>
 
 #include <utility>
@@ -34,7 +33,7 @@
 namespace tvm {
 
 /*! \brief A target tag */
-class TargetTagNode : public Object {
+class TargetTagNode : public ffi::Object {
  public:
   /*! \brief Name of the target */
   ffi::String name;
@@ -47,7 +46,7 @@ class TargetTagNode : public Object {
         .def_ro("name", &TargetTagNode::name)
         .def_ro("config", &TargetTagNode::config);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetTag", TargetTagNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetTag", TargetTagNode, ffi::Object);
 
  private:
   /*! \brief Return the index stored in attr registry */
@@ -68,7 +67,7 @@ class TargetTagNode : public Object {
  * \brief Managed reference class to TargetTagNode
  * \sa TargetTagNode
  */
-class TargetTag : public ObjectRef {
+class TargetTag : public ffi::ObjectRef {
  public:
   /*!
    * \brief Retrieve the Target given it the name of target tag
@@ -82,6 +81,13 @@ class TargetTag : public ObjectRef {
    */
   TVM_DLL static ffi::Map<ffi::String, Target> ListTags();
   /*!
+   * \brief Retrieve the raw config dict for a target tag
+   * \param target_tag_name Name of the target tag
+   * \return The config dict if the tag exists, nullopt otherwise
+   */
+  TVM_DLL static ffi::Optional<ffi::Map<ffi::String, Any>> GetConfig(
+      const ffi::String& target_tag_name);
+  /*!
    * \brief Add a tag into the registry
    * \param name Name of the tag
    * \param config The target config corresponding to the tag
@@ -90,7 +96,7 @@ class TargetTag : public ObjectRef {
    */
   TVM_DLL static Target AddTag(ffi::String name, ffi::Map<ffi::String, Any> config, bool override);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TargetTag, ObjectRef, TargetTagNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TargetTag, ffi::ObjectRef, TargetTagNode);
 
  private:
   /*! \brief Mutable access to the container class  */
@@ -151,15 +157,15 @@ inline TargetTagRegEntry& TargetTagRegEntry::set_name() {
 }
 
 #define TVM_TARGET_TAG_REGISTER_VAR_DEF \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetTagRegEntry& __make_##TargetTag
+  [[maybe_unused]] static ::tvm::TargetTagRegEntry& __make_##TargetTag
 
 /*!
  * \def TVM_REGISTER_TARGET_TAG
  * \brief Register a new target tag, or set attribute of the corresponding target tag.
  * \param TargetTagName The name of target tag
  */
-#define TVM_REGISTER_TARGET_TAG(TargetTagName)                   \
-  TVM_STR_CONCAT(TVM_TARGET_TAG_REGISTER_VAR_DEF, __COUNTER__) = \
+#define TVM_REGISTER_TARGET_TAG(TargetTagName)                       \
+  TVM_FFI_STR_CONCAT(TVM_TARGET_TAG_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetTagRegEntry::RegisterOrGet(TargetTagName).set_name()
 
 }  // namespace tvm

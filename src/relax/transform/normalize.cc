@@ -24,6 +24,7 @@
  * available.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -113,7 +114,7 @@ class NormalizeMutator : public ExprMutatorBase {
     } else if (const auto* node = block.as<BindingBlockNode>()) {
       ret = VisitBindingBlock_(node);
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
     }
     return ret;
   }
@@ -140,7 +141,7 @@ class NormalizeMutator : public ExprMutatorBase {
     } else if (const auto* node = binding.as<MatchCastNode>()) {
       VisitBinding_(node);
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
     }
   }
 
@@ -236,7 +237,7 @@ class GlobalVarNormalizer : private ExprMutator {
       }
 
       auto global_symbol_value = global_symbol.value();
-      CHECK(!name_supply_->ContainsName(global_symbol_value))
+      TVM_FFI_ICHECK(!name_supply_->ContainsName(global_symbol_value))
           << "IRModule contains duplicate global symbol: " << global_symbol_value;
       name_supply_->ReserveName(global_symbol_value);
       auto new_gvar = builder_->AddFunction(func, global_symbol_value);
@@ -262,7 +263,7 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
   Expr VisitExpr_(const GlobalVarNode* op) final {
-    ICHECK(gvar_map_.count(ffi::GetRef<GlobalVar>(op)));
+    TVM_FFI_ICHECK(gvar_map_.count(ffi::GetRef<GlobalVar>(op)));
     return gvar_map_[ffi::GetRef<GlobalVar>(op)];
   }
 

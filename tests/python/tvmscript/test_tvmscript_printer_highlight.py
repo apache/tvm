@@ -14,30 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
-from tvm.script.highlight import cprint, _format
+from tvm.script import tirx as T
+from tvm.script.highlight import _format, cprint
 
 
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(  # type: ignore
             a: T.handle,
             b: T.handle,
             c: T.handle,
         ) -> None:  # pylint: disable=no-self-argument
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             A = T.match_buffer(a, [16, 128, 128])
             B = T.match_buffer(b, [16, 128, 128])
             C = T.match_buffer(c, [16, 128, 128])
             for n, i, j, k in T.grid(16, 128, 128, 128):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
                     with T.init():
                         C[vn, vi, vj] = 0.0  # type: ignore

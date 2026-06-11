@@ -18,7 +18,7 @@
 """Pattern registry for BYOC backends"""
 
 import atexit
-from typing import Callable, List, Mapping, Optional, Set, Tuple, Union
+from collections.abc import Callable, Mapping
 
 from tvm.relax.dpl import DFPattern
 from tvm.relax.transform import FusionPattern
@@ -26,7 +26,7 @@ from tvm.relax.transform import FusionPattern
 from ..expr import Expr
 from . import _ffi_api
 
-_REGISTERED_PATTERN_NAMES: Set[str] = set()
+_REGISTERED_PATTERN_NAMES: set[str] = set()
 
 
 def _cleanup_registered_patterns():
@@ -52,15 +52,15 @@ def _ensure_cleanup_function_registered():
 
 
 CheckFunc = Callable[[Mapping[DFPattern, Expr], Expr], bool]
-Pattern = Union[
-    FusionPattern,
-    Tuple[str, DFPattern],
-    Tuple[str, DFPattern, Mapping[str, DFPattern]],
-    Tuple[str, DFPattern, Mapping[str, DFPattern], CheckFunc],
-]
+Pattern = (
+    FusionPattern
+    | tuple[str, DFPattern]
+    | tuple[str, DFPattern, Mapping[str, DFPattern]]
+    | tuple[str, DFPattern, Mapping[str, DFPattern], CheckFunc]
+)
 
 
-def register_patterns(patterns: List[Pattern]):
+def register_patterns(patterns: list[Pattern]):
     """
     Register patterns which will be used to partition the DataflowBlock into
     subgraphs that are supported by external backends.
@@ -85,7 +85,7 @@ def register_patterns(patterns: List[Pattern]):
     _ffi_api.RegisterPatterns(entries)
 
 
-def get_patterns_with_prefix(prefix: str) -> List[FusionPattern]:
+def get_patterns_with_prefix(prefix: str) -> list[FusionPattern]:
     """
     Get a list of patterns whose names startwith `prefix`.
 
@@ -102,7 +102,7 @@ def get_patterns_with_prefix(prefix: str) -> List[FusionPattern]:
     return _ffi_api.GetPatternsWithPrefix(prefix)
 
 
-def get_pattern(name: str) -> Optional[FusionPattern]:
+def get_pattern(name: str) -> FusionPattern | None:
     """
     Find the pattern with a particular name.
 

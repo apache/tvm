@@ -20,6 +20,7 @@
 /*!
  * \file tensor.cc
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
@@ -56,7 +57,7 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
   ffi::Array<PrimExpr> shape = (*this)->shape;
 
   if (shape.size() != 0) {
-    ICHECK_EQ(shape.size(), indices.size())
+    TVM_FFI_ICHECK_EQ(shape.size(), indices.size())
         << "Tensor dimension mismatch in read "
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
@@ -121,11 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* t = static_cast<const TensorNode*>(node.get());
-      p->stream << "Tensor(shape=" << t->shape << ", op.name=" << t->op->name << ')';
-    });
+// Pattern A (RM): auto-default repr from reflection.
 
 // Other tensor ops.
 TVM_FFI_STATIC_INIT_BLOCK() {

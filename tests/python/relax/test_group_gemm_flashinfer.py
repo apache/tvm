@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841, RUF005
 
 """Test for FlashInfer GroupedGemm TVM integration"""
 
@@ -35,8 +36,12 @@ fp8_dtype = "float8_e4m3fn"
 ################# Helpers #################
 ###########################################
 def has_flashinfer():
-    """Check if FlashInfer is available"""
+    """Check if FlashInfer is available with the SM100 grouped-gemm symbol."""
     try:
+        from flashinfer.gemm import (  # pylint: disable=import-outside-toplevel,unused-import
+            gen_gemm_sm100_module,
+        )
+
         from tvm.relax.backend.cuda import (  # pylint: disable=import-outside-toplevel
             flashinfer,
         )
@@ -57,7 +62,7 @@ def has_cutlass():
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         major, minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         return major >= 9  # SM90+
-    except:
+    except Exception:
         return False
 
 
@@ -274,9 +279,9 @@ def generate_test_data(
     device: tvm.runtime.Device,
 ):
     """Generate test data for grouped GEMM operations"""
-    assert batch_size == len(
-        m_sizes
-    ), f"batch_size ({batch_size}) must equal len(m_sizes) ({len(m_sizes)})"
+    assert batch_size == len(m_sizes), (
+        f"batch_size ({batch_size}) must equal len(m_sizes) ({len(m_sizes)})"
+    )
 
     # print(f"Device object: {device}")
     torch_device = torch.device(f"cuda:{device.index}")
@@ -463,9 +468,9 @@ def test_grouped_gemm_correctness(
         rtol, atol = 1e-4, 1e-4
 
     # Check shapes match
-    assert (
-        output_torch.shape == reference.shape
-    ), f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
+    assert output_torch.shape == reference.shape, (
+        f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
+    )
 
     diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
     assert diff < 1e-3, f"diff too large {diff}"

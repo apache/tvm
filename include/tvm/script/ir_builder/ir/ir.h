@@ -21,7 +21,6 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/node/node.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 
 #include <vector>

@@ -54,14 +54,14 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
   if (axis < 0) {
     axis = ndim + axis;
   }
-  ICHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
+  TVM_FFI_ICHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
 
   auto k1 = tvm::te::reduce_axis(Range(0, input_shape[axis]), "k1");
   auto k2 = tvm::te::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
   tvm::ffi::Map<ffi::String, ffi::Any> attrs;
-  attrs.Set("axis", Integer(axis));
+  attrs.Set("axis", IntImm(DataType::Int(32), axis));
 
   auto insert_reduce_index = [axis, ndim](const ffi::Array<Var>& indices,
                                           const IterVar& reduce_index) {
@@ -126,7 +126,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
  */
 inline Tensor log_softmax(const Tensor& x, std::string name = "tensor",
                           std::string tag = "log_softmax_output") {
-  ICHECK_EQ(x->shape.size(), 2) << "Log softmax requires 2-D input";
+  TVM_FFI_ICHECK_EQ(x->shape.size(), 2) << "Log softmax requires 2-D input";
 
   PrimExpr m = x->shape[0];
   PrimExpr n = x->shape[1];

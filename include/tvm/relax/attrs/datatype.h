@@ -30,25 +30,25 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in astype operator */
-struct AstypeAttrs : public AttrsNodeReflAdapter<AstypeAttrs> {
+struct AstypeAttrs : public AttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AstypeAttrs>().def_ro("dtype", &AstypeAttrs::dtype, "Target data type");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AstypeAttrs", AstypeAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AstypeAttrs", AstypeAttrs, AttrsNode);
 };  // struct AstypeAttrs.
 
 /*! \brief Attributes used in wrap_param operator */
-struct WrapParamAttrs : public AttrsNodeReflAdapter<WrapParamAttrs> {
+struct WrapParamAttrs : public AttrsNode {
   DataType dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.WrapParamAttrs", WrapParamAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.WrapParamAttrs", WrapParamAttrs, AttrsNode);
 };  // struct WrapParamAttrs.
 
 }  // namespace relax

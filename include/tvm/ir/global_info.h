@@ -40,20 +40,20 @@ using MemoryScope = ffi::String;
  * \brief GlobalInfo are globally static object that are referred by the IR itself.
  *        Base node for all global info that can appear in the IR
  */
-class GlobalInfoNode : public Object {
+class GlobalInfoNode : public ffi::Object {
  public:
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.GlobalInfo", GlobalInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.GlobalInfo", GlobalInfoNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to GlobalInfoNode.
  * \sa GlobalInfoNode
  */
-class GlobalInfo : public ObjectRef {
+class GlobalInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalInfo, ObjectRef, GlobalInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalInfo, ffi::ObjectRef, GlobalInfoNode);
 };
 
 /*!

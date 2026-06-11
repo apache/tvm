@@ -45,21 +45,24 @@ inline bool WillOverflow(int64_t x, int64_t y, int64_t min_value, int64_t max_va
 }
 
 template <>
-inline bool WillOverflow<tir::AddNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
+inline bool WillOverflow<tirx::AddNode>(int64_t x, int64_t y, int64_t min_value,
+                                        int64_t max_value) {
   if ((y > 0) && (x > max_value - y)) return true;
   if ((y < 0) && (x < min_value - y)) return true;
   return false;
 }
 
 template <>
-inline bool WillOverflow<tir::SubNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
+inline bool WillOverflow<tirx::SubNode>(int64_t x, int64_t y, int64_t min_value,
+                                        int64_t max_value) {
   if ((y > 0) && (x < min_value + y)) return true;
   if ((y < 0) && (x > max_value + y)) return true;
   return false;
 }
 
 template <>
-inline bool WillOverflow<tir::MulNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
+inline bool WillOverflow<tirx::MulNode>(int64_t x, int64_t y, int64_t min_value,
+                                        int64_t max_value) {
   if (y == 0) return false;
   if (y > 0) {
     if (x < min_value / y) return true;
@@ -73,7 +76,8 @@ inline bool WillOverflow<tir::MulNode>(int64_t x, int64_t y, int64_t min_value, 
 }
 
 template <>
-inline bool WillOverflow<tir::ModNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
+inline bool WillOverflow<tirx::ModNode>(int64_t x, int64_t y, int64_t min_value,
+                                        int64_t max_value) {
   return y == 0;
 }
 

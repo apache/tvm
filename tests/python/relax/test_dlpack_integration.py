@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F811, F841
 """
 Test DLPack integration between PyTorch and TVM.
 
@@ -25,13 +26,15 @@ This test verifies:
 5. Error handling for unsupported data types
 """
 
+import numpy as np
 import pytest
 import torch
+
 import tvm
-from tvm import relax, tir
-from tvm.script import relax as R, tir as T
+from tvm import relax, tirx
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 class TestDLPackIntegration:
@@ -206,8 +209,9 @@ class TestDLPackIntegration:
 
     def test_dlpack_with_base_py_module(self):
         """Test DLPack conversion within BasePyModule context."""
+
         # Create a simple IRModule
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
             for i in T.grid(3):
                 B[i] = A[i]

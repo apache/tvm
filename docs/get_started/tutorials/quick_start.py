@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501
 
 """
 .. _quick_start:
@@ -74,8 +75,8 @@ to show how to use Apache TVM to compile a simple neural network.
 # Construct or Import a Model
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Before we get started, let's construct a neural network model first.
-# In this tutorial, to make things simple, we will defined a two-layer MLP networks
-# directly in this script with TVM Relax frontend, which is a similar API to PyTorch.
+# In this tutorial, to make things simple, we will define a two-layer MLP network
+# directly in this script with the TVM Relax frontend, which is a similar API to PyTorch.
 #
 
 import tvm
@@ -85,7 +86,7 @@ from tvm.relax.frontend import nn
 
 class MLPModel(nn.Module):
     def __init__(self):
-        super(MLPModel, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(784, 256)
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(256, 10)

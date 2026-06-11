@@ -27,15 +27,15 @@
 
 #include <tvm/ir/name_supply.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "../../runtime/meta_data.h"
+#include "../../runtime/metadata.h"
 
 namespace tvm {
 namespace codegen {
@@ -83,13 +83,13 @@ class CodeGenSourceBase {
    * \param v The variable.
    * \return the variable name.
    */
-  std::string AllocVarID(const tir::VarNode* v);
+  std::string AllocVarID(const tirx::VarNode* v);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.
    */
-  std::string GetVarID(const tir::VarNode* v) const;
+  std::string GetVarID(const tirx::VarNode* v) const;
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -122,17 +122,17 @@ class CodeGenSourceBase {
   /*! \brief the forward declaration stream */
   std::ostringstream fwd_decl_stream;
   /*! \brief name of each variable */
-  std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
+  std::unordered_map<const tirx::VarNode*, std::string> var_idmap_;
   /*! \brief NameSupply for allocation */
   NameSupply name_supply_;
+  /*! \brief The current indentation value */
+  int indent_{0};
 
  private:
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
-  /*! \brief The current indentation value */
-  int indent_{0};
 };
 
 /*!
@@ -176,7 +176,7 @@ ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::
  * \param fget_source a closure to replace default get source behavior.
  */
 ffi::Module DeviceSourceModuleCreate(
-    std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
+    std::string data, std::string fmt, ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
 
 }  // namespace codegen

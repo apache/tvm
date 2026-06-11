@@ -23,15 +23,132 @@
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/op.h>
+#include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
+
+#include <vector>
 
 namespace tvm {
 namespace arith {
 
-using namespace tir;
+using namespace tirx;
 
-void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tir::PrimFunc& func) {
+namespace {
+
+enum class CompareKind { kEQ, kLT, kLE, kGT, kGE };
+
+bool TryGetIntImm(const PrimExpr& expr, int64_t* value) {
+  if (const auto* imm = expr.as<IntImmNode>()) {
+    *value = imm->value;
+    return true;
+  }
+  return false;
+}
+
+void AppendFloorDivConstraints(const FloorDivNode* div, int64_t value, CompareKind kind,
+                               std::vector<PrimExpr>* out) {
+  int64_t divisor_value = 0;
+  if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
+
+  DataType dtype = div->a.dtype();
+  PrimExpr divisor = make_const(dtype, divisor_value);
+  PrimExpr k = make_const(dtype, value);
+  PrimExpr lo = k * divisor;
+  PrimExpr hi = (k + make_const(dtype, 1)) * divisor;
+
+  switch (kind) {
+    case CompareKind::kEQ:
+      out->push_back(div->a >= lo);
+      out->push_back(div->a < hi);
+      break;
+    case CompareKind::kLT:
+      out->push_back(div->a < lo);
+      break;
+    case CompareKind::kLE:
+      out->push_back(div->a < hi);
+      break;
+    case CompareKind::kGT:
+      out->push_back(div->a >= hi);
+      break;
+    case CompareKind::kGE:
+      out->push_back(div->a >= lo);
+      break;
+  }
+}
+
+CompareKind InvertCompare(CompareKind kind) {
+  switch (kind) {
+    case CompareKind::kEQ:
+      return CompareKind::kEQ;
+    case CompareKind::kLT:
+      return CompareKind::kGT;
+    case CompareKind::kLE:
+      return CompareKind::kGE;
+    case CompareKind::kGT:
+      return CompareKind::kLT;
+    case CompareKind::kGE:
+      return CompareKind::kLE;
+  }
+  return CompareKind::kEQ;
+}
+
+void CollectFloorDivConstraintsFromCompare(const PrimExpr& lhs, const PrimExpr& rhs,
+                                           CompareKind kind, std::vector<PrimExpr>* out) {
+  int64_t value = 0;
+  if (const auto* div = lhs.as<FloorDivNode>()) {
+    if (TryGetIntImm(rhs, &value)) AppendFloorDivConstraints(div, value, kind, out);
+  }
+  if (const auto* div = rhs.as<FloorDivNode>()) {
+    if (TryGetIntImm(lhs, &value)) {
+      AppendFloorDivConstraints(div, value, InvertCompare(kind), out);
+    }
+  }
+}
+
+void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector<PrimExpr>* out) {
+  if (const auto* and_node = condition.as<AndNode>()) {
+    CollectDerivedConstraintFacts(and_node->a, out);
+    CollectDerivedConstraintFacts(and_node->b, out);
+    return;
+  }
+  if (const auto* call = condition.as<CallNode>()) {
+    if (call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2 &&
+        call->args[0].dtype().is_bool() && call->args[1].dtype().is_bool()) {
+      CollectDerivedConstraintFacts(call->args[0], out);
+      CollectDerivedConstraintFacts(call->args[1], out);
+      return;
+    }
+  }
+  if (const auto* eq = condition.as<EQNode>()) {
+    CollectFloorDivConstraintsFromCompare(eq->a, eq->b, CompareKind::kEQ, out);
+  } else if (const auto* lt = condition.as<LTNode>()) {
+    CollectFloorDivConstraintsFromCompare(lt->a, lt->b, CompareKind::kLT, out);
+  } else if (const auto* le = condition.as<LENode>()) {
+    CollectFloorDivConstraintsFromCompare(le->a, le->b, CompareKind::kLE, out);
+  } else if (const auto* gt = condition.as<GTNode>()) {
+    CollectFloorDivConstraintsFromCompare(gt->a, gt->b, CompareKind::kGT, out);
+  } else if (const auto* ge = condition.as<GENode>()) {
+    CollectFloorDivConstraintsFromCompare(ge->a, ge->b, CompareKind::kGE, out);
+  }
+}
+
+void EnterConstraintFacts(WithGroup<ConstraintContext>* constraints, AnalyzerObj* analyzer,
+                          const PrimExpr& condition) {
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
+  constraints->Emplace(analyzer_ref, condition);
+  std::vector<PrimExpr> derived;
+  CollectDerivedConstraintFacts(condition, &derived);
+  for (const PrimExpr& fact : derived) {
+    constraints->Emplace(analyzer_ref, fact);
+  }
+}
+
+}  // namespace
+
+void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tirx::PrimFunc& func) {
   // Mark the all the symbolic buffer shape values in the buffer map as positive value.
   for (auto kv : func->buffer_map) {
     for (PrimExpr shape : kv.second->shape) {
@@ -47,8 +164,9 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     pred = pred && val;
   }
   int n = indices.size();
+  arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(this->analyzer_);
   ffi::Array<PrimExpr> simplified = arith::IterMapSimplify(
-      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, this->analyzer_);
+      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, analyzer_ref);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
       if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {
@@ -60,122 +178,129 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  // record the loop variable as iterators
-  Range dom = Range::FromMinExtent(op->min, op->extent);
-  analyzer_->Bind(op->loop_var, dom);
-  iter_vars_.Set(op->loop_var, dom);
-  return StmtExprMutator::VisitStmt_(op);
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    // record the loop variable as iterators
+    Range dom = Range::FromMinExtent(op->min, op->extent);
+    analyzer_->Bind(op->loop_var, dom);
+    iter_vars_.Set(op->loop_var, dom);
+    return StmtExprMutator::VisitStmt_(op);
+  });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const BlockNode* op) {
-  for (const auto& iter_var : op->iter_vars) {
-    analyzer_->Bind(iter_var->var, iter_var->dom);
-    iter_vars_.Set(iter_var->var, iter_var->dom);
-  }
-  return StmtExprMutator::VisitStmt_(op);
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    for (const auto& iter_var : op->iter_vars) {
+      analyzer_->Bind(iter_var->var, iter_var->dom);
+      iter_vars_.Set(iter_var->var, iter_var->dom);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  });
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
-  // We keep the let-binding here
-  // as sub-class may or maynot choose to replace it.
-  Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) && body.same_as(op->body)) {
+  if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = this->CopyOnWrite(op);
     n->value = std::move(value);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr real_condition = condition;
-  static auto op_likely = Op::Get("tir.likely");
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr real_condition = condition;
+    static auto op_likely = Op::Get("tirx.likely");
 
-  if (auto call = condition.as<CallNode>()) {
-    if (call->op.same_as(op_likely)) {
-      real_condition = call->args[0];
+    if (auto call = condition.as<CallNode>()) {
+      if (call->op.same_as(op_likely)) {
+        real_condition = call->args[0];
+      }
     }
-  }
 
-  Stmt then_case;
-  ffi::Optional<Stmt> else_case;
-  {
-    With<ConstraintContext> ctx(analyzer_, real_condition);
-    WithRecordIterPredicate(real_condition, [&] { then_case = this->VisitStmt(op->then_case); });
-  }
-  if (op->else_case) {
-    With<ConstraintContext> ctx(analyzer_, analyzer_->rewrite_simplify(Not(real_condition)));
-    else_case = this->VisitStmt(op->else_case.value());
-  }
-  if (is_one(real_condition)) return then_case;
-  if (is_zero(real_condition)) {
-    return else_case.value_or(Evaluate(0));
-  }
+    Stmt then_case;
+    ffi::Optional<Stmt> else_case;
+    constraint_scope_.WithNewScope([&]() {
+      EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);
+      WithRecordIterPredicate(real_condition, [&] { then_case = this->VisitStmt(op->then_case); });
+    });
+    if (op->else_case) {
+      PrimExpr neg_condition = analyzer_->rewrite_simplify(Not(real_condition));
+      constraint_scope_.WithNewScope([&]() {
+        constraint_scope_.Current().Emplace(analyzer_, neg_condition);
+        else_case = this->VisitStmt(op->else_case.value());
+      });
+    }
+    if (is_one(real_condition)) return then_case;
+    if (is_zero(real_condition)) {
+      return else_case.value_or(Evaluate(0));
+    }
 
-  if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
-      else_case.same_as(op->else_case)) {
-    return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = this->CopyOnWrite(op);
-    n->condition = std::move(condition);
-    n->then_case = std::move(then_case);
-    n->else_case = std::move(else_case);
-    return Stmt(n);
-  }
+    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+        else_case.same_as(op->else_case)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto n = this->CopyOnWrite(op);
+      n->condition = std::move(condition);
+      n->then_case = std::move(then_case);
+      n->else_case = std::move(else_case);
+      return Stmt(n);
+    }
+  });
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
-    IterVar iv = Downcast<IterVar>(op->node);
-    ICHECK_NE(iv->thread_tag.length(), 0U);
-    Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
-    analyzer_->Bind(iv->var, dom);
-    iter_vars_.Set(iv->var, dom);
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    return stmt;
-  } else {
+  return constraint_scope_.WithNewScope([&]() -> Stmt {
+    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
+      Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
+      analyzer_->Bind(iv->var, dom);
+      iter_vars_.Set(iv->var, dom);
+    }
     return StmtExprMutator::VisitStmt_(op);
-  }
+  });
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr message = this->VisitExpr(op->message);
-  With<ConstraintContext> ctx(analyzer_, condition);
-  Stmt body = this->VisitStmt(op->body);
+  constraint_scope_.Current().Emplace(analyzer_, condition);
 
-  if (condition.same_as(op->condition) && message.same_as(op->message) && body.same_as(op->body)) {
+  if (condition.same_as(op->condition)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = this->CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->message = std::move(message);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }
 
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
+  // SeqStmt does NOT get WithNewScope — constraints accumulate across siblings.
+  return StmtExprMutator::VisitStmt_(op);
+}
+
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  static auto op_if_then_else = Op::Get("tir.if_then_else");
+  static auto op_if_then_else = Op::Get("tirx.if_then_else");
   if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;
-    {
-      With<ConstraintContext> constraint(analyzer_, cond);
+    constraint_scope_.WithNewScope([&]() {
+      EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
       WithRecordIterPredicate(cond, [&] { true_value = this->VisitExpr(op->args[1]); });
-    }
+    });
     {
       PrimExpr not_cond = Not(cond);
-      With<ConstraintContext> constraint(analyzer_, not_cond);
-      WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
+      constraint_scope_.WithNewScope([&]() {
+        constraint_scope_.Current().Emplace(analyzer_, not_cond);
+        WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
+      });
     }
     if (is_zero(cond)) {
       return false_value;
@@ -187,7 +312,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
         false_value.same_as(op->args[2])) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->op, {cond, true_value, false_value});
+      return Call(op->dtype, op->op, {cond, true_value, false_value}, op->attrs, op->span);
     }
   }
   return StmtExprMutator::VisitExpr_(op);
@@ -211,13 +336,16 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
   PrimExpr cond = this->VisitExpr(op->condition);
   PrimExpr true_value, false_value;
-  {
-    With<ConstraintContext> constraint(analyzer_, cond);
+  constraint_scope_.WithNewScope([&]() {
+    EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
     true_value = VisitExpr(op->true_value);
-  }
+  });
   {
-    With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-    false_value = VisitExpr(op->false_value);
+    PrimExpr neg_cond = analyzer_->rewrite_simplify(Not(cond));
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(analyzer_, neg_cond);
+      false_value = VisitExpr(op->false_value);
+    });
   }
   if (is_zero(cond)) {
     return false_value;

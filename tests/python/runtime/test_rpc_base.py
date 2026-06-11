@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm.rpc import base
-import pytest
+# ruff: noqa: F821
 import random
+
+import pytest
+
+from tvm.rpc import base
 
 
 @pytest.mark.parametrize("device_key", ["16e995b6", "127.0.0.1:5555"])

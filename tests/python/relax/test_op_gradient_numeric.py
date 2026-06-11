@@ -14,27 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-from typing import Callable, Union, Tuple, List
+# ruff: noqa: F401, F811, RUF005
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
+import pytest
+import tvm_ffi
+
 import tvm
-from tvm.relax.expr import Call
-from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 import tvm.testing
 from tvm import relax
+from tvm.ir.op import Op
+from tvm.relax.expr import Call
+from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 from tvm.relax.transform import LegalizeOps
 from tvm.testing.utils import check_numerical_grads
-from tvm.ir.op import Op
 
 
 def relax_check_gradients(
     op_func: Callable,
-    inputs_numpy: List[np.array],
-    target: Union[str, tvm.target.Target],
+    inputs_numpy: list[np.array],
+    target: str | tvm.target.Target,
     dev: tvm.runtime.Device,
     tuple_input: bool = False,
-    ignore_grads: List[int] = [],
+    ignore_grads: list[int] = [],
     **kwargs,  # attr for operators
 ):
     """Generate the forward and the gradient module. Then run them and check numeric gradients.
@@ -87,7 +91,7 @@ def relax_check_gradients(
         return tvm.runtime.tensor(data)
 
     def _tvm_to_numpy(data, ignore_idx=[]):
-        if isinstance(data, tvm.ir.Array):
+        if isinstance(data, tvm_ffi.Array):
             return [_tvm_to_numpy(d) for i, d in enumerate(data) if i not in ignore_idx]
         if isinstance(data, tvm.runtime.Tensor):
             return data.numpy()
@@ -781,6 +785,8 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
 
 @tvm.testing.parametrize_targets("llvm")
 def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
+    import pytest
+
     # Use smaller range to reduce numerical errors in gradient check
     data1_numpy = np.random.uniform(0, 2, c2d_shape1).astype(np.float32)
     data2_numpy = np.random.uniform(0, 2, c2d_shape2).astype(np.float32)

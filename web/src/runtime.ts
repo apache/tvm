@@ -27,11 +27,13 @@ import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./suppo
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
+import { CacheState } from "./cache_state";
 import {
-  ArtifactCache,
   ArtifactCacheTemplate,
-  ArtifactIndexedDBCache,
+  ArtifactCacheType,
+  TensorCacheAccessOptions,
   TensorShardEntry,
+  createArtifactCache,
 } from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -262,7 +264,7 @@ class RuntimeContext implements Disposable {
    *
    * @param obj The object to be tracked.
    * @returns the same object.
-   * @note This function only needs to be called for raw system C API values.
+    * Note: This function only needs to be called for raw system C API values.
    *       The return value of PackedFunc will be automatically tracked.
    */
   attachToCurrentScope<T extends Disposable>(obj: T): T {
@@ -830,6 +832,10 @@ export interface InitProgressReport {
 
 export type InitProgressCallback = (report: InitProgressReport) => void;
 
+export interface FetchTensorCacheOptions extends TensorCacheAccessOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * TVM runtime instance.
  *
@@ -859,6 +865,7 @@ export class Instance implements Disposable {
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
   private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
+  private cacheState: CacheState = new CacheState();
 
   /**
    * Internal function(registered by the runtime)
@@ -917,10 +924,10 @@ export class Instance implements Disposable {
   /**
    * Benchmark stable execution of the run function.
    *
-   * @params run The run function
-   * @params dev The device to sync during each run.
-   * @number The number of times to compute the average.
-   * @repeat The number of times to repeat the run.
+    * @param run The run function.
+    * @param dev The device to sync during each run.
+    * @param number The number of times to compute the average.
+    * @param repeat The number of times to repeat the run.
    */
   async benchmark(run: () => void, dev: DLDevice, number = 10, repeat = 1): Promise<number[]> {
     // Skip first run as it can involve GPU warmup and module loading time.
@@ -954,6 +961,8 @@ export class Instance implements Disposable {
   dispose(): void {
     this.deviceLostIsError = false;  // prevent dispose to trigger device.lost error
     // order matters
+    // dispose caches before ctx
+    this.cacheState.dispose();
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
@@ -995,7 +1004,7 @@ export class Instance implements Disposable {
    * @param action The action function.
    * @returns The result value.
    *
-   * @note For action to return a valid value,
+    * Note: For action to return a valid value,
    *       we will need to call {@link moveToParentScope}
    *       for the objects that are created in the scope.
    */
@@ -1010,7 +1019,7 @@ export class Instance implements Disposable {
    * Attach a detached obj to the auto-release pool of the current scope.
    *
    * @param obj The input obj.
-   * @note Normally user do not need to call this function explicitly, as
+    * Note: Normally user do not need to call this function explicitly, as
    *       all library call return values are explicitly attached to
    *       the current scope. You only need to do so when you call
    *       {@link detachFromCurrentScope} to create a detached object.
@@ -1072,7 +1081,7 @@ export class Instance implements Disposable {
   /**
    * Register function to be global function in tvm runtime.
    * @param name The name of the function.
-   * @param f function to be registered.
+    * @param func Function to be registered.
    * @param override Whether overwrite function in existing registry.
    */
   registerFunc(
@@ -1103,7 +1112,6 @@ export class Instance implements Disposable {
   /**
    * Get global PackedFunc from the runtime.
    * @param name The name of the function.
-   * @param autoAttachToScope Whether to track it via autoDispose
    * @returns The result function.
    */
   getGlobalFunc(name: string): PackedFunc {
@@ -1141,7 +1149,6 @@ export class Instance implements Disposable {
    * @returns The check result.
    */
   isPackedFunc(func: unknown): boolean {
-    // eslint-disable-next-line no-prototype-builtins
     return typeof func === "function" && func.hasOwnProperty("_tvmPackedCell");
   }
 
@@ -1239,9 +1246,7 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Update the tensor cache.
-   * @param name The name of the array.
-   * @param arr The content.
+   * Clear the tensor cache.
    */
   tensorCacheClear() {
     this.ctx.tensorCacheClear();
@@ -1252,33 +1257,52 @@ export class Instance implements Disposable {
    *
    * @param tensorCacheUrl The cache url.
    * @param device The device to be fetched to.
-   * @param cacheScope The scope identifier of the cache
-   * @param cacheType The type of the cache: "cache" or "indexedDB"
-   * @param signal An optional AbortSignal to abort the fetch
+   * @param options Options object.
+   * @param cacheScope The scope identifier of the cache (legacy positional overload).
+   * @param cacheType The type of the cache: "cache", "indexeddb", "cross-origin", or "opfs" (legacy positional overload).
+   * @param signal An optional AbortSignal to abort the fetch (legacy positional overload).
    * @returns The meta data
    */
   async fetchTensorCache(
     tensorCacheUrl: string,
     device: DLDevice,
-    cacheScope = "tvmjs",
+    options?: FetchTensorCacheOptions,
+  ): Promise<any>;
+  async fetchTensorCache(
+    tensorCacheUrl: string,
+    device: DLDevice,
+    cacheScope?: string,
+    cacheType?: string,
+    signal?: AbortSignal,
+  ): Promise<any>;
+  async fetchTensorCache(
+    tensorCacheUrl: string,
+    device: DLDevice,
+    cacheScopeOrOptions: string | FetchTensorCacheOptions = "tvmjs",
     cacheType = "cache",
     signal?: AbortSignal,
   ): Promise<any> {
-    let artifactCache: ArtifactCacheTemplate;
-    if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
-      artifactCache = new ArtifactCache(cacheScope);
-    } else if (cacheType.toLowerCase() == "indexeddb") {
-      artifactCache = new ArtifactIndexedDBCache(cacheScope);
+    let options: FetchTensorCacheOptions;
+    if (typeof cacheScopeOrOptions === "object" && cacheScopeOrOptions !== null) {
+      options = cacheScopeOrOptions;
     } else {
-      console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
-      artifactCache = new ArtifactCache(cacheScope);
+      options = {
+        cacheScope: cacheScopeOrOptions as string,
+        signal: signal,
+      };
     }
+    const cacheScope = options.cacheScope ?? "tvmjs";
+    const artifactCache = createArtifactCache(cacheScope, {
+      ...options,
+      cacheType: options.cacheType ?? (cacheType as ArtifactCacheType),
+    });
+    const effectiveSignal = options.signal ?? signal;
     const jsonUrl = new URL("tensor-cache.json", tensorCacheUrl).href;
-    const list = await artifactCache.fetchWithCache(jsonUrl, "json");
+    const list = await artifactCache.fetchWithCache(jsonUrl, "json", effectiveSignal);
     await this.fetchTensorCacheInternal(
       tensorCacheUrl,
       list["records"] as Array<TensorShardEntry>, device, artifactCache,
-      signal);
+      effectiveSignal);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
@@ -1650,7 +1674,7 @@ export class Instance implements Disposable {
 
   /**
    * Join a sequence of Tensors that represent embeddings.
-   * @param inputs A list of embeddings in Tensors, each array i has shape (m_i, hidden_size).
+    * @param embeddings A list of embeddings in Tensors, each array i has shape (m_i, hidden_size).
    * @returns An Tensor of shape (\sum_{i} {m}, hidden_size)
    */
   concatEmbeddings(embeddings: Array<Tensor>): Tensor {
@@ -1678,8 +1702,14 @@ export class Instance implements Disposable {
    * @returns The created shape tuple.
    */
   makeShapeTuple(shape: Array<number>): TVMObject {
-    const shapeArray = shape.map((value) => new Scalar(value, "int"));
-    return this.ctx.makeShapeTuple(...shapeArray);
+    const key = CacheState.computeShapeKey(shape);
+    return this.cacheState.shapeCache.get(key, () => {
+      const shapeArray = shape.map((value) => new Scalar(value, "int"));
+      const tuple = this.ctx.makeShapeTuple(...shapeArray);
+      // Detach from scope so the cached object survives across scopes.
+      this.detachFromCurrentScope(tuple);
+      return tuple;
+    }) as TVMObject;
   }
   /**
    * Get type index from type key.
@@ -1753,7 +1783,7 @@ export class Instance implements Disposable {
    * @param func function to be registered.
    * @param override Whether overwrite function in existing registry.
    *
-   * @note This function is handled via asynctify mechanism
+    * Note: This function is handled via asynctify mechanism.
    * The wasm needs to be compiled with Asynctify
    */
   registerAsyncifyFunc(
@@ -1772,7 +1802,7 @@ export class Instance implements Disposable {
    * @param func function to be registered.
    * @param override Whether overwrite function in existing registry.
    *
-   * @note The async function will only be used for serving remote calls in the rpc
+    * Note: The async function will only be used for serving remote calls in the rpc.
    * These functions contains explicit continuation
    */
   registerAsyncServerFunc(
@@ -2010,7 +2040,7 @@ export class Instance implements Disposable {
    * Set packed function arguments into the location indicated by argsValue and argsCode.
    * Allocate new temporary space from the stack if necessary.
    *
-   * @parma stack The call stack
+    * @param stack The call stack.
    * @param args  The input arguments.
    * @param packedArgs The offset of packedArgs.
    */
@@ -2068,7 +2098,6 @@ export class Instance implements Disposable {
       } else if (tp === "number") {
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFloat);
         stack.storeF64(argValueOffset, val);
-        // eslint-disable-next-line no-prototype-builtins
       } else if (tp === "function" && val.hasOwnProperty("_tvmPackedCell")) {
         stack.storePtr(argValueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFunction);
@@ -2101,7 +2130,6 @@ export class Instance implements Disposable {
   private wrapJSFuncAsSafeCallType(func: Function): ctypes.FTVMFFIWasmSafeCallType {
     const lib = this.lib;
     return (
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       self: Pointer,
       packedArgs: Pointer,
       numArgs: number,
@@ -2146,7 +2174,7 @@ export class Instance implements Disposable {
         const errMsgOffset = stack.allocRawBytes(errMsg.length + 1);
         stack.storeRawBytes(errMsgOffset, StringToUint8Array(errMsg));
         stack.commitToWasmMemory();
-        (this.lib.exports.FTVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
+        (this.lib.exports.TVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
           stack.ptrFromOffset(errKindOffset),
           stack.ptrFromOffset(errMsgOffset)
         );

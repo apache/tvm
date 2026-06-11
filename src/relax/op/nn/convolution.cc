@@ -24,6 +24,8 @@
 
 #include "convolution.h"
 
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <vector>
@@ -37,22 +39,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   Conv3DAttrs::RegisterReflection();
   Conv1DTransposeAttrs::RegisterReflection();
   Conv2DTransposeAttrs::RegisterReflection();
+  Conv3DTransposeAttrs::RegisterReflection();
 }
 
 /* relax.nn.conv1d */
 
-Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv1d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 1)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 1)
       << "The input strides length is expected to be 1. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 1)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
   return MakeConv<Conv1DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -99,25 +103,24 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIW_shape = weight2OIW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
   PrimExpr input_channel_kernel = weight_OIW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "The channel size of the data should equal to the product of input channel size of the "
            "weight and the number of groups. However, the data channel size is "
         << input_channel_data << " while the weight input channel size and number of groups are "
-        << input_channel_kernel << " and " << attrs->groups);
+        << input_channel_kernel << " and " << attrs->groups;
   } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel * attrs->groups)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
   if (analyzer->CanProve(floormod(weight_OIW_shape[0], attrs->groups) != 0)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv1d expects the number of output channels to be divisible by the "
-                        "number of groups. However, the number of output channels is "
-                     << weight_OIW_shape[0] << " while the number of groups is " << attrs->groups);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv1d expects the number of output channels to be divisible by the "
+           "number of groups. However, the number of output channels is "
+        << weight_OIW_shape[0] << " while the number of groups is " << attrs->groups;
   } else if (!analyzer->CanProveEqual(floormod(weight_OIW_shape[0], attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
@@ -125,15 +128,18 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_OIW_shape[2];
-  PrimExpr padding_w = attrs->padding[0] + attrs->padding[1];
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = weight_OIW_shape[0];
 
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[0] * (kernel_w - 1) - 1;
-  out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_w - 1) - 1;
+  out_NCW_shape[2] =
+      analyzer->Simplify(floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[0])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -144,20 +150,21 @@ InferLayoutOutput InferLayoutConv1d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv1d");
   const auto* attrs = call->attrs.as<Conv1DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv1d.
-    Layout desired_data_layout = (*it).second[0];
-    Layout desired_weight_layout = (*it).second[1];
-    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
@@ -198,12 +205,12 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv2d */
 
-Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv2d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
@@ -214,12 +221,13 @@ Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 2)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 2)
       << "The input strides length is expected to be 2. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 2)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
   return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -266,25 +274,24 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIHW_shape = weight2OIHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
   PrimExpr input_channel_kernel = weight_OIHW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "The channel size of the data should equal to the product of input channel size of the "
            "weight and the number of groups. However, the data channel size is "
         << input_channel_data << " while the weight input channel size and number of groups are "
-        << input_channel_kernel << " and " << attrs->groups);
+        << input_channel_kernel << " and " << attrs->groups;
   } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel * attrs->groups)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
   if (analyzer->CanProve(floormod(weight_OIHW_shape[0], attrs->groups) != 0)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv2d expects the number of output channels to be divisible by the "
-                        "number of groups. However, the number of output channels is "
-                     << weight_OIHW_shape[0] << " while the number of groups is " << attrs->groups);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv2d expects the number of output channels to be divisible by the "
+           "number of groups. However, the number of output channels is "
+        << weight_OIHW_shape[0] << " while the number of groups is " << attrs->groups;
   } else if (!analyzer->CanProveEqual(floormod(weight_OIHW_shape[0], attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
@@ -294,18 +301,24 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_OIHW_shape[2];
   PrimExpr kernel_w = weight_OIHW_shape[3];
-  PrimExpr padding_h = attrs->padding[0] + attrs->padding[2];
-  PrimExpr padding_w = attrs->padding[1] + attrs->padding[3];
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[2]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_OIHW_shape[0];
 
-  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1;
-  out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
-  out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
+  PrimExpr numerator_h =
+      input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_w - 1) - 1;
+  out_NCHW_shape[2] =
+      analyzer->Simplify(floordiv(numerator_h, IntImm(DataType::Int(32), attrs->strides[0])) + 1);
+  out_NCHW_shape[3] =
+      analyzer->Simplify(floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[1])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -316,21 +329,21 @@ InferLayoutOutput InferLayoutConv2d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv2d");
   const auto* attrs = call->attrs.as<Conv2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
   data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
-  ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DAttrs> new_attrs = ffi::make_object<Conv2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv2d.
-    Layout desired_data_layout = (*it).second[0];
-    Layout desired_weight_layout = (*it).second[1];
-    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    tir::Layout input_layout(attrs->data_layout, DataType::Int(64));
-    tir::Layout kernel_layout(attrs->kernel_layout, DataType::Int(64));
-    tir::Layout out_layout(attrs->out_layout, DataType::Int(64));
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    tirx::SLayout input_layout(attrs->data_layout, DataType::Int(64));
+    tirx::SLayout kernel_layout(attrs->kernel_layout, DataType::Int(64));
+    tirx::SLayout out_layout(attrs->out_layout, DataType::Int(64));
 
     if ((desired_data_layout.ndim() == input_layout.ndim()) &&
         (desired_weight_layout.ndim() == kernel_layout.ndim()) &&
@@ -405,12 +418,12 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv3d */
 
-Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv3d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding3D(std::move(padding));
@@ -423,12 +436,13 @@ Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntIm
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 3)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 3)
       << "The input strides length is expected to be 3. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 3)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 3)
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
   return MakeConv<Conv3DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -475,26 +489,24 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_OIDHW_shape = weight2OIDHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCDHW_shape[1];
   PrimExpr input_channel_kernel = weight_OIDHW_shape[1];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel * attrs->groups)) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "The channel size of the data should equal to the product of input channel size of the "
            "weight and the number of groups. However, the data channel size is "
         << input_channel_data << " while the weight input channel size and number of groups are "
-        << input_channel_kernel << " and " << attrs->groups);
+        << input_channel_kernel << " and " << attrs->groups;
   } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel * attrs->groups)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
   if (analyzer->CanProve(floormod(weight_OIDHW_shape[0], attrs->groups) != 0)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv3d expects the number of output channels to be divisible by the "
-                        "number of groups. However, the number of output channels is "
-                     << weight_OIDHW_shape[0] << " while the number of groups is "
-                     << attrs->groups);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv3d expects the number of output channels to be divisible by the "
+           "number of groups. However, the number of output channels is "
+        << weight_OIDHW_shape[0] << " while the number of groups is " << attrs->groups;
   } else if (!analyzer->CanProveEqual(floormod(weight_OIDHW_shape[0], attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
@@ -506,21 +518,30 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_d = weight_OIDHW_shape[2];
   PrimExpr kernel_h = weight_OIDHW_shape[3];
   PrimExpr kernel_w = weight_OIDHW_shape[4];
-  PrimExpr padding_d = attrs->padding[0] + attrs->padding[3];
-  PrimExpr padding_h = attrs->padding[1] + attrs->padding[4];
-  PrimExpr padding_w = attrs->padding[2] + attrs->padding[5];
+  PrimExpr padding_d =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[3]);
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[4]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[2]) + IntImm(DataType::Int(32), attrs->padding[5]);
 
   std::vector<PrimExpr> out_NCDHW_shape;
   out_NCDHW_shape.resize(5);
   out_NCDHW_shape[0] = data_NCDHW_shape[0];
   out_NCDHW_shape[1] = weight_OIDHW_shape[0];
 
-  PrimExpr numerator_d = input_d + padding_d - attrs->dilation[0] * (kernel_d - 1) - 1;
-  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[1] * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[2] * (kernel_w - 1) - 1;
-  out_NCDHW_shape[2] = analyzer->Simplify(floordiv(numerator_d, attrs->strides[0]) + 1);
-  out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[1]) + 1);
-  out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[2]) + 1);
+  PrimExpr numerator_d =
+      input_d + padding_d - IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_d - 1) - 1;
+  PrimExpr numerator_h =
+      input_h + padding_h - IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w =
+      input_w + padding_w - IntImm(DataType::Int(32), attrs->dilation[2]) * (kernel_w - 1) - 1;
+  out_NCDHW_shape[2] =
+      analyzer->Simplify(floordiv(numerator_d, IntImm(DataType::Int(32), attrs->strides[0])) + 1);
+  out_NCDHW_shape[3] =
+      analyzer->Simplify(floordiv(numerator_h, IntImm(DataType::Int(32), attrs->strides[1])) + 1);
+  out_NCDHW_shape[4] =
+      analyzer->Simplify(floordiv(numerator_w, IntImm(DataType::Int(32), attrs->strides[2])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -531,20 +552,21 @@ InferLayoutOutput InferLayoutConv3d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv3d");
   const auto* attrs = call->attrs.as<Conv3DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
+  ffi::ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     // We have a desired layout for conv3d.
-    Layout desired_data_layout = (*it).second[0];
-    Layout desired_weight_layout = (*it).second[1];
-    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(5), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(5), attrs->kernel_layout, desired_weight_layout);
@@ -585,32 +607,34 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
-Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
-                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
-                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
                       ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(output_padding.size(), 1) << "The input output_padding length is expected to be 1. "
-                                        "However, the given output_padding is "
-                                     << output_padding;
-  CHECK_EQ(strides.size(), 1)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(output_padding.size(), 1)
+      << "The input output_padding length is expected to be 1. "
+         "However, the given output_padding is "
+      << output_padding;
+  TVM_FFI_ICHECK_EQ(strides.size(), 1)
       << "The input strides length is expected to be 1. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 1)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
   auto attrs = ffi::make_object<Conv1DTransposeAttrs>();
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->output_padding = ConvertIntImmToInt64(output_padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
@@ -657,50 +681,50 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_IOW_shape = weight2IOW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCW_shape[1];
   PrimExpr input_channel_kernel = weight_IOW_shape[0];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "Conv1dTranspose expects the channel size of the data should equal to the input channel "
            "size of the weight. However, the data channel size is "
-        << input_channel_data << " while the weight input channel size is "
-        << input_channel_kernel);
+        << input_channel_data << " while the weight input channel size is " << input_channel_kernel;
   } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
   if (analyzer->CanProve(floormod(input_channel_kernel, attrs->groups) != 0)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv1dTranspose expects the number of input channels to be divisible by "
-                        "the number of groups. However, the number of input channels is "
-                     << input_channel_kernel << " while the number of groups is " << attrs->groups);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv1dTranspose expects the number of input channels to be divisible by "
+           "the number of groups. However, the number of input channels is "
+        << input_channel_kernel << " while the number of groups is " << attrs->groups;
   } else if (!analyzer->CanProveEqual(floormod(input_channel_kernel, attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
-  if (analyzer->CanProve(attrs->output_padding[0]->value >= attrs->strides[0]->value)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv1dTranspose expects the output padding less than the strides, but the "
-                        "output padding is"
-                     << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!analyzer->CanProve(attrs->output_padding[0]->value < attrs->strides[0]->value)) {
+  if (attrs->output_padding[0] >= attrs->strides[0]) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv1dTranspose expects the output padding less than the strides, but the "
+           "output padding is"
+        << attrs->output_padding << " while the strides are" << attrs->strides;
+  } else if (!(attrs->output_padding[0] < attrs->strides[0])) {
     // Todo(relax-team): Trust the input padding at this moment, and revisit
     // this condition with runtime shape check
   }
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_IOW_shape[2];
-  PrimExpr padding_w = attrs->padding[0] + attrs->padding[1];
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = weight_IOW_shape[1] * attrs->groups;
 
-  PrimExpr out_w = (input_w - 1) * attrs->strides[0] - padding_w +
-                   attrs->dilation[0] * (kernel_w - 1) + attrs->output_padding[0] + 1;
+  PrimExpr out_w = (input_w - 1) * IntImm(DataType::Int(32), attrs->strides[0]) - padding_w +
+                   IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_w - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[0]) + 1;
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -712,17 +736,18 @@ InferLayoutOutput InferLayoutConv1dTranspose(
     const VarLayoutMap& var_layout_map) {
   const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   LayoutDecision data_layout, weight_layout, output_layout;
-  ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv1DTransposeAttrs> new_attrs = ffi::make_object<Conv1DTransposeAttrs>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv1d_transpose");
   if (it != desired_layouts.end()) {
-    Layout desired_data_layout = (*it).second[0];
-    Layout desired_weight_layout = (*it).second[1];
-    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
@@ -763,13 +788,13 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nn.conv2d_transpose */
 
-Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
-                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
-                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
                       ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
@@ -783,23 +808,25 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 2. "
-                                        "However, the given output_padding is "
-                                     << output_padding;
-  CHECK_EQ(strides.size(), 2)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(output_padding.size(), 2)
+      << "The input output_padding length is expected to be 2. "
+         "However, the given output_padding is "
+      << output_padding;
+  TVM_FFI_ICHECK_EQ(strides.size(), 2)
       << "The input strides length is expected to be 2. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 2)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
   auto attrs = ffi::make_object<Conv2DTransposeAttrs>();
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->output_padding = ConvertIntImmToInt64(output_padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
@@ -847,57 +874,55 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> weight_IOHW_shape = weight2IOHW.ForwardShape(weight_shape.value()->values);
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr input_channel_data = data_NCHW_shape[1];
   PrimExpr input_channel_kernel = weight_IOHW_shape[0];
   if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "Conv2dTranspose expects the channel size of the data should equal to the input channel "
            "size of the weight. However, the data channel size is "
-        << input_channel_data << " while the weight input channel size is "
-        << input_channel_kernel);
+        << input_channel_data << " while the weight input channel size is " << input_channel_kernel;
   } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
   if (analyzer->CanProve(floormod(input_channel_kernel, attrs->groups) != 0)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv2dTranspose expects the number of input channels to be divisible by "
-                        "the number of groups. However, the number of input channels is "
-                     << input_channel_kernel << " while the number of groups is " << attrs->groups);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv2dTranspose expects the number of input channels to be divisible by "
+           "the number of groups. However, the number of input channels is "
+        << input_channel_kernel << " while the number of groups is " << attrs->groups;
   } else if (!analyzer->CanProveEqual(floormod(input_channel_kernel, attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
-  if (analyzer->CanProve(attrs->output_padding[0]->value >= attrs->strides[0]->value ||
-                         attrs->output_padding[1]->value >= attrs->strides[1]->value)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Conv2dTranspose expects the output padding less than the strides, but the "
-                        "output padding is"
-                     << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!analyzer->CanProve(attrs->output_padding[0]->value < attrs->strides[0]->value &&
-                                 attrs->output_padding[1]->value < attrs->strides[1]->value)) {
-    // Todo(relax-team): Trust the input padding at this moment, and revisit
-    // this condition with runtime shape check
+  if (attrs->output_padding[0] >= attrs->strides[0] ||
+      attrs->output_padding[1] >= attrs->strides[1]) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv2dTranspose expects the output padding less than the strides, but the "
+           "output padding is"
+        << attrs->output_padding << " while the strides are" << attrs->strides;
   }
 
   PrimExpr input_h = data_NCHW_shape[2];
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_IOHW_shape[2];
   PrimExpr kernel_w = weight_IOHW_shape[3];
-  PrimExpr padding_h = attrs->padding[0] + attrs->padding[2];
-  PrimExpr padding_w = attrs->padding[1] + attrs->padding[3];
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[2]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_IOHW_shape[1] * attrs->groups;
 
-  PrimExpr out_h = (input_h - 1) * attrs->strides[0] - padding_h +
-                   attrs->dilation[0] * (kernel_h - 1) + attrs->output_padding[0] + 1;
-  PrimExpr out_w = (input_w - 1) * attrs->strides[1] - padding_w +
-                   attrs->dilation[1] * (kernel_w - 1) + attrs->output_padding[1] + 1;
+  PrimExpr out_h = (input_h - 1) * IntImm(DataType::Int(32), attrs->strides[0]) - padding_h +
+                   IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_h - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[0]) + 1;
+  PrimExpr out_w = (input_w - 1) * IntImm(DataType::Int(32), attrs->strides[1]) - padding_w +
+                   IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_w - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[1]) + 1;
   out_NCHW_shape[2] = analyzer->Simplify(out_h);
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
@@ -912,17 +937,17 @@ InferLayoutOutput InferLayoutConv2dTranspose(
   LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision output_layout;
-  ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
+  ffi::ObjectPtr<Conv2DTransposeAttrs> new_attrs = ffi::make_object<Conv2DTransposeAttrs>(*attrs);
 
   auto it = desired_layouts.find("relax.nn.conv2d_transpose");
   if (it != desired_layouts.end()) {
-    Layout desired_data_layout = (*it).second[0];
-    Layout desired_weight_layout = (*it).second[1];
-    Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
 
-    Layout input_layout = Layout(attrs->data_layout);
-    Layout kernel_layout = Layout(attrs->kernel_layout);
-    Layout out_layout = Layout(attrs->out_layout);
+    SLayout input_layout = SLayout(attrs->data_layout);
+    SLayout kernel_layout = SLayout(attrs->kernel_layout);
+    SLayout out_layout = SLayout(attrs->out_layout);
 
     if (desired_data_layout.ndim_primal() == input_layout.ndim() &&
         desired_weight_layout.ndim_primal() == kernel_layout.ndim() &&
@@ -994,7 +1019,250 @@ TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
+
+/* relax.nn.conv3d_transpose */
+
+Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
+                      ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
+                      ffi::Optional<DataType> out_dtype) {
+  padding = GetCompletePadding3D(std::move(padding));
+  if (output_padding.size() == 1) {
+    output_padding.push_back(output_padding[0]);
+    output_padding.push_back(output_padding[0]);
+  }
+  if (strides.size() == 1) {
+    strides.push_back(strides[0]);
+    strides.push_back(strides[0]);
+  }
+  if (dilation.size() == 1) {
+    dilation.push_back(dilation[0]);
+    dilation.push_back(dilation[0]);
+  }
+
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(output_padding.size(), 3)
+      << "The input output_padding length is expected to be 3. "
+         "However, the given output_padding is "
+      << output_padding;
+  TVM_FFI_ICHECK_EQ(strides.size(), 3)
+      << "The input strides length is expected to be 3. However, the given strides is " << strides;
+  TVM_FFI_ICHECK_EQ(dilation.size(), 3)
+      << "The input dilation length is expected to be 3. However, the given dilation is "
+      << dilation;
+
+  auto attrs = ffi::make_object<Conv3DTransposeAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->data_layout = data_layout;
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = out_layout.value_or(data_layout);
+  attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
+  const Op& op = Op::Get("relax.nn.conv3d_transpose");
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.conv3d_transpose", conv3d_transpose);
+}
+
+StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = input_sinfo[0];
+  TensorStructInfo weight_sinfo = input_sinfo[1];
+
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
+                                                     /*tgt_layout=*/"NCDHW",         //
+                                                     /*tensor_name=*/"data");
+  auto [weight_layout, weight2IODHW] = CheckTensorLayout(call, ctx, attrs->kernel_layout,  //
+                                                         /*tgt_layout=*/"IODHW",           //
+                                                         /*tensor_name=*/"kernel");
+  auto [out_layout, out2NCDHW] = CheckTensorLayout(call, ctx, attrs->out_layout,  //
+                                                   /*tgt_layout=*/"NCDHW",        //
+                                                   /*tensor_name=*/"output");
+
+  ffi::Optional<ShapeExpr> data_shape =
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+  ffi::Optional<ShapeExpr> weight_shape =
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+
+  DataType out_dtype = attrs->out_dtype.is_void()
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           : attrs->out_dtype;
+  ffi::Optional<VDevice> vdevice =
+      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  if (!data_shape.defined() || !weight_shape.defined()) {
+    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+  }
+
+  ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> weight_IODHW_shape = weight2IODHW.ForwardShape(weight_shape.value()->values);
+
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  PrimExpr input_channel_data = data_NCDHW_shape[1];
+  PrimExpr input_channel_kernel = weight_IODHW_shape[0];
+  if (analyzer->CanProve(input_channel_data != input_channel_kernel)) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv3dTranspose expects the channel size of the data should equal to the input channel "
+           "size of the weight. However, the data channel size is "
+        << input_channel_data << " while the weight input channel size is " << input_channel_kernel;
+  } else if (!analyzer->CanProveEqual(input_channel_data, input_channel_kernel)) {
+    // Todo(relax-team): Trust the input shape at this moment, and revisit
+    // this condition with runtime shape check
+  }
+  if (analyzer->CanProve(floormod(input_channel_kernel, attrs->groups) != 0)) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv3dTranspose expects the number of input channels to be divisible by "
+           "the number of groups. However, the number of input channels is "
+        << input_channel_kernel << " while the number of groups is " << attrs->groups;
+  } else if (!analyzer->CanProveEqual(floormod(input_channel_kernel, attrs->groups), 0)) {
+    // Todo(relax-team): Trust the input shape at this moment, and revisit
+    // this condition with runtime shape check
+  }
+  if (attrs->output_padding[0] >= attrs->strides[0] ||
+      attrs->output_padding[1] >= attrs->strides[1] ||
+      attrs->output_padding[2] >= attrs->strides[2]) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Conv3dTranspose expects the output padding less than the strides, but the "
+           "output padding is"
+        << attrs->output_padding << " while the strides are" << attrs->strides;
+  }
+
+  PrimExpr input_d = data_NCDHW_shape[2];
+  PrimExpr input_h = data_NCDHW_shape[3];
+  PrimExpr input_w = data_NCDHW_shape[4];
+  PrimExpr kernel_d = weight_IODHW_shape[2];
+  PrimExpr kernel_h = weight_IODHW_shape[3];
+  PrimExpr kernel_w = weight_IODHW_shape[4];
+  PrimExpr padding_d =
+      IntImm(DataType::Int(32), attrs->padding[0]) + IntImm(DataType::Int(32), attrs->padding[3]);
+  PrimExpr padding_h =
+      IntImm(DataType::Int(32), attrs->padding[1]) + IntImm(DataType::Int(32), attrs->padding[4]);
+  PrimExpr padding_w =
+      IntImm(DataType::Int(32), attrs->padding[2]) + IntImm(DataType::Int(32), attrs->padding[5]);
+
+  std::vector<PrimExpr> out_NCDHW_shape;
+  out_NCDHW_shape.resize(5);
+  out_NCDHW_shape[0] = data_NCDHW_shape[0];
+  out_NCDHW_shape[1] = weight_IODHW_shape[1] * attrs->groups;
+
+  PrimExpr out_d = (input_d - 1) * IntImm(DataType::Int(32), attrs->strides[0]) - padding_d +
+                   IntImm(DataType::Int(32), attrs->dilation[0]) * (kernel_d - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[0]) + 1;
+  PrimExpr out_h = (input_h - 1) * IntImm(DataType::Int(32), attrs->strides[1]) - padding_h +
+                   IntImm(DataType::Int(32), attrs->dilation[1]) * (kernel_h - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[1]) + 1;
+  PrimExpr out_w = (input_w - 1) * IntImm(DataType::Int(32), attrs->strides[2]) - padding_w +
+                   IntImm(DataType::Int(32), attrs->dilation[2]) * (kernel_w - 1) +
+                   IntImm(DataType::Int(32), attrs->output_padding[2]) + 1;
+  out_NCDHW_shape[2] = analyzer->Simplify(out_d);
+  out_NCDHW_shape[3] = analyzer->Simplify(out_h);
+  out_NCDHW_shape[4] = analyzer->Simplify(out_w);
+
+  ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+}
+
+InferLayoutOutput InferLayoutConv3dTranspose(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const VarLayoutMap& var_layout_map) {
+  const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  LayoutDecision data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  LayoutDecision weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  LayoutDecision output_layout;
+  ffi::ObjectPtr<Conv3DTransposeAttrs> new_attrs = ffi::make_object<Conv3DTransposeAttrs>(*attrs);
+
+  auto it = desired_layouts.find("relax.nn.conv3d_transpose");
+  if (it != desired_layouts.end()) {
+    SLayout desired_data_layout = (*it).second[0];
+    SLayout desired_weight_layout = (*it).second[1];
+    SLayout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+
+    SLayout input_layout = SLayout(attrs->data_layout);
+    SLayout kernel_layout = SLayout(attrs->kernel_layout);
+    SLayout out_layout = SLayout(attrs->out_layout);
+
+    if (desired_data_layout.ndim_primal() == input_layout.ndim() &&
+        desired_weight_layout.ndim_primal() == kernel_layout.ndim() &&
+        desired_output_layout.ndim_primal() == out_layout.ndim()) {
+      data_layout = TransposeLike(InitialLayout(5), attrs->data_layout, desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(5), attrs->kernel_layout, desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(5), attrs->out_layout, desired_output_layout);
+      new_attrs->data_layout = (*it).second[0];
+      new_attrs->kernel_layout = (*it).second[1];
+      new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+      return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+    } else {
+      auto data_si = GetStructInfo(call->args[0]);
+      auto kernel_si = GetStructInfo(call->args[1]);
+      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      ffi::Optional<ShapeExpr> data_shape =
+          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+      ffi::Optional<ShapeExpr> kernel_shape =
+          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+
+      bool can_data_proved =
+          CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
+      bool can_kernel_proved = CanProveLayoutTransform(kernel_layout, desired_weight_layout,
+                                                       kernel_shape.value()->values);
+
+      if (can_data_proved && can_kernel_proved) {
+        data_layout = TransposeSubLayoutLike(InitialLayout(5), input_layout, desired_data_layout);
+        weight_layout =
+            TransposeSubLayoutLike(InitialLayout(5), kernel_layout, desired_weight_layout);
+        output_layout = TransposeSubLayoutLike(InitialLayout(5), out_layout, desired_output_layout);
+        new_attrs->data_layout = (*it).second[0];
+        new_attrs->kernel_layout = (*it).second[1];
+        new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+        return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      } else {
+        data_layout = LayoutDecision(InitialLayout(5));
+        weight_layout = LayoutDecision(InitialLayout(5));
+      }
+    }
+  }
+
+  output_layout = data_layout;
+  new_attrs->data_layout =
+      TransposeLike(attrs->data_layout, InitialLayout(5), data_layout->layout).name();
+  new_attrs->kernel_layout =
+      TransposeLike(attrs->kernel_layout, InitialLayout(5), weight_layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(attrs->out_layout, InitialLayout(5), output_layout->layout).name();
+  return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+}
+
+Call InferMixedPrecisionConv3dTranspose(const Call& call, const DataType& out_dtype) {
+  const auto* conv3d_transpose_attrs = call->attrs.as<Conv3DTransposeAttrs>();
+  return Downcast<Call>(
+      conv3d_transpose(call->args[0], call->args[1], conv3d_transpose_attrs->strides,
+                       conv3d_transpose_attrs->padding, conv3d_transpose_attrs->output_padding,
+                       conv3d_transpose_attrs->dilation, conv3d_transpose_attrs->groups,
+                       conv3d_transpose_attrs->data_layout, conv3d_transpose_attrs->kernel_layout,
+                       conv3d_transpose_attrs->out_layout, out_dtype));
+}
+
+TVM_REGISTER_OP("relax.nn.conv3d_transpose")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
+    .set_attrs_type<Conv3DTransposeAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv3dTranspose)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

@@ -24,6 +24,7 @@
 
 #include "set.h"
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
@@ -67,16 +68,16 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
       NormalizeAxis(call, ctx, data_sinfo->ndim, axis_int->value);
     }
   }
-  ICHECK(call->args[2]->IsInstance<PrimValueNode>());
-  ICHECK(call->args[3]->IsInstance<PrimValueNode>());
-  ICHECK(call->args[4]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[2]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[3]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[4]->IsInstance<PrimValueNode>());
 
   return_index = Downcast<PrimValue>(call->args[2]);
   return_inverse = Downcast<PrimValue>(call->args[3]);
   return_counts = Downcast<PrimValue>(call->args[4]);
 
   auto f_convert_to_int64 = [](const PrimExpr& value) {
-    CHECK(value->IsInstance<IntImmNode>())
+    TVM_FFI_ICHECK(value->IsInstance<IntImmNode>())
         << value << " expects to be IntImm, but gets " << value->GetTypeKey();
     const auto* val_node = value.as<IntImmNode>();
     auto val_imm = ffi::GetRef<IntImm>(val_node);
@@ -166,7 +167,7 @@ TVM_REGISTER_OP("relax.unique")
                   "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.nonzero */
 Expr nonzero(Expr x) {
@@ -189,7 +190,7 @@ TVM_REGISTER_OP("relax.nonzero")
     .add_argument("x", "Tensor", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

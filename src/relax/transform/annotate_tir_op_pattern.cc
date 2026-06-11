@@ -25,12 +25,12 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tirx/transform.h>
 
 namespace tvm {
 namespace relax {
 
-tir::PrimFunc AnnotateOpPattern(tir::PrimFunc f) {
+tirx::PrimFunc AnnotateOpPattern(tirx::PrimFunc f) {
   if (f->HasNonzeroAttr("op_pattern")) {
     return f;
   } else {
@@ -42,10 +42,10 @@ tir::PrimFunc AnnotateOpPattern(tir::PrimFunc f) {
 namespace transform {
 
 Pass AnnotateTIROpPattern() {
-  auto pass_func = [=](tir::PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](tirx::PrimFunc f, IRModule m, PassContext ctx) {
     return AnnotateOpPattern(std::move(f));
   };
-  return tir::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
+  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

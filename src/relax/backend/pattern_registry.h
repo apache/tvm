@@ -30,7 +30,6 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
-#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace relax {

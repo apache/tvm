@@ -13,7 +13,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """SliceScatter operator"""
+
 from tvm import topi
+
 from . import utils
 
 

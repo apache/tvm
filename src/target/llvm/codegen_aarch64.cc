@@ -27,8 +27,8 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 
-#include "../../arith/scalable_expression.h"
 #include "codegen_cpu.h"
 #include "llvm_instance.h"
 
@@ -55,17 +55,28 @@ void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 }
 
 void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
-#if TVM_LLVM_VERSION >= 130
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
-    auto kVScaleValues = arith::GetVScaleValues(Target::Current());
-    if (!kVScaleValues.empty()) {
-      unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
+    // Compute max_val = largest power-of-two <= vector_width/8.
+    // Guard against calling llvm_get_vector_width_fn when no target is active —
+    // Target::Current() returns an undefined Target outside a compilation context.
+    static auto llvm_get_vector_width_fn =
+        tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+    unsigned int max_val = 0;
+    if (auto target = Target::Current(); target.defined()) {
+      unsigned int vector_width =
+          static_cast<unsigned int>(llvm_get_vector_width_fn(target).cast<int>());
+      for (unsigned int i = 0;; ++i) {
+        unsigned int power = 1u << i;
+        if (power > (vector_width / 8)) break;
+        max_val = power;
+      }
+    }
+    if (max_val > 0) {
       func->addFnAttr(
           llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
     }
   }
-#endif
   CodeGenCPU::SetTargetAttributes(func);
 }
 
@@ -76,7 +87,7 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
 void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   std::string attr_key = op->attr_key;
 
-  if (!tir::attr::IsPragmaKey(attr_key)) {
+  if (!tirx::attr::IsPragmaKey(attr_key)) {
     CodeGenCPU::VisitStmt_(op);
     return;
   }
@@ -87,20 +98,20 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   }
 
   const auto* attr_value = op->value.as<StringImmNode>();
-  ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
-                     << op->value->GetTypeKey();
+  TVM_FFI_ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
+                             << op->value->GetTypeKey();
 
   std::string aarch64_attr_key = attr_key.substr(7);
   if (aarch64_attr_key == "aarch64_pstate_sm") {
-    ICHECK(!func_has_pstate_sm) << "Multiple definitions of " << op->attr_key
-                                << " attribute found in the function "
-                                << function_->getName().data();
+    TVM_FFI_ICHECK(!func_has_pstate_sm)
+        << "Multiple definitions of " << op->attr_key << " attribute found in the function "
+        << function_->getName().data();
     function_->addFnAttr({aarch64_attr_key + "_" + attr_value->value});
     func_has_pstate_sm = true;
   } else if (aarch64_attr_key == "aarch64_pstate_za") {
-    ICHECK(!func_has_pstate_za) << "Multiple definitions of " << op->attr_key
-                                << " attribute found in the function "
-                                << function_->getName().data();
+    TVM_FFI_ICHECK(!func_has_pstate_za)
+        << "Multiple definitions of " << op->attr_key << " attribute found in the function "
+        << function_->getName().data();
     function_->addFnAttr({aarch64_attr_key + "_" + attr_value->value});
     func_has_pstate_za = true;
   } else {

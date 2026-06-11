@@ -17,16 +17,14 @@
 
 package org.apache.tvm;
 
-import org.apache.tvm.NativeLibraryLoader.Action;
-
 import java.io.File;
 import java.io.IOException;
+import org.apache.tvm.NativeLibraryLoader.Action;
 
 /**
  * Initializing methods and types.
  */
 final class Base {
-
   /**
    * Hold Long reference for JNI.
    */
@@ -90,7 +88,8 @@ final class Base {
     // always use linked lib
     _LIB.nativeLibInit(null);
     Runtime.getRuntime().addShutdownHook(new Thread() {
-      @Override public void run() {
+      @Override
+      public void run() {
         _LIB.shutdown();
       }
     });
@@ -157,6 +156,5 @@ final class Base {
   /**
    * Cannot be instantiated.
    */
-  private Base() {
-  }
+  private Base() {}
 }

@@ -24,12 +24,13 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/cast.h>
+#include <tvm/ir/cow.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/node.h>
-#include <tvm/runtime/object.h>
 
 #include <algorithm>
 #include <functional>
@@ -46,7 +47,7 @@ class VirtualDevice;
  * \brief Base type of all the expressions.
  * \sa Expr
  */
-class BaseExprNode : public Object {
+class BaseExprNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -64,16 +65,16 @@ class BaseExprNode : public Object {
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to BaseExprNode.
  * \sa BaseExprNode
  */
-class BaseExpr : public ObjectRef {
+class BaseExpr : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ObjectRef, BaseExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ffi::ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -110,8 +111,6 @@ class PrimExprNode : public BaseExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
   }
-
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const uint32_t _type_child_slots = 40;
   TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
@@ -151,20 +150,20 @@ class PrimExpr : public BaseExpr {
  * This is useful for the FFI to convert the expressions to PrimExpr.
  * \sa PrimExpr
  */
-class PrimExprConvertibleNode : public Object {
+class PrimExprConvertibleNode : public ffi::Object {
  public:
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to PrimExprConvertibleNode.
  * \sa PrimExprConvertibleNode
  */
-class PrimExprConvertible : public ObjectRef {
+class PrimExprConvertible : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ObjectRef,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ffi::ObjectRef,
                                              PrimExprConvertibleNode);
 };
 
@@ -420,7 +419,7 @@ class RelaxExprNode : public BaseExprNode {
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
    */
-  mutable ffi::Optional<ObjectRef> struct_info_ = ffi::Optional<ObjectRef>();
+  mutable ffi::Optional<ffi::ObjectRef> struct_info_ = ffi::Optional<ffi::ObjectRef>();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -555,110 +554,8 @@ class FloatImm : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
-/*!
- * \brief Boolean constant.
- *
- *  This reference type is useful to add additional compile-time
- *  type checks and helper functions for Integer equal comparisons.
- */
-class Bool : public IntImm {
- public:
-  explicit Bool(bool value, Span span = Span()) : IntImm(DataType::Bool(), value, span) {}
-  Bool operator!() const { return Bool((*this)->value == 0); }
-  operator bool() const { return (*this)->value != 0; }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bool, IntImm, IntImmNode);
-};
-
-// Overload operators to make sure we have the most fine grained types.
-inline Bool operator||(const Bool& a, bool b) { return Bool(a.operator bool() || b); }
-inline Bool operator||(bool a, const Bool& b) { return Bool(a || b.operator bool()); }
-inline Bool operator||(const Bool& a, const Bool& b) {
-  return Bool(a.operator bool() || b.operator bool());
-}
-inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() && b); }
-inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
-inline Bool operator&&(const Bool& a, const Bool& b) {
-  return Bool(a.operator bool() && b.operator bool());
-}
-
-inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
-inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
-inline bool operator==(const Bool& a, const Bool& b) {
-  return a.operator bool() == b.operator bool();
-}
-
-/*!
- * \brief Container of constant int that adds more constructors.
- *
- * This is used to store and automate type check
- * attributes that must be constant integer.
- *
- * \sa IntImm
- */
-class Integer : public IntImm {
- public:
-  Integer() {}
-  /*!
-   * \brief constructor from node.
-   */
-  explicit Integer(ObjectPtr<IntImmNode> node) : IntImm(node) {}
-  /*!
-   * \brief constructor with UnsafeInit
-   */
-  explicit Integer(ffi::UnsafeInit tag) : IntImm(tag) {}
-  /*!
-   * \brief Construct integer from int value.
-   */
-  Integer(int value, Span span = Span()) : IntImm(DataType::Int(32), value, span) {}  // NOLINT(*)
-  /*!
-   * \brief Construct integer from int imm.
-   * \param other The other value.
-   */
-  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
-  /*!
-   * \brief Constructor from enum
-   * \tparam Enum The enum type.
-   * \param value The enum value.
-   */
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  explicit Integer(Enum value) : Integer(static_cast<int>(value)) {
-    static_assert(std::is_same<int, typename std::underlying_type<Enum>::type>::value,
-                  "declare enum to be enum int to use visitor");
-  }
-  /*!
-   * \brief Assign an expression to integer.
-   * \param other another expression.
-   */
-  Integer& operator=(const IntImm& other) {
-    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(other);
-    return *this;
-  }
-  /*!
-   * \brief convert to int64_t
-   */
-  int64_t IntValue() const {
-    ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
-    return (*this)->value;
-  }
-  // comparators
-  Bool operator==(int other) const {
-    if (data_ == nullptr) return Bool(false);
-    return Bool((*this)->value == other);
-  }
-  Bool operator!=(int other) const { return !(*this == other); }
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  Bool operator==(Enum other) const {
-    return *this == static_cast<int>(other);
-  }
-  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
-  Bool operator!=(Enum other) const {
-    return *this != static_cast<int>(other);
-  }
-};
-
 /*! \brief range over one dimension */
-class RangeNode : public Object {
+class RangeNode : public ffi::Object {
  public:
   /*! \brief beginning of the node */
   PrimExpr min;
@@ -681,11 +578,11 @@ class RangeNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Range", RangeNode, ffi::Object);
 };
 
 /*! \brief Range container  */
-class Range : public ObjectRef {
+class Range : public ffi::ObjectRef {
  public:
   /*!
    * \brief constructor by begin and end
@@ -704,9 +601,9 @@ class Range : public ObjectRef {
    * \param extent The extent of the range.
    * \param span The location of the Range in the source.
    */
-  static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
+  TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ObjectRef, RangeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
 namespace ffi {
@@ -728,16 +625,6 @@ struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64
 };
 
 template <>
-inline constexpr bool use_default_type_traits_v<Integer> = false;
-
-template <>
-struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) {
-    return Integer(TypeTraits<IntImm>::ConvertFallbackValue(value));
-  }
-};
-
-template <>
 inline constexpr bool use_default_type_traits_v<FloatImm> = false;
 
 template <>
@@ -745,14 +632,6 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
   TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(runtime::DataType::Float(32), value);
   }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<Bool> = false;
-
-template <>
-struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
-  TVM_FFI_INLINE static Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
@@ -782,19 +661,17 @@ TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value)
  * `tvm::GlobalVar` allows it to be used as a key in STL tables.  For
  * other IR expressions, the user must specify the type of equality
  * used (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>`
- * or `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ * or `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
  */
 template <>
 struct std::hash<tvm::GlobalVar> {
-  std::size_t operator()(const tvm::GlobalVar& var) const {
-    return tvm::runtime::ObjectPtrHash()(var);
-  }
+  std::size_t operator()(const tvm::GlobalVar& var) const { return tvm::ffi::ObjectPtrHash()(var); }
 };
 
 template <>
 struct std::equal_to<tvm::GlobalVar> {
   bool operator()(const tvm::GlobalVar& var_a, const tvm::GlobalVar& var_b) const {
-    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
   }
 };
 #endif  // TVM_IR_EXPR_H_

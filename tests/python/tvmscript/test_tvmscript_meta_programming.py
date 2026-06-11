@@ -16,19 +16,19 @@
 # under the License.
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def test_meta_programming_matmul():
     def matmul_generator(M: int, N: int, K: int, dtype: str):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, [M, K], dtype=dtype)
             B = T.match_buffer(b, [N, K], dtype=dtype)
             C = T.match_buffer(c, [M, N], dtype=dtype)
 
             for i, j, k in T.grid(M, N, K):
-                with T.block():
+                with T.sblock():
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -36,14 +36,14 @@ def test_meta_programming_matmul():
 
         return matmul
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul_128_128_128_fp16(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], dtype="float16")
         B = T.match_buffer(b, [128, 128], dtype="float16")
         C = T.match_buffer(c, [128, 128], dtype="float16")
 
         for i, j, k in T.grid(128, 128, 128):
-            with T.block():
+            with T.sblock():
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)
@@ -55,28 +55,30 @@ def test_meta_programming_matmul():
 
 def test_meta_programming_uncaptured_var():
     def generate_erf(dtype):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
             for i in range(1):
-                with T.block("C"):
+                with T.sblock("C"):
                     C[i] = T.erf(A[i])
 
         return main
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def fp32(A: T.Buffer((1,), "float32"), C: T.Buffer((1,), "float32")):
         for i in range(1):
-            with T.block("C"):
+            with T.sblock("C"):
                 C[i] = T.erf(A[i])
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def fp16(A: T.Buffer((1,), "float16"), C: T.Buffer((1,), "float16")):
         for i in range(1):
-            with T.block("C"):
+            with T.sblock("C"):
                 C[i] = T.erf(A[i])
 
-    tvm.ir.assert_structural_equal(fp16.with_attr("global_symbol", "main"), generate_erf("float16"))
-    tvm.ir.assert_structural_equal(fp32.with_attr("global_symbol", "main"), generate_erf("float32"))
+    f1 = generate_erf("float32").with_attr("global_symbol", "main")
+    tvm.ir.assert_structural_equal(f1, fp32.with_attr("global_symbol", "main"))
+    f2 = generate_erf("float16").with_attr("global_symbol", "main")
+    tvm.ir.assert_structural_equal(f2, fp16.with_attr("global_symbol", "main"))
 
 
 if __name__ == "__main__":

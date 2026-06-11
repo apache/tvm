@@ -1,34 +1,36 @@
 runs:
  using: "composite"
  steps:
-  - uses: actions/cache@v4
+  - uses: actions/cache@v5.0.5
     env:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
-      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('**/conda/build-environment.yaml') }}
-  - uses: conda-incubator/setup-miniconda@v3
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('ci/scripts/package/build-environment.yaml') }}
+  - uses: conda-incubator/setup-miniconda@v4.0.1
     continue-on-error: true
     id: conda1
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: ci/scripts/package/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
-      python-version: 3.9
-      condarc-file: conda/condarc
-  - uses: conda-incubator/setup-miniconda@v3
+      python-version: "3.10"
+      condarc-file: tests/conda/condarc
+      conda-remove-defaults: true
+  - uses: conda-incubator/setup-miniconda@v4.0.1
     if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: conda/build-environment.yaml
+      environment-file: ci/scripts/package/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       use-only-tar-bz2: true
-      python-version: 3.9
-      condarc-file: conda/condarc
+      python-version: "3.10"
+      condarc-file: tests/conda/condarc
+      conda-remove-defaults: true
   - name: Conda info
     shell: pwsh
     run: |

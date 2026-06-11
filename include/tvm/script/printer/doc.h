@@ -22,9 +22,9 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/script/printer/config.h>
 
 #include <string>
 
@@ -55,7 +55,7 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg);
  *
  * \sa Doc
  */
-class DocNode : public Object {
+class DocNode : public ffi::Object {
  public:
   /*!
    * \brief The list of object paths of the source IR node.
@@ -64,7 +64,7 @@ class DocNode : public Object {
    * this Doc is generated, in order to position the diagnostic
    * message.
    */
-  mutable ffi::Array<ffi::reflection::AccessPath> source_paths;
+  mutable ffi::Array<AccessPath> source_paths;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -73,7 +73,7 @@ class DocNode : public Object {
 
   static constexpr bool _type_mutable = true;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.printer.Doc", DocNode, ffi::Object);
 
  public:
   virtual ~DocNode() = default;
@@ -84,13 +84,13 @@ class DocNode : public Object {
  *
  * \sa DocNode
  */
-class Doc : public ObjectRef {
+class Doc : public ffi::ObjectRef {
  protected:
   Doc() = default;
-  explicit Doc(ObjectPtr<DocNode> data) : ObjectRef(data) {}
+  explicit Doc(ffi::ObjectPtr<DocNode> data) : ffi::ObjectRef(data) {}
 
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ObjectRef, DocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ffi::ObjectRef, DocNode);
 };
 
 class ExprDoc;
@@ -153,7 +153,9 @@ class ExprDoc : public Doc {
    */
   ExprDoc operator[](ffi::Array<Doc> indices) const;
 
-  explicit ExprDoc(ObjectPtr<ExprDocNode> data) : Doc(data) { TVM_FFI_ICHECK(data != nullptr); }
+  explicit ExprDoc(ffi::ObjectPtr<ExprDocNode> data) : Doc(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprDoc, Doc, ExprDocNode);
 };
@@ -307,7 +309,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc DataType(const runtime::DataType& v, const ffi::Optional<AccessPath>& p) {
-    std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
+    std::string dtype = v.is_void() ? "void" : ffi::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
   /*!
@@ -528,12 +530,13 @@ class OperationDocNode : public ExprDocNode {
     kGtE = 23,       // >=
     kAnd = 24,       // and
     kOr = 25,        // or
-    kBinaryEnd = 26,
+    kMatMul = 26,    // @
+    kBinaryEnd = 27,
 
     // Special
-    kSpecialStart = 27,
-    kIfThenElse = 28,  // <operands[1]> if <operands[0]> else <operands[2]>
-    kSpecialEnd = 29
+    kSpecialStart = 28,
+    kIfThenElse = 29,  // <operands[1]> if <operands[0]> else <operands[2]>
+    kSpecialEnd = 30
   };
 
   /*! \brief The kind of operation (operator) */
@@ -893,6 +896,64 @@ class WhileDoc : public StmtDoc {
 };
 
 /*!
+ * \brief Doc that represents break statement.
+ *
+ * \sa BreakDoc
+ */
+class BreakDocNode : public StmtDocNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BreakDocNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.BreakDoc", BreakDocNode, StmtDocNode);
+};
+
+/*!
+ * \brief Reference type of BreakDocNode.
+ *
+ * \sa BreakDocNode
+ */
+class BreakDoc : public StmtDoc {
+ public:
+  /*!
+   * \brief Constructor of BreakDoc.
+   */
+  explicit BreakDoc();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BreakDoc, StmtDoc, BreakDocNode);
+};
+
+/*!
+ * \brief Doc that represents continue statement.
+ *
+ * \sa ContinueDoc
+ */
+class ContinueDocNode : public StmtDocNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ContinueDocNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ContinueDoc", ContinueDocNode, StmtDocNode);
+};
+
+/*!
+ * \brief Reference type of ContinueDocNode.
+ *
+ * \sa ContinueDocNode
+ */
+class ContinueDoc : public StmtDoc {
+ public:
+  /*!
+   * \brief Constructor of ContinueDoc.
+   */
+  explicit ContinueDoc();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ContinueDoc, StmtDoc, ContinueDocNode);
+};
+
+/*!
  * \brief Doc that represents for statement.
  *
  * Example:
@@ -1237,6 +1298,57 @@ class DocStringDoc : public StmtDoc {
  public:
   explicit DocStringDoc(ffi::String docs);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DocStringDoc, StmtDoc, DocStringDocNode);
+};
+
+/*!
+ * \brief Doc that represents call to an TIRX operator
+ *
+ * \sa OpCallDoc
+ */
+class OpCallDocNode : public StmtDocNode {
+ public:
+  /*! \brief The callee of this function call */
+  ExprDoc callee{ffi::UnsafeInit()};
+  /*! \brief The positional arguments */
+  ffi::Array<Doc> args;
+  /*! \brief The workspace of this op call */
+  ffi::Optional<DictDoc> workspace{std::nullopt};
+  /*! \brief The config of this op call */
+  ffi::Optional<DictDoc> config{std::nullopt};
+  /*! \brief The optional dispatch variant of this op call */
+  ffi::Optional<ExprDoc> dispatch{std::nullopt};
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpCallDocNode>()
+        .def_ro("callee", &OpCallDocNode::callee)
+        .def_ro("args", &OpCallDocNode::args)
+        .def_ro("workspace", &OpCallDocNode::workspace)
+        .def_ro("config", &OpCallDocNode::config)
+        .def_ro("dispatch", &OpCallDocNode::dispatch);
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.OpCallDoc", OpCallDocNode, StmtDocNode);
+};
+
+/*!
+ * \brief Reference type of OpCallDocNode.
+ *
+ * \sa OpCallDocNode
+ */
+class OpCallDoc : public StmtDoc {
+ public:
+  /*!
+   * \brief Constructor of OpCallDoc
+   * \param callee The callee of this function call.
+   * \param args The positional arguments.
+   * \param workspace The workspace of this op call.
+   * \param config The config of this op call.
+   * \param dispatch The optional dispatch variant name of this op call.
+   */
+  explicit OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
+                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch = std::nullopt);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpCallDoc, StmtDoc, OpCallDocNode);
 };
 
 }  // namespace printer

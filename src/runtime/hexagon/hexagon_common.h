@@ -24,10 +24,9 @@
 #define TVM_RUNTIME_HEXAGON_HEXAGON_COMMON_H_
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/logging.h>
-#include <tvm/runtime/object.h>
 
 #if defined(__hexagon__)
 #include <HAP_farf.h>

@@ -192,8 +192,8 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
            << ", filt_idepth=" << filt_idepth << ", pad_top=" << pad_top
            << ", pad_left=" << pad_left << "\n";
 
-  ICHECK_LT(pad_top, 8) << "pad_top offset cannot be >= 8";
-  ICHECK_LT(pad_left, 4) << "pad_left offset cannot be >= 4";
+  TVM_FFI_ICHECK_LT(pad_top, 8) << "pad_top offset cannot be >= 8";
+  TVM_FFI_ICHECK_LT(pad_left, 4) << "pad_left offset cannot be >= 4";
 
   int a_height = cr_act.shape[1];
   int a_width = cr_act.shape[2];
@@ -217,8 +217,9 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
            << o_depth << ", b: " << b_depth << ", out_shape: " << out_height << "x" << out_width
            << "\n";
 
-  ICHECK_EQ(a_depth, cr_filt.shape[2]) << "input depth should match weights input channels";
-  ICHECK_EQ(o_depth, cr_filt.shape[3]) << "output depth should match the weights output channel";
+  TVM_FFI_ICHECK_EQ(a_depth, cr_filt.shape[2]) << "input depth should match weights input channels";
+  TVM_FFI_ICHECK_EQ(o_depth, cr_filt.shape[3])
+      << "output depth should match the weights output channel";
 
   int rd = round_down(filt_width, 4);
   int wgt_chunk_thin_width = filt_width - rd;
@@ -404,20 +405,20 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 
 int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val) {
   namespace conv_utils = tvm::runtime::hexagon::conv_utils;
-  ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
-  ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
+  TVM_FFI_ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
       << "First argument is expected to be the input tensor";  // Input activations
-  ICHECK_EQ(args[1].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(args[1].type_index, kTVMFFIDLTensorPtr)
       << "Second argument is expected to be the weights tensor";  // Weights
-  ICHECK_EQ(args[2].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[2].type_index, kTVMFFIInt)
       << "Third argument is expected to be the pad_top offset";  // pad_top offset
-  ICHECK_EQ(args[3].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[3].type_index, kTVMFFIInt)
       << "Fourth argument is expected to be the pad_left offset";  // pad_left offset
-  ICHECK_EQ(args[4].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[4].type_index, kTVMFFIInt)
       << "Fifth argument is expected to be the stride_h";  // stride_h
-  ICHECK_EQ(args[5].type_index, kTVMFFIInt)
+  TVM_FFI_ICHECK_EQ(args[5].type_index, kTVMFFIInt)
       << "Sixth argument is expected to be the stride_w";  // stride_w
-  ICHECK_EQ(args[6].type_index, kTVMFFIDLTensorPtr)
+  TVM_FFI_ICHECK_EQ(args[6].type_index, kTVMFFIDLTensorPtr)
       << "Seventh argument is expected to be the output tensor";  // output
 
   auto* act_flat = static_cast<DLTensor*>(args[0].v_ptr);
@@ -425,10 +426,10 @@ int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val)
   auto* out_flat = static_cast<DLTensor*>(args[6].v_ptr);
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";
+  TVM_FFI_ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";
 
   // Temporary assertion until multiple batches are supported
-  ICHECK_EQ(out_flat->shape[0], 1) << "Output batch size more than 1 is not supported yet";
+  TVM_FFI_ICHECK_EQ(out_flat->shape[0], 1) << "Output batch size more than 1 is not supported yet";
 
   int pad_top = args[2].v_int64;
   int pad_left = args[3].v_int64;
@@ -442,16 +443,16 @@ int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val)
            << ", pad_left=" << pad_left;
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
-  ICHECK(device_api != nullptr);
+  TVM_FFI_ICHECK(device_api != nullptr);
   tvm::ffi::String vtcm_scope = "global.vtcm";
 
   auto act_vtcm =
       conv_utils::prepare_nhwc<uint16_t, 8, 4, 32>(device_api, act_flat, /*copy_data=*/true);
 
-  ICHECK_NE(wgt_flat->shape[0], 0) << "Weights height should not be zero";
-  ICHECK_NE(wgt_flat->shape[1], 0) << "Weights width should not be zero";
-  ICHECK_NE(wgt_flat->shape[2], 0) << "Weights input channels should not be zero";
-  ICHECK_NE(wgt_flat->shape[3], 0) << "Weights output channels should not be zero";
+  TVM_FFI_ICHECK_NE(wgt_flat->shape[0], 0) << "Weights height should not be zero";
+  TVM_FFI_ICHECK_NE(wgt_flat->shape[1], 0) << "Weights width should not be zero";
+  TVM_FFI_ICHECK_NE(wgt_flat->shape[2], 0) << "Weights input channels should not be zero";
+  TVM_FFI_ICHECK_NE(wgt_flat->shape[3], 0) << "Weights output channels should not be zero";
   int num_wgt_chunks = conv_utils::calculate_num_weight_chunks(
       wgt_flat->shape, /* chunk_height */ 8, /* chunk_width */ 4, /* chunk_in_channel */ 32,
       /* chunk_out_channel */ 32);

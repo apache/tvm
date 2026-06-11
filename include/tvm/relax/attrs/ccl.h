@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in allreduce operators */
-struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
+struct AllReduceAttrs : public tvm::AttrsNode {
   ffi::String op_type;
   bool in_group;
 
@@ -45,11 +45,11 @@ struct AllReduceAttrs : public tvm::AttrsNodeReflAdapter<AllReduceAttrs> {
                 "Whether the reduction operation performs in group or globally or in group as "
                 "default.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, AttrsNode);
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in allgather operators */
-struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
+struct AllGatherAttrs : public tvm::AttrsNode {
   int num_workers;
   bool in_group;
 
@@ -63,11 +63,11 @@ struct AllGatherAttrs : public tvm::AttrsNodeReflAdapter<AllGatherAttrs> {
                 "Whether the allgather operation performs in group or globally or in group as "
                 "default.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, AttrsNode);
 };  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
-struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollectiveAttrs> {
+struct ScatterCollectiveAttrs : public tvm::AttrsNode {
   int num_workers;
   int axis;
 
@@ -82,7 +82,7 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNodeReflAdapter<ScatterCollecti
                 "this axis.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct ScatterCollectiveAttrs
 
 }  // namespace relax

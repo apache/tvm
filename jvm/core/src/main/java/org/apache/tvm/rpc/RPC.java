@@ -17,10 +17,9 @@
 
 package org.apache.tvm.rpc;
 
-import org.apache.tvm.Function;
-
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.tvm.Function;
 
 public class RPC {
   public static final int RPC_TRACKER_MAGIC = 0x2f271;
@@ -37,13 +36,13 @@ public class RPC {
     public static final int SUCCESS = 0;
   }
 
-  private static ThreadLocal<Map<String, Function>> apiFuncs
-      = new ThreadLocal<Map<String, Function>>() {
-          @Override
-          protected Map<String, Function> initialValue() {
-            return new HashMap<String, Function>();
-          }
-        };
+  private static ThreadLocal<Map<String, Function>> apiFuncs =
+      new ThreadLocal<Map<String, Function>>() {
+        @Override
+        protected Map<String, Function> initialValue() {
+          return new HashMap<String, Function>();
+        }
+      };
 
   /**
    * Get internal function starts with namespace tvm.rpc.

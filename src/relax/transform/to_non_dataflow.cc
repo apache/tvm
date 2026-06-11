@@ -26,7 +26,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tir/op.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace relax {

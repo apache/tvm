@@ -27,8 +27,6 @@
 namespace tvm {
 namespace relax {
 
-using tvm::ReprPrinter;
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   IdNode::RegisterReflection();
   CallNode::RegisterReflection();
@@ -53,20 +51,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Id::Id(ffi::String name_hint) {
-  ObjectPtr<IdNode> n = ffi::make_object<IdNode>();
+  ffi::ObjectPtr<IdNode> n = ffi::make_object<IdNode>();
   n->name_hint = std::move(name_hint);
   data_ = std::move(n);
 }
 
 Call::Call(Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<StructInfo> sinfo_args,
            Span span) {
-  CHECK(!op->struct_info_.defined() || op->struct_info_->IsInstance<FuncStructInfoNode>())
-      << "ValueError: "
+  TVM_FFI_CHECK(!op->struct_info_.defined() || op->struct_info_->IsInstance<FuncStructInfoNode>(),
+                ValueError)
       << "Call expects its operator to have FuncStructInfo, "
       << "but operator " << op << ", which was called with arguments " << args
       << ", has struct info " << op->struct_info_;
 
-  ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
+  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
@@ -128,7 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
-  ObjectPtr<IfNode> n = ffi::make_object<IfNode>();
+  ffi::ObjectPtr<IfNode> n = ffi::make_object<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
@@ -176,7 +174,7 @@ Tuple::Tuple(tvm::ffi::Array<Expr> fields, Span span) {
     return TupleStructInfo(field_sinfo);
   }();
 
-  ObjectPtr<TupleNode> n = ffi::make_object<TupleNode>();
+  ffi::ObjectPtr<TupleNode> n = ffi::make_object<TupleNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
   n->struct_info_ = tuple_sinfo;
@@ -213,12 +211,12 @@ Tuple WithFields(Tuple tuple, ffi::Optional<ffi::Array<Expr>> opt_fields,
 }
 
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
-  CHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
-                     << " cannot be accessed with negative index " << index;
-  ObjectPtr<TupleGetItemNode> n = ffi::make_object<TupleGetItemNode>();
+  TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
+                              << " cannot be accessed with negative index " << index;
+  ffi::ObjectPtr<TupleGetItemNode> n = ffi::make_object<TupleGetItemNode>();
 
   if (auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>()) {
-    CHECK_LT(index, tuple_info->fields.size())
+    TVM_FFI_ICHECK_LT(index, tuple_info->fields.size())
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
         << ", and cannot be accessed with index " << index;
     auto sinfo = tuple_info->fields[index];
@@ -231,17 +229,16 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
 }
 
 TupleGetItem WithFields(TupleGetItem tuple_get_item, ffi::Optional<Expr> opt_tuple,
-                        ffi::Optional<Integer> opt_index, ffi::Optional<Span> opt_span) {
+                        ffi::Optional<int64_t> opt_index, ffi::Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
-  Integer index = opt_index.value_or(tuple_get_item->index);
+  int64_t index = opt_index.value_or(tuple_get_item->index);
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
                    span.same_as(tuple_get_item->span);
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
-    cow_tuple_get_item_node->tuple = tuple;
-    cow_tuple_get_item_node->index = index.IntValue();
+    cow_tuple_get_item_node->index = static_cast<int>(index);
     cow_tuple_get_item_node->span = span;
   }
   return tuple_get_item;
@@ -255,13 +252,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
-  ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
+  ffi::ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
 
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
       return tvm::cast(DataType::Int(64), value);
     }
-    ICHECK(value.dtype() == DataType::Int(64))
+    TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
         << "the value in ShapeStructInfo can only have dtype of int64";
     return value;
   });
@@ -278,7 +275,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Var::Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation, Span span) {
-  ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
+  ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
   n->vid = std::move(vid);
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -291,15 +288,15 @@ VarNode* Var::CopyOnWrite() {
   // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
   // automatic implementation would erroneously convert from a
   // `DataflowBlock` to a `Var`.
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   if (!data_.unique()) {
-    ObjectPtr<VarNode> node;
+    ffi::ObjectPtr<VarNode> node;
     if (auto dataflow_var = as<DataflowVarNode>()) {
       node = ffi::make_object<DataflowVarNode>(*dataflow_var);
     } else {
       node = ffi::make_object<VarNode>(*(operator->()));
     }
-    ObjectPtr<Object>(std::move(node)).swap(data_);
+    ffi::ObjectPtr<ffi::Object>(std::move(node)).swap(data_);
   }
   return static_cast<VarNode*>(data_.get());
 }
@@ -314,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 DataflowVar::DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation, Span span) {
-  ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
+  ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->vid = std::move(vid);
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -337,7 +334,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Constant::Constant(runtime::Tensor data, ffi::Optional<StructInfo> struct_info_annotation,
                    Span span) {
-  ObjectPtr<ConstantNode> n = ffi::make_object<ConstantNode>();
+  ffi::ObjectPtr<ConstantNode> n = ffi::make_object<ConstantNode>();
   n->data = std::move(data);
   n->span = std::move(span);
 
@@ -366,7 +363,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
-  ObjectPtr<PrimValueNode> n = ffi::make_object<PrimValueNode>();
+  ffi::ObjectPtr<PrimValueNode> n = ffi::make_object<PrimValueNode>();
   n->struct_info_ = PrimStructInfo(value);
   n->value = std::move(value);
   n->span = std::move(span);
@@ -384,7 +381,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StringImm::StringImm(ffi::String value, Span span) {
-  ObjectPtr<StringImmNode> n = ffi::make_object<StringImmNode>();
+  ffi::ObjectPtr<StringImmNode> n = ffi::make_object<StringImmNode>();
   n->value = std::move(value);
   n->span = std::move(span);
   n->struct_info_ = ObjectStructInfo();
@@ -398,7 +395,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 DataTypeImm::DataTypeImm(DataType value, Span span) {
-  ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
+  ffi::ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
   n->value = std::move(value);
   n->span = std::move(span);
   n->struct_info_ = ObjectStructInfo();
@@ -412,8 +409,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 MatchCast::MatchCast(Var var, Expr value, StructInfo struct_info, Span span) {
-  ObjectPtr<MatchCastNode> n = ffi::make_object<MatchCastNode>();
-  ICHECK(var.defined()) << "MatchCast requires var to be defined";
+  ffi::ObjectPtr<MatchCastNode> n = ffi::make_object<MatchCastNode>();
+  TVM_FFI_ICHECK(var.defined()) << "MatchCast requires var to be defined";
   n->var = std::move(var);
   n->value = std::move(value);
   n->struct_info = std::move(struct_info);
@@ -430,7 +427,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {
-  ObjectPtr<VarBindingNode> n = ffi::make_object<VarBindingNode>();
+  ffi::ObjectPtr<VarBindingNode> n = ffi::make_object<VarBindingNode>();
   n->var = std::move(var);
   n->value = std::move(value);
   n->span = span;
@@ -473,7 +470,7 @@ int64_t VarBindingNode::SHash(int64_t init_hash,
 }
 
 BindingBlock::BindingBlock(ffi::Array<Binding> bindings, Span span) {
-  ObjectPtr<BindingBlockNode> n = ffi::make_object<BindingBlockNode>();
+  ffi::ObjectPtr<BindingBlockNode> n = ffi::make_object<BindingBlockNode>();
   n->bindings = std::move(bindings);
   n->span = span;
   data_ = std::move(n);
@@ -485,15 +482,15 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
   // automatic implementation would erroneously convert from a
   // `DataflowBlock` to a `BindingBlock`.
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   if (!data_.unique()) {
-    ObjectPtr<BindingBlockNode> node;
+    ffi::ObjectPtr<BindingBlockNode> node;
     if (auto dataflow_block = as<DataflowBlockNode>()) {
       node = ffi::make_object<DataflowBlockNode>(*dataflow_block);
     } else {
       node = ffi::make_object<BindingBlockNode>(*(operator->()));
     }
-    ObjectPtr<Object>(std::move(node)).swap(data_);
+    ffi::ObjectPtr<ffi::Object>(std::move(node)).swap(data_);
   }
   return static_cast<BindingBlockNode*>(data_.get());
 }
@@ -506,7 +503,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Span span) {
-  ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
+  ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
   n->span = span;
   data_ = std::move(n);
@@ -528,7 +525,7 @@ SeqExpr::SeqExpr(Expr body) {
 }
 
 SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span) {
-  ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>();
+  ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>();
   n->blocks = std::move(blocks);
   n->body = std::move(body);
   n->span = span;
@@ -544,17 +541,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> ret_struct_info,
                    bool is_pure, DictAttrs attrs, Span span) {
-  if (!attrs.defined()) {
-    attrs = DictAttrs();
-  }
-
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
   ffi::Array<StructInfo> param_sinfo;
 
   for (const Var& param : params) {
-    CHECK(param->struct_info_.defined())
+    TVM_FFI_ICHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain struct_info_";
     param_sinfo.push_back(GetStructInfo(param));
   }
@@ -565,7 +558,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
     body_sinfo = GetStructInfo(body);
   }
 
-  CHECK(body_sinfo.defined() || ret_struct_info.defined())
+  TVM_FFI_ICHECK(body_sinfo.defined() || ret_struct_info.defined())
       << "Function must be constructed with either "
       << "an explicit struct info for the return type, "
       << "or a normalized body with struct info.";
@@ -584,8 +577,8 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
     // used if they were defined by the function's parameters.
     auto f_shape_var_map = [&] {
       auto tir_vars = DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
-      std::unordered_set<tir::Var> lookup(tir_vars.begin(), tir_vars.end());
-      return [lookup = std::move(lookup)](const tir::Var& var) -> ffi::Optional<PrimExpr> {
+      std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
+      return [lookup = std::move(lookup)](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
         if (lookup.count(var)) {
           return var;
         } else {
@@ -599,7 +592,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
   FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 
   // set the fields
-  ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
+  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_struct_info = ret_struct_info.value();
@@ -623,7 +616,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_inf
                                DictAttrs attrs, Span span) {
   ffi::Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
-    ICHECK(param->struct_info_.defined())
+    TVM_FFI_ICHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain struct_info_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
@@ -639,7 +632,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_inf
   }();
 
   // set the fields
-  ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
+  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->is_pure = is_pure;
@@ -665,7 +658,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvm.relax.struct_info.infer_by_sinfo_args",
                         [](const Call& call, const BlockBuilder& ctx) -> StructInfo {
-                          ICHECK(call->sinfo_args.defined())
+                          TVM_FFI_ICHECK(call->sinfo_args.defined())
                               << "sinfo_args field of CallNode should always be defined";
                           if (call->sinfo_args.empty()) {
                             return ObjectStructInfo();
@@ -689,11 +682,11 @@ ExternFunc::ExternFunc(ffi::String global_symbol, Span span)
     : ExternFunc(global_symbol, GetExternFuncStructInfo(), span) {}
 
 ExternFunc::ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span) {
-  CHECK(struct_info.as<FuncStructInfoNode>())
+  TVM_FFI_ICHECK(struct_info.as<FuncStructInfoNode>())
       << "ExternFunc must have FuncStructInfo, "
       << "but declaration of '" << global_symbol << "' received " << struct_info;
 
-  ObjectPtr<ExternFuncNode> n = ffi::make_object<ExternFuncNode>();
+  ffi::ObjectPtr<ExternFuncNode> n = ffi::make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
   n->span = span;
   n->struct_info_ = struct_info;
@@ -714,10 +707,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  ICHECK(expr->struct_info_.defined()) << "GetShapeOf can only be applied to normalized expr";
+  TVM_FFI_ICHECK(expr->struct_info_.defined())
+      << "GetShapeOf can only be applied to normalized expr";
   auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
 
-  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
+  TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
   if (tinfo->shape.defined()) return tinfo->shape.value();
 
   static const Op& op = Op::Get("relax.shape_of");
@@ -732,7 +726,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("relax.GetShapeOf", [](const Expr& expr) { return GetShapeOf(expr); })
       .def("relax.FuncWithAttr",
-           [](BaseFunc func, ffi::String key, ObjectRef value) -> ffi::Optional<Function> {
+           [](BaseFunc func, ffi::String key, ffi::ObjectRef value) -> ffi::Optional<Function> {
              if (func->IsInstance<relax::FunctionNode>()) {
                return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
              }

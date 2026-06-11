@@ -14,29 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
+# ruff: noqa: F821
 """The base Relax operators."""
 
-from typing import Dict, Union, List, Tuple, Optional, Callable
+from collections.abc import Callable
 
+import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.runtime.object import Object
-from tvm.runtime import ObjectConvertible
+from tvm.runtime import Object, ObjectConvertible
 
-from . import _ffi_api
-from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
-from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
-from ..utils import args_converter
-
+from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
+from ..struct_info import StructInfo, TensorStructInfo
+from ..utils import convert_to_expr
+from . import _ffi_api
 
 py_print = print  # pylint: disable=invalid-name
 
 
 def register_gradient(
     op_name: str,
-    fgradient: Callable[[Var, Call, Var, "BlockBuilder"], List[Expr]] = None,
+    fgradient: Callable[[Var, Call, Var, "BlockBuilder"], list[Expr]] | None = None,
     level: int = 10,
 ):
     """Register operator gradient function for a relax operator.
@@ -77,7 +77,9 @@ def _wrap_inline_arg_tuple(args) -> Expr:
     in-line relax Tuple.
 
     """
-    if (
+    if isinstance(args, tuple | list):
+        return tvm.relax.Tuple([convert_to_expr(a) for a in args])
+    elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
         and (
@@ -90,20 +92,19 @@ def _wrap_inline_arg_tuple(args) -> Expr:
         return args
 
 
-@args_converter.auto
 def call_tir(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
-    Call a tir.prim_func and return the output.
+    Call a tirx.prim_func and return the output.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tir PrimFunc.
+        The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
         The input arguments.
@@ -126,30 +127,29 @@ def call_tir(
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir(gvar, args, out_sinfo, tir_vars)  # type: ignore
 
 
-@args_converter.auto
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    out_sinfo: TensorStructInfo | list[TensorStructInfo],
     te_grad_name: str,
-    te_grad_kwargs: Dict[str, Object] = None,
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    te_grad_kwargs: dict[str, Object] | None = None,
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
-    Call a tir.prim_func and return the output. This intrinsic will bind a te gradient function
+    Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
     (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
     called by the Gradient pass.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tir PrimFunc.
+        The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
         The input arguments.
@@ -180,7 +180,7 @@ def call_tir_with_grad(
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     if te_grad_kwargs is None:
@@ -191,13 +191,12 @@ def call_tir_with_grad(
     )
 
 
-@args_converter.auto
 def call_tir_inplace(
     gvar: GlobalVar,
     args: Expr,
-    inplace_indices: Union[int, List[int]],
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    inplace_indices: int | list[int],
+    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
     Call a TIR PrimFunc and return the result, doing the specified computations in-place
@@ -250,7 +249,7 @@ def call_tir_inplace(
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir_inplace(  # type: ignore
@@ -262,11 +261,10 @@ def call_tir_inplace(
     )
 
 
-@args_converter.auto
 def call_dps_packed(
-    func: Union[str, Expr],
+    func: str | Expr,
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    out_sinfo: TensorStructInfo | list[TensorStructInfo],
 ) -> Call:
     """
     Call a destination-passing-style packed function and return the output.
@@ -304,11 +302,10 @@ def call_dps_packed(
     return _ffi_api.call_dps_packed(func, args, out_sinfo)  # type: ignore
 
 
-@args_converter.auto
 def call_py_func(
     func_name: str,
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    out_sinfo: TensorStructInfo | list[TensorStructInfo],
 ) -> Call:
     """
     Call a Python function and return the output.
@@ -340,12 +337,11 @@ def call_py_func(
     return _ffi_api.call_py_func(func_name, args, out_sinfo)  # type: ignore
 
 
-@args_converter.auto
 def call_builtin_with_ctx(
-    func: Union[str, Expr],
+    func: str | Expr,
     args: Expr,
     *,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
 ) -> Call:
     """Call a builtin function func.
 
@@ -368,7 +364,9 @@ def call_builtin_with_ctx(
     if isinstance(func, str):
         func = ExternFunc(func)
 
-    if sinfo_args is not None and not isinstance(sinfo_args, (list, tuple)):
+    args = _wrap_inline_arg_tuple(args)
+
+    if sinfo_args is not None and not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]
 
     return _ffi_api.call_builtin_with_ctx(  # type: ignore
@@ -378,7 +376,6 @@ def call_builtin_with_ctx(
     )
 
 
-@args_converter.auto
 def make_closure(
     func: Expr,
     args: Expr,
@@ -401,14 +398,15 @@ def make_closure(
         The VMClosure.
     """
 
+    args = _wrap_inline_arg_tuple(args)
+
     return _ffi_api.make_closure(func, args)  # type: ignore
 
 
-@args_converter.auto
 def invoke_closure(
     closure: Expr,
     args: Expr,
-    sinfo_args: Union[List[StructInfo], StructInfo],
+    sinfo_args: list[StructInfo] | StructInfo,
 ) -> Call:
     """
     Invoke a closure.
@@ -429,8 +427,9 @@ def invoke_closure(
     ret: Call
         A call to `invoke_closure`.
     """
+    args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(sinfo_args, (list, tuple)):
+    if not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]
 
     return _ffi_api.invoke_closure(closure, args, sinfo_args)  # type: ignore
@@ -452,20 +451,20 @@ def render_object(val: tvm.Object) -> str:
     """
     if isinstance(val, tvm.runtime.Tensor):
         return str(val)
-    if isinstance(val, tvm.ir.Array):
+    if isinstance(val, tvm_ffi.Array):
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
         return f"({fields})"
     return str(val)
 
 
 @tvm.register_global_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm.runtime.ShapeTuple) -> tvm.runtime.Tensor:
+def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
     """
-    Takes a ShapeTuple and convert it to Tensor.
+    Takes a Shape and convert it to Tensor.
 
     Parameters
     ----------
-    shape_tuple: tvm.runtime.ShapeTuple
+    shape_tuple: tvm_ffi.Shape
         Shape tuple that we want to convert to Tensor at runtime
     """
     return tvm.runtime.tensor([int(v) for v in shape_tuple])
@@ -497,7 +496,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: List[Expr], format: Union[str, Expr] = "") -> Expr:
+def print(*values: list[Expr], format: str | Expr = "") -> Expr:
     """Print op to print the values
 
     Parameters
@@ -548,7 +547,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
             f"The format string argument to assert must be a string, given {type(format_str)})"
         )
 
-    if isinstance(condition, (bool, int)):
+    if isinstance(condition, bool | int):
         val = condition
     elif isinstance(condition, tvm.runtime.Tensor):
         # may happen if the original program had unknown shape or dtype for the tensor's type
@@ -580,9 +579,9 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Union[Expr, PrimExpr],
-    format_args: Optional[Union[Expr, List[Expr]]] = None,
-    format: Union[str, Expr] = "",
+    condition: Expr | PrimExpr,
+    format_args: Expr | list[Expr] | None = None,
+    format: str | Expr = "",
 ) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
@@ -678,12 +677,11 @@ def shape_to_tensor(expr: Expr) -> Expr:
     return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def call_inplace_packed(
-    func: Union[str, ExternFunc, GlobalVar],
+    func: str | ExternFunc | GlobalVar,
     *args: Expr,
-    inplace_indices: Union[int, List[int]],
-    sinfo_args: Union[StructInfo, List[StructInfo]],
+    inplace_indices: int | list[int],
+    sinfo_args: StructInfo | list[StructInfo],
 ) -> Expr:
     """
     Construct a call to a packed function that consumes some of its arguments "in-place"
@@ -732,6 +730,7 @@ def call_inplace_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+    args = tuple(convert_to_expr(a) for a in args)
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
     if isinstance(sinfo_args, tuple):  # type: ignore
@@ -744,11 +743,10 @@ def call_inplace_packed(
     return _ffi_api.call_inplace_packed(op, args, inplace_indices, sinfo_args)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def call_pure_packed(
-    func: Union[str, ExternFunc, GlobalVar],
+    func: str | ExternFunc | GlobalVar,
     *args: Expr,
-    sinfo_args: Union[StructInfo, List[StructInfo]],
+    sinfo_args: StructInfo | list[StructInfo],
 ) -> Expr:
     """
     Construct a call to a packed function that should be treated as pure,
@@ -783,6 +781,7 @@ def call_pure_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+    args = tuple(convert_to_expr(a) for a in args)
 
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
@@ -808,11 +807,10 @@ def call_pure_packed(
     return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member
 
 
-@args_converter.auto
 def invoke_pure_closure(
     closure: Expr,
     args: Expr,
-    sinfo_args: Union[List[StructInfo], StructInfo],
+    sinfo_args: list[StructInfo] | StructInfo,
 ) -> Call:
     """
     Invoke a closure and indicate to the compiler that it is pure.
@@ -839,8 +837,9 @@ def invoke_pure_closure(
     ret: Call
         A call to `invoke_pure_closure`.
     """
+    args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(sinfo_args, (list, tuple)):
+    if not isinstance(sinfo_args, list | tuple):
         sinfo_args = [sinfo_args]
 
     return _ffi_api.invoke_pure_closure(closure, args, sinfo_args)  # type: ignore
