@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -132,9 +132,9 @@ def test_linear_unit_infer_struct_info_invalid_input_dtype():
     x0 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.gelu(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.silu(x1))
 
 
@@ -143,9 +143,9 @@ def test_linear_unit_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.gelu(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.silu(x1))
 
 
@@ -233,13 +233,13 @@ def test_softmax_log_softmax_infer_struct_info_invalid_input_dtype():
     x0 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.softmax(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.softmax(x1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.log_softmax(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.log_softmax(x1))
 
 
@@ -247,13 +247,13 @@ def test_softmax_log_softmax_infer_struct_info_axis_out_of_range():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.softmax(x, axis=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.softmax(x, axis=-4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.log_softmax(x, axis=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.log_softmax(x, axis=-4))
 
 
@@ -275,13 +275,13 @@ def test_softmax_log_softmax_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.softmax(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.softmax(x1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.log_softmax(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.log_softmax(x1))
 
 
@@ -573,9 +573,9 @@ def test_batch_norm_infer_struct_info_invalid_input_dtype():
     moving_mean1 = relax.Var("moving_mean", R.Tensor((3,), "int32"))
     moving_var1 = relax.Var("moving_var", R.Tensor((3,), "int32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x1, gamma1, beta1, moving_mean1, moving_var1, axis=1))
 
 
@@ -587,9 +587,9 @@ def test_batch_norm_infer_struct_info_axis_out_of_range():
     moving_mean = relax.Var("moving_mean", R.Tensor((3,), "float32"))
     moving_var = relax.Var("moving_var", R.Tensor((3,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=-5))
 
 
@@ -604,11 +604,11 @@ def test_batch_norm_infer_struct_info_dtype_mismatch():
     moving_var0 = relax.Var("moving_var", R.Tensor((3,), "float32"))
     moving_var1 = relax.Var("moving_var", R.Tensor((3,), "float16"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta, moving_mean, moving_var1, axis=1))
 
 
@@ -622,9 +622,9 @@ def test_batch_norm_infer_struct_info_ndim_mismatch():
     moving_var0 = relax.Var("moving_var", R.Tensor((3,), "float32"))
     moving_var1 = relax.Var("moving_var", R.Tensor((1, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x, gamma1, beta, moving_mean, moving_var0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x, gamma0, beta, moving_mean, moving_var1, axis=1))
 
 
@@ -644,11 +644,11 @@ def test_batch_norm_infer_struct_info_shape_mismatch():
     moving_var1 = relax.Var("moving_var", R.Tensor((4,), "float32"))
     moving_var2 = relax.Var("moving_var", R.Tensor((c,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta0, moving_mean0, moving_var0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma0, beta0, moving_mean0, moving_var1, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_norm(x1, gamma2, beta1, moving_mean1, moving_var2, axis=1))
 
 
@@ -662,9 +662,9 @@ def test_batch_norm_infer_struct_info_wrong_input_type():
     moving_mean = relax.Var("moving_mean", R.Tensor((3,), "float32"))
     moving_var = relax.Var("moving_var", R.Tensor((3,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x1, gamma0, beta, moving_mean, moving_var, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.batch_norm(x0, gamma1, beta, moving_mean, moving_var, axis=1))
 
 
@@ -806,9 +806,9 @@ def test_layer_norm_infer_struct_info_invalid_input_dtype():
     gamma1 = relax.Var("gamma", R.Tensor((4, 5), "int32"))
     beta1 = relax.Var("beta", R.Tensor((4, 5), "int32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x0, gamma0, beta0, axes=[-2, -1]))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x1, gamma1, beta1, axes=[-2, -1]))
 
 
@@ -818,9 +818,9 @@ def test_layer_norm_infer_struct_info_axis_out_of_range_and_repetitive():
     gamma = relax.Var("gamma", R.Tensor((4, 5), "float32"))
     beta = relax.Var("beta", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma, beta, axes=[3, 4]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma, beta, axes=[3, -1]))
 
 
@@ -832,9 +832,9 @@ def test_layer_norm_infer_struct_info_dtype_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
     beta1 = relax.Var("beta", R.Tensor((4, 5)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma1, beta0, axes=[-2, -1]))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma0, beta1, axes=[-2, -1]))
 
 
@@ -846,9 +846,9 @@ def test_layer_norm_infer_struct_info_ndim_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
     beta1 = relax.Var("beta", R.Tensor((3, 4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma1, beta0, axes=[-2, -1]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x, gamma0, beta1, axes=[-2, -1]))
 
 
@@ -862,9 +862,9 @@ def test_layer_norm_infer_struct_info_shape_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
     beta1 = relax.Var("beta", R.Tensor((4, c0 - 2), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x0, gamma0, beta0, axes=[-2, -1]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.layer_norm(x1, gamma1, beta1, axes=[-2, -1]))
 
 
@@ -876,9 +876,9 @@ def test_layer_norm_infer_struct_info_wrong_input_type():
     gamma1 = relax.Var("gamma", relax.FuncStructInfo([], R.Tensor((4, 5), "float32")))
     beta = relax.Var("beta", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x1, gamma0, beta, axes=[-2, -1]))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.layer_norm(x0, gamma1, beta, axes=[-2, -1]))
 
 
@@ -1020,11 +1020,11 @@ def test_group_norm_infer_struct_info_invalid_input_dtype():
     gamma1 = relax.Var("gamma", R.Tensor((4,), "int32"))
     beta1 = relax.Var("beta", R.Tensor((4,), "int32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x1, gamma1, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
@@ -1036,11 +1036,11 @@ def test_group_norm_infer_struct_info_axis_out_of_range_and_repetitive():
     gamma = relax.Var("gamma", R.Tensor((4,), "float32"))
     beta = relax.Var("beta", R.Tensor((4,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=-2, axes=[3, 4])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=-2, axes=[3, -1])
         )
@@ -1054,11 +1054,11 @@ def test_group_norm_infer_struct_info_dtype_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4,), "float32"))
     beta1 = relax.Var("beta", R.Tensor((4,)))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma1, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma0, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
@@ -1072,11 +1072,11 @@ def test_group_norm_infer_struct_info_ndim_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
     beta1 = relax.Var("beta", R.Tensor((3, 4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma1, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x, gamma0, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
@@ -1092,11 +1092,11 @@ def test_group_norm_infer_struct_info_shape_mismatch():
     beta0 = relax.Var("beta", R.Tensor((4, 5), "float32"))
     beta1 = relax.Var("beta", R.Tensor((4, c0 - 2), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x0, gamma0, beta0, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.nn.group_norm(x1, gamma1, beta1, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
@@ -1110,11 +1110,11 @@ def test_group_norm_infer_struct_info_wrong_input_type():
     gamma1 = relax.Var("gamma", relax.FuncStructInfo([], R.Tensor((4, 5), "float32")))
     beta = relax.Var("beta", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(
             relax.op.nn.group_norm(x1, gamma0, beta, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(
             relax.op.nn.group_norm(x0, gamma1, beta, num_groups=2, channel_axis=-2, axes=[-2, -1])
         )
@@ -1250,9 +1250,9 @@ def test_dropout_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.dropout(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.dropout(x1))
 
 
@@ -1338,9 +1338,9 @@ def test_cross_entropy_infer_struct_info_wrong_ndim():
     y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
     y1 = relax.Var("y", R.Tensor("float32", ndim=4))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x1, y0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y1))
 
 
@@ -1350,7 +1350,7 @@ def test_cross_entropy_infer_struct_info_shape_mismatch():
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     y0 = relax.Var("y", R.Tensor((2, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y0))
 
 
@@ -1360,9 +1360,9 @@ def test_cross_entropy_infer_struct_info_wrong_input_type():
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x0, y))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.cross_entropy_with_logits(x1, y))
 
 
@@ -1668,17 +1668,17 @@ def test_nll_loss_infer_struct_info_wrong_input_type():
     w1 = relax.Var("w", relax.ShapeStructInfo((2, 3)))
     w2 = relax.Var("w", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x0, y0, w2))
 
 
@@ -1727,9 +1727,9 @@ def test_nll_loss_infer_struct_info_targets_dtype():
     targets5 = relax.Var("targets", R.Tensor((3, 10, 10), "uint32"))
     targets6 = relax.Var("targets", R.Tensor((3, 10, 10), ""))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x, targets0, w))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.nll_loss(x, targets1, w))
 
     # correct cases
@@ -1751,17 +1751,17 @@ def test_nll_loss_infer_struct_info_ndim_mismatch():
     w1 = relax.Var("w", R.Tensor((5, 5), "float32"))
     w2 = relax.Var("w", R.Tensor((), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y0, w2))
 
 
@@ -1777,17 +1777,17 @@ def test_nll_loss_infer_struct_info_shape_mismatch():
     w0 = relax.Var("w", R.Tensor((5,), "float32"))
     w1 = relax.Var("w", R.Tensor((4,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x1, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x2, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x3, y0, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y1, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y2, w0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.nll_loss(x0, y0, w1))
 
 
@@ -1797,7 +1797,7 @@ def test_nll_loss_infer_struct_info_wrong_reduction():
     y = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
     w = relax.Var("w", R.Tensor((5,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.nn.nll_loss(x, y, w, reduction="foo"))
 
 
@@ -1896,7 +1896,7 @@ def test_batch_flatten_infer_struct_info_wrong_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.batch_flatten(x0))
 
 

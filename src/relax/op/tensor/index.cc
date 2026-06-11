@@ -24,6 +24,7 @@
 
 #include "index.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/runtime/logging.h>
@@ -73,10 +74,10 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
       return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), prim_sinfo->dtype);
     } else {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Operator " << call->op << " requires the indices argument to be "
-                       << "either a tensor or a scalar value.  "
-                       << "However, argument " << arg << " has struct info " << sinfo);
+      TVM_FFI_VISIT_THROW(TypeError, call)
+          << "Operator " << call->op << " requires the indices argument to be "
+          << "either a tensor or a scalar value.  "
+          << "However, argument " << arg << " has struct info " << sinfo;
       // Unreachable, but [[noreturn]] attribute on virtual function
       // `ReportFatal` is insufficient to silence -Wreturn-type, as
       // child class might not be [[noreturn]].
@@ -87,18 +88,18 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   if (indices_sinfo->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Take op requires the input indices to have integer dtype. However, the "
-                        "given indices dtype is "
-                     << indices_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Take op requires the input indices to have integer dtype. However, the "
+           "given indices dtype is "
+        << indices_sinfo->dtype;
   }
 
   const auto* attrs = call->attrs.as<TakeAttrs>();
   if (!attrs->axis.has_value() && data_sinfo->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Take op expects the input data to be 1-dimensional tensor when the axis "
-                        "is not specified. However, the given data tensor has ndim "
-                     << data_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Take op expects the input data to be 1-dimensional tensor when the axis "
+           "is not specified. However, the given data tensor has ndim "
+        << data_sinfo->ndim;
   }
   if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);

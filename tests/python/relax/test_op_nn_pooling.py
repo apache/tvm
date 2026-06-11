@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -192,22 +192,22 @@ def test_max_pool1d_stride_padding_dilation_int64():
 
 def test_max_pool1d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool1d(x, pool_size=(1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool1d(x, strides=(1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool1d(x, padding=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool1d(x, dilation=(1, 2))
 
 
 def test_max_pool1d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool1d(x, layout="OIW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool1d(x, out_layout="OWI"))
 
 
@@ -216,10 +216,10 @@ def test_max_pool1d_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=5))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool1d(x0))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool1d(x1))
 
 
@@ -228,10 +228,10 @@ def test_max_pool1d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool1d(x0))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool1d(x1))
 
 
@@ -427,22 +427,22 @@ def test_max_pool2d_stride_padding_dilation_int64():
 
 def test_max_pool2d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool2d(x, pool_size=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool2d(x, strides=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool2d(x, padding=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool2d(x, dilation=(1, 2, 3))
 
 
 def test_max_pool2d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool2d(x, layout="OIHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool2d(x, out_layout="OHWI"))
 
 
@@ -450,9 +450,9 @@ def test_max_pool2d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool2d(x1))
 
 
@@ -461,9 +461,9 @@ def test_max_pool2d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool2d(x1))
 
 
@@ -678,22 +678,22 @@ def test_max_pool3d_stride_padding_dilation_int64():
 
 def test_max_pool3d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool3d(x, pool_size=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool3d(x, strides=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool3d(x, padding=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.max_pool3d(x, dilation=(1, 2, 3, 4))
 
 
 def test_max_pool3d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool3d(x, layout="OIHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool3d(x, out_layout="OHWI"))
 
 
@@ -701,9 +701,9 @@ def test_max_pool3d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.max_pool3d(x1))
 
 
@@ -712,9 +712,9 @@ def test_max_pool3d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.max_pool3d(x1))
 
 
@@ -886,22 +886,22 @@ def test_avg_pool1d_stride_padding_dilation_int64():
 
 def test_avg_pool1d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool1d(x, pool_size=(1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool1d(x, strides=(1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool1d(x, padding=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool1d(x, dilation=(1, 2))
 
 
 def test_avg_pool1d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool1d(x, layout="OIW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool1d(x, out_layout="OWI"))
 
 
@@ -909,9 +909,9 @@ def test_avg_pool1d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool1d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool1d(x1))
 
 
@@ -920,9 +920,9 @@ def test_avg_pool1d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool1d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool1d(x1))
 
 
@@ -1118,22 +1118,22 @@ def test_avg_pool2d_stride_padding_dilation_int64():
 
 def test_avg_pool2d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool2d(x, pool_size=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool2d(x, strides=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool2d(x, padding=(1, 2, 3))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool2d(x, dilation=(1, 2, 3))
 
 
 def test_avg_pool2d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool2d(x, layout="OIHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool2d(x, out_layout="OHWI"))
 
 
@@ -1141,9 +1141,9 @@ def test_avg_pool2d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool2d(x1))
 
 
@@ -1152,9 +1152,9 @@ def test_avg_pool2d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool2d(x1))
 
 
@@ -1374,22 +1374,22 @@ def test_avg_pool3d_stride_padding_dilation_int64():
 
 def test_avg_pool3d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool3d(x, pool_size=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool3d(x, strides=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool3d(x, padding=(1, 2, 3, 4))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.avg_pool3d(x, dilation=(1, 2, 3, 4))
 
 
 def test_avg_pool3d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool3d(x, layout="OIHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool3d(x, out_layout="OHWI"))
 
 
@@ -1397,9 +1397,9 @@ def test_avg_pool3d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.avg_pool3d(x1))
 
 
@@ -1408,9 +1408,9 @@ def test_avg_pool3d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.avg_pool3d(x1))
 
 
@@ -1527,16 +1527,16 @@ def test_adaptive_avg_pool1d_infer_struct_info_more_input_dtype():
 
 def test_adaptive_avg_pool1d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.adaptive_avg_pool1d(x, output_size=(32, 32))
 
 
 def test_adaptive_avg_pool1d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, layout="OIW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, out_layout="OWI"))
 
 
@@ -1545,9 +1545,9 @@ def test_adaptive_avg_pool1d_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=2))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x1))
 
 
@@ -1556,9 +1556,9 @@ def test_adaptive_avg_pool1d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 64)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 64), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool1d(x1))
 
 
@@ -1701,16 +1701,16 @@ def test_adaptive_avg_pool2d_infer_struct_info_more_input_dtype():
 
 def test_adaptive_avg_pool2d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.adaptive_avg_pool2d(x, (32, 32, 32))
 
 
 def test_adaptive_avg_pool2d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x, layout="OIHW"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x, out_layout="OHWI"))
 
 
@@ -1718,9 +1718,9 @@ def test_adaptive_avg_pool2d_wrong_input_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x1))
 
 
@@ -1729,9 +1729,9 @@ def test_adaptive_avg_pool2d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x1))
 
 
@@ -1890,7 +1890,7 @@ def test_adaptive_avg_pool3d_infer_struct_info_more_input_dtype():
 def test_adaptive_avg_pool3d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.nn.adaptive_avg_pool3d(x, (32, 32, 32, 32))
 
 
@@ -1898,10 +1898,10 @@ def test_adaptive_avg_pool3d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x, layout="OIDHW"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x, out_layout="OHIDW"))
 
 
@@ -1910,9 +1910,9 @@ def test_adaptive_avg_pool3d_wrong_input_ndim():
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x1))
 
 
@@ -1921,9 +1921,9 @@ def test_adaptive_avg_pool3d_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28, 28), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.adaptive_avg_pool3d(x1))
 
 

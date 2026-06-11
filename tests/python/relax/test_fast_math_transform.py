@@ -29,7 +29,7 @@ from tvm.script import relax as R
 
 def _run_pass_compare_output(Before, Expected):
     fast_mod = FastMathTransform()(Before)
-    if not relax.analysis.well_formed(fast_mod):
+    if not relax.analysis.check_well_formed(fast_mod):
         print("IRModule is not well-formed")
     assert_structural_equal(Expected, fast_mod)
 

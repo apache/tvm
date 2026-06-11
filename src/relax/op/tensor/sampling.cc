@@ -24,6 +24,7 @@
 
 #include "sampling.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 
@@ -59,45 +60,44 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
   const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
   if (!prob_sinfo->dtype.is_float()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input prob to have float dtype. "
-                        "However, the given prob dtype is "
-                     << prob_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Multinomial_from_uniform op requires the input prob to have float dtype. "
+           "However, the given prob dtype is "
+        << prob_sinfo->dtype;
   }
   if (!uniform_sample_sinfo->dtype.is_float()) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to have float "
            "dtype. However, the given uniform_sample dtype is "
-        << uniform_sample_sinfo->dtype);
+        << uniform_sample_sinfo->dtype;
   }
   if (!sample_indices_sinfo->dtype.is_int()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial from uniform op requires the input sample_indices to have int "
-                        "dtype. However, the given sample_indices dtype is "
-                     << sample_indices_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Multinomial from uniform op requires the input sample_indices to have int "
+           "dtype. However, the given sample_indices dtype is "
+        << sample_indices_sinfo->dtype;
   }
   if (prob_sinfo->IsUnknownNdim() || uniform_sample_sinfo->IsUnknownNdim() ||
       sample_indices_sinfo->IsUnknownNdim()) {
     return TensorStructInfo(attrs->dtype, kUnknownNDim, prob_sinfo->vdevice);
   }
   if (prob_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input prob to be a 2D tensor. "
-                        "However, the given prob tensor has ndim "
-                     << prob_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Multinomial_from_uniform op requires the input prob to be a 2D tensor. "
+           "However, the given prob tensor has ndim "
+        << prob_sinfo->ndim;
   }
   if (uniform_sample_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input uniform_sample to be a 2D "
-                        "tensor. However, the given uniform_sample tensor has ndim "
-                     << uniform_sample_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Multinomial_from_uniform op requires the input uniform_sample to be a 2D "
+           "tensor. However, the given uniform_sample tensor has ndim "
+        << uniform_sample_sinfo->ndim;
   }
   if (sample_indices_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input sample_indices to be a 2D "
-                        "tensor. However, the given sample_indices tensor has ndim "
-                     << sample_indices_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Multinomial_from_uniform op requires the input sample_indices to be a 2D "
+           "tensor. However, the given sample_indices tensor has ndim "
+        << sample_indices_sinfo->ndim;
   }
 
   // Expected to be `(batch, vocab_size)`
@@ -116,22 +116,21 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
   PrimExpr n = uniform_sample_shape->values[0];
   arith::Analyzer ana;
   if (!ana->CanProveEqual(n, sample_indices_shape->values[0])) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input uniform_sample and "
-                        "sample_indices to have the same batch size. "
-                        "However, the given uniform_sample tensor has batch size `"
-                     << n << "` and the given sample_indices tensor has batch size `"
-                     << sample_indices_shape->values[0] << "`");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Multinomial_from_uniform op requires the input uniform_sample and "
+           "sample_indices to have the same batch size. "
+           "However, the given uniform_sample tensor has batch size `"
+        << n << "` and the given sample_indices tensor has batch size `"
+        << sample_indices_shape->values[0] << "`";
   }
   if (!tirx::is_one(uniform_sample_shape->values[1]) ||
       !tirx::is_one(sample_indices_shape->values[1])) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Multinomial_from_uniform op requires the input uniform_sample and "
-                        "sample_indices to be 2D tensors with the second dimension being 1. "
-                        "However, the given uniform_sample tensor has shape "
-                     << uniform_sample_sinfo->shape
-                     << " and the given sample_indices tensor has shape "
-                     << sample_indices_sinfo->shape);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Multinomial_from_uniform op requires the input uniform_sample and "
+           "sample_indices to be 2D tensors with the second dimension being 1. "
+           "However, the given uniform_sample tensor has shape "
+        << uniform_sample_sinfo->shape << " and the given sample_indices tensor has shape "
+        << sample_indices_sinfo->shape;
   }
   return TensorStructInfo(ShapeExpr({n, 1}), attrs->dtype, prob_sinfo->vdevice);
 }

@@ -24,6 +24,7 @@
 
 #include "roi_pool.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -58,49 +59,49 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool expects two arguments, while the given number of arguments is "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ROIPool expects two arguments, while the given number of arguments is "
+        << call->args.size();
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* rois_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool expects the input data to be a Tensor, while the given data is "
-                     << call->args[0]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "ROIPool expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey();
   }
   if (rois_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool expects the rois to be a Tensor, while the given rois is "
-                     << call->args[1]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "ROIPool expects the rois to be a Tensor, while the given rois is "
+        << call->args[1]->GetTypeKey();
   }
   if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim != 4) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool expects the input data to be 4-D, while the given data has ndim "
-                     << data_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ROIPool expects the input data to be 4-D, while the given data has ndim "
+        << data_sinfo->ndim;
   }
   if (!rois_sinfo->IsUnknownNdim() && rois_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool expects the rois tensor to be 2-D, while the given rois has ndim "
-                     << rois_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ROIPool expects the rois tensor to be 2-D, while the given rois has ndim "
+        << rois_sinfo->ndim;
   }
 
   const auto* attrs = call->attrs.as<ROIPoolAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid ROIPool attrs";
   if (attrs->layout != "NCHW") {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "ROIPool only supports NCHW layout, but got " << attrs->layout);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ROIPool only supports NCHW layout, but got " << attrs->layout;
   }
 
   const auto* rois_shape = rois_sinfo->shape.as<ShapeExprNode>();
   if (rois_shape != nullptr) {
     const auto* last_dim = rois_shape->values[1].as<IntImmNode>();
     if (last_dim != nullptr && last_dim->value != 5) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "ROIPool expects rois to have shape (num_roi, 5), but got last "
-                          "dimension "
-                       << last_dim->value);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "ROIPool expects rois to have shape (num_roi, 5), but got last "
+             "dimension "
+          << last_dim->value;
     }
   }
 

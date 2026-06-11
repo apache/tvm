@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include "utils.h"
 
 namespace tvm {
@@ -25,8 +27,8 @@ namespace distributed {
 
 StructInfo InferDistStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exact 1 output struct info.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
@@ -39,7 +41,7 @@ TVM_REGISTER_OP("relax.call_tir")
 
 StructInfo InferDistStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "stop_lift_params should have exact 1 arg.");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "stop_lift_params should have exact 1 arg.";
   }
   return Downcast<StructInfo>(call->args[0]->struct_info_.value());
 }

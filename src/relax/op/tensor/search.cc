@@ -24,6 +24,7 @@
 
 #include "search.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
@@ -58,9 +59,8 @@ StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo boundaries_info = input_sinfo[1];
 
   if (!boundaries_info->IsUnknownNdim() && boundaries_info->ndim != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Bucketize requires boundary to be 1-D array but got "
-                     << boundaries_info->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Bucketize requires boundary to be 1-D array but got " << boundaries_info->ndim;
   }
 
   auto attrs = call->attrs.as<BucketizeAttrs>();
@@ -120,10 +120,10 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (!cond_sinfo->dtype.is_bool()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Where requires the input condition tensor to have boolean dtype. However, "
-                        "the given condition dtype is "
-                     << cond_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Where requires the input condition tensor to have boolean dtype. However, "
+           "the given condition dtype is "
+        << cond_sinfo->dtype;
   }
   DataType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_sinfo, x2_sinfo);
 

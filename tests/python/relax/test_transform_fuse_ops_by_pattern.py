@@ -612,7 +612,7 @@ def test_compare_with_merge_composite_path():
     mod1 = relax.transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(
         mod
     )
-    assert tvm.relax.analysis.well_formed(mod1)
+    tvm.relax.analysis.well_formed(mod1)
 
     @I.ir_module(s_tir=True)
     class Expected1:
@@ -653,7 +653,7 @@ def test_compare_with_merge_composite_path():
         mod
     )
     mod2 = relax.transform.MergeCompositeFunctions()(mod2)
-    assert tvm.relax.analysis.well_formed(mod2)
+    tvm.relax.analysis.well_formed(mod2)
 
     @I.ir_module(s_tir=True)
     class Expected2:

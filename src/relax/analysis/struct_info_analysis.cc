@@ -24,6 +24,7 @@
  * \note Update this file when you added a new StructInfo.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -869,24 +870,26 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     // Normal function signature derivation.
     auto params = finfo->params.value();
     if (params.size() != call->args.size()) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
-                       << "Number of arguments and parameters mismatch:"
-                       << " Function " << call->op << " has struct info " << finfo
-                       << " and accepts " << params.size() << " parameters, but was called with "
-                       << call->args.size() << " arguments (" << call->args << ")");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "Number of arguments and parameters mismatch:"
+          << " Function " << call->op << " has struct info " << finfo << " and accepts "
+          << params.size() << " parameters, but was called with " << call->args.size()
+          << " arguments (" << call->args << ")";
     }
     // Visit each param arg pair, check and populate the var map
     for (size_t i = 0; i < params.size(); ++i) {
+      TVM_FFI_VISIT_BEGIN();
       auto arg_sinfo = GetStructInfo(call->args[i]);
       BaseCheckResult res = this->VisitStructInfo(params[i], arg_sinfo);
       // Report error if we find L1 level failure
       // L2 level is best effort so we don't report.
       // The behavior of L2 can be customized later.
       if (res == BaseCheckResult::kFailL0 || res == BaseCheckResult::kFailL1) {
-        ctx->ReportFatal(Diagnostic::Error(call->span)
-                         << "Argument " << i << " type mismatch:"
-                         << " expected " << params[i] << ", given " << arg_sinfo);
+        TVM_FFI_VISIT_THROW(ValueError, call->args[i])
+            << "Argument " << i << " type mismatch:"
+            << " expected " << params[i] << ", given " << arg_sinfo;
       }
+      TVM_FFI_VISIT_END(call->args[i]);
     }
     // map the ret using the populated var map.
     return EraseToWellDefined(finfo->ret, shape_var_map_, var_map_);
@@ -985,6 +988,9 @@ StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call
 
 StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
                                    const BlockBuilder& ctx, const arith::Analyzer& ana) {
+  // The deriver's TVM_FFI_VISIT_THROW seeds a VisitErrorContext on the error;
+  // the outer pass wrapper catches it and enriches the message with the access
+  // path. Nothing to do here but propagate.
   return CallRetStructInfoDeriver(ana.get()).Derive(finfo, call, ctx);
 }
 

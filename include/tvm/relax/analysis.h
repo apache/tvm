@@ -25,7 +25,6 @@
 #define TVM_RELAX_ANALYSIS_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
@@ -632,17 +631,31 @@ TVM_DLL bool ContainsImpureCall(
     const Expr& expr, const ffi::Optional<Expr>& own_name = ffi::Optional<Expr>(std::nullopt));
 
 /*!
- * \brief Check if the IRModule is well formed.
+ * \brief Check if an IRModule or Function is well-formed.
+ *
+ * Throws an ffi::Error on the first well-formedness violation. The error is
+ * seeded with the offending node so a pass runner can resolve a precise access
+ * path. Use \ref CheckWellFormed for a boolean answer.
  *
  * \param obj The IRModule or relax::Function to check.
- * \param check_struct_info A boolean flag indicating if the property "every Expr
- * must have defined structure info" will be checked.
- * \return true if the object is well formed, false if not.
+ * \param check_struct_info If true, verify that every Expr has struct_info populated.
  * \note By default the structure info is always checked. It is only in test cases
  * where `check_struct_info` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
+TVM_DLL void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
+
+/*!
+ * \brief Return whether an IRModule or Function is well-formed.
+ *
+ * Wraps \ref WellFormed, returning false instead of throwing on the first
+ * violation.
+ *
+ * \param obj The IRModule or relax::Function to check.
+ * \param check_struct_info If true, verify that every Expr has struct_info populated.
+ * \return true if the object is well-formed, false otherwise.
+ */
+TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks
