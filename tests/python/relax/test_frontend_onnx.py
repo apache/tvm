@@ -4092,6 +4092,34 @@ def test_resize_noninteger_scales_3d():
     check_correctness(helper.make_model(graph), opset=18)
 
 
+@pytest.mark.parametrize(
+    "input_shape,scales,output_shape",
+    [
+        ([1, 1, 4, 4], [1.0, 1.0, 2.0, 2.0], [1, 1, 8, 8]),
+        ([1, 1, 3, 3], [1.0, 1.0, 3.0, 3.0], [1, 1, 9, 9]),
+    ],
+)
+def test_resize_integer_scales_regression(input_shape, scales, output_shape):
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="half_pixel",
+        nearest_mode="round_prefer_floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_integer_scales",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape)],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [len(scales)], scales)
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)
