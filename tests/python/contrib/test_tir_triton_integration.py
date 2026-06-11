@@ -31,8 +31,12 @@ from tvm.script import tirx as T
 try:
     import triton
     import triton.language as tl
+    from packaging import version
 except ImportError:
     pytestmark = pytest.skip("Triton is not available", allow_module_level=True)
+else:
+    if version.parse(triton.__version__) < version.parse("3.3.0"):
+        pytestmark = pytest.skip("Triton >= 3.3.0 is required", allow_module_level=True)
 
 
 @tvm.testing.requires_cuda
@@ -76,6 +80,7 @@ def test_tir_triton_integration():
                     output.data,
                     m,
                     BLOCK_SIZE,
+                    num_warps=8,
                 )
 
         @R.function
@@ -86,6 +91,8 @@ def test_tir_triton_integration():
                 R.output(output)
             return output
 
+    # Constexpr parameters (BLOCK_SIZE) stay in the kernel arguments, and the
+    # thread extent is 256 because the kernel is compiled with num_warps=8.
     @I.ir_module(s_tir=True)
     class Parsed:
         @T.prim_func(s_tir=True)
@@ -103,7 +110,8 @@ def test_tir_triton_integration():
                     y.data,
                     output.data,
                     m,
-                    128,
+                    64,
+                    256,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                 )
 
