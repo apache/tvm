@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
@@ -31,7 +32,10 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
+#include <optional>
+#include <sstream>
 #include <stack>
+#include <string>
 
 namespace tvm {
 namespace transform {
@@ -291,6 +295,84 @@ IRModule Pass::operator()(IRModule mod) const {
   return this->operator()(std::move(mod), PassContext::Current());
 }
 
+namespace {
+/*! \brief Marker line that precedes the TVMScript-rendered location block. */
+constexpr const char* kLocationMarker = "Location (TVMScript):";
+
+/*!
+ * \brief Render `node` as TVMScript with `path` underlined, via the script
+ *        printer global registry, so src/ir does not link against the printer.
+ *
+ * Returns the rendered snippet, or std::nullopt if the printer entry is
+ * unavailable or throws.
+ */
+std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
+                                                     const ffi::reflection::AccessPath& path) {
+  namespace ffi = tvm::ffi;
+  auto config_fn = ffi::Function::GetGlobal("node.PrinterConfig");
+  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScript");
+  if (!config_fn.has_value() || !script_fn.has_value()) return std::nullopt;
+  try {
+    ffi::Map<ffi::String, ffi::Any> config_dict;
+    config_dict.Set("path_to_underline", ffi::Array<ffi::reflection::AccessPath>{path});
+    // Show enough context that a small function renders in full (no
+    // "(... N lines skipped ...)" marker), while still bounding a large
+    // module. A small TIR/Relax function is ~8-15 lines; 10 lines of context
+    // on each side of the underline covers it end-to-end.
+    config_dict.Set("num_context_lines", static_cast<int>(10));
+    ffi::Any cfg = (*config_fn)(config_dict);
+    ffi::Any rendered = (*script_fn)(node, cfg);
+    return rendered.cast<ffi::String>().operator std::string();
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+}  // namespace
+
+ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod,
+                                      ffi::String pass_name, ffi::Optional<GlobalVar> func) {
+  namespace ffi = tvm::ffi;
+  // No visit-context payload => nothing to resolve; return the error untouched.
+  // (The enriched error below drops the payload, so an outer catch that
+  // re-enriches lands here and returns unchanged — no double location block.)
+  auto visit_ctx = ffi::VisitErrorContext::TryGetFromError(err);
+  if (!visit_ctx) return err;
+
+  // Resolve + render against the local function when requested, else the module.
+  // Fall back to the module root if the function is missing or yields no path.
+  ffi::ObjectRef root = mod;
+  if (func.has_value()) {
+    if (auto bf = mod->functions.Get(func.value())) {
+      root = bf.value();
+    } else {
+      func = ffi::Optional<GlobalVar>(std::nullopt);
+    }
+  }
+
+  auto try_render = [&](const ffi::ObjectRef& search_root) -> std::optional<std::string> {
+    auto paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value(),
+                                                         /*allow_prefix_match=*/true);
+    if (paths.empty()) return std::nullopt;
+    return RenderScriptWithUnderline(search_root, paths[0]);
+  };
+
+  std::optional<std::string> snippet = try_render(root);
+  if (!snippet && func.has_value()) {
+    // Function-local resolution failed; retry against the whole module.
+    snippet = try_render(mod);
+  }
+  if (!snippet) return err;
+
+  // Append the pass name + underlined TVMScript location. Preserve kind,
+  // original message, and backtrace; drop the VisitErrorContext payload so an
+  // outer catch does not re-enrich.
+  std::ostringstream suffix;
+  suffix << "\n\nError in pass: " << pass_name << "\n"
+         << kLocationMarker << "\n"
+         << snippet.value();
+  return ffi::Error(err.kind(), err.message() + suffix.str(), err.backtrace());
+}
+
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
   TVM_FFI_ICHECK(node != nullptr);
@@ -301,6 +383,10 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
     return mod;
   }
   IRModule ret;
+  // Error enrichment happens in the leaf pass executors (ModulePassNode /
+  // FunctionPassNode), not here — guarding the generic funnel (which also wraps
+  // Sequential) would re-resolve FindAccessPaths against a mutated post-pass
+  // module and double-wrap the message.
   if (pass_ctx->GetConfig<bool>("testing.immutable_module", false).value()) {
     ret = Pass::AssertImmutableModule(mod, node, pass_ctx);
   } else {
@@ -393,34 +479,23 @@ ModulePass::ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
 
 // Module -> Module optimizations.
 IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  DiagnosticContext previous = DiagnosticContext::Default(mod);
-
-  if (pass_ctx->diag_ctx) {
-    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
-    pass_ctx->diag_ctx = previous;
-    previous = tmp;
-  } else {
-    pass_ctx->diag_ctx = previous;
-  }
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
   const PassInfo& pass_info = Info();
   TVM_FFI_ICHECK(mod.defined()) << "The input module must be set.";
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
 
-  mod = pass_func(std::move(mod), pass_ctx);
+  // The module is the access-path root for any visit-context error the pass
+  // body throws. Enrich at this leaf executor so the message surfaces a precise,
+  // TVMScript-rendered location.
+  IRModule input_mod = mod;
+  try {
+    mod = pass_func(std::move(mod), pass_ctx);
+  } catch (ffi::Error& err) {
+    throw EnrichPassErrorWithContext(err, input_mod, pass_info->name);
+  }
 
   TVM_FFI_ICHECK(mod.defined()) << "The return value of a module pass must be set.";
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
-  pass_ctx->diag_ctx.value().Render();
-  pass_ctx->diag_ctx = previous;
 
   return mod;
 }

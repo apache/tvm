@@ -18,7 +18,7 @@
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
 
-from . import diagnostics, instrument, transform
+from . import instrument, transform
 from .attrs import Attrs, DictAttrs, make_node
 from .base import (
     EnvFunc,
