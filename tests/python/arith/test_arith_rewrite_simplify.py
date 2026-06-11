@@ -1265,10 +1265,10 @@ class TestDivZero(BaseCompare):
     broadcast = tvm.tirx.Broadcast(0, 2)
 
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tirx.Div(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.Mod(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorMod(ramp, broadcast), tvm.error.TVMError),
+        TestCase(tvm.tirx.Div(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.Mod(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorMod(ramp, broadcast), RuntimeError),
     )
 
 

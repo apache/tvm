@@ -22,7 +22,6 @@ import os
 import shutil
 import subprocess
 
-from ..base import py_str
 from . import utils
 
 
@@ -55,7 +54,7 @@ def tar(output, files):
 
     if proc.returncode != 0:
         msg = "Tar error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 
@@ -83,7 +82,7 @@ def untar(tar_file, directory):
 
     if proc.returncode != 0:
         msg = "Tar error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 

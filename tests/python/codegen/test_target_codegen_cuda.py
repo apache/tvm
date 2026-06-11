@@ -900,7 +900,7 @@ def test_invalid_reinterpret():
         for tx in T.thread_binding(4, "threadIdx.x"):
             B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
 
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.compile(func, target="cuda")
 
 

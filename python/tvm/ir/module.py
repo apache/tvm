@@ -181,7 +181,7 @@ class IRModule(Node, Scriptable):
 
         Raises
         ------
-        tvm.error.TVMError if we cannot find corresponding global var.
+        RuntimeError if we cannot find corresponding global var.
         """
         return _ffi_api.Module_GetGlobalVar(self, name)
 

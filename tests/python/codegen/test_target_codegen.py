@@ -31,7 +31,7 @@ def test_buffer_store_predicate_not_supported(target):
         B.vstore([T.Ramp(0, 2, 4)], T.Broadcast(1.0, 4), predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "Predicated buffer store is not supported."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
             tvm.compile(func)
 
@@ -51,7 +51,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
             )
 
     err_msg = "Predicated buffer store is not supported."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
             tvm.compile(func)
 
@@ -69,7 +69,7 @@ def test_buffer_load_predicate_not_supported(target):
             )
 
     err_msg = "Predicated buffer load is not supported."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
             tvm.compile(func)
 
@@ -89,7 +89,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
             )
 
     err_msg = "Predicated buffer load is not supported."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
             tvm.compile(func)
 
