@@ -22,7 +22,6 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np  # type: ignore
-import psutil  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
 from tvm.error import TVMError
@@ -56,6 +55,12 @@ def _cpu_count_impl(logical: bool = True) -> int:
     Setting these variables may interfere the host-side search with profiling of generated kernels
     when measuring locally.
     """
+    try:
+        import psutil  # type: ignore  # pylint: disable=import-outside-toplevel
+    except ImportError as err:
+        raise ImportError(
+            "psutil is required by the meta schedule search. Install it with: pip install psutil"
+        ) from err
     return psutil.cpu_count(logical=logical) or 1
 
 

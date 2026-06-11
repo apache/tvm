@@ -311,8 +311,14 @@ class CodegenCoreML(PyExprVisitor):
     """
 
     def __init__(self, model_name, function):
-        import coremltools
-        from coremltools.models.neural_network import NeuralNetworkBuilder
+        try:
+            import coremltools
+            from coremltools.models.neural_network import NeuralNetworkBuilder
+        except ImportError as err:
+            raise ImportError(
+                "coremltools is required by the CoreML backend. "
+                "Install it with: pip install coremltools"
+            ) from err
 
         self.model_name = model_name
         self.function = function
