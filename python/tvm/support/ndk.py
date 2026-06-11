@@ -25,7 +25,6 @@ from pathlib import Path
 
 from tvm_ffi import register_global_func
 
-from ..base import py_str
 from . import cc as _cc
 from . import tar as _tar
 from . import utils as _utils
@@ -67,7 +66,7 @@ def create_shared(output, objects, options=None):
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 
@@ -110,7 +109,7 @@ def create_staticlib(output, inputs):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "AR error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
@@ -121,7 +120,7 @@ def create_staticlib(output, inputs):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Ranlib error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 

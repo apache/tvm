@@ -262,7 +262,7 @@ def test_error_for_unused_replacement():
         def main(x: R.Tensor(("m", "n"), dtype="float32")):
             return x
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.BindSymbolicVars({"non_existing_var_name": 16})(Before)
 
 

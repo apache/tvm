@@ -918,7 +918,7 @@ def test_error_when_unwrapping_dataflowvar():
             rhs = bb.emit(func.bind_params({lhs: local_lhs}).body, "f")
             out = bb.emit_output(rhs, "f")
 
-        with pytest.raises(tvm.TVMError, match="Malformed AST"):
+        with pytest.raises(RuntimeError, match="Malformed AST"):
             bb.emit_func_output(out)
 
 

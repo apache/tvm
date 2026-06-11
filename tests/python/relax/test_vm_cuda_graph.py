@@ -174,7 +174,7 @@ def test_capture_error_is_recoverable():
 
     arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         vm["main"](arg)
 
 

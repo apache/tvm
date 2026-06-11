@@ -1209,7 +1209,7 @@ def test_index_map_dtype_legalize():
     sch = tvm.s_tir.Schedule(func)
 
     # # The following error is raised from the IterVar constructor without the dtype legalization.
-    # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # # RuntimeError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
     # # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(
         sch.get_sblock("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
@@ -1247,7 +1247,7 @@ def test_index_map_dtype_legalize_with_constant():
     # Prior to the bugfix, this resulted in the following error is
     # raised from the IterVar constructor.
     #
-    # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
+    # RuntimeError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
     # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(block="block", buffer="A", index_map=func, pad_value=0)
 

@@ -26,9 +26,9 @@ import os
 from tvm_ffi import register_object, register_global_func, get_global_func
 
 # top-level alias
-from .base import TVMError, __version__, _RUNTIME_ONLY
+from .libinfo import __version__
+from .base import _RUNTIME_ONLY
 
-# top-level alias
 # tvm.runtime
 from .runtime import Object
 from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
@@ -117,3 +117,11 @@ def tvm_wrap_excepthook(exception_hook):
 
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
+
+# Autoload out-of-tree backends registered under the ``tvm.backends`` entry
+# point group. Runs last, after the core runtime and the tvm namespace are
+# fully initialized, so an extension can safely register into ``tvm.*`` and
+# load extra libraries. Imported lazily here to avoid any import-cycle risk.
+from ._autoload_backends import _autoload_backends
+
+_autoload_backends()

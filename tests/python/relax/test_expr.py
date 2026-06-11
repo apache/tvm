@@ -241,7 +241,7 @@ def test_shape_expr():
 
     m = tirx.Var("m", "int32")
     with pytest.raises(
-        tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"
+        RuntimeError, match="the value in ShapeStructInfo can only have dtype of int64"
     ):
         rx.ShapeExpr([m, 3])
 

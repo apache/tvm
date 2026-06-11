@@ -354,7 +354,7 @@ def test_vectorize_while_fail():
     try:
         tvm.compile(Module, target="llvm")
         assert False
-    except tvm.error.TVMError as e:
+    except RuntimeError as e:
         error_msg = str(e).split("\n")[-1]
         expected = "A while loop inside a vectorized loop not supported"
         assert expected in error_msg

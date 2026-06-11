@@ -22,7 +22,6 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.base import TVMError
 from tvm.relax.struct_info import ShapeStructInfo
 
 from ...tirx import PrimExpr
@@ -68,7 +67,7 @@ def _get_shape(expr: Expr) -> ShapeExpr:
     try:
         shape = expr.struct_info.shape
     except Exception as error:
-        raise TVMError(
+        raise RuntimeError(
             f"Get the shape of {expr} failed. Please normalize it first and ensure it is a Tensor."
         ) from error
     return shape
@@ -79,7 +78,7 @@ def _get_dtype(expr: Expr) -> str:
     try:
         dtype = expr.struct_info.dtype
     except Exception as error:
-        raise TVMError(
+        raise RuntimeError(
             f"Get the dtype of {expr} failed. Please normalize it first and ensure it is a Tensor."
         ) from error
     return dtype

@@ -24,7 +24,7 @@ import tvm.testing
 def check_throws(f):
     try:
         f()
-    except tvm.error.TVMError:
+    except RuntimeError:
         pass
     else:
         raise AssertionError("Should have raised an exception but didn't.")

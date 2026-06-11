@@ -117,7 +117,7 @@ def test_inverse_accepts_external_analyzer():
 def test_nonbijective_inverse_gives_error():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         index_map.inverse([14])
 
 

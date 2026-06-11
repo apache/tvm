@@ -19,7 +19,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError
 from tvm.script import tirx as T
 
 
@@ -216,7 +215,7 @@ def test_fail_on_buffer_map():
                     B[vi] = A[vi] + T.int64(1)
 
     mod = tvm.IRModule.from_expr(func)
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
@@ -236,7 +235,7 @@ def test_fail_on_buffer_map():
                     B[vi] = T.cast(C[vi] + T.int64(1), "int32")
 
     mod = tvm.IRModule.from_expr(func)
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
