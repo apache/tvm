@@ -25,8 +25,13 @@ from collections import ChainMap, OrderedDict
 from collections.abc import Callable
 from functools import partial
 
-import torch
-from torch import fx
+try:
+    import torch
+    from torch import fx
+except ImportError as err:
+    raise ImportError(
+        "torch is required by the PyTorch frontend. Install it with: pip install torch"
+    ) from err
 
 import tvm
 from tvm import relax

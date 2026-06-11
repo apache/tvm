@@ -46,7 +46,14 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as _np
-import onnx.onnx_ml_pb2
+
+try:
+    import onnx.onnx_ml_pb2
+except ImportError as err:
+    raise ImportError(
+        "onnx is required by the ONNX frontend. Install it with: pip install onnx"
+    ) from err
+
 import tvm_ffi
 
 import tvm
