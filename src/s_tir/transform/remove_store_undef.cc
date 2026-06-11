@@ -35,8 +35,16 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 struct UndefInfo {
+  // BufferStore statements whose value reduces to T.undef() and must be removed.
   std::unordered_set<const BufferStoreNode*> undef_stores;
-  std::unordered_set<const VarNode*> undef_bind_vars;
+  // Buffers that hold an undef value.  After the LetStmt -> Bind flattening and
+  // the TVMScript change that lowers ``val = T.undef()`` to a zero-dimensional
+  // local scalar buffer (``AllocBuffer(val); val[0] = T.undef()``), a let-bound
+  // undef is represented as a BufferStore of undef into such a scalar buffer and
+  // a subsequent BufferLoad of it.  We track the buffer's data Var so that
+  // BufferLoads from it propagate "is-undef" the same way the old Bind-bound Var
+  // did, and so the buffer's AllocBuffer can be removed once its undef store is.
+  std::unordered_set<const VarNode*> undef_buffers;
 };
 
 class StoreUndefLocator : public StmtExprVisitor {
@@ -44,7 +52,7 @@ class StoreUndefLocator : public StmtExprVisitor {
   static UndefInfo Locate(Stmt stmt) {
     StoreUndefLocator locator;
     locator(std::move(stmt));
-    return {locator.undef_stores_, locator.var_bindings_with_undef_};
+    return {locator.undef_stores_, locator.undef_buffers_};
   }
 
  private:
@@ -61,11 +69,15 @@ class StoreUndefLocator : public StmtExprVisitor {
           << "Error: T.undef() used in BufferStore expressions "
           << "must not have other side effects";
       undef_stores_.insert(op);
+      // Record the destination buffer as undef-carrying so that any later
+      // BufferLoad of it propagates undef (this is the flattened form of an
+      // old let-bound undef variable, e.g. ``val = T.undef(); A[0] = val``).
+      undef_buffers_.insert(op->buffer->data.get());
     }
 
     // Check indices for undef.  Undef in buffer indices is always an
     // error (there is no valid lowering).  With flat Bind, we must
-    // check indices eagerly because the Bind node is a sibling rather
+    // check indices eagerly because the binding is a sibling rather
     // than an ancestor and may be removed before post-validation.
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);
@@ -77,6 +89,11 @@ class StoreUndefLocator : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
+    // A load from an undef-carrying buffer is itself undef.
+    if (undef_buffers_.count(op->buffer->data.get())) {
+      has_undef_ = true;
+    }
+
     // Check indices for undef.  Undef in buffer indices is always an error.
     bool idx_undef = false;
     std::swap(has_undef_, idx_undef);
@@ -96,12 +113,12 @@ class StoreUndefLocator : public StmtExprVisitor {
       TVM_FFI_ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
           << "Error: T.undef() used in Let expressions "
           << "must not have other side effects";
-      var_bindings_with_undef_.insert(op->var.get());
+      undef_buffers_.insert(op->var.get());
     }
   }
 
   void VisitExpr_(const VarNode* op) final {
-    if (var_bindings_with_undef_.count(op)) {
+    if (undef_buffers_.count(op)) {
       has_undef_ = true;
     }
   }
@@ -115,13 +132,14 @@ class StoreUndefLocator : public StmtExprVisitor {
 
   bool has_undef_{false};
 
-  std::unordered_set<const VarNode*> var_bindings_with_undef_;
+  std::unordered_set<const VarNode*> undef_buffers_;
   std::unordered_set<const BufferStoreNode*> undef_stores_;
 };
 
-// Remove BufferStores whose value depends on T.undef, and also
-// remove Bind nodes whose value contains undef.  Undef in buffer
-// indices is already caught eagerly in the locator phase.
+// Remove BufferStores whose value depends on T.undef, the AllocBuffer of any
+// scalar buffer that only ever held an undef value, and Bind nodes whose value
+// contains undef.  Undef in buffer indices is already caught eagerly in the
+// locator phase.
 class StoreUndefRemover : public StmtExprMutator {
  public:
   static Stmt Apply(Stmt stmt) {
@@ -134,7 +152,7 @@ class StoreUndefRemover : public StmtExprMutator {
   using Parent = StmtExprMutator;
 
   explicit StoreUndefRemover(const UndefInfo& info)
-      : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
+      : stores_to_remove_(info.undef_stores), undef_buffers_(info.undef_buffers) {}
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     if (stores_to_remove_.count(op)) {
@@ -144,8 +162,19 @@ class StoreUndefRemover : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    // Drop the allocation of a scalar buffer that only held an undef value
+    // (the flattened ``val = T.undef()`` let-binding); its stores and loads
+    // are all being removed, leaving the allocation dead.
+    if (undef_buffers_.count(op->buffer->data.get())) {
+      return Evaluate(0);
+    } else {
+      return Parent::VisitStmt_(op);
+    }
+  }
+
   Stmt VisitStmt_(const BindNode* op) final {
-    if (bind_vars_to_remove_.count(op->var.get())) {
+    if (undef_buffers_.count(op->var.get())) {
       return Evaluate(0);
     } else {
       return Parent::VisitStmt_(op);
@@ -153,7 +182,7 @@ class StoreUndefRemover : public StmtExprMutator {
   }
 
   const std::unordered_set<const BufferStoreNode*>& stores_to_remove_;
-  const std::unordered_set<const VarNode*>& bind_vars_to_remove_;
+  const std::unordered_set<const VarNode*>& undef_buffers_;
 };
 
 // Check that no builtin::undef() remains in the IR.
