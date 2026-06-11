@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError
 
 
 def test_csource_module():

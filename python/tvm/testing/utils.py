@@ -93,7 +93,6 @@ import tvm.support.utils
 import tvm.te
 import tvm.tirx
 from tvm.contrib import cudnn
-from tvm.error import TVMError
 from tvm.support import nvcc, rocm
 from tvm.target import codegen
 
@@ -441,7 +440,7 @@ def _get_targets(target_names=None):
             )
             return _get_targets(["llvm"])
 
-        raise TVMError(
+        raise RuntimeError(
             "None of the following targets are supported by this build of TVM: %s."
             " Try setting TVM_TEST_TARGETS to a supported target."
             " Cannot default to llvm, as it is not enabled." % target_names

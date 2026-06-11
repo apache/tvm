@@ -20,7 +20,6 @@
 import subprocess
 
 import tvm.target
-from tvm.base import py_str
 
 from . import utils
 
@@ -105,7 +104,7 @@ def create_llvm(inputs, output=None, options=None, cc=None):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
     return open(output).read()

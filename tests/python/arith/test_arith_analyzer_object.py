@@ -137,7 +137,7 @@ def test_analyzer_object_set_maximum_rewrite_steps():
 
     capped = tvm.arith.Analyzer()
     capped.set_maximum_rewrite_steps(1)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         capped.rewrite_simplify(expr)
 
     # A generous limit must not interfere with normal simplification.

@@ -249,7 +249,8 @@ def test_stmt_constructor():
 
 
 def test_float_constructor_requires_float_dtype():
-    with pytest.raises(tvm.TVMError):
+    # FloatImm dtype validation raises a builtin ValueError.
+    with pytest.raises(ValueError):
         tvm.tirx.FloatImm("int32", 1.0)
 
 

@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 from tvm import tirx
-from tvm.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.script import tirx as T
 
@@ -70,7 +69,7 @@ def test_fail_implicit_downcasts_same_type():
     bits = [8, 16, 32, 64]
     for type in ["float", "int", "uint"]:
         for i in range(len(bits) - 1):
-            with pytest.raises(TVMError):
+            with pytest.raises(RuntimeError):
                 assignment_helper(
                     store_dtype=f"{type}{bits[i]}", value_dtype=f"{type}{bits[i + 1]}"
                 )
@@ -89,7 +88,7 @@ def test_cast_between_types():
             assignment_helper(store_dtype, value_dtype)
         else:
             # TODO: we might want to allow casts between uint and int types
-            with pytest.raises(TVMError):
+            with pytest.raises(RuntimeError):
                 assignment_helper(store_dtype, value_dtype)
 
 

@@ -239,7 +239,7 @@ def test_lower_allocate_requires_device_id():
             buf = T.decl_buffer(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.LowerTVMBuiltin()(Before)
 
 
@@ -263,7 +263,7 @@ def test_lower_allocate_requires_device_type():
             buf = T.decl_buffer(1024 * 1024, "float32", data=ptr.data)
             buf[0] = 0.0
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.LowerTVMBuiltin()(Before)
 
 

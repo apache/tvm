@@ -608,7 +608,7 @@ def test_block_annotation_merge():
 
     assert _to_dict(func2.body.block.annotations) == {"key1": "block1"}
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
 
         @T.prim_func(s_tir=True)
         def func3():

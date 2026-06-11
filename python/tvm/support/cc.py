@@ -23,7 +23,6 @@ import subprocess
 # pylint: disable=invalid-name
 import sys
 
-from ..base import py_str
 from . import tar as _tar
 from . import utils as _utils
 
@@ -117,7 +116,7 @@ def _linux_ar(output, inputs, ar):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "AR error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
@@ -211,10 +210,10 @@ def get_global_symbol_section_map(path, *, nm=None) -> dict[str, str]:
 
     if proc.returncode != 0:
         msg = "Runtime error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
-    for line in py_str(out).split("\n"):
+    for line in out.decode("utf-8", errors="replace").split("\n"):
         data = line.strip().split()
         if len(data) != 3:
             continue
@@ -246,9 +245,9 @@ def get_target_by_dump_machine(compiler):
             (out, _) = proc.communicate()
             if proc.returncode != 0:
                 msg = "dumpmachine error:\n"
-                msg += py_str(out)
+                msg += out.decode("utf-8", errors="replace")
                 return None
-            return py_str(out)
+            return out.decode("utf-8", errors="replace")
         return None
 
     return get_target_triple
@@ -367,7 +366,7 @@ def _linux_compile(
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
@@ -414,6 +413,6 @@ def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += " ".join(cmd) + "\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
 
         raise RuntimeError(msg)

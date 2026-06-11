@@ -18,7 +18,7 @@
 
 import pytest
 
-from tvm import IRModule, TVMError
+from tvm import IRModule
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder import tirx as T
@@ -59,7 +59,7 @@ def test_failed_invalid_prefix():
                 T.func_name("foo")
     mod = ib.get()
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         mod.script(ir_prefix="2I")
 
 
