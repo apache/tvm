@@ -147,8 +147,8 @@ def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "f
                 with T.init():
                     data_red_temp_v0[ax0] = T.float32(0)
                     data_red_temp_v1[ax0] = T.float32(0)
-                v_data_red_temp_v0: T.float32 = data_red_temp_v0[ax0] + data[ax0, k1]
-                v_data_red_temp_v1: T.float32 = (
+                v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
+                v_data_red_temp_v1: T.let[T.float32] = (
                     data_red_temp_v1[ax0] + data[ax0, k1] * data[ax0, k1]
                 )
                 data_red_temp_v0[ax0] = v_data_red_temp_v0
