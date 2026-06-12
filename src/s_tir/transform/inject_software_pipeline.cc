@@ -28,6 +28,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <map>
 #include <unordered_set>
@@ -41,6 +42,14 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 namespace software_pipeline {
+
+static bool IsOp(const Call& call, const Op& compat_op, const char* canonical_name) {
+  if (call->op.same_as(compat_op)) {
+    return true;
+  }
+  const auto* op_node = call->op.as<OpNode>();
+  return op_node != nullptr && op_node->name == canonical_name;
+}
 
 /*!
  * \brief Create a block and infer the access region with the given body.
@@ -110,8 +119,8 @@ class PipelineOpaqueAccessRewriter {
     static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
     static const auto& mma_sync = builtin::tvm_mma_sync();
     static const auto& access_ptr = builtin::tvm_access_ptr();
-    static const auto& ptx_ldmatrix = builtin::ptx_ldmatrix();
-    static const auto& ptx_mma = builtin::ptx_mma();
+    static const auto& ptx_ldmatrix_legacy = builtin::ptx_ldmatrix_legacy();
+    static const auto& ptx_mma_legacy = builtin::ptx_mma_legacy();
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
       auto it = buffer_remap_.find(buffer);
@@ -136,9 +145,9 @@ class PipelineOpaqueAccessRewriter {
       return Call(call->dtype, call->op, new_args, call->attrs, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
-    } else if (call->op.same_as(ptx_mma)) {
+    } else if (IsOp(call, ptx_mma_legacy, "tirx.ptx.mma_legacy")) {
       return RewriteBufferAccess(call, {6, 8, 10});
-    } else if (call->op.same_as(ptx_ldmatrix)) {
+    } else if (IsOp(call, ptx_ldmatrix_legacy, "tirx.ptx.ldmatrix_legacy")) {
       return RewriteBufferAccess(call, {3});
     }
     return call;
