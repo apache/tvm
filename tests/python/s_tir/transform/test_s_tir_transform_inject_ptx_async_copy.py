@@ -392,6 +392,9 @@ def postproc_if_missing_async_support():
         tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
+# TODO(tlopex): fix CSE determinism (change unordered map to ordered map) and
+# remove this xfail; see #19741.
+@pytest.mark.xfail
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func(s_tir=True)
