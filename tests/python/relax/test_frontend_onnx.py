@@ -825,7 +825,7 @@ def test_relu_nan_preserve():
     ).run([], {"x": x})[0]
 
     tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
-    out_np = (tvm_out[0] if isinstance(tvm_out, list | tuple) else tvm_out).numpy()
+    out_np = (tvm_out[0] if isinstance(tvm_out, (list, tuple)) else tvm_out).numpy()
 
     np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ort_out))
     np.testing.assert_allclose(
