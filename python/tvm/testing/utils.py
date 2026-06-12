@@ -910,6 +910,21 @@ requires_cublas = Feature("cublas", "cuBLAS", cmake_flag="USE_CUBLAS", parent_fe
 # Mark a test as requiring NCCL support
 requires_nccl = Feature("nccl", "NCCL", cmake_flag="USE_NCCL", parent_features="cuda")
 
+
+def _nvshmem_exists():
+    # Probe the runtime function rather than the USE_NVSHMEM cmake flag: the
+    # flag can be ON in builds that do not ship the disco NVSHMEM runtime.
+    return (
+        tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
+        is not None
+    )
+
+
+# Mark a test as requiring NVSHMEM support
+requires_nvshmem = Feature(
+    "nvshmem", "NVSHMEM", run_time_check=_nvshmem_exists, parent_features="cuda"
+)
+
 # Mark a test as requiring the NVPTX compilation on the CUDA runtime
 requires_nvptx = Feature(
     "nvptx",
