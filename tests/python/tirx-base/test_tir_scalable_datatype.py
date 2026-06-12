@@ -32,8 +32,11 @@ def test_create_scalable_data_type_python_api():
     assert str(dtype) == "float32xvscalex4"
 
 
+# LLVM 20 renamed llvm.experimental.stepvector to llvm.stepvector and dropped
+# the old name from the intrinsic table:
+# https://releases.llvm.org/20.1.0/docs/ReleaseNotes.html
 _STEPVECTOR_NAME = (
-    "llvm.stepvector" if llvm_version_major() >= 18 else "llvm.experimental.stepvector"
+    "llvm.stepvector" if llvm_version_major() >= 20 else "llvm.experimental.stepvector"
 )
 
 
