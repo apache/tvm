@@ -141,9 +141,10 @@ def test_random_fill():
 
         check_remote(rpc.Server("127.0.0.1"))
 
+    # Packed sub-byte dtypes (e.g. int4) are intentionally unsupported by
+    # random_fill since #19714 and raise an error instead.
     for dtype in [
         "bool",
-        "int4",
         "int8",
         "uint8",
         "int16",
