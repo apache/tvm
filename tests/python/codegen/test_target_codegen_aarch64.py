@@ -587,7 +587,10 @@ def test_memcpy(dtype):
     [
         ("+neon", False),
         ("+sve", True),
-        ("+v9a", True),
+        # Since LLVM 19, SVE/SVE2 are optional extensions of Armv9.0-A, so
+        # "+v9a" no longer implies "+sve" and no vscale_range() is added:
+        # https://releases.llvm.org/19.1.0/docs/ReleaseNotes.html#changes-to-the-aarch64-backend
+        ("+v9a", llvm_version_major() < 19),
         ("+sme", True),
     ],
 )
