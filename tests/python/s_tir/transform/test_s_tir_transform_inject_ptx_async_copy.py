@@ -926,8 +926,8 @@ def test_multiplication_nodes_are_inlined():
                 A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
                     A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
                 )
-            T.ptx_commit_group()
-            T.ptx_wait_group(0)
+            T.ptx.cp_async.commit_group()
+            T.ptx.cp_async.wait_group(0)
 
     @I.ir_module(s_tir=True)
     class Expected:
@@ -946,8 +946,8 @@ def test_multiplication_nodes_are_inlined():
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     16,
                 )
-            T.ptx_commit_group()
-            T.ptx_wait_group(0)
+            T.ptx.cp_async.commit_group()
+            T.ptx.cp_async.wait_group(0)
 
     After = tvm.s_tir.transform.InjectPTXAsyncCopy()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
