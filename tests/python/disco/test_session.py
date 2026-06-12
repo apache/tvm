@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 """Basic tests for a Disco session"""
 
 # pylint: disable=missing-docstring
+import socket
 import subprocess
 import sys
 import tempfile
@@ -30,12 +30,109 @@ from tvm_ffi.core import String
 
 import tvm
 import tvm.testing
-from tvm import relax as rx
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
+
+# Imported for the side effect of registering the tests.disco.* worker functions.
+from tvm.exec import disco_worker as _  # noqa: F401  # pylint: disable=unused-import
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+
+if di is None:
+    pytest.skip("disco runtime is not available", allow_module_level=True)
+
+
+_SOCKET_SESSION_TESTER = None
+
+
+def _get_free_port():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+class SocketSessionTester:
+    """Run a disco SocketSession with one local node and remote nodes.
+
+    Each remote node is a `tvm.exec.disco_remote_socket_session` subprocess
+    launched with the current Python interpreter.
+    """
+
+    def __init__(self, num_workers, num_nodes=2, num_groups=1):
+        # Initialize the attributes used by __del__ first, so that teardown is
+        # safe even when __init__ raises below.
+        self.sess = None
+        self.remote_nodes = []
+        assert num_workers % num_nodes == 0
+        num_workers_per_node = num_workers // num_nodes
+        server_host = "localhost"
+        server_port = _get_free_port()
+        server_exc = []
+
+        def start_server():
+            try:
+                self.sess = di.SocketSession(
+                    num_nodes, num_workers_per_node, num_groups, server_host, server_port
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                server_exc.append(exc)
+
+        thread = threading.Thread(target=start_server)
+        thread.start()
+
+        cmd = "tvm.exec.disco_remote_socket_session"
+        for _i in range(num_nodes - 1):
+            self.remote_nodes.append(
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        cmd,
+                        server_host,
+                        str(server_port),
+                        str(num_workers_per_node),
+                    ],
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            )
+
+        thread.join()
+        if server_exc:
+            raise server_exc[0]
+
+    # Bound at class creation: module globals may already be cleared when
+    # __del__ runs during interpreter shutdown.
+    _TIMEOUT_EXPIRED = subprocess.TimeoutExpired
+
+    def __del__(self):
+        try:
+            # Shut down the session first so remote nodes can exit gracefully.
+            if self.sess is not None:
+                self.sess.shutdown()
+        finally:
+            for node in self.remote_nodes:
+                try:
+                    node.wait(timeout=10)
+                except self._TIMEOUT_EXPIRED:
+                    node.kill()
+                    node.wait()
+
+
+def create_socket_session(num_workers):
+    """Create a socket session backed by one local and one remote node.
+
+    The tester is kept alive in a module-level global so that the session
+    survives until the next call (or interpreter exit) replaces it.
+    """
+    global _SOCKET_SESSION_TESTER
+    # Rebind (not `del`) so the global stays defined if the constructor raises.
+    _SOCKET_SESSION_TESTER = None
+    _SOCKET_SESSION_TESTER = SocketSessionTester(num_workers)
+    assert _SOCKET_SESSION_TESTER.sess is not None
+    return _SOCKET_SESSION_TESTER.sess
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -50,74 +147,6 @@ def _numpy_from_worker_0(sess: di.Session, remote_array, shape, dtype):
     sess.copy_from_worker_0(host_array, remote_array)
     sess.sync_worker_0()
     return host_array.numpy()
-
-
-_SOCKET_SESSION_TESTER = None
-
-
-def get_free_port():
-    import socket
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-class SocketSessionTester:
-    def __init__(self, num_workers):
-        num_nodes = 2
-        num_groups = 1
-        assert num_workers % num_nodes == 0
-        num_workers_per_node = num_workers // num_nodes
-        server_host = "localhost"
-        server_port = get_free_port()
-        self.sess = None
-
-        def start_server():
-            self.sess = di.SocketSession(
-                num_nodes, num_workers_per_node, num_groups, server_host, server_port
-            )
-
-        thread = threading.Thread(target=start_server)
-        thread.start()
-
-        cmd = "tvm.exec.disco_remote_socket_session"
-        self.remote_nodes = []
-        for _i in range(num_nodes - 1):
-            self.remote_nodes.append(
-                subprocess.Popen(
-                    [
-                        "python3",
-                        "-m",
-                        cmd,
-                        server_host,
-                        str(server_port),
-                        str(num_workers_per_node),
-                    ],
-                    stdout=sys.stdout,
-                    stderr=sys.stderr,
-                )
-            )
-
-        thread.join()
-
-    def __del__(self):
-        for node in self.remote_nodes:
-            node.kill()
-        if self.sess is not None:
-            self.sess.shutdown()
-            del self.sess
-
-
-def create_socket_session(num_workers):
-    global _SOCKET_SESSION_TESTER
-    if _SOCKET_SESSION_TESTER is not None:
-        del _SOCKET_SESSION_TESTER
-    _SOCKET_SESSION_TESTER = SocketSessionTester(num_workers)
-    assert _SOCKET_SESSION_TESTER.sess is not None
-    return _SOCKET_SESSION_TESTER.sess
 
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession, create_socket_session]
