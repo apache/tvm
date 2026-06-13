@@ -3949,7 +3949,7 @@ class ReduceMin(OnnxOpConverter):
         data = inputs[0]
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
-        return relax.op.min(data, axes, keepdims)
+        return _reduce_min_max_preserve_nan(relax.op.min, data, axes, keepdims)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -3966,13 +3966,13 @@ class ReduceMin(OnnxOpConverter):
 
         # If axes is empty and noop_with_empty_axes is False, reduce all dims
         if not axes and not noop_with_empty_axes:
-            return relax.op.min(data, None, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.min, data, None, keepdims)
         # If axes is empty and noop_with_empty_axes is True, return input unchanged
         elif not axes and noop_with_empty_axes:
             return data
         # Otherwise reduce over specified axes
         else:
-            return relax.op.min(data, axes, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.min, data, axes, keepdims)
 
 
 class ReduceSum(OnnxOpConverter):
