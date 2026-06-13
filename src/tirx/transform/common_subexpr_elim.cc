@@ -83,6 +83,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../support/ordered_map.h"
 #include "../analysis/check_contains.h"
 
 namespace tvm {
@@ -239,8 +240,16 @@ class CSEPlanner : public StmtExprVisitor {
     int consumed{0};
   };
 
-  /*! \brief Expression table keyed by structural equality (ExprDeepEqual). */
-  using ExprTable = std::unordered_map<PrimExpr, ExprEntry, ffi::StructuralHash, ExprDeepEqual>;
+  /*!
+   * \brief Expression table keyed by structural equality (ExprDeepEqual).
+   *
+   * An insertion-ordered map so that iteration visits entries in discovery
+   * (program) order. This makes the plan — and hence cse_v numbering —
+   * deterministic. A plain unordered_map iterates in hash order, and
+   * StructuralHash hashes free variables by object identity, which varies
+   * between processes (ASLR).
+   */
+  using ExprTable = support::OrderedMap<PrimExpr, ExprEntry, ffi::StructuralHash, ExprDeepEqual>;
 
   // ------------------------------------------------------------------
   // Eligibility predicates
@@ -592,8 +601,9 @@ class CSEPlanner : public StmtExprVisitor {
    * \brief Convert the accumulated expression table into InsertBefore + ExprRemap tables.
    *
    * Algorithm (shallower-first with repr propagation):
-   *   1. Collect all entries and sort by expr_depth ascending (shallower first),
-   *      with structural hash as tie-breaker for determinism.
+   *   1. Collect all entries and sort by expr_depth ascending (shallower first).
+   *      The stable sort over the insertion-ordered table keeps entries of
+   *      equal depth in discovery (program) order, so the plan is deterministic.
    *   2. Compute independent occurrence counts from the DAG children.
    *      For each parent P with count >= 2, its children's consumed counts
    *      are incremented by `(P.count - 1) * multiplicity` (the Bind value
@@ -610,7 +620,8 @@ class CSEPlanner : public StmtExprVisitor {
    * \return A pair of (InsertBeforeTable, ExprRemapTable).
    */
   std::pair<InsertBeforeTable, ExprRemapTable> ComputePlan() {
-    // Step 1: Sort entries by depth ascending (shallower first), hash for determinism
+    // Step 1: Sort entries by depth ascending (shallower first). table_ iterates
+    // in discovery order, which the stable sort preserves among equal depths.
     std::vector<std::pair<PrimExpr, ExprEntry*>> all_entries;
     for (auto& kv : table_) {
       all_entries.push_back({kv.first, &kv.second});
@@ -619,10 +630,7 @@ class CSEPlanner : public StmtExprVisitor {
     std::stable_sort(
         all_entries.begin(), all_entries.end(),
         [](const std::pair<PrimExpr, ExprEntry*>& a, const std::pair<PrimExpr, ExprEntry*>& b) {
-          if (a.second->expr_depth != b.second->expr_depth)
-            return a.second->expr_depth < b.second->expr_depth;
-          ffi::StructuralHash hasher;
-          return hasher(a.first) < hasher(b.first);
+          return a.second->expr_depth < b.second->expr_depth;
         });
 
     // Step 2: Compute consumed counts in ExprEntry from the DAG.

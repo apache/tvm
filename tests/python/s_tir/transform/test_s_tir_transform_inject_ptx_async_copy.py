@@ -194,19 +194,8 @@ def test_inject_async_copy_shared_dyn():
 # `ptx_mbarrier_*` family instead.
 
 
-# Note: the expected output contains a dead CSE variable `cse_v1 = (i < 12)`.
-# CSE extracts (i < 12) before inject_ptx_async_copy runs, but the latter
-# replaces the original IfThenElse guards with new cast(int32, i < 12)
-# expressions for predicated async copies, leaving cse_v1 unused.
 expected_cuda_script = r"""#include <cuda.h>
-__forceinline__ __device__ unsigned int
-cast_smem_ptr_to_int(const void* const smem_ptr)
-{
-  unsigned int smem_int;
-  asm volatile ("{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; cvt.u32.u64 %0, smem_int; }"
-    : "=r"(smem_int) : "l"(smem_ptr));
-  return smem_int;
-}
+#endif
 
 #if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \
      (__CUDACC_VER_MAJOR__ > 11))
@@ -215,132 +204,101 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
 #define TVM_ENABLE_L2_PREFETCH 0
 #endif
 
-#ifdef __CUDACC_RTC__
-using int64_t = long long;
-using uint64_t = unsigned long long;
+#ifdef _WIN32
+  using uint = unsigned int;
+  using uchar = unsigned char;
+  using ushort = unsigned short;
+  using int64_t = long long;
+  using uint64_t = unsigned long long;
 #else
-#include <cstdint>
+  #define uint unsigned int
+  #define uchar unsigned char
+  #define ushort unsigned short
 #endif
-using uint = unsigned int;
-using uchar = unsigned char;
-using ushort = unsigned short;
 
-extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
-extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
-  __shared__ float A_shared[64];
-  __shared__ float B_shared[64];
-  A_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
-  B_shared[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
-__asm__ __volatile__("cp.async.commit_group;");
+__forceinline__ __device__ void tvm_builtin_ptx_cp_async_wait_group_0() {
+    asm volatile("cp.async.wait_group 0;");
+}
 
+__forceinline__ __device__ void tvm_builtin_ptx_cp_async_wait_group_1() {
+    asm volatile("cp.async.wait_group 1;");
+}
 
-  {
-    unsigned int addr = cast_smem_ptr_to_int(A_shared + (((int)threadIdx.x) + 16));
-    __asm__ __volatile__(
-      #if TVM_ENABLE_L2_PREFETCH
-        "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
-      #else
-        "cp.async.ca.shared.global [%0], [%1], %2;"
-      #endif
-        :: "r"(addr), "l"((void*)(A + (((int)threadIdx.x) * 14))), "n"(4)
-    );
-  }
+__forceinline__ __device__ void tvm_builtin_ptx_cp_async_wait_group_2() {
+    asm volatile("cp.async.wait_group 2;");
+}
 
-  {
-    unsigned int addr = cast_smem_ptr_to_int(B_shared + (((int)threadIdx.x) + 16));
-    __asm__ __volatile__(
-      #if TVM_ENABLE_L2_PREFETCH
-        "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
-      #else
-        "cp.async.ca.shared.global [%0], [%1], %2;"
-      #endif
-        :: "r"(addr), "l"((void*)(B + (((int)threadIdx.x) * 14))), "n"(4)
-    );
-  }
-__asm__ __volatile__("cp.async.commit_group;");
+__forceinline__ __device__ void tvm_builtin_ptx_cp_async_wait_group_5() {
+    asm volatile("cp.async.wait_group 5;");
+}
 
+__forceinline__ __device__ void ptx_cp_async_legacy_pred_ca_4_4_4(void* dst, int dst_off, void* src, int src_off, int predicate) {
+  uint8_t* dst_p = (uint8_t*)dst + dst_off * 4;
+  uint8_t* src_p = (uint8_t*)src + src_off * 4;
+  unsigned int dst_addr = __cvta_generic_to_shared(dst_p);
+  __asm__ __volatile__(
+    "{\n"
+    " .reg .pred p;\n"
+    " setp.eq.u32 p, %3, 1;\n"
+    " @p cp.async.ca.shared.global [%0], [%1], %2;\n"
+    " @!p st.shared.u32 [%0], {%4};\n"
+    "}\n"
+    :: "r"(dst_addr), "l"(src_p), "n"(4), "r"(predicate), "r"(0)
+  );
+}
 
-  {
-    unsigned int addr = cast_smem_ptr_to_int(A_shared + (((int)threadIdx.x) + 32));
-    __asm__ __volatile__(
-      #if TVM_ENABLE_L2_PREFETCH
-        "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
-      #else
-        "cp.async.ca.shared.global [%0], [%1], %2;"
-      #endif
-        :: "r"(addr), "l"((void*)(A + ((((int)threadIdx.x) * 14) + 1))), "n"(4)
-    );
-  }
+__forceinline__ __device__ void ptx_cp_async_legacy_ca_4_4_4(void* dst, int dst_off, void* src, int src_off) {
+  uint8_t* dst_p = (uint8_t*)dst + dst_off * 4;
+  uint8_t* src_p = (uint8_t*)src + src_off * 4;
+  unsigned int dst_addr = __cvta_generic_to_shared(dst_p);
+  asm volatile("cp.async.ca.shared.global [%0], [%1], %2;"
+    :: "r"(dst_addr), "l"(src_p), "n"(4));
+}
 
-  {
-    unsigned int addr = cast_smem_ptr_to_int(B_shared + (((int)threadIdx.x) + 32));
-    __asm__ __volatile__(
-      #if TVM_ENABLE_L2_PREFETCH
-        "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
-      #else
-        "cp.async.ca.shared.global [%0], [%1], %2;"
-      #endif
-        :: "r"(addr), "l"((void*)(B + ((((int)threadIdx.x) * 14) + 1))), "n"(4)
-    );
-  }
-__asm__ __volatile__("cp.async.commit_group;");
-
+__forceinline__ __device__ void tvm_builtin_ptx_cp_async_commit_group() {
+    asm volatile("cp.async.commit_group;");
+}
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr);
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr) {
+  __shared__ alignas(64) float A_shared_ptr[64];
+  __shared__ alignas(64) float B_shared_ptr[64];
+  A_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  B_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  tvm_builtin_ptx_cp_async_commit_group();
+  int cse_v1 = (((int)threadIdx.x) * 14);
+  int cse_v2 = (((int)threadIdx.x) + 16);
+  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
+  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
+  tvm_builtin_ptx_cp_async_commit_group();
+  int cse_v3 = (((int)threadIdx.x) + 32);
+  int cse_v6 = ((((int)threadIdx.x) * 14) + 1);
+  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
+  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
+  tvm_builtin_ptx_cp_async_commit_group();
+  int cse_v4 = (((int)threadIdx.x) * 16);
   for (int i = 0; i < 13; ++i) {
-    bool cse_v1 = (i < 12);
-
-  {
-    unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)(i < 12);
-    __asm__ __volatile__(
-        "{  .reg .pred p;"
-        "  setp.ne.b32 p, %0, 0;"
-      #if TVM_ENABLE_L2_PREFETCH
-        " @p cp.async.ca.shared.global.L2::128B [%1], [%2], %3;"
-      #else
-        " @p cp.async.ca.shared.global [%1], [%2], %3;"
-      #endif
-      "  @!p st.shared.u32 [%1], {%4};}"
-        :: "r"(pred_guard), "r"(addr), "l"((void*)(A + (((((int)threadIdx.x) * 14) + i) + 2))), "n"(4), "r"(0)
-    );
-  }
-__asm__ __volatile__("cp.async.commit_group;");
-
-__asm__ __volatile__("cp.async.wait_group 5;");
-
+    int cse_v7 = (((((int)threadIdx.x) * 14) + i) + 2);
+    int cse_v9 = ((((i + 3) & 3) * 16) + ((int)threadIdx.x));
+    ptx_cp_async_legacy_pred_ca_4_4_4(A_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    tvm_builtin_ptx_cp_async_commit_group();
+    tvm_builtin_ptx_cp_async_wait_group_5();
     __syncthreads();
-    C[((((int)threadIdx.x) * 16) + i)] = (A_shared[(((i & 3) * 16) + ((int)threadIdx.x))] + B_shared[(((i & 3) * 16) + ((int)threadIdx.x))]);
+    int cse_v8 = (((i & 3) * 16) + ((int)threadIdx.x));
+    C_ptr[((((int)threadIdx.x) * 16) + i)] = (A_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + B_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))]);
     __syncthreads();
-
-  {
-    unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)(i < 12);
-    __asm__ __volatile__(
-        "{  .reg .pred p;"
-        "  setp.ne.b32 p, %0, 0;"
-      #if TVM_ENABLE_L2_PREFETCH
-        " @p cp.async.ca.shared.global.L2::128B [%1], [%2], %3;"
-      #else
-        " @p cp.async.ca.shared.global [%1], [%2], %3;"
-      #endif
-      "  @!p st.shared.u32 [%1], {%4};}"
-        :: "r"(pred_guard), "r"(addr), "l"((void*)(B + (((((int)threadIdx.x) * 14) + i) + 2))), "n"(4), "r"(0)
-    );
+    ptx_cp_async_legacy_pred_ca_4_4_4(B_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    tvm_builtin_ptx_cp_async_commit_group();
   }
-__asm__ __volatile__("cp.async.commit_group;");
-
-  }
-__asm__ __volatile__("cp.async.wait_group 2;");
-
+  tvm_builtin_ptx_cp_async_wait_group_2();
   __syncthreads();
-  C[((((int)threadIdx.x) * 16) + 13)] = (A_shared[(((int)threadIdx.x) + 16)] + B_shared[(((int)threadIdx.x) + 16)]);
-__asm__ __volatile__("cp.async.wait_group 1;");
-
+  C_ptr[((((int)threadIdx.x) * 16) + 13)] = (A_shared_ptr[(((int)threadIdx.x) + 16)] + B_shared_ptr[(((int)threadIdx.x) + 16)]);
+  tvm_builtin_ptx_cp_async_wait_group_1();
   __syncthreads();
-  C[((((int)threadIdx.x) * 16) + 14)] = (A_shared[(((int)threadIdx.x) + 32)] + B_shared[(((int)threadIdx.x) + 32)]);
-__asm__ __volatile__("cp.async.wait_group 0;");
-
+  C_ptr[((((int)threadIdx.x) * 16) + 14)] = (A_shared_ptr[(((int)threadIdx.x) + 32)] + B_shared_ptr[(((int)threadIdx.x) + 32)]);
+  tvm_builtin_ptx_cp_async_wait_group_0();
   __syncthreads();
-  C[((((int)threadIdx.x) * 16) + 15)] = (A_shared[(((int)threadIdx.x) + 48)] + B_shared[(((int)threadIdx.x) + 48)]);
+  int cse_v5 = (((int)threadIdx.x) + 48);
+  C_ptr[((((int)threadIdx.x) * 16) + 15)] = (A_shared_ptr[(((int)threadIdx.x) + 48)] + B_shared_ptr[(((int)threadIdx.x) + 48)]);
 }
 
 """
@@ -392,9 +350,6 @@ def postproc_if_missing_async_support():
         tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
-# TODO(tlopex): fix CSE determinism (change unordered map to ordered map) and
-# remove this xfail; see #19741.
-@pytest.mark.xfail
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func(s_tir=True)
