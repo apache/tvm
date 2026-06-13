@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -670,8 +671,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr TypeAnnotation(DataType dtype, Span span) {
-  static auto op = Op::Get("tirx.type_annotation");
-  return tirx::Call(dtype, op, {}, {}, span);
+  static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
+  return tirx::Call(dtype, type_annotation_op, {}, {}, span);
 }
 
 TVM_TIRX_REGISTER_OP("type_annotation")

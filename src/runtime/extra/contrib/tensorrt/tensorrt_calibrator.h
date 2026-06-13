@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "NvInfer.h"
 
 namespace tvm {

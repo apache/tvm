@@ -23,7 +23,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace runtime {

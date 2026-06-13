@@ -22,6 +22,7 @@
  * \file inject_ptx_async_copy.cc
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -89,7 +90,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (predicated) {
             args.push_back(predicate_value);
           }
-          return Evaluate(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(), args));
+          static const Op& ptx_cp_async_op = Op::Get("tirx.ptx_cp_async");
+          return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op, args));
         }
 
         // Predicated load don't support vectorized indexing.
@@ -117,7 +119,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
             return PrimExpr();
           }();
           if (src_offset.defined() && dst_offset.defined()) {
-            return Evaluate(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(),
+            static const Op& ptx_cp_async_op = Op::Get("tirx.ptx_cp_async");
+            return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
                                  {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)}));
           }
@@ -146,8 +149,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
           }();
 
           if (src_offset.defined() && dst_offset.defined()) {
+            static const Op& ptx_cp_async_op = Op::Get("tirx.ptx_cp_async");
             return Evaluate(
-                Call(store->buffer->dtype, tvm::tirx::builtin::ptx_cp_async(),
+                Call(store->buffer->dtype, ptx_cp_async_op,
                      {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                       load->buffer->data, src_offset, PrimExpr(bytes), predicate_value}));
           }

@@ -23,9 +23,3 @@ tvm.tirx.backend
 .. automodule:: tvm.tirx.backend
    :members:
    :imported-members:
-
-tvm.tirx.backend.adreno
-***********************
-.. automodule:: tvm.tirx.backend.adreno
-   :members:
-   :imported-members:

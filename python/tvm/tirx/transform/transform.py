@@ -503,6 +503,17 @@ def Filter(fcond: Callable):
     return _ffi_api.Filter(fcond)  # type: ignore
 
 
+def TilePrimitiveDispatch():
+    """Lower TIRx tile primitive calls through the active backend dispatch table.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TilePrimitiveDispatch()  # type: ignore
+
+
 def LowerTIRx():
     """Lower TIR to a lower-level IR.
 

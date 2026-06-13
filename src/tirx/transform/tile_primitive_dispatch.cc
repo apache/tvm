@@ -25,6 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
@@ -34,7 +35,6 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/target_builtin/cuda.h>
 #include <tvm/tirx/tirx_op.h>
 #include <tvm/tirx/transform.h>
 
@@ -125,7 +125,8 @@ class ElectSyncFinder : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     auto is_canonical_elect_sync = [&]() {
-      if (op->op.same_as(tirx::builtin::ptx_elect_sync())) return true;
+      static const Op& ptx_elect_sync_op = Op::Get("tirx.ptx_elect_sync");
+      if (op->op.same_as(ptx_elect_sync_op)) return true;
       if (auto call_op = op->op.as<Op>()) {
         return call_op.value()->name == "tirx.ptx.elect_sync";
       }

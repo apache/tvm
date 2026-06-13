@@ -37,12 +37,12 @@ import pytest
 
 import tvm
 from tvm.tirx import Var as _TirVar
-from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
-from tvm.tirx.operator.tile_primitive.cuda.copy._swizzle_iter import (
+from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
     get_swizzle,
     try_recognize,
 )
+from tvm.tirx.expr import IntImm as _IntImm
+from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
 
 # ----------------------------------------------------------------------------
 # Pure-Python reference: SwizzleLayout's Apply, plus the proof's formula.
@@ -312,7 +312,7 @@ def test_recognize_linear_iter_pure_case_1d():
     of the swizzle period 2^(p+at+sw) (pure Case 1.D, swizzle has no XOR
     effect). The iter is stored as a LinearIter (no bit decomposition).
     """
-    from tvm.tirx.operator.tile_primitive.cuda.copy._swizzle_iter import (
+    from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
         _BitIter,
         _LinearIter,
     )
@@ -352,7 +352,7 @@ def test_emit_mixed_linear_bit_correctness():
     """Brute-force: for a mixed (LinearIter outer, BitIter inner) pattern,
     emit_iter_offset's prediction must equal the actual swizzle output for
     every (tid, k) — including the non-pow2 outer extent's coord 2."""
-    from tvm.tirx.operator.tile_primitive.cuda.copy._swizzle_iter import (
+    from tvm.tirx.cuda.operator.tile_primitive.copy._swizzle_iter import (
         _LinearIter,
     )
 

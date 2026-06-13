@@ -169,6 +169,10 @@ class DispatchContext(Object, Scriptable):
         """Check if the target is Trainium."""
         return self.target.kind.name == "trn"
 
+    def is_target(self, name: str) -> bool:
+        """Check if the target kind matches ``name``."""
+        return self.target.kind.name == name
+
     # -- scope predicates ----------------------------------------------------
     #
     # Each ``is_<scope>`` returns True iff the op site is at that scope kind.

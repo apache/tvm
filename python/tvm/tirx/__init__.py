@@ -64,16 +64,6 @@ from .op import (
     tvm_bmma_sync,
     tvm_fill_fragment,
 )
-from .op import ptx_mma, ptx_mma_sp, mma_store, mma_fill
-from .op import ptx_mma_legacy, ptx_mma_sp_legacy, mma_store_legacy, mma_fill_legacy
-from .op import ptx_ldmatrix, ptx_cp_async, ptx_cp_async_bulk, ptx_cp_async_bulk_shared_to_cluster
-from .op import ptx_ldmatrix_legacy, ptx_cp_async_legacy
-from .op import (
-    make_filled_simdgroup_matrix,
-    simdgroup_load,
-    simdgroup_multiply_accumulate,
-    simdgroup_store,
-)
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
@@ -113,16 +103,11 @@ from .functor import PyStmtExprVisitor, PyStmtExprMutator
 from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
 
 if not _RUNTIME_ONLY_TIRX:
-    # CUDA codegen registration. Each family module registers codegen via
-    # @register_codegen (hand-written ops) and ptx_intrinsic /
-    # cuda_helper_intrinsic (schema-declared ops); the schema declarations
-    # also inject Python wrappers into `tvm.tirx.op`. Must come before
-    # anything downstream that looks up wrappers or the codegen registry.
-    from .operator.intrinsics import cuda as _intrinsics_cuda
     from .build import build
     from .compilation_pipeline import (
         get_tir_pipeline,
         get_default_tir_pipeline,
+        register_tir_pipeline,
     )
 
 import tvm.script

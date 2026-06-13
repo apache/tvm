@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 
@@ -792,12 +793,14 @@ class ConstIntBoundAnalyzer::Impl
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+    static const Op& ceil_op = Op::Get("tirx.ceil");
+    static const Op& log2_op = Op::Get("tirx.log2");
     if (op->dtype.is_int()) {
       if (auto as_call = op->value.as<CallNode>()) {
-        if (as_call->op.same_as(Op::Get("tirx.ceil"))) {
+        if (as_call->op.same_as(ceil_op)) {
           PrimExpr ceil_arg = as_call->args[0];
           if (auto arg_call = ceil_arg.as<CallNode>()) {
-            if (arg_call->op.same_as(Op::Get("tirx.log2"))) {
+            if (arg_call->op.same_as(log2_op)) {
               PrimExpr log_arg = arg_call->args[0];
               return log_arg;
             }

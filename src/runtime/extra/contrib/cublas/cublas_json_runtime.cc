@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "cublas_utils.h"

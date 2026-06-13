@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../rocm/rocm_common.h"
+#include "../../../../backend/rocm/runtime/rocm_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "hipblas_utils.h"

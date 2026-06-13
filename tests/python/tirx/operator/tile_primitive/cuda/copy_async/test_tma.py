@@ -27,13 +27,13 @@ from tvm.ir.type import TensorMapType
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx import IntImm, StringImm, Var
-from tvm.tirx.exec_scope import ExecScope
-from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
+from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
     mma_atom_layout,
     mma_atom_shape,
     mma_shared_layout,
 )
+from tvm.tirx.exec_scope import ExecScope
+from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt import DeclBuffer
@@ -95,7 +95,7 @@ def _make_tma_call(
     """
     from tvm.ir import Range
     from tvm.tirx import Var
-    from tvm.tirx.operator.tile_primitive.cuda.copy_async.tma import copy_tma_impl
+    from tvm.tirx.cuda.operator.tile_primitive.copy_async.tma import copy_tma_impl
     from tvm.tirx.stmt import BufferRegion
 
     g_buf = tvm.tirx.decl_buffer(g_shape, dtype, "A", layout=gmem_layout)

@@ -229,7 +229,7 @@ def test_copy_transpose():
 
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -276,7 +276,7 @@ def test_copy_transpose_2():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -759,7 +759,7 @@ def test_copy_transpose_with_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -831,7 +831,7 @@ def test_copy_transpose_with_extended_f():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)

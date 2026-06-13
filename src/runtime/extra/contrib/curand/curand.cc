@@ -21,7 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "./helper_cuda_kernels.h"
 
 namespace tvm {

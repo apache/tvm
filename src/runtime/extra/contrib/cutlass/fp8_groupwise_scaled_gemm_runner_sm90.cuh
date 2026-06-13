@@ -24,7 +24,7 @@
 #include <variant>
 #include <vector>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 // clang-format off
 #include "cutlass/cutlass.h"
