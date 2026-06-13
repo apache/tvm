@@ -3888,6 +3888,25 @@ class RMSNormalization(OnnxOpConverter):
         return output
 
 
+def _reduce_min_max_preserve_nan(reduce_op, data, axes, keepdims):
+    """Apply a min/max reduction while preserving NaN to match ONNX Runtime.
+
+    relax.op.max/min legalize to a max/min fold implemented as select(x > y, x, y) with an
+    ordered float comparison, so NaN propagation depends on the fold position (a later non-NaN
+    element silently overwrites an earlier NaN). ONNX Runtime instead yields NaN whenever any
+    reduced element is NaN. For floating point inputs, detect NaN along the reduced axes and
+    force the output to NaN to match that semantics.    
+    """
+    y = reduce_op(data, axes, keepdims)
+    dtype = data.struct_info.dtype if isinstance(data.struct_info, relax.TensorStructInfo) else None
+    if dtype is None or not _relax_dtype_is_floating_point(dtype):
+        return y
+    nan_count = relax.op.sum(relax.op.astype(relax.op.isnan(data), dtype), axes, keepdims)
+    has_nan = relax.op.greater(nan_count, relax.const(0, dtype))
+    nan_filled = relax.op.full_like(y, relax.const(float("nan"), dtype))
+    return relax.op.where(has_nan, nan_filled, y)
+
+
 class ReduceMax(OnnxOpConverter):
     """Converts an onnx ReduceMax node into an equivalent Relax expression."""
 
@@ -3896,7 +3915,7 @@ class ReduceMax(OnnxOpConverter):
         data = inputs[0]
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
-        return relax.op.max(data, axes, keepdims)
+        return _reduce_min_max_preserve_nan(relax.op.max, data, axes, keepdims)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -3913,13 +3932,13 @@ class ReduceMax(OnnxOpConverter):
 
         # If axes is empty and noop_with_empty_axes is False, reduce all dims
         if not axes and not noop_with_empty_axes:
-            return relax.op.max(data, None, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.max, data, None, keepdims)
         # If axes is empty and noop_with_empty_axes is True, return input unchanged
         elif not axes and noop_with_empty_axes:
             return data
         # Otherwise reduce over specified axes
         else:
-            return relax.op.max(data, axes, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.max, data, axes, keepdims)
 
 
 class ReduceMin(OnnxOpConverter):
