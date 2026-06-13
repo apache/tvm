@@ -877,6 +877,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             "log1p": self._log1p,
             "logical_and": self._logical_and,
             "logical_not": self._logical_not,
+            "logical_or": self._logical_or,
+            "logical_xor": self._logical_xor,
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "pad": self._pad,

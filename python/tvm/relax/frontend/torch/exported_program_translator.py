@@ -1558,6 +1558,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log1p.default": self._log1p,
             "logical_not.default": self._logical_not,
             "logical_and.default": self._logical_and,
+            "logical_or.default": self._logical_or,
+            "logical_xor.default": self._logical_xor,
             "log_softmax.int": self._log_softmax,
             "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
