@@ -108,7 +108,7 @@ runs:
 
     # ---- Build and test wheels ----
     - name: Build and test wheels
-      uses: pypa/cibuildwheel@v3.3.1
+      uses: pypa/cibuildwheel@v4.1.0
       with:
         package-dir: .
         output-dir: wheelhouse
