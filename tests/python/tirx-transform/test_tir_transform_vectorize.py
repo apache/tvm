@@ -806,7 +806,10 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     with tvm.target.Target(target):
         mod = tvm.tirx.transform.VectorizeLoop()(Before)
         tvm.ir.assert_structural_equal(mod, After)
-        if llvm_version_major() >= 21:
+        # LLVM 20 added vector support for llvm.lround/llvm.llround.  The IR Verifier's
+        # "Intrinsic does not support vectors" check was removed in release/20.x, so
+        # compilation only fails on LLVM <= 19.
+        if llvm_version_major() >= 20:
             tvm.compile(mod, target=target)
         else:
             with pytest.raises(Exception, match="Intrinsic does not support vectors"):
