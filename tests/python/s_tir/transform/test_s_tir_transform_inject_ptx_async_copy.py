@@ -265,17 +265,17 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
   A_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   B_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   tvm_builtin_ptx_cp_async_commit_group();
-  int cse_v3 = (((int)threadIdx.x) + 16);
-  int cse_v4 = (((int)threadIdx.x) * 14);
+  int cse_v1 = (((int)threadIdx.x) * 14);
+  int cse_v2 = (((int)threadIdx.x) + 16);
   ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
   ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
   tvm_builtin_ptx_cp_async_commit_group();
-  int cse_v1 = (((int)threadIdx.x) + 32);
+  int cse_v3 = (((int)threadIdx.x) + 32);
   int cse_v6 = ((((int)threadIdx.x) * 14) + 1);
   ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
   ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
   tvm_builtin_ptx_cp_async_commit_group();
-  int cse_v5 = (((int)threadIdx.x) * 16);
+  int cse_v4 = (((int)threadIdx.x) * 16);
   for (int i = 0; i < 13; ++i) {
     int cse_v7 = (((((int)threadIdx.x) * 14) + i) + 2);
     int cse_v9 = ((((i + 3) & 3) * 16) + ((int)threadIdx.x));
@@ -297,7 +297,7 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
   C_ptr[((((int)threadIdx.x) * 16) + 14)] = (A_shared_ptr[(((int)threadIdx.x) + 32)] + B_shared_ptr[(((int)threadIdx.x) + 32)]);
   tvm_builtin_ptx_cp_async_wait_group_0();
   __syncthreads();
-  int cse_v2 = (((int)threadIdx.x) + 48);
+  int cse_v5 = (((int)threadIdx.x) + 48);
   C_ptr[((((int)threadIdx.x) * 16) + 15)] = (A_shared_ptr[(((int)threadIdx.x) + 48)] + B_shared_ptr[(((int)threadIdx.x) + 48)]);
 }
 
@@ -350,9 +350,6 @@ def postproc_if_missing_async_support():
         tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
-# TODO(tlopex): fix CSE determinism (change unordered map to ordered map) and
-# remove this xfail; see #19741.
-@pytest.mark.xfail
 @tvm.testing.requires_cuda
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func(s_tir=True)
