@@ -205,7 +205,8 @@ def codegen_ptx_cp_async(*args):
       bytes; offsets are pre-scaled by the pass) and the call is
       forwarded with default cache / predicate / fill_mode.
     * 6 args ``(dst_ptr, dst_offset, src_ptr, src_offset, cp_size,
-      predicate)`` — same as 5-arg form with an explicit predicate.
+      predicate)`` — same as 5-arg form with an explicit predicate,
+      zero-filling the destination when the predicate is false.
     * 8 args ``(dst_ptr, src_ptr, cp_size, cache_policy, has_cache_hint,
       prefetch_size, predicate, fill_mode)`` — the fork-native wrapper
       API.
@@ -269,6 +270,14 @@ def codegen_ptx_cp_async(*args):
             func_name = (
                 f"ptx_cp_async_legacy_pred_{ca_or_cg}_{cp_size_v}_{dst_elem_bytes}_{src_elem_bytes}"
             )
+            if cp_size_v == 4:
+                zero_fill = '    " @!p st.shared.u32 [%0], {%4};\\n"\n'
+            elif cp_size_v == 8:
+                zero_fill = '    " @!p st.shared.v2.u32 [%0], {%4, %4};\\n"\n'
+            elif cp_size_v == 16:
+                zero_fill = '    " @!p st.shared.v4.u32 [%0], {%4, %4, %4, %4};\\n"\n'
+            else:
+                raise ValueError(f"unsupported legacy predicated cp.async size: {cp_size_v}")
             body = (
                 f"  uint8_t* dst_p = (uint8_t*)dst + dst_off{dst_scale};\n"
                 f"  uint8_t* src_p = (uint8_t*)src + src_off{src_scale};\n"
@@ -279,8 +288,9 @@ def codegen_ptx_cp_async(*args):
                 '    " setp.eq.u32 p, %3, 1;\\n"\n'
                 f'    " @p cp.async.{ca_or_cg}.shared.global'
                 ' [%0], [%1], %2;\\n"\n'
+                f"{zero_fill}"
                 '    "}\\n"\n'
-                f'    :: "r"(dst_addr), "l"(src_p), "n"({cp_size_v}), "r"(predicate)\n'
+                f'    :: "r"(dst_addr), "l"(src_p), "n"({cp_size_v}), "r"(predicate), "r"(0)\n'
                 "  );"
             )
             source_code = (
