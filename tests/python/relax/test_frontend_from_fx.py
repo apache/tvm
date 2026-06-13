@@ -3553,6 +3553,56 @@ def test_logical_and():
     verify_model(LogicalAnd(), input_info, {}, expected)
 
 
+def test_logical_or():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalOr(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_or(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_or(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalOr(), input_info, {}, expected)
+
+
+def test_logical_xor():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalXor(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_xor(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_xor(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalXor(), input_info, {}, expected)
+
+
 def test_pow_integer():
     input_info = [([4], "int64")]
 

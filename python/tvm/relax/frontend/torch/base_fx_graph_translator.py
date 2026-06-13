@@ -410,6 +410,28 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             x = self.block_builder.emit(relax.op.astype(x, "bool"))
         return self.block_builder.emit(relax.op.logical_not(x))
 
+    def _logical_or(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_or accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_or requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_or(lhs, rhs))
+
+    def _logical_xor(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_xor accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_xor requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_xor(lhs, rhs))
+
     def _prelu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = self.env[node.args[1]]
