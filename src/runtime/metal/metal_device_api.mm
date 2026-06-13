@@ -24,11 +24,90 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
+
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
 #include "metal_common.h"
 
 namespace tvm {
 namespace runtime {
 namespace metal {
+
+/*!
+ * \brief Resolve the storage mode used for device data buffers from the
+ *        TVM_METAL_STORAGE_MODE environment variable (read once, cached).
+ *
+ * Accepted values (case-insensitive):
+ *   - "private" (default; backward compatible) -> MTLResourceStorageModePrivate
+ *   - "shared"                                  -> MTLResourceStorageModeShared
+ *   - "managed" (macOS discrete GPUs only)      -> MTLResourceStorageModeManaged
+ *
+ * Why an environment variable instead of a CMake flag or a runtime API:
+ *   - CMake flag would require rebuilding TVM to flip behaviour, which makes
+ *     downstream packaging (mlc-llm, tvm-ffi consumers, prebuilt wheels)
+ *     awkward — they would need two builds.
+ *   - A runtime SetStorageMode() API has the right shape but adds a public
+ *     C++/Python surface to MetalWorkspace; it is also racy if any allocation
+ *     can happen before the user sets the mode, so consumers would still need
+ *     to set an env var or call the API extremely early.
+ *   - An env var read-once-at-init is the smallest possible behaviour change:
+ *     default (unset) keeps the historical Private mode, opt-in is a one-line
+ *     export. This matches how TVM exposes other low-level toggles
+ *     (e.g. TVM_LOG_DEBUG, TVM_NUM_THREADS).
+ *
+ * The motivating use case is zero-copy DLPack interop with MLX (which
+ * allocates Metal buffers as Shared). Two allocators on the same MTLDevice
+ * cannot share an MTLBuffer that has different page-mapping semantics, so
+ * DLPack capsules cross-imported between TVM-NDArray and mx.array currently
+ * fail. With TVM_METAL_STORAGE_MODE=shared, the two allocators agree on the
+ * storage class and the underlying MTLBuffer can be aliased without copy.
+ *
+ * Notes:
+ *   - This intentionally does NOT change the staging buffer pool
+ *     (StagingBufferPool::GetOrCreate) or the GPU->CPU temp buffer
+ *     (GetTempBuffer); both must remain Shared because they are host-staging
+ *     buffers whose entire purpose is host visibility. Changing them would
+ *     break CPU<->GPU memcpy, which is unrelated to the device-data
+ *     allocation that this flag governs.
+ *   - Shared-mode device buffers are valid arguments to compute kernels
+ *     (setBuffer:offset:atIndex:) on every Metal device family — MLX itself
+ *     proves this in production. The kernel dispatch path in metal_module.mm
+ *     does not need any change.
+ */
+inline MTLResourceOptions GetMetalStorageOptions() {
+  static const MTLResourceOptions cached = []() -> MTLResourceOptions {
+    const char* raw = std::getenv("TVM_METAL_STORAGE_MODE");
+    if (raw == nullptr || raw[0] == '\0') {
+      return MTLResourceStorageModePrivate;
+    }
+    // Lowercase a small bounded copy for case-insensitive comparison.
+    std::string v(raw);
+    for (auto& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (v == "shared") {
+      return MTLResourceStorageModeShared;
+    }
+    if (v == "managed") {
+#if TARGET_OS_IPHONE
+      LOG(WARNING) << "TVM_METAL_STORAGE_MODE=managed is not supported on iOS, "
+                   << "falling back to MTLResourceStorageModeShared.";
+      return MTLResourceStorageModeShared;
+#else
+      return MTLResourceStorageModeManaged;
+#endif
+    }
+    if (v == "private") {
+      return MTLResourceStorageModePrivate;
+    }
+    LOG(WARNING) << "Unknown TVM_METAL_STORAGE_MODE='" << raw
+                 << "', expected one of {private,shared,managed}. "
+                 << "Falling back to MTLResourceStorageModePrivate.";
+    return MTLResourceStorageModePrivate;
+  }();
+  return cached;
+}
 
 AutoReleasePoolWrapper& AutoReleasePoolWrapper::GetInstance() {
   static AutoReleasePoolWrapper instance;
@@ -184,15 +263,11 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
   id<MTLBuffer> buf;
   AUTORELEASEPOOL {
     id<MTLDevice> dev = GetDevice(device);
-    // GPU memory only
-    MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
-    /*
-    #if TARGET_OS_IPHONE
-    storage_mode = MTLResourceStorageModeShared;
-    #else
-    storage_mode = MTLResourceStorageModeManaged;
-    #endif
-    */
+    // Storage mode for device-data buffers. Defaults to Private (the
+    // historical behaviour); set TVM_METAL_STORAGE_MODE=shared to enable
+    // zero-copy DLPack interop with frameworks that allocate Shared (e.g.
+    // MLX). See GetMetalStorageOptions() for the rationale.
+    MTLResourceOptions storage_mode = GetMetalStorageOptions();
     buf = [dev newBufferWithLength:nbytes options:storage_mode];
     TVM_FFI_ICHECK(buf != nil);
   };
@@ -418,10 +493,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              result.Set("free_syncs", static_cast<int64_t>(p.free_syncs));
              return result;
            })
-      .def("metal.ResetProfileCounters", [](int device_id) {
-        auto* ws = MetalWorkspace::Global();
-        ws->CastStreamOrGetDefault(nullptr, device_id)->profile.Reset();
-      });
+      .def("metal.ResetProfileCounters",
+           [](int device_id) {
+             auto* ws = MetalWorkspace::Global();
+             ws->CastStreamOrGetDefault(nullptr, device_id)->profile.Reset();
+           })
+      .def("metal.GetStorageMode",
+           []() -> ffi::String {
+             // Return a stable string for parity tests; mirrors the env-var
+             // names accepted by GetMetalStorageOptions().
+             MTLResourceOptions opts = GetMetalStorageOptions();
+             // The Resource enum encodes the storage mode in the high bits
+             // (MTLResourceStorageModeShift == 4), but the lower-level enum
+             // values overlap, so we compare directly with the resource enum
+             // values to remain robust on every SDK version.
+             if (opts == MTLResourceStorageModeShared) return ffi::String("shared");
+             if (opts == MTLResourceStorageModeManaged) return ffi::String("managed");
+             return ffi::String("private");
+           });
 }
 
 class MetalTimerNode : public TimerNode {
