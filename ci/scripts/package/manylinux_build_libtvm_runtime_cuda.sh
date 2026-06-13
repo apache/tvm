@@ -16,9 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Build libtvm_runtime_cuda.so inside a manylinux container, run by the
-# build_cuda_runtime CI job. Installs the pinned CUDA toolkit and builds the
-# sidecar into build-wheel-cuda/lib/ for the wheel build to bundle.
+# Build libtvm_runtime_cuda.so inside a manylinux CUDA container, run by the
+# build_cuda_runtime CI job. The official quay.io/manylinux_cuda images ship
+# the CUDA toolkit preinstalled under /usr/local/cuda, so no toolkit install
+# is needed here. Builds the sidecar into build-wheel-cuda/lib/ for the wheel
+# build to bundle.
 #
 # Usage: manylinux_build_libtvm_runtime_cuda.sh
 set -euxo pipefail
@@ -28,21 +30,9 @@ build_dir="${repo_root}/build-wheel-cuda"
 python_bin="/opt/python/cp310-cp310/bin/python"
 parallel="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
-# Install the pinned CUDA toolkit into the manylinux_2_28 container. The RHEL8
-# local-repo RPM is compatible with manylinux_2_28 for both x86_64 and aarch64.
-arch="$(uname -m)"
-cuda_rpm="cuda-repo-rhel8-13-0-local-13.0.2_580.95.05-1.${arch}.rpm"
-curl -fsSLo "/tmp/${cuda_rpm}" \
-  "https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/${cuda_rpm}"
-rpm -i "/tmp/${cuda_rpm}"
-dnf clean all
-dnf -y --disablerepo=epel install cuda-toolkit-13-0
-rm -f "/tmp/${cuda_rpm}"
-dnf clean all
-
 # Build the CUDA runtime sidecar with CUDA on and LLVM off, so it does not need
-# the LLVM prefix; the main CPU wheel links LLVM statically. The manylinux image
-# ships no cmake/ninja, so install the build tools here.
+# the LLVM prefix; the main CPU wheel links LLVM statically. pip-install
+# cmake/ninja rather than relying on whatever the image ships.
 export PATH="/opt/python/cp310-cp310/bin:/usr/local/cuda/bin:${PATH}"
 "${python_bin}" -m pip install -U pip cmake ninja
 nvcc --version
