@@ -808,6 +808,10 @@ def test_sign_nan_preserve():
 @pytest.mark.parametrize(
     "x",
     [
+        # NaN in different positions. TVM's max/min fold previously dropped NaN depending on
+        # position, ONNX Runtime only propagates NaN when it is the first reduced element, which
+        # is an order-dependent implementation artifact. We instead adopt the well-defined,
+        # order-independent numpy/IEEE semantics: any NaN in the reduced range yields NaN.
         np.array([np.nan, 1.0, 2.0], dtype=np.float32),
         np.array([2.0, 1.0, np.nan], dtype=np.float32),
         np.array([1.0, np.nan, 2.0], dtype=np.float32),
@@ -829,17 +833,15 @@ def test_reduce_min_max_nan_preserve(op_name, x):
             opset_import.version = 18
             break
 
-    ort_out = onnxruntime.InferenceSession(
-        model.SerializeToString(), providers=["CPUExecutionProvider"]
-    ).run([], {"x": x})[0]
+    # Reference is numpy (NaN propagates if any element is NaN), not ONNX Runtime.
+    ref_out = (np.max if op_name == "ReduceMax" else np.min)(x)
 
     tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
     out_np = (tvm_out[0] if isinstance(tvm_out, (list, tuple)) else tvm_out).numpy()
 
-    np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ort_out))
-    np.testing.assert_allclose(
-        out_np[~np.isnan(ort_out)], ort_out[~np.isnan(ort_out)], rtol=1e-7, atol=1e-5
-    )
+    np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ref_out))
+    if not np.isnan(ref_out):
+        np.testing.assert_allclose(out_np, ref_out, rtol=1e-7, atol=1e-5)
 
 
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])

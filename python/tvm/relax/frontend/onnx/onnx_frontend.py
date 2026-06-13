@@ -3889,13 +3889,16 @@ class RMSNormalization(OnnxOpConverter):
 
 
 def _reduce_min_max_preserve_nan(reduce_op, data, axes, keepdims):
-    """Apply a min/max reduction while preserving NaN to match ONNX Runtime.
+    """Apply a min/max reduction with well-defined, order-independent NaN propagation.
 
     relax.op.max/min legalize to a max/min fold implemented as select(x > y, x, y) with an
     ordered float comparison, so NaN propagation depends on the fold position (a later non-NaN
-    element silently overwrites an earlier NaN). ONNX Runtime instead yields NaN whenever any
-    reduced element is NaN. For floating point inputs, detect NaN along the reduced axes and
-    force the output to NaN to match that semantics.    
+    element silently overwrites an earlier NaN). ONNX Runtime is also order-independent (it only
+    yields NaN when the first reduced element is NaN), which is an implementation artifact rather
+    than a defined semantics and is impractical to replicate portably. We instead adopt the
+    numpy/IEEE convention used by numpy.max/min and torch.amax/amin: for floating pint inputs,
+    detect NaN along the reduced axes and force the output to NaN whenever any reduced element is
+    NaN.
     """
     y = reduce_op(data, axes, keepdims)
     dtype = data.struct_info.dtype if isinstance(data.struct_info, relax.TensorStructInfo) else None
