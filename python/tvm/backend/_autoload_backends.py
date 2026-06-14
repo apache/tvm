@@ -40,17 +40,28 @@ _BUILTIN_BACKENDS = (
 _BACKEND_RUNTIME_LIBS = ("cuda", "vulkan", "opencl", "metal", "rocm", "hexagon", "extra")
 
 # Guard so autoload runs at most once per process, even if invoked again.
+_BACKEND_LIBS_LOADED = False
 _AUTO_LOAD_DONE = False
 
 
-def load_backend_libs(runtime_lib_path: str, loaded_libs: dict[str, Any] | None = None) -> None:
+def autoload_backend_libs(loaded_libs: dict[str, Any] | None = None) -> None:
     """Load each known backend runtime DSO into the process-global symbol namespace."""
+    global _BACKEND_LIBS_LOADED
+    if _BACKEND_LIBS_LOADED:
+        return
+
     if loaded_libs is None:
         from tvm.base import _LOADED_LIBS  # pylint: disable=import-outside-toplevel
 
         loaded_libs = _LOADED_LIBS
 
-    runtime_dir = Path(runtime_lib_path).resolve().parent
+    runtime_lib = loaded_libs.get("tvm_runtime")
+    if runtime_lib is None:
+        return
+
+    _BACKEND_LIBS_LOADED = True
+
+    runtime_dir = Path(runtime_lib._name).resolve().parent
     for backend in _BACKEND_RUNTIME_LIBS:
         target_name = f"tvm_runtime_{backend}"
         try:
