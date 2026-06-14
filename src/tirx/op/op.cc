@@ -35,7 +35,6 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
-#include "../../target/datatype/registry.h"
 #include "../analysis/check_contains.h"
 
 namespace tvm {
@@ -211,22 +210,16 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
     } else {
       rhs = cast(ltype, rhs);
     }
-  } else if (!ltype.is_float() &&
-             (rtype.is_float() || datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
+  } else if (!ltype.is_float() && rtype.is_float()) {
     // Cast int->float when the other operand is a float
     lhs = cast(rtype, lhs);
-  } else if ((ltype.is_float() || datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
-             !rtype.is_float()) {
+  } else if (ltype.is_float() && !rtype.is_float()) {
     // Cast int->float when the other operand is a float
     rhs = cast(ltype, rhs);
-  } else if (!ltype.is_bfloat16() &&
-             (rtype.is_bfloat16() ||
-              datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
+  } else if (!ltype.is_bfloat16() && rtype.is_bfloat16()) {
     // Cast int->bfloat16 when the other operand is a bfloat16
     lhs = cast(rtype, lhs);
-  } else if ((ltype.is_bfloat16() ||
-              datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
-             !rtype.is_bfloat16()) {
+  } else if (ltype.is_bfloat16() && !rtype.is_bfloat16()) {
     // Cast int->bfloat16 when the other operand is a bfloat16
     rhs = cast(ltype, rhs);
   } else if (!ltype.is_float8() && rtype.is_float8()) {
@@ -369,15 +362,7 @@ PrimExpr max_value(const DataType& dtype, Span span) {
 PrimExpr min_value(const DataType& dtype, Span span) {
   using namespace tirx;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
-  if (datatype::Registry::Global()->GetTypeRegistered(dtype.code())) {
-    // TODO(tkonolige): need to convert all registered min functions to use the span.
-    auto f = datatype::GetMinFunc(dtype.code());
-    TVM_FFI_ICHECK(f) << "No minimum function registered for custom dtype "
-                      << (unsigned int)dtype.code();
-    // TODO(@hypercubestart) Document this change (and others associated with the overflowing
-    // floatimm min bug)
-    return (*f)(dtype.bits()).cast<PrimExpr>();
-  } else if (dtype.is_int()) {
+  if (dtype.is_int()) {
     if (dtype.bits() == 64) {
       return IntImm(dtype, std::numeric_limits<int64_t>::lowest(), span);
     } else if (dtype.bits() < 64) {
