@@ -17,11 +17,11 @@
  * under the License.
  */
 #include <curand.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "./helper_cuda_kernels.h"
 
 namespace tvm {

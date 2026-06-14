@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/runtime/logging.h>
 
 #include <fstream>
@@ -24,8 +25,6 @@
 #include <sstream>
 #include <variant>
 #include <vector>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 // clang-format off
 #include "cutlass/cutlass.h"

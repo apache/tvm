@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
@@ -32,7 +33,6 @@
 #include <string>
 #include <vector>
 
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "cublas_utils.h"
@@ -89,7 +89,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
     }
 
     if (device_id == -1) {
-      CUDA_CALL(cudaGetDevice(&device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     }
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
     cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));

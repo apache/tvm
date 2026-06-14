@@ -26,11 +26,10 @@
 
 #include <cudnn.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/runtime/device_api.h>
 
 #include <string>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace contrib {
