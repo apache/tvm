@@ -16,6 +16,8 @@
 # under the License.
 """Vulkan-owned backend hooks."""
 
+RUNTIME_LIBS = ("vulkan",)
+
 
 def _detect_target_from_device(dev):
     from tvm import get_global_func  # pylint: disable=import-outside-toplevel
@@ -49,4 +51,4 @@ def register_backend():
     return None
 
 
-__all__ = ["register_backend"]
+__all__ = ["register_backend", "RUNTIME_LIBS"]

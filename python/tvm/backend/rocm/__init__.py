@@ -16,6 +16,8 @@
 # under the License.
 """ROCm-owned TIRx modules."""
 
+RUNTIME_LIBS = ("rocm",)
+
 
 def _detect_target_from_device(dev):
     from tvm.target import Target  # pylint: disable=import-outside-toplevel
@@ -39,4 +41,4 @@ def register_backend():
     return None
 
 
-__all__ = ["register_backend"]
+__all__ = ["register_backend", "RUNTIME_LIBS"]

@@ -19,6 +19,7 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"lang", "op", "operator", "script", "target_tags"}
+RUNTIME_LIBS = ("cuda",)
 
 
 def _detect_target_from_device(dev):
@@ -80,6 +81,7 @@ __all__ = [
     "op",
     "operator",
     "register_backend",
+    "RUNTIME_LIBS",
     "script",
     "script_namespace",
     "script_namespaces",
