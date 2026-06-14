@@ -22,6 +22,8 @@
  *
  *  builtin intrinsic operators specific to Metal target.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -56,6 +58,8 @@ TIRX_DEFINE_BUILTIN_FUNC(simdgroup_multiply_accumulate)
 }
 
 #undef TIRX_DEFINE_BUILTIN_FUNC
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterMetalTargetBuiltins(); }
 
 }  // namespace builtin
 }  // namespace tirx

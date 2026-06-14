@@ -22,6 +22,8 @@
  *
  *  builtin intrinsic operators specific to CUDA target.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -596,6 +598,8 @@ void RegisterDeviceIntrinsicAliases() {
 }  // namespace
 
 #undef TIRX_DEFINE_BUILTIN_FUNC
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaTargetBuiltins(); }
 
 }  // namespace builtin
 }  // namespace tirx

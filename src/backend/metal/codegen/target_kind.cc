@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file register.cc
- * \brief Hexagon compiler backend static registration.
+ * \file target_kind.cc
+ * \brief Metal compiler backend static registration.
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
@@ -28,37 +28,36 @@
 #include <tvm/target/target_kind.h>
 
 namespace tvm {
+
 namespace backend {
-namespace hexagon {
+namespace metal {
 
 void RegisterTargetKind() {
-  TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
-      .add_attr_option<ffi::Array<ffi::String>>("mattr")
-      .add_attr_option<ffi::String>("mcpu")
-      .add_attr_option<ffi::String>("mtriple")
-      .add_attr_option<ffi::Array<ffi::String>>("llvm-options")
-      .add_attr_option<int64_t>("num-cores")
-      .add_attr_option<int64_t>("vtcm-capacity")
-      .set_default_keys({"hexagon", "cpu"});
+  namespace refl = tvm::ffi::reflection;
+
+  // Metal limits the number of kernel arguments.  `max_function_args` captures that bound.
+  TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
+      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
+      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(16))
+      .add_attr_option<int64_t>("max_function_args", refl::DefaultValue(31))
+      .set_default_keys({"metal", "gpu"});
 }
 
-}  // namespace hexagon
+}  // namespace metal
 }  // namespace backend
 
-#ifdef TVM_LLVM_VERSION
 namespace codegen {
-void RegisterHexagonCodegen();
-namespace llvm {
-void RegisterHexagonIntrinRules();
-}  // namespace llvm
+void RegisterMetalCodegen();
+namespace intrin {
+void RegisterMetalIntrinRules();
+}  // namespace intrin
 }  // namespace codegen
-#endif
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::hexagon::RegisterTargetKind();
-#ifdef TVM_LLVM_VERSION
-  tvm::codegen::llvm::RegisterHexagonIntrinRules();
-  tvm::codegen::RegisterHexagonCodegen();
-#endif
+  tvm::backend::metal::RegisterTargetKind();
+  tvm::codegen::intrin::RegisterMetalIntrinRules();
+  tvm::codegen::RegisterMetalCodegen();
 }
