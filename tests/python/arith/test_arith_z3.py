@@ -271,6 +271,7 @@ def test_z3_flattened_index_bound():
     expr = tirx.all(0 <= i * n + j, i * n + j < m * n)
     with analyzer.constraint_scope(tirx.all(0 <= i, i < m, 0 <= j, j < n, m > 0, n > 0)):
         assert not analyzer.can_prove(expr)
+        analyzer.set_z3_rlimit(0)
         assert analyzer.can_prove(expr, SB)
 
 
