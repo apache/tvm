@@ -19,11 +19,11 @@
 """Base library for TVM."""
 
 import os
-from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
 from . import libinfo
+from .backend._autoload_backends import load_backend_libs as _load_backend_libs
 
 # ----------------------------
 # library loading
@@ -41,22 +41,8 @@ _LOADED_LIBS = {}
 
 
 def load_backend_libs(runtime_lib_path: str) -> None:
-    """Load each known backend runtime DSO into ``_LOADED_LIBS``; failures are silent."""
-    # Known per-backend runtime DSOs that, when present, are loaded with
-    # RTLD_GLOBAL so their static initializers register the device backend.
-    backend_runtime_libs = ["cuda", "vulkan", "opencl", "metal", "rocm", "hexagon", "extra"]
-    runtime_dir = Path(runtime_lib_path).resolve().parent
-    for backend in backend_runtime_libs:
-        target_name = f"tvm_runtime_{backend}"
-        try:
-            _LOADED_LIBS[target_name] = load_lib_ctypes(
-                package="tvm",
-                target_name=target_name,
-                mode="RTLD_GLOBAL",
-                extra_lib_paths=[runtime_dir],
-            )
-        except (OSError, FileNotFoundError, RuntimeError):
-            pass
+    """Load backend runtime DSOs through ``tvm.backend`` autoload infrastructure."""
+    _load_backend_libs(runtime_lib_path, _LOADED_LIBS)
 
 
 # runtime is loaded RTLD_GLOBAL to expose its symbols to subsequent loads;
@@ -68,7 +54,7 @@ _LOADED_LIBS["tvm_runtime"] = load_lib_ctypes(
 # After libtvm_runtime.so is in the global symbol namespace, scan the same
 # directory for per-backend DSOs (libtvm_runtime_cuda.so, etc.) and load each
 # with RTLD_GLOBAL so their static initializers register device backends.
-load_backend_libs(_LOADED_LIBS["tvm_runtime"]._name)
+_load_backend_libs(_LOADED_LIBS["tvm_runtime"]._name, _LOADED_LIBS)
 
 if not _RUNTIME_ONLY:
     try:
