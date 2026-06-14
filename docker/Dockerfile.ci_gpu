@@ -115,10 +115,6 @@ RUN bash /install/ubuntu_install_vulkan.sh
 COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
 RUN bash /install/ubuntu_install_xgboost.sh
 
-# BYODT deps
-COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
-RUN bash /install/ubuntu_install_universal.sh
-
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
