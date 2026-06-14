@@ -24,7 +24,7 @@
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include "../../../../../3rdparty/tensorrt_llm/custom_allreduce_kernels.h"
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "../../../memory/pooled_allocator.h"
 #include "../nccl/nccl_context.h"
 

@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
@@ -85,13 +86,13 @@ Type GetType(const PrimExpr& expr) {
     }
   }
 
+  static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
   if (auto* access = expr.as<tirx::CallNode>()) {
     if (access->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK(access->args.size())
           << "Builtin tvm_access_ptr() may not have empty arguments";
       auto type_annotation = Downcast<Call>(access->args[0]);
-      static auto builtin_op = Op::Get("tirx.type_annotation");
-      TVM_FFI_ICHECK(type_annotation->op.same_as(builtin_op))
+      TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
           << "Expected the first argument of builtin tvm_access_ptr() "
           << "to be a type annotation, but found " << type_annotation->op;
       return PointerType(PrimType(type_annotation->dtype));
@@ -99,8 +100,7 @@ Type GetType(const PrimExpr& expr) {
     if (access->op.same_as(builtin::ptr_byte_offset())) {
       TVM_FFI_ICHECK_EQ(access->args.size(), 3U);
       auto type_annotation = Downcast<Call>(access->args[2]);
-      static auto builtin_op = Op::Get("tirx.type_annotation");
-      TVM_FFI_ICHECK(type_annotation->op.same_as(builtin_op))
+      TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
           << "Expected the third argument of builtin ptr_byte_offset() "
           << "to be a type annotation, but found " << type_annotation->op;
       return PointerType(PrimType(type_annotation->dtype));
@@ -907,8 +907,8 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
     }
   }
 
-  static auto op = Op::Get("tirx.pow");
-  return tirx::Call(x.dtype(), op, {x, y}, {}, span);
+  static const Op& pow_op = Op::Get("tirx.pow");
+  return tirx::Call(x.dtype(), pow_op, {x, y}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_BINARY_OP("pow").set_attr<TVectorizable>("TVectorizable", true);
@@ -928,8 +928,8 @@ PrimExpr abs(PrimExpr x, Span span) {
     if (fx) {
       return FloatImm(x.dtype(), std::fabs(fx->value), fx->span);
     }
-    static auto op = Op::Get("tirx.fabs");
-    return tirx::Call(x.dtype(), op, {x}, {}, span);
+    static const Op& fabs_op = Op::Get("tirx.fabs");
+    return tirx::Call(x.dtype(), fabs_op, {x}, {}, span);
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
@@ -952,12 +952,13 @@ PrimExpr isnan(PrimExpr x, Span span) {
     if (fx) {
       return make_const(t, std::isnan(fx->value), fx->span);
     }
-    static auto op = Op::Get("tirx.isnan");
     if (x.dtype().bits() == 16) {
-      return tirx::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x), span)}, {},
+      static const Op& isnan_op = Op::Get("tirx.isnan");
+      return tirx::Call(t, isnan_op, {cast(DataType::Float(32, t.lanes()), std::move(x), span)}, {},
                         span);
     } else {
-      return tirx::Call(t, op, {x}, {}, span);
+      static const Op& isnan_op = Op::Get("tirx.isnan");
+      return tirx::Call(t, isnan_op, {x}, {}, span);
     }
   } else {
     TVM_FFI_THROW(InternalError) << "Data type " << x.dtype()
@@ -1044,8 +1045,8 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
   TVM_FFI_ICHECK(x.dtype().is_float()) << "fmod only applies to float";
-  static auto op = Op::Get("tirx.fmod");
-  return tirx::Call(x.dtype(), op, {x, y}, {}, span);
+  static const Op& fmod_op = Op::Get("tirx.fmod");
+  return tirx::Call(x.dtype(), fmod_op, {x, y}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("fmod");
@@ -1058,8 +1059,8 @@ PrimExpr floor(PrimExpr x, Span span) {
   using tirx::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value), fx->span);
-  static auto op = Op::Get("tirx.floor");
-  return tirx::Call(x.dtype(), op, {x}, {}, span);
+  static const Op& floor_op = Op::Get("tirx.floor");
+  return tirx::Call(x.dtype(), floor_op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable", true);
@@ -1072,8 +1073,8 @@ PrimExpr ceil(PrimExpr x, Span span) {
   using tirx::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value), fx->span);
-  static auto op = Op::Get("tirx.ceil");
-  return tirx::Call(x.dtype(), op, {x}, {}, span);
+  static const Op& ceil_op = Op::Get("tirx.ceil");
+  return tirx::Call(x.dtype(), ceil_op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("ceil").set_attr<TVectorizable>("TVectorizable", true);
@@ -1086,8 +1087,8 @@ PrimExpr round(PrimExpr x, Span span) {
   using tirx::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
-  static auto op = Op::Get("tirx.round");
-  return tirx::Call(x.dtype(), op, {x}, {}, span);
+  static const Op& round_op = Op::Get("tirx.round");
+  return tirx::Call(x.dtype(), round_op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("round").set_attr<TVectorizable>("TVectorizable", true);
@@ -1100,8 +1101,8 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
   using tirx::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value), fx->span);
-  static auto op = Op::Get("tirx.nearbyint");
-  return tirx::Call(x.dtype(), op, {x}, {}, span);
+  static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
+  return tirx::Call(x.dtype(), nearbyint_op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("nearbyint");
@@ -1117,8 +1118,8 @@ PrimExpr trunc(PrimExpr x, Span span) {
     return FloatImm(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
                     fx->span);
   }
-  static auto op = Op::Get("tirx.trunc");
-  return tirx::Call(x.dtype(), op, {x}, {}, span);
+  static const Op& trunc_op = Op::Get("tirx.trunc");
+  return tirx::Call(x.dtype(), trunc_op, {x}, {}, span);
 }
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("trunc").set_attr<TVectorizable>("TVectorizable", true);

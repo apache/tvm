@@ -32,7 +32,7 @@ if(USE_ROCM)
   endif()
   message(STATUS "Build rocm device runtime")
 
-  tvm_file_glob(GLOB RUNTIME_ROCM_SRCS src/runtime/rocm/*.cc)
+  tvm_file_glob(GLOB RUNTIME_ROCM_SRCS src/backend/rocm/runtime/*.cc)
 
   set(_rocm_libs ${ROCM_HIPHCC_LIBRARY})
   if(ROCM_HSA_LIBRARY)

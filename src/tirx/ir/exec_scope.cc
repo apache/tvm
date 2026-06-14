@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
@@ -384,10 +385,11 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCluster: {
       TVM_FFI_ICHECK_LE(out_dim, 3)
           << "ValueError: kernel->cluster can only have 3 dimensions for now";
+      static const Op& ptx_fetch_register_op = Op::Get("tirx.ptx.fetch_register");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
         ret.push_back(tirx::Call(
-            DataType::Int(32), builtin::ptx_fetch_register(),
+            DataType::Int(32), ptx_fetch_register_op,
             {IntImm(DataType::Int(32), 32), StringImm("clusterid." + std::string(1, 'x' + i))}));
       }
       return ret;

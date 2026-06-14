@@ -27,7 +27,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 
-#include "../../../../cuda/cuda_common.h"
+#include "../../../../../backend/cuda/runtime/cuda_common.h"
 #include "../cudnn_utils.h"
 
 namespace tvm {

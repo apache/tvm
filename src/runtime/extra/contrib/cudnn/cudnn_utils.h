@@ -30,7 +30,7 @@
 
 #include <string>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace contrib {

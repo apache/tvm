@@ -26,7 +26,7 @@
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace runtime {

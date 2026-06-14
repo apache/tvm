@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/expr.h>
@@ -46,8 +47,10 @@ class FragmentGetter : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
-    if (op->op.same_as(builtin::tvm_load_matrix_sync()) ||
-        op->op.same_as(builtin::tvm_store_matrix_sync())) {
+    static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+    if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
@@ -82,7 +85,7 @@ class FragmentGetter : public StmtExprVisitor {
         }
         fragments[buffer_var] = info;
       }
-    } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
+    } else if (op->op.same_as(tvm_fill_fragment_op)) {
       // Get shape information from fill intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
@@ -136,7 +139,9 @@ class FragmentChecker : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
-    if (op->op.same_as(builtin::tvm_mma_sync()) || op->op.same_as(builtin::tvm_bmma_sync())) {
+    static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+    static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+    if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = op->args[0].as<VarNode>();
       const VarNode* buffer_var_a = op->args[2].as<VarNode>();

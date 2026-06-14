@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../ir_comparator.h"
@@ -1357,8 +1358,8 @@ bool HasIfThenElse(const Stmt& stmt) {
       has_branch = true;
     } else if (const auto* call = obj.as<CallNode>()) {
       // Case 3: Call the `if_then_else` operator
-      static const Op& op_if_then_else = Op::Get("tirx.if_then_else");
-      if (call->op.same_as(op_if_then_else)) {
+      static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
+      if (call->op.same_as(if_then_else_op)) {
         has_branch = true;
       }
     }

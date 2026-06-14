@@ -21,6 +21,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
@@ -97,7 +98,8 @@ class PTXRewriter : public StmtMutator {
         new_predicate = BufferLoad(predicate_buffer, {IntImm(DataType::Int(32), 0)});
         new_indice = BufferLoad(addr_buffer, {IntImm(DataType::Int(32), 1)});
         BufferStore value_store(store->buffer, imm_value, {new_indice});
-        Evaluate ptx_load(Call(store->buffer->dtype, tvm::tirx::builtin::ptx_ldg32(),
+        static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
+        Evaluate ptx_load(Call(store->buffer->dtype, ptx_ldg32_op,
                                {store->buffer->data, new_predicate, new_lhs, new_indice}));
         ffi::Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
                                     ptx_load};

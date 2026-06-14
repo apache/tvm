@@ -35,8 +35,6 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/target_builtin/cuda.h>
-#include <tvm/tirx/target_builtin/trn.h>
 
 #include <algorithm>
 #include <limits>

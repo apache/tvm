@@ -27,9 +27,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/target_builtin/cuda.h>
 
 namespace tvm {
 namespace tirx {
@@ -45,7 +45,8 @@ bool IsBitwiseAndCall(const CallNode* call) {
 }
 
 bool IsPtxElectSyncCall(const CallNode* call) {
-  if (call->op.same_as(tirx::builtin::ptx_elect_sync())) return true;
+  static const Op& ptx_elect_sync_op = Op::Get("tirx.ptx_elect_sync");
+  if (call->op.same_as(ptx_elect_sync_op)) return true;
   if (auto op = call->op.as<Op>()) {
     return op.value()->name == "tirx.ptx.elect_sync";
   }

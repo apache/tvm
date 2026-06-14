@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -148,6 +149,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*buffer_type=*/kDefault);
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
       /*predicate=*/const_true(),
@@ -159,7 +161,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*body=*/
           Evaluate(Call(
               /*data=*/runtime::DataType::Handle(),
-              /*op=*/builtin::tvm_load_matrix_sync(),
+              /*op=*/tvm_load_matrix_sync_op,
               {
                   /*0:*/ new_tgt_buffer->data,
                   /*1:*/ 16,
@@ -257,6 +259,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/const_true(),
@@ -266,7 +269,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
              /*name_hint=*/"wmma_store",
              Evaluate(Call(
                  /*data=*/runtime::DataType::Handle(),
-                 /*op=*/builtin::tvm_store_matrix_sync(),
+                 /*op=*/tvm_store_matrix_sync_op,
                  {/*0:*/ new_src_buffer->data,
                   /*1:*/ 16,
                   /*2:*/ 16,

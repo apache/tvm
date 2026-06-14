@@ -21,6 +21,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -568,8 +569,9 @@ class AutoPadder {
     void VisitStmt_(const SBlockNode* op) final {
       if (const auto* eval = op->body.as<EvaluateNode>()) {
         if (const auto* call = eval->value.as<CallNode>()) {
-          if (call->op == builtin::tvm_load_matrix_sync() ||
-              call->op == builtin::tvm_store_matrix_sync()) {
+          static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+          static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+          if (call->op == tvm_load_matrix_sync_op || call->op == tvm_store_matrix_sync_op) {
             for (const MatchBufferRegion& r : op->match_buffers) {
               Buffer src_buffer = r->source->buffer;
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());

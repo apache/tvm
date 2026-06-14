@@ -22,6 +22,7 @@
  */
 #include "ir_visitor_with_analyzer.h"
 
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -96,8 +97,8 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
 
 void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  static auto op_if_then_else = Op::Get("tirx.if_then_else");
-  if (op->op.same_as(op_if_then_else)) {
+  static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
+  if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = op->args[0];
     this->VisitExpr(op->args[0]);
     constraint_scope_.WithNewScope([&]() {

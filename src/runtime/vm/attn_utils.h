@@ -36,7 +36,7 @@
 #include <vector>
 
 #if defined(OPENCL_ENABLE_HOST_PTR)
-#include "../opencl/opencl_common.h"
+#include "../../backend/opencl/runtime/opencl_common.h"
 #endif
 
 namespace tvm {

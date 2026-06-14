@@ -62,8 +62,8 @@ endif(USE_CUDA)
 if(USE_CUDA)
   message(STATUS "Build cuda device runtime")
 
-  tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
-  tvm_file_glob(GLOB VM_CUDA_BUILTIN_SRC_CC src/runtime/vm/cuda/*.cc)
+  tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/backend/cuda/runtime/*.cc)
+  tvm_file_glob(GLOB VM_CUDA_BUILTIN_SRC_CC src/backend/cuda/runtime/vm/*.cc)
 
   add_library(tvm_runtime_cuda_objs OBJECT ${RUNTIME_CUDA_SRCS} ${VM_CUDA_BUILTIN_SRC_CC})
   target_link_libraries(tvm_runtime_cuda_objs PUBLIC tvm_ffi_header)

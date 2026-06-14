@@ -99,33 +99,6 @@ def tirx_pipeline():
     return _pipeline, finalize_host_passes, finalize_device_passes
 
 
-def trn_pipeline():
-    """The Trainium pipeline used in tvm.tirx.build"""
-
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        """The default lowering passes for TRN backend."""
-        tvm.transform.PassContext.current()
-        passes = [
-            tirx.transform.trn.TrnPrivateBufferAlloc(),
-            tirx.transform.trn.TrnNaiveAllocator(),
-            tirx.transform.LowerTIRx(),
-            tvm.s_tir.transform.DecorateDeviceScope(),
-            tirx.transform.StmtSimplify(),
-            tirx.transform.LowerTIRxOpaque(),
-            tvm.s_tir.transform.LoopPartition(),
-            tvm.s_tir.transform.HoistIfThenElse(),
-            tirx.transform.StmtSimplify(),
-            tirx.transform.RemoveNoOp(),
-            tirx.transform.AnnotateEntryFunc(),
-            tirx.transform.SplitHostDevice(),
-            tirx.transform.MakePackedAPI(),
-        ]
-        return tvm.ir.transform.Sequential(passes)(mod)
-
-    return _pipeline, finalize_host_passes, finalize_device_passes_trn
-
-
 def finalize_host_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     host_pass_list = [
@@ -153,14 +126,14 @@ def finalize_device_passes_tirx():  # pylint: disable=unused-argument
     return tvm.ir.transform.Sequential(device_pass_list)
 
 
-def finalize_device_passes_trn():  # pylint: disable=unused-argument
-    """The default finalization passes for TRN backend."""
-    device_pass_list = [tirx.transform.StmtSimplify()]
-    return tvm.ir.transform.Sequential(device_pass_list)
-
-
 # global map of pre-built pipelines
-PIPELINE_MAP = {"default": default_tir_pipeline, "tirx": tirx_pipeline, "trn": trn_pipeline}
+PIPELINE_MAP = {"default": default_tir_pipeline, "tirx": tirx_pipeline}
+
+
+def register_tir_pipeline(name: str, pipeline_factory) -> None:
+    """Register a named TIR pipeline factory."""
+
+    PIPELINE_MAP[name] = pipeline_factory
 
 
 def get_tir_pipeline(name: str | None = None, **kwargs) -> tvm.transform.Pass:

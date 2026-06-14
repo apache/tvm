@@ -43,14 +43,14 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.layout import S, SwizzleLayout, TileLayout
 
 # Helpers exposed by the dispatcher module for direct algorithm tests.
-from tvm.tirx.operator.tile_primitive.cuda.permute_layout.warp_xor_swizzle import (
+from tvm.tirx.cuda.operator.tile_primitive.permute_layout.warp_xor_swizzle import (
     _bank_free,
     _check_bijection,
     _choose_xor_k,
 )
+from tvm.tirx.layout import S, SwizzleLayout, TileLayout
 
 # ---------------------------------------------------------------------------
 # Algorithm-only tests (no CUDA needed).

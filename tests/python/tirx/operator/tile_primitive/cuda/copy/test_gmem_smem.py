@@ -253,7 +253,7 @@ def test_copy_g2s_s2g(task, dtype, scope):
 def _align(
     g_layout, g_shape, s_layout, s_shape, elem_bits, thread_cnt, g_region=None, s_region=None
 ):
-    from tvm.tirx.operator.tile_primitive.cuda.copy._common import align_layouts_gs
+    from tvm.tirx.cuda.operator.tile_primitive.copy._common import align_layouts_gs
 
     target = tvm.target.Target("cuda")
     if g_region is None:

@@ -36,11 +36,11 @@
 #if TVM_NCCL_RCCL_SWITCH == 0
 #include <nccl.h>
 
-#include "../../../cuda/cuda_common.h"
+#include "../../../../backend/cuda/runtime/cuda_common.h"
 #else
 #include <rccl/rccl.h>
 
-#include "../../../rocm/rocm_common.h"
+#include "../../../../backend/rocm/runtime/rocm_common.h"
 #endif
 
 namespace tvm {
