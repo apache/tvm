@@ -57,5 +57,20 @@ def test_canonicalize_shape_expr_unblocks_vm_shape_lower():
     assert any("compute_symbolic_expr" in gv.name_hint for gv in mod.get_global_vars())
 
 
+@I.ir_module
+class ParamCompoundShape:
+    @R.function
+    def main(x: R.Tensor(("A", "B", "A + B"), "float32")) -> R.Tensor((1,), "float32"):
+        out: R.Tensor((1,), "float32") = R.zeros(R.shape([1]), dtype="float32")
+        return out
+
+
+def test_canonicalize_shape_expr_skips_parameter_struct_info():
+    mod = relax.transform.CanonicalizeShapeExpr()(ParamCompoundShape)
+    param_shape = mod["main"].params[0].struct_info.shape
+
+    assert any(not isinstance(dim, (tirx.IntImm, tirx.Var)) for dim in param_shape.values)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

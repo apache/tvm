@@ -44,7 +44,19 @@ class ShapeExprCanonicalizer : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
+  BindingBlock VisitBindingBlock(const BindingBlock& block) final {
+    bool prev = inside_binding_block_;
+    inside_binding_block_ = true;
+    BindingBlock ret = ExprMutator::VisitBindingBlock(block);
+    inside_binding_block_ = prev;
+    return ret;
+  }
+
   Expr VisitExpr_(const ShapeExprNode* op) final {
+    if (!inside_binding_block_) {
+      return ffi::GetRef<ShapeExpr>(op);
+    }
+  
     ffi::Array<PrimExpr> new_values;
     bool changed = false;
     for (const PrimExpr& dim : op->values) {
@@ -82,6 +94,7 @@ class ShapeExprCanonicalizer : public ExprMutator {
   }
 
   int symbol_counter_ = 0;
+  bool inside_binding_block_ = false;
   std::unordered_map<PrimExpr, tirx::Var, ffi::StructuralHash, ffi::StructuralEqual> expr_to_var_;
 };
 
