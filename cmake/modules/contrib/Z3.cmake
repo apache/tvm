@@ -18,8 +18,13 @@
 # src/arith/z3_prover.cc is always part of COMPILER_SRCS (picked up by the
 # src/arith/*.cc glob). It compiles a conservative stub by default and switches
 # to the real Z3 implementation only when the TVM_USE_Z3 macro is defined below.
-if(NOT USE_Z3)
+if(${USE_Z3} MATCHES ${IS_FALSE_PATTERN})
   return()
+endif()
+
+set(TVM_Z3_REQUIRED TRUE)
+if("${USE_Z3}" MATCHES "^[Aa][Uu][Tt][Oo]$")
+  set(TVM_Z3_REQUIRED FALSE)
 endif()
 
 # Default lookup: the PIC static Z3 library shipped by the PyPI `z3-static`
@@ -74,10 +79,14 @@ elseif(Z3_FOUND OR (Z3_INCLUDE_DIR AND Z3_LIBRARY))
   include_directories(SYSTEM ${Z3_INCLUDE_DIR})
   list(APPEND TVM_LINKER_LIBS ${Z3_LIBRARY})
 else()
-  message(FATAL_ERROR
-    "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
-    "package with `pip install z3-static`, or point Z3_DIR/CMAKE_PREFIX_PATH "
-    "at a Z3 installation.")
+  if(TVM_Z3_REQUIRED)
+    message(FATAL_ERROR
+      "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
+      "package with `pip install z3-static`, or point Z3_DIR/CMAKE_PREFIX_PATH "
+      "at a Z3 installation.")
+  endif()
+  message(STATUS "Build without Z3 SMT solver support")
+  return()
 endif()
 
 # Enable the real Z3 implementation inside the single src/arith/z3_prover.cc file.
