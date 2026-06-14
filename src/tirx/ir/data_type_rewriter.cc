@@ -25,6 +25,7 @@
 #include "data_type_rewriter.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -232,7 +233,6 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   Call before = ffi::GetRef<Call>(op);
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
-  static const Op& builtin_pow_ = Op::Get("tirx.pow");
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
                                 << ", but get " << e->GetTypeKey();
   if (op->op.same_as(builtin::shift_right())) {
@@ -245,11 +245,14 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     return op->args[0] | op->args[1];
   } else if (op->op.same_as(builtin::bitwise_xor())) {
     return op->args[0] ^ op->args[1];
-  } else if (op->op.same_as(builtin_pow_)) {
+  }
+  static const Op& pow_op = Op::Get("tirx.pow");
+  static const Op& clz_op = Op::Get("tirx.clz");
+  if (op->op.same_as(pow_op)) {
     return pow(op->args[0], op->args[1]);
   } else if (op->op.same_as(builtin::if_then_else())) {
     return Call(op->dtype, op->op, {op->args[0], op->args[1], op->args[2]}, op->attrs, op->span);
-  } else if (op->op.same_as(Op::Get("tirx.clz"))) {
+  } else if (op->op.same_as(clz_op)) {
     DataType before_dtype = before->args[0]->dtype;
     DataType after_dtype = op->args[0]->dtype;
     TVM_FFI_ICHECK((before_dtype.is_int() || before_dtype.is_uint()) &&

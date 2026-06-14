@@ -22,16 +22,9 @@
 # code refers to the same ops.
 from .ops import *
 
-# Dispatch infrastructure + per-target schedule registrations.
+# Dispatch infrastructure. Per-backend schedule registrations are loaded via
+# ``tvm.backend.load(<name>)``.
 from .dispatcher import fail, list_registered_schedules, predicate, register_dispatch
 from .registry import DispatchContext
-from .cuda.copy import *
-from .cuda.reduction import *
-from .cuda.copy_async import *
-from .cuda.permute_layout import *
-from .cuda.gemm import *
-from .cuda.gemm_async import *
-from .cuda.elementwise import *
-from .trn import *
 
 __all__ = ["DispatchContext", "fail", "list_registered_schedules", "predicate", "register_dispatch"]

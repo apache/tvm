@@ -19,7 +19,7 @@ if(USE_METAL)
   message(STATUS "Build metal device runtime")
   find_library(METAL_LIB Metal)
   find_library(FOUNDATION_LIB Foundation)
-  tvm_file_glob(GLOB RUNTIME_METAL_SRCS src/runtime/metal/*.mm)
+  tvm_file_glob(GLOB RUNTIME_METAL_SRCS src/backend/metal/runtime/*.mm)
 
   add_library(tvm_runtime_metal_objs OBJECT ${RUNTIME_METAL_SRCS})
   target_link_libraries(tvm_runtime_metal_objs PUBLIC tvm_ffi_header)
@@ -33,5 +33,5 @@ if(USE_METAL)
   tvm_configure_target_library(tvm_runtime_metal RUNTIME_MODULE)
 endif(USE_METAL)
 # When USE_METAL=OFF the codegen-side fallback in
-# src/target/metal/metal_fallback_module.cc handles construction; no opt
+# src/backend/metal/codegen/metal_fallback_module.cc handles construction; no opt
 # stub is needed (it is always compiled via CODEGEN_SRCS in CMakeLists.txt).

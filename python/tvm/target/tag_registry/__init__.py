@@ -21,13 +21,9 @@ Importing this package registers all Python-defined target tags.
 """
 
 from . import registry
-from . import cuda
 from . import arm_cpu
 from . import riscv_cpu
 from . import aws_cpu
-from . import metal
-from . import hexagon
-from . import adreno
 
 # Validate all tags at import time
 registry.list_tags()

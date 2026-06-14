@@ -86,7 +86,7 @@ def test_simple_activation_reduce():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -128,7 +128,7 @@ def test_activation_reduce_in_loop():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -170,7 +170,7 @@ def test_activation_reduce_in_loop2():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -218,7 +218,7 @@ def test_activation_reduce_two_stage():
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -401,7 +401,7 @@ def test_tensor_scalar_reduce_two_stage():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": tensor_scalar_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -601,7 +601,7 @@ def test_unary_reduce_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -690,7 +690,7 @@ def test_activation_reduce_two_stage_workspace():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 

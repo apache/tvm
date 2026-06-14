@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
@@ -224,10 +225,12 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   bool HasSideEffect(const PrimExpr& value) {
     if (ignore_profiler_call_) {
       if (const CallNode* call = value.as<CallNode>()) {
-        if (call->op.same_as(builtin::timer_init_cuda()) ||
-            call->op.same_as(builtin::timer_start_cuda()) ||
-            call->op.same_as(builtin::timer_end_cuda()) ||
-            call->op.same_as(builtin::timer_finalize_cuda())) {
+        static const Op& timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
+        static const Op& timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
+        static const Op& timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
+        static const Op& timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
+        if (call->op.same_as(timer_init_cuda_op) || call->op.same_as(timer_start_cuda_op) ||
+            call->op.same_as(timer_end_cuda_op) || call->op.same_as(timer_finalize_cuda_op)) {
           return false;
         }
       }

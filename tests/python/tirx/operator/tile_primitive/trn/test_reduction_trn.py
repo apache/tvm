@@ -188,7 +188,7 @@ def test_reduction_two_stage():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
@@ -234,7 +234,7 @@ def test_reduction_with_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
