@@ -3834,7 +3834,7 @@ class LayerNormalization(OnnxOpConverter):
         gamma_shape = get_const_tuple(scale.struct_info.shape)
 
         if bias is None:
-            bias = relax.const(_np.zeros(gamma_shape, dtype=scale.struct_info.dtype))
+            bias = relax.const(_np.zeros(gamma_shape), dtype=scale.struct_info.dtype)
         else:
             beta_shape = get_const_tuple(bias.struct_info.shape)
             if gamma_shape != beta_shape:
