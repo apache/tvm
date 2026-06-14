@@ -749,7 +749,7 @@ def CanonicalizeShapeExpr() -> tvm.ir.transform.Pass:
     This pass transforms compound PrimExpr (e.g., n+1, 4*n*m) by:
     1. Creating a fresh tir::Var for each compound expression
     2. Emitting a MatchCast that binds the fresh var to a PrimValue computing the expression
-    3. Replacing the compound expression in ShapeExpr with teh fresh var
+    3. Replacing the compound expression in ShapeExpr with the fresh var
 
     Example transformation:
         Before: y = R.zeros(R.shape([n + 1]), dtype="float32")

@@ -16,16 +16,17 @@
 # under the License.
 
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 @I.ir_module
 class Before:
     @R.function
     def main(x: R.Tensor(("x_0", "x_1", "x_2", "x_3"), "float32")):
+        R.func_attr({"relax.force_pure": True})
         x_0, x_1, x_2, x_3 = T.int64(), T.int64(), T.int64(), T.int64()
         out: R.Tensor((T.int64(4) * (x_0 * x_1 * x_2 * x_3),), "float32") = R.zeros(
             R.shape([T.int64(4) * (x_0 * x_1 * x_2 * x_3)]), dtype="float32"
@@ -40,7 +41,7 @@ def test_canonicalize_shape_expr_removes_composite_dims():
     def _visit(expr):
         if isinstance(expr, relax.ShapeExpr):
             for dim in expr.values:
-                if not isinstance(dim, tir.IntImm | tir.Var):
+                if not isinstance(dim, (tirx.IntImm, tirx.Var)):
                     composite_dims.append(dim)
 
     relax.analysis.post_order_visit(mod["main"], _visit)
@@ -54,6 +55,25 @@ def test_canonicalize_shape_expr_unblocks_vm_shape_lower():
     mod = relax.transform.VMShapeLower()(mod)
 
     assert any("compute_symbolic_expr" in gv.name_hint for gv in mod.get_global_vars())
+
+
+@I.ir_module
+class ParamCompound:
+    @R.function
+    def main(x: R.Tensor(("A", "B", "A + B"), "float32")) -> R.Tensor((1,), "float32"):
+        out: R.Tensor((1,), "float32") = R.zeros(R.shape([1]), dtype="float32")
+        return out
+
+def test_canonicalize_shape_expr_parameter_compound_shape():
+    mod = relax.transform.CanonicalizeShapeExpr()(ParamCompound)
+    func = mod["main"]
+
+    param_shape = func.params[0].struct_info.shape
+    for dim in param_shape.values:
+        assert isinstance(dim, (tirx.IntImm, tirx.Var))
+
+    first_block = func.body.blocks[0]
+    assert any(isinstance(b, relax.MatchCast) for b in first_block.bindings)
 
 
 if __name__ == "__main__":
