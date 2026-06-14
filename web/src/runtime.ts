@@ -1323,6 +1323,16 @@ export class Instance implements Disposable {
     artifactCache: ArtifactCacheTemplate,
     signal?: AbortSignal,
   ) {
+    const maxChunkBytes = 128 * 1024 * 1024;
+    const storageBytes = (dtype: string) => {
+      const match = dtype.match(/(\d+)(?:x(\d+))?$/);
+      if (match === null) {
+        throw new Error("Cannot determine storage width of dtype " + dtype);
+      }
+      const bits = Number(match[1]);
+      const lanes = match[2] === undefined ? 1 : Number(match[2]);
+      return (bits * lanes + 7) >> 3;
+    };
     const perf = compact.getPerformance();
     const tstart = perf.now();
     let totalBytes = 0;
@@ -1421,9 +1431,59 @@ export class Instance implements Disposable {
               this.empty(rec.shape, rec.dtype, this.cpu())
             )
           });
-          const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          const shardBytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+          const recSource =
+            rec.byteOffset === 0 && rec.nbytes === shardBytes.byteLength
+              ? shardBytes
+              : shardBytes.subarray(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          const canChunkRecord =
+            rec.nbytes > maxChunkBytes &&
+            rec.shape.length >= 1 &&
+            Number.isInteger(rec.shape[0]) &&
+            rec.shape[0] > 0 &&
+            rec.nbytes % rec.shape[0] === 0;
+          const outerDim = canChunkRecord ? rec.shape[0] : 1;
+          const sourceStrideBytes = canChunkRecord ? rec.nbytes / outerDim : rec.nbytes;
+          const targetBytes = rec.shape.reduce((acc, value) => acc * value, 1) *
+            storageBytes(rec.dtype);
+          const targetStrideBytes = canChunkRecord ? targetBytes / outerDim : targetBytes;
+          const copyRecordToTensor = (targetTensor: Tensor, sourceBytes: Uint8Array) => {
+            if (!canChunkRecord) {
+              this.ctx.arrayDecodeStorage(targetTensor, sourceBytes, rec.format, rec.dtype);
+              return;
+            }
+            const chunkOuterDim = Math.max(1, Math.floor(maxChunkBytes / sourceStrideBytes));
+            for (let outerOffset = 0; outerOffset < outerDim; outerOffset += chunkOuterDim) {
+              const outerCount = Math.min(chunkOuterDim, outerDim - outerOffset);
+              const sourceByteOffset = outerOffset * sourceStrideBytes;
+              const targetByteOffset = outerOffset * targetStrideBytes;
+              const chunkBytes = outerCount * sourceStrideBytes;
+              const chunkShape = rec.shape.slice();
+              chunkShape[0] = outerCount;
+              const chunkShapeTuple = this.makeShapeTuple(chunkShape);
+              const chunkView = this.withNewScope(() => {
+                return this.detachFromCurrentScope(
+                  this.ctx.tensorCreateView(
+                    targetTensor,
+                    chunkShapeTuple,
+                    rec.dtype,
+                    new Scalar(targetByteOffset, "int"),
+                  )
+                );
+              });
+              const chunkSource = sourceBytes.subarray(
+                sourceByteOffset,
+                sourceByteOffset + chunkBytes,
+              );
+              try {
+                this.ctx.arrayDecodeStorage(chunkView, chunkSource, rec.format, rec.dtype);
+              } finally {
+                chunkView.dispose();
+              }
+            }
+          };
           // first sync copy to cpu.
-          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          copyRecordToTensor(cpu_arr, recSource);
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
             this.tensorCacheUpdate(rec.name, cpu_arr, false);
@@ -1435,7 +1495,44 @@ export class Instance implements Disposable {
                 this.empty(rec.shape, rec.dtype, device)
               )
             });
-            gpu_arr.copyFrom(cpu_arr);
+            if (!canChunkRecord) {
+              gpu_arr.copyFrom(cpu_arr);
+            } else {
+              const chunkOuterDim = Math.max(1, Math.floor(maxChunkBytes / sourceStrideBytes));
+              for (let outerOffset = 0; outerOffset < outerDim; outerOffset += chunkOuterDim) {
+                const outerCount = Math.min(chunkOuterDim, outerDim - outerOffset);
+                const targetByteOffset = outerOffset * targetStrideBytes;
+                const chunkShape = rec.shape.slice();
+                chunkShape[0] = outerCount;
+                const chunkShapeTuple = this.makeShapeTuple(chunkShape);
+                const [cpuView, gpuView] = this.withNewScope(() => {
+                  return [
+                    this.detachFromCurrentScope(
+                      this.ctx.tensorCreateView(
+                        cpu_arr,
+                        chunkShapeTuple,
+                        rec.dtype,
+                        new Scalar(targetByteOffset, "int"),
+                      )
+                    ),
+                    this.detachFromCurrentScope(
+                      this.ctx.tensorCreateView(
+                        gpu_arr,
+                        chunkShapeTuple,
+                        rec.dtype,
+                        new Scalar(targetByteOffset, "int"),
+                      )
+                    ),
+                  ];
+                });
+                try {
+                  gpuView.copyFrom(cpuView);
+                } finally {
+                  cpuView.dispose();
+                  gpuView.dispose();
+                }
+              }
+            }
             await device.sync();
             this.tensorCacheUpdate(rec.name, gpu_arr, false);
             cpu_arr.dispose();
@@ -2257,6 +2354,25 @@ export class Instance implements Disposable {
         return this.memory.loadF64(valuePtr);
       case TypeIndex.kTVMFFIOpaquePtr: {
         return this.memory.loadPointer(valuePtr);
+      }
+      case TypeIndex.kTVMFFIShape: {
+        const shapeObjPtr = this.memory.loadPointer(valuePtr);
+        if (callbackArg) {
+          const shapeCellPtr = shapeObjPtr + SizeOf.ObjectHeader;
+          const shapeDataPtr = this.memory.loadPointer(shapeCellPtr);
+          const shapeLen = this.memory.loadUSize(shapeCellPtr + this.memory.sizeofPtr());
+          const result = new Array<number>(shapeLen);
+          for (let i = 0; i < shapeLen; ++i) {
+            result[i] = this.memory.loadI64(shapeDataPtr + i * SizeOf.I64);
+          }
+          this.lib.checkCall(
+            (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(shapeObjPtr)
+          );
+          return result;
+        }
+        return this.ctx.attachToCurrentScope(
+          new TVMObject(shapeObjPtr, this.lib, this.ctx)
+        );
       }
       case TypeIndex.kTVMFFITensor: {
         return this.ctx.attachToCurrentScope(
