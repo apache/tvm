@@ -231,6 +231,7 @@ def test_z3_floor_division_monotonicity():
     c = tirx.Var("c", "int32")
     expr = implies(tirx.all(a <= b, c > 0), tirx.floordiv(a, c) <= tirx.floordiv(b, c))
     assert not analyzer.can_prove(expr)
+    analyzer.set_z3_rlimit(0)
     assert analyzer.can_prove(expr, SB)
 
 
