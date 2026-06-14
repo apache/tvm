@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/vm/cuda_graph_builtin.cc
+ * \file src/runtime/vm/cuda/cuda_graph_builtin.cc
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
@@ -28,8 +28,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include "../../../../support/utils.h"
-#include "../cuda_common.h"
+#include "../../../backend/cuda/runtime/cuda_common.h"
+#include "../../../support/utils.h"
 namespace tvm {
 namespace runtime {
 namespace vm {
