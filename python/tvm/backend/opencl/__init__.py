@@ -17,8 +17,24 @@
 """OpenCL-owned backend hooks."""
 
 
+def _detect_target_from_device(dev):
+    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+
+    return Target(
+        {
+            "kind": "opencl",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+        }
+    )
+
+
 def register_backend():
     """Register OpenCL-owned Python semantics."""
+    from tvm.target.detect_target import register_device_target_detector
+
+    register_device_target_detector("opencl", _detect_target_from_device)
     return None
 
 
