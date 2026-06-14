@@ -205,7 +205,18 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
       num_trials_already += num_candidates;
       TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to builder";
       SendToBuilder(task, builder);
-      TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to runner";
+      int n_build_errs = 0;
+      const ffi::Array<BuilderResult>& builder_results = task->builder_results.value();
+      for (int i = 0; i < num_candidates; i++) {
+        if (builder_results[i]->error_msg.has_value())
+          ++n_build_errs;
+      }
+      if (n_build_errs > 0) {
+        TVM_PY_LOG(INFO, this->logger) << "Build errors: " << n_build_errs << " sample(s)";
+      }
+      TVM_PY_LOG(INFO, this->logger) << "Sending "
+                                     << num_candidates - n_build_errs
+                                     << " valid sample(s) to runner";
       SendToRunner(task, runner);
     } else {
       TerminateTask(task_id);
