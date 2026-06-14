@@ -129,6 +129,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
  private:
+  using StmtExprVisitor::VisitBufferDef;
+
   struct BufferAccessInfo {
     /*! \brief The buffer. */
     Buffer buffer;
