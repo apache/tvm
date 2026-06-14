@@ -154,15 +154,6 @@ TVM_DLL Pass MakePackedAPI();
 TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
- * \brief Lower custom datatypes.
- *
- * See tvm::datatypes::Registry for more information on adding custom datatypes.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerCustomDatatypes();
-
-/*!
  * \brief Annotate, split, and lower host/device functions.
  *
  * This pass first annotates device regions within host functions,

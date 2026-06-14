@@ -245,19 +245,6 @@ def ConvertSSA():
     return _ffi_api.ConvertSSA()  # type: ignore
 
 
-def LowerCustomDatatypes():
-    """Lower custom datatypes.
-
-    See tvm::datatypes::Registry for more information on adding custom datatypes.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerCustomDatatypes()  # type: ignore
-
-
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 

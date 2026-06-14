@@ -103,7 +103,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     host_pass_list = [
         tirx.transform.LowerTVMBuiltin(),
-        tirx.transform.LowerCustomDatatypes(),
         tirx.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
@@ -114,7 +113,6 @@ def finalize_device_passes():  # pylint: disable=unused-argument
     device_pass_list = [
         tirx.transform.LowerWarpMemory(),
         tirx.transform.StmtSimplify(),
-        tirx.transform.LowerCustomDatatypes(),
         tirx.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(device_pass_list)

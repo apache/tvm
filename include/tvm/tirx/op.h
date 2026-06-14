@@ -998,13 +998,6 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
   }
   if (t.is_float() || t.is_bfloat16() || t.is_float8() || t.is_float6() || t.is_float4())
     return FloatImm(t, static_cast<double>(value), span);
-  // For now, we store const scalar values of custom datatypes within doubles; later, during the
-  // datatypes lowering pass, we will lower the value to its true representation in the format
-  // specified by the datatype.
-  // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
-    return FloatImm(t, static_cast<double>(value), span);
-  }
   TVM_FFI_THROW(InternalError) << "cannot make const for type " << t;
   throw;
 }
