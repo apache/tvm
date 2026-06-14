@@ -24,6 +24,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -32,14 +33,14 @@
 
 #include <cstring>
 
-#include "cuda_common.h"
+#include "../../../runtime/workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
 
 class CUDADeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(Device dev) final { CUDA_CALL(cudaSetDevice(dev.device_id)); }
+  void SetDevice(Device dev) final { TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id)); }
   void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
     int value = 0;
     switch (kind) {
@@ -50,47 +51,61 @@ class CUDADeviceAPI final : public DeviceAPI {
         break;
       }
       case kMaxThreadsPerBlock: {
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
         break;
       }
       case kWarpSize: {
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
         break;
       }
       case kMaxSharedMemoryPerBlock: {
-        CUDA_CALL(
+        TVM_FFI_CHECK_CUDA_ERROR(
             cudaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
         break;
       }
       case kComputeVersion: {
         std::ostringstream os;
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
         os << value << ".";
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
         os << value;
         *rv = os.str();
         return;
       }
       case kDeviceName: {
         std::string name(256, 0);
-        CUDA_DRIVER_CALL(cuDeviceGetName(&name[0], name.size(), dev.device_id));
+        CUresult result = cuDeviceGetName(&name[0], name.size(), dev.device_id);
+        if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) {
+          const char* msg;
+          cuGetErrorName(result, &msg);
+          TVM_FFI_THROW(CUDAError) << "cuDeviceGetName failed with error: " << msg;
+        }
         name.resize(strlen(name.c_str()));
         *rv = std::move(name);
         return;
       }
       case kMaxClockRate: {
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
         break;
       }
       case kMultiProcessorCount: {
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
         break;
       }
       case kMaxThreadDimensions: {
         int dims[3];
-        CUDA_CALL(cudaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
-        CUDA_CALL(cudaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
-        CUDA_CALL(cudaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
 
         std::stringstream ss;  // use json string to return multiple int values;
         ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
@@ -98,7 +113,8 @@ class CUDADeviceAPI final : public DeviceAPI {
         return;
       }
       case kMaxRegistersPerBlock: {
-        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
         break;
       }
       case kGcnArch:
@@ -112,20 +128,21 @@ class CUDADeviceAPI final : public DeviceAPI {
       case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size = 0;
-        CUDA_CALL(cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(
+            cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
         *rv = l2_size;
         return;
       }
       case kTotalGlobalMemory: {
         cudaDeviceProp prop;
-        CUDA_CALL(cudaGetDeviceProperties(&prop, dev.device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaGetDeviceProperties(&prop, dev.device_id));
         int64_t total_global_memory = prop.totalGlobalMem;
         *rv = total_global_memory;
         return;
       }
       case kAvailableGlobalMemory: {
         size_t free_mem, total_mem;
-        CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaMemGetInfo(&free_mem, &total_mem));
         *rv = static_cast<int64_t>(free_mem);
         return;
       }
@@ -139,14 +156,14 @@ class CUDADeviceAPI final : public DeviceAPI {
     void* ret;
     if (dev.device_type == kDLCUDAHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
-      CUDA_CALL(cudaMallocHost(&ret, nbytes));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMallocHost(&ret, nbytes));
     } else {
-      CUDA_CALL(cudaSetDevice(dev.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
       size_t free_mem, total_mem;
-      CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMemGetInfo(&free_mem, &total_mem));
       VLOG(1) << "allocating " << nbytes << " bytes on device, with " << free_mem
               << " bytes currently free out of " << total_mem << " bytes available";
-      CUDA_CALL(cudaMalloc(&ret, nbytes));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&ret, nbytes));
     }
     return ret;
   }
@@ -172,11 +189,11 @@ class CUDADeviceAPI final : public DeviceAPI {
 
     if (dev.device_type == kDLCUDAHost) {
       VLOG(1) << "freeing host memory";
-      CUDA_CALL(cudaFreeHost(ptr));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaFreeHost(ptr));
     } else {
-      CUDA_CALL(cudaSetDevice(dev.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
       VLOG(1) << "freeing device memory";
-      CUDA_CALL(cudaFree(ptr));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaFree(ptr));
     }
   }
 
@@ -203,17 +220,17 @@ class CUDADeviceAPI final : public DeviceAPI {
     }
 
     if (dev_from.device_type == kDLCUDA && dev_to.device_type == kDLCUDA) {
-      CUDA_CALL(cudaSetDevice(dev_from.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev_from.device_id));
       if (dev_from.device_id == dev_to.device_id) {
         GPUCopy(from, to, size, cudaMemcpyDeviceToDevice, cu_stream);
       } else {
         cudaMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, cu_stream);
       }
     } else if (dev_from.device_type == kDLCUDA && dev_to.device_type == kDLCPU) {
-      CUDA_CALL(cudaSetDevice(dev_from.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev_from.device_id));
       GPUCopy(from, to, size, cudaMemcpyDeviceToHost, cu_stream);
     } else if (dev_from.device_type == kDLCPU && dev_to.device_type == kDLCUDA) {
-      CUDA_CALL(cudaSetDevice(dev_to.device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev_to.device_id));
       GPUCopy(from, to, size, cudaMemcpyHostToDevice, cu_stream);
     } else {
       TVM_FFI_THROW(InternalError) << "expect copy from/to GPU or between GPU";
@@ -222,40 +239,40 @@ class CUDADeviceAPI final : public DeviceAPI {
 
  public:
   TVMStreamHandle CreateStream(Device dev) {
-    CUDA_CALL(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
     cudaStream_t retval;
-    CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
     return static_cast<TVMStreamHandle>(retval);
   }
 
   void FreeStream(Device dev, TVMStreamHandle stream) {
-    CUDA_CALL(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
-    CUDA_CALL(cudaStreamDestroy(cu_stream));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamDestroy(cu_stream));
   }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-    CUDA_CALL(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
     cudaStream_t src_stream = static_cast<cudaStream_t>(event_src);
     cudaStream_t dst_stream = static_cast<cudaStream_t>(event_dst);
     cudaEvent_t evt;
-    CUDA_CALL(cudaEventCreate(&evt));
-    CUDA_CALL(cudaEventRecord(evt, src_stream));
-    CUDA_CALL(cudaStreamWaitEvent(dst_stream, evt, 0));
-    CUDA_CALL(cudaEventDestroy(evt));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&evt));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventRecord(evt, src_stream));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamWaitEvent(dst_stream, evt, 0));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventDestroy(evt));
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final {
-    CUDA_CALL(cudaSetDevice(dev.device_id));
-    CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
-    return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
+    return ThreadLocalWorkspacePool()->AllocWorkspace(dev, size);
   }
 
   void FreeWorkspace(Device dev, void* data) final {
-    CUDAThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
+    ThreadLocalWorkspacePool()->FreeWorkspace(dev, data);
   }
 
   bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
@@ -268,17 +285,17 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
  private:
+  static WorkspacePool* ThreadLocalWorkspacePool();
+
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
-    CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
 
-CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
-
-CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
-  static thread_local CUDAThreadEntry inst;
-  return &inst;
+WorkspacePool* CUDADeviceAPI::ThreadLocalWorkspacePool() {
+  static thread_local WorkspacePool pool(kDLCUDA, CUDADeviceAPI::Global());
+  return &pool;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -301,28 +318,28 @@ class CUDATimerNode : public TimerNode {
     // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
     // cudaEventRecord do some stream synchronization?
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     stream_ = TVMFFIEnvGetStream(kDLCUDA, device_id);
-    CUDA_CALL(cudaEventRecord(start_, static_cast<cudaStream_t>(stream_)));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventRecord(start_, static_cast<cudaStream_t>(stream_)));
   }
   virtual void Stop() {
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
-    CUDA_CALL(cudaEventRecord(stop_, static_cast<cudaStream_t>(stream_)));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventRecord(stop_, static_cast<cudaStream_t>(stream_)));
   }
   virtual int64_t SyncAndGetElapsedNanos() {
-    CUDA_CALL(cudaEventSynchronize(stop_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventSynchronize(stop_));
     float milliseconds = 0;
-    CUDA_CALL(cudaEventElapsedTime(&milliseconds, start_, stop_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
   virtual ~CUDATimerNode() {
-    CUDA_CALL(cudaEventDestroy(start_));
-    CUDA_CALL(cudaEventDestroy(stop_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventDestroy(start_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventDestroy(stop_));
   }
   CUDATimerNode() {
-    CUDA_CALL(cudaEventCreate(&start_));
-    CUDA_CALL(cudaEventCreate(&stop_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&start_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&stop_));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerNode, TimerNode);
 
@@ -340,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_RUNTIME_DLL ffi::String GetCudaFreeMemory() {
   size_t free_mem, total_mem;
-  CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaMemGetInfo(&free_mem, &total_mem));
   std::stringstream ss;
   ss << "Current CUDA memory is " << free_mem << " bytes free out of " << total_mem
      << " bytes on device";
@@ -355,14 +372,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         // TODO(tvm-team): remove once confirms all dep such as flashinfer
         // migrated to TVMFFIEnvGetStream
         int device_id;
-        CUDA_CALL(cudaGetDevice(&device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
         return static_cast<void*>(TVMFFIEnvGetStream(kDLCUDA, device_id));
       });
 }
 
 TVM_RUNTIME_DLL int GetCudaDeviceCount() {
   int count;
-  CUDA_CALL(cudaGetDeviceCount(&count));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDeviceCount(&count));
   return count;
 }
 

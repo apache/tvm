@@ -35,8 +35,7 @@
 #endif
 #if TVM_NCCL_RCCL_SWITCH == 0
 #include <nccl.h>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
+#include <tvm/ffi/extra/cuda/base.h>
 #else
 #include <rccl/rccl.h>
 
@@ -62,10 +61,16 @@ namespace nccl {
 
 using deviceStream_t = cudaStream_t;
 const constexpr DLDeviceType TVM_DISCO_DEVICE_TYPE = DLDeviceType::kDLCUDA;
-inline void SetDevice(int device_id) { CUDA_CALL(cudaSetDevice(device_id)); }
-inline void StreamSynchronize(deviceStream_t stream) { CUDA_CALL(cudaStreamSynchronize(stream)); }
-inline void StreamCreate(deviceStream_t* stream) { CUDA_CALL(cudaStreamCreate(stream)); }
-inline void StreamDestroy(deviceStream_t stream) { CUDA_CALL(cudaStreamDestroy(stream)); }
+inline void SetDevice(int device_id) { TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(device_id)); }
+inline void StreamSynchronize(deviceStream_t stream) {
+  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamSynchronize(stream));
+}
+inline void StreamCreate(deviceStream_t* stream) {
+  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreate(stream));
+}
+inline void StreamDestroy(deviceStream_t stream) {
+  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamDestroy(stream));
+}
 
 #else
 

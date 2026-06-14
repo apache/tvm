@@ -20,13 +20,12 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -66,7 +65,7 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
   nvshmemx_set_attr_uniqueid_args(worker_id, num_workers, &uid, &attr);
   nvshmemx_init_attr(NVSHMEMX_INIT_WITH_UNIQUEID, &attr);
   int mype_node = nvshmem_team_my_pe(NVSHMEMX_TEAM_NODE);
-  CUDA_CALL(cudaSetDevice(mype_node));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(mype_node));
   if (worker != nullptr) {
     if (worker->default_device.device_type == DLDeviceType::kDLCPU) {
       worker->default_device = Device{DLDeviceType::kDLCUDA, mype_node};
@@ -153,7 +152,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.nvshmem.cumodule_init", NVSHMEMXCumoduleInit)
       .def("runtime.disco.nvshmem.barrier_all_on_current_stream", []() {
         int device_id;
-        CUDA_CALL(cudaGetDevice(&device_id));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
         TVMStreamHandle stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
         NVSHMEMBarrierAllOnStream(stream);
       });

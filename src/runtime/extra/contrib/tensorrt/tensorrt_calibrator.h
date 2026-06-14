@@ -23,10 +23,11 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_CALIBRATOR_H_
 
+#include <tvm/ffi/extra/cuda/base.h>
+
 #include <string>
 #include <vector>
 
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "NvInfer.h"
 
 namespace tvm {
@@ -46,7 +47,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     }
     // Free buffers
     for (size_t i = 0; i < buffers_.size(); ++i) {
-      CUDA_CALL(cudaFree(buffers_[i]));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaFree(buffers_[i]));
     }
   }
 
@@ -55,8 +56,9 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     std::vector<float*> data_host(bindings.size(), nullptr);
     for (size_t i = 0; i < bindings.size(); ++i) {
       data_host[i] = new float[batch_size_ * binding_sizes[i]];
-      CUDA_CALL(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
-                           batch_size_ * binding_sizes[i] * sizeof(float), cudaMemcpyDeviceToHost));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpy(static_cast<void*>(data_host[i]), bindings[i],
+                                          batch_size_ * binding_sizes[i] * sizeof(float),
+                                          cudaMemcpyDeviceToHost));
     }
     data_.push_back(data_host);
     data_sizes_.push_back(binding_sizes);
@@ -73,9 +75,10 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     TVM_FFI_ICHECK_EQ(input_names_.size(), nbBindings);
     for (size_t i = 0; i < input_names_.size(); ++i) {
       TVM_FFI_ICHECK_EQ(input_names_[i], names[i]);
-      CUDA_CALL(cudaMemcpy(buffers_[i], data_[num_batches_calibrated_][i],
-                           batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
-                           cudaMemcpyHostToDevice));
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaMemcpy(buffers_[i], data_[num_batches_calibrated_][i],
+                     batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
+                     cudaMemcpyHostToDevice));
       bindings[i] = buffers_[i];
     }
     num_batches_calibrated_++;
@@ -120,7 +123,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     const int num_inputs = data_sizes_[0].size();
     buffers_.assign(num_inputs, nullptr);
     for (int i = 0; i < num_inputs; ++i) {
-      CUDA_CALL(cudaMalloc(&buffers_[i], data_sizes_[0][i] * sizeof(float)));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&buffers_[i], data_sizes_[0][i] * sizeof(float)));
     }
   }
 };
