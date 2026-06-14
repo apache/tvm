@@ -31,9 +31,9 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx import IntImm, Var
+from tvm.tirx.cuda.operator.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.cuda.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tirx/builtin.h>
@@ -311,7 +312,7 @@ void ComposeOpFrameNode::ExitWithScope() {
                             << stmt;
     ops.push_back(ffi::GetRef<tvm::tirx::TilePrimitiveCall>(op_call));
   }
-  auto compose_op_op = tvm::Op::Get("tirx.tile.compose_op");
+  static const Op& compose_op_op = Op::Get("tirx.tile.compose_op");
   AddToParent(tvm::tirx::TilePrimitiveCall(compose_op_op, ops, workspace, config, dispatch));
 }
 

@@ -44,9 +44,9 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   add_definitions(-DTVM_LLVM_HAS_AARCH64_TARGET=${TVM_LLVM_HAS_AARCH64_TARGET})
   tvm_file_glob(GLOB COMPILER_LLVM_SRCS
     src/target/llvm/*.cc
-    src/target/cuda/llvm/*.cc
-    src/target/rocm/llvm/*.cc
-    src/target/hexagon/llvm/*.cc
+    src/backend/cuda/codegen/llvm/*.cc
+    src/backend/rocm/codegen/llvm/*.cc
+    src/backend/hexagon/codegen/llvm/*.cc
   )
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})

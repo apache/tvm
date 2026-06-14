@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/builtin.h>
@@ -73,7 +74,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (Op::HasAttrMap(pattern)) {
         attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
         if (fma_ == nullptr) {
-          fma_ = (*attr_maps_.rbegin()).get(Op::Get("tirx.fma"), nullptr);
+          static const Op& fma_op = Op::Get("tirx.fma");
+          fma_ = (*attr_maps_.rbegin()).get(fma_op, nullptr);
         }
       }
   }

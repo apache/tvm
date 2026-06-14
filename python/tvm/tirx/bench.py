@@ -613,7 +613,7 @@ class CudaProfiler:
     @T.inline
     def init(self, group_id: tvm.tirx.PrimExpr):
         if self.profiler_enabled:
-            T.timer_init_cuda(
+            T.cuda.timer_init(
                 self.buffer.data,
                 self.profiler_tag.data,
                 self.profiler_write_offset.data,
@@ -624,7 +624,7 @@ class CudaProfiler:
     @T.inline
     def start(self, event_type: Enum, leader: None | tvm.tirx.PrimExpr | bool = None):
         if self.profiler_enabled:
-            T.timer_start_cuda(
+            T.cuda.timer_start(
                 event_type,
                 self.buffer.data,
                 self.profiler_tag.data,
@@ -636,7 +636,7 @@ class CudaProfiler:
     @T.inline
     def end(self, event_type: Enum, leader: None | tvm.tirx.PrimExpr | bool = None):
         if self.profiler_enabled:
-            T.timer_end_cuda(
+            T.cuda.timer_end(
                 event_type,
                 self.buffer.data,
                 self.profiler_tag.data,
@@ -648,7 +648,7 @@ class CudaProfiler:
     @T.inline
     def finalize(self, leader: None | tvm.tirx.PrimExpr | bool = None):
         if self.profiler_enabled:
-            T.timer_finalize_cuda(
+            T.cuda.timer_finalize(
                 self.buffer.data,
                 self.profiler_tag.data,
                 self.profiler_write_offset.data,

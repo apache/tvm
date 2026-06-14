@@ -1,0 +1,187 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file intrin_rule_metal.cc
+ * \brief Metal intrinsic rules.
+ */
+#include <tvm/tirx/op_attr_types.h>
+
+#include "../../../target/intrin_rule.h"
+
+namespace tvm {
+namespace codegen {
+namespace intrin {
+using tirx::FLowerIntrinsic;
+
+struct MetalWarpIntrinsic {
+  const Op operator()(DataType t, const Op& orig_op) const {
+    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+      static const Op& metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
+      return metal_simd_shuffle_op;
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+      static const Op& metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
+      return metal_simd_shuffle_up_op;
+    } else {
+      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      static const Op& metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
+      return metal_simd_shuffle_down_op;
+    }
+  }
+};
+
+template <typename T>
+static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
+  const CallNode* call = e.as<CallNode>();
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  ffi::Array<PrimExpr> metal_args{{call->args[1], call->args[2]}};
+  return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), metal_args);
+}
+
+void RegisterMetalIntrinRules() {
+  // clang-format off
+TVM_REGISTER_OP("tirx.clz")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.floor")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.ceil")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.trunc")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.fabs")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.round")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      // Metal's rint() uses ties-to-even, matching constant-folding semantics.
+      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      TVM_FFI_ICHECK(call != nullptr);
+      ffi::Array<PrimExpr> new_args = {tirx::StringImm("rint")};
+      for (auto arg : call->args) {
+        new_args.push_back(arg);
+      }
+      return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
+    });
+
+TVM_REGISTER_OP("tirx.nearbyint")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.exp")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.exp2")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.exp10")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.log")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.log2")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.log10")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.tanh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericalStableTanh);
+
+TVM_REGISTER_OP("tirx.sqrt")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.pow")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.popcount")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.fmod")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sin")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.sinh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.cos")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.cosh")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchFastErf);
+
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle_up")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+
+TVM_REGISTER_OP("tirx.tvm_warp_shuffle_down")
+    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+
+// Register low-level Metal device intrinsics.
+TVM_REGISTER_OP("tirx.metal.simd_shuffle")
+    .set_num_inputs(2)
+    .add_argument("var", "Expr", "The variable to sync.")
+    .add_argument("lane", "Expr", "The source thread id.")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
+    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
+                                               10)
+    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"),
+                                        10)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+TVM_REGISTER_OP("tirx.metal.simd_shuffle_up")
+    .set_num_inputs(2)
+    .add_argument("var", "Expr", "The variable to sync.")
+    .add_argument("delta", "Expr", "The source lane id offset to be added.")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
+    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
+                                               10)
+    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+                                        ffi::String("metal.simd_shuffle_up"), 10)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+TVM_REGISTER_OP("tirx.metal.simd_shuffle_down")
+    .set_num_inputs(2)
+    .add_argument("var", "Expr", "The variable to sync.")
+    .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")
+    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
+    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
+                                               10)
+    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+                                        ffi::String("metal.simd_shuffle_down"), 10)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // clang-format on
+}
+
+}  // namespace intrin
+}  // namespace codegen
+}  // namespace tvm

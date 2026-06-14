@@ -29,6 +29,11 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as Tx_builder
 from tvm.tirx import Var
+from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
+    SwizzleMode,
+    mma_shared_layout,
+    tma_shared_layout,
+)
 from tvm.tirx.layout import (
     Axis,
     ComposeLayout,
@@ -47,11 +52,6 @@ from tvm.tirx.layout import (
     wg_local_layout,
     wgid,
     wid_in_wg,
-)
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
-    SwizzleMode,
-    mma_shared_layout,
-    tma_shared_layout,
 )
 
 
