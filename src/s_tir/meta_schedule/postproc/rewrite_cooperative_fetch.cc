@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -89,8 +90,6 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-  static auto q_multiply_shift_per_axis = Op::Get("tirx.q_multiply_shift_per_axis");
-  static auto q_multiply_shift = Op::Get("tirx.q_multiply_shift");
 
   tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
@@ -98,7 +97,9 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
     } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
       max_bytes = std::max(max_bytes, static_cast<size_t>(load->dtype.bytes()));
     } else if (const auto* call = obj.as<tirx::CallNode>()) {
-      if (call->op.same_as(q_multiply_shift_per_axis) || call->op.same_as(q_multiply_shift)) {
+      static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
+      static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
+      if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
         // q_multiply_shift uses 64 bit multiply
         max_bytes = std::max<size_t>(max_bytes, 8);
       }

@@ -32,12 +32,12 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.layout import S, TileLayout
 
 # Force the fallback dispatch to register before any test compiles a kernel.
 # Without this import, in fresh pytest workers the `copy/fallback` variant
 # isn't yet registered when the dispatcher snapshots its registry.
-from tvm.tirx.operator.tile_primitive.cuda.copy import fallback as _fallback_module  # noqa: F401
+from tvm.tirx.cuda.operator.tile_primitive.copy import fallback as _fallback_module  # noqa: F401
+from tvm.tirx.layout import S, TileLayout
 
 
 def _round_trip_shapes_and_threads():

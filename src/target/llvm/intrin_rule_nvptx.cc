@@ -23,6 +23,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/ffi/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -71,7 +72,7 @@ TVM_REGISTER_OP("tirx.round")
       using namespace tirx;
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto nearbyint_op = Op::Get("tirx.nearbyint");
+      static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
       auto new_call = Call(call->dtype, nearbyint_op, call->args);
       return DispatchPureExternLibDevice(new_call);
     });

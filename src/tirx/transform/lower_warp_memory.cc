@@ -30,6 +30,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -48,18 +49,6 @@
 
 namespace tvm {
 namespace tirx {
-
-namespace {
-
-bool IsOp(const CallNode* call, const Op& compat_op, const char* canonical_name) {
-  if (call->op.same_as(compat_op)) {
-    return true;
-  }
-  const auto* op_node = call->op.as<OpNode>();
-  return op_node != nullptr && op_node->name == canonical_name;
-}
-
-}  // namespace
 
 // Rewrite Rule
 //
@@ -129,20 +118,22 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
  private:
   /// Visitor implementation
   void VisitExpr_(const CallNode* op) final {
-    if (IsOp(op, builtin::ptx_ldmatrix(), "tirx.ptx.ldmatrix") &&
-        op->args[3].as<VarNode>() == buffer_) {
+    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
+    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+    if (op->op.same_as(ptx_ldmatrix_op) && op->args[3].as<VarNode>() == buffer_) {
       UpdatePattern(op->args[4]);
-    } else if (op->op.same_as(builtin::mma_fill()) && op->args[1].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(mma_fill_op) && op->args[1].as<VarNode>() == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value;
-    } else if (IsOp(op, builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy") &&
-               op->args[3].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && op->args[3].as<VarNode>() == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4]);
-    } else if (op->op.same_as(builtin::mma_fill_legacy()) && op->args[1].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(mma_fill_legacy_op) && op->args[1].as<VarNode>() == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
       warp_coeff_ = local_size->value;
@@ -308,37 +299,45 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) override {
-    if (IsOp(op, builtin::ptx_mma(), "tirx.ptx.mma")) {
+    static const Op& ptx_mma_op = Op::Get("tirx.ptx.mma");
+    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
+    static const Op& mma_store_op = Op::Get("tirx.mma_store");
+    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx.mma_legacy");
+    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
+    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+    if (op->op.same_as(ptx_mma_op)) {
       return RewriteIndicesAt(op, {6, 8, 10});
     }
 
-    if (IsOp(op, builtin::ptx_ldmatrix(), "tirx.ptx.ldmatrix")) {
+    if (op->op.same_as(ptx_ldmatrix_op)) {
       return RewriteIndicesAt(op, {3});
     }
 
-    if (op->op.same_as(builtin::mma_store())) {
+    if (op->op.same_as(mma_store_op)) {
       return RewriteIndicesAt(op, {3});
     }
 
-    if (op->op.same_as(builtin::mma_fill())) {
+    if (op->op.same_as(mma_fill_op)) {
       return RewriteIndicesAt(op, {1});
     }
 
     // Legacy variants: (ptr_var, offset) pairs in apache positions.
-    if (IsOp(op, builtin::ptx_mma_legacy(), "tirx.ptx.mma_legacy")) {
+    if (op->op.same_as(ptx_mma_legacy_op)) {
       return RewriteIndicesAt(op, {6, 8, 10});
     }
-    if (IsOp(op, builtin::ptx_ldmatrix_legacy(), "tirx.ptx.ldmatrix_legacy")) {
+    if (op->op.same_as(ptx_ldmatrix_legacy_op)) {
       // args: trans, num, type, local_ptr, local_offset, smem_ptr_call, smem_offset
       // Only local_ptr is a raw warp buffer Var; smem_ptr is an
       // access_ptr Call wrapping a shared-scope var.
       return RewriteIndicesAt(op, {3});
     }
-    if (op->op.same_as(builtin::mma_store_legacy())) {
+    if (op->op.same_as(mma_store_legacy_op)) {
       // args: m, n, dst_ptr, src_ptr, src_offset, dst_stride
       return RewriteIndicesAt(op, {3});
     }
-    if (op->op.same_as(builtin::mma_fill_legacy())) {
+    if (op->op.same_as(mma_fill_legacy_op)) {
       // args: local_size, local_ptr, offset
       return RewriteIndicesAt(op, {1});
     }

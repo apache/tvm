@@ -33,7 +33,7 @@
 #include <unordered_map>
 
 #include "../../../arith/ir_visitor_with_analyzer.h"
-#include "../../../runtime/opencl/texture.h"
+#include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
 
 namespace tvm {

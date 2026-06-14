@@ -17,7 +17,7 @@
 """Shared enum / value tables for PTX intrinsic schemas and user wrappers.
 
 Single source of truth. Both ``tvm.tirx.op`` (user wrappers that validate
-arguments via ``_choice``) and ``tvm.tirx.operator.intrinsics.cuda.*``
+arguments via ``_choice``) and ``tvm.tirx.cuda.operator.intrinsics.*``
 (schema declarations using ``Choice(choices=...)`` / ``IntAttr(choices=...)``)
 import from here.
 

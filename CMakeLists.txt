@@ -339,13 +339,19 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/source/*.cc
   src/target/canonicalizer/*.cc
   src/target/canonicalizer/llvm/*.cc
-  src/target/cuda/*.cc
-  src/target/rocm/*.cc
-  src/target/hexagon/*.cc
-  src/target/metal/*.cc
-  src/target/opencl/*.cc
-  src/target/vulkan/vulkan_fallback_module.cc
-  src/target/webgpu/*.cc
+  src/backend/cuda/codegen/*.cc
+  src/backend/cuda/op/*.cc
+  src/backend/hexagon/codegen/*.cc
+  src/backend/metal/codegen/*.cc
+  src/backend/metal/op/*.cc
+  src/backend/opencl/codegen/*.cc
+  src/backend/rocm/codegen/*.cc
+  src/backend/trn/codegen/*.cc
+  src/backend/trn/op/*.cc
+  src/backend/trn/transform/*.cc
+  src/backend/vulkan/codegen/register.cc
+  src/backend/vulkan/codegen/vulkan_fallback_module.cc
+  src/backend/webgpu/codegen/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
@@ -361,7 +367,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/rpc/minrpc/*.cc
 )
 # Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
-# Note: src/runtime/{cuda,vulkan,opencl,metal,rocm,hexagon}/* move to per-backend DSOs.
+# Note: src/backend/*/runtime sources move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)

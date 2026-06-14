@@ -31,8 +31,8 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.tirx.cuda.operator.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
 from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import SwizzleMode, mma_shared_layout
 
 T_LAY_BASIC = TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 

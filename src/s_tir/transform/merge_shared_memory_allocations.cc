@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -486,6 +487,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
+    static const Op& ptx_cp_async_op = Op::Get("tirx.ptx_cp_async");
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
@@ -501,7 +503,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       return Call(op->dtype, op->op,
                   {op->args[0], scope_stack_.back().merged_buf_var, extra_offset + offset, extent,
                    op->args[4]});
-    } else if (op->op.same_as(builtin::ptx_cp_async())) {
+    } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       Var buffer = Downcast<Var>(op->args[0]);
       const auto* ptr_type = buffer->type_annotation.as<PointerTypeNode>();
