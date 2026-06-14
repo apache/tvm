@@ -19,6 +19,7 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"op", "script", "target_tags"}
+RUNTIME_LIBS = ("metal",)
 
 
 def _detect_target_from_device(dev):
@@ -66,6 +67,7 @@ def __getattr__(name: str):
 __all__ = [
     "op",
     "register_backend",
+    "RUNTIME_LIBS",
     "script",
     "script_namespace",
     "script_namespaces",

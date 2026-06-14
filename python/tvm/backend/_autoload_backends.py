@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import warnings
+from importlib import import_module
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,7 @@ _BUILTIN_BACKENDS = (
     "hexagon",
     "adreno",
 )
-_BACKEND_RUNTIME_LIBS = ("cuda", "vulkan", "opencl", "metal", "rocm", "hexagon", "extra")
+_LEGACY_RUNTIME_LIBS_WITHOUT_BACKEND_PACKAGE = ("extra",)
 
 # Guard so autoload runs at most once per process, even if invoked again.
 _BACKEND_LIBS_LOADED = False
@@ -62,8 +63,8 @@ def autoload_backend_libs(loaded_libs: dict[str, Any] | None = None) -> None:
     _BACKEND_LIBS_LOADED = True
 
     runtime_dir = Path(runtime_lib._name).resolve().parent
-    for backend in _BACKEND_RUNTIME_LIBS:
-        target_name = f"tvm_runtime_{backend}"
+    for runtime_lib_name in _backend_runtime_lib_names():
+        target_name = f"tvm_runtime_{runtime_lib_name}"
         try:
             loaded_libs[target_name] = load_lib_ctypes(
                 package="tvm",
@@ -73,6 +74,15 @@ def autoload_backend_libs(loaded_libs: dict[str, Any] | None = None) -> None:
             )
         except (OSError, FileNotFoundError, RuntimeError):
             pass
+
+
+def _backend_runtime_lib_names() -> tuple[str, ...]:
+    runtime_libs = []
+    for backend in _BUILTIN_BACKENDS:
+        module = import_module(f"tvm.backend.{backend}")
+        runtime_libs.extend(getattr(module, "RUNTIME_LIBS", ()))
+    runtime_libs.extend(_LEGACY_RUNTIME_LIBS_WITHOUT_BACKEND_PACKAGE)
+    return tuple(runtime_libs)
 
 
 def load_all() -> None:
