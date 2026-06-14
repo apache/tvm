@@ -18,6 +18,7 @@
 # ruff: noqa: E501
 import tvm
 import tvm.testing
+from tvm import tirx
 from tvm.s_tir import dlight as dl
 from tvm.script import tirx as T
 from tvm.target import Target
@@ -307,6 +308,16 @@ def test_fused_matmul():
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_matmul_rule_skips_non_root_block_helper_func():
+    func = tirx.PrimFunc([], tirx.Evaluate(0)).with_attr("target", Target("webgpu"))
+    mod = tvm.IRModule({"main": func})
+
+    with Target("webgpu"):
+        scheduled = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+
+    tvm.ir.assert_structural_equal(scheduled, mod)
 
 
 def test_skip_gemv():

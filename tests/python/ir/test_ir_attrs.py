@@ -19,6 +19,7 @@ import pytest
 import tvm_ffi
 
 import tvm
+from tvm import tirx
 
 
 def test_dict_attrs():
@@ -57,6 +58,20 @@ def test_assert_structural_equal_reports_mismatch():
     assert "and rhs at" in message
 
 
+def test_dict_attrs_has_nonzero_attr_accepts_int_imm():
+    arg = tirx.Var("arg", "handle")
+    func = tirx.PrimFunc([arg], tirx.Evaluate(0)).with_attr(
+        {
+            "global_symbol": "int_imm_noalias",
+            "tirx.noalias": tirx.IntImm("int32", 1),
+        }
+    )
+
+    tvm.compile(tvm.IRModule({"main": func}), target="c")
+
+
 if __name__ == "__main__":
     test_dict_attrs()
     test_attrs_equal()
+    test_assert_structural_equal_reports_mismatch()
+    test_dict_attrs_has_nonzero_attr_accepts_int_imm()

@@ -199,7 +199,22 @@ class DictAttrs : public Attrs {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<int64_t>(attr_key, 0).value_or(0) != 0;
+    const DictAttrsNode* node = get();
+    auto it = node->dict.find(attr_key);
+    if (it == node->dict.end()) {
+      return false;
+    }
+    const ffi::Any& value = (*it).second;
+    if (auto opt_int = value.try_cast<int64_t>()) {
+      return opt_int.value() != 0;
+    }
+    if (auto opt_imm = value.try_cast<IntImm>()) {
+      return opt_imm.value()->value != 0;
+    }
+    if (auto opt_bool = value.try_cast<bool>()) {
+      return opt_bool.value();
+    }
+    return false;
   }
 
   // Inline-expand TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE here, minus

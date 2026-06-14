@@ -67,9 +67,23 @@ def rope_freq_default(s: tirx.Var, d: tirx.Var, d_range: int, theta: float, dtyp
     return cos_freq, sin_freq, {freq_var: freq}
 
 
-def rope_freq_gptj(s: tirx.Var, d: tirx.Var, d_range: int, theta: float, dtype: str):
-    """Compute the inverse frequency of RoPE for gptj RoPE scaling."""
-    freq = s / tirx.power(theta, 2 * (d // 2) % d_range / tirx.const(d_range, "float32"))
+def rope_freq_gptj(
+    s: tirx.Var, d: tirx.Var, d_range: int, theta: float, dtype: str,
+    freq_dim_base: int = 0,
+):
+    """Compute the inverse frequency of RoPE for gptj RoPE scaling.
+
+    Parameters
+    ----------
+    freq_dim_base : int
+        If > 0, use this as the denominator in the frequency exponent instead
+        of d_range. This supports partial rotary embeddings where the frequency
+        base dimension (head_dim) differs from the number of rotated dimensions
+        (rotary_dim). E.g., Gemma 4 full-attention layers have head_dim=512
+        but only rotate 128 dims (partial_rotary_factor=0.25).
+    """
+    denom = freq_dim_base if freq_dim_base > 0 else d_range
+    freq = s / tirx.power(theta, 2 * (d // 2) % d_range / tirx.const(denom, "float32"))
     freq_var = tirx.Var("freq", "float32")
     cos_freq = tirx.cos(freq_var).astype(dtype)
     sin_freq = tirx.sin(freq_var).astype(dtype)
@@ -262,6 +276,9 @@ def switch_rope_freq_func(rope_scaling: dict[str, Any]) -> Callable:
     if "rope_type" not in rope_scaling:
         return rope_freq_default
     if rope_scaling["rope_type"] == "gptj":
+        freq_dim_base = rope_scaling.get("freq_dim_base", 0)
+        if freq_dim_base > 0:
+            return partial(rope_freq_gptj, freq_dim_base=freq_dim_base)
         return rope_freq_gptj
     if rope_scaling["rope_type"] == "llama3":
         return partial(
@@ -522,7 +539,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func(private=True, s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -564,7 +581,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func(private=True, s_tir=True)
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,

@@ -104,18 +104,25 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
 
     host_mod = tvm.tirx.transform.Filter(is_host_func)(mod)
     device_mod = tvm.tirx.transform.Filter(lambda f: not is_host_func(f))(mod)
-    # TODO(syfeng): Here we use str as key since target hash is not correct
-    target_str2target = {}
-    device_func_dict = {}
+    # Group device functions by target kind name (e.g. "webgpu", "cuda") rather
+    # than the full target string.  Different TIR passes may attach slightly
+    # different target objects (e.g. with or without max_num_threads) to
+    # functions that should all end up in the same device module.  Using the
+    # full str(target) as key splits them into separate modules, causing the
+    # later module to shadow the earlier one at runtime.
+    kind2target: dict[str, "Target"] = {}
+    kind2funcs: dict[str, dict] = {}
     device_mod_dict: dict[Target, IRModule] = {}
     for gv, func in device_mod.functions.items():
         target = func.attrs.get("target", None)
-        target_str = str(target) if target is not None else ""
-        target_str2target[target_str] = target  # This might be overridden by the last one
-        device_func_dict.setdefault(target_str, dict()).update({gv: func})
-    for target_str in target_str2target.keys():
-        target = target_str2target[target_str]
-        device_mod_dict[target] = tvm.IRModule(device_func_dict[target_str], attrs=device_mod.attrs)
+        kind = target.kind.name if target is not None else ""
+        # Keep the first target encountered for each kind as the canonical one
+        if kind not in kind2target:
+            kind2target[kind] = target
+        kind2funcs.setdefault(kind, dict()).update({gv: func})
+    for kind in kind2target:
+        target = kind2target[kind]
+        device_mod_dict[target] = tvm.IRModule(kind2funcs[kind], attrs=device_mod.attrs)
     return host_mod, device_mod_dict
 
 
