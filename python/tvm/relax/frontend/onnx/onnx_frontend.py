@@ -4267,6 +4267,17 @@ def _argreduce_select_last_index(bb, data, axis, keepdims, op):
     return relax.op.subtract(offset, flipped_idx)
 
 
+def _argreduce_sanitize_nan(bb, data, *, for_min):
+    """Match ONNX Runtime ArgMax/ArgMin behavior by making NaN win comparisons."""
+    dtype = data.struct_info.dtype
+    if not _relax_dtype_is_floating_point(dtype):
+        return data
+    replacement = -_np.inf if for_min else _np.inf
+    return bb.emit(
+        relax.op.where(relax.op.isnan(data), relax.const(replacement, dtype), data)
+    )
+
+
 class ArgMax(OnnxOpConverter):
     """Converts an onnx ArgMax node into an equivalent Relax expression."""
 
@@ -4282,19 +4293,19 @@ class ArgMax(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=False)
         axis, keepdims = cls._check_attrs(data, attr, False)
         return relax.op.argmax(data, axis, keepdims)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=False)
         axis, keepdims = cls._check_attrs(data, attr)
         return relax.op.argmax(data, axis, keepdims)
 
     @classmethod
     def _impl_v12(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=False)
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:
@@ -4317,19 +4328,19 @@ class ArgMin(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=True)
         axis, keepdims = cls._check_attrs(data, attr, False)
         return relax.op.argmin(data, axis, keepdims)
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=True)
         axis, keepdims = cls._check_attrs(data, attr)
         return relax.op.argmin(data, axis, keepdims)
 
     @classmethod
     def _impl_v12(cls, bb, inputs, attr, params):
-        data = inputs[0]
+        data = _argreduce_sanitize_nan(bb, inputs[0], for_min=True)
         axis, keepdims = cls._check_attrs(data, attr)
         select_last_index = attr.get("select_last_index", False)
         if select_last_index:

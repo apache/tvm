@@ -2924,6 +2924,87 @@ def test_arg_min_max(in_dtype, axis, keepdims):
     verify_arg_min_max([3, 4, 4], in_dtype, "ArgMin", axis, keepdims)
 
 
+def _make_arg_min_max_model(
+    op_name, data_shape, out_shape, axis, keepdims, select_last_index=0
+):
+    node = helper.make_node(
+        op_name,
+        inputs=["data"],
+        outputs=["out"],
+        axis=axis,
+        keepdims=keepdims,
+        select_last_index=select_last_index,
+    )
+    graph = helper.make_graph(
+        [node],
+        "arg_min_max_nan_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, list(data_shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
+    )
+    return helper.make_model(graph, producer_name="arg_min_max_nan_test")
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_nan_matches_ort_indices(op_name):
+    data = np.array(
+        [
+            [2.0, np.nan, 7.0, 4.0, 1.0],
+            [np.nan, 2.0, 7.0, 4.0, 1.0],
+            [2.0, 4.0, 7.0, 1.0, np.nan],
+        ],
+        dtype=np.float32,
+    )
+    expected = np.array([1, 0, 4], dtype=np.int64)
+    numpy_result = np.argmax(data, axis=1) if op_name == "ArgMax" else np.argmin(data, axis=1)
+    np.testing.assert_array_equal(numpy_result, expected)
+
+    model = _make_arg_min_max_model(op_name, data.shape, [3], axis=1, keepdims=0)
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_nan_keepdims_and_all_nan(op_name):
+    data = np.array(
+        [
+            [[np.nan, np.nan, np.nan], [5.0, np.nan, 1.0]],
+            [[2.0, 3.0, np.nan], [np.nan, -1.0, -2.0]],
+        ],
+        dtype=np.float32,
+    )
+    model = _make_arg_min_max_model(op_name, data.shape, [2, 2, 1], axis=2, keepdims=1)
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_nan_select_last_index(op_name):
+    data = np.array(
+        [
+            [[np.nan, 2.0, np.nan, 1.0], [np.nan, np.nan, np.nan, np.nan]],
+            [[5.0, np.nan, 1.0, np.nan], [4.0, 3.0, 2.0, 1.0]],
+        ],
+        dtype=np.float32,
+    )
+    model = _make_arg_min_max_model(
+        op_name,
+        data.shape,
+        [2, 2],
+        axis=2,
+        keepdims=0,
+        select_last_index=1,
+    )
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+def test_arg_min_max_finite_regression(op_name):
+    data = np.array(
+        [[2.0, 4.0, 7.0, 1.0, 5.0], [3.0, -2.0, 8.0, 6.0, 0.0]],
+        dtype=np.float32,
+    )
+    model = _make_arg_min_max_model(op_name, data.shape, [2], axis=1, keepdims=0)
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
 @pytest.mark.parametrize("axis", [-1, 0, 1])
 @pytest.mark.parametrize("largest", [True, False])
 def test_topk(axis: int, largest: int):
