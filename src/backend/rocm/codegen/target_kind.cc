@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file register.cc
+ * \file target_kind.cc
  * \brief ROCm compiler backend static registration.
  */
 #include <dlpack/dlpack.h>

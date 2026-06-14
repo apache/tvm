@@ -349,7 +349,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/backend/trn/codegen/*.cc
   src/backend/trn/op/*.cc
   src/backend/trn/transform/*.cc
-  src/backend/vulkan/codegen/register.cc
+  src/backend/vulkan/codegen/target_kind.cc
   src/backend/vulkan/codegen/vulkan_fallback_module.cc
   src/backend/webgpu/codegen/*.cc
     )
