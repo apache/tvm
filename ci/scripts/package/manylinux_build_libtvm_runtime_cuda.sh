@@ -27,14 +27,14 @@ set -euxo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 build_dir="${repo_root}/build-wheel-cuda"
-python_bin="/opt/python/cp310-cp310/bin/python"
 parallel="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
 # Build the CUDA runtime sidecar with CUDA on and LLVM off, so it does not need
-# the LLVM prefix; the main CPU wheel links LLVM statically. pip-install
-# cmake/ninja rather than relying on whatever the image ships.
+# the LLVM prefix; the main CPU wheel links LLVM statically. The manylinux CUDA
+# image already ships cmake and make, and the build uses the default Makefiles
+# generator (no Ninja), so no build tools are installed here. Put the bundled
+# CPython and CUDA toolchain on PATH for the CMake configure and nvcc.
 export PATH="/opt/python/cp310-cp310/bin:/usr/local/cuda/bin:${PATH}"
-"${python_bin}" -m pip install -U pip cmake ninja
 nvcc --version
 
 rm -rf "${build_dir}"
