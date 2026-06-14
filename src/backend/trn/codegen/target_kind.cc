@@ -18,18 +18,44 @@
  */
 
 /*!
- * \file register.cc
- * \brief Trainium backend op static registration.
+ * \file target_kind.cc
+ * \brief Trainium compiler backend static registration.
  */
+#include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
+#include <tvm/target/target.h>
+#include <tvm/target/target_kind.h>
 
 namespace tvm {
+
+namespace backend {
+namespace trn {
+
+void RegisterTargetKind() {
+  TVM_REGISTER_TARGET_KIND("trn", kDLTrn)
+      .add_attr_option<int64_t>("partition_size", 128)
+      .add_attr_option<int64_t>("max_sbuf_size_per_partition", 196608)
+      .add_attr_option<int64_t>("max_psum_size_per_partition", 16384)
+      .add_attr_option<int64_t>("num-cores");
+}
+
+}  // namespace trn
+}  // namespace backend
+
+namespace codegen {
+void RegisterTRNCodegen();
+}  // namespace codegen
+
 namespace tirx {
-namespace builtin {
-void RegisterTRNTargetBuiltins();
-}  // namespace builtin
+namespace transform {
+void RegisterTRNTransforms();
+}  // namespace transform
 }  // namespace tirx
 }  // namespace tvm
 
-TVM_FFI_STATIC_INIT_BLOCK() { tvm::tirx::builtin::RegisterTRNTargetBuiltins(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::trn::RegisterTargetKind();
+  tvm::codegen::RegisterTRNCodegen();
+  tvm::tirx::transform::RegisterTRNTransforms();
+}

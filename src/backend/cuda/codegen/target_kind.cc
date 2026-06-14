@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file register.cc
+ * \file target_kind.cc
  * \brief CUDA compiler backend static registration.
  */
 #include <dlpack/dlpack.h>

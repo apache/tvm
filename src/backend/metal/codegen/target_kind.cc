@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file register.cc
- * \brief Trainium compiler backend static registration.
+ * \file target_kind.cc
+ * \brief Metal compiler backend static registration.
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
@@ -30,32 +30,34 @@
 namespace tvm {
 
 namespace backend {
-namespace trn {
+namespace metal {
 
 void RegisterTargetKind() {
-  TVM_REGISTER_TARGET_KIND("trn", kDLTrn)
-      .add_attr_option<int64_t>("partition_size", 128)
-      .add_attr_option<int64_t>("max_sbuf_size_per_partition", 196608)
-      .add_attr_option<int64_t>("max_psum_size_per_partition", 16384)
-      .add_attr_option<int64_t>("num-cores");
+  namespace refl = tvm::ffi::reflection;
+
+  // Metal limits the number of kernel arguments.  `max_function_args` captures that bound.
+  TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
+      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
+      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(16))
+      .add_attr_option<int64_t>("max_function_args", refl::DefaultValue(31))
+      .set_default_keys({"metal", "gpu"});
 }
 
-}  // namespace trn
+}  // namespace metal
 }  // namespace backend
 
 namespace codegen {
-void RegisterTRNCodegen();
+void RegisterMetalCodegen();
+namespace intrin {
+void RegisterMetalIntrinRules();
+}  // namespace intrin
 }  // namespace codegen
-
-namespace tirx {
-namespace transform {
-void RegisterTRNTransforms();
-}  // namespace transform
-}  // namespace tirx
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::trn::RegisterTargetKind();
-  tvm::codegen::RegisterTRNCodegen();
-  tvm::tirx::transform::RegisterTRNTransforms();
+  tvm::backend::metal::RegisterTargetKind();
+  tvm::codegen::intrin::RegisterMetalIntrinRules();
+  tvm::codegen::RegisterMetalCodegen();
 }
