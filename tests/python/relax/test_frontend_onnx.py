@@ -4016,6 +4016,114 @@ def test_resize_5d_emits_relax_resize3d():
     assert seen_resize3d
 
 
+@pytest.mark.parametrize(
+    "coord_mode, method",
+    [
+        ("half_pixel", "nearest"),
+        ("pytorch_half_pixel", "nearest"),
+        ("asymmetric", "nearest"),
+        ("half_pixel", "linear"),
+    ],
+)
+def test_resize_noninteger_scales_2d(coord_mode, method):
+    """Non-integer scales must use the original scale in coordinate transformation.
+
+    floor(3 * 2.5) = 7, so the recomputed ratio 3/7 = 0.4286 differs from 1/2.5 = 0.4,
+    causing wrong pixel mapping at boundary positions before the fix.
+    """
+    nearest_mode_kwargs = {}
+    if method == "nearest":
+        nearest_mode_kwargs["nearest_mode"] = "round_prefer_floor"
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode=method,
+        coordinate_transformation_mode=coord_mode,
+        **nearest_mode_kwargs,
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3])],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.5, 2.5])
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_noninteger_scales_1d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="half_pixel",
+        nearest_mode="round_prefer_floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_1d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 5])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 1.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_noninteger_scales_3d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_noninteger_3d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3, 3])
+        ],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 1.5, 1.5, 1.5])
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+@pytest.mark.parametrize(
+    "input_shape,scales,output_shape",
+    [
+        ([1, 1, 4, 4], [1.0, 1.0, 2.0, 2.0], [1, 1, 8, 8]),
+        ([1, 1, 3, 3], [1.0, 1.0, 3.0, 3.0], [1, 1, 9, 9]),
+    ],
+)
+def test_resize_integer_scales_regression(input_shape, scales, output_shape):
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="half_pixel",
+        nearest_mode="round_prefer_floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_integer_scales",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape)],
+        initializer=[
+            helper.make_tensor("scales", TensorProto.FLOAT, [len(scales)], scales)
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_shape)],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
 def test_einsum():
     eqn = "ij->i"
     einsum_node = helper.make_node("Einsum", ["x"], ["y"], equation=eqn)
