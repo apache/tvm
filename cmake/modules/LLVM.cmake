@@ -36,7 +36,7 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   add_definitions(${LLVM_DEFINITIONS})
   add_library(tvm_llvm_header INTERFACE)
   if(MSVC)
-    # MSVC treats the operand after -isystem as a source file.
+    # MSVC treats GCC-style -isystem operands as source files.
     target_include_directories(tvm_llvm_header SYSTEM INTERFACE ${LLVM_INCLUDE_DIRS})
     target_compile_options(tvm_llvm_header INTERFACE ${LLVM_DEFINITIONS})
   else()
