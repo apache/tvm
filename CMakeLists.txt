@@ -87,7 +87,6 @@ tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 # 3rdparty libraries
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 # Contrib library options
-tvm_option(USE_BYODT_POSIT "Build with BYODT software emulated posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_AMX "Enable Intel AMX" OFF)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
@@ -356,10 +355,6 @@ tvm_file_glob(GLOB CODEGEN_SRCS
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
-tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
-list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
-list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
-
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
@@ -464,7 +459,6 @@ include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/AMX.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
 include(cmake/modules/contrib/Random.cmake)
-include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
