@@ -25,7 +25,7 @@ import types
 from pkgutil import extend_path
 from typing import Any
 
-from ._autoload_backends import load_all, load_backend_libs
+from ._autoload_backends import autoload_backend_libs, load_all
 
 __path__ = extend_path(__path__, __name__)  # type: ignore[name-defined]
 
@@ -189,4 +189,4 @@ def is_loaded(name: str) -> bool:
     return name in _LOADED_BACKENDS
 
 
-__all__ = ["is_loaded", "load", "load_all", "load_backend_libs"]
+__all__ = ["autoload_backend_libs", "is_loaded", "load", "load_all"]

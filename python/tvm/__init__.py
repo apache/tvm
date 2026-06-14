@@ -118,10 +118,11 @@ def tvm_wrap_excepthook(exception_hook):
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 
-# Autoload out-of-tree backends registered under the ``tvm.backends`` entry
-# point group. Runs last, after the core runtime and the tvm namespace are
-# fully initialized, so an extension can safely register into ``tvm.*`` and
-# load extra libraries.
+# Autoload backend runtime libraries and out-of-tree backends registered under
+# the ``tvm.backends`` entry point group. Runs last, after the core runtime and
+# the tvm namespace are fully initialized, so an extension can safely register
+# into ``tvm.*`` and load extra libraries.
 from .backend._autoload_backends import _autoload_backends
 
+backend.autoload_backend_libs()
 _autoload_backends()
