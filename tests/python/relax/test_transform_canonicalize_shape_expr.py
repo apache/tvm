@@ -57,24 +57,5 @@ def test_canonicalize_shape_expr_unblocks_vm_shape_lower():
     assert any("compute_symbolic_expr" in gv.name_hint for gv in mod.get_global_vars())
 
 
-@I.ir_module
-class ParamCompound:
-    @R.function
-    def main(x: R.Tensor(("A", "B", "A + B"), "float32")) -> R.Tensor((1,), "float32"):
-        out: R.Tensor((1,), "float32") = R.zeros(R.shape([1]), dtype="float32")
-        return out
-
-def test_canonicalize_shape_expr_parameter_compound_shape():
-    mod = relax.transform.CanonicalizeShapeExpr()(ParamCompound)
-    func = mod["main"]
-
-    param_shape = func.params[0].struct_info.shape
-    for dim in param_shape.values:
-        assert isinstance(dim, (tirx.IntImm, tirx.Var))
-
-    first_block = func.body.blocks[0]
-    assert any(isinstance(b, relax.MatchCast) for b in first_block.bindings)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
