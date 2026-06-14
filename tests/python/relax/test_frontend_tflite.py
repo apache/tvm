@@ -13034,9 +13034,9 @@ def test_real():
             with R.dataflow():
                 # slice real part (index 0 along last axis)
                 lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[2], begin=[0], end=[1], strides=[1]
+                    x, axes=[-1], begin=[0], end=[1], strides=[1]
                 )
-                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[2])
+                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
                 R.output(gv)
             return gv
 
@@ -13057,9 +13057,9 @@ def test_imag():
             with R.dataflow():
                 # slice imaginary part (index 1 along last axis)
                 lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[2], begin=[1], end=[2], strides=[1]
+                    x, axes=[-1], begin=[1], end=[2], strides=[1]
                 )
-                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[2])
+                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
                 R.output(gv)
             return gv
 
@@ -13079,13 +13079,13 @@ def test_complex_abs():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv0: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[2], begin=[0], end=[1], strides=[1]
+                    x, axes=[-1], begin=[0], end=[1], strides=[1]
                 )
-                real: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv0, axis=[2])
+                real: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv0, axis=[-1])
                 lv1: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[2], begin=[1], end=[2], strides=[1]
+                    x, axes=[-1], begin=[1], end=[2], strides=[1]
                 )
-                imag: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv1, axis=[2])
+                imag: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv1, axis=[-1])
                 lv2: R.Tensor((2, 4), dtype="float32") = R.multiply(real, real)
                 lv3: R.Tensor((2, 4), dtype="float32") = R.multiply(imag, imag)
                 lv4: R.Tensor((2, 4), dtype="float32") = R.add(lv2, lv3)

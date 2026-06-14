@@ -7593,10 +7593,9 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = self.get_expr(input_tensors[0].tensor_idx)
-        last_axis = int(input_tensor.struct_info.ndim) - 1
         # slice last axis at index 0, and squeeze to remove the last axis
-        real = _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[last_axis])
-        return _op.squeeze(real, axis=[last_axis])
+        real = _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[-1])
+        return _op.squeeze(real, axis=[-1])
 
     def convert_imag(self, op):
         """Convert TFLite IMAG op.
@@ -7606,10 +7605,9 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = self.get_expr(input_tensors[0].tensor_idx)
-        last_axis = int(input_tensor.struct_info.ndim) - 1
         # slice last axis at index 1, and squeeze to remove the last axis
-        imag = _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[last_axis])
-        return _op.squeeze(imag, axis=[last_axis])
+        imag = _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[-1])
+        return _op.squeeze(imag, axis=[-1])
 
     def convert_complex_abs(self, op):
         """Convert TFLite COMPLEX_ABS op: sqrt(real^2 + imag^2)
@@ -7619,15 +7617,14 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = self.get_expr(input_tensors[0].tensor_idx)
-        last_axis = int(input_tensor.struct_info.ndim) - 1
         real = self.bb.emit(
-            _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[last_axis])
+            _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[-1])
         )
-        real = self.bb.emit(_op.squeeze(real, axis=[last_axis]))
+        real = self.bb.emit(_op.squeeze(real, axis=[-1]))
         imag = self.bb.emit(
-            _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[last_axis])
+            _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[-1])
         )
-        imag = self.bb.emit(_op.squeeze(imag, axis=[last_axis]))
+        imag = self.bb.emit(_op.squeeze(imag, axis=[-1]))
         real_sq = self.bb.emit(_op.multiply(real, real))
         imag_sq = self.bb.emit(_op.multiply(imag, imag))
         sum_expr = self.bb.emit(_op.add(real_sq, imag_sq))
