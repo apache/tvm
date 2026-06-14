@@ -19,11 +19,10 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -62,7 +61,7 @@ TVMStreamHandle stream_create() {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
   TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM stream creation failed: worker is not initialized";
   cudaStream_t retval;
-  CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
   return static_cast<TVMStreamHandle>(retval);
 }
 
@@ -100,7 +99,7 @@ void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor 
                    stream);
     } else {
       int device_id;
-      CUDA_CALL(cudaGetDevice(&device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
       TVMStreamHandle main_stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
       copy_to_peer(get_pointer(staging_buffer, ffi::Shape{my_rank, 0, 0}), to_rank,
                    get_pointer(gemm_out, ffi::Shape{to_rank * LOCAL_M, 0}), LOCAL_M * N * 2,

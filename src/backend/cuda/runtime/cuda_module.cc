@@ -28,6 +28,7 @@
 #include <cuda_runtime.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -41,7 +42,6 @@
 #include "../../../runtime/pack_args.h"
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"
-#include "cuda_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -127,7 +127,12 @@ class CUDAModuleNode : public ffi::ModuleObj {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
-      CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), code_.data()));
+      CUresult result = cuModuleLoadData(&(module_[device_id]), code_.data());
+      if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) {
+        const char* msg;
+        cuGetErrorName(result, &msg);
+        TVM_FFI_THROW(CUDAError) << "cuModuleLoadData failed with error: " << msg;
+      }
       static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
       if (nvshmem_init_hook.has_value()) {
         (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
@@ -204,7 +209,7 @@ class CUDAWrappedFunc {
   // invoke the function with void arguments
   void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
 
     if (fcache_[device_id] == nullptr) {
