@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../../../support/bytes_io.h"
 #include "coreml_runtime.h"
@@ -136,12 +137,12 @@ ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name)
     return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
   } else if (name == "set_input") {
     return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
-      const auto& input_name = args[0].operator std::string();
-      model_->SetInput(input_name, args[1]);
+      model_->SetInput(args[0].cast<std::string>(), args[1].cast<DLTensor*>());
     });
   } else if (name == "get_output") {
-    return ffi::Function(
-        [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetOutput(args[0]); });
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = model_->GetOutput(args[0].cast<int>());
+    });
   } else if (name == "get_num_outputs") {
     return ffi::Function(
         [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetNumOutputs(); });
@@ -154,18 +155,11 @@ ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name)
       NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data
                                                            options:NSJSONReadingAllowFragments
                                                              error:nil];
-      NSffi::Array<NSString*>* input_names = json[@"inputs"];
+      NSArray<NSString*>* input_names = json[@"inputs"];
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
-        TVM_FFI_ICHECK(args[i].type_code() == kTVMDLTensorHandle ||
-                       args[i].type_code() == kTVMTensorHandle)
-            << "Expect Tensor or DLTensor as inputs\n";
-        if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle) {
-          model_->SetInput([input_names[i] UTF8String], args[i]);
-        } else {
-          LOG(FATAL) << "Not implemented";
-        }
+        model_->SetInput([input_names[i] UTF8String], args[i].cast<DLTensor*>());
       }
 
       // Execute the subgraph.
@@ -173,13 +167,7 @@ ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name)
 
       // TODO: Support multiple outputs.
       Tensor out = model_->GetOutput(0);
-      if (args[args.size() - 1].type_code() == kTVMDLTensorHandle) {
-        DLTensor* arg = args[args.size() - 1];
-        out.CopyTo(arg);
-      } else {
-        Tensor arg = args[args.size() - 1];
-        out.CopyTo(arg);
-      }
+      out.CopyTo(args[args.size() - 1].cast<DLTensor*>());
       *rv = out;
     });
   } else {
@@ -196,7 +184,7 @@ ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& mo
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.coreml_runtime.create", [](ffi::PackedArgs args, ffi::Any* rv) {
-    *rv = CoreMLRuntimeCreate(args[0], args[1]);
+    *rv = CoreMLRuntimeCreate(args[0].cast<std::string>(), args[1].cast<std::string>());
   });
 }
 
