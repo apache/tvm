@@ -684,6 +684,7 @@ class Z3Prover {
                                         int64_t min_consecutive = 1);
 
  private:
+  friend class AnalyzerObj;
   friend class Analyzer;
   explicit Z3Prover(AnalyzerObj* parent);
   TVM_DLL ~Z3Prover();

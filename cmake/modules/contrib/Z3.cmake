@@ -45,7 +45,10 @@ if(NOT Z3_DIR)
   endif()
 endif()
 
-find_package(Z3 QUIET)
+find_package(Z3 CONFIG QUIET)
+if(NOT Z3_FOUND AND NOT TARGET z3::libz3 AND NOT TARGET Z3::libz3)
+  find_package(Z3 QUIET)
+endif()
 
 if(TARGET z3::libz3 OR TARGET Z3::libz3)
   if(TARGET z3::libz3)
