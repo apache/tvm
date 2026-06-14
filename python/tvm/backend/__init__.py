@@ -25,19 +25,10 @@ import types
 from pkgutil import extend_path
 from typing import Any
 
+from ._autoload_backends import autoload_backend_libs, load_all
+
 __path__ = extend_path(__path__, __name__)  # type: ignore[name-defined]
 
-_BUILTIN_BACKENDS = (
-    "cuda",
-    "metal",
-    "rocm",
-    "trn",
-    "opencl",
-    "vulkan",
-    "webgpu",
-    "hexagon",
-    "adreno",
-)
 _LOADED_BACKENDS: dict[str, Any] = {}
 
 
@@ -192,18 +183,10 @@ def load(name: str) -> None:
     return None
 
 
-def load_all() -> None:
-    """Load all in-tree backend Python hooks."""
-
-    for name in _BUILTIN_BACKENDS:
-        load(name)
-    return None
-
-
 def is_loaded(name: str) -> bool:
     """Return whether a backend has been loaded."""
 
     return name in _LOADED_BACKENDS
 
 
-__all__ = ["is_loaded", "load", "load_all"]
+__all__ = ["autoload_backend_libs", "is_loaded", "load", "load_all"]

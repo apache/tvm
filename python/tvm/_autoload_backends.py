@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Autoload out-of-tree backends registered via ``tvm.backends`` entry points.
+"""Compatibility route for backend autoload infrastructure.
 
 Out-of-tree extensions opt into being loaded automatically at ``import tvm``
 time by declaring an entry point in the ``tvm.backends`` group::
@@ -25,26 +25,6 @@ time by declaring an entry point in the ``tvm.backends`` group::
 Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
 """
 
-import os
-import warnings
-from importlib.metadata import entry_points
+from .backend._autoload_backends import _autoload_backends
 
-# Guard so autoload runs at most once per process, even if invoked again.
-_AUTO_LOAD_DONE = False
-
-
-def _autoload_backends():
-    """Discover and invoke out-of-tree backends registered via entry points."""
-    global _AUTO_LOAD_DONE
-    if _AUTO_LOAD_DONE:
-        return
-    _AUTO_LOAD_DONE = True
-
-    if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
-        return
-
-    for entry_pt in entry_points(group="tvm.backends"):
-        try:
-            entry_pt.load()()
-        except Exception as e:  # pylint: disable=broad-except
-            warnings.warn(f"Failed to autoload tvm backend '{entry_pt.name}': {e}")
+__all__ = ["_autoload_backends"]

@@ -19,12 +19,28 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"op", "script", "target_tags"}
+RUNTIME_LIBS = ("metal",)
+
+
+def _detect_target_from_device(dev):
+    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+
+    return Target(
+        {
+            "kind": "metal",
+            "max_shared_memory_per_block": 32768,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+        }
+    )
 
 
 def register_backend():
     """Register Metal-owned Python semantics."""
+    from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
+    register_device_target_detector("metal", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
     import_module(f"{__name__}.target_tags")
@@ -51,6 +67,7 @@ def __getattr__(name: str):
 __all__ = [
     "op",
     "register_backend",
+    "RUNTIME_LIBS",
     "script",
     "script_namespace",
     "script_namespaces",
