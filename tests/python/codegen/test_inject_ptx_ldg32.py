@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -38,7 +40,8 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
             B[tx] = A_local[tx] + 1.0
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_inject_ptx_intrin():
     f = vector_add
     arch = tvm.support.nvcc.get_target_compute_version()

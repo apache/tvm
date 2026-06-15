@@ -16,13 +16,17 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.target.codegen import target_has_features
+from tvm.testing import env
 
 
-@tvm.testing.requires_llvm_minimum_version(14)
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 @tvm.testing.parametrize_targets(
     {
         "kind": "llvm",
@@ -72,7 +76,8 @@ def test_rvv(target):
         check_rvv_presence(16, 32)
 
 
-@tvm.testing.requires_llvm_minimum_version(14)
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 @tvm.testing.parametrize_targets(
     {
         "kind": "llvm",

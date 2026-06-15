@@ -26,6 +26,7 @@ from tvm.ir import PointerType, PrimType
 from tvm.ir.type import TensorMapType
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx import IntImm, StringImm, Var
 from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
     mma_atom_layout,
@@ -1046,7 +1047,8 @@ def test_copy_tma_codegen(case):
 # ===========================================================================
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("swizzle_len", [3])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
@@ -1143,7 +1145,8 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
         np.testing.assert_allclose(B_ref, B.numpy())
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("swizzle_len", [3])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_copy_tma_3d_with_view(dtype, swizzle_len):
@@ -1248,7 +1251,8 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
 # ===========================================================================
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "task",
     [
@@ -1423,7 +1427,8 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             np.testing.assert_allclose(B_ref, B.numpy())
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_copy_tma_gpu_smoke_s2g(dtype):
     """Smoke test: compile and run TMA S2G store on GPU."""
@@ -1487,7 +1492,8 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
         np.testing.assert_allclose(A_np, B.numpy())
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_copy_tma_dynamic_cta_mask(dtype):
     """Regression test for B00004: dynamic cta_mask expression in TMA multicast.

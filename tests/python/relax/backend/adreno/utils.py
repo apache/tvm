@@ -19,6 +19,7 @@ import os
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -55,50 +56,54 @@ class run_time_check:
         return self.check
 
 
+def _adreno_requires(marker, predicate, reason):
+    """Pair an Adreno selection marker with a runtime skip.
+
+    The predicate is evaluated when the decorator is applied (at collection
+    time), so the skip condition is resolved eagerly.
+    """
+
+    def decorator(func):
+        func = pytest.mark.skipif(not predicate(), reason=reason)(func)
+        return getattr(pytest.mark, marker)(func)
+
+    return decorator
+
+
 # OpenCL or Vulkan
-requires_adreno_opencl_vulkan = tvm.testing.Feature(
+requires_adreno_opencl_vulkan = _adreno_requires(
     "adreno_opencl_vulkan",
-    "Adreno Vulkan Or OpenCL",
-    run_time_check=run_time_check("any")(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
+    run_time_check("any").check,
+    "need adreno opencl or vulkan",
 )
 
 # Any Vulkan
-requires_adreno_vulkan = tvm.testing.Feature(
+requires_adreno_vulkan = _adreno_requires(
     "adreno_vulkan",
-    "Adreno Vulkan",
-    target_kind_enabled="vulkan",
-    run_time_check=lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
+    lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
+    "need adreno vulkan",
 )
 
 # Any OpenCL
-requires_adreno_opencl = tvm.testing.Feature(
+requires_adreno_opencl = _adreno_requires(
     "adreno_opencl",
-    "Adreno OpenCL",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
+    lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
+    "need adreno opencl",
 )
 
 # Real Adreno GPU OpenCL Target
-requires_adreno_opencl_real = tvm.testing.Feature(
+requires_adreno_opencl_real = _adreno_requires(
     "adreno_opencl_real",
-    "Adreno OpenCL Real",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
-    parent_features="rpc",
+    lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
+    "need real adreno opencl",
 )
 
 # CLML Codegen
-requires_adreno_clml = tvm.testing.Feature(
+requires_adreno_clml = _adreno_requires(
     "adreno_clml",
-    "Adreno OpenCLML",
-    run_time_check=lambda: (
-        tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is not None
-    ),
-    target_kind_enabled="opencl",
-    parent_features="opencl" if "ADRENO_TARGET" not in os.environ else "rpc",
+    lambda: tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True)
+    is not None,
+    "need adreno openclml",
 )
 
 

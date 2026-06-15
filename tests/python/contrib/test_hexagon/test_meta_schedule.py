@@ -38,6 +38,7 @@ from tvm.s_tir.meta_schedule.builder import BuilderInput
 from tvm.s_tir.meta_schedule.runner import RunnerInput
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.tirx import FloatImm
 
 from .infrastructure import get_hexagon_target
@@ -69,7 +70,8 @@ class MatmulModule:
                 )
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_builder_runner(hexagon_launcher):
     """Test builder and runner."""
     if hexagon_launcher.is_simulator():
@@ -191,7 +193,8 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     print(f"{time_ms:f} ms, {gflops / (time_ms / 1e3):f} GOPS")
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_vrmpy_dense(hexagon_launcher):
     """Test vector reduce muliply dense."""
     if hexagon_launcher.is_simulator():
@@ -300,7 +303,8 @@ class ModuleVRMPYAutoTensorize:
                     )
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     """Test VRMPY dense operator."""
     if hexagon_launcher.is_simulator():

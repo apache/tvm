@@ -26,6 +26,7 @@ import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.support.nvcc import have_bf16, have_fp16, have_int8
+from tvm.testing import env
 
 
 @pytest.fixture(autouse=True, params=["nvcc", "nvrtc"])
@@ -53,8 +54,8 @@ def setup_cuda_compile_mode(request):
     tvm.register_global_func("tvm_callback_cuda_compile", orig_func, override=True)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_vectorize_add():
     num_thread = 8
 
@@ -106,8 +107,8 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 8)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_bf16_vectorize_add():
     if not have_bf16(tvm.cuda(0).compute_version):
         print("skip because gpu does not support bf16")
@@ -164,8 +165,8 @@ def test_cuda_bf16_vectorize_add():
     check_cuda(64, 8)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_multiply_add():
     num_thread = 8
 
@@ -211,8 +212,8 @@ def test_cuda_multiply_add():
     check_cuda("int8", 64, 4)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_vectorize_load():
     num_thread = 8
 
@@ -249,8 +250,8 @@ def test_cuda_vectorize_load():
     check_cuda("int8", 64, 16)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_make_int8():
     def check_cuda(n, value, lanes):
         dtype = "int8"
@@ -288,8 +289,8 @@ def test_cuda_make_int8():
     check_cuda(64, -3, 2)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_inf_nan():
     target = "cuda"
 
@@ -427,8 +428,8 @@ def test_crossthread_reduction2(target, dev):
     verify(32, 16)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_reduction_binding():
     @I.ir_module(s_tir=True)
     class Module:
@@ -450,8 +451,8 @@ def test_cuda_reduction_binding():
     func = tvm.compile(Module, target="cuda")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
@@ -486,8 +487,8 @@ def test_cuda_const_float_to_half():
     np.testing.assert_equal(c.numpy(), a_np > 0.5)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_floordiv_with_vectorization():
     with tvm.target.Target("cuda"):
         # B[i] = A[floordiv(i, k)]
@@ -519,8 +520,8 @@ def test_cuda_floordiv_with_vectorization():
         tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_floormod_with_vectorization():
     with tvm.target.Target("cuda"):
         # B[i] = A[floormod(i, k)]
@@ -552,8 +553,8 @@ def test_cuda_floormod_with_vectorization():
         tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_casts():
     def check(t0, t1, factor):
         if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.cuda(0).compute_version):
@@ -647,8 +648,8 @@ def sched(compute_fn, dtype, n=128):
     return tvm.compile(Module, target="cuda")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_intrin1():
     test_funcs = [
         (tvm.tirx.floor, lambda x: np.floor(x)),
@@ -703,8 +704,8 @@ def test_vectorized_intrin1():
         run_test(*func, "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_intrin2(dtype="float32"):
     c2 = tvm.tirx.const(2, dtype=dtype)
     test_funcs = [
@@ -725,8 +726,8 @@ def test_vectorized_intrin2(dtype="float32"):
         run_test(*func)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_popcount():
     def ref_popcount(x):
         cnt = 0
@@ -749,8 +750,8 @@ def test_vectorized_popcount():
     run_test("uint64")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_vectorize_load_permute_pad():
     def check_cuda(dtype, n, l, padding, lanes):
         if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
@@ -801,8 +802,8 @@ def test_cuda_vectorize_load_permute_pad():
     check_cuda("float32", 64, 16, 3, 4)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_try_unaligned_vector_load():
     def build(N, C_N, offset):
         @I.ir_module(s_tir=True)
@@ -846,8 +847,8 @@ def test_try_unaligned_vector_load():
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_thread_sync_inside_condition():
     @T.prim_func(s_tir=True)
     def func1(A: T.Buffer((4, 4), "float32")) -> None:
@@ -893,7 +894,8 @@ def test_cuda_thread_sync_inside_condition():
     tvm.compile(mod, target="cuda")
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_invalid_reinterpret():
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
@@ -904,8 +906,8 @@ def test_invalid_reinterpret():
         tvm.compile(func, target="cuda")
 
 
-@tvm.testing.requires_cuda
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cuda_tensormap():
     # fmt: off
     @T.prim_func(s_tir=True)
@@ -935,7 +937,8 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(const __grid_const
     )
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_device_func_call():
     @I.ir_module(s_tir=True)
     class Module:
@@ -958,7 +961,8 @@ def test_cuda_device_func_call():
     assert 'extern "C" __device__ float add(float a, float b) {\n  return (a + b);\n}' in cuda_code
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_float_const_hex_format():
     """Test that float constants are emitted in hexadecimal format for precision"""
 
@@ -977,7 +981,8 @@ def test_cuda_float_const_hex_format():
     assert "0x1.2f684bda12f68p-5f" in cuda_code
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_device_host_call_same_func():
     @I.ir_module(s_tir=True)
     class Module:
@@ -1017,7 +1022,8 @@ def test_device_host_call_same_func():
     tvm.testing.assert_allclose(c_tvm.numpy(), a_np + b_np)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_thread_return():
     @I.ir_module(s_tir=True)
     class Module:
@@ -1034,8 +1040,8 @@ def test_thread_return():
     assert "return;" in cuda_code
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_loop_step():
     @T.prim_func(s_tir=True)
     def cuda_loop_step(
@@ -1066,8 +1072,8 @@ def test_cuda_loop_step():
     tvm.testing.assert_allclose(c_nd.numpy(), a_np + b_np)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export+load+run."""
     n = 1024

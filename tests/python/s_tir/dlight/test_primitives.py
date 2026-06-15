@@ -17,9 +17,12 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: F841
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -50,7 +53,8 @@ def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
             )
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_normalize_primfunc_with_scalar():
     sch = tvm.s_tir.Schedule(main)
     f_normalize_prim_func = tvm.get_global_func("s_tir.schedule.NormalizePrimFunc")

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: RUF005
 import numpy as np
 import pytest
 
@@ -24,6 +23,7 @@ from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
 from tvm.script import relax as R
+from tvm.testing import env
 
 
 @tvm.script.ir_module
@@ -59,7 +59,9 @@ requires_tensorrt_runtime = pytest.mark.skipif(
 pytestmark = [
     requires_tensorrt_codegen,
     requires_tensorrt_runtime,
-] + tvm.testing.requires_cuda.marks()
+    pytest.mark.cuda,
+    pytest.mark.skipif(not env.has_cuda(), reason="need cuda"),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):

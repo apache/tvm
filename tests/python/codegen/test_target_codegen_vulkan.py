@@ -28,6 +28,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I_builder
 from tvm.script.ir_builder import tirx as T_builder
+from tvm.testing import env
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))
@@ -468,7 +469,8 @@ def test_cooperative_matrix(out_dtype):
         tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.vulkan
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
     """The codegen should accept DeclBuffer nodes in its input"""
 
@@ -485,7 +487,8 @@ def test_codegen_decl_buffer():
     vulkan_codegen(Module, target)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.vulkan
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_static_shared_memory():
     """The codegen should accept static shared/workgroup allocations."""
 
@@ -503,8 +506,8 @@ def test_codegen_static_shared_memory():
     tvm.compile(Module, target="vulkan")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_vulkan
+@pytest.mark.vulkan
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_unary():
     test_funcs = [
         (tvm.tirx.sin, lambda x: np.sin(x)),
@@ -562,7 +565,8 @@ def test_unary():
         run_test(*func)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.vulkan
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024

@@ -26,6 +26,7 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 from tvm.target import codegen
+from tvm.testing import env
 
 llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
     # Testing mcpu type
@@ -107,7 +108,8 @@ def sve_device_vector_length():
     return int(out)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.arm_sve
+@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
 def test_scalable_div(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -128,7 +130,8 @@ def test_scalable_div(sve_device_vector_length):
     tvm.testing.assert_allclose(A_nd.numpy()[0], ref)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.arm_sve
+@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
 def test_scalable_buffer_load_store(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -153,7 +156,8 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.arm_sve
+@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
 def test_scalable_loop_bound(sve_device_vector_length):
     np.random.seed(0)
 
@@ -181,7 +185,8 @@ def test_scalable_loop_bound(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.arm_sve
+@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
 def test_scalable_broadcast(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     num_elements = sve_device_vector_length // 32

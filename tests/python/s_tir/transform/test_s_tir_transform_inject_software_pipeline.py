@@ -34,6 +34,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x16_to_ldmatrix_32x8_layout,
 )
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.testing.tir import mma_schedule
 
 
@@ -1547,7 +1548,8 @@ def build_and_run(sch):
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_async_pipelined_mma_gemm_simple():
     sch = get_mma_schedule()
 
@@ -1588,7 +1590,8 @@ def test_async_pipelined_mma_gemm_simple():
     build_and_run(sch)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     sch = get_mma_schedule()
 

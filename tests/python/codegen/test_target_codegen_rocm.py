@@ -16,14 +16,17 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_inf_nan():
     def check_inf_nan(dev, n, value, dtype):
         @I.ir_module(s_tir=True)
@@ -56,7 +59,8 @@ def test_rocm_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float64")
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_copy():
     def check_rocm(dtype, n):
         dev = tvm.rocm(0)
@@ -73,7 +77,8 @@ def test_rocm_copy():
         check_rocm(dtype, int(peturb * (2**logN)))
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorize_add():
     def check_rocm(dtype, n, lanes):
         vec_dtype = f"{dtype}x{lanes}"
@@ -104,7 +109,8 @@ def test_rocm_vectorize_add():
     check_rocm("float16", 64, 2)
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_warp_shuffle():
     @T.prim_func(s_tir=True)
     def func(
@@ -130,7 +136,8 @@ def test_rocm_warp_shuffle():
     tvm.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorized_exp():
     @T.prim_func(s_tir=True)
     def func(
@@ -154,7 +161,8 @@ def test_rocm_vectorized_exp():
     tvm.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.rocm
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export+load+run."""
     n = 1024

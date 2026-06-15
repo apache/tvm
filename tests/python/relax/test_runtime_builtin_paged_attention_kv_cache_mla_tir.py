@@ -35,6 +35,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _merge_state_inplace,
 )
 from tvm.s_tir import dlight as dl
+from tvm.testing import env
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -412,8 +413,8 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -433,8 +434,8 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, batch, cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -454,8 +455,8 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -524,8 +525,8 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)

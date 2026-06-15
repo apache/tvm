@@ -23,6 +23,7 @@ import pytest
 import tvm
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()
@@ -31,7 +32,8 @@ if machine not in ["x86_64", "AMD64", "amd64"]:
     pytest.skip(f"Requires x86_64, but machine is {machine}", allow_module_level=True)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @pytest.mark.skipif(llvm_version < 6, reason=f"Requires LLVM 6+, got {llvm_version}")
 def test_fp16_to_fp32():
     def fp16_to_fp32(target, width, match=None, not_match=None):

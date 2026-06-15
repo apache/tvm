@@ -34,8 +34,7 @@ def _compile_time_check():
     """Return True if compile-time support for Hexagon is present, otherwise
     error string.
 
-    Designed for use as a the ``compile_time_check`` argument to
-    `tvm.testing.Feature`.
+    Backs :func:`tvm.testing.env.has_hexagon_toolchain`.
     """
     if tvm.runtime.enabled("llvm") and tvm.target.codegen.llvm_version_major() < 7:
         return "Hexagon requires LLVM 7 or later"
@@ -50,8 +49,7 @@ def _run_time_check():
     """Return True if run-time support for Hexagon is present, otherwise
     error string.
 
-    Designed for use as a the ``run_time_check`` argument to
-    `tvm.testing.Feature`.
+    Backs :func:`tvm.testing.env.has_hexagon`.
     """
     if ANDROID_SERIAL_NUMBER not in os.environ:
         return f"Missing environment variable {ANDROID_SERIAL_NUMBER}."

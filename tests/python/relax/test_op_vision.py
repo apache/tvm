@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -570,7 +571,8 @@ def test_nms_legalize_return_data():
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_get_valid_counts_e2e():
     """Run get_valid_counts through legalization and compare with the numpy reference."""
 
@@ -685,7 +687,8 @@ def _run_nms_e2e(
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_indices():
     """Run classic NMS through legalization and compare with the numpy reference."""
 
@@ -728,7 +731,8 @@ def test_nms_e2e_return_indices():
     tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_soft_nms_reorders_by_decayed_score():
     """Soft-NMS should re-rank by decayed scores instead of keeping the initial order."""
 
@@ -779,7 +783,8 @@ def test_nms_e2e_soft_nms_reorders_by_decayed_score():
     tvm.testing.assert_allclose(result[2].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_indices_with_invalid_to_bottom():
     """Validate that invalid_to_bottom is a no-op when returning indices."""
 
@@ -822,7 +827,8 @@ def test_nms_e2e_return_indices_with_invalid_to_bottom():
     tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_top_k():
     """Validate that classic NMS honors top_k before suppression."""
 
@@ -869,7 +875,8 @@ def test_nms_e2e_top_k():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_force_suppress():
     """Validate that force_suppress ignores class ids when suppressing overlaps."""
 
@@ -914,7 +921,8 @@ def test_nms_e2e_force_suppress():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_max_output_size():
     """Validate that max_output_size truncates the kept boxes after score sorting."""
 
@@ -960,7 +968,8 @@ def test_nms_e2e_max_output_size():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_multi_batch():
     """Validate that classic NMS processes each batch independently."""
 
@@ -1013,7 +1022,8 @@ def test_nms_e2e_multi_batch():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2], [3]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_invalid_to_bottom():
     """Validate that invalid_to_bottom compacts only boxes that remain valid after NMS."""
 
@@ -1068,7 +1078,8 @@ def test_nms_e2e_invalid_to_bottom():
     tvm.testing.assert_allclose(result.numpy(), expected_out_data)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_data_without_compaction():
     """Validate the return_indices=False path when invalid boxes stay in-place."""
 
@@ -1123,7 +1134,8 @@ def test_nms_e2e_return_data_without_compaction():
     tvm.testing.assert_allclose(result.numpy(), expected_out_data)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_index_remap():
     """Validate that returned indices remap from filtered order back to original order."""
 
@@ -1349,7 +1361,8 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_all_class_non_max_suppression_legalize_e2e():
     @tvm.script.ir_module
     class NMSModule:
@@ -1533,7 +1546,8 @@ def _multibox_ref_numpy(
     return boxes, scores
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_e2e():
     @tvm.script.ir_module
     class Mod:
@@ -1581,7 +1595,8 @@ def test_multibox_transform_loc_legalize_e2e():
     tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
     @tvm.script.ir_module
     class Mod:
@@ -1629,7 +1644,8 @@ def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
     tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_attr_branches():
     @tvm.script.ir_module
     class Mod:

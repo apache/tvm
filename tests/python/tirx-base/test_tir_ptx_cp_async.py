@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -49,7 +51,8 @@ def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "floa
             B[tx, i] = A_shared[tx, i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_ptx_cp_async():
     f = ptx_cp_async
 

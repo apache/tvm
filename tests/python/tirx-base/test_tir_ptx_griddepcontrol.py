@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -37,7 +39,8 @@ def ptx_griddepcontrol(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float3
         T.evaluate(T.ptx.griddepcontrol.launch_dependents(dtype=""))
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_griddepcontrol():
     f = ptx_griddepcontrol
     mod = tvm.compile(f, target="cuda")

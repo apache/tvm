@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -41,6 +42,7 @@ from tvm.s_tir.tensor_intrin.rocm import (
     shared_16x16_to_local_64x4_layout_B,
     shared_16x16_to_local_64x4_layout_C,
 )
+from tvm.testing import env
 from tvm.testing.tir import mfma_schedule
 
 M = 1024
@@ -160,7 +162,8 @@ def run_test(
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
 
-@tvm.testing.requires_matrixcore
+@pytest.mark.matrixcore
+@pytest.mark.skipif(not env.has_matrixcore(), reason="need matrixcore")
 def test_i8i8i32_m16n16k16():
     def index_map_A(i, j):
         return (
@@ -210,7 +213,8 @@ def test_i8i8i32_m16n16k16():
         print("test_i8i8i32_m16n16k16: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_matrixcore
+@pytest.mark.matrixcore
+@pytest.mark.skipif(not env.has_matrixcore(), reason="need matrixcore")
 def test_f16f16f32_m16n16k16():
     def index_map_A(i, j):
         return (
@@ -260,7 +264,8 @@ def test_f16f16f32_m16n16k16():
         print("f16f16f32_m16n16k16: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_matrixcore
+@pytest.mark.matrixcore
+@pytest.mark.skipif(not env.has_matrixcore(), reason="need matrixcore")
 def test_f32f32f32_m16n16k4():
     def index_map_A(i, j):
         return (

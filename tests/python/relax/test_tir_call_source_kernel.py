@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -23,6 +24,7 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 add_cuda_source = """
 extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_elements) {
@@ -34,7 +36,8 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 """
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_call_source_kernel():
     @I.ir_module(s_tir=True)
     class Module:

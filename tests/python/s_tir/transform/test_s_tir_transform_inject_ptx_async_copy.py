@@ -25,6 +25,7 @@ import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def count_cp_async(stmt):
@@ -125,7 +126,8 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
             C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_inject_async_copy():
     for dtype, vec_size in [("float16", 8), ("float16", 4), ("float32", 4), ("float32", 1)]:
         if vec_size == 1:
@@ -157,7 +159,8 @@ def test_inject_async_copy():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_inject_async_copy_shared_dyn():
     f = ptx_global_to_shared_dyn_copy_fp16x8
 
@@ -350,7 +353,8 @@ def postproc_if_missing_async_support():
         tvm.register_global_func(func_name, prev_postproc, override=True)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func(s_tir=True)
     def simple_compute(
@@ -411,7 +415,8 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     "This bug should be addressed. See discussion in https://github.com/apache/tvm/pull/16769 "
     "and https://github.com/apache/tvm/pull/16569#issuecomment-1992720448"
 )
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func(s_tir=True)
     def complex_compute(

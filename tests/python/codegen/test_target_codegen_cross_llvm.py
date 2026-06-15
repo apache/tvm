@@ -21,6 +21,7 @@ import os
 import struct
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -28,6 +29,7 @@ from tvm import rpc
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.support import cc, utils
+from tvm.testing import env
 
 
 @I.ir_module(s_tir=True)
@@ -48,7 +50,8 @@ class AddModule:
                     C[v_i0] = A[v_i0] + B[v_i0]
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_add_pipeline():
     nn = 1024
 

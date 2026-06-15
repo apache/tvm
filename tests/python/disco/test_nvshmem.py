@@ -36,11 +36,15 @@ from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
 
-pytestmark = tvm.testing.requires_nvshmem.marks()
+pytestmark = [
+    pytest.mark.nvshmem,
+    pytest.mark.skipif(not env.has_nvshmem(), reason="need nvshmem"),
+]
 
 
 _SOCKET_SESSION_TESTER = None

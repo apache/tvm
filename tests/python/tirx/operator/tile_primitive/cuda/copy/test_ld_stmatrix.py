@@ -39,6 +39,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout, laneid, tid_in_wg, tx
 
 
@@ -319,7 +320,8 @@ _BUILDERS = {
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("direction", ["ld", "st"])
 @pytest.mark.parametrize("num", [1, 2, 4])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix(scope, trans, direction, num):
     kernel, (M, N) = _BUILDERS[scope](num, direction, trans)
     compiled, src = _compile_src(kernel)
@@ -349,7 +351,8 @@ def test_ldstmatrix(scope, trans, direction, num):
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("direction", ["ld", "st"])
 @pytest.mark.parametrize("num", [1, 2, 4])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle(scope, trans, direction, num):
     kernel, (M, N) = _BUILDERS[scope](num, direction, trans, swizzle=True)
     compiled, src = _compile_src(kernel)
@@ -424,7 +427,8 @@ def _build_multi_iter_kernel(outer_ext: int):
     return kernel, shape
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle_multi_iter_pow2():
     """32x64 fp16 warp; outer m_outer split into multiple BitIters (no
     LinearIter). Fast path must fire with a 3-slot signed_strides buffer."""
@@ -453,7 +457,8 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     np.testing.assert_allclose(B.numpy(), A_np)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ldstmatrix_swizzle_multi_iter_linear():
     """40x64 fp16 warp; outer ext=5 is non-pow2 but stride lands on swizzle
     period (Case 1.D pure) so the LinearIter relaxation fires. Pattern has

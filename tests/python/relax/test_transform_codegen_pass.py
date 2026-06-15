@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, RUF005
+# ruff: noqa: E501, F401
 
 import os
 import tempfile
@@ -31,6 +31,7 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.support import utils
+from tvm.testing import env
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -45,7 +46,11 @@ requires_tensorrt_runtime = pytest.mark.skipif(
 )
 
 # Global variable in pytest that applies markers to all tests.
-pytestmark = [requires_tensorrt_codegen] + tvm.testing.requires_cuda.marks()
+pytestmark = [
+    requires_tensorrt_codegen,
+    pytest.mark.cuda,
+    pytest.mark.skipif(not env.has_cuda(), reason="need cuda"),
+]
 
 # Target gpu
 target_str = "nvidia/nvidia-t4"
@@ -121,7 +126,8 @@ def setup_test():
 entry_func_name = tvm.testing.parameter("main", "func")
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_tensorrt_only(entry_func_name):
     mod, inputs, expected = setup_test()
@@ -151,7 +157,8 @@ def test_tensorrt_only(entry_func_name):
     check_roundtrip(ex0, dev, inputs, expected, entry_func_name)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_mix_use_tensorrt_and_tvm():
     mod, inputs, expected = setup_test()

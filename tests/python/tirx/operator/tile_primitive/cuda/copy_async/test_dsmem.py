@@ -30,6 +30,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx import IntImm, Var
 from tvm.tirx.cuda.operator.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
@@ -122,7 +123,8 @@ def _layout_physical_elements(layout):
     return max_offset + 1
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("shape,dtype,src_spec,dst_spec,expected", DSMEM_CONFIGS)
 def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.

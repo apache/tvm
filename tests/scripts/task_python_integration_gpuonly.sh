@@ -19,7 +19,9 @@
 set -exo pipefail
 
 export TVM_TEST_TARGETS='cuda;opencl;metal;rocm;nvptx;{"kind":"opencl","device":"mali,adreno"}'
-export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
+# Select GPU tests by any GPU-family marker (the umbrella "gpu" marker is no
+# longer auto-applied via parent inheritance).
+export PYTEST_ADDOPTS="-m 'gpu or cuda or rocm or metal or vulkan or opencl or nvptx or tensorcore or cudnn or cublas or nccl or cudagraph or nvshmem or matrixcore or hipblas or adreno_opencl_vulkan or adreno_vulkan or adreno_opencl or adreno_clml' $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
 export TVM_INTEGRATION_GPU_ONLY=1
