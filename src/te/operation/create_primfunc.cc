@@ -23,7 +23,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -112,8 +112,8 @@ struct CreateFuncInfo {
   ProducerToBufferTransformer transformer;
   /*! \brief The buffers should be allocated at function root. */
   ffi::Array<Buffer> root_alloc;
-  /*! \brief The NameSupply to make block name unique. */
-  NameSupply name_supply;
+  /*! \brief The unique name supply to make block name unique. */
+  UniqueNameSupply name_supply;
 
   ffi::String FreshName(ffi::String base_name) { return name_supply->FreshName(base_name); }
 

@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -96,7 +96,7 @@ class ExternFunctionRewriter : ExprMutator {
   }
 
  private:
-  NameSupply name_sup_;
+  UniqueNameSupply name_sup_;
   /*! \brief A variable that represents the workspace parameter passed from main. */
   Var workspace_var_param_;
   size_t max_workspace_size_ = 0;
