@@ -65,7 +65,7 @@ def compile_cuda(
     Notes
     -----
     - NVRTC is a "runtime" compilation library and can be faster for JIT compilation.
-    - NVRTC requires cuda-python: pip install cuda-python
+    - NVRTC requires cuda-bindings: pip install cuda-bindings
     """
     use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
 
@@ -289,9 +289,9 @@ def _compile_cuda_nvrtc(
         from cuda.bindings import nvrtc  # pylint: disable=import-outside-toplevel
     except ImportError as e:
         raise RuntimeError(
-            "Failed to compile CUDA with NVRTC because the `cuda-python` package "
+            "Failed to compile CUDA with NVRTC because the `cuda-bindings` package "
             "is not available.\n"
-            "Please install it with: pip install cuda-python\n"
+            "Please install it with: pip install cuda-bindings\n"
             "See: https://nvidia.github.io/cuda-python/"
         ) from e
 
@@ -301,9 +301,9 @@ def _compile_cuda_nvrtc(
 
         if importlib.util.find_spec("cuda.bindings.driver") is None:
             raise RuntimeError(
-                "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-python` package "
+                "Failed to compile CUDA with NVRTC+NVSHMEM because the `cuda-bindings` package "
                 "is not available.\n"
-                "Please install it with: pip install cuda-python\n"
+                "Please install it with: pip install cuda-bindings\n"
                 "See: https://nvidia.github.io/cuda-python/"
             )
 
@@ -812,7 +812,7 @@ def tvm_callback_cuda_compile(code):
     TVM_CUDA_COMPILE_MODE : str
         Compiler backend: "nvcc" (default) or "nvrtc"
         - "nvcc": Use nvcc subprocess, generates fatbin
-        - "nvrtc": Use NVRTC via cuda-python for faster JIT, generates cubin
+        - "nvrtc": Use NVRTC via cuda-bindings for faster JIT, generates cubin
     TVM_KERNEL_DUMP : str
         If set, dump generated CUDA/intermediate files and append "-lineinfo" so profilers can
         correlate SASS back to the dumped source.
