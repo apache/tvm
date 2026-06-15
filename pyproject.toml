@@ -53,7 +53,7 @@ dependencies = [
 
 [project.optional-dependencies]
 torch = ["torch"]
-cuda = ["cuda-python"]
+cuda = ["cuda-bindings"]
 meta-schedule = ["xgboost"]
 popen-pool = ["psutil", "cloudpickle"]
 rpc = ["tornado", "psutil", "cloudpickle"]
