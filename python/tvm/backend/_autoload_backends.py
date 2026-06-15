@@ -21,10 +21,8 @@ from __future__ import annotations
 import os
 import warnings
 from importlib.metadata import entry_points
-from pathlib import Path
-from typing import Any
 
-from tvm_ffi.libinfo import load_lib_ctypes
+from tvm.backend.loader import _load_runtime_sidecar, load
 
 _BUILTIN_BACKENDS = (
     "cuda",
@@ -38,43 +36,11 @@ _BUILTIN_BACKENDS = (
     "adreno",
 )
 
-# Guard so autoload runs at most once per process, even if invoked again.
-_RUNTIME_SIDECAR_LOAD_ATTEMPTED: set[str] = set()
 _AUTO_LOAD_DONE = False
-
-
-def _load_runtime_sidecar(name: str, loaded_libs: dict[str, Any] | None = None) -> None:
-    """Load ``libtvm_runtime_<name>`` next to ``libtvm_runtime`` if present."""
-    target_name = f"tvm_runtime_{name}"
-    if target_name in _RUNTIME_SIDECAR_LOAD_ATTEMPTED:
-        return
-
-    if loaded_libs is None:
-        from tvm.base import _LOADED_LIBS  # pylint: disable=import-outside-toplevel
-
-        loaded_libs = _LOADED_LIBS
-
-    runtime_lib = loaded_libs.get("tvm_runtime")
-    if runtime_lib is None:
-        return
-
-    _RUNTIME_SIDECAR_LOAD_ATTEMPTED.add(target_name)
-    runtime_dir = Path(runtime_lib._name).resolve().parent
-    try:
-        loaded_libs[target_name] = load_lib_ctypes(
-            package="tvm",
-            target_name=target_name,
-            mode="RTLD_GLOBAL",
-            extra_lib_paths=[runtime_dir],
-        )
-    except (OSError, FileNotFoundError, RuntimeError):
-        pass
 
 
 def _load_builtin_backends() -> None:
     """Load all in-tree backend Python hooks."""
-    from . import load  # pylint: disable=import-outside-toplevel
-
     for name in _BUILTIN_BACKENDS:
         load(name)
     return None

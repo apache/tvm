@@ -37,7 +37,7 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register CUDA-owned Python semantics."""
-    from tvm.backend._autoload_backends import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_sidecar
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
