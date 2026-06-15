@@ -10,7 +10,7 @@ Run the full TIRX test suite.
 2. Start the GPU monitor in the background so we can detect if anyone else lands on the same GPU mid-run:
    ```bash
    GPU_LOG="/tmp/tir_test_gpu_${CUDA_VISIBLE_DEVICES}.log"
-   bash .claude/scripts/monitor_gpu.sh --gpu "$CUDA_VISIBLE_DEVICES" --interval 5 --log "$GPU_LOG" &
+   bash .agents/scripts/monitor_gpu.sh --gpu "$CUDA_VISIBLE_DEVICES" --interval 5 --log "$GPU_LOG" &
    MON_PID=$!
    trap 'kill $MON_PID 2>/dev/null' EXIT
    ```
