@@ -123,7 +123,10 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     const int num_inputs = data_sizes_[0].size();
     buffers_.assign(num_inputs, nullptr);
     for (int i = 0; i < num_inputs; ++i) {
-      TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&buffers_[i], data_sizes_[0][i] * sizeof(float)));
+      // data_sizes_ holds the per-sample element count; getBatch() copies a full batch
+      // (batch_size_ * per-sample) into each buffer, so the device buffer must be sized to match.
+      TVM_FFI_CHECK_CUDA_ERROR(
+          cudaMalloc(&buffers_[i], batch_size_ * data_sizes_[0][i] * sizeof(float)));
     }
   }
 };

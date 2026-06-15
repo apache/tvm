@@ -61,7 +61,8 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
                 "TensorRT version as (major, minor, patch).",
                 refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
-                "Use implicit batch", refl::DefaultValue(true))
+                "Use implicit batch (removed in TensorRT 10; networks are always explicit-batch)",
+                refl::DefaultValue(false))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
                 "Max workspace size", refl::DefaultValue(size_t(1) << 30))
         .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,

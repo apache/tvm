@@ -48,6 +48,9 @@ using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
  * perform inference.
  */
 struct TensorRTEngineAndContext {
+  // TensorRT 10 builds a serialized engine which is then deserialized through an IRuntime. The
+  // runtime must outlive the engine it produced, so it is owned alongside the engine/context.
+  nvinfer1::IRuntime* runtime = nullptr;
   nvinfer1::ICudaEngine* engine = nullptr;
   nvinfer1::IExecutionContext* context = nullptr;
   std::vector<std::string> inputs;
@@ -67,12 +70,10 @@ class TensorRTBuilder {
    * \brief Create TensorRT builder.
    * \param logger TensorRT logger to use for errors and warnings.
    * \param max_workspace_size Workspace size parameter for TensorRT engine build phase.
-   * \param use_implicit_batch Whether to use implicit batch mode (default)
    * \param use_fp16 Whether to automatically convert a model to fp16
-   * \param batch_size If use_implicit_batch,
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
-                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16, int batch_size,
+                  size_t max_workspace_size, bool use_fp16,
                   nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
   /*!
@@ -124,13 +125,14 @@ class TensorRTBuilder {
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<int, std::vector<TensorRTOpInput>> node_output_map_;
 
+  /*! \brief TensorRT logger, used to create the builder and the deserialization runtime. */
+  TensorRTLogger* trt_logger_ = nullptr;
+
   /*! \brief TensorRT builder. */
   nvinfer1::IBuilder* builder_ = nullptr;
 
-#if TRT_VERSION_GE(6, 0, 1)
   /*! \brief TensorRT builder config. */
   nvinfer1::IBuilderConfig* config_ = nullptr;
-#endif
 
   /*! \brief TensorRT network definition. */
   nvinfer1::INetworkDefinition* network_ = nullptr;
@@ -147,17 +149,11 @@ class TensorRTBuilder {
   /*! \brief Max workspace size in bytes for TRT. */
   size_t max_workspace_size_;
 
-  /*! \brief Whether to use implicit batch mode. */
-  bool use_implicit_batch_;
-
   /*! \brief Whether to automatically convert model to 16-bit floating point precision. */
   bool use_fp16_;
 
   /*! \brief whether to automatically convert model to int8 precision */
   bool use_int8_;
-
-  /*! \brief Batch size to optimize for. */
-  int batch_size_;
 
   /*! \brief Input names. */
   std::vector<std::string> network_input_names_;

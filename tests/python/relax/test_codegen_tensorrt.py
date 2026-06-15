@@ -112,5 +112,207 @@ def test_tensorrt_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
+def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2):
+    """Offload a single-op module to TensorRT and compare against the LLVM reference.
+
+    Each module here contains a single instance of the op under test, which both exercises the
+    individual converter and avoids the structurally-identical-composite deduplication that would
+    otherwise collapse repeated ops.
+    """
+    ref = build_and_run(mod, [data_np, *params_np.values()], "llvm", legalize=True)
+    offloaded = tvm.transform.Sequential(
+        [
+            relax.transform.BindParams("main", params_np),
+            relax.transform.FuseOpsByPattern(patterns),
+            relax.transform.MergeCompositeFunctions(),
+            relax.transform.RunCodegen(),
+        ]
+    )(mod)
+    out = build_and_run(offloaded, [data_np], "cuda")
+    tvm.testing.assert_allclose(out, ref, rtol=rtol, atol=atol)
+
+
+def test_tensorrt_conv1d():
+    # Regression test: explicit-batch (batch > 1) 1D convolution. The pre-TRT10 converter assumed an
+    # implicit batch dimension and dropped the spatial dimension under explicit batch.
+    @tvm.script.ir_module
+    class Conv1d:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16), "float32"), weight: R.Tensor((4, 8, 3), "float32")):
+            with R.dataflow():
+                out = relax.op.nn.conv1d(data, weight, padding=1)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16).astype("float32")
+    weight = np.random.randn(4, 8, 3).astype("float32")
+    patterns = [("tensorrt.nn.conv1d", is_op("relax.nn.conv1d")(wildcard(), wildcard()))]
+    _offload_and_compare(Conv1d, {"weight": weight}, patterns, data)
+
+
+def test_tensorrt_max_pool2d():
+    @tvm.script.ir_module
+    class MaxPool:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.nn.max_pool2d(data, pool_size=(2, 2), strides=(2, 2))
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    patterns = [("tensorrt.nn.max_pool2d", is_op("relax.nn.max_pool2d")(wildcard()))]
+    _offload_and_compare(MaxPool, {}, patterns, data)
+
+
+def test_tensorrt_avg_pool2d():
+    @tvm.script.ir_module
+    class AvgPool:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.nn.avg_pool2d(data, pool_size=(2, 2), strides=(2, 2))
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    patterns = [("tensorrt.nn.avg_pool2d", is_op("relax.nn.avg_pool2d")(wildcard()))]
+    _offload_and_compare(AvgPool, {}, patterns, data)
+
+
+def test_tensorrt_softmax():
+    @tvm.script.ir_module
+    class Softmax:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.nn.softmax(data, axis=1)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    patterns = [("tensorrt.nn.softmax", is_op("relax.nn.softmax")(wildcard()))]
+    _offload_and_compare(Softmax, {}, patterns, data)
+
+
+def test_tensorrt_sigmoid():
+    @tvm.script.ir_module
+    class Sigmoid:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.sigmoid(data)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    patterns = [("tensorrt.sigmoid", is_op("relax.sigmoid")(wildcard()))]
+    _offload_and_compare(Sigmoid, {}, patterns, data)
+
+
+def test_tensorrt_tanh():
+    @tvm.script.ir_module
+    class Tanh:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.tanh(data)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    patterns = [("tensorrt.tanh", is_op("relax.tanh")(wildcard()))]
+    _offload_and_compare(Tanh, {}, patterns, data)
+
+
+def test_tensorrt_conv2d_transpose():
+    # Default IOHW kernel layout ([in, out, h, w]); output channels are weight_shape[1].
+    @tvm.script.ir_module
+    class ConvTranspose:
+        @R.function
+        def main(
+            data: R.Tensor((2, 8, 16, 16), "float32"), weight: R.Tensor((8, 4, 3, 3), "float32")
+        ):
+            with R.dataflow():
+                out = relax.op.nn.conv2d_transpose(data, weight, padding=1)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    weight = np.random.randn(8, 4, 3, 3).astype("float32")
+    patterns = [
+        ("tensorrt.nn.conv2d_transpose", is_op("relax.nn.conv2d_transpose")(wildcard(), wildcard()))
+    ]
+    _offload_and_compare(ConvTranspose, {"weight": weight}, patterns, data)
+
+
+def test_tensorrt_conv3d_transpose():
+    # Default IODHW kernel layout ([in, out, d, h, w]); output channels are weight_shape[1].
+    @tvm.script.ir_module
+    class ConvTranspose3d:
+        @R.function
+        def main(
+            data: R.Tensor((2, 4, 8, 8, 8), "float32"), weight: R.Tensor((4, 2, 3, 3, 3), "float32")
+        ):
+            with R.dataflow():
+                out = relax.op.nn.conv3d_transpose(data, weight, padding=1)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 4, 8, 8, 8).astype("float32")
+    weight = np.random.randn(4, 2, 3, 3, 3).astype("float32")
+    patterns = [
+        ("tensorrt.nn.conv3d_transpose", is_op("relax.nn.conv3d_transpose")(wildcard(), wildcard()))
+    ]
+    _offload_and_compare(ConvTranspose3d, {"weight": weight}, patterns, data)
+
+
+def test_tensorrt_int8_calibration(monkeypatch):
+    # INT8 calibration path: the first N runs feed calibration batches, then the INT8 engine is
+    # built and run. Validates that the calibrator copies a full batch (batch_size * per-sample
+    # elements) without over-reading the input or over-writing the device buffers, which previously
+    # crashed for batch > 1.
+    @tvm.script.ir_module
+    class Conv2dInt8:
+        @R.function
+        def main(
+            data: R.Tensor((2, 8, 16, 16), "float32"), weight: R.Tensor((4, 8, 3, 3), "float32")
+        ):
+            with R.dataflow():
+                out = relax.op.nn.conv2d(data, weight, padding=1)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 16, 16).astype("float32")
+    weight = np.random.randn(4, 8, 3, 3).astype("float32")
+    ref = build_and_run(Conv2dInt8, [data, weight], "llvm", legalize=True)
+
+    patterns = [("tensorrt.nn.conv2d", is_op("relax.nn.conv2d")(wildcard(), wildcard()))]
+    offloaded = tvm.transform.Sequential(
+        [
+            relax.transform.BindParams("main", {"weight": weight}),
+            relax.transform.FuseOpsByPattern(patterns),
+            relax.transform.MergeCompositeFunctions(),
+            relax.transform.RunCodegen(),
+        ]
+    )(Conv2dInt8)
+
+    num_calibration_batches = 2
+    monkeypatch.setenv("TVM_TENSORRT_USE_INT8", "1")
+    monkeypatch.setenv("TENSORRT_NUM_CALI_INT8", str(num_calibration_batches))
+
+    dev = tvm.device("cuda", 0)
+    vm = relax.VirtualMachine(tvm.compile(offloaded, "cuda"), dev)
+    data_trt = tvm.runtime.tensor(data, dev)
+    out = None
+    for _ in range(num_calibration_batches + 1):
+        out = vm["main"](data_trt).numpy()
+
+    assert np.isfinite(out).all()
+    # INT8 is lossy, so use a generous tolerance; the key assertion is that calibration completed
+    # without a CUDA error.
+    tvm.testing.assert_allclose(out, ref, rtol=0.2, atol=0.1 * float(np.abs(ref).max()))
+
+
 if __name__ == "__main__":
-    test_tensorrt_offload()
+    tvm.testing.main()
