@@ -55,7 +55,10 @@ class ShapeExprCanonicalizer : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* op) final {
     bool prev = inside_binding_block_;
     inside_binding_block_ = false;
+    auto prev_expr_to_var = std::move(expr_to_var_);
+    expr_to_var_.clear();
     Expr ret = ExprMutator::VisitExpr_(op);
+    expr_to_var_ = std::move(prev_expr_to_var);
     inside_binding_block_ = prev;
     return ret;
   }
