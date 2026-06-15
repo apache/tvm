@@ -80,7 +80,7 @@ def test_mismatch_transformations_and_num_params():
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    with pytest.raises(tvm.TVMError, match="Incompatible PrimFunc and write_transformations"):
+    with pytest.raises(RuntimeError, match="Incompatible PrimFunc and write_transformations"):
         _ = relax.analysis.suggest_layout_transforms(
             func=elemwise,
             write_buffer_transforms=[
@@ -212,7 +212,7 @@ def test_invalid_index_map():
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    with pytest.raises(tvm.TVMError, match="Mismatch between output buffer shape and index map"):
+    with pytest.raises(RuntimeError, match="Mismatch between output buffer shape and index map"):
         _ = relax.analysis.suggest_layout_transforms(
             func=elemwise, write_buffer_transforms=[lambda n, h, w: (n, w, h)]
         )

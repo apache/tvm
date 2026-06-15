@@ -78,6 +78,10 @@ class DRef(Object):
 class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
+    # tvm_ffi Object subclasses cannot store Python attributes by default
+    # (the metaclass sets `__slots__ = ()`); list the field(s) we store here.
+    __slots__ = ("session",)
+
     def __init__(self, dref: DRef, session: "Session") -> None:
         self.__move_handle_from__(dref)
         self.session = session
@@ -88,6 +92,10 @@ class DPackedFunc(DRef):
 
 class DModule(DRef):
     """A Module in a Disco session."""
+
+    # tvm_ffi Object subclasses cannot store Python attributes by default
+    # (the metaclass sets `__slots__ = ()`); list the field(s) we store here.
+    __slots__ = ("session",)
 
     def __init__(self, dref: DRef, session: "Session") -> None:
         self.__move_handle_from__(dref)
@@ -103,8 +111,13 @@ class Session(Object):
     """A Disco interactive session. It allows users to interact with the Disco command queue with
     various PackedFunc calling convention."""
 
+    # tvm_ffi Object subclasses cannot store Python attributes by default
+    # (the metaclass sets `__slots__ = ()`); list the fields we store here:
+    # the method-lookup cache and the lazily bound import helper.
+    __slots__ = ("_cache", "_import_python_module")
+
     def _get_cached_method(self, name: str) -> Callable:
-        if "_cache" not in self.__dict__:
+        if not hasattr(self, "_cache"):
             cache = self._cache = {}  # pylint: disable=attribute-defined-outside-init
         else:
             cache = self._cache

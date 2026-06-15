@@ -22,7 +22,7 @@ from typing import Literal
 
 from tvm_ffi import register_object as _register_object
 
-from tvm.error import TVMError, register_error
+from tvm.error import register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object
 from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
@@ -35,7 +35,7 @@ from .trace import Trace
 
 
 @register_error
-class ScheduleError(TVMError):
+class ScheduleError(RuntimeError):
     """Error that happens during TensorIR scheduling."""
 
 

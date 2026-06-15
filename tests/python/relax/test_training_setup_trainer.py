@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.training import SetupTrainer
 from tvm.relax.training.loss import MSELoss
@@ -203,7 +203,7 @@ def test_invalid_mod():
         [pred_sinfo, pred_sinfo],
     )
 
-    with pytest.raises((TVMError, ValueError)):
+    with pytest.raises((RuntimeError, ValueError)):
         SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),

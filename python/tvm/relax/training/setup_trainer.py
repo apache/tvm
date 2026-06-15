@@ -18,11 +18,10 @@
 """Setup Trainer Pass."""
 
 import tvm
-from tvm import TVMError
 from tvm.ir.module import IRModule
 from tvm.tirx.expr import IntImm
 
-from ..analysis import well_formed
+from ..analysis import check_well_formed
 from ..expr import Tuple
 from ..struct_info import TensorStructInfo
 from ..training.utils import AppendLoss
@@ -128,11 +127,11 @@ class SetupTrainer:
         self._legalize = legalize
 
     def _check_well_formed(self, mod: IRModule):
-        if not well_formed(mod):
+        if not check_well_formed(mod):
             raise ValueError("SetupTrainer: The backbone module is not well formed.")
         try:
             func = mod[self.BACKBONE_FUNC]
-        except TVMError as exc:
+        except (KeyError, ValueError) as exc:
             raise ValueError(
                 f"SetupTrainer: The backbone module does not contain a function named "
                 f"{self.BACKBONE_FUNC}"

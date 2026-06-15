@@ -22,7 +22,7 @@ from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
 from tvm.runtime import Object
 
-from ..base import __version__
+from ..libinfo import __version__
 from . import _ffi_api, json_compact
 
 

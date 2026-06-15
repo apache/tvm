@@ -189,10 +189,10 @@ def before_postproc_dynamic_shape_vectorize(
     n = T.int64()
     A = T.match_buffer(a, (n,), dtype="float32")
     B = T.match_buffer(b, (n,), dtype="float32")
-    with T.block("root"):
-        T.block_attr({"meta_schedule.vectorize": 64})
+    with T.sblock("root"):
+        T.sblock_attr({"meta_schedule.vectorize": 64})
         for i in T.serial(0, n):
-            with T.block("copy"):
+            with T.sblock("copy"):
                 vi = T.axis.spatial(n, i)
                 T.reads(A[vi])
                 T.writes(B[vi])
@@ -241,8 +241,8 @@ def test_no_unroll_for_spatial_block():
                     with T.init():
                         A_red_temp_v0[v_ax0] = T.float32(0)
                         A_red_temp_v1[v_ax0] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3] * A[v_ax0, v_k1, v_k2, v_k3]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3] * A[v_ax0, v_k1, v_k2, v_k3]
                     A_red_temp_v0[v_ax0] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(1, 4, 4, 32):
@@ -267,8 +267,8 @@ def test_no_unroll_for_spatial_block():
                         with T.init():
                             A_red_temp_v0[0] = T.float32(0)
                             A_red_temp_v1[0] = T.float32(0)
-                        v_A_red_temp_v0: T.float32 = A_red_temp_v0[0] + A[0, v_k1, v_k2, v_k3]
-                        v_A_red_temp_v1: T.float32 = A_red_temp_v1[0] + A[0, v_k1, v_k2, v_k3] * A[0, v_k1, v_k2, v_k3]
+                        v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[0] + A[0, v_k1, v_k2, v_k3]
+                        v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[0] + A[0, v_k1, v_k2, v_k3] * A[0, v_k1, v_k2, v_k3]
                         A_red_temp_v0[0] = v_A_red_temp_v0
                         A_red_temp_v1[0] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(1, 4, 4, 32):

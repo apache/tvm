@@ -30,6 +30,10 @@ semantic verification.
 """
 
 import numpy as np
+import pytest
+
+pytest.importorskip("onnx")
+
 import onnx
 import onnx.backend.test
 from onnx.backend.base import Backend, BackendRep

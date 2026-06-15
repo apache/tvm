@@ -21,6 +21,8 @@ import tempfile
 
 import pytest
 
+pytest.importorskip("cloudpickle")  # tvm.s_tir.dlight.benchmark imports cloudpickle
+
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.dlight.benchmark import (

@@ -56,7 +56,11 @@ def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
-        B_new = T.decl_buffer(shape=[1, 16], dtype="float32")
+        B_new = T.alloc_buffer(
+            [1, 16],
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
@@ -98,7 +102,12 @@ def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B = T.decl_buffer(shape=[1, 16], dtype="float32", scope="local")
+    B = T.alloc_buffer(
+        [1, 16],
+        "float32",
+        scope="local",
+        annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+    )
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
     for j in range(0, 16):
@@ -133,7 +142,11 @@ def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) 
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B = T.decl_buffer(shape=[m], dtype="float32")
+        B = T.alloc_buffer(
+            [m],
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
@@ -206,8 +219,16 @@ def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B = T.decl_buffer(shape=(32,), dtype="float32")
-        C = T.decl_buffer(shape=(32,), dtype="float32")
+        B = T.alloc_buffer(
+            (32,),
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
+        C = T.alloc_buffer(
+            (32,),
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
         D[i] = C[i] * 2.0
@@ -242,7 +263,12 @@ def transformed_strided_buffer_func(
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1])
+        B = T.alloc_buffer(
+            [4, 16],
+            "float32",
+            strides=[17, 1],
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
@@ -275,10 +301,11 @@ def transformed_symbolic_strided_buffer_func(a: T.handle):
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        A_pad_shared_dyn = T.decl_buffer(
+        A_pad_shared_dyn = T.alloc_buffer(
             (1, T.min((n + 63) // 64 * 64, 96), 64),
             strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
             scope="shared.dyn",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:

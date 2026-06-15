@@ -48,7 +48,7 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     return minrpc_dir, path
 
 
-def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runtime"):
+def with_minrpc(compile_func, server="posix_popen_server"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -59,16 +59,13 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runti
     server : str
         The server type.
 
-    runtime : str
-        The runtime library.
-
     Returns
     -------
     fcompile : function
         The return compilation.
     """
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
-    runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
+    runtime_path = libinfo.find_libtvm_runtime()
     tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
@@ -86,7 +83,12 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm_runti
     # inside libtvm_runtime; with the default ``--as-needed`` those
     # registrations would never run.
     options += ["-Wl,--no-as-needed"]
-    options += ["-I" + path for path in libinfo.find_include_path()]
+    default_include_paths = [
+        libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_dlpack_include_path(),
+    ]
+    options += ["-I" + path for path in default_include_paths]
     options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(
         compile_func, options=options, add_files=[server_path, runtime_path, tvm_ffi_path]

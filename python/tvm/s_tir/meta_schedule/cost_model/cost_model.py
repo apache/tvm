@@ -35,7 +35,6 @@ from .. import _ffi_api
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import _get_default_str
 
 
 @register_object("s_tir.meta_schedule.CostModel")
@@ -169,7 +168,6 @@ class _PyCostModel(CostModel):
         f_save: Callable | None = None,
         f_update: Callable | None = None,
         predict_func: Callable | None = None,
-        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
@@ -189,7 +187,6 @@ class _PyCostModel(CostModel):
             f_save,
             f_update,
             f_predict,
-            f_as_string,
         )
 
 
@@ -203,7 +200,7 @@ class PyCostModel:
 
     _tvm_metadata = {
         "cls": _PyCostModel,
-        "methods": ["load", "save", "update", "predict", "__str__"],
+        "methods": ["load", "save", "update", "predict"],
     }
 
     def load(self, path: str) -> None:
@@ -261,13 +258,3 @@ class PyCostModel:
             The predicted normalized score.
         """
         raise NotImplementedError
-
-    def __str__(self) -> str:
-        """Get the cost model as string with name.
-
-        Return
-        ------
-        result : str
-            Get the cost model as string with name.
-        """
-        return _get_default_str(self)

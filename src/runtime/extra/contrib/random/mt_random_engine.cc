@@ -147,15 +147,7 @@ class RandomEngine {
     // quantized dtype (uint8 / int8) data non-empty requirement
     std::uniform_real_distribution<> dist(1.0, 10.0);
     // Use float representation could make us work well on float / int type too.
-    if (dtype.bits == 1) {
-      std::generate_n(static_cast<bool*>(data) + st, ed - st, [&]() { return dist(rnd_engine_); });
-    } else if (dtype.bits == 4) {
-      // For uint4/int4 we pack two values into a single byte.
-      // Thus, to ensure both values are non-zero, we use a distribution of 17 - 30.
-      std::uniform_real_distribution<> packed_dist(17.0, 30.0);
-      std::generate_n(reinterpret_cast<uint8_t*>(data) + st, ed - st,
-                      [&]() { return packed_dist(rnd_engine_); });
-    } else if (dtype.bits == 8) {
+    if (dtype.bits == 8) {
       std::generate_n(static_cast<uint8_t*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
     } else if (dtype.bits == 16) {
@@ -169,8 +161,8 @@ class RandomEngine {
       std::generate_n(static_cast<double*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 
@@ -180,12 +172,11 @@ class RandomEngine {
       size *= tensor->shape[i];
     }
     DLDataType dtype = tensor->dtype;
-    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
-        dtype.bits == 32 || dtype.bits == 64) {
+    if (dtype.bits == 8 || dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64) {
       FillDataImpl(tensor->data, 0, size, dtype);
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 
@@ -218,13 +209,12 @@ class RandomEngine {
     for (int i = 0; i < tensor->ndim; ++i) {
       size *= tensor->shape[i];
     }
-    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
-        dtype.bits == 32 || dtype.bits == 64) {
+    if (dtype.bits == 8 || dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64) {
       int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, 0);
       TVM_FFI_ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 

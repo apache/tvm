@@ -956,7 +956,7 @@ def test_raise_exception_during_codegen():
                 for j in T.parallel(4):
                     B[i, j] = A[i, j] * 2.0
 
-    with pytest.raises(tvm.TVMError) as e:
+    with pytest.raises(RuntimeError) as e:
         tvm.compile(Module, target="llvm")
     msg = str(e)
     assert msg.find("Nested parallel loop is not supported") != -1
@@ -1146,7 +1146,7 @@ def test_call_packed_without_string_arg():
         def main(A: T.Buffer(1, "float32")):
             T.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data])
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         built = tvm.compile(Module, target="llvm")
 
 
@@ -1173,7 +1173,7 @@ def test_invalid_volatile_masked_buffer_load():
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target("llvm"):
             tvm.compile(Module)
 
@@ -1191,7 +1191,7 @@ def test_invalid_volatile_masked_buffer_store():
             )
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
-    with pytest.raises(tvm.TVMError, match=err_msg):
+    with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target("llvm"):
             tvm.compile(Module)
 

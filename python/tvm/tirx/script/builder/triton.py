@@ -29,6 +29,11 @@ from tvm.topi.utils import get_const_int
 
 from .external_kernel import BaseKernel
 
+if version.parse(triton.__version__) < version.parse("3.3.0"):
+    raise ImportError(
+        f"TIR Triton integration requires Triton >= 3.3.0, but found Triton {triton.__version__}"
+    )
+
 
 class TritonKernel(BaseKernel):
     """A kernel from Triton JIT function.
@@ -74,12 +79,9 @@ class TritonKernel(BaseKernel):
             : len(grid)
         ]
         launch_args = [num_warps * 32] + list(grid)
-        if version.parse(triton.__version__) >= version.parse("3.3.0"):
-            kernel_arg_types = [
-                arg.dtype if not isinstance(arg, int) else "int64" for arg in kernel_args
-            ]
-        else:
-            kernel_arg_types = [arg.dtype for arg in kernel_args]
+        kernel_arg_types = [
+            arg.dtype if not isinstance(arg, int) else "int64" for arg in kernel_args
+        ]
         if triton_kernel.metadata.shared > 0:
             # Add shared memory size to the launch arguments
             launch_param_tags.append("tirx.use_dyn_shared_memory")
@@ -107,9 +109,8 @@ class TritonKernel(BaseKernel):
         for i, arg in enumerate(args):
             if kernel_params[i].is_constexpr:
                 constants[kernel_params[i].name] = get_const_int(arg)
-                if version.parse(triton.__version__) >= version.parse("3.3.0"):
-                    signature[kernel_params[i].name] = "constexpr"
-                    kernel_args.append(arg)
+                signature[kernel_params[i].name] = "constexpr"
+                kernel_args.append(arg)
                 continue
             if arg.dtype == "handle":
                 assert isinstance(arg, tirx.Var)
@@ -122,10 +123,6 @@ class TritonKernel(BaseKernel):
 
         # TODO: Support default argument in the kernel
         # TODO: Add specialization for aligned buffer pointers
-        if version.parse(triton.__version__) >= version.parse("3.3.0"):
-            kwargs = {"constexprs": constants}
-        else:
-            kwargs = {"constants": constants}
-        source = triton.compiler.ASTSource(fn=func, signature=signature, **kwargs)
+        source = triton.compiler.ASTSource(fn=func, signature=signature, constexprs=constants)
         compiled = triton.compiler.compile(source, options=kwargs)
         return compiled, kernel_args

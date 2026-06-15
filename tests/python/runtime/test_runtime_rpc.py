@@ -28,6 +28,8 @@ import numpy as np
 import pytest
 import tvm_ffi
 
+pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
+
 import tvm
 import tvm.testing
 from tvm import rpc, te
@@ -104,7 +106,7 @@ def test_rpc_simple():
         assert f1(10) == 11
         f3 = client.get_function("rpc.test.except")
 
-        with pytest.raises(tvm.base.TVMError):
+        with pytest.raises(RuntimeError):
             f3("abc")
 
         f2 = client.get_function("rpc.test.strcat")

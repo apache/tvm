@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.relax.training import SetupTrainer, Trainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, Adam
@@ -160,9 +160,9 @@ def test_setting_error(target, dev):
 
     dataset = _make_dataset()
     # parameters are not inited
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         trainer.predict(dataset[0][0])
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         trainer.update(dataset[0][0], dataset[0][1])
 
 

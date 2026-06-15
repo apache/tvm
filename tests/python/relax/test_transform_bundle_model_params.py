@@ -16,6 +16,10 @@
 # under the License.
 # ruff: noqa: F401
 
+import pytest
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm
 import tvm.testing
 import tvm.topi.testing

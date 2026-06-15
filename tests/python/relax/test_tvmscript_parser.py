@@ -38,8 +38,8 @@ def _check(
     roundtrip_mod = tvm.script.from_source(test)
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
-        assert relax.analysis.well_formed(parsed)
-        assert relax.analysis.well_formed(roundtrip_mod)
+        relax.analysis.well_formed(parsed)
+        relax.analysis.well_formed(roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)
 

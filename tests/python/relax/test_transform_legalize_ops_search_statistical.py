@@ -1179,5 +1179,37 @@ def test_variance_no_keepdims():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_max_zero_dim():
+    # Reducing a 0-D (scalar) tensor is the identity; it must legalize, not crash.
+    # Regression test for https://github.com/apache/tvm/issues/19676
+    # fmt: off
+    @tvm.script.ir_module
+    class Max:
+        @R.function
+        def main(x: R.Tensor((), "float32")) -> R.Tensor((), "float32"):
+            gv: R.Tensor((), "float32") = R.max(x)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            gv = R.call_tir(Expected.max, (x,), R.Tensor((), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def max(x: T.Buffer((), "float32"), x_red: T.Buffer((), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            with T.sblock("x_red"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(x[()])
+                T.writes(x_red[()])
+                x_red[()] = x[()]
+    # fmt: on
+
+    mod = LegalizeOps()(Max)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

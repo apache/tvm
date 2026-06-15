@@ -70,13 +70,13 @@ def derived_object(cls: type[T]) -> type[T]:
             # extract functions that differ from the base class
             if not hasattr(base_cls, name):
                 continue
-            if getattr(base_cls, name) is getattr(inherit_cls, name) and name != "__str__":
+            if getattr(base_cls, name) is getattr(inherit_cls, name):
                 continue
             return method
 
         # for task scheduler return None means calling default function
-        # otherwise it will trigger a TVMError of method not implemented
-        # on the c++ side when you call the method, __str__ not required
+        # otherwise it will trigger a RuntimeError of method not implemented
+        # on the c++ side when you call the method
         return None
 
     assert isinstance(cls.__base__, type)

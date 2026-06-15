@@ -78,7 +78,7 @@ def gen_ground_truth(mod, target, dev, inputs):
             [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
-    assert relax.analysis.well_formed(new_mod)
+    relax.analysis.well_formed(new_mod)
     exec = tvm.compile(new_mod, target, params={})
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
@@ -178,7 +178,7 @@ def test_mix_use_tensorrt_and_tvm():
                     relax.transform.MetaScheduleApplyDatabase(work_dir),
                 ]
             )(mod)
-    assert relax.analysis.well_formed(new_mod)
+    relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
         ex0 = tvm.compile(new_mod, target, params={})
 

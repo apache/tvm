@@ -337,8 +337,8 @@ def test_layer_norm():
                     with T.init():
                         A_red_temp_v0[v_ax0, v_ax1] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
                     A_red_temp_v0[v_ax0, v_ax1] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(2560)):
@@ -377,8 +377,8 @@ def test_layer_norm():
                                 with T.init():
                                     A_red_temp_v0_shared[T.int64(0), v0] = T.float32(0)
                                     A_red_temp_v1_shared[T.int64(0), v0] = T.float32(0)
-                                v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1]
-                                v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1] * lv6[T.int64(0), v0, v1]
+                                v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1]
+                                v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1] * lv6[T.int64(0), v0, v1]
                                 A_red_temp_v0_shared[T.int64(0), v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[T.int64(0), v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -481,8 +481,8 @@ def test_group_norm():
                     with T.init():
                         A_red_temp_v0[v_ax0, v_ax1] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2] * T_reshape_1[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2] * T_reshape_1[v_ax0, v_ax1, v_k2]
                     A_red_temp_v0[v_ax0, v_ax1] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax0, ax1 in T.grid(32, 64):
@@ -531,8 +531,8 @@ def test_group_norm():
                                 with T.init():
                                     A_red_temp_v0_shared[0, v0] = T.float32(0)
                                     A_red_temp_v1_shared[0, v0] = T.float32(0)
-                                v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[0, v0] + A[0, v0 * 64 + v1]
-                                v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[0, v0] + A[0, v0 * 64 + v1] * A[0, v0 * 64 + v1]
+                                v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[0, v0] + A[0, v0 * 64 + v1]
+                                v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[0, v0] + A[0, v0 * 64 + v1] * A[0, v0 * 64 + v1]
                                 A_red_temp_v0_shared[0, v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[0, v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(256, thread="threadIdx.x"):

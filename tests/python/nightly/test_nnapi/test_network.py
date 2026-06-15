@@ -17,8 +17,11 @@
 """NNAPI network tests."""
 
 import numpy as np
-import onnx
 import pytest
+
+pytest.importorskip("onnx")
+
+import onnx
 
 import tvm
 from test_nnapi.conftest import remote

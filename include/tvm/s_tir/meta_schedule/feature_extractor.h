@@ -67,20 +67,11 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
    */
   using FExtractFrom = ffi::TypedFunction<ffi::Array<tvm::runtime::Tensor>(
       const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates)>;
-  /*!
-   * \brief Get the feature extractor as string with name.
-   * \return The string of the feature extractor.
-   */
-  using FAsString = ffi::TypedFunction<ffi::String()>;
-
   /*! \brief The packed function to the `ExtractFrom` function. */
   FExtractFrom f_extract_from;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
 
   static void RegisterReflection() {
     // `f_extract_from` is not registered
-    // `f_as_string` is not registered
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyFeatureExtractorNode>();
   }
@@ -114,12 +105,10 @@ class FeatureExtractor : public ffi::ObjectRef {
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.
    * \param f_extract_from The packed function of `ExtractFrom`.
-   * \param f_as_string The packed function of `AsString`.
    * \return The feature extractor created.
    */
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
-      PyFeatureExtractorNode::FExtractFrom f_extract_from,
-      PyFeatureExtractorNode::FAsString f_as_string);
+      PyFeatureExtractorNode::FExtractFrom f_extract_from);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FeatureExtractor, ffi::ObjectRef,
                                              FeatureExtractorNode);
 };

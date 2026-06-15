@@ -37,9 +37,8 @@ except ImportError:
     ml_dtypes = None
 
 import tvm
-from tvm.libinfo import find_lib_path
 from tvm.runtime import DataType
-from tvm.support.emcc import create_tvmjs_wasm
+from tvm.support.emcc import create_tvmjs_wasm, find_wasm_lib
 
 
 def _convert_f32_to_bf16(value):
@@ -409,11 +408,11 @@ def export_runtime(runtime_dir):
         + " cd /path/to/tvm/web; make; npm run bundle"
     )
 
-    jsbundle = find_lib_path("tvmjs.bundle.js", optional=True)
+    jsbundle = find_wasm_lib("tvmjs.bundle.js", optional=True)
     if not jsbundle:
         raise RuntimeError("Cannot find tvmjs.bundle.js, " + web_hint)
 
-    wasi = find_lib_path("tvmjs_runtime.wasi.js", optional=True)
+    wasi = find_wasm_lib("tvmjs_runtime.wasi.js", optional=True)
     if not wasi:
         raise RuntimeError("Cannot find tvmjs_runtime.wasi.js, " + web_hint)
 

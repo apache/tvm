@@ -25,6 +25,7 @@
 #include "resize.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -63,29 +64,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Resize2D expects 2 arguments, while the given number of arguments is "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Resize2D expects 2 arguments, while the given number of arguments is "
+        << call->args.size();
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Resize2D expects the input data to be a Tensor, while the given data is "
-                     << call->args[0]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Resize2D expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey();
   }
   if (size_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize2D expects the given output image size to be a Shape, while the given one is "
-        << call->args[1]->GetTypeKey());
+        << call->args[1]->GetTypeKey();
   }
   if (size_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Resize2D expects the given output image size to "
-                                                "be a 2-dim shape, while the given one has ndim "
-                                             << size_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Resize2D expects the given output image size to "
+                                             "be a 2-dim shape, while the given one has ndim "
+                                          << size_sinfo->ndim;
   }
 
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
@@ -178,29 +178,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Resize3D expects 2 arguments, while the given number of arguments is "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Resize3D expects 2 arguments, while the given number of arguments is "
+        << call->args.size();
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Resize3D expects the input data to be a Tensor, while the given data is "
-                     << call->args[0]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Resize3D expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey();
   }
   if (size_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize3D expects the given output image size to be a Shape, while the given one is "
-        << call->args[1]->GetTypeKey());
+        << call->args[1]->GetTypeKey();
   }
   if (size_sinfo->ndim != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Resize3D expects the given output image size to "
-                                                "be a 3-dim shape, while the given one has ndim "
-                                             << size_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Resize3D expects the given output image size to "
+                                             "be a 3-dim shape, while the given one has ndim "
+                                          << size_sinfo->ndim;
   }
 
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
@@ -286,23 +285,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "GridSample expects two arguments, while the given number of arguments is "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "GridSample expects two arguments, while the given number of arguments is "
+        << call->args.size();
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   const auto* grid_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
 
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "GridSample expects the input data to be a Tensor, while the given data is "
-                     << call->args[0]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "GridSample expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey();
   }
   if (grid_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "GridSample expects the grid to be a Tensor, while the given grid is "
-                     << call->args[1]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "GridSample expects the grid to be a Tensor, while the given grid is "
+        << call->args[1]->GetTypeKey();
   }
 
   const auto* attrs = call->attrs.as<GridSampleAttrs>();
@@ -355,9 +354,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "AffineGrid expects two arguments, while the given number of arguments is "
-                     << call->args.size());
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "AffineGrid expects two arguments, while the given number of arguments is "
+        << call->args.size();
   }
 
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -365,27 +364,27 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
   const auto* size_value = call->args[1].as<ShapeExprNode>();
 
   if (data_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "AffineGrid expects the input data to be a Tensor, while the given data is "
-                     << call->args[0]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "AffineGrid expects the input data to be a Tensor, while the given data is "
+        << call->args[0]->GetTypeKey();
   }
   if (size_sinfo == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "AffineGrid expects the target size to be a Shape, while the given one is "
-                     << call->args[1]->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "AffineGrid expects the target size to be a Shape, while the given one is "
+        << call->args[1]->GetTypeKey();
   }
   if (size_sinfo->ndim != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "AffineGrid expects the target size to be a 2-dim shape, while the given "
-                        "one has ndim "
-                     << size_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "AffineGrid expects the target size to be a 2-dim shape, while the given "
+           "one has ndim "
+        << size_sinfo->ndim;
   }
 
   // data should be 3-D: [batch, 2, 3]
   if (data_sinfo->ndim != -1 && data_sinfo->ndim != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "AffineGrid expects the input data to be 3-D (batch, 2, 3), but got ndim "
-                     << data_sinfo->ndim);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "AffineGrid expects the input data to be 3-D (batch, 2, 3), but got ndim "
+        << data_sinfo->ndim;
   }
 
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
@@ -394,17 +393,15 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
     if (data_shape->values.size() >= 2) {
       auto* dim1 = data_shape->values[1].as<IntImmNode>();
       if (dim1 != nullptr && dim1->value != 2) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "AffineGrid expects the second dimension of input to be 2, but got "
-                         << dim1->value);
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "AffineGrid expects the second dimension of input to be 2, but got " << dim1->value;
       }
     }
     if (data_shape->values.size() >= 3) {
       auto* dim2 = data_shape->values[2].as<IntImmNode>();
       if (dim2 != nullptr && dim2->value != 3) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "AffineGrid expects the third dimension of input to be 3, but got "
-                         << dim2->value);
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "AffineGrid expects the third dimension of input to be 3, but got " << dim2->value;
       }
     }
   }

@@ -443,7 +443,7 @@ def test_webgpu_target_subgroup_attrs():
         {"kind": "webgpu", "thread_warp_size": 32},
         {"kind": "webgpu", "thread_warp_size": 32, "supports_subgroups": False},
     ]:
-        with pytest.raises(tvm.TVMError, match="requires supports_subgroups=true"):
+        with pytest.raises(ValueError, match="requires supports_subgroups=true"):
             Target(config)
 
 

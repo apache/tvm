@@ -16,17 +16,14 @@
 # under the License.
 """Utilities for meta schedule"""
 
-import ctypes
 import os
 import shutil
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np  # type: ignore
-import psutil  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
-from tvm.error import TVMError
 from tvm.ir import IRModule
 from tvm.rpc import RPCSession
 from tvm.tirx import FloatImm, IntImm
@@ -57,6 +54,12 @@ def _cpu_count_impl(logical: bool = True) -> int:
     Setting these variables may interfere the host-side search with profiling of generated kernels
     when measuring locally.
     """
+    try:
+        import psutil  # type: ignore  # pylint: disable=import-outside-toplevel
+    except ImportError as err:
+        raise ImportError(
+            "psutil is required by the meta schedule search. Install it with: pip install psutil"
+        ) from err
     return psutil.cpu_count(logical=logical) or 1
 
 
@@ -155,7 +158,7 @@ def get_global_func_with_default_on_worker(
         return name
     try:
         return get_global_func(name)
-    except TVMError as error:
+    except (ValueError, RuntimeError) as error:
         raise ValueError(
             "Function '{name}' is not registered on the worker process. "
             "The build function and export function should be registered in the worker process. "
@@ -245,29 +248,6 @@ def shash2hex(mod: IRModule) -> str:
     """
     func = get_global_func("s_tir.meta_schedule._SHash2Hex")
     return str(func(mod))
-
-
-def _get_default_str(obj: Any) -> str:
-    return (
-        # pylint: disable=protected-access
-        f"s_tir.meta_schedule.{obj.__class__.__name__}"
-        + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
-        # pylint: enable=protected-access
-    )
-
-
-def _to_hex_address(handle: ctypes.c_void_p) -> str:
-    """Get the hexadecimal address of a handle.
-    Parameters
-    ----------
-    handle : ctypes.c_void_p
-        The handle to be converted.
-    Returns
-    -------
-    result : str
-        The hexadecimal address of the handle.
-    """
-    return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
 def fork_seed(seed: int | None, n: int) -> list[int]:

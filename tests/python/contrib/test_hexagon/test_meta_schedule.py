@@ -22,6 +22,8 @@ import tempfile
 import numpy as np
 import pytest
 
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.testing
 import tvm.topi.testing
 from tvm import te

@@ -149,17 +149,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  [[noreturn]] void ReportFatal(const Diagnostic& diagnostic) final {
-    // TODO(relax-team): Print more context information by looking
-    // into the diagnostic->loc and surrounding IRModule.
-    // We do not materialzie DiagnosticContext to avoid double referencing to
-    // the change IRModule in COW. Additionally, we need to be able to
-    // continue use the builder after an error is thrown to avoid state building up.
-    // in an interactive environment.
-    throw ffi::Error(diagnostic->error_kind, diagnostic->message,
-                     TVMFFIBacktrace(__FILE__, __LINE__, "", 0));
-  }
-
   //-------------------------------
   // Scope management
   //-------------------------------

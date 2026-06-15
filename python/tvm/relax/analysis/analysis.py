@@ -481,8 +481,35 @@ def remove_all_unused(func: Function) -> Function:
     return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
-def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> bool:
-    """Check if the IRModule is well formed.
+def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> None:
+    """Check if the IRModule is well formed, raising on the first violation.
+
+    Raises an error (seeded with the offending node so a pass runner can report a
+    precise access path) on the first well-formedness violation.  Use
+    :func:`check_well_formed` for a boolean answer.
+
+    Parameters
+    ----------
+    obj : Union[tvm.IRModule, Function]
+        The input IRModule or relax.Function.
+
+    check_struct_info : bool
+        A boolean flag indicating if the property "every Expr must
+        have defined structure info" will be checked.
+
+    Note
+    ----
+    By default the structure info is always checked. It is only in test cases
+    where `check_struct_info` might be false, so that other well-formed requirements
+    will be well tested and will not be blocked by not having structure info.
+    """
+    _ffi_api.well_formed(obj, check_struct_info)  # type: ignore
+
+
+def check_well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> bool:
+    """Return whether the IRModule or Function is well formed.
+
+    Wraps :func:`well_formed`, returning False instead of raising on the first violation.
 
     Parameters
     ----------
@@ -497,14 +524,8 @@ def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> boo
     -------
     ret: bool
         True if the IRModule is well formed, False if not.
-
-    Note
-    ----
-    By default the structure info is always checked. It is only in test cases
-    where `check_struct_info` might be false, so that other well-formed requirements
-    will be well tested and will not be blocked by not having structure info.
     """
-    return _ffi_api.well_formed(obj, check_struct_info)  # type: ignore
+    return _ffi_api.check_well_formed(obj, check_struct_info)  # type: ignore
 
 
 def _get_prim_func_default_dtype(func: PrimFunc):

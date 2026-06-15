@@ -1424,8 +1424,8 @@ def test_reverse_compute_inline_layer_norm():
                         with T.init():
                             A_red_temp_v0_shared[v_ax0, v_ax1] = T.float32(0)
                             A_red_temp_v1_shared[v_ax0, v_ax1] = T.float32(0)
-                        v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
-                        v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
+                        v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
+                        v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
                         A_red_temp_v0_shared[v_ax0, v_ax1] = v_A_red_temp_v0
                         A_red_temp_v1_shared[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax2_0 in range(T.int64(10)):
@@ -1465,8 +1465,8 @@ def test_reverse_compute_inline_layer_norm():
                         with T.init():
                             A_red_temp_v0_shared[v_ax0, v_ax1] = T.float32(0)
                             A_red_temp_v1_shared[v_ax0, v_ax1] = T.float32(0)
-                        v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
-                        v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
+                        v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
+                        v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
                         A_red_temp_v0_shared[v_ax0, v_ax1] = v_A_red_temp_v0
                         A_red_temp_v1_shared[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax2_0 in range(T.int64(10)):

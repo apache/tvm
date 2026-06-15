@@ -24,6 +24,7 @@ import numpy as np
 import tvm_ffi
 
 import tvm
+import tvm.libinfo
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend import nn
@@ -120,14 +121,13 @@ def _check_ir_equality(mod):
 
 
 def _compile_cc(src: Path, dst: Path):
-    # pylint: disable=import-outside-toplevel
-    from tvm.base import py_str
-    from tvm.libinfo import find_include_path
-
-    # pylint: enable=import-outside-toplevel
-
     cmd = ["g++", str(src)]
-    for include_path in find_include_path():
+    default_include_paths = [
+        tvm.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_dlpack_include_path(),
+    ]
+    for include_path in default_include_paths:
         cmd += ["-I", include_path]
     cmd += [
         "-c",
@@ -140,7 +140,7 @@ def _compile_cc(src: Path, dst: Path):
         (out, _) = proc.communicate()
         if proc.returncode != 0:
             msg = "Compilation error:\n"
-            msg += py_str(out)
+            msg += out.decode("utf-8", errors="replace")
             msg += "\nCommand line: " + " ".join(cmd)
             raise RuntimeError(msg)
 

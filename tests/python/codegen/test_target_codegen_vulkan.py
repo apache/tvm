@@ -85,14 +85,11 @@ def test_array_copy(dev, dtype, fuzz_seed):
     tvm.testing.assert_allclose(a_np, a.numpy())
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_array_vectorize_add(target, dev, dtype):
     target = tvm.target.Target(target)
     arr_size = 64
     lanes = 2
-
-    if "opencl" in str(target) and dtype == "float16":
-        pytest.xfail("Opencl target does not support float16")
 
     vec_dtype = f"{dtype}x{lanes}"
     one = tvm.tirx.const(1, vec_dtype)
@@ -117,7 +114,7 @@ def test_array_vectorize_add(target, dev, dtype):
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_bool_load(target, dev):
     target = tvm.target.Target(target)
     arr_size = 1024
@@ -211,39 +208,23 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
     tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
 
 
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_while_if(target, dev):
     target = tvm.target.Target(target)
     n = 1
     dtype = "int32"
 
-    def get_module(is_gpu):
-        if is_gpu:
+    @T.prim_func(s_tir=True)
+    def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
+        for bx in T.thread_binding(1, thread="blockIdx.x"):
+            iterations = T.decl_buffer((1,), "int32", scope="local")
+            iterations[0] = 0
+            B[0] = 0
+            while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
+                iterations[0] = iterations[0] + 1
+                B[0] = B[0] + iterations[0]
 
-            @T.prim_func(s_tir=True)
-            def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
-                for bx in T.thread_binding(1, thread="blockIdx.x"):
-                    iterations = T.decl_buffer((1,), "int32", scope="local")
-                    iterations[0] = 0
-                    B[0] = 0
-                    while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
-                        iterations[0] = iterations[0] + 1
-                        B[0] = B[0] + iterations[0]
-
-            return tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
-        else:
-
-            @T.prim_func(s_tir=True)
-            def while_if_cpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
-                iterations = T.decl_buffer((1,), "int32", scope="local")
-                iterations[0] = 0
-                B[0] = 0
-                while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
-                    iterations[0] = iterations[0] + 1
-                    B[0] = B[0] + iterations[0]
-
-            return tvm.IRModule.from_expr(while_if_cpu.with_attr("target", target))
-
-    mod = get_module("gpu" in target.keys)
+    mod = tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
     compiled_func = tvm.compile(mod, target=target)
 
     a = tvm.runtime.tensor(np.array([5], dtype=dtype), dev)
@@ -257,7 +238,7 @@ def test_vulkan_while_if(target, dev):
     tvm.testing.assert_allclose(b.numpy(), [210])
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_local_threadidx(target, dev):
     target = tvm.target.Target(target)
     n = 32
@@ -347,6 +328,7 @@ def test_vectorized_index_broadcast(target, dev):
     tvm.testing.assert_allclose(b.numpy(), np.full(n, a_np[0]))
 
 
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_negative_operand_divmod(target, dev):
     """Test handling of negative offsets to floormod/floordiv
 
@@ -365,25 +347,13 @@ def test_negative_operand_divmod(target, dev):
     offset = 16
     divisor = 5
 
-    if "gpu" in tvm.target.Target(target).keys:
-
-        @T.prim_func(s_tir=True)
-        def func(A: T.Buffer((N, 2), "int32")):
-            for i in T.thread_binding(N, thread="threadIdx.x"):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(N, i)
-                    A[v_i, 0] = T.floordiv(v_i - offset, divisor)
-                    A[v_i, 1] = T.floormod(v_i - offset, divisor)
-
-    else:
-
-        @T.prim_func(s_tir=True)
-        def func(A: T.Buffer((N, 2), "int32")):
-            for i in T.serial(N):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(N, i)
-                    A[v_i, 0] = T.floordiv(v_i - offset, divisor)
-                    A[v_i, 1] = T.floormod(v_i - offset, divisor)
+    @T.prim_func(s_tir=True)
+    def func(A: T.Buffer((N, 2), "int32")):
+        for i in T.thread_binding(N, thread="threadIdx.x"):
+            with T.sblock("A"):
+                v_i = T.axis.spatial(N, i)
+                A[v_i, 0] = T.floordiv(v_i - offset, divisor)
+                A[v_i, 1] = T.floormod(v_i - offset, divisor)
 
     built = tvm.compile(func, target=target)
 

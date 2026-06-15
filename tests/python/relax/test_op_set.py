@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -848,11 +848,11 @@ def test_unique_infer_struct_info_axis_out_of_range():
     x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
     x1 = relax.Var("x", R.Tensor((), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.unique(x0, axis=3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.unique(x0, axis=-4))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.unique(x1, axis=0))
 
 
@@ -895,9 +895,9 @@ def test_nonzero_infer_struct_info_wrong_input_dtype():
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nonzero(x0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nonzero(x1))
 
 

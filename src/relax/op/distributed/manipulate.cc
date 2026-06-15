@@ -19,6 +19,8 @@
 
 #include "manipulate.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
+
 #include <algorithm>
 #include <numeric>
 #include <string>
@@ -38,17 +40,16 @@ StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.
   if (!attrs->axes.defined() && data_sinfo->IsUnknownNdim()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Input of distributed operator must have known ndim");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
   }
 
   if (attrs->axes.defined()) {
     int n_axis = attrs->axes.value().size();
     if (!data_sinfo->IsUnknownNdim() && n_axis != data_sinfo->ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "PermuteDims expects the number of input axes to equal the ndim of the "
-                          "input tensor. However, the tensor ndim is "
-                       << data_sinfo->ndim << " while the given number of axes is " << n_axis);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "PermuteDims expects the number of input axes to equal the ndim of the "
+             "input tensor. However, the tensor ndim is "
+          << data_sinfo->ndim << " while the given number of axes is " << n_axis;
     }
   }
 
@@ -66,8 +67,7 @@ StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& 
 
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Input of distributed operator must have known shape");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known shape";
   }
   std::vector<PrimExpr> new_shape;
   new_shape.reserve(data_sinfo->ndim);
@@ -83,7 +83,7 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Reshape op should take 2 arguments");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "Reshape op should take 2 arguments";
   }
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
       GetInputDTensorStructInfo(call, ctx);
@@ -91,15 +91,14 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
 
   const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   if (!data_sinfo.defined()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Reshape requires the input data to be Tensor. However, the given one is "
-                     << call->args[0]->struct_info_->GetTypeKey());
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Reshape requires the input data to be Tensor. However, the given one is "
+        << call->args[0]->struct_info_->GetTypeKey();
   }
   if (new_shape_sinfo == nullptr) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input new shape to be Shape. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey());
+        << call->args[1]->struct_info_->GetTypeKey();
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
@@ -113,12 +112,11 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
     PrimExpr new_shape_prod = ComputeShapeProduct(new_shape_sinfo->values.value());
     PrimExpr old_shape_prod = ComputeShapeProduct(old_shape_values.value());
     if (ctx->GetAnalyzer()->CanProve(old_shape_prod != new_shape_prod)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Reshape expects the new shape to be convertible from the old shape. "
-                          "However, the old shape is "
-                       << data_sinfo->shape << ", with product " << old_shape_prod
-                       << ", while the new shape is " << call->args[1] << ", with product "
-                       << new_shape_prod);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "Reshape expects the new shape to be convertible from the old shape. "
+             "However, the old shape is "
+          << data_sinfo->shape << ", with product " << old_shape_prod << ", while the new shape is "
+          << call->args[1] << ", with product " << new_shape_prod;
     }
   }
   Expr target_shape = call->args[1];

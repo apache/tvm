@@ -31,7 +31,7 @@ TEST_SCRIPT_FILE = pathlib.Path(__file__).with_name("pickle_memoize_script.py").
 def test_cache_dir_not_in_current_working_dir():
     with tempfile.TemporaryDirectory(prefix="tvm_") as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
-        subprocess.check_call([TEST_SCRIPT_FILE, "1", "1"], cwd=temp_dir)
+        subprocess.check_call([sys.executable, str(TEST_SCRIPT_FILE), "1", "1"], cwd=temp_dir)
 
         new_files = list(temp_dir.iterdir())
         assert not new_files, (
@@ -62,7 +62,7 @@ def test_cache_dir_defaults_to_home_config_cache():
     with tempfile.TemporaryDirectory(prefix="tvm_") as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
 
-        subprocess.check_call([TEST_SCRIPT_FILE, "1", "0"], cwd=temp_dir)
+        subprocess.check_call([sys.executable, str(TEST_SCRIPT_FILE), "1", "0"], cwd=temp_dir)
 
         new_files = list(temp_dir.iterdir())
         assert not new_files, (
@@ -84,7 +84,7 @@ def test_cache_dir_respects_xdg_cache_home():
         temp_working_dir = pathlib.Path(temp_working_dir)
 
         subprocess.check_call(
-            [TEST_SCRIPT_FILE, "1", "0"],
+            [sys.executable, str(TEST_SCRIPT_FILE), "1", "0"],
             cwd=temp_working_dir,
             env={
                 **os.environ,
@@ -112,7 +112,7 @@ def test_cache_dir_only_created_when_used():
         temp_working_dir = pathlib.Path(temp_working_dir)
 
         subprocess.check_call(
-            [TEST_SCRIPT_FILE, "0", "1"],
+            [sys.executable, str(TEST_SCRIPT_FILE), "0", "1"],
             cwd=temp_working_dir,
             env={
                 **os.environ,

@@ -19,16 +19,22 @@
 """Hexagon testing fixtures used to deduce testing argument
 values from testing parameters"""
 
+from __future__ import annotations
+
 import os
 import random
+import socket
+from typing import TYPE_CHECKING
 
 import pytest
 
 import tvm
-import tvm.rpc.tracker
-from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
-from tvm.contrib.hexagon.session import Session
-from tvm.contrib.hexagon.tools import HEXAGON_SIMULATOR_NAME
+import tvm.rpc
+import tvm.testing
+
+if TYPE_CHECKING:
+    from tvm.contrib.hexagon.build import HexagonLauncherRPC
+    from tvm.contrib.hexagon.session import Session
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -36,6 +42,7 @@ TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
+HEXAGON_SIMULATOR_NAME = "simulator"
 RNG_SEEDED = False
 
 HEXAGON_AOT_LLVM_TARGET = {
@@ -105,11 +112,16 @@ def get_free_port() -> int:
         if port > LISTEN_PORT_MAX:
             port = LISTEN_PORT_MIN
 
-    while tvm.contrib.hexagon.build._is_port_in_use(port):
+    while _is_port_in_use(port):
         port = port + 1 if port < LISTEN_PORT_MAX else LISTEN_PORT_MIN
 
     PREVIOUS_PORT = port
     return port
+
+
+def _is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return sock.connect_ex(("localhost", port)) == 0
 
 
 @pytest.fixture(scope="session")
@@ -138,8 +150,12 @@ def _tracker_info() -> str | int:
 
     else:
         # No tracker is provided to the tests, so we should start one
-        # for the tests to use.
-        tracker = tvm.rpc.tracker.Tracker("127.0.0.1", get_free_port())
+        # for the tests to use. Import tvm.rpc.tracker lazily since it
+        # requires the optional tornado package.
+        pytest.importorskip("tornado", reason="tvm.rpc.tracker requires tornado")
+        from tvm.rpc.tracker import Tracker
+
+        tracker = Tracker("127.0.0.1", get_free_port())
         try:
             yield (tracker.host, tracker.port)
         finally:
@@ -193,6 +209,8 @@ def hexagon_server_process(
     if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
         yield None
     else:
+        from tvm.contrib.hexagon.build import HexagonLauncher
+
         # Requesting these fixtures sets up a local tracker, if one
         # hasn't been provided to us.  Delaying the evaluation of
         # these fixtures avoids starting a tracker unless necessary.
@@ -266,6 +284,9 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
+    from tvm.contrib.hexagon.build import HexagonLauncher
+
+    launcher = None
     try:
         if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
             launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
@@ -280,10 +301,11 @@ def hexagon_launcher(
             )
         yield launcher
     finally:
-        if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
-            launcher.stop_server()
-        elif not hexagon_debug:
-            launcher.cleanup_directory()
+        if launcher is not None:
+            if android_serial_num == [HEXAGON_SIMULATOR_NAME]:
+                launcher.stop_server()
+            elif not hexagon_debug:
+                launcher.cleanup_directory()
 
 
 @pytest.fixture

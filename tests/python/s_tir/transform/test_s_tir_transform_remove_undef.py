@@ -19,7 +19,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError
 from tvm.script import ir as I
 from tvm.script import tirx as T
 
@@ -84,7 +83,7 @@ def test_remove_let_undef():
     class Before:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
-            val = T.undef(dtype="int32")
+            val: T.let[T.int32] = T.undef(dtype="int32")
             A[0] = val
 
     @I.ir_module
@@ -104,10 +103,10 @@ def test_raise_error_for_undef_as_store_indices():
     class Before:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "int32")):
-            val = T.undef(dtype="int32")
+            val: T.let[T.int32] = T.undef(dtype="int32")
             A[val] = 5
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.s_tir.transform.RemoveStoreUndef()(Before)
 
 
@@ -124,7 +123,7 @@ def test_raise_error_for_undef_as_load_indices():
         def main(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
             B[0] = A[T.undef(dtype="int32")]
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.s_tir.transform.RemoveStoreUndef()(Before)
 
 
