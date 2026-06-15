@@ -714,10 +714,11 @@ def _te_attention(
     q = topi.transpose(q, [0, 2, 1, 3])
     k = topi.transpose(k, [0, 2, 1, 3])
     v = topi.transpose(v, [0, 2, 1, 3])
-    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
-    k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
-    v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
-    p = topi.nn.batch_matmul(q, k)
+    bs = batch_size * num_head
+    q = topi.reshape(q, [bs, seq_len, head_dim])
+    k = topi.reshape(k, [bs, seq_len_kv, head_dim])
+    v = topi.reshape(v, [bs, seq_len_kv, head_dim_v])
+    p = topi.nn.batch_matmul(q, k, oshape=[bs, seq_len, seq_len_kv])
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
@@ -725,7 +726,7 @@ def _te_attention(
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
-        p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
+        p = topi.reshape(p, [bs, seq_len, seq_len_kv])
     if causal_mask is None:
         s = topi.nn.softmax(p)
     else:
@@ -741,7 +742,7 @@ def _te_attention(
         )
         p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
         s = topi.divide(p_masked_exp, p_masked_sum)
-    o = topi.nn.batch_matmul(s, v, transpose_b=False)
+    o = topi.nn.batch_matmul(s, v, transpose_b=False, oshape=[bs, seq_len, head_dim_v])
     o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
     return topi.transpose(o, [0, 2, 1, 3])
 
