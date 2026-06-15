@@ -3727,6 +3727,41 @@ def test_dynamic_attention():
     LegalizeOps()(Attention)
 
 
+def test_dynamic_batch_attention():
+    """The batch dimension may be dynamic (symbolic).
+
+    fix https://github.com/apache/tvm/issues/19696
+    """
+
+    @tvm.script.ir_module
+    class Attention:
+        @R.function
+        def main(
+            q: R.Tensor(("batch_size", 16, 32, 8), "float32"),
+            k: R.Tensor(("batch_size", 8, 32, 8), "float32"),
+            v: R.Tensor(("batch_size", 8, 32, 16), "float32"),
+        ):
+            gv = R.nn.attention(q, k, v)
+            return gv
+
+    LegalizeOps()(Attention)
+
+    @tvm.script.ir_module
+    class AttentionBias:
+        @R.function
+        def main(
+            q: R.Tensor(("batch_size", 16, 32, 8), "float32"),
+            k: R.Tensor(("batch_size", 8, 32, 8), "float32"),
+            v: R.Tensor(("batch_size", 8, 32, 16), "float32"),
+            bias: R.Tensor(("batch_size", 32, 16, 8), "float32"),
+        ):
+            scale = T.FloatImm("float32", 0.1)
+            gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
+            return gv
+
+    LegalizeOps()(AttentionBias)
+
+
 def test_nll_loss():
     # fmt: off
     @tvm.script.ir_module
