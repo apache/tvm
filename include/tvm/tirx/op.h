@@ -823,7 +823,8 @@ inline bool IsPointerType(const Type& type, const DataType& element_type) {
  * \param span The location of this operation in the source.
  */
 template <typename ValueType,
-          typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
+          typename = typename std::enable_if<std::is_standard_layout<ValueType>::value &&
+                                             std::is_trivial<ValueType>::value>::type>
 inline PrimExpr make_const(DataType t, ValueType value, Span span = Span());
 /*!
  * \brief Make a const zero expr.
