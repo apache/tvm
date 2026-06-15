@@ -256,7 +256,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
     monkeypatch.setitem(sys.modules, op_module.__name__, op_module)
     sys.modules.pop(public_module_name, None)
     sys.modules.pop(public_op_module_name, None)
-    tvm.backend._LOADED_BACKENDS.pop(backend_name, None)
+    tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
     if hasattr(tvm.tirx, backend_name):
         delattr(tvm.tirx, backend_name)
 
@@ -280,7 +280,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
         assert getattr(parser, namespace_name) is namespace
         assert getattr(T, namespace_name) is namespace
     finally:
-        tvm.backend._LOADED_BACKENDS.pop(backend_name, None)
+        tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
         if hasattr(tvm.tirx, backend_name):
             delattr(tvm.tirx, backend_name)
         sys.modules.pop(public_module_name, None)
