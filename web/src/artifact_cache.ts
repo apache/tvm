@@ -17,7 +17,9 @@
  * under the License.
  */
 
-import { OPFSStore } from "./opfs_store";
+import { OPFSStore, type OPFSAccessMode } from "./opfs_store";
+
+export type { OPFSAccessMode } from "./opfs_store";
 
 export interface TensorCacheEntry {
   name: string;
@@ -91,6 +93,7 @@ export interface TensorCacheAccessOptions {
   cacheScope?: string;
   cacheType?: ArtifactCacheType;
   artifactCache?: ArtifactCacheTemplate;
+  opfsAccessMode?: OPFSAccessMode;
 }
 
 type StoreType = string | undefined;
@@ -116,10 +119,10 @@ interface CrossOriginStorageWritable {
 }
 
 interface CrossOriginStorageAPI {
-  requestFileHandles(
-    descriptors: CrossOriginHashDescriptor[],
+  requestFileHandle(
+    descriptor: CrossOriginHashDescriptor,
     options?: CrossOriginStorageRequestFileHandleOptions,
-  ): Promise<CrossOriginStorageHandle[]>;
+  ): Promise<CrossOriginStorageHandle>;
 }
 
 declare global {
@@ -133,6 +136,7 @@ declare global {
 
 const HASH_ALGORITHM = "SHA-256";
 const DEFAULT_FETCH_OPTIONS: RequestInit = { method: "GET" };
+const COS_HASH_META_CACHE = "tvmjs-cos-hash-meta";
 let crossOriginFallbackWarningLogged = false;
 
 const GLOBAL_HASH_CACHE = new Map<
@@ -165,8 +169,7 @@ class CrossOriginStorage {
       if (!api) {
         return undefined;
       }
-      const handles = await api.requestFileHandles([hash]);
-      const handle = handles[0];
+      const handle = await api.requestFileHandle(hash);
       if (!handle) {
         return undefined;
       }
@@ -185,15 +188,15 @@ class CrossOriginStorage {
     if (!api) {
       throw new Error("Cross-origin storage API unavailable.");
     }
-    const handles = await api.requestFileHandles([hash], { create: true });
-    const handle = handles[0];
+    const handle = await api.requestFileHandle(hash, { create: true });
     if (!handle) {
-      throw new Error("Cross-origin storage API returned no handles.");
+      throw new Error("Cross-origin storage API returned no handle.");
     }
     const writableStream = await handle.createWritable();
     await writableStream.write(blob);
     await writableStream.close();
     this.hashCache.set(url, hash);
+    await this.persistHashEntry(url, hash);
   }
 
   async delete(_request: RequestLike): Promise<void> {
@@ -224,12 +227,54 @@ class CrossOriginStorage {
     throw new Error("CrossOriginStorage: Unsupported request type.");
   }
 
+  private async persistHashEntry(
+    url: string,
+    hash: CrossOriginHashDescriptor,
+  ): Promise<void> {
+    try {
+      if (typeof caches === "undefined") {
+        return;
+      }
+      const store = await caches.open(COS_HASH_META_CACHE);
+      await store.put(url, new Response(JSON.stringify(hash)));
+    } catch {
+      // best-effort: ignore storage errors
+    }
+  }
+
+  private async loadPersistedHashEntry(
+    url: string,
+  ): Promise<CrossOriginHashDescriptor | null> {
+    try {
+      if (typeof caches === "undefined") {
+        return null;
+      }
+      const store = await caches.open(COS_HASH_META_CACHE);
+      const response = await store.match(url);
+      if (!response) {
+        return null;
+      }
+      return JSON.parse(await response.text()) as CrossOriginHashDescriptor;
+    } catch {
+      return null;
+    }
+  }
+
   private async resolveHashDescriptor(
     url: string,
   ): Promise<CrossOriginHashDescriptor | null> {
     const cached = this.hashCache.get(url);
     if (cached) {
       return cached;
+    }
+    // Check persistent store before falling back to network-based hash extraction.
+    // This covers non-LFS files (JSON configs, tokenizers) and non-HuggingFace URLs
+    // (e.g. GitHub raw .wasm files) whose hashes were computed from blob content on a
+    // previous visit and persisted to the Cache API.
+    const persisted = await this.loadPersistedHashEntry(url);
+    if (persisted) {
+      this.hashCache.set(url, persisted);
+      return persisted;
     }
     const hashValue = await this.getFileHash(url);
     if (!hashValue) {
@@ -240,6 +285,9 @@ class CrossOriginStorage {
       value: hashValue,
     };
     this.hashCache.set(url, descriptor);
+    // Persist pointer-derived hashes so subsequent visits skip the LFS pointer
+    // network request (especially important for models with many shards).
+    await this.persistHashEntry(url, descriptor);
     return descriptor;
   }
 
@@ -556,8 +604,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
 export class ArtifactOPFSCache implements ArtifactCacheTemplate {
   private readonly store: OPFSStore;
 
-  constructor(scope: string) {
-    this.store = new OPFSStore(scope);
+  constructor(scope: string, accessMode: OPFSAccessMode = "async") {
+    this.store = new OPFSStore(scope, accessMode);
   }
 
   static isAvailable(): boolean {
@@ -569,7 +617,19 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     storetype?: string,
     signal?: AbortSignal,
   ): Promise<any> {
+    // TODO: Avoid duplicate OPFS record validation by trying cache reads first
     await this.addToCache(url, storetype, signal);
+    return this.readFromCache(url, storetype);
+  }
+
+  private async readFromCache(url: string, storetype?: string): Promise<any> {
+    if (storetype?.toLowerCase() === "arraybuffer") {
+      const cachedData = await this.store.readArrayBuffer(url);
+      if (cachedData === undefined) {
+        throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+      }
+      return cachedData;
+    }
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
       throw new Error("ArtifactOPFSCache failed to fetch: " + url);
@@ -595,7 +655,7 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
         `ArtifactOPFSCache: Unable to fetch ${url}, received status ${response.status}`,
       );
     }
-    await this.store.write(url, response.clone());
+    await this.store.write(url, response);
   }
 
   async hasAllKeys(keys: string[]): Promise<boolean> {
@@ -774,7 +834,7 @@ export function createArtifactCache(
     }
   }
   if (cacheType === "opfs") {
-    return new ArtifactOPFSCache(scope);
+    return new ArtifactOPFSCache(scope, options.opfsAccessMode);
   }
   return new ArtifactCache(scope);
 }
