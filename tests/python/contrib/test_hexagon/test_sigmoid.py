@@ -18,11 +18,13 @@
 """Sigmoid operator tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import te, tirx, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -68,7 +70,8 @@ class TestSigmoid(BaseSigmoid):
         output_np = 1 / (1 + np.exp(-input_np))
         return output_np
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_sigmoid(
         self,
         in_shape,

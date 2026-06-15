@@ -18,7 +18,10 @@
 
 set -euxo pipefail
 
-export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
+# Select GPU tests by any GPU-family marker.  The umbrella "gpu" marker is no
+# longer auto-applied via parent inheritance, so enumerate every marker that
+# previously inherited it (cuda/rocm backends and their libraries).
+export PYTEST_ADDOPTS="-m 'gpu or cuda or rocm or metal or vulkan or opencl or nvptx or tensorcore or cudnn or cublas or nccl or cudagraph or nvshmem or matrixcore or hipblas or adreno_opencl_vulkan or adreno_vulkan or adreno_opencl or adreno_clml' ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.
 # TODO: disabled opencl tests due to segmentation fault.

@@ -34,6 +34,7 @@ from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.target import Target
+from tvm.testing import env
 
 # `runtime.disco.compiled_ccl` is registered together with the CCL runtime
 # functions, so its absence means the disco CCL runtime is not in this build.
@@ -42,7 +43,10 @@ if _compiled_ccl is None or _compiled_ccl() != "nccl":
     pytest.skip("Disco NCCL support is not available", allow_module_level=True)
 
 # All tests in this file shard across two GPUs.
-pytestmark = tvm.testing.requires_multi_gpu.marks()
+pytestmark = [
+    pytest.mark.multi_gpu,
+    pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple gpus"),
+]
 
 
 @register_global_func("tests.disco.shard_dim_0", override=True)

@@ -18,9 +18,11 @@
 """Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -408,7 +410,8 @@ class TestMatMulVec:
                     ) * np.uint32(input_b[n, i * 4 + r_ind])
         return expected_output
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_loading_vtcm_for_vrmpy(
         self,
         hexagon_session,

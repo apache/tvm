@@ -17,6 +17,7 @@
 """codegen related to bool types"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -24,7 +25,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
 @tvm.testing.exclude_targets("nvptx")
 def test_cmp_load_store(target, dev):
     @I.ir_module(s_tir=True)

@@ -18,10 +18,12 @@
 """Async software pipeline tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm import tirx
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -165,7 +167,8 @@ class TestAsyncSoftwarePipeline:
 
         return sch
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_async_software_pipeline(
         self, hexagon_launcher, comp_type, data, reference, schedule, verify
     ):

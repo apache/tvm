@@ -26,6 +26,7 @@ import tvm.testing
 from tvm import tirx
 from tvm.s_tir import dlight as dl
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # pylint: disable=invalid-name
 
@@ -116,7 +117,8 @@ def verify_state(state, seq_ids, expected_values):
             tvm.testing.assert_allclose(state_value.numpy(), expected_value)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -131,7 +133,8 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     tvm.testing.assert_allclose(tvm_nd_1.numpy(), np.ones((1, 32, 32), "float32"))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -147,7 +150,8 @@ def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
     verify_state(state, [0, 1, 2], expected_values)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -165,7 +169,8 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
         f_popn(state, 0, 1)  # no available history to pop
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)

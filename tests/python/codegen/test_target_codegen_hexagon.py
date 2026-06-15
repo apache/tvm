@@ -24,6 +24,7 @@ import tvm.contrib.hexagon as hexagon
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +37,8 @@ def register_linker():
     hexagon.register_linker(original_linker)
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_basic():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -62,7 +64,8 @@ def test_basic():
     assert vadds  # Check that it's non-empty
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_target_features():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -85,7 +88,8 @@ def test_llvm_target_features():
     assert fs  # Check that it's non-empty
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_options():
     target = tvm.target.Target(
         {

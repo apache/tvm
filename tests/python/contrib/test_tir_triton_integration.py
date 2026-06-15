@@ -27,6 +27,7 @@ from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     import triton
@@ -39,7 +40,8 @@ else:
         pytestmark = pytest.skip("Triton >= 3.3.0 is required", allow_module_level=True)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_triton_integration():
     @triton.jit
     def add_kernel(

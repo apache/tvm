@@ -29,6 +29,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # Parameterize over both LLVM and C backends
 codegen_target = tvm.testing.parameter("llvm", "c")
@@ -276,7 +277,8 @@ def test_strides_mismatch_transposed(codegen_target):
 # ── Device mismatch errors ─────────────────────────────────
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_device_mismatch_error():
     """Passing GPU tensor to CPU function raises ValueError."""
 

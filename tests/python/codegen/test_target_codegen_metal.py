@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_metal_inf_nan():
     target = "metal"
 
@@ -59,8 +61,8 @@ def test_metal_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_unaligned_vectorize():
     @tvm.script.ir_module
     class IRModule:
@@ -84,8 +86,8 @@ def test_unaligned_vectorize():
     tvm.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_metal_erf():
     target = "metal"
 
@@ -117,8 +119,8 @@ def test_metal_erf():
     check_erf(dev, 1, "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_ramp():
     target = "metal"
 
@@ -140,8 +142,8 @@ def test_ramp():
     assert tuple(a_nd.numpy()[0, :]) == (0, 3)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_select_vectorize():
     @tvm.script.ir_module
     class IRModule:
@@ -165,8 +167,8 @@ def test_select_vectorize():
     tvm.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_vectorized_uint8():
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
@@ -185,7 +187,8 @@ def test_vectorized_uint8():
     tvm.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_func_with_trailing_pod_params():
     from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
@@ -208,7 +211,8 @@ def test_func_with_trailing_pod_params():
     assert occurrences == 1, occurrences
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.metal
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024

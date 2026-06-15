@@ -25,6 +25,7 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # fmt: off
 
@@ -94,7 +95,8 @@ def codegen(mod, target, exec_mode="bytecode"):
     return relax.vm_build._vmlink(builder, target, tir_mod)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vm_run():
     mod = Module
     target = tvm.target.Target("cuda", host="llvm")
@@ -108,7 +110,8 @@ def test_vm_run():
     tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.requires_cudagraph
+@pytest.mark.cudagraph
+@pytest.mark.skipif(not env.has_cudagraph(), reason="need cudagraph")
 def test_capture_error_is_recoverable():
     """Function calls while capturing cudagraph may throw exceptions
 

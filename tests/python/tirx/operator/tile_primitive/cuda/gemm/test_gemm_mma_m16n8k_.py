@@ -38,6 +38,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import list_registered_schedules
 
@@ -411,7 +412,8 @@ def test_cuda_gemm_mma_rejects_fractional_beta():
         _lower(_build_gemm(alpha=1.0, beta=0.5))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 def test_cuda_gemm_mma_numerical(dtype):
     """End-to-end D = A @ B on a single m16n8k16 tile (one warp).
@@ -503,7 +505,8 @@ _TILED_MODES = [
 ]
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("Mt, Nt, Kt, kinst", _TILED_SHAPES)
 @pytest.mark.parametrize("dtype, beta", _TILED_MODES)
 def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
@@ -537,7 +540,8 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
     tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 @pytest.mark.parametrize(
     "transpose_A, transpose_B",
@@ -596,7 +600,8 @@ def test_cuda_gemm_mma_lowers_tiled(Mt, Nt, Kt, kinst):
     assert f"m16n8k{kinst}" in script
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "Mt, Nt, Kt, kinst",
     [
@@ -637,7 +642,8 @@ def test_cuda_gemm_mma_lowers_transpose(transpose_A, transpose_B):
     assert "m16n8k16" in script
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "transpose_A, transpose_B",
     [(False, False), (True, False), (False, True), (True, True)],

@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @pytest.mark.parametrize(
@@ -146,7 +147,8 @@ def test_tir_special_floatimms(dtype, literal):
     compare_float_value(x.value, literal, "imm value should match feed value")
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_too_large_literal_f64():
     # Behavior check: if literal f64 value is out of dtype range, the
     # object is still constructed, and eval to infinity.
@@ -256,7 +258,8 @@ def check_tir_const_fold(
             assert expect == calc_res, flaky_msg
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_floatimm_const_fold():
     """Behavior check: folding fp32 match platform f32 arithmetic"""
 
@@ -314,7 +317,8 @@ def test_tir_floatimm_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_int8_const_fold():
     """Behavior check: folding i8 operation match platform i8 arithmetic"""
 
@@ -370,7 +374,8 @@ def test_tir_int8_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_uint8_const_fold():
     """Behavior check: folding u8 operation match platform u8 arithmetic"""
 
@@ -433,7 +438,8 @@ def test_tir_uint8_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_int32_const_fold():
     """Behavior check: folding i32 operation match platform i32 arithmetic"""
 
@@ -521,7 +527,8 @@ def test_tir_int32_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_uint32_const_fold():
     """Behavior check: folding u32 operation match platform u32 arithmetic"""
 

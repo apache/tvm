@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     from ml_dtypes import float4_e2m1fn
@@ -34,7 +35,8 @@ except ImportError:
 
 
 @pytest.mark.parametrize("promoted_dtype", ["float32x2", "float16x2"])
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_vector_conversions(promoted_dtype):
     native_dtype = "float4_e2m1fnx2"
     vector_length = 64
@@ -180,7 +182,8 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
     return Module
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_dequantize():
     n = 128
 
@@ -204,7 +207,8 @@ def test_e2m1_dequantize():
         tvm.compile(mod, target=target)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.cuda
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_e2m1_scalar_buffer_offset():
     """Regression test: float4_e2m1fn scalar buffer access uses correct byte offset.
 

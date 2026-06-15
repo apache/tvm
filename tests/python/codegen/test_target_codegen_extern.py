@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -23,7 +24,7 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
 def test_add_pipeline():
     """Test extern-style add pipeline with vectorized operations."""
     nn = 64

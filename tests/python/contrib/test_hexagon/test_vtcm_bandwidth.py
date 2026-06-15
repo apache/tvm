@@ -23,6 +23,7 @@ import pytest
 import tvm
 from tvm.s_tir.tensor_intrin.hexagon import DMA_READ_128_i8
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -136,7 +137,8 @@ class TestMatMulVec:
     unroll_split = tvm.testing.parameter(2)
     vector_split = tvm.testing.parameter(128)
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_bandwidth(self, hexagon_session, size, outer_split, unroll_split, vector_split):
         """Test bandwidth."""
 

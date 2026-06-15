@@ -32,6 +32,7 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 torch_version = torch.__version__
 
@@ -343,7 +344,8 @@ def _convert_data_type(input_type):
         raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_ones():
     import torch
     from torch.nn import Module
@@ -374,7 +376,8 @@ def test_ones():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_full():
     import torch
     from torch.nn import Module
@@ -405,7 +408,8 @@ def test_full():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_gelu():
     import torch
     from torch.nn import Module
@@ -457,7 +461,8 @@ def test_gelu():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_masked_fill():
     import torch
     from torch.nn import Module
@@ -494,7 +499,8 @@ def test_masked_fill():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_getitem():
     import torch
     from torch.nn import Module
@@ -568,7 +574,8 @@ def test_getitem():
     version.parse(torch_version) >= version.parse("2.6.0"),
     reason="Need to support dynamic arange in Relax",
 )
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_arange():
     import torch
     from torch.nn import Module

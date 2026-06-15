@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.support import utils
+from tvm.testing import env
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_import_static_library():
     from tvm import te
 

@@ -21,14 +21,17 @@ import pathlib
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_nccl
+@pytest.mark.nccl
+@pytest.mark.skipif(not env.has_nccl(), reason="need nccl")
 def test_callback():
     """Simulate lazy loading of parameters in a callback
 
