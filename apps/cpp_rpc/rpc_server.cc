@@ -190,8 +190,8 @@ class RPCServer {
           _exit(0);
         }
 
-        int status = 0;
-        const pid_t finished_first = waitPidEintr(&status);
+        int status_first = 0;
+        const pid_t finished_first = waitPidEintr(&status_first);
         if (finished_first == timer_pid) {
           kill(worker_pid, SIGTERM);
         } else if (finished_first == worker_pid) {
@@ -205,10 +205,12 @@ class RPCServer {
 
         // Logging.
         if (finished_first == timer_pid) {
-          LOG(INFO) << "Child pid=" << worker_pid << " killed (timeout = " << timeout
-                    << "), Process status = " << status_second;
+          LOG(INFO) << "Child pid=" << worker_pid << " killed"
+                    << " (timeout = " << timeout << " sec)"
+                    << ", status = " << status_second;
         } else if (finished_first == worker_pid) {
-          LOG(INFO) << "Child pid=" << timer_pid << " killed, Process status = " << status_second;
+          LOG(INFO) << "Child pid=" << worker_pid << " finished"
+                    << ", status = "<< status_first;
         }
       } else {
         auto pid = fork();
@@ -219,7 +221,7 @@ class RPCServer {
         // Wait for the result
         int status = 0;
         wait(&status);
-        LOG(INFO) << "Child pid=" << pid << " exited, Process status =" << status;
+        LOG(INFO) << "Child pid=" << pid << " exited, status =" << status;
       }
 #elif defined(WIN32)
       auto start_time = high_resolution_clock::now();
@@ -236,7 +238,7 @@ class RPCServer {
       ServerLoopProc(conn, addr, work_dir_);
 #endif
       // close from our side.
-      LOG(INFO) << "Socket Connection Closed";
+      LOG(INFO) << "End session with " << addr.AsString();
       conn.Close();
     }
   }
@@ -307,7 +309,7 @@ class RPCServer {
         keylen = int(server_key.length());
         TVM_FFI_ICHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
         TVM_FFI_ICHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
-        LOG(INFO) << "Connection success " << addr->AsString();
+        LOG(INFO) << "New session from " << addr->AsString();
 #ifndef __ANDROID__
         ssin >> *opts;
 #else
@@ -327,9 +329,13 @@ class RPCServer {
   static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr,
                              std::string work_dir) {
     // Server loop
+    const auto s_time = std::chrono::high_resolution_clock::now();
     const auto env = RPCEnv(work_dir);
     RPCServerLoop(int(sock.sockfd));
-    LOG(INFO) << "Finish serving " << addr.AsString();
+    const auto e_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = e_time - s_time;
+    LOG(INFO) << "Finished serving " << addr.AsString()
+              << " after " << elapsed.count() << " sec";
     env.CleanUp();
   }
 

@@ -32,6 +32,39 @@ namespace tvm {
 namespace runtime {
 
 /*!
+ * \brief CheckPath Checks if file or directory exists
+ * \param dirname The name of the directory
+ * \return True if path exists.
+ */
+bool CheckPath(const std::string& pathname);
+
+/*!
+ * \brief CleanDir Removes the files from the directory
+ * \param dirname The name of the directory
+ */
+void CleanDir(const std::string& dirname);
+
+/*!
+ * \brief ListDir Get the list of files in a directory
+ * \param dirname The root directory name
+ * \return vector Files in directory.
+ */
+std::vector<std::string> ListDir(const std::string& dirname);
+
+/*!
+ * \brief build a shared library if necessary
+ *
+ *        This function will automatically call
+ *        cc.create_shared if the path is in format .o or .tar
+ *        High level handling for .o and .tar file.
+ *        We support this to be consistent with RPC module load.
+ * \param file_in The input file path.
+ *
+ * \return The name of the shared library.
+ */
+std::string BuildSharedLibrary(std::string file_in);
+
+/*!
  * \brief RPCEnv The RPC Environment parameters for c++ rpc server
  */
 struct RPCEnv {
