@@ -62,10 +62,10 @@ def _autoload_backends() -> None:
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
     try:
+        # Runtime sidecars only need registration side effects; libtvm_runtime is global.
         _LOADED_LIBS["tvm_runtime_extra"] = load_lib_ctypes(
             package="tvm",
             target_name="tvm_runtime_extra",
-            mode="RTLD_GLOBAL",
             extra_lib_paths=[runtime_dir],
         )
     except (OSError, FileNotFoundError, RuntimeError):
