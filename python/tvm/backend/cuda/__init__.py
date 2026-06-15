@@ -17,14 +17,46 @@
 """CUDA-owned TIRx modules."""
 
 from importlib import import_module
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {"lang", "op", "operator", "script", "target_tags"}
 
 
+def _detect_target_from_device(dev):
+    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+
+    return Target(
+        {
+            "kind": "cuda",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+            "arch": "sm_" + dev.compute_version.replace(".", ""),
+        }
+    )
+
+
 def register_backend():
     """Register CUDA-owned Python semantics."""
+    from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        # Runtime sidecars only need registration side effects; libtvm_runtime is global.
+        _LOADED_LIBS["tvm_runtime_cuda"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_cuda",
+            extra_lib_paths=[runtime_dir],
+            mode="RTLD_LOCAL",
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
+    register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
 

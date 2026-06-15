@@ -16,9 +16,42 @@
 # under the License.
 """OpenCL-owned backend hooks."""
 
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.base import _LOADED_LIBS
+
+
+def _detect_target_from_device(dev):
+    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+
+    return Target(
+        {
+            "kind": "opencl",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+        }
+    )
+
 
 def register_backend():
     """Register OpenCL-owned Python semantics."""
+    from tvm.target.detect_target import register_device_target_detector
+
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        # Runtime sidecars only need registration side effects; libtvm_runtime is global.
+        _LOADED_LIBS["tvm_runtime_opencl"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_opencl",
+            extra_lib_paths=[runtime_dir],
+            mode="RTLD_LOCAL",
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
+    register_device_target_detector("opencl", _detect_target_from_device)
     return None
 
 

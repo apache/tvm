@@ -16,77 +16,12 @@
 # under the License.
 """Detect target."""
 
+from collections.abc import Callable
+
 from tvm_ffi import get_global_func
 
 from ..runtime import Device, device
 from . import Target
-
-
-def _detect_metal(dev: Device) -> Target:
-    return Target(
-        {
-            "kind": "metal",
-            "max_shared_memory_per_block": 32768,
-            "max_threads_per_block": dev.max_threads_per_block,
-            "thread_warp_size": dev.warp_size,
-        }
-    )
-
-
-def _detect_cuda(dev: Device) -> Target:
-    return Target(
-        {
-            "kind": "cuda",
-            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-            "max_threads_per_block": dev.max_threads_per_block,
-            "thread_warp_size": dev.warp_size,
-            "arch": "sm_" + dev.compute_version.replace(".", ""),
-        }
-    )
-
-
-def _detect_rocm(dev: Device) -> Target:
-    return Target(
-        {
-            "kind": "rocm",
-            "mtriple": "amdgcn-amd-amdhsa-hcc",
-            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-            "max_threads_per_block": dev.max_threads_per_block,
-            "thread_warp_size": dev.warp_size,
-        }
-    )
-
-
-def _detect_opencl(dev: Device) -> Target:
-    return Target(
-        {
-            "kind": "opencl",
-            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-            "max_threads_per_block": dev.max_threads_per_block,
-            "thread_warp_size": dev.warp_size,
-        }
-    )
-
-
-def _detect_vulkan(dev: Device) -> Target:
-    f_get_target_property = get_global_func("device_api.vulkan.get_target_property")
-    return Target(
-        {
-            "kind": "vulkan",
-            "max_threads_per_block": dev.max_threads_per_block,
-            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
-            "thread_warp_size": dev.warp_size,
-            "supports_float16": f_get_target_property(dev, "supports_float16"),
-            "supports_int8": f_get_target_property(dev, "supports_int8"),
-            "supports_int16": f_get_target_property(dev, "supports_int16"),
-            "supports_int64": f_get_target_property(dev, "supports_int64"),
-            "supports_8bit_buffer": f_get_target_property(dev, "supports_8bit_buffer"),
-            "supports_16bit_buffer": f_get_target_property(dev, "supports_16bit_buffer"),
-            "supports_storage_buffer_storage_class": f_get_target_property(
-                dev, "supports_storage_buffer_storage_class"
-            ),
-        }
-    )
 
 
 def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
@@ -106,6 +41,19 @@ def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
     )
 
 
+SUPPORTED_DEVICE: dict[str, Callable[[Device], Target]] = {
+    "cpu": _detect_cpu,
+}
+
+# Backward-compatible alias for the previous private module-level map.
+SUPPORT_DEVICE = SUPPORTED_DEVICE
+
+
+def register_device_target_detector(device_type: str, detector: Callable[[Device], Target]) -> None:
+    """Register target detection for a runtime device type."""
+    SUPPORTED_DEVICE[device_type] = detector
+
+
 def detect_target_from_device(dev: str | Device) -> Target:
     """Detects Target associated with the given device. If the device does not exist,
     there will be an Error.
@@ -114,7 +62,7 @@ def detect_target_from_device(dev: str | Device) -> Target:
     ----------
     dev : Union[str, Device]
         The device to detect the target for.
-        Supported device types: ["cuda", "metal", "rocm", "vulkan", "opencl"]
+        Supported device types are registered by backend hooks.
 
     Returns
     -------
@@ -124,24 +72,14 @@ def detect_target_from_device(dev: str | Device) -> Target:
     if isinstance(dev, str):
         dev = device(dev)
     device_type = Device._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()]
-    if device_type not in SUPPORT_DEVICE:
+    if device_type not in SUPPORTED_DEVICE:
         raise ValueError(
             f"Auto detection for device `{device_type}` is not supported. "
-            f"Currently only supports: {SUPPORT_DEVICE.keys()}"
+            f"Currently only supports: {SUPPORTED_DEVICE.keys()}"
         )
     if not dev.exist:
         raise ValueError(
             f"Cannot detect device `{dev}`. Please make sure the device and its driver "
             "is installed properly, and TVM is compiled with the driver"
         )
-    return SUPPORT_DEVICE[device_type](dev)
-
-
-SUPPORT_DEVICE = {
-    "cpu": _detect_cpu,
-    "cuda": _detect_cuda,
-    "metal": _detect_metal,
-    "vulkan": _detect_vulkan,
-    "rocm": _detect_rocm,
-    "opencl": _detect_opencl,
-}
+    return SUPPORTED_DEVICE[device_type](dev)
