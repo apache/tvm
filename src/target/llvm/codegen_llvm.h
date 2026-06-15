@@ -547,6 +547,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // that function.
   std::unordered_map<const GlobalVarNode*, llvm::Function*> functions_;
 
+  // Map from the generated LLVM function symbol to the GlobalVar that owns it.
+  std::unordered_map<std::string, std::string> function_symbol_owners_;
+
   // Whether current function is restricted
   bool is_restricted_{true};
   // The analyzer information

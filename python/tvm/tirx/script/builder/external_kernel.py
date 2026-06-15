@@ -159,7 +159,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             target_format = "cubin" if use_nvshmem else "ptx"
             output_path = f"{temp_dir}/{kernel_name}.{target_format}"
 
-            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvcc")
+            compiler = os.environ.get("TVM_CUDA_COMPILE_MODE", "nvrtc")
             nvcc.compile_cuda(
                 source_code,
                 target_format=target_format,

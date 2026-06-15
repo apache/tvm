@@ -26,6 +26,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, wg_local_layout
 
 
@@ -41,6 +42,8 @@ def _get_sm_version():
 # ---------------------------------------------------------------------------
 # FMA op: scalar scale + scalar bias
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_scalar_scalar():
     sm = _get_sm_version()
     if sm < 100:
@@ -78,6 +81,8 @@ def test_fma_scalar_scalar():
 # ---------------------------------------------------------------------------
 # FMA op: buffer scale + scalar bias (Horner pattern)
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_buffer_scale_scalar_bias():
     sm = _get_sm_version()
     if sm < 100:
@@ -119,6 +124,8 @@ def test_fma_buffer_scale_scalar_bias():
 # ---------------------------------------------------------------------------
 # Binary op with scalar broadcast (PrimExpr scalar, e.g. BufferLoad)
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_mul_scalar_broadcast():
     sm = _get_sm_version()
     if sm < 100:
@@ -158,6 +165,8 @@ def test_mul_scalar_broadcast():
 # ---------------------------------------------------------------------------
 # Binary add with rounding mode
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_add_rounding_mode():
     sm = _get_sm_version()
     if sm < 100:
@@ -199,6 +208,8 @@ def test_add_rounding_mode():
 # ---------------------------------------------------------------------------
 # FMA op: layout=None local buffer (no TileLayout)
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_no_layout():
     sm = _get_sm_version()
     if sm < 100:
@@ -238,6 +249,8 @@ def test_fma_no_layout():
 # ---------------------------------------------------------------------------
 # Binary sub with rounding mode (buffer-buffer)
 # ---------------------------------------------------------------------------
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sub_buffer_buffer_rounding():
     sm = _get_sm_version()
     if sm < 100:
@@ -278,6 +291,8 @@ def test_sub_buffer_buffer_rounding():
         tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-6)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_fma_warpgroup_wg_local_layout():
     rows, cols = 128, 8
     dtype = "float32"

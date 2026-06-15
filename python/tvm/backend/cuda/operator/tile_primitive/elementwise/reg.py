@@ -45,8 +45,10 @@ from ..common import get_st_extent
 from ..copy._common import _carve_tail, _verify_s_tail_contig
 from ..layout_utils import get_sublayout_from_region, layout_signature
 from ._common import (
+    _TID_AXIS_FOR_SCOPE,
     _all_threads_active,
     _tensor_shape_of,
+    _thread_cnt,
     align_operands_to_anchor,
     buffer_regions,
     compute_dtype_of,
@@ -64,6 +66,68 @@ def _validate_anchor_layout(anchor_br) -> tuple[bool, str | None]:
         return False, "anchor layout is swizzle"
     if not isinstance(layout, TileLayout):
         return False, f"anchor layout is {type(layout).__name__}, not TileLayout"
+    return True, None
+
+
+def _validate_scope_level_anchor(anchor_br, sctx: DispatchContext) -> tuple[bool, str | None]:
+    """For warp/warpgroup/cta scope, require dst to be scope-level: after
+    canonicalizing with the target its thread axes are the scope's intra-thread
+    axis (laneid/tid_in_wg/tx) and, sorted by stride, tile a complete ``T:1``
+    chain over all ``T`` threads of the scope. Rejects thread-local ``.local()``
+    views; thread scope is exempt.
+    """
+    scope = sctx.scope_kind
+    if scope == "thread":
+        return True, None
+    expected_axis = _TID_AXIS_FOR_SCOPE.get(scope)
+    if expected_axis is None:
+        return True, None
+    expected_cnt = _thread_cnt(sctx)
+
+    # Canonicalize the sliced anchor with the target so warp/lane axes fuse.
+    st, ext = get_st_extent(anchor_br)
+    sliced = get_sublayout_from_region(anchor_br.buffer.layout, anchor_br.buffer.shape, st, ext)
+    with sctx.target:
+        canon = sliced.canonicalize() if hasattr(sliced, "canonicalize") else sliced
+    shard = getattr(canon, "shard", None)
+    if shard is None:
+        return False, f"{scope}-scope op operand layout is not a TileLayout after slicing"
+
+    thread_iters = [it for it in shard if it.axis.is_thread()]
+    if not thread_iters:
+        return (
+            False,
+            f"{scope}-scope op needs a {scope}-level operand whose layout carries "
+            f"thread axes ({expected_axis} composing to {expected_cnt}:1); got a "
+            f"thread-local view with no thread axes — pass the {scope}-level tensor, "
+            f"not its `.local()` (per-thread) view",
+        )
+    bad = sorted({it.axis.name for it in thread_iters if it.axis.name != expected_axis})
+    if bad:
+        return (
+            False,
+            f"{scope}-scope op operand carries thread axes {bad}; after "
+            f"canonicalization a {scope}-level layout must use only {expected_axis!r}",
+        )
+    # Sorted by stride the thread iters must tile a complete chain 1, e0,
+    # e0*e1, ... up to the scope thread count — i.e. cover all T threads with
+    # no gap or overlap (extents alone would miss gaps/overlaps).
+    running = 1
+    for it in sorted(thread_iters, key=lambda i: int(i.stride)):
+        stride, extent = int(it.stride), int(it.extent)
+        if stride != running:
+            return (
+                False,
+                f"{scope}-scope op operand thread axes do not tile a complete "
+                f"{expected_cnt}:1 (sorted by stride: expected {running}, got {stride})",
+            )
+        running *= extent
+    if running != expected_cnt:
+        return (
+            False,
+            f"{scope}-scope op operand thread axes span {running} threads, not the "
+            f"full {expected_cnt} of the {scope}",
+        )
     return True, None
 
 
@@ -133,6 +197,9 @@ def is_reg_ewise(spec):
         ok3, reason3 = _validate_anchor_layout(anchor)
         if not ok3:
             return False, reason3
+        ok_scope, reason_scope = _validate_scope_level_anchor(anchor, sctx)
+        if not ok_scope:
+            return False, reason_scope
         # Shape compat (NumPy-style broadcast): anchor's tensor shape is the
         # result shape; every operand must broadcast TO anchor.
         anchor_tshape = _tensor_shape_of(anchor.region)

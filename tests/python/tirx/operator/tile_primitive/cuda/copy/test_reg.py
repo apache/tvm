@@ -35,6 +35,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, laneid, tid_in_wg, tx
 
 
@@ -228,6 +229,8 @@ def _expected(shape, dtype):
     return out
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("non_r_scope", ["shared", "global"])
 @pytest.mark.parametrize(
     "scope,n_threads,k",
@@ -287,6 +290,8 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "dtype", ["int8", "float8_e4m3fn", "float8_e5m2", "float16", "bfloat16", "float32"]
 )

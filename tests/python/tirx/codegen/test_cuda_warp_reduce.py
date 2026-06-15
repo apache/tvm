@@ -21,6 +21,7 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 DEV = tvm.cuda(0)
 TARGET = tvm.target.Target("cuda")
@@ -35,6 +36,8 @@ def _build_and_run(func, n=32):
     return out.numpy(), mod
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_sum_full():
     """Full warp sum (width=32): each lane gets the sum of all 32 values."""
 
@@ -57,6 +60,8 @@ def test_warp_sum_full():
     assert "warp_reduce_sum_32" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_sum_partial_8():
     """Partial warp sum (width=8): 4 groups of 8 lanes, each group sums independently."""
 
@@ -85,6 +90,8 @@ def test_warp_sum_partial_8():
     np.testing.assert_allclose(result, expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_max_partial_4():
     """Partial warp max (width=4): 8 groups of 4 lanes."""
 
@@ -109,6 +116,8 @@ def test_warp_max_partial_4():
     np.testing.assert_allclose(result, expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_min_full():
     """Full warp min (width=32)."""
 
@@ -129,6 +138,8 @@ def test_warp_min_full():
     np.testing.assert_allclose(result, np.full(32, 1.0))
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_sum_partial_2():
     """Smallest partial warp sum (width=2): 16 pairs of adjacent lanes."""
 
@@ -155,6 +166,8 @@ def test_warp_sum_partial_2():
     np.testing.assert_allclose(result, expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("width", [2, 4, 8, 16, 32])
 def test_warp_sum_all_widths(width):
     """Parametric test: warp_sum with every valid width."""

@@ -133,6 +133,8 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
   builder_.reset(new IRBuilder(*ctx));
   module_.reset(new llvm::Module(module_name, *ctx));
   md_builder_.reset(new llvm::MDBuilder(*ctx));
+  functions_.clear();
+  function_symbol_owners_.clear();
   // types
   t_void_ = llvm::Type::getVoidTy(*ctx);
   t_void_p_ = llvmGetPointerTo(llvm::Type::getInt8Ty(*ctx), GetGlobalAddressSpace());
@@ -260,6 +262,21 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
       llvm::FunctionType::get(GetLLVMType(func->ret_type), param_types, false);
 
   auto [symbol_name, linkage_type] = GetLinkage(gvar, func);
+  if (auto it = function_symbol_owners_.find(symbol_name); it != function_symbol_owners_.end()) {
+    constexpr const char* kFFISymbolPrefix = "__tvm_ffi_";
+    std::string user_symbol = symbol_name;
+    if (user_symbol.rfind(kFFISymbolPrefix, 0) == 0) {
+      user_symbol = user_symbol.substr(std::char_traits<char>::length(kFFISymbolPrefix));
+    }
+    TVM_FFI_THROW(InternalError) << "Duplicate PrimFunc global_symbol '" << user_symbol
+                                 << "' in LLVM codegen: IRModule keys '" << it->second
+                                 << "' and '" << gvar->name_hint
+                                 << "' both lower to the same exported symbol '" << symbol_name
+                                 << "'. "
+                                 << "Each exposed PrimFunc in one IRModule must have a unique "
+                                    "global_symbol.";
+  }
+  function_symbol_owners_[symbol_name] = gvar->name_hint;
 
   auto function = module_->getFunction(MakeStringRef(symbol_name));
   if (function == nullptr) {

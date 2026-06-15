@@ -32,6 +32,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 
 # Force the fallback dispatch to register before any test compiles a kernel.
 # Without this import, in fresh pytest workers the `copy/fallback` variant
@@ -128,6 +129,8 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     return kernel
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "scope,n_threads,shape,why",
     [
@@ -158,6 +161,8 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
     np.testing.assert_array_equal(B.numpy(), A_np)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fallback_thread_scope():
     """``T.thread()`` — single thread, no gate. Either ``gmem_smem`` picks
     it up (n_elements % 1 == 0) or ``fallback`` does — both end up emitting
