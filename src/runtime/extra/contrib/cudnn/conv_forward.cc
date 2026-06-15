@@ -112,7 +112,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
               ffi::Any* ret) {
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
