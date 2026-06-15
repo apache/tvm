@@ -28,6 +28,7 @@
 #include <cuda_runtime.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -41,10 +42,21 @@
 #include "../../../runtime/pack_args.h"
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../support/bytes_io.h"
-#include "cuda_common.h"
 
 namespace tvm {
 namespace runtime {
+
+#ifndef CUDA_DRIVER_CALL
+#define CUDA_DRIVER_CALL(x)                                             \
+  {                                                                     \
+    CUresult result = x;                                                \
+    if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) { \
+      const char* msg;                                                  \
+      cuGetErrorName(result, &msg);                                     \
+      TVM_FFI_THROW(CUDAError) << "" #x " failed with error: " << msg;  \
+    }                                                                   \
+  }
+#endif
 
 // Maximum number of GPU supported in CUDAModule (file-local).
 static constexpr const int kMaxNumGPUs = 32;
@@ -204,7 +216,7 @@ class CUDAWrappedFunc {
   // invoke the function with void arguments
   void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
 
     if (fcache_[device_id] == nullptr) {

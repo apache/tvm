@@ -18,13 +18,13 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <thread>
 
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 #include "../../../memory/pooled_allocator.h"
 #include "../../disco/utils.h"
 

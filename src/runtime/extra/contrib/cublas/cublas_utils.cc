@@ -23,9 +23,8 @@
 #include "cublas_utils.h"
 
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 namespace tvm {
 namespace contrib {
@@ -51,7 +50,7 @@ CuBlasThreadEntry* CuBlasThreadEntry::ThreadLocal(DLDevice curr_device) {
 CuBlasLtThreadEntry::CuBlasLtThreadEntry() {
   CHECK_CUBLAS_ERROR(cublasLtCreate(&handle));
   CHECK_CUBLAS_ERROR(cublasLtMatmulPreferenceCreate(&matmul_pref_desc));
-  CUDA_CALL(cudaMalloc(&workspace_ptr, workspace_size));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&workspace_ptr, workspace_size));
 }
 
 CuBlasLtThreadEntry::~CuBlasLtThreadEntry() {

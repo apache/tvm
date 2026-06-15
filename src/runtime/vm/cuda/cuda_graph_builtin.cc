@@ -24,11 +24,11 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include "../../../backend/cuda/runtime/cuda_common.h"
 #include "../../../support/utils.h"
 namespace tvm {
 namespace runtime {
@@ -85,7 +85,7 @@ struct CUDAGraphCapturedState {
 
   ~CUDAGraphCapturedState() {
     if (exec) {
-      CUDA_CALL(cudaGraphExecDestroy(exec));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGraphExecDestroy(exec));
     }
   }
 
@@ -100,7 +100,7 @@ struct CUDAGraphCapturedState {
 
 class ScopedCUDAStream {
  public:
-  ScopedCUDAStream() { CUDA_CALL(cudaStreamCreate(&stream_)); }
+  ScopedCUDAStream() { TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreate(&stream_)); }
   ~ScopedCUDAStream() { cudaStreamDestroy(stream_); }
   ScopedCUDAStream(const ScopedCUDAStream&) = delete;
   ScopedCUDAStream(ScopedCUDAStream&&) = delete;
@@ -116,11 +116,11 @@ class ScopedCUDAStream {
 class CUDACaptureStream {
  public:
   explicit CUDACaptureStream(cudaGraph_t* graph) : output_graph_(graph) {
-    CUDA_CALL(cudaGetDevice(&device_id_));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id_));
     TVM_FFI_CHECK_SAFE_CALL(
         TVMFFIEnvSetStream(kDLCUDA, device_id_, capture_stream_,
                            reinterpret_cast<TVMFFIStreamHandle*>(&prev_default_stream_)));
-    CUDA_CALL(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
   }
   ~CUDACaptureStream() noexcept(false) {
     cudaStreamEndCapture(capture_stream_, output_graph_);
@@ -158,8 +158,8 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
       // Launch CUDA graph
       const auto& [states, exec] = it->second;
       int device_id;
-      CUDA_CALL(cudaGetDevice(&device_id));
-      CUDA_CALL(
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(
           cudaGraphLaunch(exec, static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id))));
       return states;
     }
@@ -190,8 +190,8 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
 
     CUDAGraphCapturedState entry;
     entry.states = capture_func_rv.cast<ffi::ObjectRef>();
-    CUDA_CALL(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
-    CUDA_CALL(cudaGraphDestroy(graph));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGraphDestroy(graph));
 
     ffi::ObjectRef states = entry.states;
 

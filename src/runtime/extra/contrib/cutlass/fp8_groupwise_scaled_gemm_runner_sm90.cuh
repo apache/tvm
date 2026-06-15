@@ -17,14 +17,14 @@
  * under the License.
  */
 
+#include <tvm/ffi/extra/cuda/base.h>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <type_traits>
 #include <variant>
 #include <vector>
-
-#include "../../../../backend/cuda/runtime/cuda_common.h"
 
 // clang-format off
 #include "cutlass/cutlass.h"

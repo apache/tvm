@@ -24,10 +24,10 @@
 
 #include "./attention.h"
 
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 
-#include "../../../../../backend/cuda/runtime/cuda_common.h"
 #include "../cudnn_utils.h"
 
 namespace tvm {
@@ -99,7 +99,7 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
   TVM_FFI_ICHECK(stats == nullptr);
   o->set_output(true).set_dim({batch, num_heads, seq_len, head_size_v}).set_stride(o_stride);
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   CUDNN_FRONTEND_CALL(graph_->build(entry_ptr->handle, {cudnn_frontend::HeurMode_t::A}));
 }

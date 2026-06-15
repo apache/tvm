@@ -103,7 +103,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
   std::function<void()> GetConv2DExec(const JSONGraphNode& node) {
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
     auto op_name = node.GetOpName();
 
@@ -164,7 +164,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     int algo = best_algo.cast<int>();
     std::function<void()> op_exec = [=, this]() {
       int device_id;
-      CUDA_CALL(cudaGetDevice(&device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
       cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
       CUDNN_CALL(cudnnSetStream(entry_ptr->handle, stream));
 
