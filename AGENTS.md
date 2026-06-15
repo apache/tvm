@@ -46,7 +46,7 @@ documentation, and application examples.
 Use an existing `build/` directory when present:
 
 ```bash
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 For a fresh checkout, initialize submodules and configure CMake first:
@@ -56,7 +56,7 @@ git submodule update --init --recursive
 mkdir -p build
 cp cmake/config.cmake build/config.cmake
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 Development should use `PYTHONPATH`, not editable installs:

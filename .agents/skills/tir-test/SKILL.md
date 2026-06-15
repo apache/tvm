@@ -17,7 +17,7 @@ Run the full TIRX test suite.
 
 3. Run the full test suite with xdist parallelism:
    ```bash
-   pytest tests/python/tirx/ -n 16
+   pytest tests/python/tirx/ -n auto
    ```
 
 4. Stop the monitor and check for foreign GPU usage during the run:

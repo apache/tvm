@@ -23,7 +23,18 @@ while [[ $# -gt 0 ]]; do
     --interval) INTERVAL="$2"; shift 2 ;;
     --log) LOG="$2"; shift 2 ;;
     -h|--help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+      cat <<'EOF'
+Watch a single GPU for foreign processes (anyone other than the current
+user) appearing during a long-running test. Intended companion to
+`/tir-test`: leave this running in a side terminal while pytest runs, and
+it will alert if someone else lands on the same GPU.
+
+Usage:
+  monitor_gpu.sh                       # uses $CUDA_VISIBLE_DEVICES, defaults to 0
+  monitor_gpu.sh --gpu 3               # watch GPU 3
+  monitor_gpu.sh --gpu 3 --interval 2  # poll every 2 seconds
+  monitor_gpu.sh --log /tmp/gpu.log    # also tee to a log file
+EOF
       exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
