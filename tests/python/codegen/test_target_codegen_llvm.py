@@ -27,9 +27,10 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.support import clang, utils
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
+from tvm.testing import env
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_intrin():
     @I.ir_module(s_tir=True)
     class Module:
@@ -41,7 +42,7 @@ def test_llvm_intrin():
     fcode = tvm.compile(Module)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_void_intrin():
     @I.ir_module(s_tir=True)
     class Module:
@@ -53,7 +54,7 @@ def test_llvm_void_intrin():
     fcode = tvm.compile(Module)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_intrinsic_id():
     orig_name = "llvm.x86.sse2.pmadd.wd"
     intrin_id = llvm_lookup_intrinsic_id(orig_name)
@@ -61,7 +62,7 @@ def test_llvm_intrinsic_id():
     assert orig_name == name
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_overloaded_intrin():
     # Name lookup for overloaded intrinsics in LLVM 4- requires a name
     # that includes the overloaded types.
@@ -83,7 +84,7 @@ def test_llvm_overloaded_intrin():
     f = tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_lookup_intrin():
     @I.ir_module(s_tir=True)
     class Module:
@@ -95,7 +96,7 @@ def test_llvm_lookup_intrin():
     fcode = tvm.compile(Module, None)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_large_uintimm():
     value = (1 << 63) + 123
     large_val = tvm.tirx.const(value, "uint64")
@@ -118,7 +119,7 @@ def test_llvm_large_uintimm():
     assert a.numpy() == value + 3
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_multi_parallel():
     @I.ir_module(s_tir=True)
     class Module:
@@ -150,7 +151,7 @@ def test_llvm_multi_parallel():
     tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
         @I.ir_module(s_tir=True)
@@ -180,7 +181,7 @@ def test_llvm_flip_pipeline():
     check_llvm(128, 1)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_vadd_pipeline():
     @I.ir_module(s_tir=True)
     class Module:
@@ -210,7 +211,7 @@ def test_llvm_vadd_pipeline():
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         @I.ir_module(s_tir=True)
@@ -246,7 +247,7 @@ def test_llvm_madd_pipeline():
         check_llvm(4, 0, 3)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_temp_space():
     @I.ir_module(s_tir=True)
     class Module:
@@ -276,7 +277,7 @@ def test_llvm_temp_space():
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multiple_func():
     @I.ir_module(s_tir=True)
     class Module:
@@ -321,7 +322,7 @@ def test_multiple_func():
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_condition():
     @I.ir_module(s_tir=True)
     class Module:
@@ -347,7 +348,7 @@ def test_llvm_condition():
     tvm.testing.assert_allclose(c.numpy(), c_np)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_bool():
     @I.ir_module(s_tir=True)
     class Module:
@@ -371,7 +372,7 @@ def test_llvm_bool():
     tvm.testing.assert_allclose(c.numpy(), c_np)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_cast_float_to_bool():
     @I.ir_module(s_tir=True)
     class Module:
@@ -395,7 +396,7 @@ def test_llvm_cast_float_to_bool():
     tvm.testing.assert_allclose(c.numpy(), c_np)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rank_zero():
     @I.ir_module(s_tir=True)
     class Module:
@@ -432,7 +433,7 @@ def test_rank_zero():
     tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rank_zero_bound_checkers():
     @I.ir_module(s_tir=True)
     class Module:
@@ -470,7 +471,7 @@ def test_rank_zero_bound_checkers():
         tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_alignment():
     @I.ir_module(s_tir=True)
     class Module:
@@ -518,7 +519,7 @@ def test_alignment():
     assert has_call_to_assume()
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
 
@@ -658,7 +659,7 @@ def test_llvm_div():
         check(0, 255, dstart, dend, "uint8", floor_div=True)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_fp_math():
     @I.ir_module(s_tir=True)
     class RecipModule:
@@ -709,7 +710,7 @@ def test_llvm_fp_math():
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_dwarf_debug_information():
     @I.ir_module(s_tir=True)
     class Module:
@@ -797,7 +798,7 @@ def test_dwarf_debug_information():
     check_llvm_ir()
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_bf16():
     def dotest(do_vectorize):
         loop_kind = T.vectorized if do_vectorize else T.serial
@@ -835,7 +836,7 @@ def test_llvm_bf16():
     dotest(False)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_crt_static_lib():
     @I.ir_module(s_tir=True)
     class Module:
@@ -862,7 +863,7 @@ def test_llvm_crt_static_lib():
         module.write_to_file(temp.relpath("test.o"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_order_functions():
     """Check that functions in the LLVM module are ordered alphabetically."""
 
@@ -888,7 +889,7 @@ def test_llvm_order_functions():
     assert matches == sorted(matches)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @tvm.testing.skip_if_32bit
 def test_llvm_import():
     """all-platform-minimal-test: check shell dependent clang behavior."""
@@ -931,7 +932,7 @@ def test_llvm_import():
     check_llvm(use_file=False)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_scalar_concat():
     @I.ir_module(s_tir=True)
     class Module:
@@ -945,7 +946,7 @@ def test_llvm_scalar_concat():
         m = tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_raise_exception_during_codegen():
     @I.ir_module(s_tir=True)
     class Module:
@@ -962,7 +963,7 @@ def test_raise_exception_during_codegen():
     assert msg.find("Nested parallel loop is not supported") != -1
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_target_attributes():
     """Check that when LLVM codegen creates new functions, they get the same target
     attributes as the original function.
@@ -1028,7 +1029,7 @@ def test_llvm_target_attributes():
         assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[attr_num])
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_assume():
     """
     Check that LLVM does not error out when generating code with tirx.assume.
@@ -1051,7 +1052,7 @@ def test_llvm_assume():
     m = tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_debug_symbol_for_float64():
     """Check that LLVM can define DWARF debug type for float64
 
@@ -1073,7 +1074,7 @@ def test_debug_symbol_for_float64():
     tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_subroutine_call():
     @I.ir_module(s_tir=True)
     class Module:
@@ -1099,7 +1100,7 @@ def test_subroutine_call():
     assert arr.numpy()[0] == 42.0
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_returning_void():
     """Allow codegen of PackedFunc calls returning void
 
@@ -1130,7 +1131,7 @@ def test_call_packed_returning_void():
     built = tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_without_string_arg():
     """The first argument to tvm_call_packed must be a string
 
@@ -1150,7 +1151,7 @@ def test_call_packed_without_string_arg():
         built = tvm.compile(Module, target="llvm")
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_extern_returning_void():
     """Like test_call_packed_returning_void, but for call_extern"""
 

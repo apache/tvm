@@ -35,6 +35,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 DEV = tvm.device("cuda")
 
@@ -70,7 +71,8 @@ def _run_mma(mod, K, no_c_ptr, np_in):
     np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("a_type", ["float16", "bfloat16"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
 def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
@@ -140,7 +142,8 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
     _run_mma(mod, 16, no_c_ptr, _np_in(a_type))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("a_type", ["float16", "bfloat16"])
 @pytest.mark.parametrize("no_c_ptr", [False, True])
 def test_ptx_mma_m16n8k8(a_type, no_c_ptr):

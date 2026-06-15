@@ -30,6 +30,7 @@ from tvm.ir.module import IRModule
 from tvm.runtime.executable import Executable
 from tvm.script import tirx as T
 from tvm.support.nvcc import have_fp16
+from tvm.testing import env
 
 VECTOR_N_INPUTS = 8
 
@@ -286,8 +287,8 @@ def test_cuda_math_intrinsic_lowering_pass_context(enable_fast_math):
     check_lowered_ir("float32", MATH_CASES[0], enable_fast_math)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize(
     "dtype",
     ["float16", "bfloat16", "float32", "float64"],
