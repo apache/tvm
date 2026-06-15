@@ -804,6 +804,46 @@ def test_sign_nan_preserve():
     )
 
 
+@pytest.mark.parametrize("op_name", ["ReduceMax", "ReduceMin"])
+@pytest.mark.parametrize(
+    "x",
+    [
+        # NaN in different positions. TVM's max/min fold previously dropped NaN depending on
+        # position, ONNX Runtime only propagates NaN when it is the first reduced element, which
+        # is an order-dependent implementation artifact. We instead adopt the well-defined,
+        # order-independent numpy/IEEE semantics: any NaN in the reduced range yields NaN.
+        np.array([np.nan, 1.0, 2.0], dtype=np.float32),
+        np.array([2.0, 1.0, np.nan], dtype=np.float32),
+        np.array([1.0, np.nan, 2.0], dtype=np.float32),
+        np.array([1.0, 2.0, 3.0], dtype=np.float32),
+    ],
+)
+def test_reduce_min_max_nan_preserve(op_name, x):
+    reduce_node = helper.make_node(op_name, ["x"], ["y"], keepdims=0)
+    graph = helper.make_graph(
+        [reduce_node],
+        "reduce_nan_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, producer_name="reduce_nan_test")
+    model.ir_version = 8
+    for opset_import in model.opset_import:
+        if opset_import.domain in ["", "ai.onnx"]:
+            opset_import.version = 18
+            break
+
+    # Reference is numpy (NaN propagates if any element is NaN), not ONNX Runtime.
+    ref_out = (np.max if op_name == "ReduceMax" else np.min)(x)
+
+    tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
+    out_np = (tvm_out[0] if isinstance(tvm_out, (list, tuple)) else tvm_out).numpy()
+
+    np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ref_out))
+    if not np.isnan(ref_out):
+        np.testing.assert_allclose(out_np, ref_out, rtol=1e-7, atol=1e-5)
+
+
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
 def test_softmax_family_opset11_default_axis_semantics(op_name: str):
     verify_unary(op_name, [2, 3, 4], opset=11)
