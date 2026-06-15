@@ -19,6 +19,7 @@
 set -exo pipefail
 
 export TVM_TEST_TARGETS='cuda;opencl;metal;rocm;nvptx;{"kind":"opencl","device":"mali,adreno"}'
+# Every GPU test carries the `gpu` marker; the specific backend is gated by skipif.
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu

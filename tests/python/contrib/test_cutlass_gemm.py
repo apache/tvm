@@ -17,10 +17,12 @@
 
 import ml_dtypes
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.contrib.pickle_memoize import memoize
+from tvm.testing import env
 
 
 def get_random_tensor(shape, dtype):
@@ -71,8 +73,9 @@ def verify_group_gemm(
     tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=rtol, atol=atol)
 
 
-@tvm.testing.requires_cutlass
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_group_gemm_sm90():
     verify_group_gemm(
         "cutlass.group_gemm",
@@ -115,8 +118,9 @@ def test_group_gemm_sm90():
     )
 
 
-@tvm.testing.requires_cutlass
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_group_gemm_sm100():
     verify_group_gemm(
         "cutlass.group_gemm",
@@ -298,8 +302,9 @@ def blockwise_bmm(
     return o_np
 
 
-@tvm.testing.requires_cutlass
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_gemm():
     M = 16
     N = 4608
@@ -331,8 +336,9 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     tvm.testing.assert_allclose(o_tvm, o_np, rtol=1e-4, atol=0.5)
 
 
-@tvm.testing.requires_cutlass
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_bmm():
     B = 16
     M = 40

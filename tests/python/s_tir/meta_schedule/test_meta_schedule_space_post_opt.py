@@ -28,6 +28,7 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.runner.config import EvaluatorConfig
 from tvm.script import tirx as T
 from tvm.target import Target
+from tvm.testing import env
 
 logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
@@ -47,7 +48,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @pytest.mark.skip("Integration test")
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tune_matmul_cpu():
     with tempfile.TemporaryDirectory() as work_dir:
         target = Target({"kind": "llvm", "num-cores": 16})
@@ -85,7 +86,8 @@ def test_tune_matmul_cpu():
 
 
 @pytest.mark.skip("Integration test")
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tune_matmul_cuda():
     with tempfile.TemporaryDirectory() as work_dir:
         target = Target("nvidia/geforce-rtx-3070")

@@ -34,6 +34,7 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, utils
+from tvm.testing import env
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -471,7 +472,8 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_emit_te_constant_param_gpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
@@ -852,7 +854,8 @@ def test_recursion(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestToVDevice:
@@ -1260,7 +1263,8 @@ def test_set_input_get_failure_rpc(exec_mode):
         run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_relax_module_with_multiple_targets(exec_mode):
     """Relax functions may contain kernels for multiple targets
 

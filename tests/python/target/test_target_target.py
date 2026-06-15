@@ -22,6 +22,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.target import Target
+from tvm.testing import env
 
 
 def test_all_targets_device_type_verify():
@@ -325,7 +326,8 @@ def test_target_features():
     assert not target_with_features.features.is_missing
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("input_device", ["cuda", tvm.cuda()])
 def test_target_from_device_cuda(input_device):
     target = Target.from_device(input_device)
@@ -338,7 +340,8 @@ def test_target_from_device_cuda(input_device):
     assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 @pytest.mark.parametrize("input_device", ["rocm", tvm.rocm()])
 def test_target_from_device_rocm(input_device):
     target = Target.from_device(input_device)
@@ -351,7 +354,8 @@ def test_target_from_device_rocm(input_device):
     assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
 
-@tvm.testing.requires_vulkan
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 @pytest.mark.parametrize("input_device", ["vulkan", tvm.vulkan()])
 def test_target_from_device_vulkan(input_device):
     target = Target.from_device(input_device)
@@ -370,7 +374,8 @@ def test_target_from_device_vulkan(input_device):
     )
 
 
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 @pytest.mark.parametrize("input_device", ["opencl", tvm.opencl()])
 def test_target_from_device_opencl(input_device):
     target = Target.from_device(input_device)

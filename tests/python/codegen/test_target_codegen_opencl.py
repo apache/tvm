@@ -17,16 +17,19 @@
 # ruff: noqa: E501
 import re
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 target = "opencl"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_ternary_expression():
     def check_if_then_else(dev, n, dtype):
         @I.ir_module(s_tir=True)
@@ -92,8 +95,8 @@ def test_opencl_ternary_expression():
     check_select(dev, 1, "uint16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_inf_nan():
     def check_inf_nan(dev, n, value, dtype):
         @I.ir_module(s_tir=True)
@@ -124,8 +127,8 @@ def test_opencl_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float64")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_max():
     def check_max(dev, n, dtype):
         @I.ir_module(s_tir=True)
@@ -183,8 +186,8 @@ def test_opencl_erf():
     check_erf(dev, 1, "float64")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_type_casting():
     @I.ir_module(s_tir=True)
     class Module:
@@ -218,8 +221,8 @@ def test_opencl_type_casting():
     # check_type_casting(dev, 16, "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 @tvm.testing.parametrize_targets("opencl", {"kind": "opencl", "device": "adreno"})
 def test_opencl_ceil_log2(target):
     def _check(target, n, dtype):
@@ -265,8 +268,8 @@ def _get_maximum_kernel_args(source):
     return max_args
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_opencl
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export+load+run."""
     import numpy as np

@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -38,7 +39,10 @@ def reset_seed():
     np.random.seed(0)
 
 
-pytestmark = tvm.testing.requires_cudnn.marks()
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_cudnn(), reason="need cudnn"),
+]
 
 
 _activation_table = {

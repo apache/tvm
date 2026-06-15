@@ -28,6 +28,7 @@ import tvm.script
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from . import benchmark_util as bu
 from .infrastructure import get_hexagon_target
@@ -369,7 +370,7 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
 
 
 @pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_elemwise_add(hexagon_session: Session):
     """Main elementwise add test function"""
     for dtype in [
