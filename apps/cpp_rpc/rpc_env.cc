@@ -68,32 +68,6 @@ std::string GenerateUntarCommand(const std::string& tar_file, const std::string&
 namespace tvm {
 namespace runtime {
 
-/*!
- * \brief CleanDir Removes the files from the directory
- * \param dirname THe name of the directory
- */
-void CleanDir(const std::string& dirname);
-
-/*!
- * \brief ListDir get the list of files in a directory
- * \param dirname The root directory name
- * \return vector Files in directory.
- */
-std::vector<std::string> ListDir(const std::string& dirname);
-
-/*!
- * \brief build a shared library if necessary
- *
- *        This function will automatically call
- *        cc.create_shared if the path is in format .o or .tar
- *        High level handling for .o and .tar file.
- *        We support this to be consistent with RPC module load.
- * \param file_in The input file path.
- *
- * \return The name of the shared library.
- */
-std::string BuildSharedLibrary(std::string file_in);
-
 RPCEnv::RPCEnv(const std::string& wd) {
   if (wd != "") {
     base_ = wd + "/.cache";
@@ -167,6 +141,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                              return ffi::Bytes(bin);
                            }));
 }
+
 /*!
  * \brief GetPath To get the work path from packed function
  * \param file_name The file name
@@ -177,11 +152,14 @@ std::string RPCEnv::GetPath(const std::string& file_name) const {
   // and does not create /.rpc/
   return !file_name.empty() && file_name[0] == '/' ? file_name : base_ + "/" + file_name;
 }
+
 /*!
  * \brief Remove The RPC Environment cleanup function
  */
 void RPCEnv::CleanUp() const {
   CleanDir(base_);
+  if (!CheckPath(base_))
+    return;
   const int ret = rmdir(base_.c_str());
   if (ret != 0) {
     LOG(WARNING) << "Remove directory " << base_ << " failed";
@@ -199,6 +177,9 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   DIR* dp = opendir(dirname.c_str());
   if (dp == nullptr) {
     int errsv = errno;
+    if (errsv == ENOENT) {
+      return vec;
+    }
     TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
   }
   dirent* d;
@@ -220,6 +201,9 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   HANDLE handle = FindFirstFileA(pattern.c_str(), &fd);
   if (handle == INVALID_HANDLE_VALUE) {
     const int errsv = GetLastError();
+    if (errsv == ERROR_FILE_NOT_FOUND || errsv == ERROR_PATH_NOT_FOUND) {
+      return vec;
+    }
     TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
   }
   do {
@@ -335,10 +319,27 @@ std::string BuildSharedLibrary(std::string file) {
 }
 
 /*!
+ * \brief CheckPath Checks file or directory if exists
+ * \param dirname The name of the directory
+ * \return True if path exists.
+ */
+bool CheckPath(const std::string& pathname) {
+#if defined(_WIN32)
+    DWORD attribs = GetFileAttributesA(pathname.c_str());
+    return (attribs != INVALID_FILE_ATTRIBUTES);
+#else
+    struct stat info;
+    return (stat(pathname.c_str(), &info) == 0);
+#endif
+}
+
+/*!
  * \brief CleanDir Removes the files from the directory
  * \param dirname The name of the directory
  */
 void CleanDir(const std::string& dirname) {
+  if (!CheckPath(dirname))
+    return;
   auto files = ListDir(dirname);
   for (const auto& filename : files) {
     std::string file_path = dirname + "/";
