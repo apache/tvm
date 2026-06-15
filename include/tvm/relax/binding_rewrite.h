@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
@@ -87,7 +87,7 @@ class DataflowBlockRewriteNode : public ffi::Object {
   ffi::Array<Var> fn_outputs_;               //!< Variables required by function outputs.
 
  private:
-  NameSupply name_supply_;  //!< Name supply for tracking and generating unique names.
+  UniqueNameSupply name_supply_;  //!< Unique name supply for tracking and generating unique names.
 };
 
 /*!

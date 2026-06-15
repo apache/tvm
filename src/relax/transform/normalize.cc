@@ -268,7 +268,7 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
   IRModule module_;
-  NameSupply name_supply_;
+  UniqueNameSupply name_supply_;
   ffi::Map<GlobalVar, GlobalVar> gvar_map_;
 };
 

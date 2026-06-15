@@ -25,7 +25,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
@@ -333,8 +333,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
    * name_hint.
    */
   std::unordered_map<const VarNode*, std::string> var_name_map_;
-  /*! \brief A name supply to generate a unique name for each parameter. */
-  NameSupply name_sup_;
+  /*! \brief A unique name supply to generate a unique name for each parameter. */
+  UniqueNameSupply name_sup_;
 };
 
 class CutlassModuleCodegen {

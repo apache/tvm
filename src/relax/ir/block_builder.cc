@@ -70,7 +70,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   // Global Context management
   //-------------------------------
-  NameSupply name_supply() final { return name_supply_; }
+  UniqueNameSupply name_supply() final { return name_supply_; }
 
   IRModule GetContextIRModule() const final { return context_mod_; }
 
@@ -346,8 +346,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   /*! \brief A binding table that maps var to value. */
   std::unordered_map<Id, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
 
-  /*! \brief A name supply to get unique names for IR construction. */
-  NameSupply name_supply_;
+  /*! \brief A unique name supply to get unique names for IR construction. */
+  UniqueNameSupply name_supply_;
 
   /*! \brief The IRModule being built by the BlockBuilder. */
   IRModule context_mod_;
