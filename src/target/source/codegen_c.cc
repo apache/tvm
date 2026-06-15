@@ -24,7 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 
 #include <cctype>
 #include <iomanip>
