@@ -199,16 +199,17 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     }
     Ramp ramp = Downcast<Ramp>(node->indices[0]);
 
-    bool same_base = ffi::StructuralEqual()(ramp->base, base_);
-    if (!same_base && !allow_offset_predication_) {
+    if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
+        !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
       return node;
     }
+
+    bool same_base = ffi::StructuralEqual()(ramp->base, base_);
     if (!same_base) {
       // The lane mask describes which lanes are active, independent of the
       // memory base.  This covers accesses such as A[offset + i] guarded by
       // a predicate over i.
-      if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
-          !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
+      if (!allow_offset_predication_) {
         return node;
       }
     }
@@ -221,6 +222,8 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     num_accesses_rewritten_ += 1;
     auto writer = node.CopyOnWrite();
     if (node->predicate.defined() && allow_offset_predication_) {
+      // Buffer predicates are uint1 lane masks, so mask merging uses bitwise
+      // and rather than logical &&.
       writer->predicate = node->predicate.value() & lane_mask;
     } else {
       writer->predicate = lane_mask;
@@ -1039,11 +1042,15 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr zero = make_const(index_dtype, 0);
     PrimExpr fixed_extent = make_const(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
-    PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes);
+    PrimExpr scalable_lanes_index = scalable_lanes;
+    if (scalable_lanes_index.dtype() != index_dtype) {
+      scalable_lanes_index = Cast(index_dtype, scalable_lanes_index);
+    }
+    PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
     Var outer(op->loop_var->name_hint + ".vla.o", index_dtype);
     Var inner(op->loop_var->name_hint + ".vla.i", index_dtype);
-    PrimExpr index = outer * scalable_lanes + inner;
+    PrimExpr index = outer * scalable_lanes_index + inner;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
     Stmt vector_loop = For(inner, zero, scalable_lanes, ForKind::kVectorized, guarded_body,

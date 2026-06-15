@@ -126,6 +126,11 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
                 if wo * 16 + wi < 99:
                     B[n, c, h, wo * 16 + wi] = T.float32(0) - A[n, c, h, wo * 16 + wi]
 
+    @T.prim_func(s_tir=True)
+    def fixed16_negative_int64(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        for wi in T.vectorized(T.int64(0), T.int64(16)):
+            B[wi] = T.float32(0) - A[wi]
+
     target = tvm.target.Target(
         {
             "kind": "llvm",
@@ -136,15 +141,19 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
         }
     )
 
-    with target:
-        f = tvm.tirx.build(fixed16_negative, target)
+    def check_codegen(func):
+        with target:
+            f = tvm.tirx.build(func, target)
 
-    assembly = f.inspect_source("asm")
-    assert "vle32.v" in assembly
-    assert "vse32.v" in assembly
-    assert not re.search(r"\bflw\b", assembly)
-    assert not re.search(r"\bfsub\.s\b", assembly)
-    assert not re.search(r"\bfsw\b", assembly)
+        assembly = f.inspect_source("asm")
+        assert "vle32.v" in assembly
+        assert "vse32.v" in assembly
+        assert not re.search(r"\bflw\b", assembly)
+        assert not re.search(r"\bfsub\.s\b", assembly)
+        assert not re.search(r"\bfsw\b", assembly)
+
+    check_codegen(fixed16_negative)
+    check_codegen(fixed16_negative_int64)
 
 
 if __name__ == "__main__":
