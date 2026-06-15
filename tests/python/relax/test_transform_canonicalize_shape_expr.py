@@ -72,5 +72,28 @@ def test_canonicalize_shape_expr_skips_parameter_struct_info():
     assert any(not isinstance(dim, (tirx.IntImm, tirx.Var)) for dim in param_shape.values)
 
 
+@I.ir_module
+class NestedFunc:
+    @R.function
+    def main(x: R.Tensor(("n", "n + 1"), "float32")) -> R.Tensor((1,), "float32"):
+        with R.dataflow():
+            @R.function
+            def local_func(y: R.Tensor(("a", "a + 1"), "float32")) -> R.Tensor((1,), "float32"):
+                local_out: R.Tensor((1,), "float32") = R.zeros(R.shape([1]), dtype="float32")
+                return local_out
+
+            res: R.Tensor((1,), "float32") = local_func(x)
+            R.output(res)
+        return res
+
+
+def test_canonicalize_shape_expr_nested_function():
+    mod = relax.transform.CanonicalizeShapeExpr()(NestedFunc)
+    local_func = mod["main"].body.blocks[0].bindings[0].value
+    param_shape = local_func.params[0].struct_info.shape
+
+    assert any(not isinstance(dim, (tirx.IntImm, tirx.Var)) for dim in param_shape.values)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
