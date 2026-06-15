@@ -23,9 +23,9 @@ _LAZY_SUBMODULES = {"target_tags"}
 
 def register_backend():
     """Register Hexagon-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_lib
 
-    _load_runtime_sidecar("hexagon")
+    _load_runtime_lib("hexagon")
     import_module(f"{__name__}.target_tags")
 
 

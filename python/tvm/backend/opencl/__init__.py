@@ -32,10 +32,10 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register OpenCL-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
 
-    _load_runtime_sidecar("opencl")
+    _load_runtime_lib("opencl")
     register_device_target_detector("opencl", _detect_target_from_device)
     return None
 

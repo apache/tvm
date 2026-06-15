@@ -43,10 +43,10 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Vulkan-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
 
-    _load_runtime_sidecar("vulkan")
+    _load_runtime_lib("vulkan")
     register_device_target_detector("vulkan", _detect_target_from_device)
     return None
 

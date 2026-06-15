@@ -33,10 +33,10 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register ROCm-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
 
-    _load_runtime_sidecar("rocm")
+    _load_runtime_lib("rocm")
     register_device_target_detector("rocm", _detect_target_from_device)
     return None
 

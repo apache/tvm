@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Autoload backend libraries and Python backend registration hooks."""
+"""Autoload built-in and out-of-tree backend libraries and registration hooks."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import os
 import warnings
 from importlib.metadata import entry_points
 
-from tvm.backend.loader import _load_runtime_sidecar, load
+from tvm.backend.loader import _load_runtime_lib, load
 
 _BUILTIN_BACKENDS = (
     "cuda",
@@ -47,7 +47,7 @@ def _load_builtin_backends() -> None:
 
 
 def _autoload_backends() -> None:
-    """Load built-in backends and invoke backend entry points."""
+    """Load built-in backends and invoke out-of-tree backend entry points."""
     global _AUTO_LOAD_DONE
     if _AUTO_LOAD_DONE:
         return
@@ -56,13 +56,17 @@ def _autoload_backends() -> None:
     if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
         return
 
-    _load_runtime_sidecar("extra")
+    _load_runtime_lib("extra")
 
     from tvm import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
 
     if not _RUNTIME_ONLY:
         _load_builtin_backends()
 
+    # Out-of-tree extensions opt into being loaded automatically at ``import tvm`` time
+    # by declaring an entry point in the ``tvm.backends`` group:
+    # [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
+    # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
     for entry_pt in entry_points(group="tvm.backends"):
         try:
             entry_pt.load()()

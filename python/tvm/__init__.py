@@ -116,10 +116,11 @@ def tvm_wrap_excepthook(exception_hook):
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 
-# Autoload backend runtime sidecars, built-in backend hooks, and out-of-tree
-# backends registered under the ``tvm.backends`` entry point group. Runs last,
-# after the core runtime and the tvm namespace are fully initialized, so an
-# extension can safely register into ``tvm.*`` and load extra libraries.
+# Autoload loads built-in and out-of-tree backends. Out-of-tree extensions opt
+# into being loaded automatically at ``import tvm`` time by declaring an entry
+# point in the ``tvm.backends`` group:
+# [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
+# Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
 from .backend._autoload_backends import _autoload_backends
 
 _autoload_backends()

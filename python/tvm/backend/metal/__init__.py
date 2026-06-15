@@ -36,11 +36,11 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Metal-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_sidecar
+    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
-    _load_runtime_sidecar("metal")
+    _load_runtime_lib("metal")
     register_device_target_detector("metal", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)

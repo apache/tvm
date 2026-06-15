@@ -28,7 +28,6 @@ from typing import Any
 from tvm_ffi.libinfo import load_lib_ctypes
 
 _LOADED_BACKENDS: dict[str, Any] = {}
-_RUNTIME_SIDECAR_LOAD_ATTEMPTED: set[str] = set()
 
 
 class _AliasModule(types.ModuleType):
@@ -149,25 +148,20 @@ def _import_backend(name: str):
         raise
 
 
-def _load_runtime_sidecar(name: str, loaded_libs: dict[str, Any] | None = None) -> None:
+def _load_runtime_lib(name: str) -> None:
     """Load ``libtvm_runtime_<name>`` next to ``libtvm_runtime`` if present."""
     target_name = f"tvm_runtime_{name}"
-    if target_name in _RUNTIME_SIDECAR_LOAD_ATTEMPTED:
-        return
 
-    if loaded_libs is None:
-        from tvm.base import _LOADED_LIBS  # pylint: disable=import-outside-toplevel
+    from tvm.base import _LOADED_LIBS  # pylint: disable=import-outside-toplevel
 
-        loaded_libs = _LOADED_LIBS
-
-    runtime_lib = loaded_libs.get("tvm_runtime")
+    runtime_lib = _LOADED_LIBS.get("tvm_runtime")
     if runtime_lib is None:
         return
 
-    _RUNTIME_SIDECAR_LOAD_ATTEMPTED.add(target_name)
+    # Backend runtime libraries sit next to the already loaded libtvm_runtime.
     runtime_dir = Path(runtime_lib._name).resolve().parent
     try:
-        loaded_libs[target_name] = load_lib_ctypes(
+        _LOADED_LIBS[target_name] = load_lib_ctypes(
             package="tvm",
             target_name=target_name,
             mode="RTLD_GLOBAL",
