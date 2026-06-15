@@ -17,15 +17,27 @@
 """Hexagon-owned backend hooks."""
 
 from importlib import import_module
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {"target_tags"}
 
 
 def register_backend():
     """Register Hexagon-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_lib
-
-    _load_runtime_lib("hexagon")
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        _LOADED_LIBS["tvm_runtime_hexagon"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_hexagon",
+            mode="RTLD_GLOBAL",
+            extra_lib_paths=[runtime_dir],
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
     import_module(f"{__name__}.target_tags")
 
 

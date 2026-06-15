@@ -22,10 +22,7 @@ import importlib
 import importlib.util
 import sys
 import types
-from pathlib import Path
 from typing import Any
-
-from tvm_ffi.libinfo import load_lib_ctypes
 
 _LOADED_BACKENDS: dict[str, Any] = {}
 
@@ -146,29 +143,6 @@ def _import_backend(name: str):
                 "Install the backend package or check the backend name."
             ) from err
         raise
-
-
-def _load_runtime_lib(name: str) -> None:
-    """Load ``libtvm_runtime_<name>`` next to ``libtvm_runtime`` if present."""
-    target_name = f"tvm_runtime_{name}"
-
-    from tvm.base import _LOADED_LIBS  # pylint: disable=import-outside-toplevel
-
-    runtime_lib = _LOADED_LIBS.get("tvm_runtime")
-    if runtime_lib is None:
-        return
-
-    # Backend runtime libraries sit next to the already loaded libtvm_runtime.
-    runtime_dir = Path(runtime_lib._name).resolve().parent
-    try:
-        _LOADED_LIBS[target_name] = load_lib_ctypes(
-            package="tvm",
-            target_name=target_name,
-            mode="RTLD_GLOBAL",
-            extra_lib_paths=[runtime_dir],
-        )
-    except (OSError, FileNotFoundError, RuntimeError):
-        pass
 
 
 def load(name: str) -> None:

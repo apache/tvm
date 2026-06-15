@@ -17,6 +17,11 @@
 """Metal-owned TIRx modules."""
 
 from importlib import import_module
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {"op", "script", "target_tags"}
 
@@ -36,11 +41,19 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Metal-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
-    _load_runtime_lib("metal")
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        _LOADED_LIBS["tvm_runtime_metal"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_metal",
+            mode="RTLD_GLOBAL",
+            extra_lib_paths=[runtime_dir],
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
     register_device_target_detector("metal", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)

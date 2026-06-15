@@ -21,8 +21,12 @@ from __future__ import annotations
 import os
 import warnings
 from importlib.metadata import entry_points
+from pathlib import Path
 
-from tvm.backend.loader import _load_runtime_lib, load
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.backend.loader import load
+from tvm.base import _LOADED_LIBS
 
 _BUILTIN_BACKENDS = (
     "cuda",
@@ -56,7 +60,16 @@ def _autoload_backends() -> None:
     if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
         return
 
-    _load_runtime_lib("extra")
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        _LOADED_LIBS["tvm_runtime_extra"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_extra",
+            mode="RTLD_GLOBAL",
+            extra_lib_paths=[runtime_dir],
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
 
     from tvm import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
 

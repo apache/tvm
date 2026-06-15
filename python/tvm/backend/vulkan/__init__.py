@@ -16,6 +16,12 @@
 # under the License.
 """Vulkan-owned backend hooks."""
 
+from pathlib import Path
+
+from tvm_ffi.libinfo import load_lib_ctypes
+
+from tvm.base import _LOADED_LIBS
+
 
 def _detect_target_from_device(dev):
     from tvm import get_global_func  # pylint: disable=import-outside-toplevel
@@ -43,10 +49,18 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Vulkan-owned Python semantics."""
-    from tvm.backend.loader import _load_runtime_lib
     from tvm.target.detect_target import register_device_target_detector
 
-    _load_runtime_lib("vulkan")
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        _LOADED_LIBS["tvm_runtime_vulkan"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_vulkan",
+            mode="RTLD_GLOBAL",
+            extra_lib_paths=[runtime_dir],
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
     register_device_target_detector("vulkan", _detect_target_from_device)
     return None
 
