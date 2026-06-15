@@ -43,10 +43,12 @@ free to contain arbitrary garbage).
 import math
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.relax.frontend.nn.llm.kv_cache import _attention_sequence_prefill_with_mask
+from tvm.testing import env
 
 
 def _reference_masked_attention(q, k, v, valid_lens, sm_scale):
@@ -182,7 +184,8 @@ def _run_case(
             np.testing.assert_allclose(got[b, pad_q:], ref[b, pad_q:], rtol=rtol, atol=atol)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_valid_len_zero(target, dev):
     """All samples are fully padded: kernel must not crash and must stay bounded."""
@@ -198,7 +201,8 @@ def test_valid_len_zero(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_valid_len_full(target, dev):
     """All samples are fully valid: must match a plain unmasked attention."""
@@ -214,7 +218,8 @@ def test_valid_len_full(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_valid_len_mixed(target, dev):
     """Typical encoder batch with different valid lengths per sample."""
@@ -230,7 +235,8 @@ def test_valid_len_mixed(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_valid_len_mixed_gqa(target, dev):
     """Grouped-query attention: ``group_size = h_q / h_kv > 1``."""
@@ -246,7 +252,8 @@ def test_valid_len_mixed_gqa(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_causal_padded_left_valid_len_zero(target, dev):
     """Causal left-pad: all samples are fully padded."""
@@ -263,7 +270,8 @@ def test_causal_padded_left_valid_len_zero(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_causal_padded_left_valid_len_full(target, dev):
     """Causal left-pad: all samples are fully valid — degenerates to plain causal attention."""
@@ -280,7 +288,8 @@ def test_causal_padded_left_valid_len_full(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_causal_padded_left_valid_len_mixed(target, dev):
     """Causal left-pad: typical decoder-embedding batch with mixed lengths."""
@@ -297,7 +306,8 @@ def test_causal_padded_left_valid_len_mixed(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
     """Causal left-pad: grouped-query attention with mixed lengths."""
@@ -314,7 +324,8 @@ def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_causal_padded_left_qo_len_differs_from_kv_len(target, dev):
     """Causal left-pad: Q and K/V may have different padded lengths."""

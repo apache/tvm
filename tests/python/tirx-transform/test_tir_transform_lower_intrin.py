@@ -16,9 +16,11 @@
 # under the License.
 # ruff: noqa: RUF005
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 
 def lower_intrin(params, stmt):
@@ -94,7 +96,7 @@ def get_ref_data():
     return list(itertools.product(x, y))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -128,7 +130,7 @@ def test_lower_floordiv():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floormod():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -157,7 +159,7 @@ def test_lower_floormod():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv_overflow_checks():
     """
     Regression tests for overflow checks in TryFindShiftCoefficientForPositiveRange.

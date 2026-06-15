@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @tvm.register_global_func("tvm.test_matmul")
@@ -112,7 +113,7 @@ def test_lower_call_packed():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")

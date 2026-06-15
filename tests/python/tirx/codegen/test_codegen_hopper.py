@@ -23,6 +23,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.tirx import Buffer
 
 
@@ -57,7 +58,8 @@ def _run_tensormap_encode(shape, dtype, encode_args):
 
 
 @pytest.mark.parametrize("inc", [False, True])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_setmaxnreg(inc):
     # fmt: off
     @T.prim_func
@@ -77,7 +79,8 @@ def test_ptx_setmaxnreg(inc):
 
 
 @pytest.mark.parametrize("trans", [False, True])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_stmatrix_sync_aligned(trans):
     # fmt: off
     @T.prim_func
@@ -199,7 +202,8 @@ def test_ptx_stmatrix(trans, num):
 
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_stmatrix_noncontiguous(trans, num):
     """Symmetric stmatrix API: ``num`` independent src handles.
 
@@ -267,7 +271,8 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
     np.testing.assert_allclose(A.numpy(), A_ref)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_bar_arrive():
     # fmt: off
     @T.prim_func
@@ -283,7 +288,8 @@ def test_bar_arrive():
     assert 'bar.arrive %0, %1;" : : "r"(name_bar_id), "r"(thread_count) : "memory"' in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_bar_sync():
     # fmt: off
     @T.prim_func
@@ -299,7 +305,8 @@ def test_bar_sync():
     assert 'bar.sync %0, %1;" : : "r"(name_bar_id), "r"(thread_count) : "memory"' in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fence_mbarrier_init_release_clsuter():
     # fmt: off
     @T.prim_func
@@ -314,7 +321,8 @@ def test_fence_mbarrier_init_release_clsuter():
     assert "fence.mbarrier_init.release.cluster" in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_elect_sync():
     # fmt: off
     @T.prim_func
@@ -331,7 +339,8 @@ def test_ptx_elect_sync():
     assert "elect.sync %%rx|%%px, %2;" in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("sem,scope", [("sc", "cta"), ("acq_rel", "gpu"), ("sc", "sys")])
 def test_ptx_fence(sem, scope):
     # fmt: off
@@ -347,7 +356,8 @@ def test_ptx_fence(sem, scope):
     assert f"fence.{sem}.{scope};" in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fence_proxy_async():
     # fmt: off
     @T.prim_func
@@ -365,7 +375,8 @@ def test_fence_proxy_async():
     assert "fence.proxy.async.shared::cta" in src
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("dtype", ["float16", "float32", "float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize(
     "inputs",
@@ -449,7 +460,8 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     assert np.allclose(A.numpy().astype("float32"), B.numpy().astype("float32"))
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     ("shape", "dtype", "encode_args", "error_msg"),
     [
@@ -525,7 +537,8 @@ def test_tensormap_encode_tiled_runtime_validation(shape, dtype, encode_args, er
 
 @pytest.mark.parametrize("swizzle", [1, 2, 3])
 @pytest.mark.parametrize("dtype", ["uint8", "float16", "float32"])
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     def get_ir(swizzle, dtype):
         dtype = tvm.DataType(dtype)
@@ -623,7 +636,8 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
         ),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
     # 1 CTA does the copy, and then multicast to all CTAs in the cluster
     def get_ir(shape, tma_args):
@@ -697,7 +711,8 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
         ((16, 16, 4), [16, 16, 4, 64, 64 * 16, 16, 16, 1, 1, 1, 1, 0, 0, 0, 0]),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
     # 4 CTAs in the cluster do the copy of separate chunks, and then multicast to all CTAs in the cluster  # noqa: E501
     def get_ir(shape, tma_args):
@@ -787,7 +802,8 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
         ((16, 16, 4), [16, 16, 4, 64, 64 * 16, 16, 16, 4, 1, 1, 1, 0, 0, 0, 0]),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_shared_to_global(inputs):
     def get_ir(shape, tma_args):
         assert shape[0] % 4 == 0
@@ -839,7 +855,8 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
     np.testing.assert_allclose(A.numpy(), A_ref)
 
 
-@tvm.testing.requires_cuda_compute_version(9, exact=True)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9, exact=True), reason="need cuda compute == 9.0")
 def test_wgmma_ss_nt():
     def get_ir(
         shapeA,
@@ -994,7 +1011,8 @@ def test_wgmma_ss_nt():
     tvm.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.requires_cuda_compute_version(9, exact=True)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9, exact=True), reason="need cuda compute == 9.0")
 def test_wgmma_rs_nt():
     def get_ir(
         shapeA, shapeB, shapeC, B_tma_args, in_dtype, in_dtype_bits, out_dtype, B_encode_args
@@ -1150,7 +1168,8 @@ def test_wgmma_rs_nt():
     tvm.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_map_shared_rank():
     @T.prim_func
     def func(A: T.Buffer(1)):

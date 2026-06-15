@@ -69,7 +69,11 @@ def _compose(args, decs):
     return decs
 
 
-requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
+def requires_hexagon_toolchain(func):
+    """Skip a test unless the Hexagon toolchain is available (compile-only)."""
+    return pytest.mark.skipif(
+        not tvm.testing.env.has_hexagon_toolchain(), reason="need hexagon toolchain"
+    )(func)
 
 
 def android_serial_number() -> str | None:

@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def gen_2in4_mask(m: int, n: int):
@@ -256,7 +258,8 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_mma_sp_m16n8k16_f16():
     def get_meta_m16n8k16_half(mask):
         assert mask.shape == (16, 4, 2)
@@ -293,7 +296,8 @@ def test_mma_sp_m16n8k16_f16():
         tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_mma_sp_m16n8k32_f16():
     def get_meta_m16n8k32_half(mask):
         assert mask.shape == (16, 8, 2)

@@ -28,6 +28,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
 
 
@@ -509,7 +510,8 @@ def test_layout_permute_copy_preserves_smem_strides():
 # recognizer accepts, and emit lowers to the
 # ``base_off + sum_j bit_j(f) · signed_strides[j]`` precomputed form.
 # ----------------------------------------------------------------------------
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_gmem_smem_swizzle_fast_path_fires_with_var_bounds():
     """Warp-scope 32x64 fp16 G2S/S2G with 128b swizzled SMEM. Fast path
     must fire: a 3-slot ``v_<n>[]`` signed_strides buffer + bit-select adds

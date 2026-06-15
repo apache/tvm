@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401, F821, F841
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def run_passes(func: tvm.tirx.PrimFunc):
@@ -34,7 +37,8 @@ def run_passes(func: tvm.tirx.PrimFunc):
     return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_read_thread_id_independent_location():
     @T.prim_func(check_well_formed=False, s_tir=True)
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
@@ -98,7 +102,8 @@ def test_sync_shared_dyn():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():
     @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((16 * 512), "float32")):

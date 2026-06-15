@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -50,6 +51,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x32_to_ldmatrix_32x16_layout,
     shared_32x16_to_ldmatrix_32x16_layout,
 )
+from tvm.testing import env
 from tvm.testing.tir import mma_schedule
 
 M = 4096
@@ -183,7 +185,8 @@ def run_test(
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_f16f16f32_m16n16k16():
     def index_map(i, j):
         return (
@@ -240,7 +243,8 @@ def test_f16f16f32_m16n16k16():
         print("f16f16f32_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_f16f16f16_m16n16k16():
     def index_map(i, j):
         return (
@@ -297,7 +301,8 @@ def test_f16f16f16_m16n16k16():
         print("f16f16f16_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_i8i8i32_m16n16k32():
     def index_map_A(i, j):
         return (
@@ -368,7 +373,8 @@ def test_i8i8i32_m16n16k32():
         print("i8i8i32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 def test_e4m3e4m3f32_m16n16k32():
     def index_map_A(i, j):
         return (
@@ -411,7 +417,8 @@ def test_e4m3e4m3f32_m16n16k32():
         print("e4m3e4m3f32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 def test_e5m2e5m2f32_m16n16k32():
     def index_map_A(i, j):
         return (
