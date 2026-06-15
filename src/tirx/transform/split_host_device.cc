@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -678,7 +678,8 @@ namespace transform {
 
 Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    GlobalVarSupply global_var_supply(mod);
+    UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
+                                  [](const auto& kv) { return kv.first->name_hint; });
 
     IRModule device_mod = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
     IRModule updates = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
@@ -691,8 +692,8 @@ Pass SplitHostDevice() {
         auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
         auto name_prefix = global_symbol.value_or(gvar->name_hint);
         auto kernel_name = name_prefix + "_kernel";
-        auto var_supply = [&global_var_supply, &kernel_name]() -> GlobalVar {
-          return global_var_supply->FreshGlobal(kernel_name, false);
+        auto var_supply = [&global_names, &kernel_name]() -> GlobalVar {
+          return GlobalVar(global_names->FreshName(kernel_name, false));
         };
 
         func = SplitHostDevice(std::move(func), &device_mod, var_supply);

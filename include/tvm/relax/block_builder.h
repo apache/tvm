@@ -25,7 +25,7 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
@@ -68,11 +68,11 @@ class BlockBuilderNode : public ffi::Object {
   // Global Context management
   //-------------------------------
   /*!
-   * \brief Get the name supply for generating unique names.
+   * \brief Get the unique name supply for generating unique names.
    *
-   * \return The name supply.
+   * \return The unique name supply.
    */
-  virtual NameSupply name_supply() = 0;
+  virtual UniqueNameSupply name_supply() = 0;
 
   /*!
    * \brief Get the context IRModule in this builder.

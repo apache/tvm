@@ -59,7 +59,7 @@ import tvm_ffi
 import tvm
 from tvm import relax, tirx, topi
 from tvm.ir import IRModule
-from tvm.ir.supply import NameSupply
+from tvm.ir.supply import UniqueNameSupply
 from tvm.runtime import DataType, DataTypeCode
 from tvm.tirx.generic import cast
 from tvm.topi.utils import get_const_tuple
@@ -5337,7 +5337,7 @@ class ONNXGraphImporter:
         self._input_names: list[str] = []
         self._dtype = dtype_dict
         self.opset: int = None
-        self._name_supply = NameSupply()
+        self._name_supply = UniqueNameSupply()
         self._keep_params_in_input = keep_params_in_input
         self._sanitize: bool = sanitize
         self.bb: relax.BlockBuilder = relax.BlockBuilder()  # pylint: disable=invalid-name
