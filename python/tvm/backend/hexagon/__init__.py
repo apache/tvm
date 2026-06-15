@@ -35,6 +35,7 @@ def register_backend():
             package="tvm",
             target_name="tvm_runtime_hexagon",
             extra_lib_paths=[runtime_dir],
+            mode="RTLD_LOCAL",
         )
     except (OSError, FileNotFoundError, RuntimeError):
         pass
