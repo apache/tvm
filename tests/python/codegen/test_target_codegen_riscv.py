@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+import re
 import pytest
 
 import tvm
@@ -111,6 +112,39 @@ def test_rvv_vscale_llvm_dbginfo(target):
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
     with tvm.target.Target(target):
         f = tvm.tirx.build(rvv_with_vscale, target)
+
+
+@tvm.testing.requires_llvm_minimum_version(14)
+def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
+    @T.prim_func(s_tir=True)
+    def fixed16_negative(
+        A: T.Buffer((14, 23, 67, 99), "float32"),
+        B: T.Buffer((14, 23, 67, 99), "float32"),
+    ):
+        for n, c, h, wo in T.grid(14, 23, 67, 7):
+            for wi in T.vectorized(0, 16):
+                if wo * 16 + wi < 99:
+                    B[n, c, h, wo * 16 + wi] = T.float32(0) - A[n, c, h, wo * 16 + wi]
+
+    target = tvm.target.Target(
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+        }
+    )
+
+    with target:
+        f = tvm.tirx.build(fixed16_negative, target)
+
+    assembly = f.inspect_source("asm")
+    assert "vle32.v" in assembly
+    assert "vse32.v" in assembly
+    assert not re.search(r"\bflw\b", assembly)
+    assert not re.search(r"\bfsub\.s\b", assembly)
+    assert not re.search(r"\bfsw\b", assembly)
 
 
 if __name__ == "__main__":
