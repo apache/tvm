@@ -39,7 +39,8 @@ AnalyzerObj::AnalyzerObj()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {}
+      int_set(this),
+      z3_prover(this) {}
 
 void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   PrimExpr new_expr = expr;
@@ -52,6 +53,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
   this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->z3_prover.Bind(var, expr, allow_override);
 }
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -62,6 +64,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
     this->transitive_comparisons.Bind(var, range, allow_override);
+    this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -131,6 +134,7 @@ void ConstraintContext::EnterWithScope() {
   recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -231,6 +235,12 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
+  // Z3 is an expensive best-effort fallback. Gate it behind the higher
+  // kSymbolicBound strength so the common kDefault path (including deeply
+  // recursive internal CanProve calls) never pays the prover cost.
+  if (strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+    return true;
+  }
   return false;
 }
 
@@ -334,6 +344,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return static_cast<int64_t>(
                  analyzer->transitive_comparisons.TryCompare(lhs, rhs, propagate_inequalities));
            })
+      .def("arith.AnalyzerIsZ3Enabled",
+           [](Analyzer analyzer) { return analyzer->z3_prover.IsEnabled(); })
+      .def("arith.AnalyzerGetSMTLIB2",
+           [](Analyzer analyzer, ffi::Optional<PrimExpr> expr) {
+             return analyzer->z3_prover.GetSMTLIB2(expr);
+           })
+      .def("arith.AnalyzerSetZ3TimeoutMs", [](Analyzer analyzer, int64_t timeout_ms) {
+        analyzer->z3_prover.SetTimeoutMs(static_cast<unsigned>(timeout_ms));
+      })
+      .def("arith.AnalyzerSetZ3RLimit", [](Analyzer analyzer, int64_t rlimit) {
+        analyzer->z3_prover.SetRLimit(static_cast<unsigned>(rlimit));
+      })
+      .def("arith.AnalyzerGetZ3Stats",
+           [](Analyzer analyzer) { return analyzer->z3_prover.GetStats(); })
       .def("arith.AnalyzerGetEnabledExtensions",
            [](Analyzer analyzer) {
              return static_cast<std::int64_t>(analyzer->rewrite_simplify.GetEnabledExtensions());

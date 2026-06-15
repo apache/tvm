@@ -35,11 +35,15 @@ Apache TVM requires the following dependencies:
 - CMake (>= 3.24.0)
 - LLVM (recommended >= 15)
 - Git
-- A recent C++ compiler supporting C++ 17, at the minimum
-    - GCC 7.1
-    - Clang 5.0
-    - Apple Clang 9.3
-    - Visual Studio 2019 (v16.7)
+- A recent C++ compiler supporting C++ 20, at the minimum
+    - GCC 10
+    - Clang 10
+    - Apple Clang 14
+    - Visual Studio 2022
+
+  Optional dependencies that use newer C++20 standard library facilities, such
+  as ``std::format``, may require a newer standard library (for example GCC 13
+  or newer on Linux).
 - Python (>= 3.10)
 - (Optional) Conda (Strongly Recommended)
 

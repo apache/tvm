@@ -128,6 +128,91 @@ class Analyzer(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Analyzer)
 
+    @property
+    def is_z3_enabled(self) -> bool:
+        """Whether this build includes the Z3 backend (``USE_Z3=ON``).
+
+        The Z3-specific methods (:py:meth:`get_smtlib2`, :py:meth:`get_z3_stats`,
+        :py:meth:`set_z3_timeout_ms`, :py:meth:`set_z3_rlimit`) only work when
+        this is ``True``.
+        """
+        return bool(_ffi_api.AnalyzerIsZ3Enabled(self))
+
+    def _check_z3_enabled(self) -> None:
+        if not self.is_z3_enabled:
+            raise RuntimeError(
+                "The Z3 backend is not available in this build. "
+                "Rebuild TVM with USE_Z3=ON to use Z3-specific Analyzer APIs."
+            )
+
+    def get_smtlib2(self, expr: tirx.PrimExpr | None = None) -> str:
+        """Get the current Z3 problem in SMT-LIB2 format.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``), since there is no
+            solver state to export. Use :py:attr:`is_z3_enabled` to check first.
+
+        Parameters
+        ----------
+        expr : Optional[PrimExpr]
+            The expression to prove. If provided, its negation is added to the problem.
+        """
+        self._check_z3_enabled()
+        return _ffi_api.AnalyzerGetSMTLIB2(self, expr)
+
+    def set_z3_timeout_ms(self, timeout_ms: int) -> None:
+        """Set Z3 timeout in milliseconds.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Parameters
+        ----------
+        timeout_ms : int
+            The timeout in milliseconds.
+        """
+        self._check_z3_enabled()
+        _ffi_api.AnalyzerSetZ3TimeoutMs(self, timeout_ms)
+
+    def set_z3_rlimit(self, rlimit: int) -> None:
+        """Set Z3 resource limit.
+
+        The resource limit gives deterministic solver budgeting (unlike a wall
+        clock timeout). A value of ``0`` disables the limit.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Parameters
+        ----------
+        rlimit : int
+            The resource limit.
+        """
+        self._check_z3_enabled()
+        _ffi_api.AnalyzerSetZ3RLimit(self, rlimit)
+
+    def get_z3_stats(self) -> str:
+        """Get Z3 solver statistics.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Returns
+        -------
+        stats : str
+            The Z3 statistics.
+        """
+        self._check_z3_enabled()
+        return _ffi_api.AnalyzerGetZ3Stats(self)
+
     def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
@@ -260,7 +345,9 @@ class Analyzer(Object):
             The expression.
 
         strength: ProofStrength
-            The proof strength
+            The proof strength. When TVM is built with Z3 (``USE_Z3=ON``), the
+            optional Z3 fallback is only consulted at ``SYMBOLIC_BOUND`` or
+            higher, after the native analyzers fail to prove the predicate.
 
         Returns
         -------
