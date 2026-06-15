@@ -61,7 +61,8 @@ struct LLVMConstantGetter<T, std::enable_if_t<std::is_floating_point<T>::value>>
   static llvm::Constant* getElement(llvm::Type* ty, T t) { return llvm::ConstantFP::get(ty, t); }
 };
 
-template <typename T, typename = std::enable_if<std::is_pod<T>::value>>
+template <typename T,
+          typename = std::enable_if_t<std::is_standard_layout<T>::value && std::is_trivial<T>::value>>
 void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_elements,
                      std::vector<llvm::Constant*>* elements) {
   elements->resize(num_elements, nullptr);
