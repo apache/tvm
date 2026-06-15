@@ -1042,6 +1042,7 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr zero = make_const(index_dtype, 0);
     PrimExpr fixed_extent = make_const(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
+    DataType lane_dtype = scalable_lanes.dtype();
     PrimExpr scalable_lanes_index = scalable_lanes;
     if (scalable_lanes_index.dtype() != index_dtype) {
       scalable_lanes_index = Cast(index_dtype, scalable_lanes_index);
@@ -1049,12 +1050,17 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
     Var outer(op->loop_var->name_hint + ".vla.o", index_dtype);
-    Var inner(op->loop_var->name_hint + ".vla.i", index_dtype);
-    PrimExpr index = outer * scalable_lanes_index + inner;
+    Var inner(op->loop_var->name_hint + ".vla.i", lane_dtype);
+    PrimExpr inner_index = inner;
+    if (inner_index.dtype() != index_dtype) {
+      inner_index = Cast(index_dtype, inner_index);
+    }
+    PrimExpr index = outer * scalable_lanes_index + inner_index;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop = For(inner, zero, scalable_lanes, ForKind::kVectorized, guarded_body,
-                           std::nullopt, op->annotations, std::nullopt, op->span);
+    Stmt vector_loop =
+        For(inner, make_const(lane_dtype, 0), scalable_lanes, ForKind::kVectorized, guarded_body,
+            std::nullopt, op->annotations, std::nullopt, op->span);
     Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
                     std::nullopt, op->span);
 
