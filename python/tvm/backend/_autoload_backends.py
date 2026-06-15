@@ -47,6 +47,17 @@ def _load_builtin_backends() -> None:
     """Load all in-tree backend Python hooks."""
     for name in _BUILTIN_BACKENDS:
         load(name)
+
+    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
+    try:
+        # Load libtvm_runtime_extra if available for registration side effects.
+        _LOADED_LIBS["tvm_runtime_extra"] = load_lib_ctypes(
+            package="tvm",
+            target_name="tvm_runtime_extra",
+            extra_lib_paths=[runtime_dir],
+        )
+    except (OSError, FileNotFoundError, RuntimeError):
+        pass
     return None
 
 
@@ -59,17 +70,6 @@ def _autoload_backends() -> None:
 
     if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
         return
-
-    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
-    try:
-        # Runtime sidecars only need registration side effects; libtvm_runtime is global.
-        _LOADED_LIBS["tvm_runtime_extra"] = load_lib_ctypes(
-            package="tvm",
-            target_name="tvm_runtime_extra",
-            extra_lib_paths=[runtime_dir],
-        )
-    except (OSError, FileNotFoundError, RuntimeError):
-        pass
 
     from tvm import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
 
