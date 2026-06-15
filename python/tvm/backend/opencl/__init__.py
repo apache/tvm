@@ -16,8 +16,6 @@
 # under the License.
 """OpenCL-owned backend hooks."""
 
-RUNTIME_LIBS = ("opencl",)
-
 
 def _detect_target_from_device(dev):
     from tvm.target import Target  # pylint: disable=import-outside-toplevel
@@ -34,10 +32,12 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register OpenCL-owned Python semantics."""
+    from tvm.backend._autoload_backends import _load_runtime_sidecar
     from tvm.target.detect_target import register_device_target_detector
 
+    _load_runtime_sidecar("opencl")
     register_device_target_detector("opencl", _detect_target_from_device)
     return None
 
 
-__all__ = ["register_backend", "RUNTIME_LIBS"]
+__all__ = ["register_backend"]

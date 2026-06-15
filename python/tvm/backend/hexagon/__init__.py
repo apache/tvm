@@ -19,11 +19,13 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"target_tags"}
-RUNTIME_LIBS = ("hexagon",)
 
 
 def register_backend():
     """Register Hexagon-owned Python semantics."""
+    from tvm.backend._autoload_backends import _load_runtime_sidecar
+
+    _load_runtime_sidecar("hexagon")
     import_module(f"{__name__}.target_tags")
 
 
@@ -33,4 +35,4 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["register_backend", "RUNTIME_LIBS", "target_tags"]
+__all__ = ["register_backend", "target_tags"]

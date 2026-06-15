@@ -75,8 +75,6 @@ from .support import rocm as _rocm, nvcc as _nvcc
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
-    backend.load_all()
-
     # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
     from . import relax
 
@@ -118,11 +116,10 @@ def tvm_wrap_excepthook(exception_hook):
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 
-# Autoload backend runtime libraries and out-of-tree backends registered under
-# the ``tvm.backends`` entry point group. Runs last, after the core runtime and
-# the tvm namespace are fully initialized, so an extension can safely register
-# into ``tvm.*`` and load extra libraries.
+# Autoload backend runtime sidecars, built-in backend hooks, and out-of-tree
+# backends registered under the ``tvm.backends`` entry point group. Runs last,
+# after the core runtime and the tvm namespace are fully initialized, so an
+# extension can safely register into ``tvm.*`` and load extra libraries.
 from .backend._autoload_backends import _autoload_backends
 
-backend.autoload_backend_libs()
 _autoload_backends()

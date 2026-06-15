@@ -16,8 +16,6 @@
 # under the License.
 """Vulkan-owned backend hooks."""
 
-RUNTIME_LIBS = ("vulkan",)
-
 
 def _detect_target_from_device(dev):
     from tvm import get_global_func  # pylint: disable=import-outside-toplevel
@@ -45,10 +43,12 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Vulkan-owned Python semantics."""
+    from tvm.backend._autoload_backends import _load_runtime_sidecar
     from tvm.target.detect_target import register_device_target_detector
 
+    _load_runtime_sidecar("vulkan")
     register_device_target_detector("vulkan", _detect_target_from_device)
     return None
 
 
-__all__ = ["register_backend", "RUNTIME_LIBS"]
+__all__ = ["register_backend"]

@@ -19,7 +19,6 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"lang", "op", "operator", "script", "target_tags"}
-RUNTIME_LIBS = ("cuda",)
 
 
 def _detect_target_from_device(dev):
@@ -38,9 +37,11 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register CUDA-owned Python semantics."""
+    from tvm.backend._autoload_backends import _load_runtime_sidecar
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
+    _load_runtime_sidecar("cuda")
     register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
@@ -81,7 +82,6 @@ __all__ = [
     "op",
     "operator",
     "register_backend",
-    "RUNTIME_LIBS",
     "script",
     "script_namespace",
     "script_namespaces",

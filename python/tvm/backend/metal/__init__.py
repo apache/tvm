@@ -19,7 +19,6 @@
 from importlib import import_module
 
 _LAZY_SUBMODULES = {"op", "script", "target_tags"}
-RUNTIME_LIBS = ("metal",)
 
 
 def _detect_target_from_device(dev):
@@ -37,9 +36,11 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Metal-owned Python semantics."""
+    from tvm.backend._autoload_backends import _load_runtime_sidecar
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
 
+    _load_runtime_sidecar("metal")
     register_device_target_detector("metal", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_ir.register_script_namespace(name, namespace)
@@ -67,7 +68,6 @@ def __getattr__(name: str):
 __all__ = [
     "op",
     "register_backend",
-    "RUNTIME_LIBS",
     "script",
     "script_namespace",
     "script_namespaces",
