@@ -198,8 +198,8 @@ class TrackerClient {
       support::SockAddr addr(tracker_addr_);
       support::TCPSocket sock;
       sock.Create();
-      LOG(INFO) << "Tracker connecting to " << addr.AsString();
       if (sock.Connect(addr)) {
+        LOG(INFO) << "Connected to tracker " << addr.AsString();
         return sock;
       }
 
