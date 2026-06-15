@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
@@ -390,7 +391,7 @@ class TestAsyncDMAPipeline:
                         ) * np.uint32(input_w[x, index_0 * 4 + r_index])
         return expected_result
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_loading_vtcm_for_vrmpy(
         self,
         hexagon_session,
@@ -839,7 +840,7 @@ class ModuleBase:
                                 ]
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_meta(hexagon_session):
     """Test meta."""
     if tvm.testing.utils.IS_IN_CI:

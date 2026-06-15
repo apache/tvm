@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring, invalid-name
 # ruff: noqa: E501, F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -25,6 +26,7 @@ from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -927,7 +929,8 @@ def test_empty():
     vm["test"](*effects)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_multinomial_from_uniform():
     prob_shape = (3, 5)
     sample_shape = (6, 1)
@@ -999,7 +1002,8 @@ def test_multinomial_from_uniform():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_sample_top_p_top_k_from_sorted_prob():
     prob_shape = (2, 3)
     sample_shape = (3, 1)
@@ -1131,7 +1135,8 @@ def test_sample_top_p_top_k_from_sorted_prob():
     tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_renormalize_top_p_top_k_prob():
     prob_shape = (2, 3)
     sample_shape = (2, 1)

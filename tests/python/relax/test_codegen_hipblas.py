@@ -19,6 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -39,7 +40,10 @@ def reset_seed():
     np.random.seed(0)
 
 
-pytestmark = tvm.testing.requires_hipblas.marks()
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_hipblas(), reason="need hipblas"),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):

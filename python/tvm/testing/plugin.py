@@ -36,7 +36,7 @@ import _pytest
 import pytest
 
 import tvm
-from tvm.testing import utils
+from tvm.testing import env, utils
 
 try:
     from xdist.scheduler.loadscope import LoadScopeScheduling
@@ -46,24 +46,12 @@ except ImportError:
     HAVE_XDIST = False
 
 
-MARKERS = {
-    "gpu": "mark a test as requiring a gpu",
-    "tensorcore": "mark a test as requiring a tensorcore",
-    "cuda": "mark a test as requiring CUDA",
-    "opencl": "mark a test as requiring opencl",
-    "rocm": "mark a test as requiring rocm",
-    "vulkan": "mark a test as requiring vulkan",
-    "metal": "mark a test as requiring metal",
-    "llvm": "mark a test as requiring llvm",
-    "hexagon": "mark a test as requiring hexagon",
-}
-
-
 def pytest_configure(config):
-    """Runs at pytest configure time, defines marks to be used later."""
+    """Runs at pytest configure time.
 
-    for feature in utils.Feature._all_features.values():
-        feature._register_marker(config)
+    Hardware/feature markers are declared statically in pyproject.toml; this
+    hook only reports the active target configuration.
+    """
 
     print(
         "enabled targets:",
@@ -290,31 +278,42 @@ def _sort_tests(items):
     items.sort(key=sort_key)
 
 
+def _gpu_mark_and_skip(has_fn, reason):
+    """A GPU-family target: the ``gpu`` selection marker plus an env skip."""
+    return [pytest.mark.gpu, pytest.mark.skipif(not has_fn(), reason=reason)]
+
+
+def _skip_only(has_fn, reason):
+    """A non-GPU target: an env skip with no selection marker."""
+    return [pytest.mark.skipif(not has_fn(), reason=reason)]
+
+
 def _target_to_requirement(target):
     if isinstance(target, str | dict):
         target = tvm.target.Target(target)
 
-    # mapping from target to decorator
-    if target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", []):
-        return utils.requires_cudnn.marks()
-    if target.kind.name == "cuda" and "cublas" in target.attrs.get("libs", []):
-        return utils.requires_cublas.marks()
-    if target.kind.name == "cuda":
-        return utils.requires_cuda.marks()
-    if target.kind.name == "rocm":
-        return utils.requires_rocm.marks()
-    if target.kind.name == "vulkan":
-        return utils.requires_vulkan.marks()
-    if target.kind.name == "nvptx":
-        return utils.requires_nvptx.marks()
-    if target.kind.name == "metal":
-        return utils.requires_metal.marks()
-    if target.kind.name == "opencl":
-        return utils.requires_opencl.marks()
-    if target.kind.name == "llvm":
-        return utils.requires_llvm.marks()
-    if target.kind.name == "hexagon":
-        return utils.requires_hexagon.marks()
+    # GPU-family kinds get the `gpu` selection marker; CPU-family kinds only skip.
+    kind = target.kind.name
+    if kind == "cuda" and "cudnn" in target.attrs.get("libs", []):
+        return _gpu_mark_and_skip(env.has_cudnn, "need cudnn")
+    if kind == "cuda" and "cublas" in target.attrs.get("libs", []):
+        return _gpu_mark_and_skip(env.has_cublas, "need cublas")
+    if kind == "cuda":
+        return _gpu_mark_and_skip(env.has_cuda, "need cuda")
+    if kind == "rocm":
+        return _gpu_mark_and_skip(env.has_rocm, "need rocm")
+    if kind == "vulkan":
+        return _gpu_mark_and_skip(env.has_vulkan, "need vulkan")
+    if kind == "nvptx":
+        return _gpu_mark_and_skip(env.has_nvptx, "need nvptx")
+    if kind == "metal":
+        return _gpu_mark_and_skip(env.has_metal, "need metal")
+    if kind == "opencl":
+        return _gpu_mark_and_skip(env.has_opencl, "need opencl")
+    if kind == "llvm":
+        return _skip_only(env.has_llvm, "need llvm")
+    if kind == "hexagon":
+        return _skip_only(env.has_hexagon, "need hexagon")
 
     return []
 

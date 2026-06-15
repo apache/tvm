@@ -33,6 +33,7 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -900,7 +901,8 @@ def test_outer():
     verify_model(Outer(), input_infos, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_softplus():
     import torch
     from torch.nn import Module
@@ -937,7 +939,8 @@ def test_softplus():
     verify_model(Softplus1(), input_info, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_leakyrelu():
     import torch
     from torch.nn import Module

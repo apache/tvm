@@ -18,6 +18,7 @@
 
 set -euxo pipefail
 
+# Every GPU test carries the `gpu` marker; the specific backend is gated by skipif.
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.

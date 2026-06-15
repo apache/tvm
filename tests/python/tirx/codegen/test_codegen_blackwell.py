@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 
 
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
@@ -32,7 +33,8 @@ def _get_source(func: tvm.tirx.PrimFunc) -> str:
     return src, mod
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tmem_alloc_dealloc_relinquish():
     N_COLS = 512
     cta_group = 1
@@ -67,7 +69,8 @@ def test_tmem_alloc_dealloc_relinquish():
         assert f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned" in src
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_try_wait_once_codegen():
     # fmt: off
     @T.prim_func
@@ -86,7 +89,8 @@ def test_mbarrier_try_wait_once_codegen():
         assert "selp.u32" in src
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fence_before_after_thread_sync():
     # fmt: off
     @T.prim_func
@@ -108,7 +112,8 @@ def test_fence_before_after_thread_sync():
         assert "tcgen05.fence::before_thread_sync" in src
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_ld_st_roundtrip():
     HEIGHT = 128
     WIDTH = 256
@@ -173,7 +178,8 @@ def test_tcgen05_ld_st_roundtrip():
         np.testing.assert_allclose(A.numpy(), B.numpy())
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_cp_ld_roundtrip():
     dtype = "float32"
     dtype_bits = tvm.DataType(dtype).bits
@@ -254,7 +260,8 @@ def test_tcgen05_cp_ld_roundtrip():
 
 
 @pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_mma_ss_no_tma(swizzle):
     d_type, a_type, b_type = "float32", "float16", "float16"
     M, N, K = 128, 128, 64

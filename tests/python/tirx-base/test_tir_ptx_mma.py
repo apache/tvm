@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -64,7 +66,8 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_col_fp64pf64fp64)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -140,7 +143,8 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(7)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp16)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -223,7 +227,8 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(7)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -293,8 +298,9 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 # This test uses mma instructions that are not available on NVCC 10.1.
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
-@tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k16_row_col_s8s8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -364,8 +370,9 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 # This test uses mma instructions that are not available on NVCC 10.1.
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
-@tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k16_row_col_s8u8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -435,8 +442,9 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 # This test uses mma instructions that are not available on NVCC 10.1.
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
-@tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -498,8 +506,9 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 # This test uses mma instructions that are not available on NVCC 10.1.
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
-@tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -564,7 +573,8 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
         ]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k8_row_col_fp16fp16fp32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -640,7 +650,8 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp16)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -716,7 +727,8 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -792,7 +804,8 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_s8s8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -868,7 +881,8 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_s8u8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -944,7 +958,8 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k32_row_col_s8s8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -1020,7 +1035,8 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k32_row_col_s8u8s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -1096,7 +1112,8 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4s4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -1164,7 +1181,8 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4u4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
@@ -1233,7 +1251,8 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k256_row_col_b1b1s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k256_row_col_b1b1s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")

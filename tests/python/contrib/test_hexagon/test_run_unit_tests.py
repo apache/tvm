@@ -19,9 +19,12 @@
 
 """capture gtest output and return over FFI"""
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
+from tvm.testing import env
 
 unit_test_name = tvm.testing.parameter(
     "HexagonUserDMATest.wait",
@@ -146,7 +149,7 @@ unit_test_name = tvm.testing.parameter(
 # use --gtest_args to pass arguments to gtest
 # for example to run all "foo" tests twice and observe gtest output run
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_run_unit_tests(hexagon_session: Session, gtest_args, unit_test_name):
     """Try running gtest unit tests and capture output and error code"""
     try:

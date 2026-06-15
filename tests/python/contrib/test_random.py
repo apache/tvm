@@ -21,6 +21,7 @@
 import threading
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -102,7 +103,7 @@ def test_normal():
     verify()
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
 def test_random_fill():
     """Tests random_fill function"""
 

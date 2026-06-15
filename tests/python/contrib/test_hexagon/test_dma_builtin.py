@@ -20,6 +20,7 @@ Test relax vm builtin to enable DMA copy and wait operations.
 """
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.contrib.hexagon
@@ -29,6 +30,7 @@ from tvm import relax
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
+from tvm.testing import env
 
 # pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring, no-self-argument
 
@@ -165,7 +167,7 @@ class TestDMACopyWait:
     mode = tvm.testing.parameter("bytecode", "compiled")
     module = tvm.testing.parameter(Module_1D)
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_vtcm_alloc_compute(self, hexagon_launcher, mode, module):
         target_hexagon = tvm.target.Target("qcom/hexagon-v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)

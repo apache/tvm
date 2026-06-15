@@ -160,13 +160,7 @@ addopts = "-v --tb=short"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-  "adreno_clml: Mark a test as using adreno_clml",
-  "adreno_opencl_vulkan: Mark a test as using adreno_opencl_vulkan",
-  "adreno_vulkan: Mark a test as using adreno_vulkan",
-  "adreno_opencl: Mark a test as using adreno_opencl",
-  "adreno_opencl_real: Mark a test as using adreno_opencl_real",
-]
+markers = ["gpu: Mark a test as requiring a GPU"]
 
 [tool.ruff]
 include = [

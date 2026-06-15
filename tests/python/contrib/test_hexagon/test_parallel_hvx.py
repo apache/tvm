@@ -20,9 +20,11 @@ Test parallelizing HVX workloads and compare them to single thread examples.
 """
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -197,7 +199,7 @@ class TestMatMulVec:
         # 16384,
     )
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test(
         self,
         hexagon_session,

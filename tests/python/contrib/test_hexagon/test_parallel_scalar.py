@@ -18,9 +18,11 @@
 """Test parallelism for multiple different scalar workloads."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -141,7 +143,7 @@ class TestMatMulVec:
 
     split_factor = tvm.testing.parameter(4)
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_add(
         self,
         hexagon_session,
