@@ -54,14 +54,19 @@ bool IsVScaleCall(const PrimExpr& expr) {
   return false;
 }
 
+bool TargetHasRVV(Target target) {
+  if (!target.defined()) return false;
+  static auto target_has_feature_fn =
+      tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+  return target_has_feature_fn("v", target).cast<bool>();
+}
+
 // File-local helper: true if the target supports Variable-Length Array extensions
 // (AArch64 SVE or RISC-V V).
 bool TargetHasVLA(Target target) {
   if (!target.defined()) return false;
   bool has_vla = target->GetAttr<bool>("feature.has_sve").value_or(false);
-  static auto target_has_feature_fn =
-      tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
-  has_vla |= target_has_feature_fn("v", target).cast<bool>();
+  has_vla |= TargetHasRVV(target);
   return has_vla;
 }
 }  // namespace
@@ -132,7 +137,8 @@ bool EnableBufferLevelPredication(Target target) {
  */
 class TryPredicateBufferAccesses : public StmtExprMutator {
  public:
-  TryPredicateBufferAccesses() {}
+  explicit TryPredicateBufferAccesses(bool allow_offset_predication)
+      : allow_offset_predication_(allow_offset_predication) {}
 
   /*!
    * \brief Run the pass to try to exact predicates.
@@ -157,7 +163,10 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       return {false, stmt};
     }
 
-    base_ = Downcast<Ramp>(lt->a)->base;
+    Ramp pred_ramp = Downcast<Ramp>(lt->a);
+    base_ = pred_ramp->base;
+    stride_ = pred_ramp->stride;
+    lanes_ = pred_ramp->lanes;
     limit_ = Downcast<Broadcast>(lt->b)->value;
 
     // Now we can try to predicate
@@ -190,9 +199,18 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     }
     Ramp ramp = Downcast<Ramp>(node->indices[0]);
 
-    // The vectorized access pattern must match the base of the predicate
-    if (!ffi::StructuralEqual()(ramp->base, base_)) {
+    bool same_base = ffi::StructuralEqual()(ramp->base, base_);
+    if (!same_base && !allow_offset_predication_) {
       return node;
+    }
+    if (!same_base) {
+      // The lane mask describes which lanes are active, independent of the
+      // memory base.  This covers accesses such as A[offset + i] guarded by
+      // a predicate over i.
+      if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
+          !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
+        return node;
+      }
     }
 
     DataType buf_predicate_dtype =
@@ -202,15 +220,25 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
 
     num_accesses_rewritten_ += 1;
     auto writer = node.CopyOnWrite();
-    writer->predicate = lane_mask;
+    if (node->predicate.defined() && allow_offset_predication_) {
+      writer->predicate = node->predicate.value() & lane_mask;
+    } else {
+      writer->predicate = lane_mask;
+    }
     return node;
   }
 
   /*! \brief The variable base expr of the predicate. */
   PrimExpr base_;
+  /*! \brief The lane stride of the predicate. */
+  PrimExpr stride_;
+  /*! \brief The lane count of the predicate. */
+  PrimExpr lanes_;
   /*! \brief The limit of the predicate. The expr specifies the upper bound of the base's
    * evaluated value. */
   PrimExpr limit_;
+  /*! \brief Whether to predicate offset buffer accesses that use the same lane layout. */
+  bool allow_offset_predication_;
   /*! \brief The number of buffer accesses in the stmt we will analyze. */
   size_t num_accesses_analyzed_ = 0;
   /*! \brief The number of buffer accesses rewritten with predicates. */
@@ -819,7 +847,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (EnableBufferLevelPredication(target_) &&
         condition.dtype().is_scalable_or_fixed_length_vector() && !else_case.defined()) {
       std::pair<bool, Stmt> success_stmt_pair =
-          TryPredicateBufferAccesses().Run(then_case, condition);
+          TryPredicateBufferAccesses(TargetHasRVV(target_)).Run(then_case, condition);
       bool can_remove_if_then_else = success_stmt_pair.first;
       if (can_remove_if_then_else) {
         return success_stmt_pair.second;
@@ -975,12 +1003,16 @@ class LoopVectorizer : public StmtMutator {
     if (op->kind == ForKind::kVectorized) {
       auto* extent_as_int = op->extent.as<IntImmNode>();
 
+      TVM_FFI_ICHECK(is_zero(op->min));
+      if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_)) {
+        return VectorizeFixedLoopForRVV(op, extent_as_int->value);
+      }
+
       if (!extent_as_int || extent_as_int->value < 1) {
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, IsVScaleCall);
         TVM_FFI_ICHECK(is_scalable_expr && TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
-      TVM_FFI_ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent, target_)(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);
@@ -999,6 +1031,29 @@ class LoopVectorizer : public StmtMutator {
   }
 
  private:
+  Stmt VectorizeFixedLoopForRVV(const ForNode* op, int64_t extent) {
+    // Match the existing TIRx scalable-vector convention.  LLVM/RVV still
+    // selects the runtime vector length with vsetvli.
+    static constexpr int kDefaultVScaleFactor = 4;
+    DataType index_dtype = op->loop_var->dtype;
+    PrimExpr zero = make_const(index_dtype, 0);
+    PrimExpr fixed_extent = make_const(index_dtype, extent);
+    PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
+    PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes);
+
+    Var outer(op->loop_var->name_hint + ".vla.o", index_dtype);
+    Var inner(op->loop_var->name_hint + ".vla.i", index_dtype);
+    PrimExpr index = outer * scalable_lanes + inner;
+    Stmt body = Substitute(op->body, {{op->loop_var, index}});
+    Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
+    Stmt vector_loop = For(inner, zero, scalable_lanes, ForKind::kVectorized, guarded_body,
+                           std::nullopt, op->annotations, std::nullopt, op->span);
+    Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
+                    std::nullopt, op->span);
+
+    return this->VisitStmt(loop);
+  }
+
   Target target_ = Target::Current();
 };
 
