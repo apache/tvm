@@ -103,11 +103,14 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   using Self = Z3Prover::Impl;
 
   AnalyzerObj* analyzer;
-  /// @brief Z3 context, a shared ptr, because tilelang want to copy the Analyzer
-  // We use a thread_local static Z3 context so all analyzers within the same thread
-  // can share a common context, because Z3 initialization is slow on some CPUs
-  // (e.g., AMD EPYC 7502 32-Core). Using thread_local ensures thread safety.
-  inline static thread_local std::shared_ptr<z3::context> ctx{new z3::context()};
+  // Keep a reference to the thread-local context for the whole lifetime of this
+  // prover. Schedules created on worker threads may be destroyed after the
+  // worker exits, so storing only a raw reference in z3::solver is not enough.
+  static std::shared_ptr<z3::context> GetThreadLocalContext() {
+    static thread_local std::shared_ptr<z3::context> local_ctx = std::make_shared<z3::context>();
+    return local_ctx;
+  }
+  std::shared_ptr<z3::context> ctx{GetThreadLocalContext()};
 
   /// @brief Z3 solver instance
   z3::solver solver{*ctx};
@@ -306,10 +309,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     //    because this->solver depends on this->ctx
     //    we need to deconstruct the old solver, and create a new one depending on this->ctx
     solver = CreateSolver(*ctx);
-    // 2. ctx is a static thread_local pointer, so other_.ctx already refers to the same
-    //    context on the current thread; there is nothing to copy here. Cross-thread copying
-    //    of Z3Prover is not supported because Z3 expressions cannot be shared across different
-    //    thread-local contexts without explicit translation.
+    // 2. ctx is owned by this Impl and pins the underlying thread-local context for the lifetime
+    //    of solver and memoized expressions.
     // 3. copy other objects
     ns = other_.ns;
     for (auto& item : other_.memo_) {

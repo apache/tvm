@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import gc
+import queue
+import threading
+
 import pytest
 
 import tvm
@@ -60,6 +64,33 @@ def test_z3_capability_query():
             analyzer.set_z3_timeout_ms(1000)
         with pytest.raises(RuntimeError):
             analyzer.set_z3_rlimit(0)
+
+
+def test_z3_context_lifetime_outlives_worker_thread():
+    _require_z3(Analyzer())
+
+    result_queue = queue.Queue()
+
+    def worker():
+        try:
+            analyzer = Analyzer()
+            x = tirx.Var("x", "int32")
+            analyzer.bind(x, tvm.ir.Range(0, 16))
+            assert analyzer.can_prove(x >= 0, SB)
+            result_queue.put(("analyzer", analyzer))
+        except BaseException as err:  # pylint: disable=broad-exception-caught
+            result_queue.put(("error", err))
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+
+    kind, payload = result_queue.get_nowait()
+    if kind == "error":
+        raise payload
+
+    del payload
+    gc.collect()
 
 
 # ---------------------------------------------------------------------------
