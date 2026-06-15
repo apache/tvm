@@ -33,6 +33,9 @@ namespace tvm {
 
 UniqueNameSupply::UniqueNameSupply(const ffi::String& prefix,
                                    ffi::Map<ffi::String, int64_t> name_map) {
+  if (!name_map.defined()) {
+    name_map = ffi::Map<ffi::String, int64_t>();
+  }
   auto n = ffi::make_object<UniqueNameSupplyNode>(prefix, std::move(name_map));
   data_ = std::move(n);
 }
