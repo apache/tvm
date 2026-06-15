@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def _reduce_sum_module(d1, d2, d3):
@@ -118,7 +119,8 @@ def optional_metal_compile_callback(define_metal_compile_callback):
             tvm.register_global_func(name, cached, override=True)
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_allreduce_sum_compile(optional_metal_compile_callback):
     # Disable the parametrization over dims, at least for now
     dims = (1, 1, 2)

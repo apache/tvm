@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_large_uint_imm():
     value = (1 << 63) + 123
     value_const = tvm.tirx.const(value, "uint64")
@@ -55,7 +58,8 @@ def test_large_uint_imm():
     check_target({"kind": "vulkan", "from_device": 0})
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_add_pipeline():
     @I.ir_module(s_tir=True)
     class Module:

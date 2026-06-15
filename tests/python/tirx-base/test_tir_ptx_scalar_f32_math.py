@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -43,7 +45,8 @@ def ptx_scalar_f32_math(
         C_max[tx] = T.ptx.max_f32(A[tx], B[tx])
 
 
-@tvm.testing.requires_cuda_compute_version(7)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_ptx_scalar_f32_math():
     f = ptx_scalar_f32_math
     mod = tvm.compile(f, target="cuda")
