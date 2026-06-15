@@ -72,5 +72,30 @@ def test_canonicalize_shape_expr_skips_parameter_struct_info():
     assert any(not isinstance(dim, (tirx.IntImm, tirx.Var)) for dim in param_shape.values)
 
 
+@I.ir_module
+class NestedParamCompound:
+    @R.function
+    def main(x: R.Tensor(("n",), "float32")):
+        @R.function
+        def inner(y: R.Tensor(("a", "b", "a + b"), "float32")) -> R.Tensor((1,), "float32"):
+            out: R.Tensor((1,), "float32") = R.zeros(R.shape([1]), dtype="float32")
+            return out
+
+    return inner
+
+
+def test_canonicalize_shape_expr_nested_function_no_block_pollution():
+    mod = relax.transform.CanonicalizeShapeExpr()(NestedParamCompound)
+
+    leaked = [
+        binding
+        for block in mod["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding, relax.MatchCast)
+    ]
+
+    assert not leaked
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -52,6 +52,14 @@ class ShapeExprCanonicalizer : public ExprMutator {
     return ret;
   }
 
+  Expr VisitExpr_(const FunctionNode* op) final {
+    bool prev = inside_binding_block_;
+    inside_binding_block_ = false;
+    Expr ret = ExprMutator::VisitExpr_(op);
+    inside_binding_block_ = prev;
+    return ret;
+  }
+
   Expr VisitExpr_(const ShapeExprNode* op) final {
     if (!inside_binding_block_) {
       return ffi::GetRef<ShapeExpr>(op);
@@ -89,7 +97,6 @@ class ShapeExprCanonicalizer : public ExprMutator {
     PrimStructInfo target_sinfo(sym_var);
     Var match_var(base_name + "_pv", target_sinfo);
     builder_->EmitNormalized(MatchCast(match_var, PrimValue(expr), target_sinfo));
-    MatchCast binding(match_var, PrimValue(expr), target_sinfo);
     return sym_var;
   }
 
