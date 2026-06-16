@@ -111,9 +111,9 @@ parameters.  For instance, there may be target-specific
 implementations that should be tested, where some targets have more
 than one implementation.  These can be done by explicitly
 parametrizing over tuples of arguments, such as shown below.  In these
-cases, only the explicitly listed targets will run, but they will
-still have the appropriate ``@tvm.testing.requires_RUNTIME`` mark
-applied to them.
+cases, only the explicitly listed targets will run, and each target is
+automatically gated on whether it can run on the current machine (a GPU
+target gets ``@pytest.mark.gpu`` plus a skip when no device is present).
 
 .. code-block:: python
 
@@ -134,34 +134,34 @@ marks are as follows.
 
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
   capabilities. This has no effect on its own, but can be paired with
-  command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will execute.  This should not be called on its
-  own, but is part of other marks used in unit-tests.
+  the command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
+  which tests pytest will execute.  Apply it to any test that needs a
+  GPU so that the CI runs it only on GPU nodes.
 
-- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
-  should be used to mark unit tests that may use the GPU, if one is
-  present.  This decorator is only needed for tests that explicitly
-  loop over ``tvm.testing.enabled_targets()``, but that is no longer
-  the preferred style of writing unit tests (see below).  When using
-  ``tvm.testing.parametrize_targets()``, this decorator is implicit
-  for GPU targets, and does not need to be explicitly applied.
+- ``@pytest.mark.skipif(not tvm.testing.env.has_X(), reason=...)`` -
+  Skips a test when a required runtime or hardware feature is not
+  available.  The :py:mod:`tvm.testing.env` module exposes one memoized
+  probe per capability (e.g. ``has_cuda()``, ``has_rocm()``,
+  ``has_vulkan()``, ``has_gpu()``, ``has_llvm()``), each of which
+  returns ``False`` when the runtime is disabled in ``config.cmake`` or
+  no compatible device is present.  Pair it with ``@pytest.mark.gpu``
+  for tests that use the GPU::
 
-- ``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``,
-  and additionally marks that the test should be skipped
-  (``@pytest.mark.skipif``) entirely if no GPU is present.
+      @pytest.mark.gpu
+      @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+      def test_cuda_vectorize_add():
+          # Test code goes here
 
-- ``@tvm.testing.requires_RUNTIME`` - Several decorators
-  (e.g. ``@tvm.testing.requires_cuda``), each of which skips a test if
-  the specified runtime cannot be used. A runtime cannot be used if it
-  is disabled in the ``config.cmake``, or if a compatible device is
-  not present. For runtimes that use the GPU, this includes
-  ``@tvm.testing.requires_gpu``.
+- ``pytest.importorskip("package_name")`` - Skips a test (or the whole
+  module, when called at import time) if an optional Python package is
+  not installed.  Use this instead of a ``skipif`` for package
+  dependencies.
 
-When using parametrized targets, each test run is decorated with the
-``@tvm.testing.requires_RUNTIME`` that corresponds to the target
-being used.  As a result, if a target is disabled in ``config.cmake``
-or does not have appropriate hardware to run, it will be explicitly
-listed as skipped.
+When using ``tvm.testing.parametrize_targets()``, each parametrized run
+is gated automatically on whether its target can run on the current
+machine.  As a result, if a target is disabled in ``config.cmake`` or
+does not have appropriate hardware to run, it will be explicitly listed
+as skipped, and GPU targets are tagged with ``@pytest.mark.gpu`` for you.
 
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
