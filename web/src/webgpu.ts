@@ -169,9 +169,18 @@ function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
 
   const buffer = device.createBuffer(descriptor);
 
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
-  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  // Destroy at most once even if multiple error types fire.
+  Promise.all([
+    device.popErrorScope(),
+    device.popErrorScope(),
+    device.popErrorScope(),
+  ]).then((errors) => {
+    const captured = errors.filter((error) => error !== null);
+    if (captured.length > 0) {
+      device.destroy();
+      captured.forEach((error) => console.error(error));
+    }
+  });
 
   return buffer;
 }
