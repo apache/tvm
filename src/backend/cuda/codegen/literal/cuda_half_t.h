@@ -435,7 +435,7 @@ struct __align__(8) half4_bfloat164 {
     TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     __nv_fp8x2_e4m3 lo_part(lo_half2), hi_part(hi_half2);
     result.__x =
-        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+        (static_cast<uint32_t>(lo_part.__x) | (static_cast<uint32_t>(hi_part.__x) << 16));
     return result;
   }
   __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e5m2& fp8x4) {
@@ -455,7 +455,7 @@ struct __align__(8) half4_bfloat164 {
     TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     __nv_fp8x2_e5m2 lo_part(lo_half2), hi_part(hi_half2);
     result.__x =
-        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+        (static_cast<uint32_t>(lo_part.__x) | (static_cast<uint32_t>(hi_part.__x) << 16));
     return result;
   }
   __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e8m0& fp8x4) {
@@ -475,7 +475,7 @@ struct __align__(8) half4_bfloat164 {
     TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     __nv_fp8x2_e8m0 lo_part(lo_half2), hi_part(hi_half2);
     result.__x =
-        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+        (static_cast<uint32_t>(lo_part.__x) | (static_cast<uint32_t>(hi_part.__x) << 16));
     return result;
   }
   )";
