@@ -31,6 +31,45 @@ from tvm.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_duplicate_primfunc_global_symbol_diagnostic():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def first_unique_key(A: T.Buffer((1,), "float32")):
+            T.func_attr({"global_symbol": "dup_symbol", "tirx.noalias": True})
+            A[0] = T.float32(1)
+
+        @T.prim_func(s_tir=True)
+        def second_unique_key(A: T.Buffer((1,), "float32")):
+            T.func_attr({"global_symbol": "dup_symbol", "tirx.noalias": True})
+            A[0] = T.float32(2)
+
+    with pytest.raises(
+        tvm.error.InternalError, match="Duplicate PrimFunc global_symbol 'dup_symbol'"
+    ) as err:
+        tvm.compile(Module, target="llvm")
+    assert "first_unique_key" in str(err.value)
+    assert "second_unique_key" in str(err.value)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_unique_primfunc_global_symbols_compile():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def first_unique_key(A: T.Buffer((1,), "float32")):
+            T.func_attr({"global_symbol": "dup_symbol_a", "tirx.noalias": True})
+            A[0] = T.float32(1)
+
+        @T.prim_func(s_tir=True)
+        def second_unique_key(A: T.Buffer((1,), "float32")):
+            T.func_attr({"global_symbol": "dup_symbol_b", "tirx.noalias": True})
+            A[0] = T.float32(2)
+
+    tvm.compile(Module, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_intrin():
     @I.ir_module(s_tir=True)
     class Module:

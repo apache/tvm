@@ -21,6 +21,7 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 DEV = tvm.cuda(0)
 TARGET = tvm.target.Target("cuda")
@@ -35,6 +36,8 @@ def _build_and_run(func, n):
     return out.numpy(), mod
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cta_sum_4_warps():
     """CTA sum with 4 warps (128 threads): all threads get the same sum."""
     NUM_WARPS = 4
@@ -61,6 +64,8 @@ def test_cta_sum_4_warps():
     assert "cta_reduce_sum_4" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cta_sum_8_warps():
     """CTA sum with 8 warps (256 threads)."""
     NUM_WARPS = 8
@@ -86,6 +91,8 @@ def test_cta_sum_8_warps():
     np.testing.assert_allclose(result, np.full(N, expected))
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cta_max_4_warps():
     """CTA max with 4 warps: all threads get the maximum value."""
     NUM_WARPS = 4
@@ -110,6 +117,8 @@ def test_cta_max_4_warps():
     np.testing.assert_allclose(result, np.full(N, float(N)))
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cta_min_4_warps():
     """CTA min with 4 warps: all threads get the minimum value."""
     NUM_WARPS = 4
@@ -134,6 +143,8 @@ def test_cta_min_4_warps():
     np.testing.assert_allclose(result, np.full(N, 1.0))
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cta_sum_1_warp():
     """CTA sum with 1 warp: degenerates to a pure warp reduce."""
     NUM_WARPS = 1
@@ -159,6 +170,8 @@ def test_cta_sum_1_warp():
     np.testing.assert_allclose(result, np.full(N, expected))
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("num_warps", [1, 2, 4, 8, 16])
 def test_cta_sum_all_warp_counts(num_warps):
     """Parametric test: cta_sum with various warp counts."""
