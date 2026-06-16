@@ -158,8 +158,7 @@ std::string RPCEnv::GetPath(const std::string& file_name) const {
  */
 void RPCEnv::CleanUp() const {
   CleanDir(base_);
-  if (!CheckPath(base_))
-    return;
+  if (!CheckPath(base_)) return;
   const int ret = rmdir(base_.c_str());
   if (ret != 0) {
     LOG(WARNING) << "Remove directory " << base_ << " failed";
@@ -325,11 +324,11 @@ std::string BuildSharedLibrary(std::string file) {
  */
 bool CheckPath(const std::string& pathname) {
 #if defined(_WIN32)
-    DWORD attribs = GetFileAttributesA(pathname.c_str());
-    return (attribs != INVALID_FILE_ATTRIBUTES);
+  DWORD attribs = GetFileAttributesA(pathname.c_str());
+  return (attribs != INVALID_FILE_ATTRIBUTES);
 #else
-    struct stat info;
-    return (stat(pathname.c_str(), &info) == 0);
+  struct stat info;
+  return (stat(pathname.c_str(), &info) == 0);
 #endif
 }
 
@@ -338,8 +337,7 @@ bool CheckPath(const std::string& pathname) {
  * \param dirname The name of the directory
  */
 void CleanDir(const std::string& dirname) {
-  if (!CheckPath(dirname))
-    return;
+  if (!CheckPath(dirname)) return;
   auto files = ListDir(dirname);
   for (const auto& filename : files) {
     std::string file_path = dirname + "/";
