@@ -37,8 +37,7 @@ if(NOT Z3_DIR)
   if(Python3_EXECUTABLE)
     execute_process(
       COMMAND
-        "${Python3_EXECUTABLE}" -c
-        "import os, z3_static as m; f = getattr(m, 'get_cmake_dir', None); print(f() if f else os.path.join(os.path.dirname(m.__file__), 'static', 'lib', 'cmake', 'z3'))"
+        "${Python3_EXECUTABLE}" -m z3_static.config --cmake-dir
       OUTPUT_VARIABLE Z3_STATIC_CMAKE_DIR
       OUTPUT_STRIP_TRAILING_WHITESPACE
       ERROR_QUIET
