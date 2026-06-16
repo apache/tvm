@@ -59,23 +59,6 @@ def shape_nhwc(batch, in_channel, in_size):
     return (batch, in_size, in_size, in_channel)
 
 
-def _compose(args, decs):
-    """Helper to apply multiple markers"""
-    if len(args) > 0:
-        func = args[0]
-        for dec in reversed(decs):
-            func = dec(func)
-        return func
-    return decs
-
-
-def requires_hexagon_toolchain(func):
-    """Skip a test unless the Hexagon toolchain is available (compile-only)."""
-    return pytest.mark.skipif(
-        not tvm.testing.env.has_hexagon_toolchain(), reason="need hexagon toolchain"
-    )(func)
-
-
 def android_serial_number() -> str | None:
     """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")

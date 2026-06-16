@@ -15,13 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import te
 
+# These tests exercise the PyTorch DLPack interop path; skip the whole module
+# when torch is unavailable.
+pytest.importorskip("torch")
 
-@tvm.testing.requires_package("torch")
+
 def test_from_dlpack_shape_one():
     # A test case for the issue https://github.com/pytorch/pytorch/issues/99803
     import torch
@@ -47,7 +51,6 @@ def test_from_dlpack_shape_one():
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
-@tvm.testing.requires_package("torch")
 def test_from_dlpack_strided():
     import torch
     from torch.utils.dlpack import to_dlpack
