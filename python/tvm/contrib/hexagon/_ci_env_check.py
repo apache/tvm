@@ -17,9 +17,7 @@
 
 """Hexagon environment checks for CI usage
 
-These may be required by either tvm.testing or
-tvm.contrib.hexagon.pytest_plugin, and are separated here to avoid a
-circular dependency.
+These are required by tvm.testing and live here to avoid a circular dependency.
 """
 
 import os

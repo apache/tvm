@@ -175,7 +175,7 @@ def test_llvm_min_version_is_monotone():
     assert env.has_llvm_min_version(1)
 
 
-def test_hexagon_run_implies_toolchain():
+def test_runtime_hexagon_run_implies_toolchain():
     """Full Hexagon support implies the compile-time toolchain is present."""
     if env.has_hexagon():
         assert env.has_hexagon_toolchain()
