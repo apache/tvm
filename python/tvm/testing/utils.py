@@ -29,38 +29,38 @@ are in plugin.py.
 Testing Markers
 ***************
 
-We use pytest markers to specify the requirements of test functions. Currently
-there is a single distinction that matters for our testing environment: does
-the test require a gpu. For tests that require just a gpu or just a cpu, we
-have the decorator :py:func:`requires_gpu` that enables the test when a gpu is
-available. To avoid running tests that don't require a gpu on gpu nodes, this
-decorator also sets the pytest marker `gpu` so we can use select the gpu subset
-of tests (using `pytest -m gpu`).
+We use pytest markers to specify the requirements of test functions.
+Currently there is a single distinction that matters for our testing
+environment: does the test require a gpu.  Tests that require a gpu are
+tagged with the ``gpu`` pytest marker -- the only registered marker (see
+the ``markers`` entry in ``pyproject.toml``).  This lets us select the
+gpu subset of tests with ``pytest -m gpu`` (and exclude them on cpu-only
+nodes with ``pytest -m "not gpu"``).
 
-Unfortunately, many tests are written like this:
+The ``gpu`` marker only controls which testing node a test runs on; it
+does not check whether the required hardware or libraries are actually
+present.  To gate a test on a specific capability, combine the marker
+with a ``skipif`` that consults the memoized environment probes in
+:py:mod:`tvm.testing.env`:
 
 .. code-block:: python
 
-    def test_something():
-        for target in all_targets():
-            do_something()
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    def test_cuda_vectorize_add():
+        ...
 
-The test uses both gpu and cpu targets, so the test needs to be run on both cpu
-and gpu nodes. But we still want to only run the cpu targets on the cpu testing
-node. The solution is to mark these tests with the gpu marker so they will be
-run on the gpu nodes. But we also modify all_targets (renamed to
-enabled_targets) so that it only returns gpu targets on gpu nodes and cpu
-targets on cpu nodes (using an environment variable).
+There is one ``has_*`` (or ``is_*``) probe per capability -- for example
+:py:func:`tvm.testing.env.has_gpu`, :py:func:`tvm.testing.env.has_cuda`,
+and :py:func:`tvm.testing.env.has_vulkan`.  For optional Python packages,
+prefer ``pytest.importorskip("pkg_name")`` instead of a ``skipif``.
 
-Instead of using the all_targets function, future tests that would like to
-test against a variety of targets should use the
-:py:func:`tvm.testing.parametrize_targets` functionality. This allows us
-greater control over which targets are run on which testing nodes.
-
-If in the future we want to add a new type of testing node (for example
-fpgas), we need to add a new marker in `tests/python/pytest.ini` and a new
-function in this module. Then targets using this node should be added to the
-`TVM_TEST_TARGETS` environment variable in the CI.
+To run a test against a variety of targets, use
+:py:func:`tvm.testing.parametrize_targets`; it parametrizes the test over
+the enabled targets and applies the appropriate ``gpu`` tag and skip
+conditions per target automatically.  The set of enabled targets is
+controlled by the ``TVM_TEST_TARGETS`` environment variable, so the CI
+can run different targets on different testing nodes.
 
 """
 
