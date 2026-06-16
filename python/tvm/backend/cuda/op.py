@@ -653,12 +653,12 @@ def ptx_mbarrier_init(bar, thread_count):
     return call_intrin("", "tirx.ptx_mbarrier_init", bar, thread_count)
 
 
-def ptx_mbarrier_arrive(bar, cta_id=None, pred=None):
+def ptx_mbarrier_arrive(bar, cta_id=None, pred=None, count=None):
     """TVM intrinsic to call
         mbarrier.arrive.shared::cta.b64
     or
         @p mapa.shared::cluster.u32
-        @p mbarrier.arrive.shared::cluster.b64
+        @p mbarrier.arrive.shared::cluster.b64 [, count]
 
     Parameters
     ----------
@@ -670,11 +670,29 @@ def ptx_mbarrier_arrive(bar, cta_id=None, pred=None):
 
     pred : Optional[PrimExpr]
         The predicate to guard the operation.
+
+    count : Optional[PrimExpr]
+        Explicit arrival count operand for the cross-CTA (cluster) form. When
+        ``None`` the implicit count-of-1 form is emitted; when given, emits
+        ``mbarrier.arrive.shared::cluster.b64 _, [addr], count``.
     """
     if cta_id is None and pred is None:
         return call_intrin("", "tirx.ptx_mbarrier_arrive", bar)
     assert cta_id is not None and pred is not None
-    return call_intrin("", "tirx.ptx_mbarrier_arrive", bar, cta_id, pred)
+    if count is None:
+        return call_intrin("", "tirx.ptx_mbarrier_arrive", bar, cta_id, pred)
+    return call_intrin("", "tirx.ptx_mbarrier_arrive", bar, cta_id, pred, count)
+
+
+def ptx_mbarrier_arrive_cluster_count(bar, cta_id, count):
+    """Cross-CTA ``mbarrier.arrive`` on CTA ``cta_id`` with an explicit count.
+
+    Convenience for an already-elected thread: emits
+    ``@p mapa.shared::cluster.u32`` + ``@p mbarrier.arrive.shared::cluster.b64 _,
+    [addr], count`` with the guard defaulted to 1.
+    """
+    return call_intrin("", "tirx.ptx_mbarrier_arrive", bar, cta_id, True, count)
+
 
 
 def ptx_mbarrier_arrive_expect_tx(bar, byte_count, cta_id=None, pred=None):
@@ -706,7 +724,11 @@ def ptx_mbarrier_arrive_expect_tx(bar, byte_count, cta_id=None, pred=None):
     """
     if cta_id is None and pred is None:
         return call_intrin("", "tirx.ptx_mbarrier_arrive_expect_tx", bar, byte_count)
-    assert cta_id is not None and pred is not None
+    assert cta_id is not None
+    # Cross-CTA expect_tx from an already-elected thread: default the guard to 1
+    # (the caller has elected a single lane), so callers can pass cta_id alone.
+    if pred is None:
+        pred = True
     return call_intrin("", "tirx.ptx_mbarrier_arrive_expect_tx", bar, byte_count, cta_id, pred)
 
 
@@ -727,6 +749,23 @@ def ptx_mbarrier_try_wait(bar, phase):
         The call expression.
     """
     return call_intrin("", "tirx.ptx_mbarrier_try_wait", bar, phase)
+
+
+def ptx_mbarrier_try_wait_acquire_cluster(bar, phase):
+    """``mbarrier.try_wait.parity.acquire.cluster`` retry loop.
+
+    Cluster-scope acquire wait — used to wait on a barrier that a remote CTA in
+    the cluster arrives on (a group cluster wait).
+
+    Parameters
+    ----------
+    bar : Var
+        The pointer to barrier variable.
+
+    phase : int
+        The phase of the barrier.
+    """
+    return call_intrin("", "tirx.ptx_mbarrier_try_wait_acquire_cluster", bar, phase)
 
 
 def ptx_mbarrier_try_wait_once(bar, phase, ticks):
@@ -1259,6 +1298,38 @@ def ptx_barrier_cluster_wait(acquire=False, aligned=True):
         Whether all threads in the warp must execute the same instruction.
     """
     return call_intrin("", "tirx.ptx_barrier_cluster_wait", acquire, aligned)
+
+
+def ptx_clc_try_cancel(handle, mbar):
+    """TVM intrinsic to call clusterlaunchcontrol.try_cancel.
+
+    Async-requests cancelling the next cluster's launch (work-stealing): writes the
+    16B response handle to smem and signals ``mbar`` (complete_tx, multicast to both
+    cluster CTAs).
+
+    Parameters
+    ----------
+    handle : PrimExpr
+        Pointer to the 16B (uint4) smem response handle.
+
+    mbar : PrimExpr
+        Pointer to the mbarrier signalled when the handle lands.
+    """
+    return call_intrin("", "tirx.ptx_clc_try_cancel", handle, mbar)
+
+
+def ptx_clc_query_cancel(handle):
+    """TVM intrinsic to call clusterlaunchcontrol.query_cancel.
+
+    Decodes the response handle written by :func:`ptx_clc_try_cancel`. Returns the
+    cancelled cluster's first ``ctaid.x``, or ``0xFFFFFFFF`` when no work was stolen.
+
+    Parameters
+    ----------
+    handle : PrimExpr
+        Pointer to the 16B (uint4) smem response handle.
+    """
+    return call_intrin("uint32", "tirx.ptx_clc_query_cancel", handle)
 
 
 def ptx_elect_sync():

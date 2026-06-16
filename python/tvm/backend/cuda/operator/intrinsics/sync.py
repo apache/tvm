@@ -169,6 +169,54 @@ device_intrinsic(
 
 
 # =============================================================================
+# clusterlaunchcontrol.try_cancel / query_cancel — Blackwell Cluster Launch
+# Control (CLC) work-stealing, written from the PTX ISA spec (section
+# "clusterlaunchcontrol", PTX ISA 8.6). try_cancel async-requests cancelling the
+# next cluster's launch, writing a 16B response to smem + signalling mbar. query
+# decodes the response: on success it extracts the cancelled cluster's first
+# ctaid.x (via the get_first_ctaid::x form); a single uint32 is returned, with
+# 0xFFFFFFFF as the "no work stolen" sentinel (a device helper returns one scalar).
+# =============================================================================
+device_intrinsic(
+    "ptx_clc_try_cancel",
+    c_signature="(void* handle, void* mbar)",
+    body=(
+        "    unsigned int addr = (unsigned int)__cvta_generic_to_shared(handle);\n"
+        "    unsigned int bar = (unsigned int)__cvta_generic_to_shared(mbar);\n"
+        "    asm volatile(\n"
+        '        "clusterlaunchcontrol.try_cancel.async.shared::cta.mbarrier::complete_tx::bytes"\n'
+        '        ".multicast::cluster::all.b128 [%0], [%1];\\n"\n'
+        '        :: "r"(addr), "r"(bar) : "memory");'
+    ),
+)
+
+
+device_intrinsic(
+    "ptx_clc_query_cancel",
+    c_signature="(void* handle)",
+    return_type="uint32_t",
+    tvm_return_type="uint32",
+    body=(
+        "    unsigned int addr = (unsigned int)__cvta_generic_to_shared(handle);\n"
+        "    unsigned int first_ctaid_x;\n"
+        "    asm volatile(\n"
+        '        "{\\n"\n'
+        '        ".reg .pred canceled;\\n"\n'
+        '        ".reg .b128 response;\\n"\n'
+        '        "ld.shared.b128 response, [%1];\\n"\n'
+        '        "clusterlaunchcontrol.query_cancel.is_canceled.pred.b128 canceled, response;\\n"\n'
+        '        "mov.u32 %0, 0xffffffff;\\n"\n'
+        '        "@canceled clusterlaunchcontrol.query_cancel.get_first_ctaid::x.b32.b128"\n'
+        '        " %0, response;\\n"\n'
+        '        "}\\n"\n'
+        '        : "=r"(first_ctaid_x) : "r"(addr) : "memory");\n'
+        '    asm volatile("fence.proxy.async.shared::cta;\\n" ::: "memory");\n'
+        "    return first_ctaid_x;"
+    ),
+)
+
+
+# =============================================================================
 # mbarrier.init.shared.b64 [addr], count ; — 1 form.
 # =============================================================================
 device_intrinsic(
@@ -208,7 +256,7 @@ device_intrinsic(
         '        "{\\n"\n'
         '        ".reg .pred p;\\n"\n'
         '        ".reg .b32 remAddr32;\\n"\n'
-        '        "setp.eq.u32 p, %2, 1;\\n"\n'
+        '        "setp.ne.s32 p, %2, 0;\\n"\n'
         '        "@p mapa.shared::cluster.u32  remAddr32, %0, %1;\\n"\n'
         '        "@p mbarrier.arrive.shared::cluster.b64  _, [remAddr32];\\n"\n'
         '        "}\\n"\n'
@@ -217,15 +265,38 @@ device_intrinsic(
 )
 
 
+# Same cross-CTA arrive, but with an explicit arrival-count operand
+# (``..., [remAddr32], count``). Matches the ``tma::cluster::arrive`` spelling.
+device_intrinsic(
+    "_ptx_mbarrier_arrive_remote_count",
+    helper_name="tvm_builtin_ptx_mbarrier_arrive_remote_count",
+    c_signature="(void* barrier, int cta_id, int pred, int count)",
+    body=(
+        "    unsigned int barrier_addr = __cvta_generic_to_shared(barrier);\n"
+        "    asm volatile(\n"
+        '        "{\\n"\n'
+        '        ".reg .pred p;\\n"\n'
+        '        ".reg .b32 remAddr32;\\n"\n'
+        '        "setp.ne.s32 p, %2, 0;\\n"\n'
+        '        "@p mapa.shared::cluster.u32  remAddr32, %0, %1;\\n"\n'
+        '        "@p mbarrier.arrive.shared::cluster.b64  _, [remAddr32], %3;\\n"\n'
+        '        "}\\n"\n'
+        '        :: "r"(barrier_addr), "r"(cta_id), "r"(pred), "r"(count) : "memory");'
+    ),
+)
+
+
 @register_codegen("ptx_mbarrier_arrive")
 def _codegen_mbarrier_arrive(*args):
-    """Dispatch by arg count: 1 -> local, 3 -> remote (cluster-mapped)."""
+    """Dispatch by arg count: 1 -> local, 3 -> remote, 4 -> remote+count."""
     if len(args) == 1:
         result = CODEGEN_REGISTRY["tirx._ptx_mbarrier_arrive_local"](list(args))
     elif len(args) == 3:
         result = CODEGEN_REGISTRY["tirx._ptx_mbarrier_arrive_remote"](list(args))
+    elif len(args) == 4:
+        result = CODEGEN_REGISTRY["tirx._ptx_mbarrier_arrive_remote_count"](list(args))
     else:
-        raise ValueError(f"ptx_mbarrier_arrive expects 1 or 3 args, got {len(args)}")
+        raise ValueError(f"ptx_mbarrier_arrive expects 1, 3, or 4 args, got {len(args)}")
     return result[0] if isinstance(result, tuple) else result
 
 
@@ -252,7 +323,7 @@ device_intrinsic(
         '        "{\\n"\n'
         '        ".reg .pred p;\\n"\n'
         '        ".reg .b32 remAddr32;\\n"\n'
-        '        "setp.eq.u32 p, %2, 1;\\n"\n'
+        '        "setp.ne.s32 p, %2, 0;\\n"\n'
         '        "@p mapa.shared::cluster.u32  remAddr32, %0, %1;\\n"\n'
         '        "@p mbarrier.arrive.expect_tx.shared::cluster.b64  _, [remAddr32], %3;\\n"\n'
         '        "}\\n"\n'
@@ -299,6 +370,27 @@ device_intrinsic(
         '        "DONE:\\n"\n'
         '        "}\\n"\n'
         '        :: "r"(barrier_addr_int), "r"(phase), "r"(ticks) : "memory");'
+    ),
+)
+
+
+# mbarrier.try_wait.parity.acquire.cluster — cluster-scope acquire wait used for
+# cross-CTA barrier handshakes (e.g. the tmem-finished handoff).
+device_intrinsic(
+    "ptx_mbarrier_try_wait_acquire_cluster",
+    c_signature="(void* barrier, int phase)",
+    body=(
+        "    unsigned int barrier_addr_int = __cvta_generic_to_shared(barrier);\n"
+        "    asm volatile(\n"
+        '        "{\\n"\n'
+        '        ".reg .pred                P1;\\n"\n'
+        '        "LAB_WAIT_AC:\\n"\n'
+        '        "mbarrier.try_wait.parity.acquire.cluster.shared::cta.b64 P1, [%0], %1;\\n"\n'
+        '        "@P1                       bra.uni DONE_AC;\\n"\n'
+        '        "bra.uni                   LAB_WAIT_AC;\\n"\n'
+        '        "DONE_AC:\\n"\n'
+        '        "}\\n"\n'
+        '        :: "r"(barrier_addr_int), "r"(phase) : "memory");'
     ),
 )
 

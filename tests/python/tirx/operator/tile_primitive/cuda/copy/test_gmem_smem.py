@@ -103,6 +103,8 @@ TASKS = [
 ]
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "scope,n_threads,shape",
     [pytest.param(*t, id=f"{t[0]}-{t[1]}-{'x'.join(map(str, t[2]))}") for t in TASKS],
@@ -194,6 +196,8 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize(
     "dtype", ["int8", "float8_e4m3fn", "float8_e5m2", "float16", "bfloat16", "float32"]
 )

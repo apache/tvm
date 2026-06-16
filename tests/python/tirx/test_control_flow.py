@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def run_test_break_continue(func, shape, expected):
@@ -32,6 +34,8 @@ def run_test_break_continue(func, shape, expected):
     np.testing.assert_allclose(arr.numpy(), expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue1():
     # fmt: off
     @T.prim_func
@@ -53,6 +57,8 @@ def test_break_continue1():
     run_test_break_continue(func, (10,), expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue2():
     # fmt: off
     @T.prim_func
@@ -79,6 +85,8 @@ def test_break_continue2():
     run_test_break_continue(func, (9,), expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue3():
     # fmt: off
     @T.prim_func

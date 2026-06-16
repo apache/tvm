@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import R, S, TileLayout, laneid, wg_local_layout
 
 
@@ -41,6 +42,8 @@ from tvm.tirx.layout import R, S, TileLayout, laneid, wg_local_layout
         ((32, 32), (32,), (-1,), (1, 1), (2,), (5, 8), (5,)),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 @pytest.mark.parametrize("accum", [False, True])
@@ -129,6 +132,8 @@ def test_reduction_shared(
         tvm.testing.assert_allclose(ref, B.numpy()[tuple(reduce_slice_dst)], atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("exec_scope", ["warp", "warpgroup", "thread"])
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 @pytest.mark.parametrize("accum", [False, True])
@@ -264,6 +269,8 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
         ((2, 3, 4), (3, 4), (0,)),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 @pytest.mark.parametrize("accum", [False, True])
 def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum):
@@ -367,6 +374,8 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
         ((4, 8), (1, 8), (1,), False, None),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end, op_type):
     """Test view-based local reduction with simple purely-local layouts."""
@@ -484,6 +493,8 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         tvm.testing.assert_allclose(ref, B.numpy(), atol=1e-5)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("n_groups, n_warps", [(1, 1), (1, 4), (2, 8)])
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
@@ -616,6 +627,8 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
         tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("reduction_len", [8, 16, 64, 128, 256, 7, 10, 15, 100])
 @pytest.mark.parametrize("op_type", ["max", "min"])
 @pytest.mark.parametrize("accum", [False, True])
@@ -685,6 +698,8 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
         tvm.testing.assert_allclose(B_ref, B.numpy()[0], atol=1e-5)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("reduction_len", [8, 16, 64, 128, 256, 9, 17, 63, 65, 100])
 @pytest.mark.parametrize("accum", [False, True])
 def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
@@ -746,6 +761,8 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
         tvm.testing.assert_allclose(B_ref, B.numpy()[0], atol=1e-4)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max"])
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_reduction_op_warp_shuffle(op_type, dtype):
@@ -807,6 +824,8 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
         tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sum", "max"])
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
@@ -875,6 +894,8 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
         tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_reduction_warp_shuffle_multi_warp_loop():
     """Test intra-warp + cross-warp reduction via T.sum in a for loop with multiple warps.
 
@@ -951,6 +972,8 @@ def test_reduction_warp_shuffle_multi_warp_loop():
         tvm.testing.assert_allclose(B_ref, B_dev.numpy(), atol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_name", ["sum", "max"])
 def test_reduction_warpgroup_wg_local_layout(op_name):
     rows, cols = 128, 16

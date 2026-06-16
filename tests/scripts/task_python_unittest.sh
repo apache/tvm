@@ -55,6 +55,7 @@ TEST_FILES=(
   "tirx-analysis"
   "tirx-base"
   "tirx-transform"
+  "tirx"
   "tvmscript"
   "relax"
 )

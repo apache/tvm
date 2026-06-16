@@ -21,6 +21,7 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 DEV = tvm.cuda(0)
 TARGET = tvm.target.Target("cuda")
@@ -34,6 +35,8 @@ def _build_and_run(func, *np_args):
     return (*tuple(a.numpy() for a in rt_args), mod)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_copy_128b():
     """copy_128b: copies 16 bytes (4 float32 elements) via uint4 load/store."""
 
@@ -63,6 +66,8 @@ def test_copy_128b():
     assert "tvm_builtin_copy_128b" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_copy_64b():
     """copy_64b: copies 8 bytes (2 float32 elements) via uint2 load/store."""
 
@@ -92,6 +97,8 @@ def test_copy_64b():
     assert "tvm_builtin_copy_64b" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_copy_32b():
     """copy_32b: copies 4 bytes (1 float32 element) via unsigned int load/store."""
 
@@ -121,6 +128,8 @@ def test_copy_32b():
     assert "tvm_builtin_copy_32b" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_copy_16b():
     """copy_16b: copies 2 bytes (1 float16 element) via unsigned short load/store."""
 
@@ -150,6 +159,8 @@ def test_copy_16b():
     assert "tvm_builtin_copy_16b" in mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_copy_8b():
     """copy_8b: copies 1 byte (1 uint8 element) via unsigned char load/store."""
 

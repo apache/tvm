@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, wg_local_layout
 
 
@@ -67,6 +68,8 @@ from tvm.tirx.layout import S, TileLayout, wg_local_layout
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
 @pytest.mark.parametrize("operands_type", ["region_region", "region_const", "const_region"])
 @pytest.mark.parametrize("dtype", ["float16"])
@@ -223,6 +226,8 @@ def test_binary_non_commutative_const_lhs_rejected(op_type):
             tvm.compile(mod, target=target, tir_pipeline="tirx")
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("exec_scope", ["warp", "warpgroup"])
 @pytest.mark.parametrize("op_type", ["add", "mul"])
 def test_binary_op_shared_subcta_scope(exec_scope, op_type):
@@ -276,6 +281,8 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("exec_scope", ["cta", "warpgroup", "warp"])
 @pytest.mark.parametrize("rhs_kind", ["region", "broadcast", "const"])
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
@@ -392,6 +399,8 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("storage_scope", ["shared", "local"])
 @pytest.mark.parametrize("exec_scope", ["cta", "thread"])
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
@@ -495,6 +504,8 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul"])
 def test_binary_op_packed_f32x2_auto_dispatch(op_type):
     target = tvm.target.Target("cuda")
@@ -568,6 +579,8 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
         tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_name", ["add", "sub", "mul"])
 def test_binary_op_warpgroup_wg_local_layout(op_name):
     dtype = "float32"
