@@ -619,22 +619,29 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     storetype?: string,
     signal?: AbortSignal,
   ): Promise<any> {
-    // TODO: Avoid duplicate OPFS record validation by trying cache reads first
+    // Try the cache first to avoid a redundant OPFS lookup on a hit.
+    const cached = await this.readFromCache(url, storetype);
+    if (cached !== undefined) {
+      return cached;
+    }
     await this.addToCache(url, storetype, signal);
-    return this.readFromCache(url, storetype);
+    const fetched = await this.readFromCache(url, storetype);
+    if (fetched === undefined) {
+      throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+    }
+    return fetched;
   }
 
-  private async readFromCache(url: string, storetype?: string): Promise<any> {
+  private async readFromCache(
+    url: string,
+    storetype?: string,
+  ): Promise<any> {
     if (storetype?.toLowerCase() === "arraybuffer") {
-      const cachedData = await this.store.readArrayBuffer(url);
-      if (cachedData === undefined) {
-        throw new Error("ArtifactOPFSCache failed to fetch: " + url);
-      }
-      return cachedData;
+      return this.store.readArrayBuffer(url);
     }
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
-      throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+      return undefined;
     }
     return this.responseToStoreType(cachedResponse, storetype);
   }
