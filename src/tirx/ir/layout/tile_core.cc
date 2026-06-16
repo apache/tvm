@@ -163,7 +163,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
     ffi::Array<PrimExpr> per_shard_coords;
     per_shard_coords.reserve(grouped->shard.size());
     for (size_t i = 0; i < grouped->shard.size(); ++i) {
-      per_shard_coords.push_back(IntImm(DataType::Int(32), 0));
+      per_shard_coords.push_back(IntImm::Int32(0));
     }
     for (size_t d = 0; d < shape.size(); ++d) {
       int64_t start = seps[d];

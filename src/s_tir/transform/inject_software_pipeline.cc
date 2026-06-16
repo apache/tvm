@@ -160,7 +160,7 @@ class PipelineOpaqueAccessRewriter {
     int fragment_size = GetWmmaFragmentSize(old_buffer);
     PrimExpr offset =
         floordiv(foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                       make_const(DataType::Int(32), 1), old_buffer->shape),
+                       IntImm::Int32(1), old_buffer->shape),
                  fragment_size);
     new_buffer_offset +=
         floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]) * offset;
@@ -170,7 +170,7 @@ class PipelineOpaqueAccessRewriter {
   PrimExpr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const ffi::Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   make_const(DataType::Int(32), 1), input);
+                   IntImm::Int32(1), input);
     };
     ffi::Array<PrimExpr> new_args = call->args;
     for (int i : arg_indices) {
@@ -247,7 +247,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
               ? Range::FromMinExtent(0, new_buffer->shape[0])
               : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
                                               new_buffer->shape[0]),
-                                     IntImm(DataType::Int(32), 1));
+                                     IntImm::Int32(1));
       new_region.insert(new_region.begin(), accessed_version);
       return BufferRegion(new_buffer, new_region);
     }
@@ -398,7 +398,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
     SBlock block = MakeSBlock(stmt, buffer_data_to_buffer_);
     block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
-    return SBlockRealize({}, const_true(), block);
+    return SBlockRealize({}, IntImm::Bool(true), block);
   }
 
  private:
@@ -757,7 +757,7 @@ class PipelineRewriter : public StmtExprMutator {
         auto attach_wait_scope = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
           auto& block = new_blocks[i].block;
           SBlockNode* n = block.CopyOnWrite();
-          auto zero = make_zero(DataType::Int(32));
+          auto zero = IntImm::Int32(0);
           n->body =
               AttrStmt(zero, s_tir::attr::async_wait_queue_scope, stage_id,
                        AttrStmt(zero, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
@@ -801,8 +801,8 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         for (auto body : group_bodies) {
-          auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
-                                             s_tir::attr::async_commit_queue_scope, stage_id, body);
+          auto commit_queue_scope =
+              AttrStmt(IntImm::Int32(0), s_tir::attr::async_commit_queue_scope, stage_id, body);
           auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
           stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
@@ -825,7 +825,9 @@ class PipelineRewriter : public StmtExprMutator {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
-    auto make_nop = []() { return SBlockRealize({}, const_true(), MakeSBlock(Evaluate(0), {})); };
+    auto make_nop = []() {
+      return SBlockRealize({}, IntImm::Bool(true), MakeSBlock(Evaluate(0), {}));
+    };
 
     if (analyzer_->CanProve(extent <= 0)) {
       return make_nop();
@@ -918,7 +920,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(make_zero(DataType::Int(32)), s_tir::attr::async_scope, 1, n->body);
+        n->body = AttrStmt(IntImm::Int32(0), s_tir::attr::async_scope, 1, n->body);
       }
 
       new_blocks.push_back(
@@ -973,7 +975,8 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    return SBlockRealize({}, const_true(), MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
+    return SBlockRealize({}, IntImm::Bool(true),
+                         MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
   arith::Analyzer analyzer_;

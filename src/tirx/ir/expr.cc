@@ -628,7 +628,7 @@ static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
         if (is_one(r->extent)) {
           indices.push_back(r->min);
         } else if (r->extent.as<IntImmNode>()) {
-          indices.push_back(tirx::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
+          indices.push_back(tirx::Ramp(r->min, MakeConst(r->min->dtype, 1), r->extent));
         } else {
           TVM_FFI_THROW(ValueError)
               << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
@@ -706,14 +706,14 @@ PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
   int index = 0;
   for (const PrimExpr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
-      indices.push_back(IntImm(DataType::Int(32), index++));
+      indices.push_back(IntImm::Int32(index++));
     }
   }
   return Shuffle(vectors, indices, span);
 }
 
 PrimExpr Shuffle::ExtractElement(PrimExpr vector, int index, Span span) {
-  return Shuffle({vector}, {IntImm(DataType::Int(32), index)}, span);
+  return Shuffle({vector}, {IntImm::Int32(index)}, span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -798,7 +798,7 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
         << "Can only take axis created by reduce_axis";
   }
   if (!condition.defined()) {
-    condition = const_true();
+    condition = IntImm::Bool(true);
   }
   auto n = ffi::make_object<ReduceNode>();
   TVM_FFI_ICHECK(source.defined());

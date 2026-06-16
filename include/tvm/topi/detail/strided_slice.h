@@ -99,10 +99,10 @@ inline ffi::Array<PrimExpr> StridedSliceCanonicalizeBegin(const ffi::Array<PrimE
     if (ishape[ax]->IsInstance<tvm::IntImmNode>()) {
       int64_t dim_i = GetConstInt(ishape[ax]);
       int64_t begin_i = CanonicalizeIndex(begin[i], dim_i, strides[i]);
-      begin_expr.push_back(make_const(dtype, begin_i));
+      begin_expr.push_back(MakeConst(dtype, begin_i));
     } else {
       auto idim = ishape[ax];
-      auto b_expr = make_const(dtype, begin[i]);
+      auto b_expr = MakeConst(dtype, begin[i]);
       PrimExpr b = begin[i] < 0 ? b_expr + idim : b_expr;
       auto s = strides[i];
       if (s < 0) {

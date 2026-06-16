@@ -280,7 +280,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
     const auto* data_shape = input_sinfo[0]->shape.as<ShapeExprNode>();
     for (int i = 0; i < ndim; i++) {
       // Sum pad width for this axis.
-      PrimExpr added_width = IntImm(DataType::Int(64), pad_width[2 * i] + pad_width[(2 * i) + 1]);
+      PrimExpr added_width = IntImm::Int64(pad_width[2 * i] + pad_width[(2 * i) + 1]);
       const PrimExpr current_width = data_shape->values[i];
       out_shape.push_back(current_width + added_width);
     }
@@ -337,7 +337,7 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
   PrimExpr h_in = in_shape[h_idx];
   PrimExpr w_in = in_shape[w_idx];
 
-  PrimExpr r_expr = IntImm(DataType::Int(32), r);
+  PrimExpr r_expr = IntImm::Int32(r);
   PrimExpr r_squared = r_expr * r_expr;
 
   const auto* c_in_imm = c_in.as<IntImmNode>();
@@ -1214,7 +1214,7 @@ StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx
   }
 
   PrimExpr batch_dim = data_shape->values[0];
-  PrimExpr flat_dim = IntImm(DataType::Int(64), 1);
+  PrimExpr flat_dim = IntImm::Int64(1);
   for (size_t i = 1; i < data_shape->values.size(); ++i) {
     flat_dim = flat_dim * data_shape->values[i];
   }

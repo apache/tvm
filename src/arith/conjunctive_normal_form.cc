@@ -139,16 +139,15 @@ class AndOfOrs {
   /*! \brief Mapping from PrimExpr to internal Key */
   std::unordered_map<PrimExpr, Key, ffi::StructuralHash, ffi::StructuralEqual> expr_to_key_;
 
-  /*! \brief Cached key representing tirx::IntImm(DataType::Bool(), 1) */
+  /*! \brief Cached key representing IntImm::Bool(true) */
   Key key_true_;
 
-  /*! \brief Cached key representing tirx::IntImm(DataType::Bool(), 0) */
+  /*! \brief Cached key representing IntImm::Bool(false) */
   Key key_false_;
 };
 
 AndOfOrs::AndOfOrs(const PrimExpr& expr)
-    : key_true_(GetKey(IntImm(DataType::Bool(), 1))),
-      key_false_(GetKey(IntImm(DataType::Bool(), 0))) {
+    : key_true_(GetKey(IntImm::Bool(true))), key_false_(GetKey(IntImm::Bool(false))) {
   VisitAndExpressions(expr, [&](const PrimExpr& outer_expr) {
     std::vector<Key> or_components;
     VisitOrExpressions(outer_expr, [&](const PrimExpr& inner_expr) {
@@ -235,9 +234,9 @@ PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
 }
 
 PrimExpr AndOfOrs::AsPrimExpr() const {
-  PrimExpr expr = IntImm(DataType::Bool(), 1);
+  PrimExpr expr = IntImm::Bool(true);
   for (const auto& chunk : chunks_) {
-    PrimExpr chunk_expr = IntImm(DataType::Bool(), 0);
+    PrimExpr chunk_expr = IntImm::Bool(false);
     for (Key j : chunk) {
       chunk_expr = chunk_expr || GetExpr(j);
     }
@@ -368,7 +367,7 @@ void AndOfOrs::SimplifyAcrossChunks(AnalyzerObj* analyzer) {
           // When attempting to simplify (B and C), the analyzer may
           // assume that A is false.
           PrimExpr known = [&]() {
-            PrimExpr known = IntImm(DataType::Bool(), 1);
+            PrimExpr known = IntImm::Bool(true);
             for (const auto& key : i_chunk) {
               if (&key != &key_i) {
                 known = known && analyzer->Simplify(!GetExpr(key));

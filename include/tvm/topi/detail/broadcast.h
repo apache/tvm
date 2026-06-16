@@ -130,7 +130,7 @@ inline tvm::ffi::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     // Only inject 0 here if we have not yet reached the dimension of I
     // (i.e. this must be a 1)
     if (!found && (ovars.size() - i) <= expected_dims) {
-      ivars.push_back(tvm::tirx::make_zero(ovars[i].dtype()));
+      ivars.push_back(tvm::IntImm(ovars[i].dtype(), 0));
     }
   }
   TVM_FFI_ICHECK(expected_dims == ivars.size());

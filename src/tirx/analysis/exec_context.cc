@@ -39,7 +39,7 @@ namespace {
 
 constexpr int kWarpSize = 32;
 
-PrimExpr I64(int64_t value) { return IntImm(DataType::Int(64), value); }
+PrimExpr I64(int64_t value) { return IntImm::Int64(value); }
 
 AxisRange MakeRange(int64_t extent, int64_t offset = 0, int64_t stride = 1) {
   return AxisRange{I64(extent), I64(offset), I64(stride)};

@@ -91,7 +91,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
 
   auto get_shape = [](const StructInfo& sinfo) -> ffi::Optional<ffi::Array<PrimExpr>> {
     if (sinfo.as<PrimStructInfoNode>()) {
-      return ffi::Array<PrimExpr>{IntImm(DataType::Int(64), 1)};
+      return ffi::Array<PrimExpr>{IntImm::Int64(1)};
     } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->GetShape();
     } else {

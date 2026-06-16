@@ -37,7 +37,7 @@ bool UsesVar(const T& x, const Var& var) {
 }
 
 Range RangeFromExtent(const PrimExpr& extent) {
-  return Range::FromMinExtent(make_zero(extent->dtype), extent);
+  return Range::FromMinExtent(IntImm(extent->dtype, 0), extent);
 }
 
 template <class T>
@@ -139,8 +139,8 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
       return {};
     }
   }
-  res.push_back({arith::IterMark(arith::IterSumExpr({}, 0), const_true()),
-                 arith::IterMark(arith::IterSumExpr({}, 0), const_true())});
+  res.push_back({arith::IterMark(arith::IterSumExpr({}, 0), IntImm::Bool(true)),
+                 arith::IterMark(arith::IterSumExpr({}, 0), IntImm::Bool(true))});
   return res;
 }
 
@@ -256,7 +256,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
       // substitution
       if (is_one(outer_mark->extent) && !preserve_unit_iters) {
         // Simplify outer if not preserve_unit_iters
-        sub = make_zero(outer_mark->extent.dtype());
+        sub = IntImm(outer_mark->extent.dtype(), 0);
       } else {
         sub = outer_iter;
       }
@@ -829,7 +829,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
-      PrimExpr extent = make_const(min.dtype(), 1);
+      PrimExpr extent = MakeConst(min.dtype(), 1);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {

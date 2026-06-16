@@ -110,7 +110,7 @@ namespace meta_schedule {
 IntImm Extract(const Target& target, const char* name) {
   TVM_FFI_ICHECK(target.defined());
   if (ffi::Optional<int64_t> v = target->GetAttr<int64_t>(name)) {
-    return IntImm(DataType::Int(64), v.value());
+    return IntImm::Int64(v.value());
   }
   TVM_FFI_THROW(AttributedError) << "\"" << name << "\" is not defined in the target";
   throw;
@@ -129,8 +129,8 @@ class VerifyGPUCodeNode : public PostprocNode {
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
-        {"max_vthread", IntImm(DataType::Int(32), 8)},
-        {"max_vector_bytes", IntImm(DataType::Int(32), 16)},
+        {"max_vthread", IntImm::Int32(8)},
+        {"max_vector_bytes", IntImm::Int32(16)},
     };
     thread_warp_size_ = static_cast<int>(Extract(this->target_, "thread_warp_size")->value);
   }

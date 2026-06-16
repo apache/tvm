@@ -45,8 +45,8 @@ TEST(Simplify, Mul) {
 
 TEST(Simplify, Mod) {
   tvm::arith::Analyzer ana;
-  auto x = tvm::IntImm(tvm::DataType::Int(32), 10);
-  auto y = tvm::IntImm(tvm::DataType::Int(32), 12);
+  auto x = tvm::IntImm::Int32(10);
+  auto y = tvm::IntImm::Int32(12);
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
@@ -77,19 +77,17 @@ TEST(AnalyzerObjectRef, ConstHandleRefCanMutateAnalyzerState) {
 
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
+  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm::Int32(10), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
+  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm::Int64(10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
 
 TEST(ConstantFold, Ramp) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
-                               tvm::IntImm(tvm::DataType::Int(32), 1), 4);
+  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm::Int32(10), tvm::IntImm::Int32(1), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
-                                        tvm::IntImm(tvm::DataType::Int(64), 1), 4);
+  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm::Int64(10), tvm::IntImm::Int64(1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
   auto f32x4 = tvm::cast(tvm::DataType::Float(32, 4), i32x4);

@@ -139,7 +139,7 @@ class StorageToken : public ffi::ObjectRef {
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
-    PrimExpr size = tirx::make_const(DataType::Int(64), 1);
+    PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
     if (vdevice.defined()) {
@@ -173,7 +173,7 @@ class StorageToken : public ffi::ObjectRef {
       }
     }
 
-    size = tirx::make_const(DataType::Int(64), const_coeff) * size;
+    size = IntImm::Int64(const_coeff) * size;
 
     ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
     n->bytes = size;
@@ -259,7 +259,7 @@ class TokenAllocatorMixed {
       TVM_FFI_ICHECK_GE(available_size, 0);
       TVM_FFI_ICHECK_GE(size, available_size);
       // Enlarge the token size.
-      available_token->bytes = tirx::make_const(DataType::Int(64), size);
+      available_token->bytes = IntImm::Int64(size);
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -447,8 +447,8 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
     if (it_upper != var_upper_bound_attr.end()) {
       int64_t lower = (it_lower != var_lower_bound_attr.end()) ? it_lower->second->value : 0;
       int64_t upper = it_upper->second->value;
-      tvm::Range range = tvm::Range::FromMinExtent(
-          tvm::IntImm(DataType::Int(64), lower), tvm::IntImm(DataType::Int(64), upper - lower + 1));
+      tvm::Range range = tvm::Range::FromMinExtent(tvm::IntImm::Int64(lower),
+                                                   tvm::IntImm::Int64(upper - lower + 1));
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
@@ -483,7 +483,7 @@ ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::Analy
         upper_bounded_shape.push_back(dim_len);
       }
     } else {
-      upper_bounded_shape.push_back(tvm::IntImm(DataType::Int(64), max_bound));
+      upper_bounded_shape.push_back(tvm::IntImm::Int64(max_bound));
     }
   }
   return upper_bounded_shape;
@@ -900,7 +900,7 @@ class StorageAllocationRewriter : public ExprMutator {
       }
       constexpr static const char* plan_dyn_attr_ = "relax.memory_plan_dynamic_func_output";
       plan_dynamic_output_ = static_cast<bool>(
-          func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
+          func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm::Int32(0))->value);
       if (plan_dynamic_output_) {
         SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), ana_.get(), &dom_map_);
       }
@@ -1058,7 +1058,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
 
   size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
                                                      vdevice->memory_scope, image_row_align);
-  return tirx::make_const(DataType::Int(64), size);
+  return IntImm::Int64(size);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

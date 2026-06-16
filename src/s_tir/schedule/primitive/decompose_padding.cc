@@ -139,7 +139,7 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Rewrite predicate to left recursive conjunction, drop likely annotation. */
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
-    PrimExpr res = const_true();
+    PrimExpr res = IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
       arith::PVar<PrimExpr> a, b;
       if ((a && b).Match(e)) {
@@ -291,7 +291,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     const IterVar& origin_itervar = block->iter_vars[i];
     Var new_var = origin_itervar->var.copy_with_suffix("");
     Range new_range =
-        Range::FromMinExtent(make_const(new_var->dtype, 0), info.in_bound_region[i]->extent);
+        Range::FromMinExtent(IntImm(new_var->dtype, 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
 

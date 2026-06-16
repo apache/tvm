@@ -98,16 +98,16 @@ inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<int64_t> wind
     // Length of the shape along this dimension.
     auto dim_len = x->shape[_axis + i];
     // Length of the window along this dimension.
-    PrimExpr window_len = IntImm(DataType::Int(64), window_shape[i]);
+    PrimExpr window_len = IntImm::Int64(window_shape[i]);
     // Strides along this dimension.
-    PrimExpr stride = IntImm(DataType::Int(64), strides[i]);
+    PrimExpr stride = IntImm::Int64(strides[i]);
 
     new_shape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
   }
 
   // Dimensions comprising the window.
   for (size_t i = 0; i < window_shape.size(); ++i) {
-    new_shape.push_back(IntImm(DataType::Int(64), window_shape[i]));
+    new_shape.push_back(IntImm::Int64(window_shape[i]));
   }
 
   TVM_FFI_ICHECK(new_shape.size() == _axis + 2 * window_shape.size());
@@ -129,7 +129,7 @@ inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<int64_t> wind
           // Which index within the window we are indexing.
           auto idx_within_window = indices[_axis + window_shape.size() + i];
           // Stride value for this dimension.
-          PrimExpr stride = IntImm(DataType::Int(64), strides[i]);
+          PrimExpr stride = IntImm::Int64(strides[i]);
 
           idx.push_back(window_idx * stride + idx_within_window);
         }
@@ -842,7 +842,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 
   ffi::Array<PrimExpr> begin_expr, end_expr, strides_expr;
   for (int64_t i = 0; i < num_dynamic_axes; ++i) {
-    auto ind = make_const(index_dtype, i);
+    auto ind = MakeConst(index_dtype, i);
     begin_expr.push_back(begin(ind));
     end_expr.push_back(end(ind));
     strides_expr.push_back(strides(ind));
@@ -938,7 +938,7 @@ inline Tensor strided_slice_with_axes(
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
           int64_t ax = normalized_axes[i];
-          auto stride = make_const(strides[i]->dtype, strides_vec[i]);
+          auto stride = MakeConst(strides[i]->dtype, strides_vec[i]);
           PrimExpr ind = indices[ax] * stride + begin_expr[i];
           real_indices.Set(ax, ind);
         }
@@ -1118,7 +1118,7 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
         len_index.push_back(bid);
         PrimExpr ret =
             tvm::if_then_else(tvm::cast(valid_length->dtype, tid) >= valid_length(len_index),
-                              tvm::tirx::make_const(data->dtype, mask_value), data(out_index));
+                              tvm::tirx::MakeConst(data->dtype, mask_value), data(out_index));
         return ret;
       },
       name, tag);
@@ -1293,7 +1293,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
           PrimExpr in_bounds = idx >= 0 && idx < axis_dim;
           return tvm::if_then_else(
               in_bounds, a(real_indices),
-              tvm::tirx::make_const(a->dtype, std::numeric_limits<float>::quiet_NaN()));
+              tvm::tirx::MakeConst(a->dtype, std::numeric_limits<float>::quiet_NaN()));
         },
         name, tag);
   } else {  // mode == "wrap"
@@ -1428,16 +1428,16 @@ inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name =
   if (ndim == rdim) {
     for (size_t i = 0; i < ndim; ++i) {
       data_shape.push_back(x->shape[i]);
-      reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
+      reps_shape.push_back(IntImm::Int64(reps[i]));
     }
   } else if (ndim > rdim) {
     for (size_t i = 0; i < ndim; ++i) data_shape.push_back(x->shape[i]);
     for (size_t i = 0; i < (ndim - rdim); ++i) reps_shape.push_back(1);
-    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
+    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm::Int64(reps[i]));
   } else {
     for (size_t i = 0; i < (rdim - ndim); ++i) data_shape.push_back(1);
     for (size_t i = 0; i < ndim; ++i) data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm(DataType::Int(64), reps[i]));
+    for (size_t i = 0; i < rdim; ++i) reps_shape.push_back(IntImm::Int64(reps[i]));
   }
   for (size_t i = 0; i < tdim; ++i) new_shape.push_back(data_shape[i] * reps_shape[i]);
 
@@ -1592,7 +1592,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
           real_indices.push_back(out_index[i]);
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
-          indices_position.Set(0, make_const(DataType::Int(32), i));
+          indices_position.Set(0, IntImm::Int32(i));
           if (indices->dtype.is_int() || indices->dtype.is_uint()) {
             real_indices.push_back(indices(indices_position));
           } else {
@@ -1960,7 +1960,7 @@ inline Tensor meta_schedule_layout_transform(
   ffi::Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {
-    iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
+    iter_domain.push_back(Range::FromMinExtent(IntImm(e->dtype, 0), e));
   }
   ffi::Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, analyzer);
   return compute(
@@ -2046,7 +2046,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
     int indices_index = 0;
     for (int i = 0; i < ndim; i++) {
       if (i == true_axis) {
-        oshape.push_back(IntImm(DataType::Int(32), depth));
+        oshape.push_back(IntImm::Int32(depth));
       } else {
         oshape.push_back(indices->shape[indices_index++]);
       }
@@ -2268,7 +2268,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
       [&](const ffi::Array<tvm::tirx::Var>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_dynamic_axes; ++i) {
-          auto ind = make_const(DataType::Int(64), i);
+          auto ind = IntImm::Int64(i);
           real_indices.push_back(indices[i] * strides(ind) + tvm::min(begin(ind), x->shape[i] - 1));
         }
         return x(real_indices);

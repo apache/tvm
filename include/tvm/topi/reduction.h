@@ -286,7 +286,7 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
 
     auto result = fcombine(lhs, rhs);
     auto id_elem = fidentity(dtypes);
-    auto cond = condition != nullptr ? *condition : tirx::const_true();
+    auto cond = condition != nullptr ? *condition : IntImm::Bool(true);
 
     auto combiner = tvm::tirx::CommReducer(lhs, rhs, result, id_elem);
     ffi::Array<PrimExpr> outputs;
@@ -479,8 +479,8 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   };
   auto fidentity = [&](std::vector<DataType> types) {
     ffi::Array<PrimExpr> result;
-    result.push_back(tvm::tirx::make_const(types[0], -1));  // idx
-    result.push_back(tvm::max_value(types[1]));             // val
+    result.push_back(tvm::tirx::MakeConst(types[0], -1));  // idx
+    result.push_back(tvm::max_value(types[1]));            // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmin");
@@ -541,8 +541,8 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   };
   auto fidentity = [&](std::vector<DataType> types) {
     ffi::Array<PrimExpr> result;
-    result.push_back(tvm::tirx::make_const(types[0], -1));  // idx
-    result.push_back(tvm::min_value(types[1]));             // val
+    result.push_back(tvm::tirx::MakeConst(types[0], -1));  // idx
+    result.push_back(tvm::min_value(types[1]));            // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmax");
@@ -604,7 +604,7 @@ inline FCommReduce MakeTupleSumReducer() {
   auto fidentity = [](std::vector<DataType> types) {
     ffi::Array<PrimExpr> result;
     for (size_t i = 0; i < types.size(); ++i) {
-      result.push_back(tvm::tirx::make_const(types[i], 0));
+      result.push_back(tvm::tirx::MakeConst(types[i], 0));
     }
     return result;
   };

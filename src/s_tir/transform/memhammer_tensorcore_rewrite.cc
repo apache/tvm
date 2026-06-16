@@ -130,7 +130,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   Buffer new_src_buffer(
       /*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
       /*dtype=*/dtype,
-      /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
       /*strides=*/{Var("s1", int32), Var("s0", int32)},
       /*elem_offset=*/Var("src_elem_offset", int32),
       /*name=*/"src",
@@ -140,7 +140,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   Buffer new_tgt_buffer(
       /*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
       /*dtype=*/dtype,
-      /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
       /*strides=*/{},
       /*elem_offset=*/Var("tgt_elem_offset", int32),
       /*name=*/"tgt",
@@ -152,7 +152,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
           /*reads=*/{BufferRegion(src_buffer, read_region)},
@@ -240,7 +240,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{},
                         /*elem_offset=*/Var("src_elem_offset", int32),
                         /*name=*/"src",
@@ -249,7 +249,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         /*buffer_type=*/kDefault);
   Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{Var("s1", int32), Var("s0", int32)},
                         /*elem_offset=*/Var("tgt_elem_offset", int32),
                         /*name=*/"tgt",
@@ -262,7 +262,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -461,7 +461,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   const DataType dtype = src_buffer->dtype;
   Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 8), IntImm(DataType::Int(32), 8)},
+                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{},
                         /*elem_offset=*/Var("src_elem_offset", int32),
                         /*name=*/"src",
@@ -470,7 +470,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         /*buffer_type=*/kDefault);
   Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 8), IntImm(DataType::Int(32), 8)},
+                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{Var("s1", int32), Var("s0", int32)},
                         /*elem_offset=*/Var("tgt_elem_offset", int32),
                         /*name=*/"tgt",
@@ -489,7 +489,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   Var vec = Var("vec");
   Stmt mma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -501,7 +501,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/"threadIdx.x"),
                  /*attr_key=*/"thread_extent",
-                 /*value=*/IntImm(DataType::Int(32), 32),
+                 /*value=*/IntImm::Int32(32),
                  /*body=*/
                  For(vec, 0, 2, ForKind::kVectorized,
                      /*body=*/

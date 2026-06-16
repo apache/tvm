@@ -445,7 +445,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return arith::IterMapSimplify(
             /*indices=*/{idx},
             /*input_iters=*/var_range,
-            /*input_pred=*/const_true(),
+            /*input_pred=*/IntImm::Bool(true),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/ana_,
             /*simplify_trivial_iterators=*/true)[0];
@@ -459,7 +459,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
                 this->ana_->CanProveEqual(block->iter_vars[i]->dom->min,
-                                          IntImm(DataType::Int(64), /*value=*/0)) &&
+                                          IntImm::Int64(/*value=*/0)) &&
                 this->ana_->CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
             return false;
           }
@@ -495,7 +495,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Array<PrimExpr> simplify_res = arith::IterMapSimplify(
             /*indices=*/{flattened_idx},
             /*input_iters=*/{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
-            /*input_pred=*/const_true(),
+            /*input_pred=*/IntImm::Bool(true),
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/this->ana_,
             /*simplify_trivial_iterators=*/true);

@@ -129,7 +129,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
     if (HasVoidStructInfo(arg_relative_byte_offset)) {
       // No byte offset is specified, so no change is applied.
-      return IntImm(DataType::Int(64), 0);
+      return IntImm::Int64(0);
     } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
       TVM_FFI_CHECK_EQ(prim_sinfo->dtype, DataType::Int(64), TypeError)
           << "Operator " << call->op
@@ -177,7 +177,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       return std::nullopt;
     } else {
       auto size_bits = dtype.bits() * dtype.lanes();
-      return IntImm(DataType::Int(64), (size_bits + 7) / 8);
+      return IntImm::Int64((size_bits + 7) / 8);
     }
   };
 
@@ -189,7 +189,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       return std::nullopt;
     }
 
-    PrimExpr num_elements = IntImm(DataType::Int(32), 1);
+    PrimExpr num_elements = IntImm::Int32(1);
     for (const auto& dim : shape.value()) {
       num_elements *= dim;
     }

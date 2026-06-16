@@ -57,7 +57,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     // ignore the enabled condition and always rewrite i64
     if (op->dtype == DataType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, Downcast<IntImm>(max_value(target_data_type_))->value);
-      return IntImm(DataType::Int(32), op->value);
+      return IntImm::Int32(op->value);
     }
     return ffi::GetRef<IntImm>(op);
   }

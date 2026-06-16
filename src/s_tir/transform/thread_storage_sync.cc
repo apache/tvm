@@ -297,7 +297,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
                                 {StringImm(sync_scope_.to_string())}));
       auto inner = op->body.as<AttrStmtNode>();
       TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
-      auto zero = make_zero(DataType::Int(32));
+      auto zero = IntImm::Int32(0);
       auto new_body = SeqStmt({sync, inner->body});
       return AttrStmt(
           zero, s_tir::attr::async_wait_queue_scope, op->value,

@@ -328,14 +328,14 @@ inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExp
   // get the offset in number of scalars.
   if (n->dtype.lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
-    offsets.Set(offsets.size() - 1, last_offset * make_const(last_offset.dtype(), dtype.lanes()));
+    offsets.Set(offsets.size() - 1, last_offset * MakeConst(last_offset.dtype(), dtype.lanes()));
   }
 
   // If the requested type has more than one lane, make a RampNode at
   // that offset.
   if (dtype.lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
-    PrimExpr stride = make_const(last_offset.dtype(), 1);
+    PrimExpr stride = MakeConst(last_offset.dtype(), 1);
     offsets.Set(offsets.size() - 1, tirx::Ramp(last_offset, stride, dtype.lanes()));
   }
 
@@ -484,7 +484,7 @@ Buffer Buffer::MakeStrideView() const {
   const BufferNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
   auto n = ffi::make_object<BufferNode>(*self);
-  PrimExpr acc = make_const(n->DefaultIndexType(), 1);
+  PrimExpr acc = MakeConst(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
     acc = acc * n->shape[i - 1];
@@ -544,20 +544,20 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
-    extent = make_const(self->DefaultIndexType(), 1);
+    extent = MakeConst(self->DefaultIndexType(), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
     extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   make_const(DataType::Int(32), 1), self->shape) -
+                   IntImm::Int32(1), self->shape) -
              offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = tirx::TypeAnnotation(self->dtype.with_lanes(content_lanes));
-    extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
-    elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(), content_lanes);
+    extent = extent / MakeConst(self->elem_offset.dtype(), content_lanes);
+    elem_offset = self->elem_offset / MakeConst(self->elem_offset.dtype(), content_lanes);
   } else {
     e_dtype = tirx::TypeAnnotation(self->dtype);
   }
@@ -566,7 +566,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     extent = input_extent.value();
   }
   ffi::Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                                make_const(DataType::Int(32), access_mask)};
+                                IntImm::Int32(access_mask)};
   return tirx::Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
 }
 
@@ -606,7 +606,7 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->axis_separators = std::move(axis_separators);
   n->name = std::move(name);
   if (!elem_offset.defined()) {
-    elem_offset = make_const(n->DefaultIndexType(), 0);
+    elem_offset = IntImm(n->DefaultIndexType(), 0);
   }
   if (data_alignment <= 0) {
     data_alignment = runtime::kAllocAlignment;

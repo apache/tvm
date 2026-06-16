@@ -61,8 +61,8 @@ class ExternFunctionRewriter : ExprMutator {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
-      auto sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(32), max_workspace_size_)}),
-                                    DataType::UInt(8));
+      auto sinfo =
+          TensorStructInfo(ShapeExpr({IntImm::Int32(max_workspace_size_)}), DataType::UInt(8));
       Var workspace_param(name_sup_->FreshName("workspace"), sinfo);
 
       if (func_node->GetAttr<ffi::String>(attr::kCodegen)) {
@@ -149,7 +149,7 @@ class WorkspaceProvider : ExprMutator {
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
     if (!workspace_var_main_.defined()) {
-      auto shape = ShapeExpr({IntImm(DataType::Int(32), max_workspace_size_)});
+      auto shape = ShapeExpr({IntImm::Int32(max_workspace_size_)});
       auto ty = DataTypeImm(DataType::UInt(8));
       auto workspace = MakeAllocTensor(shape, ty, PrimValue::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");

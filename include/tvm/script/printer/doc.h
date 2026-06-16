@@ -277,7 +277,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm(DataType::Int(64), v), p);
+    return LiteralDoc(IntImm::Int64(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent boolean.
@@ -285,7 +285,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Boolean(bool v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm(DataType::Bool(), v), p);
+    return LiteralDoc(IntImm::Bool(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent float.

@@ -414,10 +414,10 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
 
   // Output shape: [batch, 2, target_height, target_width]
   ffi::Array<PrimExpr> out_shape;
-  out_shape.push_back(data_shape->values[0]);         // batch
-  out_shape.push_back(IntImm(DataType::Int(64), 2));  // 2 (spatial dimensions)
-  out_shape.push_back(size_value->values[0]);         // target_height
-  out_shape.push_back(size_value->values[1]);         // target_width
+  out_shape.push_back(data_shape->values[0]);  // batch
+  out_shape.push_back(IntImm::Int64(2));       // 2 (spatial dimensions)
+  out_shape.push_back(size_value->values[0]);  // target_height
+  out_shape.push_back(size_value->values[1]);  // target_width
 
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }

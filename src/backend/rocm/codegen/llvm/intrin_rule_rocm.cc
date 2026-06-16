@@ -69,8 +69,8 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK_EQ(var.dtype().bits(), 32);
 
   // get own lane in self (__lane_id)
-  PrimExpr minus_one = tirx::make_const(DataType::Int(32), -1);
-  PrimExpr zero = tirx::make_zero(DataType::Int(32));
+  PrimExpr minus_one = IntImm::Int32(-1);
+  PrimExpr zero = IntImm::Int32(0);
   PrimExpr lo = Call(DataType::Int(32), builtin::call_pure_extern(),
                      {StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero});
   PrimExpr self = Call(DataType::Int(32), builtin::call_pure_extern(),
@@ -111,7 +111,7 @@ void RegisterROCMIntrinRules() {
 // dummy because we don't have the activemask
 TVM_REGISTER_OP("tirx.tvm_warp_activemask")
     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      PrimExpr zero = tirx::make_zero(DataType::Int(32));
+      PrimExpr zero = IntImm::Int32(0);
       return zero;
     });
 

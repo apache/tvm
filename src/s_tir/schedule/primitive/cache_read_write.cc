@@ -189,13 +189,13 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
     old_indices.push_back(Substitute(range->min, var_map));
-    old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm(DataType::Int(32), 1)));
+    old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
   Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
     new_indices.push_back(Substitute((idx), var_map));
-    new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm(DataType::Int(32), 1)));
+    new_region.push_back(Range::FromMinExtent(new_indices.back(), IntImm::Int32(1)));
   }
 
   // Create New Block
@@ -213,7 +213,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
       /*buf_doms=*/{});
   // Create SBlock Realize node
   Stmt body = SBlockRealize(/*values=*/iter_values,
-                            /*predicate=*/const_true(),
+                            /*predicate=*/IntImm::Bool(true),
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
@@ -265,32 +265,32 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
     Var var("v" + std::to_string(read_access_indices.size()), axis_range->extent.dtype());
     if (cache_full_region) {
       PrimExpr dim = cache_region->buffer->shape[i];
-      block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(make_zero(dim->dtype), dim),
+      block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim->dtype, 0), dim),
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
       read_access_indices.push_back(var);
       write_access_indices.push_back(var);
-      read_access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
-      write_access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
+      read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
+      write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
     } else {
       block_vars.push_back(IterVar(
-          /*dom=*/Range::FromMinExtent(make_zero(axis_range->extent.dtype()), axis_range->extent),
+          /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.dtype(), 0), axis_range->extent),
           /*var=*/var,
           /*IterVarType=*/kDataPar));
       if (cache_region->buffer.same_as(info->read_buffer)) {
         // cache_read
         read_access_indices.push_back(axis_range->min + var);
         read_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, make_const(var.dtype(), 1)));
+            Range::FromMinExtent(axis_range->min + var, MakeConst(var.dtype(), 1)));
         write_access_indices.push_back(var);
-        write_access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
+        write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
       } else {
         // cache_write
         write_access_indices.push_back(axis_range->min + var);
         write_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, make_const(var.dtype(), 1)));
+            Range::FromMinExtent(axis_range->min + var, MakeConst(var.dtype(), 1)));
         read_access_indices.push_back(var);
-        read_access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
+        read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
       }
     }
   }
@@ -313,7 +313,7 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
       /*annotations=*/{});
   // Create the block realize node
   Stmt body = SBlockRealize(/*values=*/iter_values,
-                            /*predicate=*/const_true(),
+                            /*predicate=*/IntImm::Bool(true),
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
@@ -422,7 +422,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
 
   // Create the block realize node
   Stmt body = SBlockRealize(/*values=*/iter_values,
-                            /*predicate=*/const_true(),
+                            /*predicate=*/IntImm::Bool(true),
                             /*block=*/new_block);
 
   // Create the chain of loops
@@ -562,7 +562,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
                                              BufferIndexType index_type) {
   struct Collector : public StmtVisitor {
     Collector(const Buffer& buf, BufferIndexType idx_type)
-        : buffer_(buf), index_type_(idx_type), result_(const_false()), found_(false) {}
+        : buffer_(buf), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
     void VisitStmt_(const SBlockRealizeNode* realize) final {
       const SBlockNode* block = realize->block.get();
@@ -604,7 +604,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
   collector(body);
   // If no nested block accessed the buffer, return true (no restriction — the caller
   // will fall back to the original scope-block reads / FullRegion path).
-  return collector.found_ ? collector.result_ : const_true();
+  return collector.found_ ? collector.result_ : IntImm::Bool(true);
 }
 
 /*!
@@ -621,7 +621,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
 BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_region,
                                const StmtSRef& block_sref, const StmtSRef& dom_low_inclusive,
                                const StmtSRef& dom_high_exclusive,
-                               PrimExpr extra_predicate = const_true()) {
+                               PrimExpr extra_predicate = IntImm::Bool(true)) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
   const Buffer& buffer = buffer_region->buffer;
@@ -1089,7 +1089,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
         if (buf_region->buffer.same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
+            region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
           new_reads.push_back(BufferRegion(info_->write_buffer, region));
         } else {
@@ -1105,7 +1105,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
         if (source->buffer.same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
+            region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
           new_match_buffers.push_back(MatchBufferRegion(match_buffer_region->buffer,
                                                         BufferRegion(info_->write_buffer, region)));
@@ -1378,7 +1378,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
         if (buf_region->buffer.same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
+            region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
           new_reads.push_back(BufferRegion(info_->read_buffer, region));
         } else {
@@ -1394,7 +1394,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
         if (source->buffer.same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
-            region.push_back(Range::FromMinExtent(index, IntImm(DataType::Int(32), 1)));
+            region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
           new_match_buffers.push_back(MatchBufferRegion(match_buffer_region->buffer,
                                                         BufferRegion(info_->read_buffer, region)));
@@ -1781,7 +1781,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
         GetBufferRegionFromBuffer(block->reads, read_buffer);
     PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(block->body, read_buffer,
                                                                           BufferIndexType::kRead)
-                                           : const_true();
+                                           : IntImm::Bool(true);
     if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
       cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,

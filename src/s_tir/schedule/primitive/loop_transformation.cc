@@ -419,14 +419,14 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     dtype = DataType::Int(bits);
   }
   int n = factors.size();
-  PrimExpr substitute_value = make_const(dtype, 0);
+  PrimExpr substitute_value = IntImm(dtype, 0);
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
     substitute_value = substitute_value * factor + var;
-    analyzer->Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
+    analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
@@ -693,7 +693,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   }
 
   // Create common block with all the partitioned blocks as its children blocks
-  SBlockRealize common({}, make_const(DataType::Bool(), 1),
+  SBlockRealize common({}, IntImm::Bool(true),
                        SBlock({}, {}, {}, block_name + "_common", tirx::SeqStmt(block_partitions)));
 
   // Replace existing loop with the newly created common block
@@ -744,14 +744,13 @@ class LoopReconstructor : private StmtMutator {
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], IntImm(DataType::Int(32), 0), new_loop_extents[0],
-                        ForKind::kSerial, SeqStmt(std::move(new_stmts)));
+    auto new_loop = For(new_loop_vars[0], IntImm::Int32(0), new_loop_extents[0], ForKind::kSerial,
+                        SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop =
-          For(loop_var, IntImm(DataType::Int(32), 0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop = For(loop_var, IntImm::Int32(0), loop_extent, ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }

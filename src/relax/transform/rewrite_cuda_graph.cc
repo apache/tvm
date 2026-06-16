@@ -785,10 +785,10 @@ class CUDAGraphRewriter : public ExprMutator {
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
       auto ret_struct_info = Downcast<FuncStructInfo>(gv_alloc->struct_info_.value())->ret;
-      launch_subgraph = Call(
-          call_builtin_with_ctx_op,
-          {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm(DataType::Int(64), 0))})},
-          Attrs(), {ret_struct_info});
+      launch_subgraph =
+          Call(call_builtin_with_ctx_op,
+               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm::Int64(0))})}, Attrs(),
+               {ret_struct_info});
     } else {
       auto gv_func = builder_->AddFunction(
           plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
@@ -816,7 +816,7 @@ class CUDAGraphRewriter : public ExprMutator {
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
-                                        PrimValue(IntImm(DataType::Int(64), index_capture_++))};
+                                        PrimValue(IntImm::Int64(index_capture_++))};
       if (plan->propogated_tir_vars.defined()) {
         // The shape expr is explicitly passed twice, one as the last argument of the lifted
         // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly

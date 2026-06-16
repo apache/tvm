@@ -68,7 +68,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
-    PrimExpr padding_predicate = IntImm(DataType::Bool(), 0);
+    PrimExpr padding_predicate = IntImm::Bool(false);
     return {Downcast<IndexMap>(self->inverse_index_map.value()), padding_predicate};
   }
 
@@ -275,7 +275,7 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(make_zero(dim.dtype()), dim));
+    ranges.push_back(Range(IntImm(dim.dtype(), 0), dim));
   }
   ffi::Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 

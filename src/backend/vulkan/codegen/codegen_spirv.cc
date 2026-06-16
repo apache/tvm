@@ -536,7 +536,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
   for (int i = 0; i < lanes; ++i) {
     spirv::Value v = base;
     if (i != 0) {
-      spirv::Value offset = MakeValue(make_const(op->stride.dtype(), i) * op->stride);
+      spirv::Value offset = MakeValue(MakeConst(op->stride.dtype(), i) * op->stride);
       v = builder_->Add(v, offset);
     }
     values.push_back(v);

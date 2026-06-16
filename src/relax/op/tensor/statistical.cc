@@ -68,9 +68,8 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-          data_sinfo->dtype, data_sinfo->vdevice);
+      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+                              data_sinfo->dtype, data_sinfo->vdevice);
     } else {
       return out_ndim == 0 ? TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
                                               data_sinfo->vdevice)
@@ -84,7 +83,7 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
     if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
+      out_shape.push_back(IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
@@ -211,9 +210,8 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-          data_sinfo->dtype, data_sinfo->vdevice);
+      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
+                              data_sinfo->dtype, data_sinfo->vdevice);
     }
     if (out_ndim == 0) {
       return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), data_sinfo->dtype,
@@ -229,7 +227,7 @@ StructInfo InferStructInfoStatisticalExtension(const Call& call, const BlockBuil
     if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
+      out_shape.push_back(IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);

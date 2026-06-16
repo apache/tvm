@@ -263,7 +263,7 @@ class ScopeReconstructor : private StmtMutator {
     loop_vars.reserve(n_iters);
     loop_extents.reserve(n_iters);
     iter_values.reserve(n_iters);
-    PrimExpr predicate = const_true();
+    PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
@@ -300,7 +300,7 @@ class ScopeReconstructor : private StmtMutator {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
       new_subtree = For(/*loop_var=*/loop_var,
-                        /*min=*/IntImm(DataType::Int(32), 0),
+                        /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
                         /*body=*/std::move(new_subtree));
@@ -569,7 +569,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   for (size_t i = 0; i < ndim; ++i) {
     provide_indices.push_back(provided_region[i].min());
   }
-  auto res = arith::DetectIterMap(provide_indices, dom_map, const_true(),
+  auto res = arith::DetectIterMap(provide_indices, dom_map, IntImm::Bool(true),
                                   arith::IterMapLevel::Bijective, analyzer_ref, false);
   if (res->indices.empty()) {
     return false;
@@ -578,7 +578,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
     required_bound.push_back(
-        arith::IntSet::Interval(make_zero(buffer->shape[i]->dtype), max(buffer->shape[i] - 1, 0)));
+        arith::IntSet::Interval(IntImm(buffer->shape[i]->dtype, 0), max(buffer->shape[i] - 1, 0)));
   }
   ffi::Map<Var, arith::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);

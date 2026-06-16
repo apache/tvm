@@ -349,7 +349,7 @@ class DeviceInfoCollector : public StmtVisitor {
           << "Only one dynamic shared memory allocation is allowed.";
       TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
 
-      PrimExpr dyn_size = IntImm(DataType::Int(32), 1);
+      PrimExpr dyn_size = IntImm::Int32(1);
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }

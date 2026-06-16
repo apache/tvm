@@ -80,7 +80,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
     body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/const_true(),
+        /*predicate=*/IntImm::Bool(true),
         /*block=*/
         SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                /*name_hint=*/"root", body));
@@ -124,7 +124,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
     body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/const_true(),
+        /*predicate=*/IntImm::Bool(true),
         /*block=*/
         SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                /*name_hint=*/"root", body,

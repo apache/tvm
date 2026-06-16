@@ -488,7 +488,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].defined()) {
-      factors.push_back(IntImm(DataType::Int(32), -1));
+      factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }
@@ -555,7 +555,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].defined()) {
-      factors.push_back(IntImm(DataType::Int(32), -1));
+      factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }

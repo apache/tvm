@@ -189,8 +189,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   }
   // Step 2. Get Inverse mapping
   arith::Analyzer analyzer;
-  auto iter_map =
-      arith::DetectIterMap(mapping_pattern, var_range, const_true(), arith::Bijective, analyzer);
+  auto iter_map = arith::DetectIterMap(mapping_pattern, var_range, IntImm::Bool(true),
+                                       arith::Bijective, analyzer);
   TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
   ffi::Map<Var, PrimExpr> inverse_mapping =
       arith::InverseAffineIterMap(iter_map->indices, loop_vars);

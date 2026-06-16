@@ -284,9 +284,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  IntImm(DataType::Int(32), low_inclusive));
+                  IntImm::Int32(low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  IntImm(DataType::Int(32), high_inclusive));
+                  IntImm::Int32(high_inclusive));
   }
   return {state};
 }

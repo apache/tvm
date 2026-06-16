@@ -273,12 +273,12 @@ Pass SimplifyForFeatureExtraction() {
           HasBufferLoad(node->condition)) {
         return ffi::GetRef<Select>(node);
       }
-      return make_const(node->dtype, 1.0);
+      return MakeConst(node->dtype, 1.0);
     }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return make_const(var->dtype, 0.0);
+        return MakeConst(var->dtype, 0.0);
       }
       return ffi::GetRef<Var>(var);
     }

@@ -199,33 +199,30 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_y),  //
-                                 IntImm(DataType::Int(32), thread_extent_x),  //
-                                 IntImm(DataType::Int(32), vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_y),  //
+                                                               IntImm::Int32(thread_extent_x),  //
+                                                               IntImm::Int32(vector_lane)});
           sch->Vectorize(split[3]);
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         } else {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_y),  //
-                                 IntImm(DataType::Int(32), thread_extent_x)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_y),  //
+                                                               IntImm::Int32(thread_extent_x)});
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         }
       } else {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_x),  //
-                                 IntImm(DataType::Int(32), vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_x),  //
+                                                               IntImm::Int32(vector_lane)});
           sch->Vectorize(split[2]);
           sch->Bind(split[1], "threadIdx.x");
         } else {
           ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt, IntImm(DataType::Int(32), thread_extent_x)});
+              sch->Split(fused, {std::nullopt, IntImm::Int32(thread_extent_x)});
           sch->Bind(split[1], "threadIdx.x");
         }
       }
