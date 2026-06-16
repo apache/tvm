@@ -120,7 +120,6 @@ tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 
 # initial variables
