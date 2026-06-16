@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
@@ -45,7 +46,7 @@ class BuiltinLower : public StmtExprMutator {
   static PrimFunc Build(PrimFunc func) {
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-      device_type = Integer(target.value()->kind->default_device_type);
+      device_type = IntImm(DataType::Int(32), target.value()->kind->default_device_type);
     }
 
     BuiltinLower mutator(device_type);
@@ -240,12 +241,15 @@ class BuiltinLower : public StmtExprMutator {
     // AllocBuffer is flat (no body). Visit buffer fields via base class.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
-    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
+      if (Downcast<IntImm>(op->annotations[transform::kDisableLowerTVMBuiltin])->value) {
         return stmt;
       }
     }
+    if (op->buffer->dtype.is_scalable_vector()) {
+      return stmt;
+    }
+    int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;
@@ -268,7 +272,9 @@ class BuiltinLower : public StmtExprMutator {
     Stmt alloc_nullptr_check = IfThenElse(
         Call(DataType::Bool(), builtin::isnullptr(), {op->buffer->data}), throw_last_error);
 
-    PrimExpr free_op = Call(DataType::Int(32), Op::Get("tirx.TVMBackendFreeWorkspace"),
+    static const Op& free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
+    static const Op& alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
+    PrimExpr free_op = Call(DataType::Int(32), free_workspace_op,
                             {cast(DataType::Int(32), device_type_.value()),
                              cast(DataType::Int(32), device_id_.value()), op->buffer->data});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
@@ -276,12 +282,12 @@ class BuiltinLower : public StmtExprMutator {
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind = Bind(op->buffer->data,
-                           Call(op->buffer->data.dtype(), Op::Get("tirx.TVMBackendAllocWorkspace"),
-                                {cast(DataType::Int(32), device_type_.value()),
-                                 cast(DataType::Int(32), device_id_.value()), total_bytes,
-                                 IntImm(DataType::Int(32), op->buffer->dtype.code()),
-                                 IntImm(DataType::Int(32), op->buffer->dtype.bits())}));
+    Stmt alloc_bind =
+        Bind(op->buffer->data, Call(op->buffer->data.dtype(), alloc_workspace_op,
+                                    {cast(DataType::Int(32), device_type_.value()),
+                                     cast(DataType::Int(32), device_id_.value()), total_bytes,
+                                     IntImm(DataType::Int(32), op->buffer->dtype.code()),
+                                     IntImm(DataType::Int(32), op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -526,8 +532,9 @@ class BuiltinLower : public StmtExprMutator {
     auto* call_pattern = arg.as<CallNode>();
     if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
       // call runtime function to set anylist
+      static const Op& anylist_set_packed_arg_op = Op::Get("tirx.TVMBackendAnyListSetPackedArg");
       prep_seq->emplace_back(Evaluate(Call(
-          DataType::Int(32), Op::Get("tirx.TVMBackendAnyListSetPackedArg"),
+          DataType::Int(32), anylist_set_packed_arg_op,
           {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
       DataType api_dtype = APIType(arg.dtype());
@@ -584,7 +591,9 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr ret_offset = call->args[3];
     auto& prep_seq = prep_seq_stack_.back();
     prep_seq.emplace_back(Evaluate(call));
-    return Call(DataType::Int(32), Op::Get("tirx.TVMBackendAnyListMoveFromPackedReturn"),
+    static const Op& anylist_move_from_packed_return_op =
+        Op::Get("tirx.TVMBackendAnyListMoveFromPackedReturn");
+    return Call(DataType::Int(32), anylist_move_from_packed_return_op,
                 {list_handle, list_index, args_stack, ret_offset});
   }
   /*!

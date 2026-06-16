@@ -80,9 +80,10 @@ class SplitExprCollector {
                                         const ffi::Map<Var, Range>& input_iters,  //
                                         const PrimExpr& predicate,                //
                                         arith::IterMapLevel check_level,          //
-                                        arith::Analyzer* analyzer) {
+                                        arith::AnalyzerObj* analyzer) {
+    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
-                                                    predicate, check_level, analyzer);
+                                                    predicate, check_level, analyzer_ref);
     const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
@@ -130,7 +131,7 @@ class SplitExprCollector {
 
 ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::Analyzer* analyzer) {
+                                        arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
@@ -218,14 +219,16 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
     for (int i = 0, n = indices.size(); i < n; ++i) {
       const Var& index = indices[inverse_order[i]];
       inv_permuted_indices.push_back(index);
-      analyzer->Bind(index, Range::FromMinExtent(0, Integer(split_exprs[i].extent)));
+      analyzer->Bind(index,
+                     Range::FromMinExtent(0, IntImm(DataType::Int(32), split_exprs[i].extent)));
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
     PrimExpr flattened_index = make_const(indices[0]->dtype, 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
-      flattened_index = inv_permuted_indices[i] * Integer(stride) + flattened_index;
+      flattened_index =
+          inv_permuted_indices[i] * IntImm(DataType::Int(32), stride) + flattened_index;
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.
@@ -248,7 +251,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "s_tir.schedule.SuggestIndexMap",
       [](Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
         arith::Analyzer analyzer;
-        return SuggestIndexMap(buffer, indices, loops, predicate, &analyzer);
+        return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
       });
 }
 

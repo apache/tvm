@@ -53,6 +53,7 @@ If not already acquainted, please refer to :ref:`tirx-learning` initially.
 # format of the ir_module and in TVMScript:
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 from tvm.script import ir as I
@@ -61,7 +62,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -104,7 +105,7 @@ class MyModule:
 
 @I.ir_module
 class ConciseModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mm_relu(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -126,7 +127,7 @@ class ConciseModule:
 ######################################################################
 # We can use the following code to verify that the two modules are equivalent:
 
-print(tvm.ir.structural_equal(MyModule, ConciseModule))
+print(tvm_ffi.structural_equal(MyModule, ConciseModule))
 
 ######################################################################
 # Interactive with Python Variables
@@ -143,7 +144,7 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mm_relu(
         A: T.Buffer((M, K), dtype),
         B: T.Buffer((K, N), dtype),
@@ -165,7 +166,7 @@ class ConciseModuleFromPython:
 ######################################################################
 # Check the equivalence:
 
-print(tvm.ir.structural_equal(ConciseModule, ConciseModuleFromPython))
+print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
 
 ######################################################################
@@ -178,10 +179,12 @@ print(tvm.ir.structural_equal(ConciseModule, ConciseModuleFromPython))
 
 @I.ir_module
 class DynamicShapeModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mm_relu(a: T.handle, b: T.handle, c: T.handle):
         # Dynamic shape definition
-        M, N, K = T.int32(), T.int32(), T.int32()
+        M = T.int32()
+        N = T.int32()
+        K = T.int32()
 
         # Bind the input buffers with the dynamic shapes
         A = T.match_buffer(a, [M, K], dtype)

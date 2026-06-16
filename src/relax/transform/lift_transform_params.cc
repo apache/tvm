@@ -43,7 +43,7 @@ namespace tvm {
 namespace relax {
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
-TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
 
 namespace {
 struct BaseCollectInfo {
@@ -436,8 +436,8 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
   void VisitExpr_(const FunctionNode* func) override {
     size_t num_runtime_params = func->params.size();
-    if (auto opt = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
-      num_runtime_params = opt.value()->value;
+    if (auto opt = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+      num_runtime_params = opt.value();
     }
 
     info_.num_runtime_params = num_runtime_params;
@@ -517,10 +517,10 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
       const ffi::Array<Function>& functions) {
     ParamRemapper mapper;
     if (functions.size()) {
-      auto num_inputs_0 = functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value;
+      auto num_inputs_0 = functions[0]->GetAttr<int64_t>(attr::kNumInput).value();
       int num_params = static_cast<int>(functions[0]->params.size()) - num_inputs_0;
       for (int i = 0; i < static_cast<int>(functions.size()); i++) {
-        auto num_inputs_i = functions[i]->GetAttr<Integer>(attr::kNumInput).value()->value;
+        auto num_inputs_i = functions[i]->GetAttr<int64_t>(attr::kNumInput).value();
         TVM_FFI_ICHECK_EQ(num_params, static_cast<int>(functions[i]->params.size()) - num_inputs_i)
             << "The number of parameters should be the same for all target functions";
 
@@ -573,15 +573,15 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
     GlobalLiftableBindingCollector collector(var_remap, tir_var_remap);
     TVM_FFI_ICHECK(functions.size());
     for (const auto& func : functions) {
-      int num_inputs = func->GetAttr<Integer>(attr::kNumInput).value()->value;
+      int num_inputs = func->GetAttr<int64_t>(attr::kNumInput).value();
       for (int i = num_inputs; i < static_cast<int>(func->params.size()); i++) {
         collector.liftable_vars_.insert(func->params[i]);
       }
       collector(func);
     }
-    ffi::Array<Var> params(functions[0]->params.begin() +
-                               functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value,
-                           functions[0]->params.end());
+    ffi::Array<Var> params(
+        functions[0]->params.begin() + functions[0]->GetAttr<int64_t>(attr::kNumInput).value(),
+        functions[0]->params.end());
     // todo(@tvm-team): use c++20 designated initializers when windows CI supports it
     GlobalCollectInfo info = GlobalCollectInfo();
     info.orig_functions = functions;
@@ -691,9 +691,9 @@ class ConsumeBundledParams : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {
-    auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
-    TVM_FFI_ICHECK(opt_num_input.defined());
-    auto num_input = opt_num_input.value()->value;
+    auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
+    TVM_FFI_ICHECK(opt_num_input.has_value());
+    auto num_input = opt_num_input.value();
     TVM_FFI_ICHECK_EQ(func->params.size(), num_input + 1);
     params_ = func->params.back();
     TVM_FFI_ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
@@ -706,7 +706,7 @@ class ConsumeBundledParams : public ExprMutator {
 };
 
 std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
-    const IRModule& mod, const ffi::Variant<Bool, ffi::Array<ffi::String>>& shared_transform) {
+    const IRModule& mod, const ffi::Variant<bool, ffi::Array<ffi::String>>& shared_transform) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
   if (shared_transform.as<ffi::Array<ffi::String>>().value_or(ffi::Array<ffi::String>{}).size()) {
     auto names = shared_transform.as<ffi::Array<ffi::String>>().value();
@@ -728,7 +728,7 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
                            << "only functions in the list must be relax functions.  "
                            << "However, the function " << name << " is of type "
                            << base_func.value()->GetTypeKey();
-      TVM_FFI_ICHECK(func.value()->GetAttr<Integer>(attr::kNumInput))
+      TVM_FFI_ICHECK(func.value()->GetAttr<int64_t>(attr::kNumInput))
           << "When LiftTransformParams is called with a list of function names, "
           << "all functions in the list must have the kNumInput ('" << attr::kNumInput
           << "') attribute.  "
@@ -741,7 +741,7 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
     // are not already the result of `LiftTransformParams`.
     for (const auto& [gvar, func] : mod->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
+        auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
         if (opt_num_input && !ends_with(gvar->name_hint, "transform_params")) {
           target_functions.emplace_back(gvar, Downcast<Function>(func));
         }
@@ -759,16 +759,16 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
 
 namespace transform {
 
-Pass PartitionTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform) {
+Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     std::optional<GlobalCollectInfo> global_collect_info;
 
-    TVM_FFI_ICHECK((shared_transform.as<Bool>() || shared_transform.as<ffi::Array<ffi::String>>()))
+    TVM_FFI_ICHECK((shared_transform.as<bool>() || shared_transform.as<ffi::Array<ffi::String>>()))
         << "shared_transform should be a boolean or an array of function names";
 
     auto target_functions = GetTargetFunctions(mod, shared_transform);
 
-    if (shared_transform.as<Bool>().value_or(Bool(true))) {
+    if (shared_transform.as<bool>().value_or(true)) {
       std::vector<Function> functions;
       for (const auto& [_, func] : target_functions) {
         functions.push_back(func);
@@ -825,7 +825,7 @@ Pass PartitionTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared
   return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
 }
 
-Pass LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_transform) {
+Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform) {
   // A post-proc utility as as the third step in LiftTransformParams
   //
   // 1. PartitionTransformParams: Partition each function into a
@@ -845,7 +845,7 @@ Pass LiftTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared_tran
         std::string func_name = gvar->name_hint;
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
-          if (pc->GetConfig<Bool>(kLiftTransformConsumeParams).value_or(Bool(false))) {
+          if (pc->GetConfig<bool>(kLiftTransformConsumeParams).value_or(false)) {
             func = Downcast<Function>(ConsumeBundledParams()(func));
           }
           to_add[gvar] = func;

@@ -38,7 +38,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
 
 /*!
  * \brief Check if a given Tensor/Shape/TupleStructInfo contains shapes whose
@@ -109,7 +109,7 @@ class LegalizeMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   bool WrapPureCondition(const Op& op, const Expr& legalized) {
-    static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
+    static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
 
     const CallNode* call = legalized.as<CallNode>();
 
@@ -120,10 +120,10 @@ class LegalizeMutator : public ExprMutator {
       return false;
     }
 
-    bool pure_original_op = purity_map.get(op, Bool(false))->value;
+    bool pure_original_op = purity_map.get(op, false);
     bool pure_legalized_op = [&]() -> bool {
       if (auto legalized_op = call->op.as<Op>()) {
-        return purity_map.get(legalized_op.value(), Bool(false))->value;
+        return purity_map.get(legalized_op.value(), false);
       } else if (auto func_sinfo = call->op->struct_info_.as<FuncStructInfoNode>()) {
         return func_sinfo->purity;
       } else {
@@ -237,7 +237,7 @@ class LegalizeMutator : public ExprMutator {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
-    static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
+    static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
@@ -254,7 +254,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     bool shapes_are_known_if_required = [&]() -> bool {
-      bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
+      bool requires_arg_shapes = requires_arg_shapes_map.get(op, true);
       if (!requires_arg_shapes) {
         // This operator does not require its arguments to have a
         // known shape/dtype.  For example, the "relax.tensor_ndim"
@@ -291,9 +291,9 @@ class LegalizeMutator : public ExprMutator {
 
       bool is_data_dependent_op = [&]() -> bool {
         if (Op::HasAttrMap("FDataDependent")) {
-          auto op_map = Op::GetAttrMap<Bool>("FDataDependent");
+          auto op_map = Op::GetAttrMap<bool>("FDataDependent");
           if (op_map.count(op)) {
-            return op_map[op]->value;
+            return op_map[op];
           }
         }
         return false;
@@ -416,7 +416,7 @@ Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
                  ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
-        pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
+        pc->GetConfig<bool>("relax.transform.apply_legalize_ops").value_or(true);
     if (apply_legalize_ops) {
       mod = LegalizeMutator(mod, cmap, skip_ops, enable_warning).Transform();
     }

@@ -63,10 +63,6 @@ RUN bash /install/ubuntu_install_dnnl.sh
 COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
 RUN bash /install/ubuntu_install_xgboost.sh
 
-# BYODT deps
-COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
-RUN bash /install/ubuntu_install_universal.sh
-
 # TensorFlow deps
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
 RUN bash /install/ubuntu_install_tensorflow.sh

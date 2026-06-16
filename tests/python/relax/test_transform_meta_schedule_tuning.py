@@ -34,6 +34,8 @@
 
 import tempfile
 
+import tvm_ffi
+
 import tvm
 import tvm.s_tir.meta_schedule as ms
 import tvm.testing
@@ -49,7 +51,7 @@ target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 @tvm.script.ir_module
 class InputModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
         k = T.int32()
@@ -64,7 +66,7 @@ class InputModule:
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_relu(x: T.handle, y: T.handle):
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
@@ -114,7 +116,7 @@ def test_ms_tuning_irmodule():
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
 
             out_mod = application_pass(mod)
-            assert not tvm.ir.structural_equal(mod, out_mod)
+            assert not tvm_ffi.structural_equal(mod, out_mod)
 
 
 def test_ms_tuning_primfunc():
@@ -141,7 +143,7 @@ def test_ms_tuning_primfunc():
 
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
             out_mod = application_pass(mod)
-            assert not tvm.ir.structural_equal(mod, out_mod)
+            assert not tvm_ffi.structural_equal(mod, out_mod)
 
     with tempfile.TemporaryDirectory() as work_dir:
         with target, PassContext(opt_level=0):
@@ -166,7 +168,7 @@ def test_ms_tuning_primfunc():
 
 @tvm.script.ir_module
 class DefaultScheduledModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_matmul(
         A: T.Buffer((32, 32), "float32"),
         B: T.Buffer((32, 32), "float32"),
@@ -187,7 +189,7 @@ class DefaultScheduledModule:
                             C[i, j] = T.float32(0)
                         C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_relu(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with T.sblock("root"):

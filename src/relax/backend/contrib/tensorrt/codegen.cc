@@ -46,8 +46,8 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompilerConfigNode> {
-  ffi::Array<Integer> tensorrt_version;
+struct TensorRTCompilerConfigNode : public ffi::Object {
+  ffi::Array<int64_t> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
   bool remove_no_mac_subgraphs;
@@ -59,9 +59,10 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
     refl::ObjectDef<TensorRTCompilerConfigNode>()
         .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
-                refl::DefaultValue(ffi::Array<Integer>({6, 0, 1})))
+                refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
-                "Use implicit batch", refl::DefaultValue(true))
+                "Use implicit batch (removed in TensorRT 10; networks are always explicit-batch)",
+                refl::DefaultValue(false))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
                 "Max workspace size", refl::DefaultValue(size_t(1) << 30))
         .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,
@@ -72,12 +73,12 @@ struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompiler
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
-                                    TensorRTCompilerConfigNode, BaseAttrsNode);
+                                    TensorRTCompilerConfigNode, ffi::Object);
 };
 
-class TensorRTCompilerConfig : public Attrs {
+class TensorRTCompilerConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, ffi::ObjectRef,
                                                 TensorRTCompilerConfigNode);
 };
 
@@ -180,12 +181,12 @@ class TensorRTJSONSerializer : public JSONSerializer {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
+      cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0].IntValue(),
-                                            cfg.value()->tensorrt_version[1].IntValue(),
-                                            cfg.value()->tensorrt_version[2].IntValue()};
+    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],
+                                            cfg.value()->tensorrt_version[1],
+                                            cfg.value()->tensorrt_version[2]};
     node->SetAttr("tensorrt_version", std::move(tensorrt_version));
     node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
     node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));
@@ -255,9 +256,9 @@ inline constexpr bool IsTensorRTRuntimeEnabled() {
  * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
  * runtime is not enabled.
  */
-ffi::Array<Integer> GetTensorRTVersion() {
+ffi::Array<int64_t> GetTensorRTVersion() {
 #if TVM_GRAPH_EXECUTOR_TENSORRT
-  return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
+  return {NV_TENSORRT_MAJOR, NV_TENSORRT_MINOR, NV_TENSORRT_PATCH};
 #else
   return {};
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT

@@ -34,7 +34,7 @@ def _check(before, expect):
 
 
 def test_matmul():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -60,7 +60,7 @@ def test_matmul():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_[vj, vk // 4, vk % 4]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 4, 4), "float32"),

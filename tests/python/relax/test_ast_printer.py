@@ -438,7 +438,7 @@ def test_call_tir():
     # also from test_parser
     @tvm.script.ir_module
     class TestCallTIR:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def addone(A_handle: T.handle, B_handle: T.handle) -> None:
             m = T.int64()
             n = T.int64()

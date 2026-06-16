@@ -95,7 +95,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const size_t innermost_axis = block_node->writes[0]->region.size() - 1;
   const PrimExpr innermost_iter_value = block_realize->iter_values[innermost_axis];
 
-  if (!arith::Analyzer().CanProve(loop->loop_var == innermost_iter_value)) {
+  if (!arith::Analyzer()->CanProve(loop->loop_var == innermost_iter_value)) {
     // If this is not the innermost spatial loop, split the loop in the normal way.
     return MultiLevelTilingNode::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {
@@ -125,13 +125,13 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
 }
 
 ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
-    ffi::String structure, Integer vector_length_in_bits,
-    ffi::Optional<Integer> max_innermost_factor,
+    ffi::String structure, int64_t vector_length_in_bits,
+    ffi::Optional<int64_t> max_innermost_factor,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
       structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
-  node->vector_length_in_bits = vector_length_in_bits->value;
+  node->vector_length_in_bits = vector_length_in_bits;
   return ScheduleRule(node);
 }
 

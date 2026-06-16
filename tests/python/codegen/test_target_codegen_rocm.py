@@ -16,19 +16,22 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_inf_nan():
     def check_inf_nan(dev, n, value, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -56,7 +59,8 @@ def test_rocm_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float64")
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_copy():
     def check_rocm(dtype, n):
         dev = tvm.rocm(0)
@@ -73,15 +77,16 @@ def test_rocm_copy():
         check_rocm(dtype, int(peturb * (2**logN)))
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorize_add():
     def check_rocm(dtype, n, lanes):
         vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // 4
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -104,9 +109,10 @@ def test_rocm_vectorize_add():
     check_rocm("float16", 64, 2)
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_warp_shuffle():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         A_handle: T.handle,
     ):
@@ -130,9 +136,10 @@ def test_rocm_warp_shuffle():
     tvm.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorized_exp():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         A_handle: T.handle,
         B_handle: T.handle,
@@ -154,14 +161,15 @@ def test_rocm_vectorized_exp():
     tvm.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export+load+run."""
     n = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

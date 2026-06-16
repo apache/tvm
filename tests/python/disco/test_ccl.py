@@ -32,7 +32,10 @@ from tvm.s_tir import dlight as dl
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
-_ccl = [get_global_func("runtime.disco.compiled_ccl")()]
+_compiled_ccl = get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+if _compiled_ccl is None:
+    pytest.skip("Disco CCL is not enabled in this TVM build", allow_module_level=True)
+_ccl = [_compiled_ccl()]
 
 
 def create_device_target(ccl):

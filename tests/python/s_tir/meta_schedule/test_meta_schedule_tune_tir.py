@@ -21,20 +21,24 @@ import tempfile
 import numpy as np
 import pytest
 
+pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
+
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tirx as T
 from tvm.target import Target
+from tvm.testing import env
 
 logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -47,7 +51,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def two_step(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024), "float32")
     B = T.sblock_alloc_buffer((1024, 1024), "float32")
@@ -63,7 +67,7 @@ def two_step(a: T.handle, c: T.handle) -> None:
 
 
 @pytest.mark.skip("Integration test")
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tune_matmul_cpu():
     with tempfile.TemporaryDirectory() as work_dir:
         target = Target({"kind": "llvm", "num-cores": 16})
@@ -83,7 +87,8 @@ def test_tune_matmul_cpu():
 
 
 @pytest.mark.skip("Integration test")
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tune_matmul_cuda():
     with tempfile.TemporaryDirectory() as work_dir:
         target = Target("nvidia/geforce-rtx-3070")
@@ -147,7 +152,7 @@ def test_tune_run_module_via_rpc():
 
 @pytest.mark.skip("Integration test")
 def test_tune_block_cpu():
-    @ms.derived_object
+    @derived_object
     class RemoveBlock(ms.schedule_rule.PyScheduleRule):
         def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
             pass

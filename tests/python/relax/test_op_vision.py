@@ -20,8 +20,12 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
@@ -110,9 +114,9 @@ def test_roi_align_wrong_input_ndim():
     rois0 = relax.Var("rois", R.Tensor((4,), "float32"))
     rois1 = relax.Var("rois", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_align(x0, rois1, (7, 7), 1.0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_align(x1, rois0, (7, 7), 1.0))
 
 
@@ -121,7 +125,7 @@ def test_roi_align_wrong_rois_last_dim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((4, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_align(x, rois, (7, 7), 1.0))
 
 
@@ -130,7 +134,7 @@ def test_roi_align_wrong_layout():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_align(x, rois, (7, 7), 1.0, layout="HWCN"))
 
 
@@ -259,18 +263,18 @@ def test_get_valid_counts_infer_struct_info_shape_var():
 def test_get_valid_counts_wrong_ndim():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((10, 6), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.get_valid_counts(data))
 
 
 def test_get_valid_counts_invalid_indices():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.get_valid_counts(data, score_index=6))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.get_valid_counts(data, id_index=6))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.get_valid_counts(data, id_index=-2))
 
 
@@ -352,7 +356,7 @@ def test_nms_wrong_ndim():
     data = relax.Var("data", R.Tensor((10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices))
 
 
@@ -361,7 +365,7 @@ def test_nms_wrong_valid_count_ndim():
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2, 1), "int32"))
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices))
 
 
@@ -370,7 +374,7 @@ def test_nms_wrong_indices_ndim():
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
     indices = relax.Var("indices", R.Tensor((20,), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices))
 
 
@@ -381,9 +385,9 @@ def test_nms_wrong_aux_input_dtype():
     valid_count_i32 = relax.Var("valid_count_i32", R.Tensor((2,), "int32"))
     indices_i64 = relax.Var("indices_i64", R.Tensor((2, 10), "int64"))
     indices_i32 = relax.Var("indices_i32", R.Tensor((2, 10), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count_i64, indices_i32))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count_i32, indices_i64))
 
 
@@ -394,13 +398,13 @@ def test_nms_wrong_aux_input_shape():
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
     indices_bad_batch = relax.Var("indices_bad_batch", R.Tensor((3, 10), "int32"))
     indices_bad_anchors = relax.Var("indices_bad_anchors", R.Tensor((2, 9), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(
             relax.op.vision.non_max_suppression(data, valid_count_bad_batch, indices_bad_anchors)
         )
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices_bad_batch))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices_bad_anchors))
 
 
@@ -409,13 +413,13 @@ def test_nms_invalid_indices():
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
     indices = relax.Var("indices", R.Tensor((2, 10), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, score_index=6))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, id_index=6))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, id_index=-2))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.non_max_suppression(data, valid_count, indices, coord_start=3))
 
 
@@ -567,7 +571,7 @@ def test_nms_legalize_return_data():
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_get_valid_counts_e2e():
     """Run get_valid_counts through legalization and compare with the numpy reference."""
 
@@ -682,7 +686,7 @@ def _run_nms_e2e(
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_indices():
     """Run classic NMS through legalization and compare with the numpy reference."""
 
@@ -725,7 +729,7 @@ def test_nms_e2e_return_indices():
     tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_soft_nms_reorders_by_decayed_score():
     """Soft-NMS should re-rank by decayed scores instead of keeping the initial order."""
 
@@ -776,7 +780,7 @@ def test_nms_e2e_soft_nms_reorders_by_decayed_score():
     tvm.testing.assert_allclose(result[2].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_indices_with_invalid_to_bottom():
     """Validate that invalid_to_bottom is a no-op when returning indices."""
 
@@ -819,7 +823,7 @@ def test_nms_e2e_return_indices_with_invalid_to_bottom():
     tvm.testing.assert_allclose(result[1].numpy(), ref_valid_box_count)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_top_k():
     """Validate that classic NMS honors top_k before suppression."""
 
@@ -866,7 +870,7 @@ def test_nms_e2e_top_k():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_force_suppress():
     """Validate that force_suppress ignores class ids when suppressing overlaps."""
 
@@ -911,7 +915,7 @@ def test_nms_e2e_force_suppress():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_max_output_size():
     """Validate that max_output_size truncates the kept boxes after score sorting."""
 
@@ -957,7 +961,7 @@ def test_nms_e2e_max_output_size():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_multi_batch():
     """Validate that classic NMS processes each batch independently."""
 
@@ -1010,7 +1014,7 @@ def test_nms_e2e_multi_batch():
     np.testing.assert_array_equal(ref_valid_box_count, np.array([[2], [3]], dtype="int32"))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_invalid_to_bottom():
     """Validate that invalid_to_bottom compacts only boxes that remain valid after NMS."""
 
@@ -1065,7 +1069,7 @@ def test_nms_e2e_invalid_to_bottom():
     tvm.testing.assert_allclose(result.numpy(), expected_out_data)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_return_data_without_compaction():
     """Validate the return_indices=False path when invalid boxes stay in-place."""
 
@@ -1120,7 +1124,7 @@ def test_nms_e2e_return_data_without_compaction():
     tvm.testing.assert_allclose(result.numpy(), expected_out_data)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_nms_e2e_index_remap():
     """Validate that returned indices remap from filtered order back to original order."""
 
@@ -1209,9 +1213,9 @@ def test_roi_pool_wrong_input_ndim():
     rois0 = relax.Var("rois", R.Tensor((4,), "float32"))
     rois1 = relax.Var("rois", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_pool(x0, rois1, (7, 7), 1.0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_pool(x1, rois0, (7, 7), 1.0))
 
 
@@ -1220,7 +1224,7 @@ def test_roi_pool_wrong_rois_last_dim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((4, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_pool(x, rois, (7, 7), 1.0))
 
 
@@ -1229,7 +1233,7 @@ def test_roi_pool_wrong_layout():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.roi_pool(x, rois, (7, 7), 1.0, layout="NHWC"))
 
 
@@ -1285,7 +1289,7 @@ def test_all_class_non_max_suppression_wrong_input_number():
     boxes = relax.Var("boxes", R.Tensor((1, 5, 4), "float32"))
     scores = relax.Var("scores", R.Tensor((1, 3, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.vision.all_class_non_max_suppression(boxes, scores)
 
 
@@ -1346,7 +1350,7 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     )
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_all_class_non_max_suppression_legalize_e2e():
     @tvm.script.ir_module
     class NMSModule:
@@ -1438,7 +1442,7 @@ def test_multibox_transform_loc_wrong_cls_ndim():
     cls = relax.Var("cls", R.Tensor((2, 3), "float32"))
     loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
     anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
 
 
@@ -1447,11 +1451,11 @@ def test_multibox_transform_loc_wrong_shape_relation():
     cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
     anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
     loc_bad_div = relax.Var("loc_bad_div", R.Tensor((2, 19), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_div, anc))
     # Divisible by 4 but loc_dim != 4*N (N=5 -> expect 20, not 24)
     loc_bad_n = relax.Var("loc_bad_n", R.Tensor((2, 24), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc_bad_n, anc))
 
 
@@ -1461,9 +1465,9 @@ def test_multibox_transform_loc_wrong_anchor_shape():
     loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
     anc_bad_batch = relax.Var("anc_bad_batch", R.Tensor((2, 5, 4), "float32"))
     anc_bad_last = relax.Var("anc_bad_last", R.Tensor((1, 5, 5), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc_bad_batch))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc_bad_last))
 
 
@@ -1472,7 +1476,7 @@ def test_multibox_transform_loc_wrong_dtype():
     cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
     loc = relax.Var("loc", R.Tensor((2, 20), "float16"))
     anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
 
 
@@ -1481,7 +1485,7 @@ def test_multibox_transform_loc_wrong_batch():
     cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
     loc = relax.Var("loc", R.Tensor((1, 20), "float32"))
     anc = relax.Var("anc", R.Tensor((1, 5, 4), "float32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.vision.multibox_transform_loc(cls, loc, anc))
 
 
@@ -1530,7 +1534,7 @@ def _multibox_ref_numpy(
     return boxes, scores
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_e2e():
     @tvm.script.ir_module
     class Mod:
@@ -1578,7 +1582,7 @@ def test_multibox_transform_loc_legalize_e2e():
     tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
     @tvm.script.ir_module
     class Mod:
@@ -1626,7 +1630,7 @@ def test_multibox_transform_loc_legalize_e2e_nonunity_variances():
     tvm.testing.assert_allclose(out[1].numpy(), ref_s, rtol=1e-4, atol=1e-5)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_multibox_transform_loc_legalize_attr_branches():
     @tvm.script.ir_module
     class Mod:

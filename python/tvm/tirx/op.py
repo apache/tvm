@@ -24,19 +24,45 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Op, PrimExpr
+from tvm.ir import Op, PointerType, PrimExpr
 from tvm.ir.base import Span
+from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer
 from .expr import BufferLoad, Call, CommReducer, IntImm, PrimExprWithOp, Var
 
+tir = tirx  # alias for backward compat with upstream tir.convert() calls
+
+_DEVICE_INTRIN_PREFIX_TO_NAMESPACE = {
+    "cuda_": "cuda",
+    "ptx_": "ptx",
+    "nvshmem_": "nvshmem",
+    "nki_": "nki",
+}
+
+
+def _canonical_device_intrin_name(func_name: str) -> str:
+    """Return the canonical registry name for statically registered device intrinsics."""
+
+    if not isinstance(func_name, str) or not func_name.startswith("tirx."):
+        return func_name
+    basename = func_name[len("tirx.") :]
+    if "." in basename:
+        return func_name
+    for prefix, namespace in _DEVICE_INTRIN_PREFIX_TO_NAMESPACE.items():
+        if basename.startswith(prefix):
+            return f"tirx.{namespace}.{basename[len(prefix) :]}"
+    return func_name
+
 
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
-    shape = Call("handle", "tirx.tvm_stack_make_shape", buf.shape, span)
-    strides = Call("handle", "tirx.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
+    shape = Call("handle", "tirx.tvm_stack_make_shape", buf.shape, span=span)
+    strides = (
+        Call("handle", "tirx.tvm_stack_make_shape", buf.strides, span=span) if buf.strides else 0
+    )
     pack_args = [
         buf.data,
         shape,
@@ -45,7 +71,7 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.dtype),
         buf.elem_offset,
     ]
-    return Call("handle", Op.get("tirx.tvm_stack_make_array"), pack_args, span)
+    return Call("handle", Op.get("tirx.tvm_stack_make_array"), pack_args, span=span)
 
 
 def call_packed_lowered(*args, span=None):
@@ -74,7 +100,7 @@ def call_packed_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed_lowered"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span)
 
 
 def call_cpacked_lowered(*args, span=None):
@@ -100,7 +126,7 @@ def call_cpacked_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span)
 
 
 def call_packed(*args, span=None):
@@ -131,7 +157,7 @@ def call_packed(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_packed"), call_args, span=span)
 
 
 def call_cpacked(*args, span=None):
@@ -158,10 +184,10 @@ def call_cpacked(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span)
+    return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span=span)
 
 
-def call_intrin(dtype, func_name, *args, span=None):
+def call_intrin(dtype, func_name, *args, attrs=None, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -178,6 +204,9 @@ def call_intrin(dtype, func_name, *args, span=None):
     args : list
         Positional arguments.
 
+    attrs : Optional[tvm.ir.Attrs or Dict[str, Object]]
+        Additional attributes for the call.
+
     span : Optional[Span]
         The location of this operator in the source code.
 
@@ -186,7 +215,9 @@ def call_intrin(dtype, func_name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, func_name, args, span)
+    if isinstance(func_name, str):
+        func_name = _canonical_device_intrin_name(func_name)
+    return Call(dtype, func_name, args, attrs=attrs, span=span)
 
 
 def call_pure_extern(dtype, func_name, *args, span=None):
@@ -211,7 +242,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, Op.get("tirx.call_pure_extern"), [func_name, *args], span)
+    return Call(dtype, Op.get("tirx.call_pure_extern"), [func_name, *args], span=span)
 
 
 def call_extern(dtype, func_name, *args, span=None):
@@ -564,13 +595,20 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tirx.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(obj: Buffer | BufferLoad, span: Span | None = None) -> PrimExpr:
-    """Returns the address of an element in the buffer
+def _is_tensormap_var(obj: Var) -> bool:
+    type_annotation = obj.type_annotation
+    return isinstance(type_annotation, PointerType) and isinstance(
+        type_annotation.element_type, TensorMapType
+    )
+
+
+def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> PrimExpr:
+    """Returns the address of a buffer element or addressable variable.
 
     Parameters
     ----------
-    obj: Union[Buffer, BufferLoad]
-        The buffer or buffer load.
+    obj: Union[Buffer, BufferLoad, Var]
+        The buffer, buffer load, or addressable variable.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -584,6 +622,9 @@ def address_of(obj: Buffer | BufferLoad, span: Span | None = None) -> PrimExpr:
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return call_intrin("handle", "tirx.address_of", buffer_load, span=span)
+    elif isinstance(obj, Var):
+        dtype = "uint64" if _is_tensormap_var(obj) else "handle"
+        return call_intrin(dtype, "tirx.address_of", obj, span=span)
     elif isinstance(obj, BufferLoad):
         return call_intrin("handle", "tirx.address_of", obj, span=span)
     else:
@@ -642,7 +683,7 @@ def tvm_thread_invariant(cond):
     return call_intrin(cond.dtype, "tirx.tvm_thread_invariant", cond)
 
 
-def tvm_storage_sync(storage_scope):
+def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
     """Perform synchronization in specified scope.
 
     Parameters
@@ -650,12 +691,34 @@ def tvm_storage_sync(storage_scope):
     storage_scope : str
         The storage scope to perform synchronization.
 
+    is_load : bool
+        Whether to perform load synchronization. (for global sync only)
+
+    num_blocks : int
+        The number of blocks to synchronize. (for global sync only)
+
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tirx.tvm_storage_sync", storage_scope)
+    return call_intrin("void", "tirx.tvm_storage_sync", storage_scope, is_load, num_blocks)
+
+
+def tvm_kernel_replace_point():
+    """Mark where a transform should replace generated kernel initialization."""
+    return call_intrin("void", "tirx.tvm_kernel_replace_point")
+
+
+def tvm_global_barrier_kinit():
+    """Initialize the global barrier.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("void", "tirx.tvm_global_barrier_kinit")
 
 
 def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
@@ -736,6 +799,32 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
     )
 
 
+def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size):
+    """Copy value from a lane with index computed by `src_lane_idx ^ lane_mask`.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    lane_mask : PrimExpr
+        The mask to compute source lane index:
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        value.dtype, "tirx.tvm_warp_shuffle_xor", mask, value, lane_mask, width, warp_size
+    )
+
+
 def tvm_warp_activemask():
     """Return a 32-bit mask indicates currently active threads in a calling warp.
 
@@ -768,8 +857,11 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
 
     Parameters
     ----------
-    ptype : Expr
-        The data type of pointer.
+    ptype : Expr or str
+        The data type of pointer. If a ``str``, it is wrapped via
+        :func:`type_annotation` so that the lowering rule (which reads
+        ``args[0].dtype()`` for the cast type) sees the intended dtype
+        instead of ``void`` from a raw StringImm.
 
     data : DType*
         The data of pointer.
@@ -788,7 +880,20 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     call : PrimExpr
         The call expression.
     """
+    if isinstance(ptype, str):
+        ptype = type_annotation(ptype)
     return call_intrin("handle", "tirx.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+
+
+def ptr_byte_offset(data, byte_offset, dtype):
+    """Cast ``data + byte_offset`` to ``dtype*``.
+
+    ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
+    needs an explicitly typed local pointer derived from a byte-addressed base.
+    """
+    if isinstance(dtype, str):
+        dtype = type_annotation(dtype)
+    return call_intrin("handle", "tirx.ptr_byte_offset", data, byte_offset, dtype)
 
 
 def tvm_throw_last_error():
@@ -802,994 +907,14 @@ def tvm_throw_last_error():
     return call_intrin("handle", "tirx.tvm_throw_last_error")
 
 
-def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
-    """TVM intrinsic for tensor core load operators
-
-    Parameters
-    ----------
-    fragment : Var
-        The wmma fragment.
-
-    m : UIntImm
-        The shape of wmma fragment.
-
-    n : UIntImm
-        The shape of wmma fragment.
-
-    k : UIntImm
-        The shape of wmma fragment.
-
-    index : Expr
-        The fragment index.
-
-    buffer_ptr : Expr
-        The fragment buffer pointer.
-
-    stride : Expr
-        The fragment stride.
-
-    layout : Literal["row_major", "column_major"]
-        The fragment layout.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.tvm_load_matrix_sync",
-        fragment,
-        m,
-        n,
-        k,
-        index,
-        buffer_ptr,
-        stride,
-        layout,
-    )
-
-
-def tvm_mma_sync(
-    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
-):
-    """TVM intrinsic for tensor core mma_sync operators
-
-    Parameters
-    ----------
-    fragment_d : Var
-        The wmma fragment_d.
-
-    index_d : Expr
-        The fragment_d index.
-
-    fragment_a : Var
-        The wmma fragment_a.
-
-    index_a : Expr
-        The fragment_a index.
-
-    fragment_b : Var
-        The wmma fragment_b.
-
-    index_b : Expr
-        The fragment_b index.
-
-    fragment_c : Var
-        The wmma fragment_c.
-
-    index_c : Expr
-        The fragment_c index.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.tvm_mma_sync",
-        fragment_d,
-        index_d,
-        fragment_a,
-        index_a,
-        fragment_b,
-        index_b,
-        fragment_c,
-        index_c,
-    )
-
-
-def tvm_bmma_sync(
-    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
-):
-    """TVM intrinsic for tensor core bmma_sync operators
-
-    Parameters
-    ----------
-    fragment_d : Var
-        The bwmma fragment_d.
-
-    index_d : Expr
-        The fragment_d index.
-
-    fragment_a : Var
-        The bwmma fragment_a.
-
-    index_a : Expr
-        The fragment_a index.
-
-    fragment_b : Var
-        The bwmma fragment_b.
-
-    index_b : Expr
-        The fragment_b index.
-
-    fragment_c : Var
-        The bwmma fragment_c.
-
-    index_c : Expr
-        The fragment_c index.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.tvm_bmma_sync",
-        fragment_d,
-        index_d,
-        fragment_a,
-        index_a,
-        fragment_b,
-        index_b,
-        fragment_c,
-        index_c,
-    )
-
-
-def tvm_fill_fragment(fragment, m, n, k, index, value):
-    """TVM intrinsic for tensor core fill_fragment operators
-
-    Parameters
-    ----------
-    fragment : Var
-        The wmma fragment
-
-    m : UIntImm
-        The shape of wmma fragment.
-
-    n : UIntImm
-        The shape of wmma fragment.
-
-    k : UIntImm
-        The shape of wmma fragment.
-
-    index : Expr
-        The fragment index.
-
-    value : Expr
-        The value to be filled in fragment.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.tvm_fill_fragment",
-        fragment,
-        m,
-        n,
-        k,
-        index,
-        value,
-    )
-
-
-def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
-    """TVM intrinsic for tensor core store operators
-
-    Parameters
-    ----------
-    fragment : Var
-        The wmma fragment.
-
-    m : UIntImm
-        The shape of wmma fragment.
-
-    n : UIntImm
-        The shape of wmma fragment.
-
-    k : UIntImm
-        The shape of wmma fragment.
-
-    index : Expr
-        The fragment index.
-
-    buffer_ptr : Expr
-        The fragment buffer pointer.
-
-    stride : Expr
-        The fragment stride.
-
-    layout : Literal["row_major", "column_major"]
-        The fragment layout.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.tvm_store_matrix_sync",
-        fragment,
-        m,
-        n,
-        k,
-        index,
-        buffer_ptr,
-        stride,
-        layout,
-    )
-
-
-def ptx_mma(
-    dtype,
-    shape,
-    A_layout,
-    B_layout,
-    A_dtype,
-    B_dtype,
-    C_dtype,
-    multiplicand_a,
-    a_index,
-    multiplicand_b,
-    b_index,
-    accumulator,
-    c_index,
-    saturate,
-    operator=None,
-):
-    """TVM intrinsic for ptx tensor core mma instructions
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-for-mma
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the result.
-
-    shape : str
-        The shape of mma fragment.
-
-    A_layout : Literal["row", "col"]
-        The layout of multiplicand fragment A.
-
-    B_layout : Literal["row", "col"]
-        The layout of multiplicand fragment B.
-
-    A_dtype : str
-        The data type of multiplicand fragment A.
-
-    B_dtype : str
-        The data type of multiplicand fragment B.
-
-    C_dtype : str
-        The data type of accumulator fragment C.
-
-    multiplicand_a : Var
-        The multiplicand fragment A variable.
-
-    a_index : Expr
-        The index of multiplicand fragment A.
-
-    multiplicand_b : Var
-        The multiplicand fragment B variable.
-
-    b_index : Expr
-        The index of multiplicand fragment A.
-
-    accumulator : Var
-        The accumulator fragment C variable.
-
-    c_index : Expr
-        The index of accumulator fragment C.
-
-    saturate : bool
-        The optional saturation at the output.
-
-    operator : Optional[Literal["xor", "and"]]
-        The 1-bit operator.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    if operator is None:
-        return call_intrin(
-            dtype,
-            "tirx.ptx_mma",
-            shape,
-            A_layout,
-            B_layout,
-            A_dtype,
-            B_dtype,
-            C_dtype,
-            multiplicand_a,
-            a_index,
-            multiplicand_b,
-            b_index,
-            accumulator,
-            c_index,
-            saturate,
-        )
-    return call_intrin(
-        dtype,
-        "tirx.ptx_mma",
-        shape,
-        A_layout,
-        B_layout,
-        A_dtype,
-        B_dtype,
-        C_dtype,
-        multiplicand_a,
-        a_index,
-        multiplicand_b,
-        b_index,
-        accumulator,
-        c_index,
-        saturate,
-        operator,
-    )
-
-
-def ptx_mma_sp(
-    dtype,
-    shape,
-    A_layout,
-    B_layout,
-    A_dtype,
-    B_dtype,
-    C_dtype,
-    multiplicand_a,
-    a_index,
-    multiplicand_b,
-    b_index,
-    accumulator,
-    c_index,
-    metadata,
-    meta_index,
-    sparse_selector,
-    saturate,
-):
-    """TVM intrinsic for sparse tensor core ptx instructions
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-for-sparse-mma
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the result.
-
-    shape : str
-        The shape of mma fragment.
-
-    A_layout : Literal["row", "col"]
-        The layout of multiplicand fragment A.
-
-    B_layout : Literal["row", "col"]
-        The layout of multiplicand fragment B.
-
-    A_dtype : str
-        The data type of multiplicand fragment A.
-
-    B_dtype : str
-        The data type of multiplicand fragment B.
-
-    C_dtype : str
-        The data type of multiplicand fragment C.
-
-    multiplicand_a : Var
-        The multiplicand fragment A variable.
-
-    a_index : Expr
-        The index of multiplicand fragment A.
-
-    multiplicand_b : Var
-        The multiplicand fragment B variable.
-
-    b_index : Expr
-        The index of multiplicand fragment B.
-
-    accumulator : Var
-        The accumulator fragment C variable.
-
-    c_index : Expr
-        The index of accumulator fragment C.
-
-    metadata : Expr
-        The metadata of operand.
-
-    meta_index : Expr
-        The metadata index of operand.
-
-    sparse_selector : Expr
-        The sparse selector indicating the thread that stores the metadata.
-
-    saturate : bool
-        The optional saturation at the output.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.ptx_mma_sp",
-        shape,
-        A_layout,
-        B_layout,
-        A_dtype,
-        B_dtype,
-        C_dtype,
-        multiplicand_a,
-        a_index,
-        multiplicand_b,
-        b_index,
-        accumulator,
-        c_index,
-        metadata,
-        meta_index,
-        sparse_selector,
-        saturate,
-    )
-
-
-def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
-    """TVM intrinsic for storing the result of PTX MMA into a destination pointer
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the result.
-
-    m : IntImm
-        The shape of mma fragment.
-
-    n : IntImm
-        The shape of mma fragment.
-
-    dst_ptr : Var
-        The destination pointer variable.
-
-    src_ptr : Var
-        The source pointer variable.
-
-    src_offset : Expr
-        The source offset.
-
-    dst_stride : Var
-        The destination stride.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.mma_store",
-        m,
-        n,
-        dst_ptr,
-        src_ptr,
-        src_offset,
-        dst_stride,
-    )
-
-
-def mma_fill(dtype, local_size, local_ptr, offset):
-    """TVM intrinsic for zero-initalizing an MMA accumulation registor
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the result.
-
-    local_size : IntImm
-        The number of elements.
-
-    local_ptr : Var
-        The destination pointer variable.
-
-    offset : Expr
-        The destination offset.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.mma_fill",
-        local_size,
-        local_ptr,
-        offset,
-    )
-
-
-def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
-    """TVM intrinsic for ptx load matrix from shared memory
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-ldmatrix
-
-    Parameters
-    ----------
-    dtype : str
-       The data type of the result.
-
-    trans : bool
-        The matrix is loaded in column-major format.
-
-    num : IntImm
-        The number of matrices.
-
-    type : Literal[".b16"]
-        The data type of the matrices.
-
-    local_ptr : Var
-        The local pointer variable.
-
-    local_offset : Expr
-        The offset of local pointer.
-
-    smem_ptr : Var
-        The shared memory pointer variable.
-
-    smem_offset : Expr
-        The offset of shared memort pointer.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.ptx_ldmatrix",
-        trans,
-        num,
-        type,
-        local_ptr,
-        local_offset,
-        smem_ptr,
-        smem_offset,
-    )
-
-
-def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
-    """TVM intrinsic for ptx async copy from global to shared memory using cp.async
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async
-
-    Parameters
-    ----------
-    dtype : str
-       The data type of the result.
-
-    shared_ptr : Var
-        The shared memory pointer variable.
-
-    shared_offset : Expr
-        The offset of shared memory pointer.
-
-    global_ptr : Var
-        The global memory pointer variable.
-
-    global_offset : Expr
-        The offset of global memory pointer.
-
-    bytes : int
-        The data size to copy.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.ptx_cp_async",
-        shared_ptr,
-        shared_offset,
-        global_ptr,
-        global_offset,
-        bytes,
-    )
-
-
-def ptx_cp_async_bulk(
-    dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes, barrier_id
-):
-    """TVM intrinsic for ptx async copy from global to shared memory using cp.async.bulk
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-bulk
-
-    Parameters
-    ----------
-    dtype : str
-       The data type of the result.
-
-    shared_ptr : Var
-        The shared memory pointer variable.
-
-    shared_offset : Expr
-        The offset of shared memory pointer.
-
-    global_ptr : Var
-        The global memory pointer variable.
-
-    global_offset : Expr
-        The offset of global memory pointer.
-
-    bytes : int
-        The data size to copy.
-
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        dtype,
-        "tirx.ptx_cp_async_bulk",
-        shared_ptr,
-        shared_offset,
-        global_ptr,
-        global_offset,
-        bytes,
-        barrier_id,
-    )
-
-
-def ptx_commit_group():
-    """TVM intrinsic for ptx async copy commit
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-commit-group
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_commit_group")
-
-
-def ptx_wait_group(num):
-    """TVM intrinsic for ptx async copy wait
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-wait-group
-
-    Parameters
-    ----------
-    num : int
-        The number of the most recent uncommitted pending cp.async groups to wait.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_wait_group", num)
-
-
-def ptx_cp_async_barrier(barrier_id):
-    """TVM intrinsic for ptx async copy barrier using cp.async.mbarrier.arrive
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive
-
-    Parameters
-    ----------
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_cp_async_barrier", barrier_id)
-
-
-def ptx_init_barrier_thread_count(barrier_id, thread_count):
-    """TVM intrinsic for ptx barrier initialization of thread count using mbarrier.init
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
-
-    Parameters
-    ----------
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    thread_count : int
-        Number of threads expected to arrive at the barrier.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_init_barrier_thread_count", barrier_id, thread_count)
-
-
-def ptx_arrive_barrier(barrier_id):
-    """TVM intrinsic for ptx barrier arrival using mbarrier.arrive
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
-
-    Parameters
-    ----------
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_arrive_barrier", barrier_id)
-
-
-def ptx_arrive_barrier_expect_tx(barrier_id, byte_count):
-    """TVM intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx-operation
-
-    Parameters
-    ----------
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    byte_count : int
-        Increases the tx count of the mbarrier object to track completion of
-        addtional async transactions.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_arrive_barrier_expect_tx", barrier_id, byte_count)
-
-
-def ptx_wait_barrier(barrier_id):
-    """TVM intrinsic for ptx barrier wait using mbarrier.try_wait
-    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-test-wait-mbarrier-try-wait
-
-    Parameters
-    ----------
-    barrier_id : int
-        The ID of the barrier shared memory pointer.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.ptx_wait_barrier", barrier_id)
-
-
-def create_barriers(barrier_count):
-    """TVM intrinsic to create N barriers
-
-    Parameters
-    ----------
-    barrier_count : int
-        The number of barriers to create.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("", "tirx.create_barriers", barrier_count)
-
-
-def make_filled_simdgroup_matrix(
-    d: Var,
-    index: PrimExpr,
-    value: PrimExpr,
-    col: int = 8,
-    row: int = 8,
-):
-    """Create a filled SIMDGroup matrix
-
-    Parameters
-    ----------
-    d : var
-        The simdgroup var
-
-    index : PrimExpr
-        The index of the matrix.
-
-    value : PrimExpr
-        The value to fill.
-
-    col : int
-        The number of columns.
-
-    row : int
-        The number of rows.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("handle", "tirx.make_filled_simdgroup_matrix", d, index, value, col, row)
-
-
-def simdgroup_load(
-    d: Var,
-    index: PrimExpr,
-    ptr: PrimExpr,
-    stride: PrimExpr,
-    col: int = 8,
-    row: int = 8,
-    transpose_matrix: bool = False,
-):
-    """Load data from device memory or threadgroup memory to simdgroup
-
-    Parameters
-    ----------
-    d : var
-        The simdgroup var
-
-    index : PrimExpr
-        The index of the matrix.
-
-    ptr : PrimExpr
-        The pointer.
-
-    stride : PrimExpr
-        The stride.
-
-    col : int
-        The number of columns.
-
-    row : int
-        The number of rows.
-
-    transpose_matrix : bool
-        Whether to transpose the matrix.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.simdgroup_load",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
-    )
-
-
-def simdgroup_store(
-    d: PrimExpr,
-    index: PrimExpr,
-    ptr: PrimExpr,
-    stride: PrimExpr,
-    col: int = 8,
-    row: int = 8,
-    transpose_matrix: bool = False,
-):
-    """Store data from simdgroup to device memory or threadgroup memory
-
-    Parameters
-    ----------
-    d : PrimExpr
-        The SIMDGroup.
-
-    index : PrimExpr
-        The index of the matrix.
-
-    ptr : PrimExpr
-        The pointer.
-
-    stride : PrimExpr
-        The stride.
-
-    col : int
-        The number of columns.
-
-    row : int
-        The number of rows.
-
-
-    transpose_matrix : bool
-        Whether to transpose the matrix.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.simdgroup_store",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
-    )
-
-
-def simdgroup_multiply_accumulate(
-    d: Var,
-    index_d: PrimExpr,
-    a: Var,
-    index_a: PrimExpr,
-    b: Var,
-    index_b: PrimExpr,
-    c: Var,
-    index_c: PrimExpr,
-):
-    """Multiply and accumulate two matrices in simdgroup
-    i.e. d = a * b + c
-
-    Parameters
-    ----------
-    d : Var
-        The destination matrix.
-
-    index_d : PrimExpr
-        The index of the destination matrix.
-
-    a : Var
-        The first matrix.
-
-    index_a : PrimExpr
-        The index of the first matrix.
-
-    b : Var
-        The second matrix.
-
-    index_b : PrimExpr
-        The index of the second matrix.
-
-    c : Var
-        The third matrix.
-
-    index_c : PrimExpr
-        The index of the third matrix.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin(
-        "handle",
-        "tirx.simdgroup_multiply_accumulate",
-        d,
-        index_d,
-        a,
-        index_a,
-        b,
-        index_b,
-        c,
-        index_c,
+def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
+    """Print out buffer memory during runtime."""
+    if len(shape) == 1 and isinstance(shape[0], tuple | list | tvm.ir.Array):
+        final_shape_args = list(shape[0])
+    else:
+        final_shape_args = list(shape)
+    return _ffi_api.print_buffer(
+        buffer_var, dtype, is_string, is_scalar, dim_num, *final_shape_args
     )
 
 
@@ -1977,12 +1102,12 @@ def dp4a(vec1, vec2, acc=0):
 
 
 def ret(val, span=None):
-    """Create a tirx return expression
+    """Create a tir return expression
 
     Parameters
     ----------
     val : Expr
-        The returned tirx expression, whose data type is int, float or void pointer.
+        The returned tir expression, whose data type is int, float or void pointer.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -1994,56 +1119,6 @@ def ret(val, span=None):
     """
 
     return _ffi_api.ret(val, span)
-
-
-def thread_return(span=None):
-    """Return from a GPU thread
-    Parameters
-    ----------
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : PrimExpr
-        The return expression
-    """
-
-    return _ffi_api.thread_return(span)
-
-
-def continue_loop(span=None):
-    """Create a tirx intrinsic call to represent continue expression
-
-    Parameters
-    ----------
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : PrimExpr
-        The continue expression
-    """
-
-    return _ffi_api.continue_loop(span)
-
-
-def break_loop(span=None):
-    """Create a tirx intrinsic call to represent break expression
-
-    Parameters
-    ----------
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : PrimExpr
-        The break expression
-    """
-
-    return _ffi_api.break_loop(span)
 
 
 def any(*args, span=None):
@@ -2228,9 +1303,7 @@ def exp(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
-    if "int" in x.dtype:
-        x = tirx.Cast("float32", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.exp", x)
 
 
@@ -2247,7 +1320,7 @@ def exp2(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.exp2", x)
 
 
@@ -2264,8 +1337,33 @@ def exp10(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.exp10", x)
+
+
+def fma(x, y, z):
+    """Take fused multiply-add of input x, y, z.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        First input argument.
+
+    y : PrimExpr
+        Second input argument.
+
+    z : PrimExpr
+        Third input argument.
+
+    Returns
+    -------
+    out : PrimExpr
+        The result of x * y + z.
+    """
+    x = tir.convert(x)
+    y = tir.convert(y)
+    z = tir.convert(z)
+    return call_intrin(x.dtype, "tirx.fma", x, y, z)
 
 
 def erf(x):
@@ -2281,7 +1379,7 @@ def erf(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.erf", x)
 
 
@@ -2298,7 +1396,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("tanh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.tanh", x)
 
 
@@ -2315,7 +1413,7 @@ def sigmoid(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.sigmoid", x)
 
 
@@ -2332,7 +1430,7 @@ def log(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.log", x)
 
 
@@ -2349,7 +1447,7 @@ def log2(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.log2", x)
 
 
@@ -2366,7 +1464,7 @@ def log10(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.log10", x)
 
 
@@ -2383,7 +1481,7 @@ def log1p(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.log1p", x)
 
 
@@ -2434,7 +1532,7 @@ def cosh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("cosh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.cosh", x)
 
 
@@ -2451,7 +1549,7 @@ def acos(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("acos", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.acos", x)
 
 
@@ -2468,7 +1566,7 @@ def acosh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("acosh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.acosh", x)
 
 
@@ -2502,7 +1600,7 @@ def sinh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("sinh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.sinh", x)
 
 
@@ -2519,7 +1617,7 @@ def asin(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("asin", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.asin", x)
 
 
@@ -2536,7 +1634,7 @@ def asinh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("asinh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.asinh", x)
 
 
@@ -2553,7 +1651,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("atan", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.atan", x)
 
 
@@ -2570,7 +1668,7 @@ def atanh(x):
     y : PrimExpr
         The result.
     """
-    x = _require_float_arg("atanh", x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.atanh", x)
 
 
@@ -2590,8 +1688,8 @@ def atan2(x1, x2):
     y : PrimExpr
         The result.
     """
-    x1 = tirx.convert(x1)
-    x2 = tirx.convert(x2)
+    x1 = tir.convert(x1)
+    x2 = tir.convert(x2)
     return call_intrin(x1.dtype, "tirx.atan2", x1, x2)
 
 
@@ -2608,7 +1706,7 @@ def sqrt(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.sqrt", x)
 
 
@@ -2625,7 +1723,7 @@ def rsqrt(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.rsqrt", x)
 
 
@@ -2871,8 +1969,8 @@ def nextafter(x1, x2):
     y : PrimExpr
         The result.
     """
-    x1 = tirx.convert(x1)
-    x2 = tirx.convert(x2)
+    x1 = tir.convert(x1)
+    x2 = tir.convert(x2)
     return call_intrin(x1.dtype, "tirx.nextafter", x1, x2)  # type: ignore
 
 
@@ -2892,8 +1990,8 @@ def hypot(x1, x2):
     y : PrimExpr
         The result.
     """
-    x1 = tirx.convert(x1)
-    x2 = tirx.convert(x2)
+    x1 = tir.convert(x1)
+    x2 = tir.convert(x2)
     return call_intrin(x1.dtype, "tirx.hypot", x1, x2)  # type: ignore
 
 
@@ -2913,8 +2011,8 @@ def copysign(x1, x2):
     y : PrimExpr
         The result.
     """
-    x1 = tirx.convert(x1)
-    x2 = tirx.convert(x2)
+    x1 = tir.convert(x1)
+    x2 = tir.convert(x2)
     return call_intrin(x1.dtype, "tirx.copysign", x1, x2)  # type: ignore
 
 
@@ -2934,8 +2032,8 @@ def ldexp(x1, x2):
     y : PrimExpr
         The result.
     """
-    x1 = tirx.convert(x1)
-    x2 = tirx.convert(x2)
+    x1 = tir.convert(x1)
+    x2 = tir.convert(x2)
     return call_intrin(x1.dtype, "tirx.ldexp", x1, x2)  # type: ignore
 
 
@@ -2957,6 +2055,38 @@ def likely(cond, span=None):
         The marked expression.
     """
     return _ffi_api.likely(cond, span)  # type: ignore
+
+
+def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
+    """Thread-set filter escape hatch.
+
+    Use this wrapper only when the predicate is *not* in the canonical
+    thread-filter grammar (see ``src/tirx/analysis/filter_canonical.h``).
+    Canonical predicates -- pure conjunctions of ``scopeid_var <op> const``
+    comparisons plus bare ``T.ptx.elect_sync()`` calls -- are recognized by
+    the lowering pass directly from ``if cond:``, so the wrapper is redundant
+    for them.
+
+    When wrapped: ``var`` (a ``ScopeIdDef``-declared scope identifier) tells
+    the compiler which active-set axis to collapse to a singleton when the
+    opaque predicate evaluates true; ``pred`` is preserved verbatim and
+    evaluated at runtime.
+
+    The legacy three-argument range form ``filter(var, lo, hi)`` has been
+    removed -- write ``lo <= var and var < hi`` (or ``var == lo`` when
+    ``hi == lo + 1``) at the call site instead.
+    """
+    return call_intrin("bool", "tirx.filter", var, pred, span=span)
+
+
+def selector(var, pred, span=None):
+    """Analysis-only active-thread selector.
+
+    ``selector(var, pred)`` denotes the unique value of ``var`` in the current
+    active domain for which ``pred`` is true. It is intended for compiler
+    metadata and should not survive to executable codegen.
+    """
+    return call_intrin(var.dtype, "tirx.selector", var, pred, span=span)
 
 
 def isnan(x, span=None):
@@ -3092,7 +2222,7 @@ def popcount(x):
     y : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
+    x = tir.convert(x)
     return call_intrin(x.dtype, "tirx.popcount", x)
 
 
@@ -3224,8 +2354,8 @@ def fmod(x, y):
     z : PrimExpr
         The result.
     """
-    x = tirx.convert(x)
-    y = tirx.convert(y)
+    x = tir.convert(x)
+    y = tir.convert(y)
     return call_intrin(x.dtype, "tirx.fmod", x, y)
 
 
@@ -3528,9 +2658,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     def _make_reduce(expr, axis, where=None, init=None):
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
-        expr = tirx.convert(expr)
+        expr = tir.convert(expr)
         if init is not None:
-            init = tirx.convert(init)
+            init = tir.convert(init)
         if isinstance(expr, Array):
             size = len(expr)
             lhs = []
@@ -3561,10 +2691,10 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, list | tuple | Array):
+        if not isinstance(axis, list | tuple | tvm.ir.Array):
             axis = [axis]
         if where is None:
-            where = tirx.convert(True)
+            where = tir.convert(True)
         if init is None:
             outputs = tuple(
                 tvm.tirx.Reduce(combiner, expr, axis, where, i, []) for i in range(size)
@@ -3791,7 +2921,7 @@ def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr
 
     Parameters
     ----------
-    dtype : Union[str, tvm.DataType]
+    dtype : Union[str, tvm_ffi.DataType]
         Element data type.
     min_size : int
         The minimum size of the scalable vector in bits.
@@ -3817,3 +2947,257 @@ def ignore_loop_partition(predicate) -> PrimExpr:
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
 max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore
+
+
+def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
+    """TVM intrinsic for tensor core load operators
+
+    Parameters
+    ----------
+    fragment : Var
+        The wmma fragment.
+
+    m : UIntImm
+        The shape of wmma fragment.
+
+    n : UIntImm
+        The shape of wmma fragment.
+
+    k : UIntImm
+        The shape of wmma fragment.
+
+    index : Expr
+        The fragment index.
+
+    buffer_ptr : Expr
+        The fragment buffer pointer.
+
+    stride : Expr
+        The fragment stride.
+
+    layout : Literal["row_major", "column_major"]
+        The fragment layout.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tirx.tvm_load_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+    )
+
+
+def tvm_mma_sync(
+    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
+):
+    """TVM intrinsic for tensor core mma_sync operators
+
+    Parameters
+    ----------
+    fragment_d : Var
+        The wmma fragment_d.
+
+    index_d : Expr
+        The fragment_d index.
+
+    fragment_a : Var
+        The wmma fragment_a.
+
+    index_a : Expr
+        The fragment_a index.
+
+    fragment_b : Var
+        The wmma fragment_b.
+
+    index_b : Expr
+        The fragment_b index.
+
+    fragment_c : Var
+        The wmma fragment_c.
+
+    index_c : Expr
+        The fragment_c index.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tirx.tvm_mma_sync",
+        fragment_d,
+        index_d,
+        fragment_a,
+        index_a,
+        fragment_b,
+        index_b,
+        fragment_c,
+        index_c,
+    )
+
+
+def tvm_bmma_sync(
+    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
+):
+    """TVM intrinsic for tensor core bmma_sync operators
+
+    Parameters
+    ----------
+    fragment_d : Var
+        The bwmma fragment_d.
+
+    index_d : Expr
+        The fragment_d index.
+
+    fragment_a : Var
+        The bwmma fragment_a.
+
+    index_a : Expr
+        The fragment_a index.
+
+    fragment_b : Var
+        The bwmma fragment_b.
+
+    index_b : Expr
+        The fragment_b index.
+
+    fragment_c : Var
+        The bwmma fragment_c.
+
+    index_c : Expr
+        The fragment_c index.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tirx.tvm_bmma_sync",
+        fragment_d,
+        index_d,
+        fragment_a,
+        index_a,
+        fragment_b,
+        index_b,
+        fragment_c,
+        index_c,
+    )
+
+
+def tvm_fill_fragment(fragment, m, n, k, index, value):
+    """TVM intrinsic for tensor core fill_fragment operators
+
+    Parameters
+    ----------
+    fragment : Var
+        The wmma fragment
+
+    m : UIntImm
+        The shape of wmma fragment.
+
+    n : UIntImm
+        The shape of wmma fragment.
+
+    k : UIntImm
+        The shape of wmma fragment.
+
+    index : Expr
+        The fragment index.
+
+    value : Expr
+        The value to be filled in fragment.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tirx.tvm_fill_fragment", fragment, m, n, k, index, value)
+
+
+def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
+    """TVM intrinsic for tensor core store operators
+
+    Parameters
+    ----------
+    fragment : Var
+        The wmma fragment.
+
+    m : UIntImm
+        The shape of wmma fragment.
+
+    n : UIntImm
+        The shape of wmma fragment.
+
+    k : UIntImm
+        The shape of wmma fragment.
+
+    index : Expr
+        The fragment index.
+
+    buffer_ptr : Expr
+        The fragment buffer pointer.
+
+    stride : Expr
+        The fragment stride.
+
+    layout : Literal["row_major", "column_major"]
+        The fragment layout.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+    )
+
+
+def thread_return():
+    """TVM intrinsic to call thread_return()
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tirx.thread_return")
+
+
+def continue_loop(span=None):
+    """Create a tir intrinsic call to represent continue expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The continue expression
+    """
+
+    return _ffi_api.continue_loop(span)
+
+
+def break_loop(span=None):
+    """Create a tir intrinsic call to represent break expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The break expression
+    """
+
+    return _ffi_api.break_loop(span)

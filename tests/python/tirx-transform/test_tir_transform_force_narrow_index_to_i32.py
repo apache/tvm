@@ -19,12 +19,11 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError
 from tvm.script import tirx as T
 
 
 def test_thread_axis1():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((T.int64(64),), "float32"), B: T.Buffer((T.int64(64),), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, T.int64(2))
@@ -34,7 +33,7 @@ def test_thread_axis1():
             T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)
         ] + T.float32(1)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, 2)
@@ -48,7 +47,7 @@ def test_thread_axis1():
 
 
 def test_thread_axis2():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(
         T_reshape: T.Buffer((1, 12, 384, 384), "float32"),
         placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"),
@@ -106,7 +105,7 @@ def test_thread_axis2():
                             T_reshape[ax0, ax1, ax2, ax3],
                         )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(
         T_reshape: T.Buffer((1, 12, 384, 384), "float32"),
         placeholder_1: T.Buffer((1, 12, 384, 384), "bool"),
@@ -163,7 +162,7 @@ def test_thread_axis2():
 
 
 def test_block():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -171,7 +170,7 @@ def test_block():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -185,7 +184,7 @@ def test_block():
 
 
 def test_i16_buffer():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(16)):
@@ -193,7 +192,7 @@ def test_i16_buffer():
                     vi = T.axis.spatial(T.int64(128), i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 16):
@@ -207,7 +206,7 @@ def test_i16_buffer():
 
 
 def test_fail_on_buffer_map():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
@@ -216,12 +215,12 @@ def test_fail_on_buffer_map():
                     B[vi] = A[vi] + T.int64(1)
 
     mod = tvm.IRModule.from_expr(func)
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
 def test_fail_on_buffer_map():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
@@ -236,14 +235,14 @@ def test_fail_on_buffer_map():
                     B[vi] = T.cast(C[vi] + T.int64(1), "int32")
 
     mod = tvm.IRModule.from_expr(func)
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
 def test_pod_params_and_select():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((T.int64(4),), "float32"), n: T.int64
         ):
@@ -252,7 +251,7 @@ def test_pod_params_and_select():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
             for i in range(4):
                 B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
@@ -264,14 +263,14 @@ def test_pod_params_and_select():
 def test_clz():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(B: T.Buffer((T.int64(4),), "int32")):
             for i in T.serial(T.int64(4)):
                 B[i] = T.clz(i)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(B: T.Buffer((4,), "int32")):
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
@@ -283,7 +282,7 @@ def test_clz():
 def test_let_binding():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(buf: T.handle):
             n = T.int64()
             Buf = T.match_buffer(buf, [n], "int32")
@@ -293,12 +292,15 @@ def test_let_binding():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(buf: T.handle):
             n = T.int32()
             Buf = T.match_buffer(buf, [n], "int32")
-            ceil_log2 = T.Cast("int32", T.ceil(T.log2(T.Cast("float32", n))))
-            for i in range(ceil_log2):
+            # The pass narrows indexing variables (n, the For extent) but leaves
+            # an explicitly-typed `T.Cast("int64", ...)` storage alone; a Cast to
+            # int32 is inserted at the use site (the For iter) instead.
+            ceil_log2 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
+            for i in range(T.Cast("int32", ceil_log2)):
                 T.evaluate(0)
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)

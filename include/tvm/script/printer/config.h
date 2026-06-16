@@ -18,7 +18,11 @@
  */
 /*!
  * \file tvm/script/printer/config.h
- * \brief Printer class to print repr string of each AST/IR nodes.
+ * \brief Configuration object for the TVMScript printer.
+ *
+ * Contains PrinterConfig / PrinterConfigNode, GetBuiltinKeywords, GetExtraConfig,
+ * and RedirectedReprPrinterMethod.  The entry-point free function tvm::Script()
+ * and the dispatch vtable TVMScriptPrinter live in printer.h.
  */
 #ifndef TVM_SCRIPT_PRINTER_CONFIG_H_
 #define TVM_SCRIPT_PRINTER_CONFIG_H_
@@ -30,7 +34,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/cast.h>
-#include <tvm/ir/node_functor.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>
@@ -50,6 +53,8 @@ class PrinterConfigNode : public ffi::Object {
    * \note Directly use module name if it's empty.
    */
   ffi::String module_alias = "cls";
+  /*! \brief Default buffer dtype */
+  DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
   DataType int_dtype = DataType::Int(32);
   /*!
@@ -85,7 +90,6 @@ class PrinterConfigNode : public ffi::Object {
    *
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
    *   "tirx.prefix"              — the TIR prefix (default "T")
-   *   "tirx.buffer_dtype"        — default buffer dtype (default float32)
    *   "relax.prefix"             — the Relax prefix (default "R")
    *   "relax.show_all_struct_info" — whether to show all struct info (default true)
    *
@@ -113,6 +117,7 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("show_meta", &PrinterConfigNode::show_meta)
         .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
         .def_ro("module_alias", &PrinterConfigNode::module_alias)
+        .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
         .def_ro("int_dtype", &PrinterConfigNode::int_dtype)
         .def_ro("float_dtype", &PrinterConfigNode::float_dtype)
         .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)
@@ -142,48 +147,14 @@ class TVM_DLL PrinterConfig : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrinterConfig, ffi::ObjectRef, PrinterConfigNode);
 };
 
-/*! \brief TVMScript-based printer for IR nodes. */
-class TVMScriptPrinter {
- public:
-  /* Convert the object to TVMScript format */
-  TVM_DLL static std::string Script(const ffi::ObjectRef& node,
-                                    const ffi::Optional<PrinterConfig>& cfg);
-  // Allow registration to be printer.
-  using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
-  TVM_DLL static FType& vtable();
-};
-
-#define TVM_OBJECT_ENABLE_SCRIPT_PRINTER()                                              \
-  std::string Script(const ffi::Optional<PrinterConfig>& config = std::nullopt) const { \
-    return TVMScriptPrinter::Script(ffi::GetRef<ffi::ObjectRef>(this),                  \
-                                    config.value_or(PrinterConfig()));                  \
-  }
-
 /*!
- * \brief The fallback body used by TVM_REGISTER_SCRIPT_AS_REPR.
+ * \brief The fallback body used by TVM_REGISTER_SCRIPT_AS_REPR (defined in printer.h).
  *
- * Tries to format \p obj via TVMScriptPrinter::Script; on error falls back to
- * a plain address string.  Defined in src/script/printer/config.cc so that
+ * Tries to format \p obj via tvm::Script; on error falls back to a plain
+ * address string.  Defined in src/script/printer/config.cc so that
  * <tvm/runtime/logging.h> is not pulled into this public header.
  */
 TVM_DLL std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj);
-
-/*!
- * \brief Register Script as the kRepr callback for ObjectType and install
- *        the per-type dispatch entry in TVMScriptPrinter::vtable().
- *
- * \param ObjectType  The concrete object node type (e.g. tirx::VarNode).
- * \param Method      The TVMScriptPrinter vtable dispatch function.
- */
-#define TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)                                        \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);             \
-                                        });                                                    \
-  }                                                                                            \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
 
 }  // namespace tvm
 #endif  // TVM_SCRIPT_PRINTER_CONFIG_H_

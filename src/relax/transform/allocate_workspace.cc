@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -45,7 +45,7 @@ class ExternFunctionRewriter : ExprMutator {
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
-      if (f->GetAttr<Integer>(attr::kWorkspaceSize)) {
+      if (f->GetAttr<int64_t>(attr::kWorkspaceSize)) {
         ret[gvar.get()] = Downcast<Function>(VisitExpr(f));
       }
     }
@@ -57,11 +57,12 @@ class ExternFunctionRewriter : ExprMutator {
         !func_node->GetAttr<ffi::String>(attr::kComposite)) {
       return ExprMutator::VisitExpr_(func_node);
     }
-    if (auto workspace = func_node->GetAttr<Integer>(attr::kWorkspaceSize)) {
+    if (auto workspace = func_node->GetAttr<int64_t>(attr::kWorkspaceSize)) {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
-      auto sinfo = TensorStructInfo(ShapeExpr({Integer(max_workspace_size_)}), DataType::UInt(8));
+      auto sinfo = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(32), max_workspace_size_)}),
+                                    DataType::UInt(8));
       Var workspace_param(name_sup_->FreshName("workspace"), sinfo);
 
       if (func_node->GetAttr<ffi::String>(attr::kCodegen)) {
@@ -95,7 +96,7 @@ class ExternFunctionRewriter : ExprMutator {
   }
 
  private:
-  NameSupply name_sup_;
+  UniqueNameSupply name_sup_;
   /*! \brief A variable that represents the workspace parameter passed from main. */
   Var workspace_var_param_;
   size_t max_workspace_size_ = 0;
@@ -109,8 +110,8 @@ class WorkspaceProvider : ExprMutator {
 
   IRModule Run() {
     for (const auto& [gvar, f] : mod_->functions) {
-      if (auto workspace = f->GetAttr<Integer>(relax::attr::kWorkspaceSize)) {
-        max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value()->value);
+      if (auto workspace = f->GetAttr<int64_t>(relax::attr::kWorkspaceSize)) {
+        max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value());
       }
     }
 
@@ -148,7 +149,7 @@ class WorkspaceProvider : ExprMutator {
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
     if (!workspace_var_main_.defined()) {
-      auto shape = ShapeExpr({Integer(max_workspace_size_)});
+      auto shape = ShapeExpr({IntImm(DataType::Int(32), max_workspace_size_)});
       auto ty = DataTypeImm(DataType::UInt(8));
       auto workspace = MakeAllocTensor(shape, ty, PrimValue::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");

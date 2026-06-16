@@ -17,14 +17,18 @@
 """NNAPI network tests."""
 
 import numpy as np
-import onnx
 import pytest
+
+pytest.importorskip("onnx")
+
+import onnx
 
 import tvm
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 from tvm.contrib.download import download_testdata
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.testing import env
 
 
 def _build_and_run_network(remote_obj, tracker, mod, input_data):
@@ -112,7 +116,7 @@ def get_network(name, dtype, input_shape=(1, 3, 224, 224)):
         "float32",
     ],
 )
-@tvm.testing.requires_nnapi
+@pytest.mark.skipif(not env.has_nnapi(), reason="need nnapi")
 def test_network(name, dtype):
     remote_obj, tracker = remote()
     print(f"Network evaluating {name} with dtype {dtype}")

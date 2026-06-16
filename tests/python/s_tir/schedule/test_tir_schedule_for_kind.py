@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -42,7 +42,7 @@ def element_wise(a: T.handle, b: T.handle) -> None:
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_parallelized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -53,7 +53,7 @@ def element_wise_parallelized(a: T.handle, b: T.handle) -> None:
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_i_bound(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -64,7 +64,7 @@ def element_wise_i_bound(a: T.handle, b: T.handle) -> None:
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_compute_at_split(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -81,7 +81,7 @@ def element_wise_compute_at_split(a: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_compute_at_split_vectorized(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -99,7 +99,7 @@ def element_wise_compute_at_split_vectorized(a: T.handle, c: T.handle) -> None:
                     C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_split_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -111,7 +111,7 @@ def element_wise_split_predicate(a: T.handle, b: T.handle) -> None:
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_split_predicate_parallelized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -125,7 +125,7 @@ def element_wise_split_predicate_parallelized(a: T.handle, b: T.handle) -> None:
                     B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_split_predicate_vectorized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -138,7 +138,7 @@ def element_wise_split_predicate_vectorized(a: T.handle, b: T.handle) -> None:
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_compute_at_split_j0_j1o_bound(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -156,7 +156,7 @@ def element_wise_compute_at_split_j0_j1o_bound(a: T.handle, c: T.handle) -> None
                     C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -170,7 +170,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -183,7 +183,7 @@ def rowsum(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum_unrolled(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -196,7 +196,7 @@ def rowsum_unrolled(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -210,7 +210,7 @@ def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum_not_compact_data_flow(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -223,7 +223,7 @@ def rowsum_not_compact_data_flow(a: T.handle, b: T.handle) -> None:
             B[vk] = B[vk] + A[vi, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def rowsum_cross_thread_reduction(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128,))
@@ -236,7 +236,7 @@ def rowsum_cross_thread_reduction(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_block(a: T.handle) -> None:
     A = T.match_buffer(a, (16,))
     for i in T.serial(0, 15):
@@ -244,7 +244,7 @@ def opaque_block(a: T.handle) -> None:
             A[i + 1] = A[i + 1] + A[i]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_inside_init(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
@@ -263,7 +263,7 @@ def block_inside_init(a: T.handle, b: T.handle) -> None:
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128], dtype="float32")
     B = T.match_buffer(b, [128, 128], dtype="float32")
@@ -282,7 +282,7 @@ def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def decomposed_gemm(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -308,7 +308,7 @@ def decomposed_gemm(
                 C[vi, vj] = local[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def decomposed_gemm_after_vectorize(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -335,7 +335,7 @@ def decomposed_gemm_after_vectorize(
                     C[vi, vj] = local[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def nested_block_bind(
     A: T.Buffer((16, 16, 16, 16), "float32"), B: T.Buffer((16, 16, 16), "float32")
 ):
@@ -350,7 +350,7 @@ def nested_block_bind(
                     B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def thread_bound_nested_block(
     A: T.Buffer((16, 16, 16, 16), "float32"), B: T.Buffer((16, 16, 16), "float32")
 ) -> None:
@@ -367,7 +367,7 @@ def thread_bound_nested_block(
                             B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def nested_block_bind_after_cache_read(
     A: T.Buffer((16, 16), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
@@ -388,7 +388,7 @@ def nested_block_bind_after_cache_read(
                     B[vi] = B[vi] + A_shared[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def thread_bound_nested_block_after_cache_read(
     A: T.Buffer((16, 16), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
@@ -409,7 +409,7 @@ def thread_bound_nested_block_after_cache_read(
                     B[vi] = B[vi] + A_shared[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def decomposed_gemm_parallelize_init(
     A: T.Buffer((16, 16), "float32"),
     B: T.Buffer((16, 16), "float32"),
@@ -442,7 +442,7 @@ def decomposed_gemm_parallelize_init(
                 C[vi, vj] = local[vi, vj]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def scatter_compute(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
     for i in T.grid(8):
         with T.sblock("first_half"):
@@ -455,7 +455,7 @@ def scatter_compute(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")
             B[vi] = A[vi + 8]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def scatter_compute_parallelize(
     A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
@@ -671,7 +671,7 @@ def test_scatter_parallelize():
 
 
 def test_bind_thread_iter_var_dtype():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         A: T.Buffer((T.int64(128), T.int64(128))),
         B: T.Buffer((T.int64(128), T.int64(128))),
@@ -681,13 +681,16 @@ def test_bind_thread_iter_var_dtype():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(
         A: T.Buffer((T.int64(128), T.int64(128))),
         B: T.Buffer((T.int64(128), T.int64(128))),
     ) -> None:
         for i0 in T.thread_binding(T.int64(128), thread="threadIdx.x"):
-            for i1 in range(T.int64(128)):
+            # Use T.serial with explicit int64 min so the inner sblock iter_var dom
+            # is all-int64 (matches what `s.bind` emits; `range(T.int64(128))` parses
+            # min as int32 even when extent is int64).
+            for i1 in T.serial(T.int64(0), T.int64(128)):
                 with T.sblock("B"):
                     vi, vj = T.axis.remap("SS", [i0, i1])
                     B[vi, vj] = A[vi, vj] * 2.0

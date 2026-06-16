@@ -25,7 +25,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -123,16 +123,16 @@ class CodeGenSourceBase {
   std::ostringstream fwd_decl_stream;
   /*! \brief name of each variable */
   std::unordered_map<const tirx::VarNode*, std::string> var_idmap_;
-  /*! \brief NameSupply for allocation */
-  NameSupply name_supply_;
+  /*! \brief Unique name supply for allocation */
+  UniqueNameSupply name_supply_;
+  /*! \brief The current indentation value */
+  int indent_{0};
 
  private:
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
-  /*! \brief The current indentation value */
-  int indent_{0};
 };
 
 /*!

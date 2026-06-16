@@ -81,7 +81,7 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
  * \param analyzer The analyzer to be bound
  */
 void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::Analyzer* analyzer);
+                       arith::AnalyzerObj* analyzer);
 
 /******** Scope ********/
 /*!
@@ -232,7 +232,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \return A boolean flag indicating if the binding is affine
  */
 bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
-                     arith::Analyzer* analyzer);
+                     arith::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
@@ -298,7 +298,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
  * \throw ScheduleError If the loop doesn't starts with zero.
  */
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
-                             arith::Analyzer* analyzer);
+                             arith::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
@@ -602,7 +602,7 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  */
 ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::Analyzer* analyzer);
+                                        arith::AnalyzerObj* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators
@@ -706,7 +706,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
                                                   const PrimExpr& predicate,
                                                   const StmtSRef& dom_low_inclusive,
                                                   const StmtSRef& dom_high_exclusive,
-                                                  arith::Analyzer* analyzer);
+                                                  arith::AnalyzerObj* analyzer);
 
 /*!
  * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
@@ -722,7 +722,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
                                                   const PrimExpr& predicate,
                                                   const StmtSRef& dom_low_inclusive,
                                                   const StmtSRef& dom_high_exclusive,
-                                                  arith::Analyzer* analyzer);
+                                                  arith::AnalyzerObj* analyzer);
 
 /*!
  * \brief Simplify non-trivial expressions
@@ -734,7 +734,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
  * simplified to constant values for further scheduling and analysis because simplifing away the
  * block iters may result in loss of information for further analysis.
  */
-PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer);
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::AnalyzerObj* analyzer);
 
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public ffi::Object {
@@ -742,11 +742,11 @@ class TensorizeInfoNode : public ffi::Object {
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
   ffi::Map<tirx::StmtSRef, tirx::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
-  ffi::Map<tirx::For, Integer> desc_loop_indexer;
+  ffi::Map<tirx::For, int64_t> desc_loop_indexer;
   /*! \brief Optional padded extents of the block iters when padding is needed to match the
    * intrinsic description
    */
-  ffi::Optional<ffi::Array<Integer>> block_iter_paddings;
+  ffi::Optional<ffi::Array<int64_t>> block_iter_paddings;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

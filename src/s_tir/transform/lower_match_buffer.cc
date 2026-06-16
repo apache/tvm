@@ -89,7 +89,7 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -205,7 +205,7 @@ class MatchBufferLower : public StmtExprMutator {
       if (buffer_start_indices.size() == 1) {
         Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
         TVM_FFI_ICHECK(
-            analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+            analyzer_->CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
             << "The source elem_offset " << buffer_start_indices[0]
             << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
       } else {
@@ -262,7 +262,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto it = var_map_.find(v);
       if (it == var_map_.end()) {
         var_map_.Set(v, value);
-        analyzer_.Bind(v, value);
+        analyzer_->Bind(v, value);
       } else {
         AssertBinding((*it).second, value, arg_name);
       }
@@ -273,8 +273,9 @@ class MatchBufferLower : public StmtExprMutator {
 
   void AssertBinding(const PrimExpr& lhs, const PrimExpr& rhs,
                      const std::string& arg_name = "argument") {
-    TVM_FFI_ICHECK(analyzer_.CanProve(lhs == rhs)) << "The buffer match constraint for " << arg_name
-                                                   << " unmet: " << lhs << "==" << rhs << ".";
+    TVM_FFI_ICHECK(analyzer_->CanProve(lhs == rhs))
+        << "The buffer match constraint for " << arg_name << " unmet: " << lhs << "==" << rhs
+        << ".";
   }
 
  private:

@@ -38,7 +38,7 @@ class OpPatternKind(enum.IntEnum):
 def test_annotate_opkind_outewisefusable():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -71,7 +71,7 @@ def test_annotate_opkind_outewisefusable():
 def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -96,7 +96,7 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
 def test_annotate_opkind_outewisefusable_int_var_signature():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle, m: T.int64, n: T.int64, k: T.int64):
             T.func_attr({"global_symbol": "tir_matmul"})
             A = T.match_buffer(x, (m, n))
@@ -118,7 +118,7 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
 def test_annotate_opkind_reduce():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def sum(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "elemwise"})
             A = T.match_buffer(x, (16, 16))
@@ -139,7 +139,7 @@ def test_annotate_opkind_reduce():
 def test_annotate_opkind_ewise():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def elemwise(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "elemwise"})
             A = T.match_buffer(x, (16, 16))
@@ -158,7 +158,7 @@ def test_annotate_opkind_ewise():
 def test_annotate_opkind_broadcast():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def broadcast(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "elemwise"})
             A = T.match_buffer(x, (16, 16))
@@ -177,7 +177,7 @@ def test_annotate_opkind_broadcast():
 def test_annotate_opkind_injective():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def injective(x: T.handle, y: T.handle) -> None:
             T.func_attr({"global_symbol": "elemwise"})
             A = T.match_buffer(x, (4, 4, 4, 4))
@@ -196,7 +196,7 @@ def test_annotate_opkind_injective():
 def test_annotate_opkind_bias_add():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_bias_add(
             A: T.Buffer((1, 1000), "float32"),
             B: T.Buffer((1000,), "float32"),
@@ -221,7 +221,7 @@ def test_annotate_opkind_bias_add():
 def test_annotate_opkind_add_broadcast_with_unit_shape():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_with_unit_dim_len_broadcast(
             A: T.Buffer((1, 64, 112, 112), "float32"),
             B: T.Buffer((64, 1, 1), "float32"),
@@ -243,7 +243,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
 def test_annotate_opkind_add_zero_dim_element_wise():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_zero_dim(
             A: T.Buffer((128,), "float32"),
             B: T.Buffer((), "float32"),
@@ -265,7 +265,7 @@ def test_annotate_opkind_add_zero_dim_element_wise():
 def test_annotate_opkind_pooling():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def max_pool2d(
             rxplaceholder_1: T.Buffer((1, 64, 112, 112), "float32"),
             tensor_1: T.Buffer((1, 64, 56, 56), "float32"),
@@ -309,7 +309,7 @@ def test_annotate_opkind_pooling():
 def test_annotate_opkind_softmax():
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def softmax(
             rxplaceholder_1: T.Buffer((16, 16), "float32"),
             T_softmax_norm_1: T.Buffer((16, 16), "float32"),
@@ -367,7 +367,7 @@ def test_annotate_opkind_softmax():
 def test_multiple_bufer_stores_fallback():
     @tvm.script.ir_module
     class CumsumModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def cumsum(var_rxplaceholder: T.handle, out_buf: T.Buffer(160, "float32")):
             rxplaceholder = T.match_buffer(
                 var_rxplaceholder, [10, 16], dtype="float32", offset_factor=1
@@ -394,7 +394,7 @@ def test_multiple_bufer_stores_fallback():
 def test_sum_sqsum():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def sum_sqsum(
             A: T.Buffer((32, 64), "float32"),
             vsum: T.Buffer((32,), "float32"),
@@ -408,8 +408,8 @@ def test_sum_sqsum():
                     with T.init():
                         vsum[v_ax0] = T.float32(0)
                         sqsum[v_ax0] = T.float32(0)
-                    v_vsum: T.float32 = vsum[v_ax0] + A[v_ax0, v_k0]
-                    v_sqsum: T.float32 = sqsum[v_ax0] + A[v_ax0, v_k0] * A[v_ax0, v_k0]
+                    v_vsum: T.let[T.float32] = vsum[v_ax0] + A[v_ax0, v_k0]
+                    v_sqsum: T.let[T.float32] = sqsum[v_ax0] + A[v_ax0, v_k0] * A[v_ax0, v_k0]
                     vsum[v_ax0] = v_vsum
                     sqsum[v_ax0] = v_sqsum
 
@@ -421,7 +421,7 @@ def test_sum_sqsum():
 def test_no_buffer_stores():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def no_buffer_stores(A: T.Buffer((32, 64), "float32"), vsum: T.Buffer((32,), "float32")):
             for ax0, k0 in T.grid(32, 64):
                 with T.sblock("block"):

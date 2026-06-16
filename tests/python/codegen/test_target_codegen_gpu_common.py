@@ -23,9 +23,11 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @tvm.testing.parametrize_targets(
     "cuda", "metal", {"kind": "vulkan", "supports_int64": True}, "opencl"
 )
@@ -38,9 +40,9 @@ def test_int_intrin(target, dev, dtype):
     for tvm_intrin, np_func in test_funcs:
         n = 128
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((n,), dtype),
                 B: T.Buffer((n,), dtype),

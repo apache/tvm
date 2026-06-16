@@ -19,7 +19,7 @@
 from tvm_ffi import register_object as _register_object
 
 from tvm.script.ir_builder.base import IRBuilderFrame
-from tvm.tirx import Var
+from tvm.tirx import Buffer, Var
 
 
 @_register_object("script.ir_builder.tirx.TIRFrame")
@@ -49,6 +49,18 @@ class ForFrame(TIRFrame):
 class AssertFrame(TIRFrame): ...
 
 
+class LetFrame(TIRFrame):
+    def __enter__(self) -> Var:
+        super().__enter__()
+        return self.var
+
+
+class AllocateFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer_var
+
+
 @_register_object("script.ir_builder.tirx.AttrFrame")
 class AttrFrame(TIRFrame): ...
 
@@ -69,8 +81,30 @@ class ThenFrame(TIRFrame): ...
 class ElseFrame(TIRFrame): ...
 
 
+@_register_object("script.ir_builder.tirx.DeclBufferFrame")
+class DeclBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer
+
+
 @_register_object("script.ir_builder.tirx.LaunchThreadFrame")
 class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()
         return self.iter_var.var
+
+
+@_register_object("script.ir_builder.tirx.ComposeOpFrame")
+class ComposeOpFrame(TIRFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.AllocBufferFrame")
+class AllocBufferFrame(TIRFrame):
+    def __enter__(self) -> Buffer:
+        super().__enter__()
+        return self.buffer
+
+
+@_register_object("script.ir_builder.tirx.HintFrame")
+class HintFrame(TIRFrame): ...

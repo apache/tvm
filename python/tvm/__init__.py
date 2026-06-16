@@ -26,9 +26,9 @@ import os
 from tvm_ffi import register_object, register_global_func, get_global_func
 
 # top-level alias
-from .base import TVMError, __version__, _RUNTIME_ONLY
+from .libinfo import __version__
+from .base import _RUNTIME_ONLY
 
-# top-level alias
 # tvm.runtime
 from .runtime import Object
 from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
@@ -51,8 +51,8 @@ from . import script
 # tvm.tirx — registers itself via tvm.script.register_dialect in its __init__
 from . import tirx
 
-# tvm.s_tir
-from . import s_tir
+# tvm.backend — owns backend Python load hooks
+from . import backend
 
 # tvm.target
 from . import target
@@ -69,8 +69,8 @@ from . import arith
 # support infra
 from . import support
 
-# Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc
+# Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
+from .support import rocm as _rocm, nvcc as _nvcc
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
@@ -115,3 +115,12 @@ def tvm_wrap_excepthook(exception_hook):
 
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
+
+# Autoload loads built-in and out-of-tree backends. Out-of-tree extensions opt
+# into being loaded automatically at ``import tvm`` time by declaring an entry
+# point in the ``tvm.backends`` group:
+# [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
+# Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
+from .backend._autoload_backends import _autoload_backends
+
+_autoload_backends()

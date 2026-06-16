@@ -18,10 +18,12 @@
 """Async software pipeline tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm import tirx
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -30,7 +32,7 @@ def compute(comp_type, outer, inner, dtype):
     """Generate compute function."""
     if comp_type == "single_input":
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype), out: T.Buffer((outer, inner), dtype)
         ):
@@ -43,7 +45,7 @@ def compute(comp_type, outer, inner, dtype):
         return a_plus_1_primfunc
     else:
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def a_plus_b_plus_1_primfunc(
             a_buffer: T.Buffer((outer, inner), dtype),
             b_buffer: T.Buffer((outer, inner), dtype),
@@ -165,7 +167,7 @@ class TestAsyncSoftwarePipeline:
 
         return sch
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_async_software_pipeline(
         self, hexagon_launcher, comp_type, data, reference, schedule, verify
     ):

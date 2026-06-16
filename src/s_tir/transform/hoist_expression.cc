@@ -58,7 +58,7 @@ enum class HoistedLetBindings : int {
   kLetExpr = (1 << 2),
 };
 
-struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionConfigNode> {
+struct HoistExpressionConfigNode : public ffi::Object {
   int hoisted_conditionals;
   int hoisted_let_bindings;
 
@@ -87,7 +87,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
                                     HoistExpressionConfigNode, ffi::Object);
 };
 
-class HoistExpressionConfig : public Attrs {
+class HoistExpressionConfig : public ffi::ObjectRef {
  public:
   HoistExpressionConfig(int hoisted_conditionals, int hoisted_let_bindings) {
     auto node = ffi::make_object<HoistExpressionConfigNode>();
@@ -95,7 +95,7 @@ class HoistExpressionConfig : public Attrs {
     node->hoisted_let_bindings = hoisted_let_bindings;
     data_ = std::move(node);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistExpressionConfig, ffi::ObjectRef,
                                                 HoistExpressionConfigNode);
 };
 
@@ -103,7 +103,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { HoistExpressionConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.HoistExpression", HoistExpressionConfig);
 
-struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
+struct HoistIfThenElseConfigNode : public ffi::Object {
   bool support_block_scope_hoisting;
 
   static void RegisterReflection() {
@@ -116,9 +116,9 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
                                     HoistIfThenElseConfigNode, ffi::Object);
 };
 
-class HoistIfThenElseConfig : public Attrs {
+class HoistIfThenElseConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, Attrs,
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HoistIfThenElseConfig, ffi::ObjectRef,
                                                 HoistIfThenElseConfigNode);
 };
 
@@ -450,7 +450,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
     arith::Analyzer analyzer;
-    ExpressionHoister hoister(std::move(loop_info), config, &analyzer);
+    ExpressionHoister hoister(std::move(loop_info), config, analyzer.get());
     stmt = hoister(std::move(stmt));
     stmt = ConvertSSA(std::move(stmt));
     return stmt;
@@ -462,7 +462,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
-                             HoistExpressionConfig config, arith::Analyzer* analyzer)
+                             HoistExpressionConfig config, arith::AnalyzerObj* analyzer)
       : Parent(analyzer), config_(config) {
     for (auto& info : loop_info) {
       // Mark let bindings to use if they are enabled on their own.
@@ -568,7 +568,7 @@ Pass HoistExpression() {
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<HoistExpressionConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
     n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
     return f;
@@ -578,7 +578,7 @@ Pass HoistExpression() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::Simplify(),
+          tirx::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistExpression");
@@ -593,8 +593,8 @@ static Pass HoistIfThenElseImpl() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
-    auto flag = f->GetAttr<Integer>("tirx.HoistIfThenElseExprWithBlock");
-    if (flag && flag.value().IntValue() == 1) {
+    auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
+    if (flag && flag.value() == 1) {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),
                                    static_cast<int>(HoistedLetBindings::kNone));
@@ -602,7 +602,7 @@ static Pass HoistIfThenElseImpl() {
       return f;
     }
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<HoistIfThenElseConfig>();
     }
     int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting
                                          ? HoistedConditionals::kUsingBlockVar
@@ -616,7 +616,7 @@ static Pass HoistIfThenElseImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::Simplify(),
+          tirx::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElse");
@@ -634,7 +634,7 @@ static Pass HoistIfThenElseBasicImpl() {
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::Simplify(),
+          tirx::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElseBasic");

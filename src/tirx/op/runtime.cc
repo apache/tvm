@@ -29,13 +29,15 @@ namespace tirx {
 
 TVM_REGISTER_OP("tirx.TVMBackendAnyListSetPackedArg")
     .set_num_inputs(5)
+    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListSetPackedArg")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TVM_REGISTER_OP("tirx.TVMBackendAnyListMoveFromPackedReturn")
     .set_num_inputs(3)
+    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListMoveFromPackedReturn")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 }  // namespace tirx
 }  // namespace tvm

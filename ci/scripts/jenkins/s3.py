@@ -170,7 +170,13 @@ if __name__ == "__main__":
             if item != ".":
                 source = s3_path + "/" + item
                 recursive = False
-            stdout = s3(source=source, destination=item, recursive=recursive)
+            try:
+                stdout = s3(source=source, destination=item, recursive=recursive)
+            except Exception:
+                # Optional artifacts (e.g. per-backend device runtime DSOs) may not
+                # exist in S3 when the build config didn't produce them. Skip silently.
+                logging.warning(f"Download failed for {item}, skipping (may be optional)")
+                continue
             files = parse_output_files(stdout)
             chmod(files)
             for file in files:

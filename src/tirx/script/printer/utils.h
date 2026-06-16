@@ -16,20 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TIRX_SCRIPT_PRINTER_UTILS_H_
-#define TVM_TIRX_SCRIPT_PRINTER_UTILS_H_
+#ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
+#define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
-#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/buffer.h>
+#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/predicate.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/tirx_op.h>
 
 #include <string>
 #include <unordered_map>
@@ -41,6 +44,8 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+using tvm::ffi::StructuralEqual;
 
 /*! \brief A printer frame for TIR fragment */
 class TIRFrameNode : public FrameNode {
@@ -111,15 +116,71 @@ inline IdDoc DefineBuffer(const tirx::Buffer& buffer, const Frame& frame, const 
 inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tirx::SeqStmtNode>()) {
     ffi::Array<tirx::Stmt> body = seq_stmt->seq;
-    for (int i = 0, n = body.size(); i < n; ++i) {
-      f->allow_concise_scoping = (i == n - 1);
-      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayItem(i));
+    auto value_refs_buffer = [](const PrimExpr& value, const tirx::Buffer& buffer) {
+      bool found = false;
+      tirx::PostOrderVisit(value, [&](const ffi::ObjectRef& node) {
+        if (const auto* load = node.as<tirx::BufferLoadNode>()) {
+          if (load->buffer.same_as(buffer)) {
+            found = true;
+          }
+        }
+      });
+      return found;
+    };
+
+    for (int i = 0, n = body.size(); i < n;) {
+      int consumed = 1;
+      AccessPath item_p = p->Attr("seq")->ArrayItem(i);
+      Doc doc{ffi::UnsafeInit()};
+
+      const auto* alloc = body[i].as<tirx::AllocBufferNode>();
+      if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
+        const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
+        bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
+                              !store->predicate.defined() && store->indices.size() == 1 &&
+                              tirx::is_zero(store->indices[0]) &&
+                              !value_refs_buffer(store->value, alloc->buffer);
+        if (can_merge_init) {
+          Doc alloc_doc = d->AsDoc(body[i], item_p);
+          if (const auto* assign = alloc_doc.as<AssignDocNode>()) {
+            if (assign->annotation.defined() && !assign->rhs.defined()) {
+              ExprDoc init_rhs =
+                  d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
+              auto fused = AssignDoc(assign->lhs, init_rhs, assign->annotation);
+              // Preserve comments that obj_to_annotate attached to either the
+              // AllocBuffer (alloc_doc) or the BufferStore source, since the
+              // user only sees the single fused line.
+              ffi::Optional<ffi::String> merged_comment = assign->comment;
+              if (d->cfg->obj_to_annotate.count(body[i + 1])) {
+                ffi::String store_comment = d->cfg->obj_to_annotate.at(body[i + 1]);
+                merged_comment = merged_comment.has_value()
+                                     ? merged_comment.value() + "\n" + store_comment
+                                     : store_comment;
+              }
+              fused->comment = merged_comment;
+              doc = fused;
+              consumed = 2;
+            } else {
+              doc = alloc_doc;
+            }
+          } else {
+            doc = alloc_doc;
+          }
+        } else {
+          doc = d->AsDoc(body[i], item_p);
+        }
+      } else {
+        doc = d->AsDoc(body[i], item_p);
+      }
+
+      f->allow_concise_scoping = (i + consumed >= n);
       doc->source_paths.push_back(p);
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
       } else {
         f->stmts.push_back(Downcast<StmtDoc>(doc));
       }
+      i += consumed;
     }
   } else {
     f->allow_concise_scoping = true;
@@ -130,6 +191,33 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       f->stmts.push_back(Downcast<StmtDoc>(doc));
     }
   }
+}
+
+inline ffi::String ScopeIdApiName(const tirx::ScopeBinding& binding) {
+  auto [parent, cur] = tirx::ScopeBindingToStringPair(binding);
+  if (parent == "kernel" && cur == "cluster") {
+    return "cluster_id";
+  } else if (parent == "kernel" && cur == "cta") {
+    return "cta_id";
+  } else if (parent == "cluster" && cur == "cta") {
+    return "cta_id_in_cluster";
+  } else if (parent == "cluster" && cur == "cta_pair") {
+    return "cta_id_in_pair";
+  } else if (parent == "cta" && cur == "warpgroup") {
+    return "warpgroup_id";
+  } else if (parent == "cta" && cur == "warp") {
+    return "warp_id";
+  } else if (parent == "warpgroup" && cur == "warp") {
+    return "warp_id_in_wg";
+  } else if (parent == "warp" && cur == "thread") {
+    return "lane_id";
+  } else if (parent == "cta" && cur == "thread") {
+    return "thread_id";
+  } else if (parent == "warpgroup" && cur == "thread") {
+    return "thread_id_in_wg";
+  }
+  LOG(FATAL) << "Unknown scope id binding: parent=" << parent << " cur=" << cur;
+  return "";
 }
 
 /*!
@@ -285,6 +373,10 @@ class OccurrenceCounter : public tirx::StmtExprVisitor {
 
   explicit OccurrenceCounter(const tirx::VarNode* var) { v = var; }
 };
+
+#ifndef TVM_SCRIPT_REPR
+#define TVM_SCRIPT_REPR(ObjectType, Method) TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)
+#endif
 
 }  // namespace printer
 }  // namespace script

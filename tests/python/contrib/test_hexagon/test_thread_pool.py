@@ -18,6 +18,7 @@
 """Add hexagon thread pool test"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.contrib.hexagon
@@ -25,6 +26,7 @@ import tvm.script
 import tvm.testing
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -34,7 +36,7 @@ class ElemwiseSumIRModule:
     """IRModule definition for elementwise sum"""
 
     # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elemwise_sum_serial(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_serial", "tirx.noalias": True})
         A = T.match_buffer(a, (n,), dtype="float32")
@@ -45,7 +47,7 @@ class ElemwiseSumIRModule:
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elemwise_sum_parallel(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_parallel", "tirx.noalias": True})
         A = T.match_buffer(a, (n,), dtype="float32")
@@ -72,7 +74,7 @@ def benchmark_func(mod, name, args, hexagon_session):
     return evaluator(a, b, c, n).mean
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_speedup(hexagon_session: Session, capsys):
     """Test speedup"""
     func = tvm.compile(
@@ -88,7 +90,7 @@ def test_speedup(hexagon_session: Session, capsys):
         print(f"... speedup of {serial_mean / parallel_mean:.2f}", end=" ")
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_elemwise_sum_parallel(hexagon_session: Session):
     """Test parallel elementwise sum"""
     func = tvm.compile(

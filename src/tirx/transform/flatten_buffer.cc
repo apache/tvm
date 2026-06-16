@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -44,7 +45,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
-    auto pass = BufferFlattener(&ana);
+    auto pass = BufferFlattener(ana.get());
     pass.MarkBufferMapShapes(func);
     auto body = pass.VisitStmt(func->body);
 
@@ -77,7 +78,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit BufferFlattener(arith::AnalyzerObj* ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
@@ -151,6 +152,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
+    writer->layout = std::nullopt;
 
     buffer_remap_[buf] = flattened;
     return flattened;

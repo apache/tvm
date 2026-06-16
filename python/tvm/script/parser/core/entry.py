@@ -38,22 +38,31 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 def _default_globals() -> dict[str, Any]:
     # lazy import here to avoid circular deps
+    from tvm.script import tirx as _tirx_dsl  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import (
         ir,  # pylint: disable=import-outside-toplevel
         relax,  # pylint: disable=import-outside-toplevel
-        tirx,  # pylint: disable=import-outside-toplevel
     )
+    from tvm.script.parser import tirx as _tirx_parser  # pylint: disable=import-outside-toplevel
+    from tvm.script.tirx import tile as _tirx_tile  # pylint: disable=import-outside-toplevel
+    from tvm.tirx import layout as _tirx_layout  # pylint: disable=import-outside-toplevel
 
-    extra_vars = {
+    # Expose the layout `Axis` class so printed layout sugar like
+    # `4 @ Axis.laneid` round-trips without per-script imports. Injecting just
+    # `Axis` (one short symbol) avoids name collisions with common user shape
+    # vars like `m`, `P`, `F` that registered axes happen to share names with.
+    return {
         "tvm": tvm,
         "I": ir,
         "ir": ir,
-        "T": tirx,
-        "tirx": tirx,
+        "T": _tirx_parser,
+        "tir": _tirx_parser,
         "R": relax,
         "relax": relax,
+        "Tx": _tirx_tile,
+        "tirx": _tirx_dsl,
+        "Axis": _tirx_layout.Axis,
     }
-    return extra_vars
 
 
 def scan_macro(program: Any | str, extra_vars: dict[str, Any] | None = None) -> Any:
@@ -68,6 +77,7 @@ def parse(
     program: doc.AST | Any | str,
     extra_vars: dict[str, Any] | None = None,
     check_well_formed: bool = True,
+    s_tir: bool = False,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
@@ -120,13 +130,16 @@ def parse(
 
         source_ast = source.as_ast()
 
-        if isinstance(ret, IRModule | tvm.relax.Function) and not tvm.relax.analysis.well_formed(
-            ret
-        ):
+        if isinstance(
+            ret, IRModule | tvm.relax.Function
+        ) and not tvm.relax.analysis.check_well_formed(ret):
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
 
         try:
-            tvm.tirx.analysis.verify_well_formed(check_ret)
+            if s_tir:
+                tvm.tirx.analysis.verify_well_formed(check_ret)
+            else:
+                tvm.tirx.analysis.verify_tirx_well_formed(check_ret)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,

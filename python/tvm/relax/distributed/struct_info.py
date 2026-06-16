@@ -21,7 +21,6 @@ import enum
 
 import tvm_ffi
 
-from tvm import TVMError
 from tvm.ir import Span
 from tvm.relax.struct_info import StructInfo, TensorStructInfo
 from tvm.runtime import Object
@@ -52,7 +51,7 @@ class PlacementSpec(Object):
     kind: PlacementSpecKind
 
     def __init__(self, *args, **kwargs):
-        raise TVMError("PlacementSpec is not intended to be constructed directly, ")
+        raise RuntimeError("PlacementSpec is not intended to be constructed directly, ")
 
     @staticmethod
     def sharding(axis: int) -> "PlacementSpec":

@@ -24,7 +24,7 @@ namespace tvm {
 namespace tirx {
 
 const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
-  GlobalVar result = NullValue<GlobalVar>();
+  GlobalVar result;
   // Priority 1: PrimFunc marked as `tirx::attr::kIsEntryFunc`
   int num_prim_func = 0;
   const tirx::PrimFuncNode* main_func = nullptr;

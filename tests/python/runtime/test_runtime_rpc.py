@@ -28,14 +28,17 @@ import numpy as np
 import pytest
 import tvm_ffi
 
+pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
+
 import tvm
 import tvm.testing
 from tvm import rpc, te
-from tvm.contrib import cc, utils
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import cc, utils
+from tvm.testing import env
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.
@@ -63,7 +66,7 @@ pytestmark = pytest.mark.skipif(
 # to ensure all the remote resources destructs before the server terminates
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_bigendian_rpc():
     """Test big endian rpc when there is a PowerPC RPC server available"""
     host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
@@ -94,7 +97,7 @@ def test_bigendian_rpc():
         verify_rpc(remote, target, (10,), dtype)
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_simple():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -104,7 +107,7 @@ def test_rpc_simple():
         assert f1(10) == 11
         f3 = client.get_function("rpc.test.except")
 
-        with pytest.raises(tvm.base.TVMError):
+        with pytest.raises(RuntimeError):
             f3("abc")
 
         f2 = client.get_function("rpc.test.strcat")
@@ -113,7 +116,7 @@ def test_rpc_simple():
     check_remote()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -127,7 +130,7 @@ def test_rpc_runtime_string():
     check_remote()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_array():
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
@@ -143,7 +146,7 @@ def test_rpc_array():
     check_remote()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_large_array():
     # testcase of large array creation
     server = rpc.Server()
@@ -162,7 +165,7 @@ def test_rpc_large_array():
 
 
 @tvm.testing.skip_if_32bit(reason="skipping test for i386.")
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_echo():
     def check(remote, local_session):
         fecho = remote.get_function("testing.echo")
@@ -211,7 +214,7 @@ def test_rpc_echo():
     # check_minrpc()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_file_exchange():
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
@@ -225,8 +228,8 @@ def test_rpc_file_exchange():
     check_remote()
 
 
-@tvm.testing.requires_rpc
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rpc_remote_module():
     # graph
     n = tvm.runtime.convert(102)
@@ -336,7 +339,7 @@ def test_rpc_remote_module():
     check_minrpc()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_return_func():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -349,7 +352,7 @@ def test_rpc_return_func():
     check_remote()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_session_constructor_args():
     # start server
     server0 = rpc.Server(key="x0")
@@ -386,7 +389,7 @@ def test_rpc_session_constructor_args():
     check_error_handling()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_return_tensor():
     def run_arr_test():
         server = rpc.Server(key="x1")
@@ -407,7 +410,7 @@ def test_rpc_return_tensor():
     run_arr_test()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_rpc_return_remote_object():
     def check(client, is_local):
         make_shape = client.get_function("ffi.Shape")
@@ -453,7 +456,7 @@ def test_rpc_return_remote_object():
     check_minrpc()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 def test_local_func():
     client = rpc.LocalSession()
 
@@ -470,7 +473,7 @@ def test_local_func():
     check_remote()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_register(device_key):
     # test registration
@@ -543,7 +546,7 @@ def _target(host, port, device_key, timeout):
     remote.cpu()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_request(device_key):
     # test concurrent request
@@ -584,7 +587,7 @@ def test_rpc_tracker_request(device_key):
     tracker.terminate()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_via_proxy(device_key):
     """
@@ -626,7 +629,7 @@ def test_rpc_tracker_via_proxy(device_key):
     tracker_server.terminate()
 
 
-@tvm.testing.requires_rpc
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
 @pytest.mark.parametrize("with_proxy", (True, False))
 def test_rpc_session_timeout_error(with_proxy):
     port = 9000
@@ -672,11 +675,11 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_without_arg() -> T.int64:
             return T.int64(42)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 

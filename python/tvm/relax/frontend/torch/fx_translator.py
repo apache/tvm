@@ -875,7 +875,10 @@ class TorchFXImporter(BaseFXGraphImporter):
             "log2": self._log2,
             "log10": self._log10,
             "log1p": self._log1p,
-            "logical_not": self._unary_op(relax.op.logical_not),
+            "logical_and": self._logical_and,
+            "logical_not": self._logical_not,
+            "logical_or": self._logical_or,
+            "logical_xor": self._logical_xor,
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "pad": self._pad,
@@ -929,7 +932,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "outer": lambda node: self.block_builder.emit(
                 relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
             ),
-            "pow": self._binary_op(relax.op.power, operator.pow),
+            "pow": self._pow,
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
             "rsub": self._rsub,

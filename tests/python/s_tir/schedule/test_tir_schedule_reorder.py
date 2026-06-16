@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -42,7 +42,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -53,7 +53,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -64,7 +64,7 @@ def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -75,7 +75,7 @@ def elementwise_predicate(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     C = T.sblock_alloc_buffer((128, 128, 128))
@@ -91,7 +91,7 @@ def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -106,7 +106,7 @@ def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
@@ -119,7 +119,7 @@ def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_reordered(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -129,7 +129,7 @@ def elementwise_reordered(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -139,7 +139,7 @@ def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -150,7 +150,7 @@ def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
@@ -168,7 +168,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
@@ -220,7 +220,7 @@ def test_reorder_with_opaque_access():
 
 
 def test_reorder_overlapped_access():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def overlapped_access(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
@@ -229,7 +229,7 @@ def test_reorder_overlapped_access():
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def overlapped_access_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
@@ -246,7 +246,7 @@ def test_reorder_overlapped_access():
 
 
 def test_reorder_with_partial_affineness():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def non_affine_func(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v1, v2 in T.grid(6, 4, 4):
             with T.sblock("block"):
@@ -254,7 +254,7 @@ def test_reorder_with_partial_affineness():
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def non_affine_func_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v2, v1 in T.grid(6, 4, 4):
             with T.sblock("block"):
@@ -273,7 +273,7 @@ def test_reorder_with_partial_affineness():
 
 
 def test_reorder_with_cascade_tiled_ops():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cascade_pool_ops(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:
@@ -291,7 +291,7 @@ def test_reorder_with_cascade_tiled_ops():
                     y2[ax0, ax1, ax2, ax3] = 0.0
                 y2[ax0, ax1, ax2, ax3] = y2[ax0, ax1, ax2, ax3] + y1[ax0, ax1, ax2 + rv0, ax3 + rv1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cascade_pool_ops_tile_reordered(
         x: T.Buffer((1, 16, 112, 112), "float32"), y2: T.Buffer((1, 16, 108, 108), "float32")
     ) -> None:

@@ -169,7 +169,7 @@ constexpr int kInvalidDeviceType = -1;
  * These operations are needed during device planning.
  */
 
-class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
+class VirtualDeviceNode : public AttrsNode {
  private:
   /*!
    * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
@@ -257,7 +257,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
                 "The area of memory w.r.t. the virtual device where data is stored.",
                 refl::DefaultValue(""));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.VirtualDevice", VirtualDeviceNode, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.VirtualDevice", VirtualDeviceNode, AttrsNode);
 
   friend class VirtualDevice;
 };
@@ -295,8 +295,8 @@ class VirtualDevice : public ffi::ObjectRef {
   static VirtualDevice ForDeviceType(int device_type, int virtual_device_id = -1) {
     return ForDeviceType(static_cast<DLDeviceType>(device_type), virtual_device_id);
   }
-  static VirtualDevice ForDeviceType(const Integer& device_type, int virtual_device_id = -1) {
-    return ForDeviceType(static_cast<int>(device_type->value), virtual_device_id);
+  static VirtualDevice ForDeviceType(int64_t device_type, int virtual_device_id = -1) {
+    return ForDeviceType(static_cast<int>(device_type), virtual_device_id);
   }
 
   /*! \brief Returns the \p VirtualDevice for \p device. */

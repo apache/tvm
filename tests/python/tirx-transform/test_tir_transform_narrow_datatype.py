@@ -47,7 +47,7 @@ def test_basic():
     def check_const(m, n, target_bits, target_dtype):
         """Check with constant values using TVMScript closure."""
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer((m * n,), "float32"), B: T.Buffer((m * n,), "float32")):
             for i in T.serial(m):
                 for j in T.serial(n):
@@ -61,7 +61,7 @@ def test_basic():
         """Check with symbolic shapes as function parameters."""
         if m_dtype == "int32":
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int32, n: T.int32):
                 A_buf = T.decl_buffer((m * n,), "float32", data=A)
                 B_buf = T.decl_buffer((m * n,), "float32", data=B)
@@ -71,7 +71,7 @@ def test_basic():
 
         else:
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int64, n: T.int64):
                 A_buf = T.decl_buffer((m * n,), "float32", data=A)
                 B_buf = T.decl_buffer((m * n,), "float32", data=B)
@@ -102,7 +102,7 @@ def test_thread_axis():
     # This test uses launch_thread to create AttrStmt nodes with "thread_extent"
     # and checks the dtype of thread axis variables after narrowing.
     def check_const(m, n, target_bits, target_dtype):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer((m * n,), "float32"), B: T.Buffer((m * n,), "float32")):
             bx = T.launch_thread("blockIdx.x", m)
             tx = T.launch_thread("threadIdx.x", n)
@@ -137,7 +137,7 @@ def test_multilanes():
     def check(m, lanes, target_bits, target_dtype):
         vec_dtype = f"float32x{lanes}"
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(
             A: T.Buffer((m,), vec_dtype),
             B: T.Buffer((m,), vec_dtype),
@@ -166,7 +166,7 @@ def test_slice():
     # Test narrowing with slice indexing where buffer B has different index ranges.
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(
             A: T.Buffer((m * n,), "float32"),
             B: T.Buffer((m * n * 2,), "float32"),
@@ -186,7 +186,7 @@ def test_slice():
 
 
 def test_condition():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((130,), "float32")):
         for i, j in T.grid(T.int64(2), T.int64(65)):
             if i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128):
@@ -199,7 +199,7 @@ def test_condition():
                 dtype="float32",
             )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected_after(A: T.Buffer(128, "float32"), B: T.Buffer(130, "float32")):
         for i, j in T.grid(2, 65):
             if i * 65 + j >= 0 and i * 65 + j < 128:
@@ -216,7 +216,7 @@ def test_condition():
 
 
 def test_block():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -224,7 +224,7 @@ def test_block():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected_after(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -239,7 +239,7 @@ def test_block():
 
 
 def test_avg_pool2d():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
         for j in T.parallel(T.int64(0), T.int64(280)):
             for i in T.serial(T.int64(0), T.int64(35)):
@@ -272,7 +272,7 @@ def test_avg_pool2d():
                         "int32",
                     )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected_after(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
         for j in T.parallel(T.int32(0), T.int32(280)):
             for i in T.serial(T.int32(0), T.int32(35)):
@@ -297,17 +297,17 @@ def test_avg_pool2d():
     after = tvm.tirx.transform.NarrowDataType(32)(
         tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     )
-    after = tvm.tirx.transform.Simplify()(after)
+    after = tvm.tirx.transform.StmtSimplify()(after)
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
 
 def test_narrow_i64_valued_bufferload_index_to_i32():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((16,), "int64")):
         for i in range(T.int64(15)):
             A[i + T.int64(1)] = A[i] + T.int64(1)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expect(A: T.Buffer((16,), "int64")):
         for i in range(15):
             A[i + 1] = A[i] + T.int64(1)

@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -45,14 +46,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   static PrimFunc Transform(PrimFunc func) {
     Analyzer analyzer;
 
-    auto new_body = PermutedLayoutInjector(func, &analyzer)(func->body);
+    auto new_body = PermutedLayoutInjector(func, analyzer.get())(func->body);
     auto func_node = func.CopyOnWrite();
     func_node->body = new_body;
     return func;
   }
 
  private:
-  explicit PermutedLayoutInjector(PrimFunc func, Analyzer* analyzer)
+  explicit PermutedLayoutInjector(PrimFunc func, AnalyzerObj* analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     buffer_map_.insert(func->buffer_map.begin(), func->buffer_map.end());
   }
@@ -155,10 +156,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
@@ -254,12 +255,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     }
 
-    if (!call->op.same_as(builtin::ptx_ldmatrix()) && !call->op.same_as(builtin::mma_store())) {
+    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
+    if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
       return call;
     }
 
-    if (call->op.same_as(builtin::ptx_ldmatrix())) {
-      // form: T.ptx_ldmatrix(..., smem_ptr, smem_offset)
+    if (call->op.same_as(ptx_ldmatrix_op)) {
+      // form: T.ptx.ldmatrix_legacy(..., smem_ptr, smem_offset)
       // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
       auto access_ptr = call->args[5];
       PrimExpr smem_offset = call->args[6];
@@ -268,7 +271,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       new_call->args.Set(5, new_access_ptr);
       new_call->args.Set(6, IntImm(smem_offset->dtype, 0));
       return call;
-    } else if (call->op.same_as(builtin::mma_store())) {
+    } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
       auto access_ptr = call->args[2];

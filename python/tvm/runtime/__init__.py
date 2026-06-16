@@ -21,7 +21,7 @@ from tvm_ffi import convert, Object
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
 # Import _ffi_node_api for its side effect of installing AsRepr as
-# tvm_ffi.core.__object_repr__ so TVM IR objects use the rich C++ ReprPrinter.
+# tvm_ffi.core.__object_repr__.
 from . import _ffi_node_api
 
 # class exposures
@@ -44,6 +44,11 @@ from .params import (
     load_param_dict_from_file,
 )
 
-from . import disco
+try:
+    from . import disco
+except (ImportError, ValueError):
+    # disco C++ runtime is in libtvm_runtime_extra which may not be present.
+    # Make the disco module optional.
+    disco = None  # type: ignore[assignment]
 
-from .support import _regex_match
+from tvm_ffi import Shape as ShapeTuple

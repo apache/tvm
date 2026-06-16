@@ -66,9 +66,9 @@ class TestAutopad:
         tvm.ir.assert_structural_equal(bb.get(), expected)
 
     def test_constant(self):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class expected:
-            @T.prim_func(private=True)
+            @T.prim_func(private=True, s_tir=True)
             def pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 PadInput: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
@@ -104,9 +104,9 @@ class TestAutopad:
         self._test_autopad("constant", expected)
 
     def test_edge(self):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class expected:
-            @T.prim_func(private=True)
+            @T.prim_func(private=True, s_tir=True)
             def replicate_pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 ReplicatePadInput: T.Buffer(
@@ -165,9 +165,9 @@ class TestAutopad:
         self._test_autopad("edge", expected)
 
     def test_reflect(self):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class expected:
-            @T.prim_func(private=True)
+            @T.prim_func(private=True, s_tir=True)
             def mirror_pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 MirrorPadInput: T.Buffer(

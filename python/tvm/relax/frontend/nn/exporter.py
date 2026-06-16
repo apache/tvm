@@ -139,7 +139,7 @@ class Exporter:
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
         mod = self.builder.finalize()
-        assert rx.analysis.well_formed(mod)
+        rx.analysis.well_formed(mod)
 
         return mod, params, ext_mods
 

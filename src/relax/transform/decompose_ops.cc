@@ -25,6 +25,9 @@
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tirx/function.h>
+
+#include <unordered_set>
 
 #include "utils.h"
 
@@ -37,11 +40,11 @@ TensorStructInfo MatchTensorStructInfo(Expr data) {
   return _sinfo.value();
 }
 
-Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<Integer> axes) {
+Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<int64_t> axes) {
   axes = GetOrderedPositiveAxes(axes, ndim);
-  ffi::Array<Integer> expand_axes;
+  ffi::Array<int64_t> expand_axes;
   for (int i = 0, j = 0; i < ndim; ++i) {
-    if (j < static_cast<int>(axes.size()) && i == axes[j]->value) {
+    if (j < static_cast<int>(axes.size()) && i == axes[j]) {
       ++j;
     } else {
       expand_axes.push_back(i);
@@ -90,7 +93,7 @@ Expr MutateBatchNormForTraining(Call call) {
 
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
 
-  ffi::Array<Integer> reduce_axes;
+  ffi::Array<int64_t> reduce_axes;
   for (int i = 0; i < sinfo->ndim; ++i) {
     if (i != attrs->axis) {
       reduce_axes.push_back(i);
@@ -212,6 +215,87 @@ class OpDecomposer : public ExprMutator {
 
 namespace transform {
 
+namespace {
+
+/*! \brief Helper: add or remove an attribute on a BaseFunc */
+BaseFunc BaseFuncWithAttr(BaseFunc func, const std::string& attr_key, Any attr_value) {
+  if (auto tirx = func.as<tirx::PrimFunc>()) {
+    return WithAttr(tirx.value(), attr_key, attr_value);
+  } else if (auto relax_fn = func.as<relax::Function>()) {
+    return WithAttr(relax_fn.value(), attr_key, attr_value);
+  } else {
+    return func;
+  }
+}
+
+BaseFunc BaseFuncWithoutAttr(BaseFunc func, const std::string& attr_key) {
+  if (auto tirx = func.as<tirx::PrimFunc>()) {
+    return WithoutAttr(tirx.value(), attr_key);
+  } else if (auto relax_fn = func.as<relax::Function>()) {
+    return WithoutAttr(relax_fn.value(), attr_key);
+  } else {
+    return func;
+  }
+}
+
+/*!
+ * \brief Apply a pass to a single named function within an IRModule.
+ *
+ * Replaces all other functions with dummy ExternFunc stubs so that the
+ * pass does not see them, then restores the original module.  Uses
+ * exact name match (not a regex) because all in-tree callers supply a
+ * literal function name.
+ */
+Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
+  auto pass_func = [pass, func_name](IRModule mod, PassContext) -> IRModule {
+    std::unordered_set<ffi::String> keep_original_version;
+    std::unordered_set<ffi::String> internal_functions;
+    IRModule subset;
+
+    for (auto [gvar, func] : mod->functions) {
+      if (gvar->name_hint == func_name) {
+        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+          // Mark internal functions as externally-exposed so that
+          // call-tracing transforms inside the pass do not remove them.
+          internal_functions.insert(gvar->name_hint);
+          func = BaseFuncWithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
+        }
+      } else {
+        // Replace non-target functions with stubs to keep references intact.
+        keep_original_version.insert(gvar->name_hint);
+        func = relax::ExternFunc("dummy_" + std::string(gvar->name_hint));
+        func->struct_info_ = gvar->struct_info_;
+      }
+      subset->Add(gvar, func);
+    }
+
+    IRModule new_subset = pass(subset);
+    if (new_subset.same_as(subset)) {
+      return mod;
+    }
+
+    auto write_ptr = mod.CopyOnWrite();
+    for (auto [gvar, func] : new_subset->functions) {
+      if (!keep_original_version.count(gvar->name_hint)) {
+        if (auto it = write_ptr->global_var_map_.find(gvar->name_hint);
+            it != write_ptr->global_var_map_.end()) {
+          write_ptr->Remove((*it).second);
+        }
+        if (internal_functions.count(gvar->name_hint)) {
+          func = BaseFuncWithoutAttr(func, tvm::attr::kGlobalSymbol);
+        }
+        write_ptr->Add(gvar, func);
+      }
+    }
+    return mod;
+  };
+
+  std::string pass_name = "ApplyDecomposeTo" + std::string(func_name);
+  return CreateModulePass(pass_func, 0, pass_name, {});
+}
+
+}  // namespace
+
 Pass MutateOpsForTraining() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
     TrainingOperatorMutator mutator;
@@ -236,7 +320,7 @@ Pass DecomposeOps() {
 
 Pass DecomposeOpsForInference(ffi::Optional<ffi::String> func_name) {
   if (func_name) {
-    return ApplyPassToFunction(DecomposeOps(), func_name.value());
+    return ApplyDecomposeToFunction(DecomposeOps(), func_name.value());
   } else {
     return DecomposeOps();
   }
@@ -246,7 +330,7 @@ Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name) {
   auto module_pass = tvm::transform::Sequential({MutateOpsForTraining(), DecomposeOps()},
                                                 "DecomposeOpsForTraining");
   if (func_name) {
-    return ApplyPassToFunction(module_pass, func_name.value());
+    return ApplyDecomposeToFunction(module_pass, func_name.value());
   } else {
     return module_pass;
   }

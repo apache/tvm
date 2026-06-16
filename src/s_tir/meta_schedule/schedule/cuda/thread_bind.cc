@@ -43,22 +43,22 @@ using s_tir::LoopRV;
 using s_tir::SBlockRV;
 using s_tir::Schedule;
 
-std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<Integer> thread_extents) {
+std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<int64_t> thread_extents) {
   return [sch = std::move(sch),
           thread_extents = std::move(thread_extents)](int64_t max_extent) -> ExprRV {
-    ffi::Array<Integer> extents;
+    ffi::Array<int64_t> extents;
     extents.reserve(thread_extents.size());
-    for (const Integer extent : thread_extents) {
-      if (extent->value <= max_extent) {
-        extents.push_back(Integer(extent->value));
+    for (int64_t extent : thread_extents) {
+      if (extent <= max_extent) {
+        extents.push_back(extent);
       }
     }
     int n = extents.size();
     if (n == 0) {
-      return Integer(max_extent);
+      return IntImm(DataType::Int(32), max_extent);
     }
     if (n == 1) {
-      return Integer(extents[0]);
+      return IntImm(DataType::Int(32), extents[0]);
     }
     ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), 1.0 / n));
     return sch->SampleCategorical(extents, probs);
@@ -85,9 +85,9 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
     sch->Bind(splits[1], "threadIdx.x");
     return {splits[0], splits[1]};
   } else {
-    ffi::Array<LoopRV> splits = sch->Split(loop, {std::nullopt,
-                                                  Integer(max_threadblocks),  //
-                                                  Integer(max_threads_per_block)});
+    ffi::Array<LoopRV> splits =
+        sch->Split(loop, {std::nullopt, IntImm(DataType::Int(32), max_threadblocks),  //
+                          IntImm(DataType::Int(32), max_threads_per_block)});
     TVM_FFI_ICHECK_EQ(splits.size(), 3);
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");

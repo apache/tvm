@@ -395,8 +395,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     const tirx::ForNode* desc_loop = kv.second.get();
     TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
-    PrimExpr block_extent = analyzer.Simplify(block_loop->extent);
-    PrimExpr desc_extent = analyzer.Simplify(desc_loop->extent);
+    PrimExpr block_extent = analyzer->Simplify(block_loop->extent);
+    PrimExpr desc_extent = analyzer->Simplify(desc_loop->extent);
     const auto* int_block_extent = block_extent.as<IntImmNode>();
     const auto* int_desc_extent = desc_extent.as<IntImmNode>();
     TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
@@ -407,11 +407,12 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).
     ffi::Array<LoopRV> split =
-        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, Integer(inner)});
+        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, IntImm(DataType::Int(32), inner)});
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
-    int desc_loop_index = info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)).IntValue();
+    int desc_loop_index =
+        static_cast<int>(info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)));
     reorder_suffix[desc_loop_index] = split[1];
   }
   // Reorder the loops
@@ -548,7 +549,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     bool is_reduction = IsReductionBlock(sch->state(),         //
                                          sch->GetSRef(block),  //
                                          sch->GetSRef(root_block));
-    block_is_reduction.push_back(Bool(is_reduction));
+    block_is_reduction.push_back(IntImm(DataType::Bool(), is_reduction));
   }
   return ffi::Array<ffi::ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }

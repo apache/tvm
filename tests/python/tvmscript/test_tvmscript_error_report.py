@@ -23,47 +23,35 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tirx
-from tvm.ir.diagnostics import override_renderer
 from tvm.script import from_source
 from tvm.script import tirx as T
 
 
 def check_error(func, rel_lineno):
-    check_error_re = re.compile(r"^.*# check_error: (.+)$")
     """check if TIR script throws error"""
-    # Override the default renderer to accumulate errors
-    errors = []
-
-    def render(e):
-        for d in e.diagnostics:
-            errors.append(d)
-
-    override_renderer(render)
-    # The diagnostic context throws an exception when it gets an error
-    try:
-        source_code = inspect.getsource(func)
-        indent = len(re.match(r"^\s*", source_code).group(0))
-        source_code = "@T.prim_func\n" + "\n".join(
-            line[indent:] for line in source_code.splitlines()
-        )
+    check_error_re = re.compile(r"^.*# check_error: (.+)$")
+    source_code = inspect.getsource(func)
+    indent = len(re.match(r"^\s*", source_code).group(0))
+    source_code = "@T.prim_func(s_tir=True)\n" + "\n".join(
+        line[indent:] for line in source_code.splitlines()
+    )
+    # Parse errors now raise DiagnosticError with formatted source location.
+    with pytest.raises(tvm.error.DiagnosticError) as execinfo:
         from_source(source_code)
-    except tvm.error.DiagnosticError as e:
-        pass
-    assert len(errors) == 1, errors
+    err_str = str(execinfo.value)
     if rel_lineno is None:
         return
-    error = errors[0]
-    assert error.span.line - 1 == rel_lineno or error.span.line == rel_lineno, (
-        f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
+    # The error message contains " --> <source>:<lineno>:<col>" formatted by Diagnostics.error().
+    # Accept either rel_lineno or rel_lineno+1 to match old tolerance.
+    assert f":{rel_lineno}:" in err_str or f":{rel_lineno + 1}:" in err_str, (
+        f"Expected error message to contain line {rel_lineno}, got:\n{err_str}"
     )
-
     error_line = source_code.split("\n")[rel_lineno]
     m = check_error_re.match(error_line)
     if m:
         expected_error_text = m.group(1)
-        error = error.message
-        assert expected_error_text == error, (
-            f'check_error expects "{expected_error_text} in str(errors): {error}'
+        assert expected_error_text in err_str, (
+            f'check_error expects "{expected_error_text}" in error: {err_str}'
         )
 
 
@@ -417,7 +405,7 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_axes, 2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
@@ -428,7 +416,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     C = T.sblock_alloc_buffer((128, 128, 128))
@@ -587,6 +575,91 @@ def test_syntax_sugar_fail():
             A[i] = A[i] * 2.0
 
     check_error(loop_syntax_sugar_fail, 3)
+
+
+def test_multi_line_error_report():
+    """A parse error whose offending AST node spans several physical source
+    lines must render ALL spanned lines (each with its own gutter line number
+    and an underline covering the span), not just the first line."""
+
+    # The offending call (`T.axis.remap(...)`) is deliberately split across
+    # four physical lines so its AST node spans lineno..end_lineno > lineno.
+    source_code = "\n".join(
+        [
+            "@T.prim_func(s_tir=True)",
+            "def f() -> None:",
+            "    for i, j in T.grid(16, 16):",
+            "        vi, vj = T.axis.remap(",
+            '            "S",',
+            "            [i, j],",
+            "        )  # error",
+            "        T.evaluate(1.0)",
+        ]
+    )
+
+    with pytest.raises(tvm.error.DiagnosticError) as execinfo:
+        from_source(source_code)
+    err_str = str(execinfo.value)
+
+    # All four spanned source lines must appear in the rendered snippet.
+    assert "T.axis.remap(" in err_str, err_str
+    assert '"S",' in err_str, err_str
+    assert "[i, j]," in err_str, err_str
+    # The trailing `)` closing line is also part of the span.
+    rendered_lines = err_str.splitlines()
+    assert any(" 7 " in line and ")" in line for line in rendered_lines), err_str
+    # The underline carets must be present on more than one line (multi-line).
+    marker_lines = [line for line in rendered_lines if "^" in line]
+    assert len(marker_lines) >= 2, err_str
+    # The gutter must show distinct line numbers for the spanned lines.
+    assert " 4 " in err_str and " 5 " in err_str and " 6 " in err_str, err_str
+
+
+def test_format_source_snippet_multi_line():
+    """Unit-level check that _format_source_snippet renders every line in a
+    multi-line span, with the underline covering start-col..EOL on the first
+    line, full interior lines, and col-1..end-col on the last line."""
+    from tvm.script.parser.core.diagnostics import _format_source_snippet
+
+    source_lines = [
+        "first ignored line\n",
+        "    foo(bar,\n",
+        "        baz,\n",
+        "        qux)\n",
+        "last ignored line\n",
+    ]
+    # Span lines 2..4 (1-based), starting at col 5 ('foo'), ending at col 13
+    # (exclusive) on line 4.
+    snippet = _format_source_snippet(
+        source_lines, lineno=2, col_offset=5, end_lineno=4, end_col_offset=13
+    )
+    lines = snippet.splitlines()
+    # All three spanned source lines must be present.
+    assert any("foo(bar," in line for line in lines), snippet
+    assert any("baz," in line for line in lines), snippet
+    assert any("qux)" in line for line in lines), snippet
+    # Underline carets present on the first line under 'foo(bar,'.
+    assert "^" in snippet, snippet
+    # The line numbers 2, 3, 4 appear in the gutter.
+    assert " 2 |" in snippet and " 3 |" in snippet and " 4 |" in snippet, snippet
+
+
+def test_format_source_snippet_single_line_unchanged():
+    """A single-line span (end_lineno == lineno) underlines only the
+    [col_offset, end_col_offset) columns on that one line."""
+    from tvm.script.parser.core.diagnostics import _format_source_snippet
+
+    source_lines = ["ignored\n", "    abc + def\n", "ignored\n"]
+    # Underline just 'abc' (cols 5..8 exclusive) on line 2.
+    snippet = _format_source_snippet(
+        source_lines, lineno=2, col_offset=5, end_lineno=2, end_col_offset=8
+    )
+    lines = snippet.splitlines()
+    # Exactly one source-text line and one marker line (plus the leading gutter).
+    text_lines = [line for line in lines if "abc + def" in line]
+    assert len(text_lines) == 1, snippet
+    marker_line = next(line for line in lines if "^" in line)
+    assert marker_line.count("^") == 3, snippet
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@
 
 #include "distributed.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/topi/einsum.h>
@@ -65,7 +66,7 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferStructInfoAnnotateSharding)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.dist.redistribute */
 
@@ -95,12 +96,12 @@ TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exactly 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exactly 1 output struct info.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
@@ -117,7 +118,7 @@ TVM_REGISTER_OP("relax.dist.call_tir_local_view")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args,
                           ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
@@ -160,19 +161,19 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
   TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
-                     << " of input tensor to be "
-                        "divisible by the "
-                        "num_workers. However, the axis "
-                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
-                     << " while num_workers is " << num_workers);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+        << " of input tensor to be "
+           "divisible by the "
+           "num_workers. However, the axis "
+        << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+        << " while num_workers is " << num_workers;
   }
 
   ffi::Array<PrimExpr> output_shape = input_shape.value();
@@ -188,19 +189,19 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_sinfo->GetShape();
   TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
-                     << " of input tensor to be "
-                        "divisible by the "
-                        "num_workers. However, the axis "
-                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
-                     << " while num_workers is " << num_workers);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+        << " of input tensor to be "
+           "divisible by the "
+           "num_workers. However, the axis "
+        << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+        << " while num_workers is " << num_workers;
   }
 
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
@@ -232,7 +233,7 @@ TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

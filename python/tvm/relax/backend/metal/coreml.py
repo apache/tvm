@@ -24,7 +24,6 @@ import tvm_ffi
 
 import tvm
 from tvm.contrib import coreml_runtime
-from tvm.contrib.xcode import compile_coreml
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
@@ -39,6 +38,7 @@ from tvm.relax.expr import (
 )
 from tvm.relax.struct_info import PrimStructInfo, TensorStructInfo
 from tvm.relax.transform import PatternCheckContext
+from tvm.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
@@ -169,7 +169,7 @@ def partition_for_coreml(mod):
     """
 
     patterns = get_patterns_with_prefix("coreml")
-    mod = transform.FoldDataflowBlockOutput()(mod)
+    mod = transform.CanonicalizeBindings()(mod)
     mod = transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(mod)
     mod = transform.MergeCompositeFunctions()(mod)
     return mod
@@ -311,8 +311,14 @@ class CodegenCoreML(PyExprVisitor):
     """
 
     def __init__(self, model_name, function):
-        import coremltools
-        from coremltools.models.neural_network import NeuralNetworkBuilder
+        try:
+            import coremltools
+            from coremltools.models.neural_network import NeuralNetworkBuilder
+        except ImportError as err:
+            raise ImportError(
+                "coremltools is required by the CoreML backend. "
+                "Install it with: pip install coremltools"
+            ) from err
 
         self.model_name = model_name
         self.function = function

@@ -21,3 +21,53 @@ tvm.support
    :members:
    :imported-members:
    :autosummary:
+
+tvm.support.cc
+~~~~~~~~~~~~~~
+.. automodule:: tvm.support.cc
+    :members:
+
+tvm.support.nvcc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.nvcc
+    :members:
+
+tvm.support.rocm
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.rocm
+    :members:
+
+tvm.support.ndk
+~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.ndk
+    :members:
+
+tvm.support.xcode
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.xcode
+    :members:
+
+tvm.support.clang
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.clang
+    :members:
+
+tvm.support.emcc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.emcc
+    :members:
+
+tvm.support.popen_pool
+~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.popen_pool
+    :members:
+
+tvm.support.utils
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.utils
+    :members:
+
+tvm.support.tar
+~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.tar
+    :members:

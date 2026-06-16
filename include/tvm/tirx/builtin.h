@@ -68,6 +68,25 @@ TVM_DLL const Op& reinterpret();
 TVM_DLL const Op& likely();
 
 /*!
+ * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
+ * to narrow the active thread set A for the then-branch. Two forms:
+ *   filter(var, lo, hi)   -- range form, true iff var in [lo, hi)
+ *   filter(var, cond)     -- predicate form (e.g. var == k); true iff cond
+ * `var` must be a ScopeIdDef-declared Var at parse time (Verifier Rule 2).
+ */
+TVM_DLL const Op& filter();
+
+/*!
+ * \brief Analysis-only active-thread selector.
+ *
+ * ``selector(var, pred)`` denotes the unique value of ``var`` in the current
+ * active domain for which ``pred`` is true. It is used only inside
+ * ExecContext/DispatchContext metadata, for predicates such as
+ * ``ptx.elect_sync()`` whose selected lane cannot be inferred structurally.
+ */
+TVM_DLL const Op& selector();
+
+/*!
  * \brief Bitwise and operator.
  */
 TVM_DLL const Op& bitwise_and();
@@ -115,6 +134,7 @@ TVM_DLL const Op& large_uint_imm();
  * (i.e., round(x.1) = x and round (x.5) = x+1)
  */
 TVM_DLL const Op& q_multiply_shift();
+TVM_DLL const Op& q_multiply_shift_per_axis();
 
 /*!
  * \brief Returns the address of an element in the buffer (see pseudocode below).
@@ -253,6 +273,15 @@ TVM_DLL const Op& prefetch();
  *  }
  */
 TVM_DLL const Op& tvm_access_ptr();
+
+/*!
+ * \brief Cast a handle to a typed pointer after adding a byte offset.
+ *
+ *  DType* ptr_byte_offset(void* data, int byte_offset, Expr dtype) {
+ *    return reinterpret_cast<DType*>(reinterpret_cast<char*>(data) + byte_offset);
+ *  }
+ */
+TVM_DLL const Op& ptr_byte_offset();
 
 /*!
  * \brief Create a function local static handle that iniitalizes to nullptr.
@@ -472,6 +501,11 @@ TVM_DLL const Op& tvm_call_trace_packed_lowered();
 TVM_DLL const Op& tvm_storage_sync();
 
 /*!
+ * \brief Marker where a transform should replace generated kernel initialization.
+ */
+TVM_DLL const Op& tvm_kernel_replace_point();
+
+/*!
  * \brief See pseudo code
  *
  *  Type tvm_warp_shuffle(mask, Type value, warp_id, width, warp_size) {
@@ -496,7 +530,7 @@ TVM_DLL const Op& tvm_storage_sync();
  *
  *  Parameter width indicates the number of threads involved in one
  *  shuffle. See CUDA document for __shfl_sync, __shfl_up_sync,
- *  __shfl_down_sync and __activemask.
+ *  __shfl_down_sync, __shfl_xor_sync and __activemask.
  *
  *  Parameter warp_size is the size of a warp, which helps a backend
  *  to determine whether the width parameter is legal.
@@ -505,7 +539,14 @@ TVM_DLL const Op& tvm_storage_sync();
 TVM_DLL const Op& tvm_warp_shuffle();
 TVM_DLL const Op& tvm_warp_shuffle_up();
 TVM_DLL const Op& tvm_warp_shuffle_down();
+TVM_DLL const Op& tvm_warp_shuffle_xor();
 TVM_DLL const Op& tvm_warp_activemask();
+
+/*!
+ * \brief Initialize the global barrier.
+ *  Call this at beginning of kernel that need global barrier.
+ */
+TVM_DLL const Op& tvm_global_barrier_kinit();
 
 /*!
  * \brief See pesudo code
@@ -519,269 +560,6 @@ TVM_DLL const Op& tvm_warp_activemask();
  *  }
  */
 TVM_DLL const Op& tvm_thread_allreduce();
-
-// TODO(tvm-team) TensorCore specific intrinsics should be directly registered under
-//                cuda. namespace and used through op.
-/*!
- * \brief tvm intrinsic for tensor core load operators.
- *
- *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                            Expr index, Expr buffer_ptr, Expr stride,
- *                            StringImm layout) {
- *    // m, n, k are the shape of wmma fragment.
- *    // Determine fragment layout(column-major or row major) by layout.
- *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
- *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
- *  }
- */
-TVM_DLL const Op& tvm_load_matrix_sync();
-
-/*!
- * \brief tvm intrinsic for tensor core mma_sync operators.
- *
- *  void tvm_mma_sync(Var fragment_d, Expr index_d,
- *                    Var fragment_a, Expr index_a,
- *                    Var fragment_b, Expr index_b,
- *                    Var fragment_c, Expr index_c) {
- *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
- *                           fragment_b[index_b], fragment_c[index_c]);
- *  }
- */
-TVM_DLL const Op& tvm_mma_sync();
-
-/*!
- * \brief tvm intrinsic for tensor core bmma_sync operators.
- *
- *  void tvm_bmma_sync(Var fragment_d, Expr index_d,
- *                     Var fragment_a, Expr index_a,
- *                     Var fragment_b, Expr index_b,
- *                     Var fragment_c, Expr index_c) {
- *    nvcuda::wmma::bmma_sync(fragment_d[index_d], fragment_a[index_a],
- *                           fragment_b[index_b], fragment_c[index_c]);
- *  }
- */
-TVM_DLL const Op& tvm_bmma_sync();
-
-/*!
- * \brief tvm intrinsic for tensor core fill_fragment operators.
- *
- *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                         Expr index, Expr value) {
- *    // m, n, k are the shape of wmma fragment
- *    // fragments must be in 'wmma.accumulator' scope.
- *    nvcuda::wmma::fill_fragment(fragment[index], value);
- *  }
- */
-TVM_DLL const Op& tvm_fill_fragment();
-
-/*!
- * \brief tvm intrinsic for tensor core store operators.
- *
- *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                             Expr index, Expr buffer_ptr, Expr stride,
- *                             StringImm layout) {
- *    // m, n, k are the shape of wmma fragment
- *    // fragments must be in 'wmma.accumulator' scope.
- *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
- *  }
- */
-TVM_DLL const Op& tvm_store_matrix_sync();
-
-/*!
- * \brief tvm intrinsic for ptx tensor core mma instructions.
- *
- *  void ptx_mma(StringImm shape, StringImm A_layout, StringImm B_layout,
- *               StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
- *               Var multiplicand_a, Expr a_index,
- *               Var multiplicand_b, Expr b_index,
- *               Var accumulator, Expr c_index, bool saturate);
- */
-TVM_DLL const Op& ptx_mma();
-
-/*!
- * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
- *
- */
-TVM_DLL const Op& ptx_ldg32();
-
-/*!
- * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
- *
- */
-TVM_DLL const Op& ptx_ldg32();
-
-/*!
- * \brief tvm intrinsic for sparse tensor core ptx instructions.
- *
- * void ptx_mma_sp(StringImm shape, StringImm A_layout, StringImm B_layout,
- *                 StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
- *                 Var multiplicand_a, Expr a_index,
- *                 Var multiplicand_b, Expr b_index,
- *                 Var accumulator, Expr c_index,
- *                 Var metadata, Expr meta_index,
- *                 Var sparse_selector, bool saturate);
- */
-TVM_DLL const Op& ptx_mma_sp();
-
-/*!
- * \brief tvm intrinsic for ptx load matrix from shared memory.
- *
- * void ptx_ldmatrix(Bool trans, IntImm num, StringImm type,
- *                   Var local_ptr, Expr local_offset,
- *                   Var smem_ptr, Expr smem_offset);
- */
-TVM_DLL const Op& ptx_ldmatrix();
-
-/*!
- * \brief tvm intrinsics for ptx async copy from global to shared memory using cp.async
- *
- * void ptx_cp_async(Var shared_ptr,
- *                   Expr shared_offset,
- *                   Var global_ptr,
- *                   Expr global_offset,
- *                   size_t bytes);
- */
-TVM_DLL const Op& ptx_cp_async();
-
-/*!
- * \brief tvm intrinsics for ptx async copy from global to shared memory using cp.async.bulk
- *
- * void ptx_cp_async(Var shared_ptr,
- *                   Expr shared_offset,
- *                   Var global_ptr,
- *                   Expr global_offset,
- *                   size_t bytes,
- *                   int barrier_id);
- */
-TVM_DLL const Op& ptx_cp_async_bulk();
-
-/*!
- * \brief tvm intrinsics for ptx async copy commit and wait.
- *
- * void ptx_commit_group();
- * void ptx_wait_group(int num);
- *
- */
-TVM_DLL const Op& ptx_commit_group();
-TVM_DLL const Op& ptx_wait_group();
-
-/*!
- * \brief tvm intrinsics for ptx async copy barrier using cp.async.mbarrier.arrive
- *
- * ptx_cp_async_barrier(int barrier_id)
- *
- */
-TVM_DLL const Op& ptx_cp_async_barrier();
-
-/*!
- * \brief tvm intrinsics for ptx barrier initialization of thread count using mbarrier.init
- *
- * ptx_init_barrier_thread_count(int barrier_id, int thread_count)
- *
- */
-TVM_DLL const Op& ptx_init_barrier_thread_count();
-
-/*!
- * \brief tvm intrinsics for ptx barrier arrival using mbarrier.arrive
- *
- * ptx_arrive_barrier(int barrier_id)
- *
- */
-TVM_DLL const Op& ptx_arrive_barrier();
-
-/*!
- * \brief tvm intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
- *
- * ptx_arrive_barrier_expect_tx(int barrier_id, int byte_count)
- *
- */
-TVM_DLL const Op& ptx_arrive_barrier_expect_tx();
-
-/*!
- * \brief tvm intrinsics for ptx barrier wait using mbarrier.try_wait
- *
- * ptx_wait_barrier(int barrier_id)
- *
- */
-TVM_DLL const Op& ptx_wait_barrier();
-
-/*!
- * \brief tvm intrinsics to create N barriers
- *
- * ptx_wait_barrier(int barrier_count)
- *
- */
-TVM_DLL const Op& create_barriers();
-
-/*!
- * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.
- *        For example, if each thread in a warp of size 32 has 4 elements from the result of
- *        m16xn8xk16 MMA in its registers, this intrinsic can be used to store the result in a
- *        16x8 region in shared or global memory.
- *
- *        There is no real PTX instruction that does that, but we want to hide details of
- *        complex index manipulation behind this intrinsic to simplify TIR lowering passes (e.g.
- *        LowerWarpMemory).
- *
- * void mma_store(IntImm m, IntImm n, Var dst_ptr, Var src_ptr, Expr src_offset, Var dst_stride);
- */
-TVM_DLL const Op& mma_store();
-
-/*!
- * \brief tvm intrinsic for zero-initializing an MMA accumulation register.
- *        For example, if each thread in a warp of size 32 has 8 elements from the A matrix in
- *        m16xn8xk16 MMA in its registers, this intrinsic can be used to zero-initialize its
- *        4 accumulation registers.
- *
- *        There is no real PTX instruction that does that, but we introduce this intrinsic for the
- *        same reason as mma_store above.
- *
- * void mma_fill(IntImm local_size, Var local_ptr, Expr offset);
- */
-TVM_DLL const Op& mma_fill();
-
-// Metal SimdGroup matrix intrinsics
-
-/*!
- * \brief tvm intrinsic for initializing and simdgroup with given value.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void make_filled_simdgroup_matrix(Var d, PrimExpr index, PrimExpr value,
- *                                   int col = 8, int row = 8);
- */
-TVM_DLL const Op& make_filled_simdgroup_matrix();
-
-/*!
- * \brief tvm intrinsic for loading data from device memory or threadgroup memory to simdgroup.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_load(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
-                       int col = 8, int row = 8, bool transpose_matrix = false);
- */
-TVM_DLL const Op& simdgroup_load();
-
-/*!
- * \brief tvm intrinsic for storing data from simdgroup to device memory or threadgroup memory.
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_store(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
- *                      int col = 8, int row = 8, bool transpose_matrix = false);
- */
-TVM_DLL const Op& simdgroup_store();
-
-/*!
- * \brief tvm intrinsic for multiply and accumulate two matrices in simdgroup
- * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
- *       keeping the similar interface with Metal Spec.
- *
- * void simdgroup_mma(Var d, PrimExpr index_d, Var a, PrimExpr index_a,
- *                    Var b, PrimExpr index_b, Var c, PrimExpr index_c);
- */
-TVM_DLL const Op& simdgroup_multiply_accumulate();
-
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
 
 /*!
@@ -999,6 +777,12 @@ TVM_DLL const Op& get_active_lane_mask();
 
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
 TVM_DLL const Op& ignore_loop_partition();
+/*!
+ * \brief Get the element offset of a buffer given logical indices.
+
+  The offset is determined by the layout of the buffer.
+ */
+TVM_DLL const Op& buffer_offset();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
@@ -1024,6 +808,11 @@ enum TVMStructFieldKind : int {
   // Generic int64 array element access: ((int64_t*)buf)[index]
   kInt64ArrayElem,
 };
+
+/*!
+ * \brief Print the content of a buffer during runtime.
+ */
+TVM_DLL const Op& print_buffer();
 }  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

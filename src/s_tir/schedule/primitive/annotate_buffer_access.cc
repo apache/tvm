@@ -57,21 +57,21 @@ class AnnotateRegionRewriter : public StmtExprMutator {
                                      ? s_tir::attr::explicit_write_region
                                      : s_tir::attr::explicit_read_region;
     if (new_annotations.count(annotation_key)) {
-      ffi::Array<Integer> buffer_indices =
-          Downcast<ffi::Array<Integer>>(new_annotations[annotation_key]);
+      ffi::Array<int64_t> buffer_indices =
+          Downcast<ffi::Array<int64_t>>(new_annotations[annotation_key]);
       bool found = false;
-      for (const Integer& index : buffer_indices) {
-        if (index->value == buffer_index_) {
+      for (int64_t index : buffer_indices) {
+        if (index == buffer_index_) {
           found = true;
           break;
         }
       }
       if (!found) {
-        buffer_indices.push_back(Integer(buffer_index_));
+        buffer_indices.push_back(static_cast<int64_t>(buffer_index_));
         new_annotations.Set(annotation_key, buffer_indices);
       }
     } else {
-      new_annotations.Set(annotation_key, ffi::Array<Integer>{Integer(buffer_index_)});
+      new_annotations.Set(annotation_key, ffi::Array<int64_t>{static_cast<int64_t>(buffer_index_)});
     }
     n->annotations = std::move(new_annotations);
 
@@ -96,13 +96,13 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var->var);
   }
-  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, &analyzer);
+  ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, analyzer);
   TVM_FFI_ICHECK_EQ(new_indices.size() % 2, 0) << "The size of new_indices should be even.";
   ffi::Array<Range> new_ranges;
   for (size_t i = 0; i < new_indices.size(); i += 2) {
     // (begin, end) represents a region
     new_ranges.push_back(Range::FromMinExtent(
-        new_indices[i], analyzer.Simplify(new_indices[i + 1] - new_indices[i])));
+        new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
   BufferRegion new_region(buffer, new_ranges);
@@ -122,8 +122,8 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer buffer_index,
-                                      Integer buffer_index_type, IndexMap index_map) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm buffer_index,
+                                      IntImm buffer_index_type, IndexMap index_map) {
     return sch->AnnotateBufferAccess(block, buffer_index->value,
                                      static_cast<BufferIndexType>(buffer_index_type->value),
                                      index_map);
@@ -150,7 +150,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer buffer_index, Integer buffer_index_type,
+                                      IntImm buffer_index, IntImm buffer_index_type,
                                       IndexMap index_map) {
     PythonAPICall py("annotate_buffer_access");
     py.Input("block", block);

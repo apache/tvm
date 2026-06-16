@@ -20,6 +20,10 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
+
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.cuda.cublas import partition_for_cublas
@@ -39,7 +43,10 @@ def reset_seed():
     np.random.seed(0)
 
 
-pytestmark = tvm.testing.requires_cublas.marks()
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_cublas(), reason="need cublas"),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
@@ -300,7 +307,8 @@ def test_matmul_igemm_offload(
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
 @pytest.mark.parametrize(
     "x_shape, y_shape, transpose_y, out_dtype",
@@ -338,7 +346,8 @@ def test_matmul_fp8_offload(
     tvm.testing.assert_allclose(out, ref_out, rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
 def test_matmul_fp8_dequantize_offload():
     x_shape = (10, 32)
@@ -364,7 +373,8 @@ def test_matmul_fp8_dequantize_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
 def test_matmul_fp8_multiply_offload():
     x_shape = (10, 32)

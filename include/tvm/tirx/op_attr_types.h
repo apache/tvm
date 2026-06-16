@@ -80,7 +80,24 @@ enum class ScriptDtypePrintLocation : int {
   kLast = 2,
 };
 
-using TScriptDtypePrintLocation = Integer;
+using TScriptDtypePrintLocation = int64_t;
+
+/*!
+ * \brief Broad TIRx op category.
+ *
+ * Expected values:
+ * - "builtin"
+ * - "tile_primitive"
+ * - "device_intrin"
+ */
+using TIRxOpCategory = ffi::String;
+
+/*!
+ * \brief Device intrinsic namespace.
+ *
+ * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
+ */
+using TDeviceIntrinsicNamespace = ffi::String;
 
 /*!
  * \brief The effect type of the call.
@@ -149,7 +166,7 @@ inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
 }
 
 /*! \brief Use integer to record the kind. */
-using TCallEffectKind = Integer;
+using TCallEffectKind = int64_t;
 
 }  // namespace tirx
 }  // namespace tvm

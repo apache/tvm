@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op
 from tvm.script import relax as R
 

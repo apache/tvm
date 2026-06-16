@@ -29,6 +29,20 @@ set -ux
 export TVM_PATH=`pwd`
 export PYTHONPATH="${TVM_PATH}/python"
 
+# Prefer a valid sibling tirx-kernels worktree over stale editable installs.
+# Some environments export TIRX_KERNELS_PATH that does not actually contain the
+# tirx_kernels package (e.g. ".../tirx-kernels/kernels"), so validate before use.
+tirx_kernels_path=""
+if [[ -n "${TIRX_KERNELS_PATH:-}" ]] && [[ -f "${TIRX_KERNELS_PATH}/tirx_kernels/__init__.py" ]]; then
+    tirx_kernels_path="${TIRX_KERNELS_PATH}"
+elif [[ -d "${TVM_PATH}/../tirx-kernels/tirx_kernels" ]]; then
+    tirx_kernels_path="${TVM_PATH}/../tirx-kernels"
+fi
+if [[ -n "${tirx_kernels_path}" ]]; then
+    export TIRX_KERNELS_PATH="${tirx_kernels_path}"
+    export PYTHONPATH="${tirx_kernels_path}:${PYTHONPATH}"
+fi
+
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
 pytest_errors=()

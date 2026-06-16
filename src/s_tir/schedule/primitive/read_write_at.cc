@@ -306,7 +306,8 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i], Integer(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt = For(loop_vars[i], IntImm(DataType::Int(32), 0), domain[i]->extent, ForKind::kSerial,
+                 stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,
@@ -331,7 +332,7 @@ struct ReadWriteAtImpl {
         dst_(dst),
         annotations_(annotations),
         block_sref_reuse_(),
-        analyzer_(std::make_unique<arith::Analyzer>()) {
+        analyzer_(arith::Analyzer()) {
     loop_ = TVM_SREF_TO_FOR(loop_sref);
   }
 
@@ -342,7 +343,7 @@ struct ReadWriteAtImpl {
   const Buffer& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
-  std::unique_ptr<arith::Analyzer> analyzer_;
+  arith::Analyzer analyzer_;
 };
 
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
@@ -371,12 +372,12 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                   int buffer_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          Integer read_buffer_index, ffi::String storage_scope) {
+                                          IntImm read_buffer_index, ffi::String storage_scope) {
     return sch->ReadAt(loop, block, read_buffer_index->value, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, Integer read_buffer_index,
+                                      ffi::String block, IntImm read_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
@@ -401,12 +402,12 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          Integer write_buffer_index, ffi::String storage_scope) {
+                                          IntImm write_buffer_index, ffi::String storage_scope) {
     return sch->WriteAt(loop, block, write_buffer_index->value, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, Integer write_buffer_index,
+                                      ffi::String block, IntImm write_buffer_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);

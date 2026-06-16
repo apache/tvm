@@ -49,10 +49,10 @@ class AttrAttacher : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const FunctionNode* op) final {
-    if (auto opt_num_input = op->attrs.GetAttr<Integer>(attr::kNumInput)) {
+    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(attr::kNumInput)) {
       TVM_FFI_ICHECK(layout_free_exprs_.empty())
           << "meet a non-global function with num_input attr";
-      size_t num_input = opt_num_input.value()->value;
+      size_t num_input = opt_num_input.value();
       for (size_t i = num_input; i < op->params.size(); i++) {
         layout_free_exprs_.insert(op->params[i].get());
       }

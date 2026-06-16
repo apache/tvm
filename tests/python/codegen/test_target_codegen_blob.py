@@ -19,16 +19,19 @@
 import ctypes
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
-from tvm.contrib import cc, popen_pool, tar, utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import cc, popen_pool, tar, utils
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
 def test_cuda_multi_lib():
+    pytest.importorskip("cloudpickle")
+
     # test combining two system lib together
     # each contains a fatbin component in cuda
     dev = tvm.cuda(0)
@@ -41,7 +44,7 @@ def test_cuda_multi_lib():
     class ModA:
         I.module_attrs({"system_lib_prefix": "modA_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -52,7 +55,7 @@ def test_cuda_multi_lib():
     class ModB:
         I.module_attrs({"system_lib_prefix": "modB_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):

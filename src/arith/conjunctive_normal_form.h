@@ -31,6 +31,7 @@
 namespace tvm {
 namespace arith {
 
+class AnalyzerObj;
 class Analyzer;
 
 /*! \brief Convert boolean expression to AND of ORs and simplify
@@ -41,7 +42,7 @@ class Analyzer;
  *
  * \return The simplified expression
  */
-PrimExpr SimplifyAsAndOfOrs(const PrimExpr& expr, Analyzer* analyzer);
+PrimExpr SimplifyAsAndOfOrs(const PrimExpr& expr, AnalyzerObj* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

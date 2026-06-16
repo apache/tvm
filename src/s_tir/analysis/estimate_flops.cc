@@ -119,7 +119,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const GENode* op) override { return TResult(); }
 
   int64_t GetLoopExtent(const ForNode* node, const arith::Analyzer& ana) {
-    int64_t bound = ana.const_int_bound(node->extent)->max_value;
+    int64_t bound = ana->const_int_bound(node->extent)->max_value;
     if (bound == arith::ConstIntBound::kPosInf) {
       return 1;  // Analyzer could not determine a valid bound, use 1 instead.
     } else {
@@ -158,7 +158,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return result;
   }
   TResult VisitStmt_(const ForNode* loop) override {
-    ana.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    ana->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     const auto int_imm = GetLoopExtent(loop, ana);
     TResult result = VisitStmt(loop->body);
     result *= int_imm;
@@ -243,8 +243,8 @@ double EstimateTIRFlops(const IRModule& mod) {
   TResult result;
   double cached_result = 0;
   VisitPrimFuncs(mod, [&result, &counter, &cached_result](const PrimFuncNode* f) {
-    if (auto cached = f->attrs.GetAttr<Integer>("estimated_flops")) {
-      cached_result += cached.value()->value;
+    if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
+      cached_result += cached.value();
     } else {
       result += counter.VisitStmt(f->body);  //
     }

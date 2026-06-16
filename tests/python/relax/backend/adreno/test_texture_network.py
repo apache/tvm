@@ -20,8 +20,11 @@ import copy
 import json
 
 import numpy as np
-import onnx
 import pytest
+
+pytest.importorskip("onnx")
+
+import onnx
 from utils import verify_results
 
 import tvm

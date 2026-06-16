@@ -681,9 +681,11 @@ def sort(data, axis=-1, is_ascend=1):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
+    value_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+    )
     value_buf_swap = tvm.tirx.decl_buffer(
-        data.shape, data.dtype, "value_buf_swap", data_alignment=8
+        data.shape, data.dtype, "value_buf_swap", data_alignment=8, layout=None
     )
 
     out = te.extern(
@@ -737,8 +739,10 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
-    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+    value_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+    )
+    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
 
     def f_compute(ins, outs):
         args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
@@ -799,12 +803,16 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
-    value_swap_buf = tvm.tirx.decl_buffer(
-        data.shape, data.dtype, "value_swap_buf", data_alignment=8
+    value_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
-    indices_swap_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_swap_buf", data_alignment=8)
+    value_swap_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "value_swap_buf", data_alignment=8, layout=None
+    )
+    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_swap_buf = tvm.tirx.decl_buffer(
+        data.shape, dtype, "out_swap_buf", data_alignment=8, layout=None
+    )
 
     outs = te.extern(
         [data.shape, data.shape, data.shape, data.shape],
@@ -909,12 +917,18 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    values_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "values_buf", data_alignment=8)
-    values_swap_buf = tvm.tirx.decl_buffer(
-        data.shape, data.dtype, "values_swap_buf", data_alignment=8
+    values_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "values_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8)
-    indices_swap_buf = tvm.tirx.decl_buffer(data.shape, dtype, "indies_swap_buf", data_alignment=8)
+    values_swap_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "values_swap_buf", data_alignment=8, layout=None
+    )
+    indices_buf = tvm.tirx.decl_buffer(
+        data.shape, dtype, "indices_buf", data_alignment=8, layout=None
+    )
+    indices_swap_buf = tvm.tirx.decl_buffer(
+        data.shape, dtype, "indies_swap_buf", data_alignment=8, layout=None
+    )
 
     if ret_type == "values":
         output = te.extern(
@@ -1014,16 +1028,18 @@ def topk_thrust(
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    data_buf = tvm.tirx.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = tvm.tirx.decl_buffer(
+        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    )
     if workspace is not None:
         workspace_buf = tvm.tirx.decl_buffer(
-            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8
+            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
         )
     else:
         workspace_buf = None
     out_bufs = [
-        tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
-        tvm.tirx.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
+        tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8, layout=None),
+        tvm.tirx.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8, layout=None),
     ]
 
     def f_compute(ins, outs):

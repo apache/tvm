@@ -39,7 +39,7 @@
 namespace tvm {
 namespace tirx {
 
-struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> {
+struct UnrollLoopConfigNode : public ffi::Object {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
@@ -64,12 +64,13 @@ struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> 
                 "Whether to always unroll local access", refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.UnrollLoopConfig", UnrollLoopConfigNode,
-                                    BaseAttrsNode);
+                                    ffi::Object);
 };
 
-class UnrollLoopConfig : public Attrs {
+class UnrollLoopConfig : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnrollLoopConfig, ffi::ObjectRef,
+                                                UnrollLoopConfigNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
@@ -102,13 +103,13 @@ class LoopUnroller : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = static_cast<int>(Downcast<Integer>(op->value)->value);
+      int value = static_cast<int>(Downcast<IntImm>(op->value)->value);
       std::swap(value, auto_max_step_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = Downcast<Integer>(op->value)->value;
+      bool explicit_unroll = Downcast<IntImm>(op->value)->value;
       std::swap(explicit_unroll, explicit_unroll_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
@@ -235,7 +236,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = analyzer_.Simplify(op->extent);
+    PrimExpr extent = analyzer_->Simplify(op->extent);
     const IntImmNode* v1 = extent.as<IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
@@ -284,7 +285,7 @@ Pass UnrollLoop() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
     if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<UnrollLoopConfig>();
+      cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
     }
     n->body = UnrollLoop(std::move(f->body), cfg.value());
     return f;

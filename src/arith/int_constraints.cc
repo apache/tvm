@@ -94,7 +94,7 @@ IntGroupBounds IntGroupBounds::FromRange(const Range& r) {
     equal.push_back(r->min);
   } else {
     lower.push_back(r->min);
-    upper.push_back(analyzer.Simplify(r->min + r->extent - 1));
+    upper.push_back(analyzer->Simplify(r->min + r->extent - 1));
   }
   return IntGroupBounds(coef, lower, equal, upper);
 }
@@ -106,10 +106,10 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = operator->()->coef;
   if (tirx::is_one(r->extent)) {
-    equal.push_back(analyzer.Simplify(r->min * coef));
+    equal.push_back(analyzer->Simplify(r->min * coef));
   } else {
-    lower.push_back(analyzer.Simplify(r->min * coef));
-    upper.push_back(analyzer.Simplify((r->min + r->extent - 1) * coef));
+    lower.push_back(analyzer->Simplify(r->min * coef));
+    upper.push_back(analyzer->Simplify((r->min + r->extent - 1) * coef));
   }
   for (const auto& eq : operator->()->equal) equal.push_back(eq);
   for (const auto& lb : operator->()->lower) lower.push_back(lb);
@@ -127,7 +127,7 @@ IntGroupBounds IntGroupBounds::Substitute(const ffi::Map<Var, PrimExpr>& subst) 
 
 Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
   Analyzer analyzer;
-  analyzer.Bind(vranges_addl);
+  analyzer->Bind(vranges_addl);
 
   std::unordered_map<const VarNode*, IntSet> var_intsets;
   for (auto kv : vranges_addl) {
@@ -147,7 +147,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
   }
 
   if (lowers.size() == 1 && uppers.size() == 1 && tirx::is_one(coef)) {
-    return Range(analyzer.Simplify(lowers[0]), analyzer.Simplify(uppers[0] + 1));
+    return Range(analyzer->Simplify(lowers[0]), analyzer->Simplify(uppers[0] + 1));
   }
 
   // Here we will try all pairs of lower and upper bounds and find the best pair, that is, the
@@ -163,22 +163,22 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     for (const PrimExpr& upp : uppers) {
       // Since diff may depend on some other variables, we compute its overapproximation
       ffi::Optional<PrimExpr> diff_over;
-      PrimExpr diff_1 = analyzer.Simplify(floordiv(upp - low, coef), 3);
+      PrimExpr diff_1 = analyzer->Simplify(floordiv(upp - low, coef), 3);
       IntSet diff_set1 = EvalSet(diff_1, var_intsets);
       if (diff_set1.HasUpperBound()) {
-        diff_over = analyzer.Simplify(diff_set1.max(), 3);
+        diff_over = analyzer->Simplify(diff_set1.max(), 3);
       }
 
       // low is the lower bound for v*coef, but we need the lower bound for v.
       // We use rounding-up division to compute it. Since we want to use a single formula
-      PrimExpr low_divided = analyzer.Simplify(floordiv(low + coef - 1, coef), 3);
+      PrimExpr low_divided = analyzer->Simplify(floordiv(low + coef - 1, coef), 3);
 
       // Compute another difference which may be more precise (or not).
-      PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, coef) - low_divided, 3);
+      PrimExpr diff_2 = analyzer->Simplify(floordiv(upp, coef) - low_divided, 3);
       IntSet diff_set2 = EvalSet(diff_2, var_intsets);
       if (diff_set2.HasUpperBound()) {
-        PrimExpr diff_over_2 = analyzer.Simplify(diff_set2.max(), 3);
-        diff_over = diff_over.defined() ? (analyzer.CanProve(diff_over_2 - diff_over.value() < 0)
+        PrimExpr diff_over_2 = analyzer->Simplify(diff_set2.max(), 3);
+        diff_over = diff_over.defined() ? (analyzer->CanProve(diff_over_2 - diff_over.value() < 0)
                                                ? diff_over_2
                                                : diff_over.value())
                                         : diff_over_2;
@@ -187,7 +187,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
       if (diff_over.defined() && (!best_diff_over.defined() ||
-                                  analyzer.CanProve(diff_over.value() - best_diff_over < 0))) {
+                                  analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
         best_lower = low_divided;
         best_diff_over = diff_over.value();
       }
@@ -198,7 +198,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     TVM_FFI_ICHECK(!best_diff_over.defined());
     return Range();
   }
-  return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
+  return Range::FromMinExtent(best_lower, analyzer->Simplify(best_diff_over + 1));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -271,15 +271,15 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   ffi::Map<Var, PrimExpr> src_to_dst;
 
   Analyzer ana_first;
-  ana_first.Bind(operator->()->src->ranges);
+  ana_first->Bind(operator->()->src->ranges);
   for (auto p : other->dst_to_src) {
-    dst_to_src.Set(p.first, ana_first.Simplify(Substitute(p.second, operator->()->dst_to_src)));
+    dst_to_src.Set(p.first, ana_first->Simplify(Substitute(p.second, operator->()->dst_to_src)));
   }
 
   Analyzer ana_second;
-  ana_second.Bind(other->dst->ranges);
+  ana_second->Bind(other->dst->ranges);
   for (auto p : operator->()->src_to_dst) {
-    src_to_dst.Set(p.first, ana_second.Simplify(Substitute(p.second, other->src_to_dst)));
+    src_to_dst.Set(p.first, ana_second->Simplify(Substitute(p.second, other->src_to_dst)));
   }
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }

@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -106,12 +107,12 @@ class PipelineOpaqueAccessRewriter {
   PrimExpr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& load_matrix_sync = builtin::tvm_load_matrix_sync();
-    static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
-    static const auto& mma_sync = builtin::tvm_mma_sync();
     static const auto& access_ptr = builtin::tvm_access_ptr();
-    static const auto& ptx_ldmatrix = builtin::ptx_ldmatrix();
-    static const auto& ptx_mma = builtin::ptx_mma();
+    static const Op& load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op& store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op& mma_sync = Op::Get("tirx.tvm_mma_sync");
+    static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx.ldmatrix_legacy");
+    static const Op& ptx_mma_legacy = Op::Get("tirx.ptx.mma_legacy");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
       auto it = buffer_remap_.find(buffer);
@@ -119,7 +120,7 @@ class PipelineOpaqueAccessRewriter {
         ffi::Array<PrimExpr> new_args = call->args;
         const Buffer& new_buffer = (*it).second;
         new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
-        return Call(call->dtype, call->op, new_args, call->span);
+        return Call(call->dtype, call->op, new_args, call->attrs, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<PrimExpr> new_args = call->args;
@@ -133,12 +134,12 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->dtype, call->op, new_args, call->span);
+      return Call(call->dtype, call->op, new_args, call->attrs, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
-    } else if (call->op.same_as(ptx_mma)) {
+    } else if (call->op.same_as(ptx_mma_legacy)) {
       return RewriteBufferAccess(call, {6, 8, 10});
-    } else if (call->op.same_as(ptx_ldmatrix)) {
+    } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
       return RewriteBufferAccess(call, {3});
     }
     return call;
@@ -196,7 +197,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->dtype, call->op, new_args, call->span);
+    return Call(call->dtype, call->op, new_args, call->attrs, call->span);
   }
 
   const ffi::Map<Var, Buffer>& buffer_data_to_buffer_;
@@ -246,7 +247,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
               ? Range::FromMinExtent(0, new_buffer->shape[0])
               : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
                                               new_buffer->shape[0]),
-                                     Integer(1));
+                                     IntImm(DataType::Int(32), 1));
       new_region.insert(new_region.begin(), accessed_version);
       return BufferRegion(new_buffer, new_region);
     }
@@ -374,7 +375,7 @@ class PipelineRewriter : public StmtExprMutator {
     // to ensure the epilogue interval do not overlap the prologue interval.
     PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
     ffi::Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
-    if (max_stage_ > 1 && !analyzer_.CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
+    if (max_stage_ > 1 && !analyzer_->CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
       if (is_const_int(epigogue_start)) {
         epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
       } else {
@@ -397,7 +398,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
     SBlock block = MakeSBlock(stmt, buffer_data_to_buffer_);
     block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
-    return SBlockRealize({}, Bool(true), block);
+    return SBlockRealize({}, const_true(), block);
   }
 
  private:
@@ -609,7 +610,7 @@ class PipelineRewriter : public StmtExprMutator {
 
   // Determine where to insert async_wait and the corresponding wait count.
   void PopulateWaitCounts(const std::vector<RewrittenSBlockInfo>& new_blocks,
-                          arith::Analyzer* ana_normalized,
+                          arith::AnalyzerObj* ana_normalized,
                           const std::unordered_map<const BufferNode*, int>& buffer_to_commit_group,
                           std::map<int, AsyncStateLocal>* async_states_local) {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
@@ -707,14 +708,14 @@ class PipelineRewriter : public StmtExprMutator {
         }
       }
 
-      auto wait_count = [=, &ana_normalized]() {
+      auto wait_count = [=, this, &ana_normalized]() {
         auto sum = PrimExpr(0);
         for (auto producer_head : producer_head_per_commit) {
           if (producer_head && ana_normalized->CanProve(producer_head.value() >= 0)) {
             // Here, new_blocks[i].access_index corresponds to "consumer_head".
             // The difference of producer_head and consumer_head is precisely the number of
             // async commit groups that can still be in flight after this wait.
-            sum += analyzer_.Simplify(producer_head.value() - new_blocks[i].access_index);
+            sum += analyzer_->Simplify(producer_head.value() - new_blocks[i].access_index);
           } else {
             // The precise count cannot be determined, give up.
             return PrimExpr(0);
@@ -727,7 +728,7 @@ class PipelineRewriter : public StmtExprMutator {
 
       if (!pending_wait.valid()) {
         pending_wait = {static_cast<int>(i), wait_count};
-      } else if (analyzer_.CanProve(wait_count < pending_wait.wait_count)) {
+      } else if (analyzer_->CanProve(wait_count < pending_wait.wait_count)) {
         // Coalesce multiple wait_queue if the later one allows fewer in-flight ops.
         pending_wait = {pending_wait.insert_before, wait_count};
       }
@@ -739,7 +740,7 @@ class PipelineRewriter : public StmtExprMutator {
   ffi::Array<Stmt> CompletePipelineLoopStatements(
       const std::vector<RewrittenSBlockInfo>& blocks,
       const std::map<int, AsyncStateLocal>& async_states_local,
-      arith::Analyzer* ana_normalized) const {
+      arith::AnalyzerObj* ana_normalized) const {
     std::vector<RewrittenSBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
     for (const auto& [stage_id, state] : async_states_local) {
@@ -824,24 +825,24 @@ class PipelineRewriter : public StmtExprMutator {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
-    auto make_nop = []() { return SBlockRealize({}, Bool(true), MakeSBlock(Evaluate(0), {})); };
+    auto make_nop = []() { return SBlockRealize({}, const_true(), MakeSBlock(Evaluate(0), {})); };
 
-    if (analyzer_.CanProve(extent <= 0)) {
+    if (analyzer_->CanProve(extent <= 0)) {
       return make_nop();
     }
-    bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);
+    bool is_unit_loop = analyzer_->CanProveEqual(extent, 1);
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
-      analyzer_.Bind(Downcast<Var>(new_loop_var), Range(start, end));
+      analyzer_->Bind(Downcast<Var>(new_loop_var), Range(start, end));
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
     arith::Analyzer ana_normalized;
     if (!is_unit_loop) {
-      ana_normalized.Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
+      ana_normalized->Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
     }
 
     std::vector<RewrittenSBlockInfo> new_blocks;
@@ -853,12 +854,12 @@ class PipelineRewriter : public StmtExprMutator {
     for (const SBlock& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       PrimExpr skewed_loop_var = new_loop_var - stage;
-      PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
+      PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
       if (extra_loop_lower_bound.defined()) {
-        inbound = analyzer_.Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
+        inbound = analyzer_->Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
       }
-      if (analyzer_.CanProve(!inbound)) {
+      if (analyzer_->CanProve(!inbound)) {
         continue;
       }
       SBlock new_block = Downcast<SBlock>(
@@ -910,10 +911,10 @@ class PipelineRewriter : public StmtExprMutator {
 
         local_state.producer_head = normalized_access_index;
 
-        if (!local_state.predicate || ana_normalized.CanProve(local_state.predicate.value())) {
+        if (!local_state.predicate || ana_normalized->CanProve(local_state.predicate.value())) {
           local_state.predicate = inbound;
         } else if (local_state.predicate) {
-          local_state.predicate = ana_normalized.Simplify(local_state.predicate.value() & inbound);
+          local_state.predicate = ana_normalized->Simplify(local_state.predicate.value() & inbound);
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
@@ -933,8 +934,10 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    PopulateWaitCounts(new_blocks, &ana_normalized, buffer_to_commit_group, &async_states_local);
-    auto stmts = CompletePipelineLoopStatements(new_blocks, async_states_local, &ana_normalized);
+    PopulateWaitCounts(new_blocks, ana_normalized.get(), buffer_to_commit_group,
+                       &async_states_local);
+    auto stmts =
+        CompletePipelineLoopStatements(new_blocks, async_states_local, ana_normalized.get());
 
     Stmt new_loop{nullptr};
 
@@ -958,7 +961,7 @@ class PipelineRewriter : public StmtExprMutator {
       const int stage_id = kv.first;
       const AsyncStateLocal& state = kv.second;
 
-      if (state.predicate && ana_normalized.CanProve(state.predicate.value()) &&
+      if (state.predicate && ana_normalized->CanProve(state.predicate.value()) &&
           async_states[stage_id].producer_head) {
         // Advance the "global" producer head if it is still valid and we know exactly how much we
         // can increment
@@ -970,7 +973,7 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    return SBlockRealize({}, Bool(true), MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
+    return SBlockRealize({}, const_true(), MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
   arith::Analyzer analyzer_;
@@ -1141,9 +1144,9 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     auto pipeline_stages =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
+        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
     auto pipeline_orders =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_order));
+        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_order));
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
@@ -1155,8 +1158,8 @@ class PipelineInjector : private StmtExprMutator {
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(s_tir::attr::software_pipeline_async_stages)) {
-      for (auto s : Downcast<ffi::Array<Integer>>(annot.value())) {
-        pipeline_async_stages.insert(s->value);
+      for (int64_t s : Downcast<ffi::Array<int64_t>>(annot.value())) {
+        pipeline_async_stages.insert(static_cast<int>(s));
       }
     }
 
@@ -1171,11 +1174,10 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
-      int stage = static_cast<int>(pipeline_stages[i]->value);
+      int stage = static_cast<int>(pipeline_stages[i]);
       bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
       PipelineAnnotation stage_order{stage,
-                                     /*order=*/static_cast<int>(pipeline_orders[i]->value),
-                                     is_async};
+                                     /*order=*/static_cast<int>(pipeline_orders[i]), is_async};
       pipeline_info.emplace(original_order[i], stage_order);
     }
 
@@ -1219,7 +1221,7 @@ class PipelineInjector : private StmtExprMutator {
 
     auto it = op->annotations.find(s_tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = Downcast<Integer>((*it).second).IntValue();
+      int buffer_index = static_cast<int>(Downcast<IntImm>((*it).second)->value);
       TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),
                     ValueError)
           << "Index of the buffer exceeds the size of the write regions of the block. ("

@@ -20,6 +20,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -32,7 +33,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -55,7 +56,7 @@ def test_tune_context_create():
     assert context.num_threads > 0
     assert context.rand_state != -1
     assert context.task_name == "Test Task"
-    assert context.mod == mod or tvm.ir.structural_equal(context.mod, mod)
+    assert context.mod == mod or tvm_ffi.structural_equal(context.mod, mod)
 
 
 if __name__ == "__main__":

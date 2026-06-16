@@ -137,7 +137,7 @@ class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
     }
 
     // always use relax bound
-    bool divided = analyzer_.CanProve(floormod(result_, operand) == 0);
+    bool divided = analyzer_->CanProve(floormod(result_, operand) == 0);
 
     result_ = floordiv(result_, operand);  // rounding down here
 
@@ -171,7 +171,7 @@ class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
       return;
     }
     PrimExpr divisor = op->b;
-    if (analyzer_.CanProveEqual(divisor, 0)) {
+    if (analyzer_->CanProveEqual(divisor, 0)) {
       // Skip zero divisor
       success_ = false;
       return;
@@ -347,7 +347,7 @@ void BoundDeducer::Deduce() {
   this->VisitExpr(expr_);
 
   if (success_) {
-    result_ = analyzer_.Simplify(result_);
+    result_ = analyzer_->Simplify(result_);
   }
 }
 
@@ -362,7 +362,7 @@ void BoundDeducer::Relax() {
   // can not be resolved when either `i` or `j`  or both are variables with
   // some Range OR `i` and `j` both should be a single point in IntSet
   if (comp_op == kEqual &&
-      (!analyzer_.CanProve(b.min() == b.max()) || !analyzer_.CanProve(a.min() == a.max()))) {
+      (!analyzer_->CanProve(b.min() == b.max()) || !analyzer_->CanProve(a.min() == a.max()))) {
     success_ = false;
     return;
   }

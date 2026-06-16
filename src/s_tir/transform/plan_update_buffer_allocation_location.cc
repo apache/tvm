@@ -216,7 +216,7 @@ class BufferAllocationLocator : public StmtExprMutator {
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
-    SBlockRealize realize({}, Bool(true), SBlock(n));
+    SBlockRealize realize({}, const_true(), SBlock(n));
     return realize;
   }
 

@@ -25,14 +25,15 @@
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
 // Acknowledgement: Most operator APIs originate from Halide.
-#ifndef TVM_TIR_OP_H_
-#define TVM_TIR_OP_H_
+#ifndef TVM_TIRX_OP_H_
+#define TVM_TIRX_OP_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
 #include <algorithm>
@@ -41,8 +42,12 @@
 
 namespace tvm {
 
-#define TVM_TIR_REGISTER_OP(OpName) \
-  TVM_REGISTER_OP("tirx." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+#define TVM_TIR_REGISTER_OP(OpName)                               \
+  TVM_REGISTER_OP("tirx." OpName)                                 \
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", OpName) \
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
+
+#define TVM_TIRX_REGISTER_OP(OpName) TVM_TIR_REGISTER_OP(OpName)
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
@@ -732,19 +737,19 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)     \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {               \
-    static const Op& op = Op::Get("tirx." #OpName);                      \
-    CheckInputDType(#OpName, x.dtype());                                 \
-    if (x.dtype().is_bfloat16()) {                                       \
-      DataType bf16_dtype = x.dtype();                                   \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());             \
-      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);               \
-      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, span); \
-      return tirx::Cast(bf16_dtype, {result_fp32}, span);                \
-    } else {                                                             \
-      return tirx::Call(x.dtype(), op, {x}, span);                       \
-    }                                                                    \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)         \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                   \
+    static const Op& op = Op::Get("tirx." #OpName);                          \
+    CheckInputDType(#OpName, x.dtype());                                     \
+    if (x.dtype().is_bfloat16()) {                                           \
+      DataType bf16_dtype = x.dtype();                                       \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());                 \
+      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);                   \
+      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, {}, span); \
+      return tirx::Cast(bf16_dtype, {result_fp32}, span);                    \
+    } else {                                                                 \
+      return tirx::Call(x.dtype(), op, {x}, {}, span);                       \
+    }                                                                        \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -782,7 +787,7 @@ TVM_DECLARE_INTRIN_UNARY(clz);
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
     static const Op& op = Op::Get("tirx." #OpName);                    \
-    return tirx::Call(x.dtype(), op, {x, y}, span);                    \
+    return tirx::Call(x.dtype(), op, {x, y}, {}, span);                \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -818,7 +823,8 @@ inline bool IsPointerType(const Type& type, const DataType& element_type) {
  * \param span The location of this operation in the source.
  */
 template <typename ValueType,
-          typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
+          typename = typename std::enable_if<std::is_standard_layout<ValueType>::value &&
+                                             std::is_trivial<ValueType>::value>::type>
 inline PrimExpr make_const(DataType t, ValueType value, Span span = Span());
 /*!
  * \brief Make a const zero expr.
@@ -993,13 +999,6 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
   }
   if (t.is_float() || t.is_bfloat16() || t.is_float8() || t.is_float6() || t.is_float4())
     return FloatImm(t, static_cast<double>(value), span);
-  // For now, we store const scalar values of custom datatypes within doubles; later, during the
-  // datatypes lowering pass, we will lower the value to its true representation in the format
-  // specified by the datatype.
-  // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
-    return FloatImm(t, static_cast<double>(value), span);
-  }
   TVM_FFI_THROW(InternalError) << "cannot make const for type " << t;
   throw;
 }

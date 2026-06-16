@@ -31,9 +31,9 @@ from typing import NamedTuple
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-import tvm
+from tvm.ir.utils import derived_object
+from tvm.support.tar import tar, untar
 
-from ....contrib.tar import tar, untar
 from ....runtime import Tensor
 from ....target import Target
 from ..cost_model import PyCostModel
@@ -43,7 +43,7 @@ from ..logging import get_logger
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import derived_object, shash2hex
+from ..utils import shash2hex
 
 logger = get_logger("mlp_model")  # pylint: disable=invalid-name
 
@@ -544,7 +544,7 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm.base.TVMError:
+                    except (ValueError, RuntimeError):
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

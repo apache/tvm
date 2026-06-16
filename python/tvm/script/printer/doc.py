@@ -255,11 +255,12 @@ class OperationKind(IntEnum):
     GtE = 23
     And = 24
     Or = 25
-    _BinaryEnd = 26
+    MatMul = 26
+    _BinaryEnd = 27
 
-    _SpecialStart = 27
-    IfThenElse = 28
-    _SpecialEnd = 29
+    _SpecialStart = 28
+    IfThenElse = 29
+    _SpecialEnd = 30
 
     # pylint: enable=invalid-name
 

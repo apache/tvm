@@ -31,22 +31,22 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     TVM_FFI_ICHECK(context->target.defined());
     Target target = context->target.value();
 
-    ffi::Optional<Integer> opt_max_threads_per_block =
-        target->GetAttr<Integer>("max_threads_per_block");
-    ffi::Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
+    ffi::Optional<int64_t> opt_max_threads_per_block =
+        target->GetAttr<int64_t>("max_threads_per_block");
+    ffi::Optional<int64_t> opt_warp_size = target->GetAttr<int64_t>("thread_warp_size");
 
-    if (!opt_max_threads_per_block.defined()) {
+    if (!opt_max_threads_per_block.has_value()) {
       TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"max_threads_per_block\", therefore the "
              "rule CrossThreadReduction will not be applied";
     }
-    if (!opt_warp_size.defined()) {
+    if (!opt_warp_size.has_value()) {
       TVM_PY_LOG(WARNING, context->logger)
           << "Target does not have attribute \"thread_warp_size\", therefore the rule "
              "CrossThreadReduction will not be applied";
     }
-    max_threads_per_block = opt_max_threads_per_block.value_or(Integer(-1))->value;
-    warp_size = opt_warp_size.value_or(Integer(-1))->value;
+    max_threads_per_block = opt_max_threads_per_block.value_or(-1);
+    warp_size = opt_warp_size.value_or(-1);
   }
 
   // Inherited from ScheduleRuleNode
@@ -277,7 +277,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   /*! \brief The number of threads per warp */
   int warp_size;
   /*! \brief Candidates of thread axis extent (values are required to be positive). */
-  ffi::Array<Integer> thread_extents;
+  ffi::Array<int64_t> thread_extents;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -290,10 +290,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
                                     CrossThreadReductionNode, ScheduleRuleNode);
 };
 
-ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_extents) {
-  for (const auto& extent : thread_extents) {
-    TVM_FFI_CHECK(extent->value > 0, ValueError)
-        << "The candidates of thread extent must be positive";
+ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<int64_t> thread_extents) {
+  for (int64_t extent : thread_extents) {
+    TVM_FFI_CHECK(extent > 0, ValueError) << "The candidates of thread extent must be positive";
   }
   ffi::ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
   n->thread_extents = std::move(thread_extents);

@@ -27,7 +27,6 @@ import typing
 import tvm_ffi
 
 from tvm import ir, relax
-from tvm.ir import structural_equal
 from tvm.relax.frontend import nn
 
 
@@ -144,10 +143,14 @@ class SubroutineMixin:
 
         arg_sinfo = _get_struct_info([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
-        lookup_key = (old_forward, ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
+        lookup_key = (
+            old_forward,
+            tvm_ffi.structural_hash(arg_sinfo, map_free_vars=True),
+            is_dataflow,
+        )
 
         for cached_sinfo, cached_result in cls._gvar.get(lookup_key, []):
-            if structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
+            if tvm_ffi.structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
                 return cached_result
 
         func_name = _camel_to_snake(cls.__name__)

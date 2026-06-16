@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 
 bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs,
-                        arith::Analyzer* ana) {
+                        const arith::Analyzer& ana) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i) {
@@ -39,7 +39,7 @@ bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimEx
   return true;
 }
 
-bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, arith::Analyzer* ana) {
+bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, const arith::Analyzer& ana) {
   if (lhs.same_as(rhs)) return true;
   auto* lhs_shape = lhs.as<ShapeExprNode>();
   auto* rhs_shape = rhs.as<ShapeExprNode>();

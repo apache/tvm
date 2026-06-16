@@ -23,7 +23,7 @@ from tvm.script import tirx as T
 
 
 def test_before_after_prim_func():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before():
         T.evaluate(0)
 
@@ -36,7 +36,7 @@ def test_before_after_prim_func():
 
 
 def test_before_after_method():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before():
         T.evaluate(0)
 
@@ -49,7 +49,7 @@ def test_before_after_method():
 
 
 def test_before_after_fixture():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before():
         T.evaluate(0)
 
@@ -62,7 +62,7 @@ def test_before_after_fixture():
 
 
 def test_before_after_delayed_prim_func():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before():
         T.evaluate(0)
 
@@ -78,7 +78,7 @@ def test_before_after_parametrized_fixture():
     """Test with different buffer sizes"""
     for n in [1, 8, 16]:
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def before(A: T.Buffer(n, "float32")):
             for i in T.serial(n):
                 A[i] = 0.0
@@ -100,12 +100,12 @@ def test_before_after_ir_module():
 
     @ir_module
     class before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def func_A(A: T.Buffer(16, "float32")):
             for i in T.serial(16):
                 A[i] = 0.0
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def func_B(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 A[i] = 42
@@ -126,12 +126,12 @@ def test_before_after_ir_module_explicit_fixture():
 
     @ir_module
     class before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def func_A(A: T.Buffer(16, "float32")):
             for i in T.serial(16):
                 A[i] = 0.0
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def func_B(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 A[i] = 42

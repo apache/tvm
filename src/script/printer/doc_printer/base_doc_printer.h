@@ -170,6 +170,16 @@ class DocPrinter {
   virtual void PrintTypedDoc(const WhileDoc& doc) = 0;
 
   /*!
+   * \brief Virtual method to print a BreakDoc
+   */
+  virtual void PrintTypedDoc(const BreakDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ContinueDoc
+   */
+  virtual void PrintTypedDoc(const ContinueDoc& doc) = 0;
+
+  /*!
    * \brief Virtual method to print a ForDoc
    */
   virtual void PrintTypedDoc(const ForDoc& doc) = 0;
@@ -213,6 +223,11 @@ class DocPrinter {
    * \brief Virtual method to print a DocStringDoc
    */
   virtual void PrintTypedDoc(const DocStringDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a OpCallDoc
+   */
+  virtual void PrintTypedDoc(const OpCallDoc& doc) = 0;
 
   /*!
    * \brief Increase the indent level of any content to be

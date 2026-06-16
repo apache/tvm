@@ -29,7 +29,7 @@ def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def identity_tir(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [54, 96])
     B = T.match_buffer(b, [54, 96])

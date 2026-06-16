@@ -74,7 +74,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
                                           /*indices=*/subst_indices,              //
                                           /*loops=*/loop_stack_,                  //
                                           /*predicate=*/cur_realize_->predicate,  //
-                                          /*analyzer=*/&analyzer_);
+                                          /*analyzer=*/analyzer_.get());
       int buffer_index = GetReadBufferIndex(cur_realize_->block, buffer);
       TVM_FFI_ICHECK(buffer_index != -1);
       buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);
@@ -122,13 +122,13 @@ class LayoutFreeBufferCollector : public StmtVisitor {
 
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
-  ffi::Array<Integer> layout_free_buffer_index =
-      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<Integer>()).value();
+  ffi::Array<int64_t> layout_free_buffer_index =
+      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
 
   ffi::Array<Buffer> layout_free_buffers;
-  for (const Integer& index : layout_free_buffer_index) {
-    TVM_FFI_ICHECK(static_cast<size_t>(index->value) < func->params.size());
-    const Var& param = func->params[index->value];
+  for (int64_t index : layout_free_buffer_index) {
+    TVM_FFI_ICHECK(static_cast<size_t>(index) < func->params.size());
+    const Var& param = func->params[index];
     layout_free_buffers.push_back(func->buffer_map.at(param));
   }
 

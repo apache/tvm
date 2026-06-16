@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 257, 1470))
     B = T.match_buffer(b, (128, 257, 1470))
@@ -39,7 +39,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def tiled_conv2d_with_padding(
     inputs: T.Buffer((1, 224, 224, 3), "float32"),
     weight: T.Buffer((7, 7, 3, 64), "float32"),
@@ -146,7 +146,7 @@ def test_sample_categorical_serialize():
         decisions.append(rv)
     new_sch = verify_trace_roundtrip(sch, mod=elementwise)
     for i, new_inst in enumerate(new_sch.trace.insts):
-        assert decisions[i] == candidates[new_sch.trace.decisions[new_inst].value]
+        assert decisions[i] == candidates[new_sch.trace.decisions[new_inst]]
 
 
 def test_sample_perfect_tile_power_of_two():
@@ -215,7 +215,7 @@ def test_sample_perfect_tile_after_copy():
 def test_sample_perfect_tile_on_dynamic_loops():
     """Currently dynamic loop is trivially tiled"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def workload(a: T.handle) -> None:
         n = T.int32()
         A = T.match_buffer(a, (n, 1024))

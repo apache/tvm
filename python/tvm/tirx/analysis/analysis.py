@@ -48,18 +48,18 @@ def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
 
     This function does not remap variable bindings, it will not
     return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
-    Use py:func:`tvm.ir.structural_equal` to handle structural variable remapping.
+    Use py:func:`tvm_ffi.structural_equal` to handle structural variable remapping.
 
     Due to the restriction of not remapping variables, this function can run
     faster than StructuralEqual and can be used as a utility function during arithmetic
     simplifications.
 
-    Always consider py:func:`tvm.ir.structural_equal` first, which handles
+    Always consider py:func:`tvm_ffi.structural_equal` first, which handles
     the structural remapping.
 
     See Also
     --------
-    tvm.ir.structural_equal
+    tvm_ffi.structural_equal
     """
     return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
 
@@ -134,3 +134,27 @@ def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bo
         Whether it is a well-formed TIR function.
     """
     return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
+
+
+def verify_tirx_well_formed(
+    obj: PrimFunc | IRModule, assert_mode: bool = True, device_func: bool = False
+) -> bool:
+    """Verify if the given TIRX is well-formed.
+
+    Parameters
+    ----------
+    obj: Union[tvm.tirx.PrimFunc, tvm.ir.IRModule]
+        The function or module to be verified.
+
+    assert_mode: bool
+        The indicator if it raises an error when the function is not well-formed.
+
+    device_func: bool
+        The indicator if it is a device function.
+
+    Returns
+    -------
+    result: bool
+        Whether it is a well-formed TIRX function.
+    """
+    return _ffi_api.VerifyTIRxWellFormed(obj, assert_mode, device_func)  # type: ignore # pylint: disable=no-member

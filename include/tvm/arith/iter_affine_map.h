@@ -51,7 +51,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tirx/var.h>
 
@@ -306,7 +305,7 @@ class IterMapResult : public ffi::ObjectRef {
  */
 IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
                             const ffi::Map<Var, Range>& input_iters, const PrimExpr& predicate,
-                            IterMapLevel check_level, arith::Analyzer* analyzer,
+                            IterMapLevel check_level, const arith::Analyzer& analyzer,
                             bool simplify_trivial_iterators = true);
 
 /*!
@@ -323,7 +322,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
 ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
                                      const ffi::Map<Var, Range>& input_iters,
                                      const PrimExpr& input_pred, IterMapLevel check_level,
-                                     arith::Analyzer* analyzer,
+                                     const arith::Analyzer& analyzer,
                                      bool simplify_trivial_iterators = true);
 
 /*!
@@ -380,7 +379,7 @@ ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bind
                                                 const ffi::Map<Var, Range>& input_iters,
                                                 const ffi::Array<Var>& sub_iters,
                                                 const PrimExpr& predicate, IterMapLevel check_level,
-                                                arith::Analyzer* analyzer,
+                                                const arith::Analyzer& analyzer,
                                                 bool simplify_trivial_iterators = true);
 
 /*!
@@ -407,7 +406,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
  * \note This function is useful to detect iterator stride patterns.
  */
 IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input_iters,
-                               arith::Analyzer* analyzer);
+                               const arith::Analyzer& analyzer);
 
 }  // namespace arith
 }  // namespace tvm

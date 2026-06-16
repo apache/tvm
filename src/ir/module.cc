@@ -22,13 +22,16 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/ir/unique_name_supply.h>
+#include <tvm/target/codegen.h>
 
 #include <algorithm>
 #include <fstream>
@@ -216,13 +219,17 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
     }
   }
 
+  UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
+                                [](const auto& kv) { return kv.first->name_hint; });
   GlobalVar main_gv;
-  auto global_var_supply = GlobalVarSupply(mod);
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
-    main_gv = global_var_supply->FreshGlobal("main", false);
+    main_gv = GlobalVar(global_names->FreshName("main", false));
+  } else if (mod->ContainGlobalVar(gv_name)) {
+    main_gv = mod->GetGlobalVar(gv_name);
   } else {
-    main_gv = global_var_supply->UniqueGlobalFor(gv_name, false);
+    global_names->ReserveName(gv_name, false);
+    main_gv = GlobalVar(gv_name);
   }
   mod->Add(main_gv, func);
   return mod;
@@ -230,6 +237,18 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<ffi::ModuleObj>()
+      .def("__data_to_json__",
+           [](const ffi::ModuleObj* node) {
+             std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
+                                                                 /*export_dso*/ false);
+             return ffi::Base64Encode(ffi::Bytes(bytes));
+           })
+      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+        ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
+        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
+        return rtmod;
+      });
   refl::GlobalDef()
       .def("ir.IRModule",
            [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,

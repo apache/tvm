@@ -181,7 +181,7 @@ class IRModule(Node, Scriptable):
 
         Raises
         ------
-        tvm.error.TVMError if we cannot find corresponding global var.
+        RuntimeError if we cannot find corresponding global var.
         """
         return _ffi_api.Module_GetGlobalVar(self, name)
 
@@ -194,33 +194,6 @@ class IRModule(Node, Scriptable):
             An array of global vars.
         """
         return _ffi_api.Module_GetGlobalVars(self)
-
-    def replace_global_vars(
-        self,
-        replacements: dict[str | _expr.GlobalVar, str | _expr.GlobalVar],
-    ) -> "IRModule":
-        """Replace GlobalVar instances within the module
-
-        Replace GlobalVars within the IRModule.  Since the IRModule
-        may contain internal references to a GlobalVar, either in TIR
-        or in Relax, this method should be used whenever replacing or
-        renaming a GlobalVar.
-
-        Parameters
-        ----------
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
-
-            A dictionary where each key is a GlobalVar to be replaced,
-            and the corresponding value is the GlobalVar with which to
-            replace it.
-
-        Returns
-        -------
-        IRModule
-            The updated module
-
-        """
-        return _ffi_api.Module_ReplaceGlobalVars(self, replacements)
 
     @staticmethod
     def from_expr(expr, functions=None):

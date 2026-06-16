@@ -24,6 +24,7 @@ import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
 from tvm.s_tir.schedule import Schedule
 from tvm.script import tirx as T
+from tvm.testing import env
 
 torch = pytest.importorskip("torch")
 
@@ -34,7 +35,7 @@ np.random.seed(0)
 @tvm.script.ir_module
 class Gemm_F16F16F16:
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore
@@ -51,7 +52,7 @@ class Gemm_F16F16F16:
 @tvm.script.ir_module
 class Gemm_F16F16F32:
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore
@@ -65,8 +66,8 @@ class Gemm_F16F16F32:
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float16"):
     if mod is None:
         return
@@ -93,8 +94,8 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
     torch.allclose(c_th, c_f, rtol=0.05, atol=0.05)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_f16f16f16_mma_gemm():
     # fmt: off
     mod = Gemm_F16F16F16
@@ -212,8 +213,8 @@ def test_f16f16f16_mma_gemm():
     test_run_target(mod)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_f16f16f32_mma_gemm():
     mod = Gemm_F16F16F32
     sch = Schedule(mod)

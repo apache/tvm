@@ -44,8 +44,9 @@
 namespace tvm {
 
 namespace arith {
+class AnalyzerObj;
 class Analyzer;
-}
+}  // namespace arith
 
 namespace relax {
 

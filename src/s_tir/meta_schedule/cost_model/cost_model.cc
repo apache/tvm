@@ -49,17 +49,15 @@ std::vector<double> PyCostModelNode::Predict(const TuneContext& context,
   return result;
 }
 
-CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,        //
-                                 PyCostModelNode::FSave f_save,        //
-                                 PyCostModelNode::FUpdate f_update,    //
-                                 PyCostModelNode::FPredict f_predict,  //
-                                 PyCostModelNode::FAsString f_as_string) {
+CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,      //
+                                 PyCostModelNode::FSave f_save,      //
+                                 PyCostModelNode::FUpdate f_update,  //
+                                 PyCostModelNode::FPredict f_predict) {
   ffi::ObjectPtr<PyCostModelNode> n = ffi::make_object<PyCostModelNode>();
   n->f_load = std::move(f_load);
   n->f_save = std::move(f_save);
   n->f_update = std::move(f_update);
   n->f_predict = std::move(f_predict);
-  n->f_as_string = std::move(f_as_string);
   return CostModel(n);
 }
 

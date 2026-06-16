@@ -83,7 +83,7 @@ def test_incorrect_function_type_of_pattern_raises_error():
 
         @R.rewriter
         class Rewriter:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def pattern():
                 pass
 
@@ -115,7 +115,7 @@ def test_incorrect_function_type_of_replacement_raises_error():
             def pattern():
                 return R.tuple()
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def replacement():
                 pass
 
@@ -596,7 +596,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
         def replacement(A: R.Tensor([16], "float32")):
             return R.call_tir(RewriteMul.subroutine_mul, [A], out_sinfo=R.Tensor([16], "float32"))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
@@ -674,7 +674,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         def replacement(A: R.Tensor([16], "float32")):
             return R.call_tir(RewriteMul.subroutine, [A], out_sinfo=R.Tensor([16], "float32"))
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
@@ -699,7 +699,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         def subroutine(A: R.Tensor([16], "float32")) -> R.Tensor([16], "float32"):
             return A * R.const(2.0, "float32")
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine_1(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]

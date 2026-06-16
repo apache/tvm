@@ -23,8 +23,8 @@ from collections.abc import Callable
 import tvm_ffi
 
 from tvm.ir import Op
+from tvm.ir.utils import derived_object
 from tvm.runtime import Object
-from tvm.runtime.support import derived_object
 
 from ..ir.module import IRModule
 from . import _ffi_api

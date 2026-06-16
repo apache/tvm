@@ -197,6 +197,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     ffi::String tir_func_name = system_lib_prefix_.value_or("") + "__vmtir__" + gsymbol.value();
     tirx::PrimFunc tir_func(tir_params, body, ret_type, {});
     tir_func = WithAttr(tir_func, "global_symbol", tir_func_name);
+    tir_func = WithAttr(tir_func, tvm::attr::kSTir, true);
     registers_num_ = 0;
     var_map_.clear();
     stmt_stack_.clear();

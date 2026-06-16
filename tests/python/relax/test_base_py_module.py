@@ -40,7 +40,7 @@ class TestBasePyModule:
     """Test BasePyModule core functionality."""
 
     def test_base_py_module_instantiation(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def simple_func(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")):
             for i in T.grid(10):
                 B[i] = A[i] * 2.0
@@ -55,7 +55,7 @@ class TestBasePyModule:
         assert hasattr(py_mod, "compiled_tir_funcs")
 
     def test_base_py_module_instantiation_gpu(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def simple_func(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")):
             for i in T.grid(10):
                 B[i] = A[i] * 2.0
@@ -76,7 +76,7 @@ class TestBasePyModule:
             pytest.skip("CUDA not available")
 
     def test_tir_function_compilation(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add_func(
             A: T.Buffer((5,), "float32"), B: T.Buffer((5,), "float32"), C: T.Buffer((5,), "float32")
         ):
@@ -91,7 +91,7 @@ class TestBasePyModule:
         assert "add_func" in py_mod.compiled_tir_funcs
 
     def test_call_tir_with_pytorch_tensors(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def scale_func(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
             for i in T.grid(4):
                 B[i] = A[i] * T.float32(2.5)
@@ -131,7 +131,7 @@ class TestBasePyModule:
             pytest.skip("CUDA not available")
 
     def test_dlpack_conversion_pytorch_to_tvm(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
             for i in T.grid(3):
                 B[i] = A[i]
@@ -148,7 +148,7 @@ class TestBasePyModule:
         assert torch.allclose(result, input_tensor, atol=1e-5)
 
     def test_dlpack_conversion_tvm_to_pytorch(self):
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def constant_func(B: T.Buffer((2,), "float32")):
             for i in T.grid(2):
                 B[i] = T.float32(5.0)

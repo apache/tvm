@@ -39,9 +39,9 @@ from tvm.target.codegen import llvm_version_major
 def test_mul(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -78,9 +78,9 @@ def test_mul(dtype):
 def test_add(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -117,9 +117,9 @@ def test_add(dtype):
 def test_sub(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -156,9 +156,9 @@ def test_sub(dtype):
 def test_muladd(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -179,8 +179,18 @@ def test_muladd(dtype):
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
     matches = re.findall(
-        r"mad|mla\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]", assembly
+        # Group the mad|mla alternation: a top-level alternation would let a bare
+        # "mad" match anywhere in the assembly (e.g. inside scalar "fmadd").
+        r"(?:mad|mla)\tz[0-9].[shdb],( p[0-9]/[m],)? z[0-9].[shdb], z[0-9].[shdb]",
+        assembly,
     )
+
+    if llvm_version_major() >= 18 and dtype in ("float", "float16"):
+        # Newer LLVM cost models (observed with LLVM 20) prefer a fixed-width
+        # NEON main loop over a scalable SVE loop for floating-point fmuladd
+        # on generic AArch64 targets, so also accept the NEON form.
+        loads += re.findall(r"ld[rp]\tq[0-9]", assembly)
+        matches += re.findall(r"fml[as]\tv[0-9]+\.[0-9]+[hs]", assembly)
 
     assert len(loads) > 1
     assert len(matches) > 1
@@ -196,9 +206,9 @@ def test_muladd(dtype):
 def test_max(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -239,9 +249,9 @@ def test_max(dtype):
 def test_min(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -282,9 +292,9 @@ def test_min(dtype):
 def test_div(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -320,9 +330,9 @@ def test_div(dtype):
 def test_mod(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -359,9 +369,9 @@ def test_mod(dtype):
 def test_eq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -385,7 +395,10 @@ def test_eq(dtype):
     )
 
     assert len(loads) > 1
-    assert len(matches) > 1
+    # The number of SVE compares depends on the LLVM cost model: LLVM <= 17
+    # interleaves the scalable loop by two, while LLVM 20 emits a fixed-width
+    # NEON main loop with a single predicated SVE epilogue.
+    assert len(matches) > 0
 
 
 @pytest.mark.skipif(
@@ -398,9 +411,9 @@ def test_eq(dtype):
 def test_neq(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -424,7 +437,10 @@ def test_neq(dtype):
     )
 
     assert len(loads) > 1
-    assert len(matches) > 1
+    # The number of SVE compares depends on the LLVM cost model: LLVM <= 17
+    # interleaves the scalable loop by two, while LLVM 20 emits a fixed-width
+    # NEON main loop with a single predicated SVE epilogue.
+    assert len(matches) > 0
 
 
 @pytest.mark.skipif(
@@ -436,9 +452,9 @@ def test_neq(dtype):
 def test_or(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -474,9 +490,9 @@ def test_or(dtype):
 def test_and(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -512,9 +528,9 @@ def test_and(dtype):
 def test_not(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -553,9 +569,9 @@ def test_not(dtype):
 def test_memcpy(dtype):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()
@@ -587,16 +603,19 @@ def test_memcpy(dtype):
     [
         ("+neon", False),
         ("+sve", True),
-        ("+v9a", True),
+        # Since LLVM 19, SVE/SVE2 are optional extensions of Armv9.0-A, so
+        # "+v9a" no longer implies "+sve" and no vscale_range() is added:
+        # https://releases.llvm.org/19.1.0/docs/ReleaseNotes.html#changes-to-the-aarch64-backend
+        ("+v9a", llvm_version_major() < 19),
         ("+sme", True),
     ],
 )
 def test_vscale_range_function_attribute(mattr, expect_attr):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": [mattr]}
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
             m = T.int32()

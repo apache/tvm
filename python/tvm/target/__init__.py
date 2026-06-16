@@ -34,6 +34,5 @@ and :py:func:`tvm.target.register_tag` to register new tags.
 from .target import Target, TargetKind
 from .virtual_device import VirtualDevice
 from .tag import list_tags, register_tag
-from . import datatype
 from . import codegen
 from . import tag_registry  # registers tags on import

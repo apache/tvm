@@ -23,12 +23,24 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _has_volatile_alloc_buffer(mod):
+    has_volatile_alloc = False
+
+    def visit(node):
+        nonlocal has_volatile_alloc
+        if isinstance(node, tvm.tirx.AllocBuffer) and "tirx.volatile" in node.annotations:
+            has_volatile_alloc = has_volatile_alloc or node.annotations["tirx.volatile"] is True
+
+    tvm.tirx.stmt_functor.post_order_visit(mod["main"].body, visit)
+    return has_volatile_alloc
+
+
 def test_basic():
     transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(4096, data=A.data)
@@ -68,7 +80,7 @@ def test_basic_with_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(4096, data=A.data)
@@ -104,7 +116,7 @@ def test_reduce_summation():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(16384, data=A.data)
@@ -151,7 +163,7 @@ def test_multi_group_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
@@ -186,7 +198,7 @@ def test_multi_group_mask1():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((32, 8), "float32"), B: T.Buffer((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
@@ -221,7 +233,7 @@ def test_multi_warp_reduce1():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             for i in range(128):
@@ -257,7 +269,7 @@ def test_multi_warp_reduce2():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((1, 1024), "float32"), B: T.Buffer((1,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
@@ -288,7 +300,7 @@ def test_multi_group_multi_warp_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
@@ -324,7 +336,7 @@ def test_multi_group_multi_warp_predicated_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((2, 70), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
@@ -361,7 +373,7 @@ def test_metal_no_mask():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
             T.func_attr(
                 {
@@ -411,7 +423,7 @@ def test_webgpu_warp_reduce():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr(
                 {
@@ -461,7 +473,7 @@ def test_webgpu_multi_warp_reduce():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
             T.func_attr(
                 {
@@ -503,7 +515,7 @@ def test_webgpu_multi_warp_reduce():
     After_script = After.script()
     assert "tvm_warp_shuffle_down" in After_script
     assert "tvm_storage_sync" in After_script
-    assert '"tirx.volatile": T.bool(True)' in After_script
+    assert _has_volatile_alloc_buffer(After)
     assert "T.uint32(" not in After_script
 
 

@@ -164,14 +164,14 @@ std::vector<int32_t> SampleWithoutReplacement(LinearCongruentialEngine::TRandSta
 }
 
 int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
-                          const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
-                          ffi::Optional<Integer>* decision) {
+                          const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
+                          ffi::Optional<int64_t>* decision) {
   TVM_FFI_CHECK(candidates.size() == probs.size(), ValueError)
       << "number of candidates does not match number of probabilities.";
   int32_t i = -1;
   int32_t n = candidates.size();
-  if (decision->defined()) {
-    i = decision->value()->value;
+  if (decision->has_value()) {
+    i = static_cast<int32_t>(decision->value());
     TVM_FFI_CHECK(0 <= i && i < n, ValueError)
         << "Wrong decision value, where n = " << n << ", but decision is: " << i;
   } else {
@@ -183,8 +183,8 @@ int64_t SampleCategorical(LinearCongruentialEngine::TRandState* rand_state,
         << "Unexpected decision generated, where n = " << n << ", but decision is: " << i;
   }
 
-  *decision = Integer(i);  // decision is guaranteed not to be nullptr.
-  return candidates[i]->value;
+  *decision = static_cast<int64_t>(i);  // decision is guaranteed not to be nullptr.
+  return candidates[i];
 }
 
 std::function<int32_t()> MakeMultinomialSampler(LinearCongruentialEngine::TRandState* rand_state,
@@ -310,7 +310,7 @@ std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* ran
 std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* rand_state,  //
                                        const tirx::StmtSRef& loop_sref, int32_t n_splits,
                                        int32_t max_innermost_factor,
-                                       ffi::Optional<ffi::Array<Integer>>* decision) {
+                                       ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -318,9 +318,9 @@ std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* ran
     // Case 1. Handle loops with non-constant length
     result = std::vector<int64_t>(n_splits, 1);
     result[0] = -1;
-  } else if (decision->defined()) {
+  } else if (decision->has_value()) {
     // Case 2. Use previous decision
-    result = support::AsVector<Integer, int64_t>(decision->value());
+    result = std::vector<int64_t>(decision->value().begin(), decision->value().end());
     int n = result.size();
     TVM_FFI_ICHECK_GE(n, 2);
     int64_t len = *extent;
@@ -342,7 +342,7 @@ std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* ran
       TVM_FFI_ICHECK_LE(result.back(), max_innermost_factor);
     }
   }
-  *decision = support::AsArray<int64_t, Integer>(result);
+  *decision = ffi::Array<int64_t>(result.begin(), result.end());
   return result;
 }
 
@@ -371,7 +371,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
 std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState* rand_state,  //
                                            const tirx::StmtSRef& loop_sref, int32_t n_splits,
                                            int32_t partition_pos, int32_t innerpart_factor,
-                                           ffi::Optional<ffi::Array<Integer>>* decision) {
+                                           ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
@@ -379,9 +379,9 @@ std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState*
     // Case 1. Handle loops with non-constant length or non-divisible innerpart_factor
     result = std::vector<int64_t>(n_splits, 1);
     result[0] = -1;
-  } else if (decision->defined()) {
+  } else if (decision->has_value()) {
     // Case 2. Use previous decision
-    result = support::AsVector<Integer, int64_t>(decision->value());
+    result = std::vector<int64_t>(decision->value().begin(), decision->value().end());
     int n = result.size();
     TVM_FFI_ICHECK_GE(n, 2);
     int innerpart_prod = 1;
@@ -414,13 +414,13 @@ std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState*
     // Case 3. Use fresh new sampling result
     result = SamplePartitionedTile(rand_state, *extent, n_splits, partition_pos, innerpart_factor);
   }
-  *decision = support::AsArray<int64_t, Integer>(result);
+  *decision = ffi::Array<int64_t>(result.begin(), result.end());
   return result;
 }
 
 tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
                                      LinearCongruentialEngine::TRandState* rand_state,
-                                     const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
+                                     const StmtSRef& block_sref, ffi::Optional<int64_t>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   TVM_FFI_ICHECK_EQ(location_srefs.size(), location_indices.size());
@@ -428,24 +428,24 @@ tirx::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
   // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the
   // location candidates. Otherwise, pick the location before the previous decision.
   // Step 3. If there was not a previous decision, sample a decision from the collected locations.
-  if (decision->defined()) {
-    int64_t old_decision = Downcast<Integer>(*decision)->value;
+  if (decision->has_value()) {
+    int64_t old_decision = decision->value();
     auto it = std::lower_bound(location_indices.begin(), location_indices.end(), old_decision);
     int idx = it - location_indices.begin();
 
     if (it != location_indices.end() && *it == old_decision) {
-      *decision = Integer(old_decision);
+      *decision = old_decision;
       return location_srefs[idx];
     } else if (it != location_indices.begin()) {
-      *decision = Integer(location_indices[idx - 1]);
+      *decision = static_cast<int64_t>(location_indices[idx - 1]);
       return location_srefs[idx - 1];
     } else {
-      *decision = Integer(-1);
+      *decision = static_cast<int64_t>(-1);
       return StmtSRef::RootMark();
     }
   } else {
     int sampled_idx = SampleInt(rand_state, 0, location_indices.size());
-    *decision = Integer(location_indices[sampled_idx]);
+    *decision = static_cast<int64_t>(location_indices[sampled_idx]);
     return location_srefs[sampled_idx];
   }
 }
@@ -462,16 +462,16 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
   static constexpr size_t kNumDecisions = 1;
 
   static ExprRV UnpackedApplyToSchedule(Schedule sch,                    //
-                                        ffi::Array<Integer> candidates,  //
+                                        ffi::Array<int64_t> candidates,  //
                                         ffi::Array<FloatImm> probs,      //
-                                        ffi::Optional<Integer> decision) {
+                                        ffi::Optional<int64_t> decision) {
     return sch->SampleCategorical(candidates, probs, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,  //
-                                      ffi::Array<Integer> candidates,   //
+                                      ffi::Array<int64_t> candidates,   //
                                       ffi::Array<FloatImm> probs,       //
-                                      ffi::Optional<Integer> decision) {
+                                      ffi::Optional<int64_t> decision) {
     PythonAPICall py("sample_categorical");
     py.Input("candidates", candidates);
     py.Input("probs", probs);
@@ -493,15 +493,15 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                                    Integer max_innermost_factor,
-                                                    ffi::Optional<ffi::Array<Integer>> decision) {
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
+                                                    IntImm max_innermost_factor,
+                                                    ffi::Optional<ffi::Array<int64_t>> decision) {
     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      Integer n, Integer max_innermost_factor,
-                                      ffi::Optional<ffi::Array<Integer>> decision) {
+                                      IntImm n, IntImm max_innermost_factor,
+                                      ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_perfect_tile");
     py.Input("loop", loop_rv);
     py.Input("n", n->value);
@@ -524,16 +524,16 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
   static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
-                                                    Integer partition_pos, Integer innerpart_factor,
-                                                    ffi::Optional<ffi::Array<Integer>> decision) {
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
+                                                    IntImm partition_pos, IntImm innerpart_factor,
+                                                    ffi::Optional<ffi::Array<int64_t>> decision) {
     return sch->SamplePartitionedTile(loop_rv, n->value, partition_pos->value,
                                       innerpart_factor->value, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      Integer n, Integer partition_pos, Integer innerpart_factor,
-                                      ffi::Optional<ffi::Array<Integer>> decision) {
+                                      IntImm n, IntImm partition_pos, IntImm innerpart_factor,
+                                      ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_partitioned_tile");
     py.Input("loop", loop_rv);
     py.Input("n", n->value);
@@ -559,13 +559,13 @@ struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLoca
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch,       //
                                         SBlockRV block_rv,  //
-                                        ffi::Optional<Integer> decision) {
+                                        ffi::Optional<int64_t> decision) {
     return sch->SampleComputeLocation(block_rv, decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,  //
                                       ffi::String block_rv,             //
-                                      ffi::Optional<Integer> decision) {
+                                      ffi::Optional<int64_t> decision) {
     PythonAPICall py("sample_compute_location");
     py.Input("block", block_rv);
     py.Decision(decision);

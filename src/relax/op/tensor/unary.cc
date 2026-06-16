@@ -74,7 +74,7 @@ TVM_REGISTER_OP("relax.clip")
     .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
     .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr clip(Expr x, Expr min, Expr max) {
   TVM_FFI_ICHECK(min->IsInstance<PrimValueNode>())

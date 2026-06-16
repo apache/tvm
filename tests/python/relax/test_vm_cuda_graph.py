@@ -25,11 +25,12 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # fmt: off
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
@@ -49,7 +50,7 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with T.sblock("root"):
@@ -94,7 +95,8 @@ def codegen(mod, target, exec_mode="bytecode"):
     return relax.vm_build._vmlink(builder, target, tir_mod)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vm_run():
     mod = Module
     target = tvm.target.Target("cuda", host="llvm")
@@ -108,7 +110,8 @@ def test_vm_run():
     tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.requires_cudagraph
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cudagraph(), reason="need cudagraph")
 def test_capture_error_is_recoverable():
     """Function calls while capturing cudagraph may throw exceptions
 
@@ -139,7 +142,7 @@ def test_capture_error_is_recoverable():
         _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
         return arg_tensor
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
@@ -174,7 +177,7 @@ def test_capture_error_is_recoverable():
 
     arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         vm["main"](arg)
 
 

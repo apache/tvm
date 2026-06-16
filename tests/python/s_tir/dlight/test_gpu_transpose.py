@@ -35,9 +35,9 @@ def _check(mod_before: IRModule, mod_after: IRModule):
 
 def test_transpose():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "float32"), T_transpose: T.Buffer((T.int64(4096), T.int64(512)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(4096), T.int64(512)):
@@ -45,9 +45,9 @@ def test_transpose():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "float32"), T_transpose: T.Buffer((T.int64(4096), T.int64(512)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -81,9 +81,9 @@ def test_transpose():
 
 def test_decode_transpose():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float32")):
             T.func_attr({"tirx.noalias": True})
             decode = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)))
@@ -100,9 +100,9 @@ def test_decode_transpose():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = decode[v_ax1, v_ax0]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(rxplaceholder: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             decode_shared = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), scope="shared")
@@ -135,9 +135,9 @@ def test_decode_transpose():
 
 def test_decode_int3_transpose():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((T.int64(412), T.int64(4096)), "uint32"), B: T.Buffer((T.int64(103), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16")):
             T.func_attr({"tirx.noalias": True})
             decode_1 = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
@@ -154,9 +154,9 @@ def test_decode_int3_transpose():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = decode_1[v_ax1, v_ax0]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((T.int64(412), T.int64(4096)), "uint32"), B: T.Buffer((T.int64(103), T.int64(4096)), "float16"), T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):

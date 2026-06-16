@@ -36,7 +36,7 @@ namespace arith {
 
 class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
  public:
-  PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
+  PrimExpr Simplify(const PrimExpr& expr) { return analyzer_->Simplify(expr); }
 
   using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;

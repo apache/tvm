@@ -20,6 +20,7 @@ import functools
 import math
 
 import pytest
+import tvm_ffi
 
 import tvm.testing
 from tvm import relax as rx
@@ -32,7 +33,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
         k = T.int32()
@@ -47,7 +48,7 @@ class Module:
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_relu(x: T.handle, y: T.handle):
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
@@ -57,7 +58,7 @@ class Module:
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_zeros(x: T.handle, n: T.int64):
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])
@@ -239,7 +240,7 @@ def test_shape_pattern():
     shape = [32, 32]
     pattern = wildcard().has_shape(shape)
     assert isinstance(pattern, ShapePattern)
-    tvm.ir.structural_equal(pattern.shape, shape)
+    tvm_ffi.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
     n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
@@ -1478,7 +1479,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         arg = matches[pattern_arg]
         shape_expr = matches[pattern_shape_expr]
 
-        if tvm.ir.structural_equal(arg.struct_info.shape, shape_expr):
+        if tvm_ffi.structural_equal(arg.struct_info.shape, shape_expr):
             return arg
         else:
             return expr
@@ -1755,7 +1756,9 @@ def test_iterative_rewrite_with_removed_intermediates():
         if pat_unwrap_concat_split in matches:
             args = matches[pat_args]
 
-            if len(args) == 2 and tvm.ir.structural_equal(args[0].struct_info, args[1].struct_info):
+            if len(args) == 2 and tvm_ffi.structural_equal(
+                args[0].struct_info, args[1].struct_info
+            ):
                 return args
 
         elif pat_add_self in matches:

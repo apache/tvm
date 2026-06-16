@@ -24,4 +24,14 @@ this module via the dialect registry, so the public parser surface
 
 # pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
 from .parser import *
-from .parser import Buffer, Ptr, macro, prim_func
+from .parser import Buffer, Ptr, prim_func
+
+try:
+    from .parser import macro
+except ImportError:
+    macro = None
+from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
+
+from . import tile
+from .builder.ir import TensorMap, meta_class
+from .tile import cluster, cta, thread, warp, warpgroup, wg

@@ -236,13 +236,13 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
    * \param analyzer The arithmetic analyzer
    * \return The simplified statement
    */
-  static Stmt Simplify(const Stmt& stmt, arith::Analyzer* analyzer) {
+  static Stmt Simplify(const Stmt& stmt, arith::AnalyzerObj* analyzer) {
     BlockBufferAccessSimplifier simplifier(analyzer);
     return simplifier(stmt);
   }
 
  private:
-  explicit BlockBufferAccessSimplifier(arith::Analyzer* analyzer)
+  explicit BlockBufferAccessSimplifier(arith::AnalyzerObj* analyzer)
       : IRMutatorWithAnalyzer(analyzer) {}
 
   using IRMutatorWithAnalyzer::VisitExpr_;

@@ -21,9 +21,9 @@
  * \file tvm/tirx/stmt.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -47,10 +47,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfThenElseNode::RegisterReflection();
   ForNode::RegisterReflection();
   WhileNode::RegisterReflection();
+  BreakNode::RegisterReflection();
+  ContinueNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
   MatchBufferRegionNode::RegisterReflection();
   SBlockNode::RegisterReflection();
   SBlockRealizeNode::RegisterReflection();
+  ScopeIdDefStmtNode::RegisterReflection();
 }
 
 // Bind
@@ -240,8 +243,45 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
+// Break
+Break::Break(Span span) {
+  ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Break", [](Span span) { return Break(span); });
+}
+
+// Continue
+Continue::Continue(Span span) {
+  ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
+}
+
 // DeclBuffer
 DeclBuffer::DeclBuffer(Buffer buffer, Span span) {
+  // Enforce storage scope rules for DeclBuffer.
+  std::string scope = static_cast<std::string>(buffer.scope());
+  if (scope.empty()) {
+    scope = "global";
+  }
+  if (scope == "tmem") {
+    TVM_FFI_ICHECK_EQ(buffer->allocated_addr.size(), 1U)
+        << "ValueError: For `tmem` scope, DeclBuffer requires exactly one `allocated_addr` "
+           "PrimExpr";
+  } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
+    TVM_FFI_ICHECK(buffer->allocated_addr.empty())
+        << "ValueError: For `" << scope << "` scope, DeclBuffer does not accept `allocated_addr`";
+  }
   ffi::ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
   node->buffer = std::move(buffer);
   node->span = std::move(span);
@@ -516,14 +556,14 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
       << source->region.size() << " vs. " << buffer->shape.size();
   size_t offset = source->region.size() - buffer->shape.size();
   for (size_t i = 0; i < offset; ++i) {
-    TVM_FFI_ICHECK(analyzer.CanProve(source->region[i]->extent == 1))
+    TVM_FFI_ICHECK(analyzer->CanProve(source->region[i]->extent == 1))
         << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
   }
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& buffer_shape = buffer->shape[i];
     if (!buffer_shape->IsInstance<VarNode>()) {
-      TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == buffer_shape))
+      TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == buffer_shape))
           << "The dimension mismatched between source region and target buffer shape, got "
           << source_range->extent << " vs. " << buffer_shape << ".";
     }
@@ -564,6 +604,21 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
   data_ = std::move(node);
 }
 
+SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<Buffer> alloc_buffers, Span span) {
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  node->iter_vars = {};
+  node->reads = {};
+  node->writes = {};
+  node->name_hint = std::move(name_hint);
+  node->body = std::move(body);
+  node->init = std::nullopt;
+  node->alloc_buffers = std::move(alloc_buffers);
+  node->match_buffers = {};
+  node->annotations = {};
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.SBlock",
@@ -575,6 +630,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,
                                         alloc_buffers, match_buffers, annotations, span);
                         });
+}
+
+// ScopeIdDefStmt
+ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) {
+  TVM_FFI_ICHECK(def.defined());
+  ffi::ObjectPtr<ScopeIdDefStmtNode> node = ffi::make_object<ScopeIdDefStmtNode>();
+  node->def = std::move(def);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.ScopeIdDefStmt",
+                        [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
 }
 
 // BlockRealize
@@ -601,14 +671,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr TypeAnnotation(DataType dtype, Span span) {
-  static auto op = Op::Get("tirx.type_annotation");
-  return tirx::Call(dtype, op, {}, span);
+  static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
+  return tirx::Call(dtype, type_annotation_op, {}, {}, span);
 }
 
-TVM_TIR_REGISTER_OP("type_annotation")
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+TVM_TIRX_REGISTER_OP("type_annotation")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         Integer(ScriptDtypePrintLocation::kFirst));
+                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
 }  // namespace tirx
 }  // namespace tvm

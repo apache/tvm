@@ -122,8 +122,8 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   const InstructionNode* sample_inst = sample_insts.at(var_rv);
   TVM_FFI_ICHECK_EQ(sample_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(sample_inst);
-  candidate->decision =
-      Downcast<IntImm>(trace->decisions[ffi::GetRef<Instruction>(sample_inst)])->value;
+  // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
+  candidate->decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
   candidate->probs =
       support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
   return true;
@@ -142,7 +142,8 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
   if (result >= candidate.decision) {
     result += 1;
   }
-  return trace->WithDecision(candidate.inst, Integer(result), /*remove_postproc=*/true);
+  return trace->WithDecision(candidate.inst, static_cast<int64_t>(result),
+                             /*remove_postproc=*/true);
 }
 
 Mutator Mutator::MutateUnroll() { return Mutator(ffi::make_object<MutateUnrollNode>()); }

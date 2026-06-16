@@ -17,14 +17,14 @@
 
 if(USE_CLML)
     file(GLOB CLML_RELAX_CONTRIB_SRC src/relax/backend/contrib/clml/*.cc)
-    file(GLOB CLML_RUNTIME_MODULE src/runtime/contrib/clml/clml_runtime.cc)
+    file(GLOB CLML_RUNTIME_MODULE src/runtime/extra/contrib/clml/clml_runtime.cc)
     include_directories(SYSTEM "3rdparty/OpenCL-Headers")
     list(APPEND COMPILER_SRCS ${CLML_RELAX_CONTRIB_SRC})
     if(NOT USE_CLML_GRAPH_EXECUTOR)
         list(APPEND COMPILER_SRCS ${CLML_RUNTIME_MODULE})
     endif()
     message(STATUS "Build with CLML support : " ${USE_CLML})
-    if (NOT USE_CLML STREQUAL "ON")
+    if(NOT USE_CLML STREQUAL "ON")
         set(CLML_VERSION_HEADER "${USE_CLML}/CL/cl_qcom_ml_ops.h")
         if(EXISTS ${CLML_VERSION_HEADER})
             file(READ ${CLML_VERSION_HEADER} ver)
@@ -45,11 +45,11 @@ endif()
 if(USE_CLML_GRAPH_EXECUTOR)
     set(CLML_PATH ${CMAKE_CURRENT_SOURCE_DIR}/clml)
     # Detect custom CLML path.
-    if (NOT USE_CLML_GRAPH_EXECUTOR STREQUAL "ON")
+    if(NOT USE_CLML_GRAPH_EXECUTOR STREQUAL "ON")
         set(CLML_PATH ${USE_CLML_GRAPH_EXECUTOR})
     endif()
 
-    file(GLOB CLML_CONTRIB_SRC src/runtime/contrib/clml/*)
+    file(GLOB CLML_CONTRIB_SRC src/runtime/extra/contrib/clml/*)
 
     # CMake needs to find clml library, include and support directories
     # in the path specified by CLML_PATH.
@@ -68,8 +68,14 @@ if(USE_CLML_GRAPH_EXECUTOR)
             list(APPEND EXTERN_CLML_COMPUTE_LIB ${CLML_PATH}/lib/libOpenCL.so ${CLML_PATH}/lib/libOpenCL_system.so)
         endif()
     endif()
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_CLML_COMPUTE_LIB})
-    list(APPEND RUNTIME_SRCS ${CLML_CONTRIB_SRC})
+    add_library(tvm_clml_objs OBJECT ${CLML_CONTRIB_SRC})
+    target_link_libraries(tvm_clml_objs PRIVATE tvm_runtime_extra_defs)
+    # CLML depends on OpenCL runtime symbols — link the OpenCL DSO instead of
+    # duplicating sources (which would cause duplicate registrations).
+    target_link_libraries(tvm_runtime_extra PRIVATE tvm_clml_objs ${EXTERN_CLML_COMPUTE_LIB})
+    if(TARGET tvm_runtime_opencl)
+      target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_opencl)
+    endif()
     message(STATUS "Build with CLML graph runtime support: "
             ${EXTERN_CLML_COMPUTE_LIB})
 
@@ -77,8 +83,6 @@ if(USE_CLML_GRAPH_EXECUTOR)
     add_definitions(-DTVM_GRAPH_EXECUTOR_CLML)
 
     message(STATUS "Enable OpenCL as fallback to CLML")
-    file(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
     set(USE_OPENCL ${CLML_PATH})
     if(USE_OPENCL_ENABLE_HOST_PTR)
         add_definitions(-DOPENCL_ENABLE_HOST_PTR)

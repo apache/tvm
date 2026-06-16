@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
 import os
 
@@ -24,16 +23,13 @@ from tvm import rpc
 
 
 def remote():
-    if (
-        "TVM_TRACKER_HOST" in os.environ
-        and "TVM_TRACKER_PORT" in os.environ
-        and "RPC_DEVICE_KEY" in os.environ
-    ):
-        rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
-        rpc_tracker_port = int(os.environ["TVM_TRACKER_PORT"])
-        rpc_device_key = os.environ["RPC_DEVICE_KEY"]
-        tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
-        remote = tracker.request(rpc_device_key, priority=0, session_timeout=600)
-        return remote, tracker
-    else:
-        return None
+    required_env = ("TVM_TRACKER_HOST", "TVM_TRACKER_PORT", "RPC_DEVICE_KEY")
+    missing = [name for name in required_env if name not in os.environ]
+    if missing:
+        pytest.skip(f"NNAPI remote environment unavailable: {', '.join(missing)} not set")
+    rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
+    rpc_tracker_port = int(os.environ["TVM_TRACKER_PORT"])
+    rpc_device_key = os.environ["RPC_DEVICE_KEY"]
+    tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
+    remote = tracker.request(rpc_device_key, priority=0, session_timeout=600)
+    return remote, tracker

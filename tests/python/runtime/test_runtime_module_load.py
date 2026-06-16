@@ -23,7 +23,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.contrib import cc, popen_pool, utils
+from tvm.support import cc, popen_pool, utils
+from tvm.testing import env
 
 runtime_py = """
 import os
@@ -43,7 +44,7 @@ print("Finish runtime checking...")
 """
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
@@ -96,8 +97,11 @@ def test_dso_module_load(target):
     assert proc.returncode == 0, f"{proc.args} exited with {proc.returncode}: {proc.stdout}"
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_device_module_dump():
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
@@ -152,9 +156,11 @@ def test_device_module_dump():
         check_c(device)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     # graph
     nn = 12
     n = tvm.runtime.convert(nn)

@@ -32,6 +32,7 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 torch_version = torch.__version__
 
@@ -50,7 +51,7 @@ def test_relax_dynamo():
     ### construct the database
     @tvm.script.ir_module
     class Input1_ir:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             inp_0: T.Buffer((T.int64(10), T.int64(100)), "float32"),
             param_0: T.Buffer((T.int64(100), T.int64(10)), "float32"),
@@ -343,7 +344,8 @@ def _convert_data_type(input_type):
         raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_ones():
     import torch
     from torch.nn import Module
@@ -352,7 +354,7 @@ def test_ones():
         def forward(self, input):
             return torch.ones((10, 10), dtype=torch.float32)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -374,7 +376,8 @@ def test_ones():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_full():
     import torch
     from torch.nn import Module
@@ -383,7 +386,7 @@ def test_full():
         def forward(self, input):
             return torch.full((10, 10), 1, dtype=torch.float32)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -405,7 +408,8 @@ def test_full():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_gelu():
     import torch
     from torch.nn import Module
@@ -418,7 +422,7 @@ def test_gelu():
         def forward(self, input):
             return torch.nn.functional.gelu(input, approximate="tanh")
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ExpectedGeLU:
         @R.function
         def main(
@@ -430,7 +434,7 @@ def test_gelu():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class ExpectedGeLUTanh:
         @R.function
         def main(
@@ -457,7 +461,8 @@ def test_gelu():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_masked_fill():
     import torch
     from torch.nn import Module
@@ -471,7 +476,7 @@ def test_masked_fill():
             input.masked_fill_(mask, 0)
             return input
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -494,7 +499,8 @@ def test_masked_fill():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_getitem():
     import torch
     from torch.nn import Module
@@ -504,7 +510,7 @@ def test_getitem():
             result = input1[:, input2.argmax(dim=-1), :]
             return result
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(
@@ -527,7 +533,7 @@ def test_getitem():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -568,7 +574,8 @@ def test_getitem():
     version.parse(torch_version) >= version.parse("2.6.0"),
     reason="Need to support dynamic arange in Relax",
 )
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_arange():
     import torch
     from torch.nn import Module
@@ -579,7 +586,7 @@ def test_arange():
             result = mask_cond + 1
             return result
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):

@@ -24,6 +24,7 @@
 
 #include "ternary.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
@@ -43,16 +44,16 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     if (ndim == kUnknownNDim) {
       ndim = t2->ndim;
     } else if (t2->ndim != ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The 3 arguments of EwiseFMA must have the same number of dimensions");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The 3 arguments of EwiseFMA must have the same number of dimensions";
     }
   }
   if (!t3->IsUnknownNdim()) {
     if (ndim == kUnknownNDim) {
       ndim = t3->ndim;
     } else if (t3->ndim != ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The 3 arguments of EwiseFMA must have the same number of dimensions");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The 3 arguments of EwiseFMA must have the same number of dimensions";
     }
   }
 
@@ -60,9 +61,8 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   if (t1->IsUnknownDtype() || t2->IsUnknownDtype() || t3->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (t1->dtype != t2->dtype || t2->dtype != t3->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Data types " << t1->dtype << ", " << t2->dtype << ", and " << t3->dtype
-                     << " must be equal for EwiseFMA");
+    TVM_FFI_VISIT_THROW(TypeError, call) << "Data types " << t1->dtype << ", " << t2->dtype
+                                         << ", and " << t3->dtype << " must be equal for EwiseFMA";
   } else {
     output_dtype = t1->dtype;
   }
@@ -85,7 +85,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   auto* s1 = t1->shape.as<ShapeExprNode>();
   auto* s2 = t2->shape.as<ShapeExprNode>();
   auto* s3 = t3->shape.as<ShapeExprNode>();
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  arith::Analyzer analyzer = ctx->GetAnalyzer();
   if (s1 && s2 && s3) {
     ffi::Array<PrimExpr> output_shape;
     for (int i = 0; i < ndim; ++i) {
@@ -95,8 +95,8 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
       if (analyzer->CanProveEqual(dim1, dim2) && analyzer->CanProveEqual(dim2, dim3)) {
         output_shape.push_back(dim1);
       } else {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "The 3 arguments of EwiseFMA must have the same shape");
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "The 3 arguments of EwiseFMA must have the same shape";
       }
     }
     if (vdev.defined()) {
@@ -138,7 +138,7 @@ TVM_REGISTER_OP("relax.ewise_fma")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEwiseFMA)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   static const Op& op = Op::Get("relax.ewise_fma");

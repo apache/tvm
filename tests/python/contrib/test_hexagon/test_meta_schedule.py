@@ -22,6 +22,8 @@ import tempfile
 import numpy as np
 import pytest
 
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.testing
 import tvm.topi.testing
 from tvm import te
@@ -36,6 +38,7 @@ from tvm.s_tir.meta_schedule.builder import BuilderInput
 from tvm.s_tir.meta_schedule.runner import RunnerInput
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.script import tirx as T
+from tvm.testing import env
 from tvm.tirx import FloatImm
 
 from .infrastructure import get_hexagon_target
@@ -49,7 +52,7 @@ class MatmulModule:
     """Matmultest class"""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
         # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -67,7 +70,7 @@ class MatmulModule:
                 )
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_builder_runner(hexagon_launcher):
     """Test builder and runner."""
     if hexagon_launcher.is_simulator():
@@ -189,7 +192,7 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     print(f"{time_ms:f} ms, {gflops / (time_ms / 1e3):f} GOPS")
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_vrmpy_dense(hexagon_launcher):
     """Test vector reduce muliply dense."""
     if hexagon_launcher.is_simulator():
@@ -241,7 +244,7 @@ class ModuleVRMPYAutoTensorize:
     """Vector Reduce Multimply auto tensorize test class."""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         X: T.Buffer((128, 768), "uint8"),  # type: ignore
         packed_width: T.Buffer((24, 192, 32, 4), "uint8"),  # type: ignore
@@ -298,7 +301,7 @@ class ModuleVRMPYAutoTensorize:
                     )
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     """Test VRMPY dense operator."""
     if hexagon_launcher.is_simulator():

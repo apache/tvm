@@ -94,7 +94,7 @@ def test_nesting_parsing():
 
         @tvm.script.ir_module
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def impl(
                 A: T.Buffer((12, 196, 64), "float32"),
             ) -> None:

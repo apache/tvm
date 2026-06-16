@@ -23,7 +23,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         placeholder: T.Buffer((1024, 1024), "uint8"),
         placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
@@ -47,7 +47,7 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class DenseTIRModuleTiled:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         placeholder: T.Buffer((1024, 1024), "uint8"),
         placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
@@ -73,7 +73,7 @@ class DenseTIRModuleTiled:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -114,7 +114,7 @@ class Conv2dNCHWcTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModuleTiled:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),

@@ -92,7 +92,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
         // Use DetectIterMap to detect whether store index is non-contiguous.
         arith::Analyzer analyzer;
         auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
-                                            arith::IterMapLevel::Surjective, &analyzer, false);
+                                            arith::IterMapLevel::Surjective, analyzer, false);
         if (!store_iter_map->errors.empty()) {
           found_ = true;
         }
@@ -102,7 +102,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
 
         // Use DetectIterMap to detect whether load index is non-contiguous.
         auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
-                                           arith::IterMapLevel::Surjective, &analyzer, false);
+                                           arith::IterMapLevel::Surjective, analyzer, false);
         if (!load_iter_map->errors.empty()) {
           found_ = true;
         }
@@ -152,7 +152,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tirx::transform::FlattenBuffer());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
           pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tirx::transform::VectorizeLoop(true));

@@ -20,9 +20,11 @@ Test parallelizing HVX workloads and compare them to single thread examples.
 """
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -75,7 +77,7 @@ def vrmpy_expected_producer(shape, a, b):
 def get_vmpy_operator(operations):
     """Generate vector multiply operator"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
@@ -97,7 +99,7 @@ def get_vmpy_operator(operations):
 def get_vadd_operator(operations):
     """Generate vadd operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
@@ -119,7 +121,7 @@ def get_vadd_operator(operations):
 def get_vrmpy_operator(operations):
     """Generate vrmpy operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8")
@@ -197,7 +199,7 @@ class TestMatMulVec:
         # 16384,
     )
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test(
         self,
         hexagon_session,

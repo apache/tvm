@@ -58,8 +58,9 @@ TEST(IRF, CountVar) {
 TEST(IRF, PreOrderVisit) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Stmt init = IfThenElse(const_true(), Evaluate(Integer(0)), Evaluate(Integer(0)));
-  Stmt body = Evaluate(Integer(1));
+  Stmt init = IfThenElse(const_true(), Evaluate(IntImm(DataType::Int(32), 0)),
+                         Evaluate(IntImm(DataType::Int(32), 0)));
+  Stmt body = Evaluate(IntImm(DataType::Int(32), 1));
   SBlock block(/*iter_vars=*/{}, /*reads=*/{},
                /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
                /*init=*/init);
@@ -338,7 +339,7 @@ TEST(IRF, Substitute) {
                   /*dtype=*/DataType::Float(32),
                   /*shape=*/{n},
                   /*strides=*/{},
-                  /*elem_offset=*/NullValue<PrimExpr>(),
+                  /*elem_offset=*/PrimExpr(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
                   /*offset_factor=*/1,

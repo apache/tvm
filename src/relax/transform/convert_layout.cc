@@ -38,7 +38,7 @@ namespace tvm {
 namespace relax {
 
 using tirx::IndexMap;
-using tirx::Layout;
+using tirx::SLayout;
 using LayoutCb = tvm::relax::transform::LayoutCb;
 
 /*!
@@ -62,7 +62,7 @@ using LayoutCb = tvm::relax::transform::LayoutCb;
  * output_layout and converted attrs of the new op call.
  *
  * The rewrite pass does the rewriting in a single forward pass, where for each Call(Op),
- * we collect the current Layout of each input var, and let the InferLayout function to infer the
+ * we collect the current SLayout of each input var, and let the InferLayout function to infer the
  * desired layout of the output. The rewriter will use these info to convert
  * the layout of inputs and attrs of the op call, and note down the new layout of the output.
  *
@@ -70,7 +70,7 @@ using LayoutCb = tvm::relax::transform::LayoutCb;
  * desired feature map, weight and output. For example, if we want to convert the layout of conv2d
  * from NCHW to NHWC, we can set the desired layout of conv2d to be {"conv2d": ["NHWC", "OHWI"]}.
  *
- * The way we represent the layout of a var is a NLayout object, which is a nested tuple of Layout.
+ * The way we represent the layout of a var is a NLayout object, which is a nested tuple of SLayout.
  * The incoming layout of the module will be set as the default layout (We use ABCD... as the
  * default) Note that for operators like conv, pool, people typically use NHWC to refer to the axes.
  * But to be generic and support more operators, we use ABCD... to refer to the axes.
@@ -85,17 +85,17 @@ class LayoutConvertMutator : public ExprMutator {
       : desired_layouts_(desired_layouts), layout_cb_(layout_cb) {}
 
  private:
-  ffi::Array<Integer> LayoutToIntegers(const Layout& layout) {
-    ffi::Array<Integer> ret;
+  ffi::Array<int64_t> LayoutToIntegers(const SLayout& layout) {
+    ffi::Array<int64_t> ret;
     LayoutDecision src = InitialLayoutDecision(layout.ndim());
     for (size_t i = 0; i < layout.ndim(); ++i) {
-      ret.push_back(Integer(src->layout.IndexOf(layout[i])));
+      ret.push_back(static_cast<int64_t>(src->layout.IndexOf(layout[i])));
     }
     return ret;
   }
 
-  IndexMap LayoutIndexMap(int ndim, const Layout& src_layout, const Layout& desired_layout) {
-    tirx::BijectiveLayout todesired(src_layout, desired_layout);
+  IndexMap LayoutIndexMap(int ndim, const SLayout& src_layout, const SLayout& desired_layout) {
+    tirx::SBijectiveLayout todesired(src_layout, desired_layout);
     ffi::Optional<IndexMap> inverse_index_map;
 
     ffi::Array<tvm::tirx::Var> initial_indices;
@@ -122,8 +122,8 @@ class LayoutConvertMutator : public ExprMutator {
       TVM_FFI_ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
 
       if (from.LeafValue()->layout.ndim() == to.LeafValue()->layout.ndim()) {
-        Layout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
-                                    from.LeafValue()->layout, to.LeafValue()->layout);
+        SLayout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
+                                     from.LeafValue()->layout, to.LeafValue()->layout);
         return permute_dims(expr, LayoutToIntegers(axes));
       } else {
         auto index_map = LayoutIndexMap(from.LeafValue()->layout.ndim(), from.LeafValue()->layout,

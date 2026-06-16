@@ -48,7 +48,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
-  std::unique_ptr<arith::Analyzer> analyzer_;
+  arith::Analyzer analyzer_;
   /*! \brief The value of random state for sampling. */
   LinearCongruentialEngine::TRandState rand_state_;
 
@@ -86,16 +86,16 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
-                           ffi::Optional<Integer> decision = std::nullopt) override;
+  ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
+                           ffi::Optional<int64_t> decision = std::nullopt) override;
   ffi::Array<ExprRV> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) override;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) override;
   ffi::Array<ExprRV> SamplePartitionedTile(
       const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
-      ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) override;
+      ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) override;
   LoopRV SampleComputeLocation(const SBlockRV& block_rv,
-                               ffi::Optional<Integer> decision = std::nullopt) override;
+                               ffi::Optional<int64_t> decision = std::nullopt) override;
   /******** Schedule: Get blocks & loops ********/
   SBlockRV GetSBlock(const ffi::String& name, const ffi::Optional<ffi::String>& func_name) override;
   ffi::Array<LoopRV> GetLoops(const SBlockRV& block_rv) override;
@@ -113,7 +113,7 @@ class ConcreteScheduleNode : public ScheduleNode {
                                    const ffi::Array<ffi::Optional<ExprRV>>& factors,
                                    bool preserve_unit_iters) override;
   void Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) override;
-  void ReorderBlockIterVar(const SBlockRV& block_rv, const ffi::Array<Integer> new_order) override;
+  void ReorderBlockIterVar(const SBlockRV& block_rv, const ffi::Array<int64_t> new_order) override;
   LoopRV AddUnitLoop(const SBlockRV& block_rv) override;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/
@@ -155,7 +155,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Reduction ********/
   SBlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   SBlockRV DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
-  void PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) override;
+  void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) override;
   /******** Schedule: SBlock annotation ********/
   void StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
@@ -268,7 +268,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
     }
     const ffi::ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return Integer(int_imm->value);
+    return IntImm(DataType::Int(32), int_imm->value);
   });
   return this->analyzer_->Simplify(transformed);
 }
@@ -370,7 +370,7 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
-  this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
+  this->symbol_table_.Set(rv, IntImm(DataType::Int(32), static_cast<int32_t>(value)));
   return rv;
 }
 

@@ -31,7 +31,7 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     C = T.match_buffer(c, (16, 16))
@@ -47,7 +47,7 @@ def element_func(a: T.handle, c: T.handle) -> None:
                 C[i, j] = B[i, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_element_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [16, 16])
     C = T.match_buffer(c, [16, 16])
@@ -67,7 +67,7 @@ def transformed_element_func(a: T.handle, c: T.handle) -> None:
                     C[i, j] = B[i, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def original_func() -> None:
     A = T.sblock_alloc_buffer((128, 128), "float32")
     for i0, j0 in T.grid(128, 128):
@@ -92,7 +92,7 @@ def original_func() -> None:
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_func() -> None:
     A = T.sblock_alloc_buffer([128, 128])
     for i0, j0 in T.grid(128, 128):
@@ -133,7 +133,7 @@ def transformed_func() -> None:
                             )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def match_buffer_func() -> None:
     C = T.sblock_alloc_buffer((128, 128))
     for i in range(128):
@@ -147,7 +147,7 @@ def match_buffer_func() -> None:
                     C1[()] = 0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_match_buffer_func() -> None:
     for i in range(0, 128):
         with T.sblock():
@@ -161,7 +161,7 @@ def transformed_match_buffer_func() -> None:
                     C1[()] = 0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024])
     B = T.match_buffer(b, [1024])
@@ -193,7 +193,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
                     B[v] = A_cache[v]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [1024])
     B = T.match_buffer(b, [1024])
@@ -241,7 +241,7 @@ def test_loop_carried_dependency():
     such that buffer accesses with loop carried dependencies are covered,
     and the allocate buffer should keep the order."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")):
         C = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
         D = T.sblock_alloc_buffer([8, 8, 8], dtype="int32")
@@ -265,7 +265,7 @@ def test_loop_carried_dependency():
                             + D[vi, vj, vk]
                         )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")) -> None:
         for i in T.serial(8):
             with T.sblock():
@@ -299,7 +299,7 @@ def test_1D_cascade_op_rolling_buffer():
     """The intermediate buffer must be allocated above rolling buffer's rolling loop,
     which is marked as opaque in consumer block's iter mappings."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
         B = T.sblock_alloc_buffer((4, 6), "int32")
         for c in T.serial(4):
@@ -325,7 +325,7 @@ def test_1D_cascade_op_rolling_buffer():
                                 C[cc, vi * 4 + vj] + B[cc, T.floormod(vi * 4 + vj + vk, 6)]
                             )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
         for c in T.serial(4):
             with T.sblock():
@@ -361,7 +361,7 @@ def test_buffer_conditional_lowering():
     unchanged, rather than lowering them to `reads`, `writes`, and `alloc_buffer` nodes.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
@@ -381,12 +381,12 @@ def test_dltensor_buffer_is_unlowered():
     `alloc_buffer` nodes.
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
         ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, "int32")
-        stride_ptr: T.handle("int64") = T.tvm_struct_get(dlpack_handle, 0, 4, "handle")
+        stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(dlpack_handle, 0, 4, "handle")
         if T.isnullptr(stride_ptr):
-            shape_ptr: T.handle("int64") = T.tvm_struct_get(dlpack_handle, 0, 3, "handle")
+            shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(dlpack_handle, 0, 3, "handle")
             shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
             product = T.decl_buffer([], "int64")
             product[()] = 1
@@ -405,7 +405,7 @@ def test_dltensor_buffer_is_unlowered():
 def test_reduce_buffer_dominate_reduce_loops():
     """Reduction write buffer allocation should dominate all reduce loops"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
         x_red_ = T.sblock_alloc_buffer((256, 256))
         for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
@@ -423,7 +423,7 @@ def test_reduce_buffer_dominate_reduce_loops():
                     v1 = T.axis.spatial(256, ax1_0 * 64 + ax1)
                     x_red[v0, v1] = x_red_[v0, v1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
         for ax0_0 in range(4):
             with T.sblock(""):

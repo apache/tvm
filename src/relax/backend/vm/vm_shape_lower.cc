@@ -246,10 +246,10 @@ class VMShapeLowerMutator
       this->builder_->EmitNormalized(shape_heap_binding);
       std::vector<MatchShapeTodoItem> match_todos;
       size_t num_input = func->params.size();
-      if (auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
+      if (auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
         // If the function has the attribute 'num_input', do shape checking on for the real inputs
         // and skip weights.
-        num_input = static_cast<size_t>(opt_num_input.value()->value);
+        num_input = static_cast<size_t>(opt_num_input.value());
       }
       for (size_t i = 0; i < func->params.size(); ++i) {
         StructInfo sinfo = GetStructInfo(func->params[i]);
@@ -596,6 +596,7 @@ class VMShapeLowerMutator
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
     tirx::PrimFunc shape_func(params, body, ret_type, buffer_map);
+    shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =

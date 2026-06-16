@@ -94,11 +94,11 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Run arithmetic simplifications on the statements and expressions.
+ * \brief Run statement-level arithmetic simplifications on the TIR PrimFunc.
  *
  * \return The pass.
  */
-TVM_DLL Pass Simplify();
+TVM_DLL Pass StmtSimplify();
 
 /*!
  * \brief Convert an IRModule to be SSA form.
@@ -154,28 +154,11 @@ TVM_DLL Pass MakePackedAPI();
 TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
 
 /*!
- * \brief Lower custom datatypes.
+ * \brief Annotate, split, and lower host/device functions.
  *
- * See tvm::datatypes::Registry for more information on adding custom datatypes.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerCustomDatatypes();
-
-/*!
- * \brief Annotate locations that should be run on the device
- *
- * Insert `AttrStmt` nodes specifying a target on which regions within
- * the PrimFunc should be executed.  Only modifies functions that have
- * a `tvm::attr::kTarget` attribute, and where that target defines a
- * host.
- *
- * \return The pass.
- */
-TVM_DLL Pass AnnotateDeviceRegions();
-
-/*!
- * \brief Split the function into a host function and device functions.
+ * This pass first annotates device regions within host functions,
+ * then splits them into host and device-side PrimFuncs, and finally
+ * lowers host-to-device calls into the device kernel launch ABI.
  *
  * The resulting host-side function will keep the same
  * `tvm::attr::kTarget` attribute (e.g. `T.target("cuda",
@@ -189,23 +172,6 @@ TVM_DLL Pass AnnotateDeviceRegions();
  * \return The pass.
  */
 TVM_DLL Pass SplitHostDevice();
-
-/*!
- * \brief Lower cross-device function calls.
- *
- * Prior to this pass, host to device calls are represented as
- * subroutine calls, with environment parameters (e.g. env_thread)
- * specified internally.  The device function is an internal function,
- * without a `tvm::attr::kGlobalSymbol` attribute.
- *
- * After this pass, host to device calls are represented as
- * tvm_call_packed built-in.  The device function is an
- * externally-exposed function, with a non-empty
- * `tvm::attr::kGlobalSymbol` attribute.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerDeviceKernelLaunch();
 
 /*!
  * \brief skip assert stmt.
@@ -343,17 +309,35 @@ TVM_DLL Pass AnnotateEntryFunc();
 TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
- * \brief Remove the weight layout rewrite block
- * \param skip_tensor_rewrite If True, exact rewrite of Tensor, according to the given index map,
- *  will be skipped. Only the shape of the Tensor is transformed correctly, and the content of
- *  the destination array will be filled with random values.
+ * \brief Lower TIRx op calls using registered op dispatchers for the given target.
  *
- *  When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
- *  before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
- *  MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
- *
+ * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
+ * consistency, extracts launch parameters, and emits Bind statements +
+ * thread_extent AttrStmts wrapping the dispatched body.
  * \return The pass.
  */
+TVM_DLL Pass TilePrimitiveDispatch();
+
+/*!
+ * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRxCleanup();
+
+/*!
+ * \brief Lower opaque constructs in TIRX programs: AllocBuffer, For(thread_binding),
+ *        unit loop elimination. This is the tirx-specific counterpart of
+ *        s_tir::LowerOpaqueBlock, without any SBlock handling.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRxOpaque();
+
+/*!
+ * \brief Lower the TIR to a lower level IR for the given target.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerTIRx();
+
 }  // namespace transform
 }  // namespace tirx
 }  // namespace tvm

@@ -40,7 +40,6 @@
 #include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_dynamic_lib.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/extra/module.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/extra/testing.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/function.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "../3rdparty/tvm-ffi/src/ffi/tensor.cc"
@@ -49,7 +48,6 @@
 #include "../src/runtime/file_utils.cc"
 #include "../src/runtime/logging.cc"
 #include "../src/runtime/memory/memory_manager.cc"
-#include "../src/runtime/minrpc/minrpc_logger.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
@@ -85,11 +83,11 @@
 #endif
 
 #ifdef USE_SORT
-#include "../src/runtime/contrib/sort/sort.cc"
+#include "../src/runtime/extra/contrib/sort/sort.cc"
 #endif
 
 #ifdef USE_RANDOM
-#include "../src/runtime/contrib/random/random.cc"
+#include "../src/runtime/extra/contrib/random/random.cc"
 #endif
 
 #include <android/log.h>

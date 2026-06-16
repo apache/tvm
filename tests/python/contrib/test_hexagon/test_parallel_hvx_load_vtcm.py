@@ -18,9 +18,11 @@
 """Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -77,7 +79,7 @@ def apply_vtcm_cache_read_write(sch):
 def vrmpy(operations):
     """Generate VRMPY operator"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations, 128], dtype="uint8", align=128)
@@ -99,7 +101,7 @@ def vrmpy(operations):
 def preloaded_vrmpy(operations):
     """Generate preloaded VRMPY operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(
@@ -141,7 +143,7 @@ def preallocated_vrmpy(operations):
     size = operations * 128
     out_size = operations * 32
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(
         a: T.handle, b: T.handle, c: T.handle, a_v: T.handle, b_v: T.handle, c_v: T.handle
     ) -> None:
@@ -190,7 +192,7 @@ def preallocated_single_dma_vrmpy(operations):
     size = operations * 128
     out_size = operations * 32
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(
         a: T.handle,
         b: T.handle,
@@ -408,7 +410,7 @@ class TestMatMulVec:
                     ) * np.uint32(input_b[n, i * 4 + r_ind])
         return expected_output
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_loading_vtcm_for_vrmpy(
         self,
         hexagon_session,

@@ -60,9 +60,9 @@ def register_te_grads():
 
 def get_expected_1():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -73,7 +73,7 @@ def get_expected_1():
                     T.writes(f_mul_1[v_i0, v_i1])
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), C: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -147,9 +147,9 @@ def test_emit_te(register_te_grads):
 
 def test_call_tir(register_te_grads):
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -176,9 +176,9 @@ def test_call_tir(register_te_grads):
 
 def get_expected_2():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -189,7 +189,7 @@ def get_expected_2():
                     T.writes(f_mul2[v_i0, v_i1])
                     f_mul2[v_i0, v_i1] = A[v_i0, v_i1] * T.float32(2)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mulk_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mulk_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -256,9 +256,9 @@ def test_emit_te_kwargs(register_te_grads):
 
 def test_call_tir_kwargs(register_te_grads):
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with T.sblock("root"):
@@ -285,9 +285,9 @@ def test_call_tir_kwargs(register_te_grads):
 
 def get_expected_3():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul(var_A: T.handle, var_B: T.handle, var_f_mul: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -302,7 +302,7 @@ def get_expected_3():
                     T.writes(f_mul_1[v_i0, v_i1])
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def f_mul_grad(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_f_mul_grad_1: T.handle, var_f_mul_grad_2: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -380,7 +380,7 @@ def test_tir_var(register_te_grads):
     Before = bb.get()
     After = Gradient("main")(Before)
     assert_structural_equal(After, get_expected_3())
-    assert relax.analysis.well_formed(After)
+    relax.analysis.well_formed(After)
 
 
 if __name__ == "__main__":

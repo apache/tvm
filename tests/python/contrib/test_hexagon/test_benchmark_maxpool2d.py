@@ -49,10 +49,13 @@ import os
 import numpy as np
 import pytest
 
+pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
+
 import tvm.testing
 from tvm import te, tirx, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
 from tvm.contrib.hexagon.session import Session
+from tvm.testing import env
 from tvm.topi import testing
 
 from . import benchmark_util as bu
@@ -192,7 +195,7 @@ class TestMaxPool2D:
     io_tensor_mem_scope = tvm.testing.parameter("global.vtcm")
 
     @pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_maxpool2d_nhwc(
         self,
         n_batch,

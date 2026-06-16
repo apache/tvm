@@ -22,14 +22,16 @@ import math
 import re
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import te, topi
-from tvm.contrib import utils
+from tvm.support import utils
+from tvm.testing import env
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_add_pipeline():
     """all-platform-minimal-test: Check LLVM enablement."""
     nn = 128

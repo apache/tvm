@@ -20,7 +20,7 @@
 import numpy as np  # type: ignore
 
 import tvm
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime._tensor import Tensor
 
@@ -51,6 +51,7 @@ class Trainer:
     Examples
     --------
     .. code-block:: python
+
         setup_trainer = SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),
@@ -242,14 +243,14 @@ class Trainer:
         """Check that all parameters and model states are initialized."""
         idx_not_inited_param = next((i for i, p in enumerate(self._params) if p is None), -1)
         if idx_not_inited_param != -1:
-            raise TVMError(
+            raise RuntimeError(
                 f"The {idx_not_inited_param}-th parameter is not initialized before training or "
                 "inference."
             )
 
         idx_not_inited_state = next((i for i, s in enumerate(self._states) if s is None), -1)
         if idx_not_inited_state != -1:
-            raise TVMError(
+            raise RuntimeError(
                 f"The {idx_not_inited_state}-th model state is not initialized before training or "
                 "inference."
             )

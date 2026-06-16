@@ -19,11 +19,12 @@ import os
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.contrib import ndk
+from tvm.support import ndk
 
 # Test Infra
 
@@ -55,51 +56,19 @@ class run_time_check:
         return self.check
 
 
+# Eager skips for Adreno GPU tests, resolved at import time. Pair each with
+# ``@pytest.mark.gpu`` at the test site so CI's ``-m gpu`` filter selects it.
+
 # OpenCL or Vulkan
-requires_adreno_opencl_vulkan = tvm.testing.Feature(
-    "adreno_opencl_vulkan",
-    "Adreno Vulkan Or OpenCL",
-    run_time_check=run_time_check("any")(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Any Vulkan
-requires_adreno_vulkan = tvm.testing.Feature(
-    "adreno_vulkan",
-    "Adreno Vulkan",
-    target_kind_enabled="vulkan",
-    run_time_check=lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Any OpenCL
-requires_adreno_opencl = tvm.testing.Feature(
-    "adreno_opencl",
-    "Adreno OpenCL",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
-    parent_features="gpu" if "ADRENO_TARGET" not in os.environ else "rpc",
-)
-
-# Real Adreno GPU OpenCL Target
-requires_adreno_opencl_real = tvm.testing.Feature(
-    "adreno_opencl_real",
-    "Adreno OpenCL Real",
-    target_kind_enabled="opencl",
-    run_time_check=lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
-    parent_features="rpc",
+skip_unless_adreno_opencl_vulkan = pytest.mark.skipif(
+    not run_time_check("any").check(),
+    reason="need adreno opencl or vulkan",
 )
 
 # CLML Codegen
-requires_adreno_clml = tvm.testing.Feature(
-    "adreno_clml",
-    "Adreno OpenCLML",
-    run_time_check=lambda: tvm.get_global_func(
-        "relax.is_openclml_runtime_enabled", allow_missing=True
-    )
-    is not None,
-    target_kind_enabled="opencl",
-    parent_features="opencl" if "ADRENO_TARGET" not in os.environ else "rpc",
+skip_unless_adreno_clml = pytest.mark.skipif(
+    tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is None,
+    reason="need adreno openclml",
 )
 
 

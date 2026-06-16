@@ -84,7 +84,7 @@ def check_server_drop():
                 f1 = remote2.get_function("rpc.test2.addone")
                 assert f1(10) == 11
 
-            except tvm.error.TVMError:
+            except RuntimeError:
                 pass
             remote3 = tclient.request("abc")
             f1 = remote3.get_function("rpc.test2.addone")
@@ -105,6 +105,48 @@ def check_server_drop():
         print("Skip because tornado is not available")
 
 
+def check_tracker_rejects_oversized_msg_size():
+    """Tracker must reject an oversized msg_size header and close the connection
+    instead of buffering an unbounded amount of data on a single TCP connection.
+
+    Regression test for the unbounded buffer growth defect in
+    TCPEventHandler.on_message. See MAX_TRACKER_MSG_BYTES in tracker.py.
+    """
+    try:
+        # pylint: disable=import-outside-toplevel
+        import socket
+        import struct
+
+        from tvm.rpc import base, tracker
+
+        tserver = tracker.Tracker(port=9180, port_end=9290, silent=True)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            sock.connect(("127.0.0.1", tserver.port))
+            # complete the 4-byte magic handshake
+            sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
+            magic_reply = sock.recv(4)
+            assert struct.unpack("<i", magic_reply)[0] == base.RPC_TRACKER_MAGIC
+
+            # send an oversized msg_size header (2 GiB)
+            sock.sendall(struct.pack("<i", 0x7FFFFFFF))
+
+            # server must close the connection (no payload buffering)
+            for _ in range(20):
+                chunk = sock.recv(4096)
+                if chunk == b"":
+                    break
+                time.sleep(0.05)
+            else:
+                raise AssertionError("tracker did not close connection after oversized msg_size")
+        finally:
+            tserver.terminate()
+    except ImportError:
+        print("Skip because tornado is not available")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     check_server_drop()
+    check_tracker_rejects_oversized_msg_size()

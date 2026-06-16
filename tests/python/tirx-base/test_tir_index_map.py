@@ -17,13 +17,14 @@
 # ruff: noqa: E741, F401
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.runtime import const
 from tvm.script import tirx as T
-from tvm.tirx import IndexMap, IntImm, floordiv, floormod
+from tvm.tirx import IndexMap, IntImm, floordiv, floormod, stmt_functor
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -46,6 +47,43 @@ def test_index_mapping():
     assert_structural_equal(index_map.map_indices([T.int64(42)]), [T.int64(10), T.int64(2)])
 
 
+def test_map_indices_accepts_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    index_map = IndexMap.from_func(lambda i: [i // tile], index_dtype="int32")
+    analyzer = tvm.arith.Analyzer()
+
+    unsimplified = index_map.map_indices([T.int32(32)])[0]
+    analyzer.bind(tile, T.int32(16))
+    simplified = index_map.map_indices([T.int32(32)], analyzer=analyzer)[0]
+
+    assert not tvm_ffi.structural_equal(unsimplified, T.int32(2))
+    assert_structural_equal(simplified, T.int32(2))
+
+
+def test_map_shape_accepts_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
+    analyzer = tvm.arith.Analyzer()
+
+    analyzer.bind(tile, T.int32(16))
+    mapped_shape = index_map.map_shape([T.int32(32)], analyzer=analyzer)
+
+    assert_structural_equal(mapped_shape, [T.int32(2), T.int32(16)])
+
+
+def test_is_equivalent_to_accepts_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    concrete = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
+    symbolic = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
+
+    # Without binding `tile`, the symbolic map cannot be proven equivalent.
+    assert not concrete.is_equivalent_to(symbolic)
+
+    analyzer = tvm.arith.Analyzer()
+    analyzer.bind(tile, T.int32(4))
+    assert concrete.is_equivalent_to(symbolic, analyzer=analyzer)
+
+
 def test_shape_mapping():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
 
@@ -64,10 +102,22 @@ def test_inverse():
     assert index_map.inverse([16]).is_equivalent_to(expected_inverse)
 
 
+def test_inverse_accepts_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
+    analyzer = tvm.arith.Analyzer()
+
+    analyzer.bind(tile, T.int32(16))
+    inverse = index_map.inverse([T.int32(32)], analyzer=analyzer)
+    mapped = inverse.map_indices([T.int32(1), T.int32(3)], analyzer=analyzer)
+
+    assert_structural_equal(mapped, [T.int32(19)])
+
+
 def test_nonbijective_inverse_gives_error():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         index_map.inverse([14])
 
 
@@ -196,6 +246,41 @@ def test_nonsurjective_inverse(padding_test_case):
     expected_predicate = analyzer.simplify(expected_predicate)
     padding_predicate = analyzer.simplify(padding_predicate)
     tvm.ir.assert_structural_equal(padding_predicate, expected_predicate)
+
+
+def test_non_surjective_inverse_accepts_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
+    analyzer = tvm.arith.Analyzer()
+
+    analyzer.bind(tile, T.int32(16))
+    inverse, padding_predicate = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)
+    mapped = inverse.map_indices([T.int32(1), T.int32(15)], analyzer=analyzer)
+
+    assert_structural_equal(mapped, [T.int32(31)])
+
+    padding_at_last_element = stmt_functor.substitute(
+        padding_predicate,
+        {inverse.initial_indices[0]: T.int32(1), inverse.initial_indices[1]: T.int32(15)},
+    )
+    padding_at_first_element = stmt_functor.substitute(
+        padding_predicate,
+        {inverse.initial_indices[0]: T.int32(0), inverse.initial_indices[1]: T.int32(0)},
+    )
+    assert_structural_equal(analyzer.simplify(padding_at_last_element), T.bool(True))
+    assert_structural_equal(analyzer.simplify(padding_at_first_element), T.bool(False))
+
+
+def test_non_surjective_inverse_does_not_bind_output_vars_to_external_analyzer():
+    tile = tvm.tirx.Var("tile", "int32")
+    index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
+    analyzer = tvm.arith.Analyzer()
+
+    analyzer.bind(tile, T.int32(16))
+    inverse, _ = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)
+
+    analyzer.bind(inverse.initial_indices[0], T.int32(0))
+    analyzer.bind(inverse.initial_indices[1], T.int32(1))
 
 
 def test_index_map_inverse_no_iter():

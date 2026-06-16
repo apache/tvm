@@ -67,8 +67,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {Integer(dim0->value / 16), Integer(dim1->value / 8), 2, 2});
+        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 16),
+                                           IntImm(DataType::Int(32), dim1->value / 8), 2, 2});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -89,8 +89,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {Integer(dim0->value / 32), Integer(dim1->value / 8), 4, 2});
+        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 32),
+                                           IntImm(DataType::Int(32), dim1->value / 8), 4, 2});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -111,8 +111,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(),
-                         {Integer(dim0->value / 8), Integer(dim1->value / 32), 1, 8});
+        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 8),
+                                           IntImm(DataType::Int(32), dim1->value / 32), 1, 8});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -135,7 +135,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(store->indices, &analyzer);
+        auto new_indices = index_map->MapIndices(store->indices, analyzer);
         n->buffer = buffer_map_[store->buffer];
         n->indices = std::move(new_indices);
       } else if (store->buffer.scope() == "m16n8k8.matrixA" ||
@@ -154,7 +154,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(load->indices, &analyzer);
+        auto new_indices = index_map->MapIndices(load->indices, analyzer);
         n->buffer = buffer_map_[load->buffer];
         n->indices = std::move(new_indices);
       } else if (load->buffer.scope() == "m16n8k8.matrixA" ||

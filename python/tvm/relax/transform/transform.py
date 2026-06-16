@@ -111,7 +111,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
             @R.function
             def main(
@@ -130,7 +130,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class After:
             @R.function
             def main(
@@ -169,7 +169,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
             @R.function
             def main(
@@ -187,7 +187,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
             @R.function
             def main(
@@ -1147,7 +1147,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def add(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1161,7 +1161,7 @@ def LegalizeOps(
                         T.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def multiply(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),

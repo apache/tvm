@@ -43,9 +43,8 @@ except ImportError as error_msg:
         f"RPCProxy module requires tornado package {error_msg}. Try 'pip install tornado'."
     )
 
-from tvm.contrib.popen_pool import PopenWorker
+from tvm.support.popen_pool import PopenWorker
 
-from ..base import py_str
 from . import _ffi_api, base
 from .base import TrackerCode
 from .server import _server_env
@@ -90,7 +89,7 @@ class ForwardHandler:
             self._init_req_nbytes = self._rpc_key_length
         elif self.rpc_key is None:
             assert len(message) == self._rpc_key_length
-            self.rpc_key = py_str(message)
+            self.rpc_key = message.decode("utf-8")
             # match key is used to do the matching
             self.match_key = self.rpc_key[7:].split()[0]
             self.on_start()

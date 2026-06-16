@@ -17,6 +17,7 @@
 """codegen related to bool types"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -24,11 +25,12 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
+@tvm.testing.exclude_targets("nvptx")
 def test_cmp_load_store(target, dev):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class GPUModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),
@@ -51,9 +53,9 @@ def test_cmp_load_store(target, dev):
                         T.writes(D[v_i0])
                         D[v_i0] = T.Cast("float32", C[v_i0] and T.float32(1.0) < A[v_i0])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class CPUModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((32,), "float32"),
             B: T.Buffer((32,), "float32"),

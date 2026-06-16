@@ -67,7 +67,7 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = Downcast<Integer>(loop->extent)->value;
+  int loop_extent = Downcast<IntImm>(loop->extent)->value;
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -75,20 +75,20 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   // generate thread binding loops
   std::vector<int> factors{-1};
   std::vector<std::string> thread_axis;
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.z")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.z")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.z");
   }
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.y")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.y")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.y");
   }
-  if (ffi::Optional<Integer> o_t = constraints.thread_extent.Get("threadIdx.x")) {
-    int t = o_t.value()->value;
+  if (ffi::Optional<int64_t> o_t = constraints.thread_extent.Get("threadIdx.x")) {
+    int t = o_t.value();
     tot_threads *= t;
     factors.push_back(t);
     thread_axis.push_back("threadIdx.x");
@@ -105,7 +105,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
-    analyzer.Bind(var, Range::FromMinExtent(0, factor));
+    analyzer->Bind(var, Range::FromMinExtent(0, factor));
     new_loop_vars.push_back(var);
   }
   // substitute fused loop var with new loop vars
@@ -123,7 +123,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
     }
   });
   PrimExpr predicate = substitute_value < loop->extent;
-  if (!analyzer.CanProve(predicate)) {
+  if (!analyzer->CanProve(predicate)) {
     body = IfThenElse(predicate, body);
   }
   body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
@@ -167,7 +167,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   ffi::Array<PrimExpr> result;
   arith::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
-    PrimExpr pattern = analyzer.Simplify(write_index[i] - write_region->region[i]->min);
+    PrimExpr pattern = analyzer->Simplify(write_index[i] - write_region->region[i]->min);
     if (!is_zero(pattern)) {
       result.push_back(pattern);
     }
@@ -189,9 +189,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   }
   // Step 2. Get Inverse mapping
   arith::Analyzer analyzer;
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   auto iter_map =
-      arith::DetectIterMap(mapping_pattern, var_range, Bool(true), arith::Bijective, &analyzer);
+      arith::DetectIterMap(mapping_pattern, var_range, const_true(), arith::Bijective, analyzer);
   TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
   ffi::Map<Var, PrimExpr> inverse_mapping =
       arith::InverseAffineIterMap(iter_map->indices, loop_vars);

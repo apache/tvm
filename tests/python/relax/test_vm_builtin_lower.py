@@ -79,7 +79,7 @@ def test_vm_builtin_alloc_tensor_raises_error():
             gv0 = alloc
             return gv0
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         relax.transform.LowerRuntimeBuiltin()(Before)
 
 

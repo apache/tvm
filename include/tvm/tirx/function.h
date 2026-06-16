@@ -29,7 +29,6 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/script/printer/config.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
@@ -105,7 +104,7 @@ class PrimFuncNode : public BaseFuncNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
         .def_ro("buffer_map", &PrimFuncNode::buffer_map)
         .def_ro("body", &PrimFuncNode::body);
@@ -120,7 +119,6 @@ class PrimFuncNode : public BaseFuncNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
-  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.PrimFunc", PrimFuncNode, BaseFuncNode);
 };
 
@@ -308,9 +306,16 @@ namespace attr {
 constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
 
 /*!
+ * \brief CUDA launch bound minimum CTAs per SM.
+ *
+ * Type: IntImm
+ */
+constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
+
+/*!
  * \brief Whether to set noalias rule on the function arguments.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kNoAlias = "tirx.noalias";
 
@@ -318,7 +323,7 @@ constexpr const char* kNoAlias = "tirx.noalias";
  * \brief Mark the function as the entry function of
  *        the final generated runtime module.
  *
- * Type: Integer
+ * Type: IntImm
  *
  * \note There can only be one entry function per module.
  */
@@ -327,21 +332,21 @@ constexpr const char* kIsEntryFunc = "tirx.is_entry_func";
 /*!
  * \brief Mark the function as the global function called from the host.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsGlobalFunc = "tirx.is_global_func";
 
 /*!
  * \brief Mark the function as run on the host, mutually exclusive with kTarget.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsHostFunc = "tirx.is_host_func";
 
 /*!
  * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
  *
- * Type: Integer
+ * Type: IntImm
  */
 constexpr const char* kIsScheduled = "tirx.is_scheduled";
 

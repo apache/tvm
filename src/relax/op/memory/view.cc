@@ -24,6 +24,7 @@
 
 #include "view.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
@@ -50,9 +51,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 4) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << call->op << " should receive 4 arguments, "
-                     << "but received " << call->args);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Operator " << call->op << " should receive 4 arguments, "
+        << "but received " << call->args;
   }
   Expr arg_data = call->args[0];
   Expr arg_shape = call->args[1];
@@ -188,7 +189,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       return std::nullopt;
     }
 
-    PrimExpr num_elements = Integer(1);
+    PrimExpr num_elements = IntImm(DataType::Int(32), 1);
     for (const auto& dim : shape.value()) {
       num_elements *= dim;
     }
@@ -359,9 +360,9 @@ TVM_REGISTER_OP("relax.memory.view")
     .add_argument("dtype", "DataType", "The view's data type.")
     .add_argument("relative_byte_offset", "Prim(\"int64\")",
                   "The view's byte offset, relative to the input tensor's byte offset.")
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoView)
-    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<bool>("FPurity", true)
     .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 
 Expr ensure_zero_offset(const Expr& x) {
@@ -376,9 +377,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << call->op << " should receive 1 argument, "
-                     << "but received " << call->args);
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Operator " << call->op << " should receive 1 argument, "
+        << "but received " << call->args;
   }
   return GetStructInfo(call->args[0]);
 }
@@ -391,9 +392,9 @@ Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.memory.ensure_zero_offset")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEnsureZeroOffset)
-    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<bool>("FPurity", true)
     .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
 
 }  // namespace relax

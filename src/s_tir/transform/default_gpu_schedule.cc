@@ -70,15 +70,17 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
-    ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused,
-        /*factors=*/{std::nullopt, Integer(max_threadblocks), Integer(max_thread_per_block)});
+    ffi::Array<s_tir::LoopRV> splits =
+        sch->Split(fused,
+                   /*factors=*/{std::nullopt, IntImm(DataType::Int(32), max_threadblocks),
+                                IntImm(DataType::Int(32), max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
     ffi::Array<s_tir::LoopRV> splits = sch->Split(
-        fused, /*factors=*/{std::nullopt, Integer(std::min(product, max_thread_per_block))});
+        fused, /*factors=*/{std::nullopt,
+                            IntImm(DataType::Int(32), std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
   }
@@ -146,7 +148,7 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
                           /*writes=*/ffi::Array<tirx::BufferRegion>{},
                           /*name_hint=*/"root", /*body=*/for_stmt);
   tirx::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
-                                   /*predicate=*/tvm::Bool(true), root_block);
+                                   /*predicate=*/const_true(), root_block);
   tirx::PrimFunc result = func;
   result.CopyOnWrite()->body = std::move(root_realize);
   return result;
@@ -212,11 +214,11 @@ Pass DefaultGPUSchedule() {
                 << "The target is missing either in the current context or in "
                    "the prim_func's attribute.";
             // get the max thread per block from target.
-            ffi::Optional<Integer> opt_max_thread_per_block =
-                target->GetAttr<Integer>("max_num_threads");
-            TVM_FFI_ICHECK(opt_max_thread_per_block.defined())
+            ffi::Optional<int64_t> opt_max_thread_per_block =
+                target->GetAttr<int64_t>("max_num_threads");
+            TVM_FFI_ICHECK(opt_max_thread_per_block.has_value())
                 << "max_num_threads is not set for target " << target;
-            int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
+            int64_t max_thread_per_block = opt_max_thread_per_block.value();
 
             sch->WorkOn(gv->name_hint);
             ffi::Array<s_tir::SBlockRV> blocks =

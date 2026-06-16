@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,11 @@ def test_tir_make_intimm(dtype, literals):
 )
 def test_tir_invalid_intimm(dtype, literals):
     for l in literals:
-        with pytest.raises(tvm.TVMError):
+        # Out-of-range positive literals raise a builtin ValueError from
+        # the IntImm range check; negative-into-unsigned raises an
+        # InternalError ("cannot make uint from negative value") which is a
+        # RuntimeError subclass. Accept either.
+        with pytest.raises((RuntimeError, ValueError)):
             tirx.const(l, dtype)
 
 
@@ -130,7 +135,8 @@ def test_tir_make_floatimm(dtype, literals):
 def test_tir_invalid_floatimm(dtype, literals):
     """Currently only fp16 and fp32 have range check."""
     for l in literals:
-        with pytest.raises(tvm.TVMError):
+        # FloatImm out-of-range raises a builtin ValueError.
+        with pytest.raises(ValueError):
             tirx.const(l, dtype)
 
 
@@ -141,11 +147,11 @@ def test_tir_special_floatimms(dtype, literal):
     compare_float_value(x.value, literal, "imm value should match feed value")
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_too_large_literal_f64():
     # Behavior check: if literal f64 value is out of dtype range, the
     # object is still constructed, and eval to infinity.
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_overflow_fp64() -> T.float64:
         T.evaluate(T.ret(T.float64(1.7976e309), dtype="float64"))
 
@@ -251,23 +257,23 @@ def check_tir_const_fold(
             assert expect == calc_res, flaky_msg
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_floatimm_const_fold():
     """Behavior check: folding fp32 match platform f32 arithmetic"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def float_imm_multiply(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x * y
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def float_imm_add(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x + y
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def float_imm_sub(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x - y
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def float_imm_div(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x / y
 
@@ -292,7 +298,7 @@ def test_tir_floatimm_const_fold():
     check_tir_const_fold("float32", lambda x, y: x / y, fdiv, 3.0e30, 3.0e-30, np.inf)
 
     # divide by zero
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("float32", lambda x, y: x / y, fdiv, 1.0, 0.0)
 
     # nan and inf
@@ -309,27 +315,27 @@ def test_tir_floatimm_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_int8_const_fold():
     """Behavior check: folding i8 operation match platform i8 arithmetic"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_multiply(x: T.int8, y: T.int8) -> T.int8:
         T.evaluate(T.ret(x * y, dtype="int8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_add(x: T.int8, y: T.int8) -> T.int8:
         T.evaluate(T.ret(x + y, dtype="int8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_sub(x: T.int8, y: T.int8) -> T.int8:
         T.evaluate(T.ret(x - y, dtype="int8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_truncdiv(x: T.int8, y: T.int8) -> T.int8:
         T.evaluate(T.ret(T.truncdiv(x, y), dtype="int8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_floordiv(x: T.int8, y: T.int8) -> T.int8:
         T.evaluate(T.ret(T.floordiv(x, y), dtype="int8"))
 
@@ -344,9 +350,9 @@ def test_tir_int8_const_fold():
     check_tir_const_fold("int8", lambda x, y: x * y, fmul, 127, 127, 1)
 
     # divide by zero
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int8", lambda x, y: tirx.floordiv(x, y), ffloordiv, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int8", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
     # i8 mod folding is not implemented
@@ -365,27 +371,27 @@ def test_tir_int8_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_uint8_const_fold():
     """Behavior check: folding u8 operation match platform u8 arithmetic"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_multiply(x: T.uint8, y: T.uint8) -> T.uint8:
         T.evaluate(T.ret(x * y, dtype="uint8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_add(x: T.uint8, y: T.uint8) -> T.uint8:
         T.evaluate(T.ret(x + y, dtype="uint8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_sub(x: T.uint8, y: T.uint8) -> T.uint8:
         T.evaluate(T.ret(x - y, dtype="uint8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_truncdiv(x: T.uint8, y: T.uint8) -> T.uint8:
         T.evaluate(T.ret(T.truncdiv(x, y), dtype="uint8"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_floordiv(x: T.uint8, y: T.uint8) -> T.uint8:
         T.evaluate(T.ret(T.floordiv(x, y), dtype="uint8"))
 
@@ -399,13 +405,13 @@ def test_tir_uint8_const_fold():
     check_tir_const_fold("uint8", lambda x, y: x + y, fadd, 255, 1, 0)
 
     # zero sub
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("uint8", lambda x, y: x - y, fsub, 0, 10)
 
     # divide by zero
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("uint8", lambda x, y: tirx.floordiv(x, y), ffloordiv, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("uint8", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
     # u8 mod folding is not implemented
@@ -428,35 +434,35 @@ def test_tir_uint8_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_int32_const_fold():
     """Behavior check: folding i32 operation match platform i32 arithmetic"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_multiply(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(x * y, dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_add(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(x + y, dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_sub(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(x - y, dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_truncdiv(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(T.truncdiv(x, y), dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_truncmod(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(T.truncmod(x, y), dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_floordiv(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(T.floordiv(x, y), dtype="int32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_floormod(x: T.int32, y: T.int32) -> T.int32:
         T.evaluate(T.ret(T.floormod(x, y), dtype="int32"))
 
@@ -473,13 +479,13 @@ def test_tir_int32_const_fold():
     assert -(2**31) <= int(tirx.const(-(2**31), "int32") - tirx.const(1, "int32")) < 2**31
 
     # divide by zero
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int32", lambda x, y: tirx.floordiv(x, y), ffloordiv, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int32", lambda x, y: tirx.floormod(x, y), ffloormod, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int32", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("int32", lambda x, y: tirx.truncmod(x, y), ftruncmod, 1, 0)
 
     # randomized check
@@ -516,27 +522,27 @@ def test_tir_int32_const_fold():
     )
 
 
-@tvm.testing.requires_llvm()
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_tir_uint32_const_fold():
     """Behavior check: folding u32 operation match platform u32 arithmetic"""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_multiply(x: T.uint32, y: T.uint32) -> T.uint32:
         T.evaluate(T.ret(x * y, dtype="uint32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_add(x: T.uint32, y: T.uint32) -> T.uint32:
         T.evaluate(T.ret(x + y, dtype="uint32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_sub(x: T.uint32, y: T.uint32) -> T.uint32:
         T.evaluate(T.ret(x - y, dtype="uint32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_truncdiv(x: T.uint32, y: T.uint32) -> T.uint32:
         T.evaluate(T.ret(T.truncdiv(x, y), dtype="uint32"))
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def imm_floordiv(x: T.uint32, y: T.uint32) -> T.uint32:
         T.evaluate(T.ret(T.floordiv(x, y), dtype="uint32"))
 
@@ -550,9 +556,9 @@ def test_tir_uint32_const_fold():
     assert 0 <= int(tirx.const(2**32 - 1, "uint32") + tirx.const(1, "uint32")) < 2**32
 
     # divide by zero
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("uint32", lambda x, y: tirx.floordiv(x, y), ffloordiv, 1, 0)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         check_tir_const_fold("uint32", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
     # u8 mod folding is not implemented

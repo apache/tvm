@@ -176,8 +176,8 @@ Target Target::WithoutHost() const {
 }
 
 int TargetNode::GetTargetDeviceType() const {
-  if (ffi::Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
-    return Downcast<Integer>(device_type)->value;
+  if (ffi::Optional<int64_t> device_type = GetAttr<int64_t>("target_device_type")) {
+    return Downcast<IntImm>(device_type)->value;
   }
   return kind->default_device_type;
 }

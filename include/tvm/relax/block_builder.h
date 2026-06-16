@@ -25,8 +25,7 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/diagnostic.h>
-#include <tvm/ir/name_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
@@ -69,11 +68,11 @@ class BlockBuilderNode : public ffi::Object {
   // Global Context management
   //-------------------------------
   /*!
-   * \brief Get the name supply for generating unique names.
+   * \brief Get the unique name supply for generating unique names.
    *
-   * \return The name supply.
+   * \return The unique name supply.
    */
-  virtual NameSupply name_supply() = 0;
+  virtual UniqueNameSupply name_supply() = 0;
 
   /*!
    * \brief Get the context IRModule in this builder.
@@ -112,12 +111,6 @@ class BlockBuilderNode : public ffi::Object {
    * \param function The updated function.
    */
   virtual void UpdateFunction(const GlobalVar& gv, BaseFunc function) = 0;
-
-  /*!
-   * \brief Report an error during transformation construction.
-   * \param diagnostic The diagnostic information.
-   */
-  [[noreturn]] virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
 
   //-------------------------------
   // Scope management
@@ -255,7 +248,7 @@ class BlockBuilderNode : public ffi::Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer* GetAnalyzer() = 0;
+  virtual arith::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);

@@ -88,7 +88,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  explicit Impl(Analyzer* parent) : IRMutatorWithAnalyzer(parent) {}
+  explicit Impl(AnalyzerObj* parent) : IRMutatorWithAnalyzer(parent) {}
 
   PrimExpr VisitExpr(const PrimExpr& e) override;
 

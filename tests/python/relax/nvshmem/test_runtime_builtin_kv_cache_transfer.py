@@ -21,6 +21,9 @@ from typing import Optional, Union
 
 import numpy as np
 import pytest
+
+pytest.importorskip("scipy")
+
 import scipy.special
 import torch
 import tvm_ffi

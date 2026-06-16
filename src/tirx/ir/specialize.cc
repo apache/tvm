@@ -26,6 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -223,8 +224,32 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
     PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
+    // Layout iter extents/strides may reference the same shape vars; remap
+    // them in lock-step with shape (otherwise the specialized buffer keeps
+    // stale layout extents from before specialization).
+    ffi::Optional<Layout> layout = buffer->layout;
+    bool layout_changed = false;
+    if (buffer->layout.defined()) {
+      if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
+        auto remap_iter = [this](const Iter& it) -> Iter {
+          PrimExpr new_extent = VisitExpr(it->extent);
+          PrimExpr new_stride = VisitExpr(it->stride);
+          if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
+            return it;
+          }
+          return Iter(new_extent, new_stride, it->axis);
+        };
+        auto new_shard = opt_tile->shard.Map(remap_iter);
+        auto new_replica = opt_tile->replica.Map(remap_iter);
+        if (!new_shard.same_as(opt_tile->shard) || !new_replica.same_as(opt_tile->replica)) {
+          layout = TileLayout(new_shard, new_replica, opt_tile->offset);
+          layout_changed = true;
+        }
+      }
+    }
+
     if (buffer->data.same_as(data) && buffer->elem_offset.same_as(elem_offset) &&
-        buffer->shape.same_as(shape) && buffer->strides.same_as(strides)) {
+        buffer->shape.same_as(shape) && buffer->strides.same_as(strides) && !layout_changed) {
       return buffer;
     } else {
       auto n = ffi::make_object<BufferNode>(*buffer.get());
@@ -232,6 +257,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
       n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
+      if (layout_changed) {
+        n->layout = std::move(layout);
+      }
       return Buffer(n);
     }
   }

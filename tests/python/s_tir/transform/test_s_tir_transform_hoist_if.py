@@ -17,6 +17,7 @@
 # ruff: noqa: E741, F401
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import s_tir
@@ -68,7 +69,7 @@ def _opaque_eval(var):
 
 
 def test_hoist_top_for():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -90,7 +91,7 @@ def test_hoist_top_for():
 
 
 def test_hoist_multi_var_if():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -113,7 +114,7 @@ def test_hoist_multi_var_if():
 
 
 def test_hoist_no_match_for():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         for i in T.serial(l):
@@ -137,7 +138,7 @@ def test_hoist_no_match_for():
 
 
 def test_no_else():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -159,7 +160,7 @@ def test_no_else():
 def test_attr_stmt():
     dshape = (32, 64)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         tx = T.launch_thread("threadIdx.x", dshape[0])
@@ -190,7 +191,7 @@ def test_attr_stmt():
 
 
 def test_nested_for():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32")):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         for i in range(5):
@@ -225,7 +226,7 @@ def test_if_block():
     # Use different variable names for second loop nest to avoid dict key collision
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), n: T.int32):
             # First loop nest: i, j, k, l
             for i in T.serial(5):
@@ -269,7 +270,7 @@ def test_if_block():
 
 
 def test_multi_if():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32")):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         for i in range(10):
@@ -295,7 +296,7 @@ def test_multi_if():
 
 
 def test_no_hoisting_1():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32")):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         for i in range(10):
@@ -319,7 +320,7 @@ def test_no_hoisting_1():
 
 
 def test_no_hoisting_2():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(data: T.handle("float32")):
         data_ptr = T.decl_buffer(1, "float32", data=data)
         for i in range(10):
@@ -355,7 +356,7 @@ def test_no_hoisting_4():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):
@@ -387,7 +388,7 @@ def test_no_hoisting_6():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
@@ -415,7 +416,7 @@ def test_no_hoisting_7():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
@@ -450,7 +451,7 @@ def test_hoisting_block_scope_2():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             for i in T.serial(l):
@@ -467,7 +468,7 @@ def test_hoisting_block_scope_2():
                             ] + T.float32(1.3)
 
     mod = Module
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     mod = tvm.tirx.transform.RemoveNoOp()(mod)
     stmt = mod["main"].body
 
@@ -478,13 +479,13 @@ def test_hoisting_block_scope_2():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_5():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32, g: T.int32):
             for i in T.serial(l):
                 for j in T.serial(m):
@@ -496,7 +497,7 @@ def test_hoisting_block_scope_5():
 
     stmt = Module["main"].body
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
     mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([], new_stmt))
     stmt = new_stmt
@@ -513,7 +514,7 @@ def test_hoisting_block_scope_6():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
@@ -533,7 +534,7 @@ def test_hoisting_block_scope_6():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_7():
@@ -541,7 +542,7 @@ def test_hoisting_block_scope_7():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
@@ -561,7 +562,7 @@ def test_hoisting_block_scope_7():
         config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
         new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
+    assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
 
 if __name__ == "__main__":

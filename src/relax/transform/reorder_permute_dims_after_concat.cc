@@ -82,7 +82,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     pat_concat = pat_concat | make_pattern_with_num_concat(i);
   }
 
-  auto get_permute_dims_optional_axes = [](const Expr& expr) -> ffi::Optional<ffi::Array<Integer>> {
+  auto get_permute_dims_optional_axes = [](const Expr& expr) -> ffi::Optional<ffi::Array<int64_t>> {
     auto call = expr.as<CallNode>();
     TVM_FFI_ICHECK(call);
     auto attrs = call->attrs.as<PermuteDimsAttrs>();
@@ -92,12 +92,12 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   };
 
   auto get_permute_dims_axes =
-      [get_permute_dims_optional_axes](const Expr& expr) -> ffi::Array<Integer> {
+      [get_permute_dims_optional_axes](const Expr& expr) -> ffi::Array<int64_t> {
     if (auto opt_axes = get_permute_dims_optional_axes(expr)) {
       return opt_axes.value();
     } else {
       auto call = Downcast<Call>(expr);
-      ffi::Array<Integer> permutation;
+      ffi::Array<int64_t> permutation;
       auto arg_sinfo = call->args[0]->struct_info_.as<TensorStructInfoNode>();
       TVM_FFI_ICHECK(arg_sinfo) << "Expected permute_dims to have a single tensor argument, "
                                 << "but argument " << call->args[0] << " has struct info "
@@ -105,7 +105,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       TVM_FFI_ICHECK_GE(arg_sinfo->ndim, 0);
       size_t ndim = arg_sinfo->ndim;
       for (size_t i = 0; i < ndim; i++) {
-        permutation.push_back(Integer(ndim - i - 1));
+        permutation.push_back(static_cast<int64_t>(ndim - i - 1));
       }
       return permutation;
     }
@@ -119,7 +119,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         return false;
       }
       for (size_t i_axis = 0; i_axis < first_axes.size(); i_axis++) {
-        if (i_axes[i_axis]->value != first_axes[i_axis]->value) {
+        if (i_axes[i_axis] != first_axes[i_axis]) {
           return false;
         }
       }
@@ -144,17 +144,28 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     if (!permute_dims_axes_are_compatible(all_permute_dims)) {
       return expr;
     }
-    ffi::Optional<ffi::Array<Integer>> permute_axes =
+    ffi::Optional<ffi::Array<int64_t>> permute_axes =
         get_permute_dims_optional_axes(all_permute_dims[0]);
 
     Call concat_call = Downcast<Call>(matches[pat_concat]);
     auto concat_attrs = concat_call->attrs.as<ConcatAttrs>();
     TVM_FFI_ICHECK(concat_attrs);
 
-    auto old_concat_axis = [&]() -> size_t { return concat_attrs->axis.value_or(0); }();
-    Integer new_concat_axis = get_permute_dims_axes(all_permute_dims[0])[old_concat_axis];
+    auto permute_dims_axes = get_permute_dims_axes(all_permute_dims[0]);
 
-    auto new_concat = concat(Tuple(args), new_concat_axis->value);
+    int64_t old_concat_axis = concat_attrs->axis.value_or(0);
+    int64_t ndim = static_cast<int64_t>(permute_dims_axes.size());
+    if (old_concat_axis < 0) {
+      old_concat_axis += ndim;
+    }
+    TVM_FFI_ICHECK_GE(old_concat_axis, 0)
+        << "concat axis " << old_concat_axis << " out of range for " << ndim << "-D input";
+    TVM_FFI_ICHECK_LT(old_concat_axis, ndim)
+        << "concat axis " << old_concat_axis << " out of range for " << ndim << "-D input";
+
+    int64_t new_concat_axis = permute_dims_axes[static_cast<size_t>(old_concat_axis)];
+
+    auto new_concat = concat(Tuple(args), new_concat_axis);
     auto new_permute_dims = permute_dims(new_concat, permute_axes);
 
     return new_permute_dims;

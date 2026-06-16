@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in concat operators */
-struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
+struct ConcatAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
@@ -40,12 +40,12 @@ struct ConcatAttrs : public AttrsNodeReflAdapter<ConcatAttrs> {
                                           "The axis at which the input arrays are concatenated."
                                           "Should lie in range `[-ndim, ndim)`.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ConcatAttrs", ConcatAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ConcatAttrs", ConcatAttrs, AttrsNode);
 };  // struct ConcatAttrs
 
 /*! \brief Attributes used in expand_dims operators */
-struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
-  ffi::Array<Integer> axis;
+struct ExpandDimsAttrs : public AttrsNode {
+  ffi::Array<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -55,11 +55,11 @@ struct ExpandDimsAttrs : public AttrsNodeReflAdapter<ExpandDimsAttrs> {
         "All values are required to lie in range `[-data.ndim - 1, data.ndim]`, "
         "with the convention of negative indexing.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ExpandDimsAttrs", ExpandDimsAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ExpandDimsAttrs", ExpandDimsAttrs, AttrsNode);
 };  // struct ExpandDimsAttrs
 
 /*! \brief Attributes used in layout_transform operator */
-struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> {
+struct LayoutTransformAttrs : public AttrsNode {
   tirx::IndexMap index_map;
   // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
@@ -93,24 +93,23 @@ struct LayoutTransformAttrs : public AttrsNodeReflAdapter<LayoutTransformAttrs> 
                 "The separators between axes to regenerate output");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayoutTransformAttrs", LayoutTransformAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct LayoutTransformAttrs
 
 /*! \brief Attributes used in permute_dims operator */
-struct PermuteDimsAttrs : public AttrsNodeReflAdapter<PermuteDimsAttrs> {
-  ffi::Optional<ffi::Array<Integer>> axes;
+struct PermuteDimsAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PermuteDimsAttrs>().def_ro(
         "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PermuteDimsAttrs", PermuteDimsAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PermuteDimsAttrs", PermuteDimsAttrs, AttrsNode);
 };  // struct PermuteDimsAttrs
 
 /*! \brief Attributes used in split operator */
-struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
+struct SplitAttrs : public AttrsNode {
   ffi::ObjectRef indices_or_sections;
   int axis;
 
@@ -121,12 +120,12 @@ struct SplitAttrs : public AttrsNodeReflAdapter<SplitAttrs> {
                 "The input array of indices or the number of split sections.")
         .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SplitAttrs", SplitAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SplitAttrs", SplitAttrs, AttrsNode);
 };  // struct SplitAttrs
 
 /*! \brief Attributes used in squeeze operators */
-struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
-  ffi::Optional<ffi::Array<Integer>> axis;
+struct SqueezeAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -136,12 +135,12 @@ struct SqueezeAttrs : public AttrsNodeReflAdapter<SqueezeAttrs> {
                                            "Else, the dimension in axes get squeezed."
                                            "It is an error if an axis does not has dimension 1.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SqueezeAttrs", SqueezeAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SqueezeAttrs", SqueezeAttrs, AttrsNode);
 };  // struct SqueezeAttrs
 
 /*! \brief Attributes used in stack operators */
-struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
-  ffi::Optional<Integer> axis;
+struct StackAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -152,11 +151,11 @@ struct StackAttrs : public AttrsNodeReflAdapter<StackAttrs> {
         "so it must be in range [-ndim-1, ndim] where ndim is the "
         "number of dimensions of the input tensors.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StackAttrs", StackAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StackAttrs", StackAttrs, AttrsNode);
 };  // struct StackAttrs
 
 /*! \brief Attributes used in repeat operators */
-struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
+struct RepeatAttrs : public AttrsNode {
   int repeats;
   ffi::Optional<int64_t> axis;
 
@@ -169,37 +168,36 @@ struct RepeatAttrs : public AttrsNodeReflAdapter<RepeatAttrs> {
                 "counting from the backward. By default, use the flattened input array, and "
                 "return a flat output array.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RepeatAttrs", RepeatAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RepeatAttrs", RepeatAttrs, AttrsNode);
 };  // struct RepeatAttrs
 
 /*! \brief Attributes used in tile operators */
-struct TileAttrs : public AttrsNodeReflAdapter<TileAttrs> {
-  ffi::Array<Integer> repeats;
+struct TileAttrs : public AttrsNode {
+  ffi::Array<int64_t> repeats;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TileAttrs>().def_ro("repeats", &TileAttrs::repeats,
                                         "The number of repetitions of data along each axis.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TileAttrs", TileAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TileAttrs", TileAttrs, AttrsNode);
 };  // struct TileAttrs
 
 /*! \brief Attributes used in flip operators */
-struct FlipAttrs : public AttrsNodeReflAdapter<FlipAttrs> {
-  Integer axis;
+struct FlipAttrs : public AttrsNode {
+  int64_t axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FlipAttrs>().def_ro("axis", &FlipAttrs::axis,
-                                        "The axis along which to flip over.",
-                                        refl::DefaultValue(NullValue<Integer>()));
+                                        "The axis along which to flip over.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, AttrsNode);
 };  // struct FlipAttrs
 
 /*! \brief Attributes used in gather_elements operators */
-struct GatherElementsAttrs : public AttrsNodeReflAdapter<GatherElementsAttrs> {
-  Integer axis;
+struct GatherElementsAttrs : public AttrsNode {
+  int64_t axis;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -208,23 +206,23 @@ struct GatherElementsAttrs : public AttrsNodeReflAdapter<GatherElementsAttrs> {
                                                   refl::DefaultValue(0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherElementsAttrs", GatherElementsAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct GatherElementsAttrs
 
 /*! \brief Attributes used in gather_nd operators */
-struct GatherNDAttrs : public AttrsNodeReflAdapter<GatherNDAttrs> {
-  Integer batch_dims;
+struct GatherNDAttrs : public AttrsNode {
+  int64_t batch_dims;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GatherNDAttrs>().def_ro("batch_dims", &GatherNDAttrs::batch_dims,
                                             "The number of batch dims.", refl::DefaultValue(0));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherNDAttrs", GatherNDAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GatherNDAttrs", GatherNDAttrs, AttrsNode);
 };  // struct GatherNDAttrs
 
 /*! \brief Attributes used in index_put operator */
-struct IndexPutAttrs : public AttrsNodeReflAdapter<IndexPutAttrs> {
+struct IndexPutAttrs : public AttrsNode {
   bool accumulate;
 
   static void RegisterReflection() {
@@ -236,11 +234,11 @@ struct IndexPutAttrs : public AttrsNodeReflAdapter<IndexPutAttrs> {
         "otherwise performs tensor[indices] = values.",
         refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.IndexPutAttrs", IndexPutAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.IndexPutAttrs", IndexPutAttrs, AttrsNode);
 };  // struct IndexPutAttrs
 
 /*! \brief Attribute used in meshgrid operator */
-struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
+struct MeshgridAttrs : public AttrsNode {
   ffi::Optional<ffi::String> indexing;
 
   static void RegisterReflection() {
@@ -248,12 +246,12 @@ struct MeshgridAttrs : public AttrsNodeReflAdapter<MeshgridAttrs> {
     refl::ObjectDef<MeshgridAttrs>().def_ro("indexing", &MeshgridAttrs::indexing,
                                             "Specifies how the grid dimensions are ordered.");
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MeshgridAttrs", MeshgridAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MeshgridAttrs", MeshgridAttrs, AttrsNode);
 };
 
 /*! \brief Attributes used in scatter_elements operators */
-struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> {
-  Integer axis;
+struct ScatterElementsAttrs : public AttrsNode {
+  int64_t axis;
   ffi::String reduction;
 
   static void RegisterReflection() {
@@ -267,11 +265,11 @@ struct ScatterElementsAttrs : public AttrsNodeReflAdapter<ScatterElementsAttrs> 
                 refl::DefaultValue("update"));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterElementsAttrs", ScatterElementsAttrs,
-                                    BaseAttrsNode);
+                                    AttrsNode);
 };  // struct ScatterElementsAttrs
 
 /*! \brief Attributes used in scatter_nd operators */
-struct ScatterNDAttrs : public AttrsNodeReflAdapter<ScatterNDAttrs> {
+struct ScatterNDAttrs : public AttrsNode {
   ffi::String reduction;
 
   static void RegisterReflection() {
@@ -282,11 +280,11 @@ struct ScatterNDAttrs : public AttrsNodeReflAdapter<ScatterNDAttrs> {
         "either \"update\", \"add\", \"mul\", \"min\" or \"max\".",
         refl::DefaultValue("update"));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterNDAttrs", ScatterNDAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterNDAttrs", ScatterNDAttrs, AttrsNode);
 };  // struct ScatterNDAttrs
 
 /*! \brief Attributes used in slice_scatter operator */
-struct SliceScatterAttrs : public AttrsNodeReflAdapter<SliceScatterAttrs> {
+struct SliceScatterAttrs : public AttrsNode {
   int axis;
 
   static void RegisterReflection() {
@@ -295,12 +293,11 @@ struct SliceScatterAttrs : public AttrsNodeReflAdapter<SliceScatterAttrs> {
                                                 "the dimension to insert the slice into ",
                                                 refl::DefaultValue(0));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SliceScatterAttrs", SliceScatterAttrs,
-                                    BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SliceScatterAttrs", SliceScatterAttrs, AttrsNode);
 };  // struct SliceScatterAttrs
 
 /*! \brief Attributes used in one_hot operator */
-struct OneHotAttrs : public AttrsNodeReflAdapter<OneHotAttrs> {
+struct OneHotAttrs : public AttrsNode {
   int depth;
   int axis;
 
@@ -310,7 +307,7 @@ struct OneHotAttrs : public AttrsNodeReflAdapter<OneHotAttrs> {
         .def_ro("depth", &OneHotAttrs::depth, "Depth of the one hot dimension.")
         .def_ro("axis", &OneHotAttrs::axis, "Axis to fill.", refl::DefaultValue(-1));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.OneHotAttrs", OneHotAttrs, BaseAttrsNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.OneHotAttrs", OneHotAttrs, AttrsNode);
 };  // struct OneHotAttrs
 
 }  // namespace relax

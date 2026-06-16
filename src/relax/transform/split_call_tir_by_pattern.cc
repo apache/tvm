@@ -105,7 +105,7 @@ class ForMatcher : public TensorizeComparator {
           if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
             if (value.defined()) {
-              if (!analyzer_.CanProveEqual(lhs, value.value())) return false;
+              if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
               evaluated_symbols.back()[ffi::GetRef<Var>(op)] = lhs;
             }
@@ -452,7 +452,7 @@ class FunctionPartitioner : public StmtExprVisitor {
   /*! \brief alloc_buffers for the second function */
   std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
-  ffi::Map<SBlock, Bool> block_partition;
+  ffi::Map<SBlock, bool> block_partition;
   /*! \brief input buffers for the first function */
   std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
   /*! \brief input buffers for the second function */
@@ -493,7 +493,7 @@ class FunctionPartitioner : public StmtExprVisitor {
         input2.insert(write->buffer);
       }
     }
-    block_partition.Set(ffi::GetRef<SBlock>(op), Bool(is_matching_));
+    block_partition.Set(ffi::GetRef<SBlock>(op), is_matching_);
   }
   // The number of matched ops in the function
   size_t num_matched_ops_;
@@ -504,7 +504,7 @@ class FunctionPartitioner : public StmtExprVisitor {
 class BlockRemover : public StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
-      Stmt stmt, const ffi::Map<SBlock, Bool>& block_partition,
+      Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
       const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
     BlockRemover remover(block_partition, allocs, is_library_part);
@@ -512,7 +512,7 @@ class BlockRemover : public StmtExprMutator {
   }
 
  private:
-  BlockRemover(const ffi::Map<SBlock, Bool>& block_partition,
+  BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
                const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
@@ -522,7 +522,7 @@ class BlockRemover : public StmtExprMutator {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
-      bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)]->value;
+      bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)];
       if (!(is_library_part_ ^ block_is_library)) {
         n->body = block->body;
       } else {
@@ -553,7 +553,7 @@ class BlockRemover : public StmtExprMutator {
   }
 
   bool erased_ = false;
-  ffi::Map<SBlock, Bool> block_partition;
+  ffi::Map<SBlock, bool> block_partition;
   std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
@@ -581,7 +581,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = Downcast<ffi::String>(codegen_result[0]);
-  int num_matched_ops = Downcast<Integer>(codegen_result[1])->value;
+  int num_matched_ops = Downcast<IntImm>(codegen_result[1])->value;
   ffi::Array<Buffer> func1_args = Downcast<ffi::Array<Buffer>>(codegen_result[2]);
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
@@ -593,7 +593,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   bool has_second_func = false;
   for (const auto& pr : partitioner.block_partition) {
-    if (!pr.second->value) {
+    if (!pr.second) {
       has_second_func = true;
       break;
     }

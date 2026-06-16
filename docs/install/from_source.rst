@@ -35,11 +35,15 @@ Apache TVM requires the following dependencies:
 - CMake (>= 3.24.0)
 - LLVM (recommended >= 15)
 - Git
-- A recent C++ compiler supporting C++ 17, at the minimum
-    - GCC 7.1
-    - Clang 5.0
-    - Apple Clang 9.3
-    - Visual Studio 2019 (v16.7)
+- A recent C++ compiler supporting C++ 20, at the minimum
+    - GCC 10
+    - Clang 10
+    - Apple Clang 14
+    - Visual Studio 2022
+
+  Optional dependencies that use newer C++20 standard library facilities, such
+  as ``std::format``, may require a newer standard library (for example GCC 13
+  or newer on Linux).
 - Python (>= 3.10)
 - (Optional) Conda (Strongly Recommended)
 
@@ -193,8 +197,8 @@ Therefore, it is highly recommended to validate Apache TVM installation before u
 
 .. code-block:: bash
 
-    >>> python -c "import tvm; print(tvm.base._LIB)"
-    <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
+    >>> python -c "import tvm; print(tvm.base._LOADED_LIBS['tvm_runtime'])"
+    <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm_runtime.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:
 
@@ -260,7 +264,7 @@ Windows-Specific Build Notes
 If you're building TVM on Windows, note these platform-specific considerations:
 
 Path Conventions
-................
+~~~~~~~~~~~~~~~~
 - Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
 - Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
 

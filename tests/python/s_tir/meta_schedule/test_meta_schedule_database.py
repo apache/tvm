@@ -24,11 +24,13 @@ from collections.abc import Callable
 from typing import Optional
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.ir.module import IRModule
+from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
@@ -40,7 +42,7 @@ from tvm.target import Target
 # fmt: off
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main"})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -56,7 +58,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class MatmulRelu:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -113,7 +115,7 @@ def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
         assert str(arg0.as_json()) == str(arg1.as_json())
 
 
-@ms.utils.derived_object
+@derived_object
 class PyMemoryDatabaseDefault(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()
@@ -122,13 +124,13 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
 
     def has_workload(self, mod: IRModule) -> bool:
         for workload in self.workloads_:
-            if tvm.ir.structural_equal(mod, workload.mod):
+            if tvm_ffi.structural_equal(mod, workload.mod):
                 return True
 
     def commit_workload(self, mod: IRModule) -> ms.database.Workload:
         if self.has_workload(mod):
             for workload in self.workloads_:
-                if tvm.ir.structural_equal(mod, workload.mod):
+                if tvm_ffi.structural_equal(mod, workload.mod):
                     return workload
         else:
             workload = ms.database.Workload(mod)
@@ -145,7 +147,7 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
         return sorted(
             list(
                 filter(
-                    lambda x: tvm.ir.structural_equal(workload.mod, x.workload.mod),
+                    lambda x: tvm_ffi.structural_equal(workload.mod, x.workload.mod),
                     self.tuning_records_,
                 )
             ),
@@ -156,7 +158,7 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
         return len(self.tuning_records_)
 
 
-@ms.utils.derived_object
+@derived_object
 class PyMemoryDatabaseOverride(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()
@@ -165,13 +167,13 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
 
     def has_workload(self, mod: IRModule) -> bool:
         for workload in self.workloads_:
-            if tvm.ir.structural_equal(mod, workload.mod):
+            if tvm_ffi.structural_equal(mod, workload.mod):
                 return True
 
     def commit_workload(self, mod: IRModule) -> ms.database.Workload:
         if self.has_workload(mod):
             for workload in self.workloads_:
-                if tvm.ir.structural_equal(mod, workload.mod):
+                if tvm_ffi.structural_equal(mod, workload.mod):
                     return workload
         else:
             workload = ms.database.Workload(mod)
@@ -188,7 +190,7 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
         return sorted(
             list(
                 filter(
-                    lambda x: tvm.ir.structural_equal(workload.mod, x.workload.mod),
+                    lambda x: tvm_ffi.structural_equal(workload.mod, x.workload.mod),
                     self.tuning_records_,
                 )
             ),
@@ -481,17 +483,17 @@ def test_meta_schedule_pydatabase_default_query():
     record = query(db, mod, target, "record")
     assert record is not None and record.run_secs[0].value == 1.0
     sch_res = query(db, mod, target, "schedule")
-    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, sch.mod)
+    assert sch_res is not None and tvm_ffi.structural_equal(sch_res.mod, sch.mod)
     mod_res = query(db, mod, target, "ir_module")
-    assert mod_res is not None and tvm.ir.structural_equal(mod_res, sch.mod)
+    assert mod_res is not None and tvm_ffi.structural_equal(mod_res, sch.mod)
 
     commit_record(Schedule(mod).trace, db, 0.2)  # Empty Trace
     record = query(db, mod, target, "record")
     assert record is not None and record.run_secs[0].value == 0.2
     sch_res = query(db, mod, target, "schedule")
-    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, mod)
+    assert sch_res is not None and tvm_ffi.structural_equal(sch_res.mod, mod)
     mod_res = query(db, mod, target, "ir_module")
-    assert mod_res is not None and tvm.ir.structural_equal(mod_res, mod)
+    assert mod_res is not None and tvm_ffi.structural_equal(mod_res, mod)
 
 
 def test_meta_schedule_pydatabase_override_query():
@@ -520,17 +522,17 @@ def test_meta_schedule_pydatabase_override_query():
     record = query(db, mod, target, "record")
     assert record is not None and record.run_secs[0].value == 1.14
     sch_res = query(db, mod, target, "schedule")
-    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, sch.mod)
+    assert sch_res is not None and tvm_ffi.structural_equal(sch_res.mod, sch.mod)
     mod_res = query(db, mod, target, "ir_module")
-    assert mod_res is not None and tvm.ir.structural_equal(mod_res, sch.mod)
+    assert mod_res is not None and tvm_ffi.structural_equal(mod_res, sch.mod)
 
     commit_record(Schedule(mod).trace, db, 0.514)  # Empty Trace
     record = query(db, mod, target, "record")
     assert record is not None and record.run_secs[0].value == 1.14  # Override to 2nd best
     sch_res = query(db, mod, target, "schedule")
-    assert sch_res is not None and tvm.ir.structural_equal(sch_res.mod, sch.mod)
+    assert sch_res is not None and tvm_ffi.structural_equal(sch_res.mod, sch.mod)
     mod_res = query(db, mod, target, "ir_module")
-    assert mod_res is not None and tvm.ir.structural_equal(mod_res, sch.mod)
+    assert mod_res is not None and tvm_ffi.structural_equal(mod_res, sch.mod)
 
 
 def test_meta_schedule_pydatabase_current():

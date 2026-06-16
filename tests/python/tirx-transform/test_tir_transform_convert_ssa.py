@@ -38,9 +38,9 @@ def test_reuse_in_sequential_bind():
             tirx.Evaluate(var),
         ]
     )
-    before = tirx.PrimFunc([], sequential_bindings)
+    before = tirx.PrimFunc([], sequential_bindings).with_attr("s_tir", True)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected():
         var1 = T.bind(T.int32(16))
         T.evaluate(var1)
@@ -106,7 +106,7 @@ def test_reuse_in_nested_bind():
 def test_reused_var_across_module():
     """De-duplicate Var bindings across entire module"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func():
         var = T.bind(10)
         T.evaluate(var)
@@ -120,14 +120,14 @@ def test_reused_var_across_module():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_a():
-            var = T.int32(10)
+            var: T.let = T.int32(10)
             T.evaluate(var)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_b():
-            var = T.int32(10)
+            var: T.let = T.int32(10)
             T.evaluate(var)
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -141,7 +141,7 @@ def test_reused_parameter():
     parameter `n` in both functions.
     """
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(n: T.int32):
         T.evaluate(n)
 
@@ -154,11 +154,11 @@ def test_reused_parameter():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_a(n: T.int32):
             T.evaluate(n)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_b(n: T.int32):
             T.evaluate(n)
 
@@ -169,7 +169,7 @@ def test_reused_parameter():
 def test_reused_buffer_obj():
     """De-duplicate buffer usage across entire module"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(a: T.handle("float32")):
         A = T.decl_buffer(shape=1, dtype="float32", data=a)
         T.evaluate(A[0])
@@ -183,12 +183,12 @@ def test_reused_buffer_obj():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_a(a: T.handle("float32")):
             A = T.decl_buffer(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_b(a: T.handle("float32")):
             A = T.decl_buffer(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
@@ -200,7 +200,7 @@ def test_reused_buffer_obj():
 def test_reused_buffer_parameter():
     """De-duplicate buffer_map across entire module"""
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer(1, "float32")):
         T.evaluate(A[0])
 
@@ -213,11 +213,11 @@ def test_reused_buffer_parameter():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_a(A: T.Buffer(1, "float32")):
             T.evaluate(A[0])
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func_b(A: T.Buffer(1, "float32")):
             T.evaluate(A[0])
 
@@ -230,7 +230,7 @@ def test_no_change_if_already_ssa():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def func(A: T.Buffer(1, "float32")):
             T.evaluate(A[0])
 
@@ -261,7 +261,7 @@ def test_keep_duplicate_thread_idx_in_same_function():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):
@@ -297,7 +297,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     # threadIdx_x is defined outside
     @I.ir_module(check_well_formed=False)
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -306,7 +306,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -317,7 +317,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             threadIdx_x = T.int32()
             T.attr(
@@ -327,7 +327,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             threadIdx_x = T.int32()
             T.attr(
@@ -357,19 +357,19 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
     # complaints of multiple definitions for threadIdx_x
     @I.ir_module(check_well_formed=False)
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             T.attr(iter_var, "thread_extent", 256)
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             T.attr(iter_var, "thread_extent", 256)
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
     @I.ir_module(check_well_formed=False)
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             threadIdx_x = T.int32()
             T.attr(
@@ -379,7 +379,7 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             threadIdx_x = T.int32()
             T.attr(
@@ -411,14 +411,14 @@ def test_thread_idx_reused_within_and_across_functions():
     # complaints of multiple definitions of threadIdx_x
     @I.ir_module(check_well_formed=False)
     class before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -427,7 +427,7 @@ def test_thread_idx_reused_within_and_across_functions():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_1(A: T.Buffer([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):
@@ -435,7 +435,7 @@ def test_thread_idx_reused_within_and_across_functions():
             with T.launch_thread(threadIdx_x, 256):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel_2(A: T.Buffer([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):

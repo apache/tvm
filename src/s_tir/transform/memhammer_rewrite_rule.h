@@ -38,7 +38,7 @@ using namespace tvm::tirx;
 /*! \brief The set containing all possible constraints of a data copy */
 struct ConstraintSet {
   /*! \brief The extents of the thread binding loops */
-  ffi::Map<ffi::String, Integer> thread_extent;
+  ffi::Map<ffi::String, int64_t> thread_extent;
   /*! \brief The outer loops surrounding the data copy */
   ffi::Array<For> outer_loops;
   /*! \brief The read region of the data copy */
@@ -52,7 +52,7 @@ struct ConstraintSet {
   /*! \brief The vectorization length in bytes */
   int vector_bytes = 1;
 
-  explicit ConstraintSet(ffi::Map<ffi::String, Integer> thread_extent,  //
+  explicit ConstraintSet(ffi::Map<ffi::String, int64_t> thread_extent,  //
                          ffi::Array<For> outer_loops,                   //
                          BufferRegion read_region,                      //
                          BufferRegion write_region,                     //
@@ -64,10 +64,10 @@ struct ConstraintSet {
         write_region(write_region),
         data_bits(data_bits) {
     if (auto add_local_stage = ann.Get("local_stage")) {
-      this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
+      this->add_local_stage = Downcast<IntImm>(add_local_stage.value())->value;
     }
     if (auto vector_bytes = ann.Get("vector_bytes")) {
-      this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
+      this->vector_bytes = Downcast<IntImm>(vector_bytes.value())->value;
     }
   }
 };
@@ -77,7 +77,7 @@ struct OutputSet {
   /*! \brief New buffers allocated after rewrite */
   ffi::Array<Buffer> alloc_buffer;
   /*! \brief The minimal padding size of a buffer in base 2 logarithm */
-  ffi::Map<Buffer, Integer> padding_min;
+  ffi::Map<Buffer, int64_t> padding_min;
 };
 
 /*!

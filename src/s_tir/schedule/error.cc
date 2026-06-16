@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/script/printer/printer.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -47,7 +49,7 @@ ffi::String ScheduleError::RenderReport(const ffi::String& primitive) const {
   }
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
      << "'.\n\nThe IR with diagnostic is:\n"
-     << TVMScriptPrinter::Script(mod, cfg) << std::endl;
+     << tvm::Script(mod, cfg) << std::endl;
 
   // print error message
   os << "Error message: " << msg;

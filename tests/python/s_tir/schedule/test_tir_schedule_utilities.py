@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -48,7 +48,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
@@ -66,7 +66,7 @@ def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
@@ -86,7 +86,7 @@ def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024))
     B = T.match_buffer(b, (1024, 1024))
@@ -108,7 +108,7 @@ def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
 
 @tvm.script.ir_module
 class ModuleWithMultipleFuncs:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def vector_add(
         A: T.Buffer(128, "float32"),
         B: T.Buffer(128, "float32"),
@@ -118,7 +118,7 @@ class ModuleWithMultipleFuncs:
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def vector_add_2(
         A: T.Buffer(128, "float32"),
         B: T.Buffer(128, "float32"),
@@ -129,7 +129,7 @@ class ModuleWithMultipleFuncs:
                 B[vi] = A[vi]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -147,8 +147,8 @@ def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "f
                 with T.init():
                     data_red_temp_v0[ax0] = T.float32(0)
                     data_red_temp_v1[ax0] = T.float32(0)
-                v_data_red_temp_v0: T.float32 = data_red_temp_v0[ax0] + data[ax0, k1]
-                v_data_red_temp_v1: T.float32 = (
+                v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
+                v_data_red_temp_v1: T.let[T.float32] = (
                     data_red_temp_v1[ax0] + data[ax0, k1] * data[ax0, k1]
                 )
                 data_red_temp_v0[ax0] = v_data_red_temp_v0
@@ -389,7 +389,7 @@ def test_get_output_blocks_multiple_outputs():
 
 
 def test_get_output_blocks_nested():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def blockized(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),

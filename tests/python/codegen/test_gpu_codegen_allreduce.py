@@ -23,12 +23,13 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def _reduce_sum_module(d1, d2, d3):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
             for i in T.thread_binding(1, thread="blockIdx.x"):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):
@@ -46,9 +47,9 @@ def _reduce_sum_module(d1, d2, d3):
 
 
 def _reduce_max_module(d1, d2, d3):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
             for i in T.thread_binding(1, thread="blockIdx.x"):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):
@@ -105,7 +106,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
         @tvm.register_global_func(name, override=True)
         def compile_metal(src, target):
-            from tvm.contrib.xcode import compile_metal  # pylint: disable=import-outside-toplevel
+            from tvm.support.xcode import compile_metal  # pylint: disable=import-outside-toplevel
 
             return compile_metal(src, sdk="macosx")
 
@@ -118,7 +119,8 @@ def optional_metal_compile_callback(define_metal_compile_callback):
             tvm.register_global_func(name, cached, override=True)
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_allreduce_sum_compile(optional_metal_compile_callback):
     # Disable the parametrization over dims, at least for now
     dims = (1, 1, 2)

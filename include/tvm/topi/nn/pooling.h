@@ -87,9 +87,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   pad_after.Set(width_axis, pad_right);
   arith::Analyzer analyzer;
   auto out_height =
-      analyzer.Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
+      analyzer->Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
   auto out_width =
-      analyzer.Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
+      analyzer->Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
 
   auto dheight = tvm::te::reduce_axis(Range(0, kernel_height), "dh");
   auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width), "dw");
@@ -573,10 +573,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
       // If not, we skip the last window as it would start in the bottom padded region,
       // we need to minus 1 to get the correct output shape.
       auto invalid_last = (raw_out - 1) * stride[i] >= data_shape[ii] + pad_head[i];
-      auto out_dim = analyzer.Simplify(if_then_else(invalid_last, raw_out - 1, raw_out));
+      auto out_dim = analyzer->Simplify(if_then_else(invalid_last, raw_out - 1, raw_out));
       out_shape.Set(ii, out_dim);
     } else {
-      auto out_dim = analyzer.Simplify(raw_out);
+      auto out_dim = analyzer->Simplify(raw_out);
       out_shape.Set(ii, out_dim);
     }
   }

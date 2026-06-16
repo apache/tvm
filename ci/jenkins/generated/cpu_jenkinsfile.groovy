@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-04-25T15:49:49.168038
+// Generated at 2026-06-09T19:52:01.232631
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -133,12 +133,15 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  if (env.BRANCH_NAME == 'main') {
-    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
-    update_upstream_revision("HEAD")
+  if (env.CHANGE_TARGET) {
+    // This is a PR build, so merge with the latest of the PR's target branch
+    // (e.g. main or a release branch like v0.25.0).
+    merge_with_target()
   } else {
-    // This is PR branch so merge with latest main.
-    merge_with_main()
+    // This is a branch build (main or a release branch). Only set
+    // upstream_revision to HEAD and skip merging to avoid a race with another
+    // commit merged to the branch.
+    update_upstream_revision("HEAD")
   }
 
   sh(
@@ -162,15 +165,16 @@ def update_upstream_revision(git_ref) {
   }
 }
 
-def merge_with_main() {
+def merge_with_target() {
+  def target = env.CHANGE_TARGET
   sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
+    script: "git fetch origin ${target}",
+    label: "Fetch target branch ${target}",
   )
   update_upstream_revision("FETCH_HEAD")
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
+    label: "Merge to origin/${target}"
   )
 }
 
@@ -496,7 +500,7 @@ def run_build(node_type) {
         cmake_build(ci_cpu, 'build')
         make_cpp_tests(ci_cpu, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/lib/libtvm_compiler.so build/lib/libtvm_runtime.so build/lib/libtvm_ffi.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --bundle tvm_lib --bundle cpptest",
             label: 'Upload artifacts to S3',
           )
           })

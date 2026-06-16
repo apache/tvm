@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -53,7 +53,7 @@ def element_wise(a: T.handle, c: T.handle) -> None:
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
@@ -78,7 +78,7 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)

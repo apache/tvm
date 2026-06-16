@@ -490,11 +490,11 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/12);
     }
     for (int d = 0; d < n_dim; ++d) {
-      if (!ana.CanProveEqual(updates[i]->buffer->shape[d], expected_shape[d])) {
+      if (!ana->CanProveEqual(updates[i]->buffer->shape[d], expected_shape[d])) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
       }
-      if (!ana.CanProveEqual(inits[i]->indices[d], expected_indices[d]) ||
-          !ana.CanProveEqual(updates[i]->indices[d], expected_indices[d])) {
+      if (!ana->CanProveEqual(inits[i]->indices[d], expected_indices[d]) ||
+          !ana->CanProveEqual(updates[i]->indices[d], expected_indices[d])) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/12);
       }
     }
@@ -566,6 +566,13 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
       for (const MatchBufferRegion& region : block_node->match_buffers) {
         match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
       }
+    }
+    // Inline AllocBufferNode statements (e.g. `T.local_scalar(...)` expansions)
+    // declare buffer-local scratch storage inside the block body; treat them
+    // the same as block->alloc_buffers entries for the "write-without-signature"
+    // check below.
+    if (const auto* alloc = obj.as<AllocBufferNode>()) {
+      buffer_allocated.insert(alloc->buffer.get());
     }
     const auto* store = obj.as<BufferStoreNode>();
     if (!store) {

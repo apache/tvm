@@ -17,6 +17,7 @@
 # ruff: noqa: F811
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 from tvm import relax as rx
@@ -29,8 +30,8 @@ def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     assert xhash == yhash
 
@@ -240,7 +241,7 @@ def test_shape_expr():
 
     m = tirx.Var("m", "int32")
     with pytest.raises(
-        tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"
+        RuntimeError, match="the value in ShapeStructInfo can only have dtype of int64"
     ):
         rx.ShapeExpr([m, 3])
 

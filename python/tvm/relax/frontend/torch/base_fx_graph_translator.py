@@ -22,10 +22,12 @@
 
 import abc
 import math
+import operator
 from collections.abc import Callable
 from functools import reduce
 
-import tvm
+import tvm_ffi
+
 from tvm import relax, tirx
 
 
@@ -389,6 +391,47 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _logical_and(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_and accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_and requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_and(lhs, rhs))
+
+    def _logical_not(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        # torch.logical_not accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_not requires a boolean input, so cast non-bool inputs to bool first.
+        if x.struct_info.dtype != "bool":
+            x = self.block_builder.emit(relax.op.astype(x, "bool"))
+        return self.block_builder.emit(relax.op.logical_not(x))
+
+    def _logical_or(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_or accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_or requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_or(lhs, rhs))
+
+    def _logical_xor(self, node: fx.Node) -> relax.Var:
+        lhs = self.env[node.args[0]]
+        rhs = self.env[node.args[1]]
+        # torch.logical_xor accepts any dtype (treating nonzero as True) and returns bool, but
+        # relax.op.logical_xor requires boolean inputs, so cast non-bool inputs to bool first.
+        if lhs.struct_info.dtype != "bool":
+            lhs = self.block_builder.emit(relax.op.astype(lhs, "bool"))
+        if rhs.struct_info.dtype != "bool":
+            rhs = self.block_builder.emit(relax.op.astype(rhs, "bool"))
+        return self.block_builder.emit(relax.op.logical_xor(lhs, rhs))
+
     def _prelu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = self.env[node.args[1]]
@@ -514,6 +557,27 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
+
+    def _pow(self, node: fx.Node) -> relax.Var:
+        lhs, rhs = self.retrieve_args(node)
+        # torch integer pow returns an integer tensor, but relax.op.power legalizes to
+        # TOPI power which requires floating-point inputs. Decompose an integer base with
+        # a constant non-negative integer exponent into repeated multiplication instead.
+        if (
+            isinstance(lhs, relax.Expr)
+            and isinstance(lhs.struct_info, relax.TensorStructInfo)
+            and "int" in lhs.struct_info.dtype
+            and isinstance(rhs, int)
+            and not isinstance(rhs, bool)
+            and rhs >= 0
+        ):
+            if rhs == 0:
+                return self.block_builder.emit(relax.op.ones_like(lhs))
+            result = lhs
+            for _ in range(rhs - 1):
+                result = self.block_builder.emit(relax.op.multiply(result, lhs))
+            return result
+        return self._binary_op(relax.op.power, operator.pow)(node)
 
     def _div(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1642,6 +1706,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if isinstance(dim, list | tuple) and len(dim) == 0:
             dim = None
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        dtype = node.kwargs.get("dtype", None)
+        if dtype is not None:
+            x = self.block_builder.emit(
+                relax.op.astype(x, self._convert_data_type(dtype, self.env))
+            )
+        else:
+            # Match PyTorch type promotion: summing bool or integer tensors
+            # accumulates in int64 unless an explicit dtype is given.
+            input_dtype = x.struct_info.dtype
+            if input_dtype == "bool" or (
+                (input_dtype.startswith("int") or input_dtype.startswith("uint"))
+                and input_dtype != "int64"
+            ):
+                x = self.block_builder.emit(relax.op.astype(x, "int64"))
         return self.block_builder.emit(relax.op.sum(x, dim, keepdims=keepdim))
 
     def _var(self, node: fx.Node) -> relax.Var:
@@ -1953,6 +2031,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if len(non_none_indices) == 1:
             axis, index_tensor = non_none_indices[0]
             return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
+
+        # If no dimension is sliced (no None entries), this is plain NumPy-style
+        # advanced indexing: the index tensors broadcast together and are applied
+        # jointly ("zipped"), which is exactly relax.op.index_tensor's semantics.
+        # Note that the sequential-take path below is NOT equivalent: it computes
+        # an outer product over the index tensors, which only matches PyTorch
+        # when the index shapes are mutually orthogonal (e.g. (H, 1) and (W,)).
+        if len(non_none_indices) == len(indices):
+            return self.block_builder.emit(
+                relax.op.index_tensor(data, [idx for _, idx in non_none_indices])
+            )
 
         # Check if all indices can be squeezed to 1D for sequential take
         def is_squeezable(idx):
@@ -2507,7 +2596,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         data_shape = self.shape_of(data)
         mask_shape = self.shape_of(mask)
-        shapes_equal = tvm.ir.structural_equal(data_shape, mask_shape)
+        shapes_equal = tvm_ffi.structural_equal(data_shape, mask_shape)
 
         if not shapes_equal:
             mask = self.block_builder.emit(relax.op.broadcast_to(mask, data_shape))

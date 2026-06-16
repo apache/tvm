@@ -29,7 +29,7 @@ def generated_func(shape: tuple, dtype: str, axis_separators: list):
     """Generate element wise function."""
     dim0, dim1 = shape
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elwise(a: T.handle, b: T.handle):
         a_buffer = T.match_buffer(a, shape, dtype=dtype, axis_separators=axis_separators)
         b_buffer = T.match_buffer(b, shape, dtype=dtype, axis_separators=axis_separators)

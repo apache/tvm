@@ -62,7 +62,7 @@ using FCommReduce = std::function<ffi::Array<PrimExpr>(
  * If any input element is negative, it will be treated as an offset from the
  * last dimension (same as python indexing rules).
  */
-inline std::vector<int> GetRealAxis(int ndim, const ffi::Optional<ffi::Array<Integer>>& axis) {
+inline std::vector<int> GetRealAxis(int ndim, const ffi::Optional<ffi::Array<int64_t>>& axis) {
   std::vector<int> real_axis;
   if (!axis.has_value()) {
     for (int i = 0; i < ndim; ++i) {
@@ -70,8 +70,8 @@ inline std::vector<int> GetRealAxis(int ndim, const ffi::Optional<ffi::Array<Int
     }
   } else {
     // Use a set so duplicates are removed and the dims are sorted
-    for (auto elem : axis.value()) {
-      int64_t val = elem->value;
+    for (int64_t elem : axis.value()) {
+      int64_t val = elem;
       if (val < 0) {
         val += ndim;
       }
@@ -181,10 +181,13 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
  *
  * \return The result tensor.
  */
-inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                          FReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
-  TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  if (ndim == 0) {
+    auto identity = topi::identity(data, data->op->name + "_red", kCommReduce);
+    return atleast1d ? topi::expand_dims(identity, 0, 1) : identity;
+  }
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
   return DoCommReduce(data, func, target_shape, real_axis,
@@ -204,7 +207,7 @@ inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<Inte
  *
  * \return The result tensor.
  */
-inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                             FCommReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -325,7 +328,7 @@ inline PrimExpr ProdOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<Pri
  *
  * \return A Tensor whose op member is the sum operation
  */
-inline Tensor sum(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor sum(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                   bool keepdims = false, bool atleast1d = false) {
   if (data->dtype.is_bool()) {
     return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
@@ -382,7 +385,7 @@ inline Tensor collapse_sum(const Tensor& data, ffi::Array<PrimExpr> target_shape
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor all(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor all(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                   bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, tvm::all, keepdims, atleast1d);
 }
@@ -401,7 +404,7 @@ inline Tensor all(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& 
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor any(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor any(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                   bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
 }
@@ -420,7 +423,7 @@ inline Tensor any(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& 
  *
  * \return A Tensor whose op member is the min operation
  */
-inline Tensor min(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor min(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                   bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
@@ -439,7 +442,7 @@ inline Tensor min(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& 
  *
  * \return A Tensor whose op member is the max operation
  */
-inline Tensor max(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor max(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                   bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
@@ -499,7 +502,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
  *
  * \return A Tensor whose op member is the argmin operation
  */
-inline Tensor argmin(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor argmin(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgminReducer(select_last_index);
@@ -560,7 +563,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
  * appears multiple times, else select the first index.
  * \return A Tensor whose op member is the argmax operation
  */
-inline Tensor argmax(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor argmax(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgmaxReducer(select_last_index);
@@ -580,7 +583,7 @@ inline Tensor argmax(const Tensor& data, const ffi::Optional<ffi::Array<Integer>
  *
  * \return A Tensor whose op member is the prod operation
  */
-inline Tensor prod(const Tensor& data, const ffi::Optional<ffi::Array<Integer>>& axis,
+inline Tensor prod(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
                    bool keepdims = false, bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }

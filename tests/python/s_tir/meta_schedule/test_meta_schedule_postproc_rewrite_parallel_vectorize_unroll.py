@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Move_PUV:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
@@ -48,7 +48,7 @@ class Move_PUV:
                     B[vi, vj, vk] = A[vi, vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def Move_PUV0(a: T.handle, b: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})
@@ -75,7 +75,7 @@ def Move_PUV0(a: T.handle, b: T.handle) -> None:
 
 @tvm.script.ir_module
 class Fused_NN_Dense:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(placeholder: T.Buffer((64, 768), "float32"), placeholder_1: T.Buffer((768, 768), "float32"), T_matmul_NT: T.Buffer((64, 768), "float32")) -> None:
         for i0, i1, i2 in T.grid(64, 768, 768):
             with T.sblock("T_matmul_NT"):
@@ -86,7 +86,7 @@ class Fused_NN_Dense:
                     T_matmul_NT[i, j] = T.float32(0)
                 T_matmul_NT[i, j] = T_matmul_NT[i, j] + placeholder[i, k] * placeholder_1[j, k]
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def before_matmul_vectorize(
     placeholder: T.Buffer((64, 768), "float32"),
     placeholder_1: T.Buffer((768, 768), "float32"),
@@ -116,7 +116,7 @@ def before_matmul_vectorize(
                     T.writes(T_matmul_NT[v0, v1])
                     T_matmul_NT[v0, v1] = T_matmul_NT_global[v0, v1]
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def after_matmul_vectorize(
     placeholder: T.Buffer((64, 768), "float32"),
     placeholder_1: T.Buffer((768, 768), "float32"),
@@ -145,7 +145,7 @@ def after_matmul_vectorize(
                     T_matmul_NT[v0, v1] = T_matmul_NT_global[v0, v1]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def before_postproc_add(
     lhs: T.Buffer((1, 8, 56, 56, 32), "uint8"),
     rhs: T.Buffer((1, 8, 56, 56, 32), "uint8"),
@@ -161,7 +161,7 @@ def before_postproc_add(
                 add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def after_postproc_add(
     lhs: T.Buffer((1, 8, 56, 56, 32), "uint8"),
     rhs: T.Buffer((1, 8, 56, 56, 32), "uint8"),
@@ -181,7 +181,7 @@ def after_postproc_add(
                     add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def before_postproc_dynamic_shape_vectorize(
     a: T.handle,
     b: T.handle,
@@ -189,10 +189,10 @@ def before_postproc_dynamic_shape_vectorize(
     n = T.int64()
     A = T.match_buffer(a, (n,), dtype="float32")
     B = T.match_buffer(b, (n,), dtype="float32")
-    with T.block("root"):
-        T.block_attr({"meta_schedule.vectorize": 64})
+    with T.sblock("root"):
+        T.sblock_attr({"meta_schedule.vectorize": 64})
         for i in T.serial(0, n):
-            with T.block("copy"):
+            with T.sblock("copy"):
                 vi = T.axis.spatial(n, i)
                 T.reads(A[vi])
                 T.writes(B[vi])
@@ -207,7 +207,7 @@ def test_meta_schedule_postproc_rewrite_parallel_unroll_vectorize():
     postproc = RewriteParallelVectorizeUnroll()
     sch = Schedule(Move_PUV)
     assert postproc.apply(sch)
-    mod = tvm.tirx.transform.Simplify()(sch.mod)
+    mod = tvm.tirx.transform.StmtSimplify()(sch.mod)
     tvm.ir.assert_structural_equal(mod["main"], Move_PUV0)
 
 
@@ -227,7 +227,7 @@ def test_parallel_vectorize_add():
 
 def test_no_unroll_for_spatial_block():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def layer_norm(A: T.Buffer((1, 4, 4, 32), "float32"), B: T.Buffer((4, 4, 32), "float32"), C: T.Buffer((4, 4, 32), "float32"), T_layer_norm: T.Buffer((1, 4, 4, 32), "float32")):
         with T.sblock("root"):
             T.sblock_attr({"meta_schedule.unroll_explicit": 512})
@@ -241,8 +241,8 @@ def test_no_unroll_for_spatial_block():
                     with T.init():
                         A_red_temp_v0[v_ax0] = T.float32(0)
                         A_red_temp_v1[v_ax0] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3] * A[v_ax0, v_k1, v_k2, v_k3]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0] + A[v_ax0, v_k1, v_k2, v_k3] * A[v_ax0, v_k1, v_k2, v_k3]
                     A_red_temp_v0[v_ax0] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(1, 4, 4, 32):
@@ -252,7 +252,7 @@ def test_no_unroll_for_spatial_block():
                     T.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (A[v_ax0, v_ax1, v_ax2, v_ax3] - A_red_temp_v0[v_ax0] * T.float32(0.001953125)) * T.rsqrt(A_red_temp_v1[v_ax0] * T.float32(0.001953125) - A_red_temp_v0[v_ax0] * T.float32(0.001953125) * (A_red_temp_v0[v_ax0] * T.float32(0.001953125)) + T.float32(1.0000000000000001e-05)) * B[v_ax1, v_ax2, v_ax3] + C[v_ax1, v_ax2, v_ax3]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def expected(A: T.Buffer((1, 4, 4, 32), "float32"), B: T.Buffer((4, 4, 32), "float32"), C: T.Buffer((4, 4, 32), "float32"), T_layer_norm: T.Buffer((1, 4, 4, 32), "float32")):
         with T.sblock("root"):
             A_red_temp_v0 = T.sblock_alloc_buffer((1,))
@@ -267,8 +267,8 @@ def test_no_unroll_for_spatial_block():
                         with T.init():
                             A_red_temp_v0[0] = T.float32(0)
                             A_red_temp_v1[0] = T.float32(0)
-                        v_A_red_temp_v0: T.float32 = A_red_temp_v0[0] + A[0, v_k1, v_k2, v_k3]
-                        v_A_red_temp_v1: T.float32 = A_red_temp_v1[0] + A[0, v_k1, v_k2, v_k3] * A[0, v_k1, v_k2, v_k3]
+                        v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[0] + A[0, v_k1, v_k2, v_k3]
+                        v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[0] + A[0, v_k1, v_k2, v_k3] * A[0, v_k1, v_k2, v_k3]
                         A_red_temp_v0[0] = v_A_red_temp_v0
                         A_red_temp_v1[0] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(1, 4, 4, 32):
@@ -283,7 +283,7 @@ def test_no_unroll_for_spatial_block():
     postproc = RewriteParallelVectorizeUnroll()
     sch = Schedule(layer_norm)
     assert postproc.apply(sch)
-    mod = tvm.tirx.transform.Simplify()(sch.mod)
+    mod = tvm.tirx.transform.StmtSimplify()(sch.mod)
     assert_structural_equal_ignore_global_symbol(mod["main"], expected)
 
 

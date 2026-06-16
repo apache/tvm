@@ -121,7 +121,8 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
     Buffer new_buffer(var_it->second, promote_dtype_.with_lanes(buf->dtype.lanes()), buf->shape,
                       buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
-                      buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
+                      buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span,
+                      buf->layout, buf->allocated_addr);
     (*buffer_remap_)[buf] = new_buffer;
   }
 
@@ -237,12 +238,12 @@ class ComputeLegalizer : public StmtExprMutator {
     auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     ffi::Array<PrimExpr> args = op->args.Map(fmutate);
     if (MatchDType(op->dtype)) {
-      return Call(promote_dtype_.with_lanes(op->dtype.lanes()), op->op, args);
+      return Call(promote_dtype_.with_lanes(op->dtype.lanes()), op->op, args, op->attrs, op->span);
     }
     if (args.same_as(op->args)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->op, args);
+      return Call(op->dtype, op->op, args, op->attrs, op->span);
     }
   }
 
@@ -538,7 +539,7 @@ class StorageLegalizer : public StmtExprMutator {
       var_remap_[buf->data] = new_data;
       buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                    buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
-                   buf->span);
+                   buf->span, buf->layout, buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -558,7 +559,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (MatchDType(buf->dtype)) {
       buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
                    buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor,
-                   buf->buffer_type, buf->axis_separators, buf->span);
+                   buf->buffer_type, buf->axis_separators, buf->span, buf->layout,
+                   buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -705,7 +707,7 @@ class StorageLegalizer : public StmtExprMutator {
       DataType dtype = MatchDType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
       new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                        buf->data_alignment, buf->offset_factor, buf->buffer_type,
-                       buf->axis_separators, buf->span);
+                       buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
     } else {
       TVM_FFI_ICHECK(!MatchDType(buf->dtype)) << "Cannot find var remap for " << buf;
     }
@@ -734,7 +736,7 @@ namespace transform {
 bool CheckDataTypeSupport(const Target& target, const std::string& support_func_name) {
   bool has_native_support = false;
   if (target->kind->name == "cuda") {
-    if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.contrib.nvcc.get_compute_version")) {
+    if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.support.nvcc.get_compute_version")) {
       std::string compute_version = (*get_cv)(target).cast<std::string>();
       if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
         has_native_support = (*check_support)(compute_version).cast<bool>();
@@ -748,7 +750,7 @@ Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.defined() &&
-        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
+        CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
     return BF16ComputeLegalizer().Legalize(f);
@@ -765,7 +767,7 @@ Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.defined() &&
-        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_bf16")) {
+        CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
     }
     return BF16StorageLegalizer().Legalize(f);
@@ -782,7 +784,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.defined() &&
-        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
+        CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
     return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
@@ -799,7 +801,7 @@ Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.defined() &&
-        CheckDataTypeSupport(opt_target.value(), "tvm.contrib.nvcc.supports_fp8")) {
+        CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
     return FP8StorageLegalizer().Legalize(f);

@@ -394,5 +394,63 @@ def test_modular_set():
     )
 
 
+def test_relax_deep_variable_dependency_chain():
+    """Regression test for exponential variable-relaxation blowup.
+
+    When a variable's interval bound references another variable that is also in
+    the domain map, the evaluator relaxes it transitively. A diamond-shaped
+    chain -- where each variable's bound references the next one in *both* its
+    min and its max -- used to be re-expanded along every path, costing
+    O(2^depth) and hanging indefinitely. The relaxation is now memoized per
+    variable, so this completes in linear time.
+    """
+    ck = IntSetChecker()
+    n = 64  # 2^64 expansions without memoization; trivially fast with it.
+    xs = [tvm.tirx.Var(f"x{i}", "int32") for i in range(n + 1)]
+    dmap = {xs[i]: tvm.arith.IntervalSet(xs[i + 1] - 1, xs[i + 1] + 1) for i in range(n)}
+    dmap[xs[n]] = tvm.arith.IntervalSet(0, 100)
+    # x0 relaxes through the whole chain: [0 - n, 100 + n].
+    ck.verify(xs[0], dmap, (-n, 100 + n))
+
+
+def test_relax_cyclic_variable_dependency():
+    """A cyclic variable dependency must terminate (and stay symbolic)."""
+    ana = tvm.arith.Analyzer()
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("y", "int32")
+    # x depends on y and y depends on x: relaxation must not loop forever.
+    dmap = {x: tvm.arith.IntervalSet(y, y), y: tvm.arith.IntervalSet(x, x)}
+    res = ana.int_set(x, dmap)
+    assert res is not None
+
+
+def test_estimate_region_accepts_external_analyzer():
+    i = tvm.tirx.Var("i", "int32")
+    tile = tvm.tirx.Var("tile", "int32")
+    region = [tvm.ir.Range.from_min_extent(i % tile, 1)]
+    dom = {i: tvm.ir.Range(0, 16)}
+
+    # Without knowing `tile`, the affine detection fails for exact bounds.
+    assert tvm.arith.estimate_region_lower_bound(region, dom, True) is None
+    assert tvm.arith.estimate_region_strict_bound(region, dom, True) is None
+    upper_without_analyzer = tvm.arith.estimate_region_upper_bound(region, dom, True)
+
+    analyzer = tvm.arith.Analyzer()
+    analyzer.bind(tile, tvm.tirx.const(4, "int32"))
+    # The external binding lets the affine detection succeed.
+    for estimate_region in [
+        tvm.arith.estimate_region_lower_bound,
+        tvm.arith.estimate_region_strict_bound,
+        tvm.arith.estimate_region_upper_bound,
+    ]:
+        result = estimate_region(region, dom, True, analyzer=analyzer)
+        assert result is not None
+        assert analyzer.can_prove_equal(result[0].min_value, 0)
+        assert analyzer.can_prove_equal(result[0].max_value, 3)
+
+    # The upper-bound fallback without analyzer is safe but much wider.
+    assert not analyzer.can_prove_equal(upper_without_analyzer[0].min_value, 0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

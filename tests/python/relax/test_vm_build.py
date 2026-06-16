@@ -28,12 +28,13 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tirx, topi
-from tvm.contrib import cc, popen_pool, utils
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.support import cc, popen_pool, utils
+from tvm.testing import env
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -189,7 +190,7 @@ def test_vm_compile_e2e(exec_mode):
 def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -231,7 +232,7 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
 def test_call_tir_inplace_e2e_simple(exec_mode):
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(
             A: T.Buffer((2, 3), "int32"),
             B: T.Buffer((2, 3), "int32"),
@@ -290,7 +291,7 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     # read and write from the same tensor
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
             # sums A and B, storing the result in A
             T.func_attr({"tirx.noalias": True})
@@ -471,7 +472,8 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_emit_te_constant_param_gpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
@@ -531,7 +533,7 @@ def test_vm_relax_symbolic_shape(exec_mode):
 
 
 def test_vm_relax_symbolic_shape_tuple(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(shape: R.Shape(["m", "n"])):
@@ -555,7 +557,7 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
 
 def test_vm_relax_symbolic_prim_value(exec_mode):
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(shape: R.Prim(value="n")):
@@ -577,7 +579,7 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
 def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
     """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(
@@ -604,7 +606,7 @@ def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
     with pytest.raises(RuntimeError):
         func(2, Shape([4, 12]), 1)
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func(Shape([2]))
 
 
@@ -617,7 +619,7 @@ def test_vm_relax_prim_value_fp32(exec_mode):
     any type that can be represented as a single primitive value.
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class mod:
         @R.function
         def main(
@@ -747,7 +749,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             _ = cls.copy(x, y)
             return y
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def copy(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
                 with T.sblock("block"):
@@ -766,7 +768,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
 def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
             m = T.int32()
@@ -852,7 +854,8 @@ def test_recursion(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestToVDevice:
@@ -942,7 +945,7 @@ def test_time_evaluator(exec_mode):
 
 @tvm.script.ir_module
 class TestVMSetInput:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
         T.func_attr({"global_symbol": "test_vm_mul"})
         m = T.int32()
@@ -987,11 +990,13 @@ class TestVMSetInput:
 
 
 def test_multi_systemlib(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
     @tvm.script.ir_module
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
@@ -1008,7 +1013,7 @@ def test_multi_systemlib(exec_mode):
     class ModB:
         I.module_attrs({"system_lib_prefix": "libB_"})
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_init(x_handle: T.handle):
             N = T.int64()
             x = T.match_buffer(x_handle, [N], "float32")
@@ -1192,6 +1197,7 @@ def test_save_function_kwargs(exec_mode):
 
 
 def test_save_function_kwargs_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     run_on_rpc(TestVMSetInput, save_function_kwargs_trial, exec_mode)
 
 
@@ -1211,6 +1217,7 @@ def test_save_function_time_evaluator(exec_mode):
 
 
 def test_save_function_time_evaluator_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial, exec_mode)
 
 
@@ -1225,6 +1232,7 @@ def test_set_input_stateless_failure(exec_mode):
 
 
 def test_set_input_stateless_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
 
@@ -1237,6 +1245,7 @@ def test_set_input_invoke_failure(exec_mode):
 
 
 def test_set_input_invoke_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
 
@@ -1249,11 +1258,13 @@ def test_set_input_get_failure(exec_mode):
 
 
 def test_set_input_get_failure_rpc(exec_mode):
+    pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
         run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_relax_module_with_multiple_targets(exec_mode):
     """Relax functions may contain kernels for multiple targets
 
@@ -1262,7 +1273,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
     """
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
         I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
 

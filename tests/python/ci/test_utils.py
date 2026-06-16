@@ -19,6 +19,7 @@
 Constants used in various CI tests
 """
 
+import os
 import pathlib
 import subprocess
 from typing import Any
@@ -64,6 +65,9 @@ def run_script(command: list[Any], check: bool = True, **kwargs):
         "stderr": subprocess.PIPE,
         "encoding": "utf-8",
     }
+    env = kwargs.pop("env", None)
+    if env is not None:
+        kwargs_to_send["env"] = {**os.environ, **env}
     kwargs_to_send.update(kwargs)
     proc = subprocess.run(
         command,

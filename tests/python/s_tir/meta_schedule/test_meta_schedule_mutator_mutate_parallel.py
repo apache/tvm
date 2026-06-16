@@ -24,7 +24,7 @@ from tvm.target import Target
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [512, 512])
     B = T.match_buffer(b, [512, 512])

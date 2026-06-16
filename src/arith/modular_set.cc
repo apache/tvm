@@ -99,7 +99,7 @@ struct ModularSetAnalyzer::Entry {
 
 class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
  public:
-  explicit Impl(Analyzer* parent) : parent_(parent) {}
+  explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
 
   void Update(const Var& var, const ModularSet& info, bool allow_override) {
     if (!allow_override) {
@@ -264,6 +264,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       return VisitRightShift(op);
     } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tirx::builtin::shift_left())) {
+      return VisitLeftShift(op);
     } else {
       return Everything();
     }
@@ -279,6 +281,15 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
   }
 
+  Entry VisitLeftShift(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+    if (b.is_const()) {
+      return Entry(a.coeff << b.base, a.base << b.base);
+    }
+    return Everything();
+  }
+
   Entry VisitRightShift(const CallNode* op) {
     Entry b = VisitExpr(op->args[1]);
     // a c x  / c -> a x
@@ -292,7 +303,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     Entry b = VisitExpr(op->args[1]);
     if (b.is_const()) {
       int shift;
-      if (is_const_power_of_two_integer(Integer(b.base + 1), &shift)) {
+      if (is_const_power_of_two_integer(IntImm(DataType::Int(32), b.base + 1), &shift)) {
         return ModByConst(op->args[0], static_cast<int64_t>(1) << shift, true);
       }
     }
@@ -301,7 +312,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
  private:
   /*! \brief pointer to parent. */
-  Analyzer* parent_{nullptr};
+  AnalyzerObj* parent_{nullptr};
   // internal variable map
   std::unordered_map<Var, Entry> var_map_;
   /*!
@@ -392,7 +403,7 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
   return impl_->EnterConstraint(constraint);
 }
 
-ModularSetAnalyzer::ModularSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
+ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
 
 ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
 

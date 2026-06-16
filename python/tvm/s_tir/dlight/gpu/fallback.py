@@ -26,6 +26,24 @@ from ..base import try_inline
 from .base import GPUScheduleRule
 
 
+def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
+    """Check whether a statement already launches GPU threads internally,
+    e.g. via `T.launch_thread` (AttrStmt "thread_extent") or nested
+    thread-bound loops. Such blocks manage their own thread environment
+    and must not be wrapped in an additional thread binding."""
+    found = False
+
+    def _visit(node):
+        nonlocal found
+        if isinstance(node, tirx.AttrStmt) and node.attr_key in ("thread_extent", "virtual_thread"):
+            found = True
+        elif isinstance(node, tirx.For) and node.kind == tirx.ForKind.THREAD_BINDING:
+            found = True
+
+    tirx.stmt_functor.post_order_visit(stmt, _visit)
+    return found
+
+
 class Fallback(GPUScheduleRule):
     """
     A fallback schedule rule for all GPU operators. It will try to inline all the blocks first,
@@ -57,15 +75,14 @@ class Fallback(GPUScheduleRule):
             dom_kind = block.dom_kind()
             block = block.block_rv
 
-            if (
-                any(
-                    [
-                        sch.get(loop_rv).thread_binding is not None
-                        for loop_rv in sch.get_loops(block)
-                    ]
-                )
-                or len(sch.get_loops(block)) == 0
+            if any(
+                [sch.get(loop_rv).thread_binding is not None for loop_rv in sch.get_loops(block)]
             ):
+                continue
+
+            if len(sch.get_loops(block)) == 0 and _has_internal_thread_env(sch.get(block).body):
+                # The block (e.g. an opaque sort kernel) launches its own
+                # threads; binding an outer loop would conflict with them.
                 continue
 
             for loop, iter_type in zip(sch.get_loops(block), dom_kind):

@@ -20,6 +20,7 @@ import gc
 import sys
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -30,7 +31,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
@@ -45,7 +46,7 @@ def elementwise(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -60,7 +61,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
@@ -173,7 +174,7 @@ def test_replace_direct_write1():
     s.replace(sref, target)
     # There is no other reference so the AST node can be written directly
     assert old_hash == s.mod["main"].body.block.body.__hash__()
-    assert not tvm.ir.structural_equal(hold_ref.body, target)
+    assert not tvm_ffi.structural_equal(hold_ref.body, target)
     # Check the replaced part is equal to the target
     tvm.ir.assert_structural_equal(s.mod["main"].body.block.body[1], target)
     # The target reuse `sref.stmt`, so the sref won't be None
@@ -189,7 +190,7 @@ def test_replace_copy():
     s.replace(sref, target)
     # We need to copy the whole func to remain the old_func unchanged
     assert old_hash != s.mod["main"].__hash__()
-    assert not tvm.ir.structural_equal(old_func.body, s.mod["main"].body)
+    assert not tvm_ffi.structural_equal(old_func.body, s.mod["main"].body)
     assert old_hash == old_func.__hash__()
     # Check the replaced part is equal to the target
     tvm.ir.assert_structural_equal(s.mod["main"].body.block.body[0], target)
@@ -208,7 +209,7 @@ def test_replace_partial_copy0():
     # The stmt is held by `hold_sref`, so it will be coped in copy-on-write
     # because the ref count is not unique
     assert ref_old_hash != s.mod["main"].body.block.body[0].__hash__()
-    assert not tvm.ir.structural_equal(hold_ref.body, target)
+    assert not tvm_ffi.structural_equal(hold_ref.body, target)
     # The function and the other part stmt can be directly written
     assert func_old_hash == s.mod["main"].__hash__()
     assert other_part_hash == s.mod["main"].body.block.body[1].__hash__()
@@ -228,7 +229,7 @@ def test_replace_partial_copy1():
     s.replace(sref, target)
     # The parent stmt will change since there is only one reference
     assert stmt_old_hash == s.mod["main"].body.block.body[0].__hash__()
-    assert not tvm.ir.structural_equal(hold_ref.body, target)
+    assert not tvm_ffi.structural_equal(hold_ref.body, target)
     # The function and the other part stmt can be directly written
     assert func_old_hash == s.mod["main"].__hash__()
     assert other_part_hash == s.mod["main"].body.block.body[1].__hash__()
@@ -259,7 +260,7 @@ def test_replace_root_copy0():
     tvm.ir.assert_structural_equal(s.mod["main"].body.block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
-    assert not tvm.ir.structural_equal(func_ref.body, target)
+    assert not tvm_ffi.structural_equal(func_ref.body, target)
 
 
 def test_replace_root_copy1():
@@ -273,7 +274,7 @@ def test_replace_root_copy1():
     tvm.ir.assert_structural_equal(s.mod["main"].body.block.body[0], target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
-    assert not tvm.ir.structural_equal(func_ref.body, target)
+    assert not tvm_ffi.structural_equal(func_ref.body, target)
 
 
 def test_replace_root_copy2():
@@ -288,7 +289,7 @@ def test_replace_root_copy2():
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     for _, v in func_ref.items():
-        assert not tvm.ir.structural_equal(v.body.block, target)
+        assert not tvm_ffi.structural_equal(v.body.block, target)
 
 
 def test_replace_root_copy3():
@@ -302,7 +303,7 @@ def test_replace_root_copy3():
     tvm.ir.assert_structural_equal(s.mod["main"].body.block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
-    assert not tvm.ir.structural_equal(func_ref["main"].body.block, target)
+    assert not tvm_ffi.structural_equal(func_ref["main"].body.block, target)
 
 
 def test_replace_block_remap():
@@ -349,7 +350,7 @@ def test_replace_ir_module():
     tvm.ir.assert_structural_equal(s.mod["main"].body.block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
-    assert not tvm.ir.structural_equal(func_ref.body, target)
+    assert not tvm_ffi.structural_equal(func_ref.body, target)
     assert other_func_hash == s.mod["other"].__hash__()
 
 

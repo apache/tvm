@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -157,10 +158,6 @@ class IRConvertSSA final : public StmtExprMutator {
     }();
 
     auto attrs = [&]() -> DictAttrs {
-      if (!func->attrs.defined()) {
-        return DictAttrs();
-      }
-
       ffi::Map<ffi::String, ffi::Any> dict;
       bool made_change = false;
 
@@ -310,9 +307,35 @@ class IRConvertSSA final : public StmtExprMutator {
     ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
     ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
 
+    // Rewrite the layout's per-iter extent/stride expressions in lockstep
+    // with the shape. If we don't, SSA-renamed shape vars end up as fresh
+    // Vars while the layout still references the original, producing
+    // structurally-unequal buffers whose shape and layout disagree (e.g.,
+    // test_dynamic_launch_thread).
+    ffi::Optional<Layout> new_layout = buf->layout;
+    bool layout_changed = false;
+    if (buf->layout.defined()) {
+      if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
+        auto remap_iter = [&](const Iter& it) -> Iter {
+          PrimExpr new_extent = VisitExpr(it->extent);
+          PrimExpr new_stride = VisitExpr(it->stride);
+          if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
+            return it;
+          }
+          return Iter(new_extent, new_stride, it->axis);
+        };
+        auto new_shard = opt_tile->shard.Map(remap_iter);
+        auto new_replica = opt_tile->replica.Map(remap_iter);
+        if (!new_shard.same_as(opt_tile->shard) || !new_replica.same_as(opt_tile->replica)) {
+          new_layout = TileLayout(new_shard, new_replica, opt_tile->offset);
+          layout_changed = true;
+        }
+      }
+    }
+
     // If no mapping is required, return the original buffer.
     if (new_buffer_var.same_as(buf->data) && elem_offset.same_as(buf->elem_offset) &&
-        shape.same_as(buf->shape) && strides.same_as(buf->strides)) {
+        shape.same_as(buf->shape) && strides.same_as(buf->strides) && !layout_changed) {
       return buf;
     }
 
@@ -335,6 +358,9 @@ class IRConvertSSA final : public StmtExprMutator {
       write_ptr->shape = shape;
       write_ptr->strides = strides;
       write_ptr->elem_offset = elem_offset;
+      if (layout_changed) {
+        write_ptr->layout = std::move(new_layout);
+      }
     }
     buffers.push_back(new_buf);
     return new_buf;
@@ -651,8 +677,8 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      TVM_FFI_ICHECK(
-          arith::Analyzer().CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
+      TVM_FFI_ICHECK(arith::Analyzer()->CanProveEqual(
+          floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
   }
@@ -671,7 +697,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& range = source->region[i];
-    TVM_FFI_ICHECK(analyzer.CanProve(range->extent == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(range->extent == 1));
     result.push_back(range->min);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
@@ -693,7 +719,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& source_range = source->region[i];
-    TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == 1));
     result.push_back(Range::FromMinExtent(source_range->min, 1));
   }
   for (size_t i = 0; i < region.size(); ++i) {
@@ -709,7 +735,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
   // extract equations and related vars from condition expression.
   // currently only extract simple integral equations which could be solvable.
   arith::Analyzer analyzer;
-  PrimExpr condition = analyzer.Simplify(condition_);
+  PrimExpr condition = analyzer->Simplify(condition_);
   if (is_const_int(condition)) {
     return std::nullopt;
   }
@@ -771,7 +797,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
       }
     }
     if (dom.defined()) {
-      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer.Simplify(dom.max() - dom.min() + 1)));
+      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer->Simplify(dom.max() - dom.min() + 1)));
     }
   }
   // solve constraints

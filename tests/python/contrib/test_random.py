@@ -21,6 +21,7 @@
 import threading
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -102,7 +103,7 @@ def test_normal():
     verify()
 
 
-@tvm.testing.uses_gpu
+@pytest.mark.gpu
 def test_random_fill():
     """Tests random_fill function"""
 
@@ -141,9 +142,10 @@ def test_random_fill():
 
         check_remote(rpc.Server("127.0.0.1"))
 
+    # Packed sub-byte dtypes (e.g. int4) are intentionally unsupported by
+    # random_fill since #19714 and raise an error instead.
     for dtype in [
         "bool",
-        "int4",
         "int8",
         "uint8",
         "int16",

@@ -71,10 +71,10 @@ class AddRFactorNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
-                                      ffi::Optional<Integer> max_innermost_factor) {
+                                      ffi::Optional<int64_t> max_innermost_factor) {
   ffi::ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>();
   n->max_jobs_per_core = max_jobs_per_core;
-  n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
+  n->max_innermost_factor = max_innermost_factor.value_or(-1);
   n->max_parallel_extent_ = -1;
   n->max_parallel_basic_ = -1;
   return ScheduleRule(n);
@@ -115,7 +115,8 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
       // be considered by the rule Random-Compute-Location.
-      sch_tmp->Annotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer, Integer(1));
+      sch_tmp->Annotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer,
+                        IntImm(DataType::Int(32), 1));
       res.push_back(sch_tmp);
     } catch (const tvm::ffi::Error& e) {
     }

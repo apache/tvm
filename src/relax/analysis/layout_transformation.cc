@@ -48,7 +48,7 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
   }
   arith::Analyzer analyzer;
   auto iter_map_result = DetectIterMap(m->final_indices, input_iters, /* predicate = */ 1,
-                                       /*check_level=*/arith::IterMapLevel::Bijective, &analyzer,
+                                       /*check_level=*/arith::IterMapLevel::Bijective, analyzer,
                                        /*simplify_trivial_iterators=*/true);
   return !iter_map_result->indices.empty();
 }
@@ -176,9 +176,9 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
   ffi::Array<PrimExpr> t1_initial_indices =
       t1->initial_indices.Map([](tirx::Var i) -> PrimExpr { return i; });
   arith::Analyzer analyzer;
-  auto t0_output = t0->MapIndices(t1_initial_indices, &analyzer);
+  auto t0_output = t0->MapIndices(t1_initial_indices, analyzer);
   for (size_t i = 0; i < t0_output.size(); ++i) {
-    if (!analyzer.CanProveEqual(t0_output[i], t1->final_indices[i])) return false;
+    if (!analyzer->CanProveEqual(t0_output[i], t1->final_indices[i])) return false;
   }
   return true;
 }
@@ -448,7 +448,7 @@ class BlockAnalyzer : public StmtExprVisitor {
   SpatialLayout DetectBufferAccessIterMap(ffi::Array<PrimExpr> indices) {
     auto result = arith::DetectIterMap(
         /*indices=*/indices, /*input_iters*/ spatial_dom_,
-        /*predicate*/ 1, /*check_level*/ arith::IterMapLevel::NoCheck, &arith_analyzer_);
+        /*predicate*/ 1, /*check_level*/ arith::IterMapLevel::NoCheck, arith_analyzer_);
     if (result->indices.empty()) {
       DLOG(INFO) << "[LayoutInference] Failed to analyze indices " << indices
                  << ", error: " << result->errors;

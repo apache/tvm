@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 def test_unroll_loop():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.handle, n: T.int64):
             Ab = T.match_buffer(A, (n,), "int64")
             for i in T.serial(n, n + 2):
@@ -51,7 +51,7 @@ def test_unroll_loop():
 
     @I.ir_module
     class ModuleWithPragma:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.handle, n: T.int64):
             Ab = T.match_buffer(A, (n,), "int64")
             with T.attr(T.int32(0), "pragma_auto_unroll_max_step", 16):
@@ -75,7 +75,7 @@ def test_unroll_loop():
 def test_unroll_fake_loop():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.handle, n: T.int64):
             Ab = T.match_buffer(A, (n,), "int32")
             for i in T.serial(1):
@@ -95,7 +95,7 @@ def test_unroll_fake_loop():
 def test_unroll_allocations():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             for i in T.unroll(2):
                 buf = T.alloc_buffer([16], "float32")
@@ -103,7 +103,7 @@ def test_unroll_allocations():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             buf1 = T.alloc_buffer([16], "float32")
             buf1[0] = 0.0
@@ -118,7 +118,7 @@ def test_unroll_allocations():
 def test_unroll_local_access():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(B: T.Buffer((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
@@ -128,7 +128,7 @@ def test_unroll_local_access():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(B: T.Buffer((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
@@ -149,7 +149,7 @@ def test_unroll_local_access():
         }
     ):
         after = tvm.tirx.transform.UnrollLoop()(Before)
-        after = tvm.tirx.transform.Simplify()(after)
+        after = tvm.tirx.transform.StmtSimplify()(after)
 
     tvm.ir.assert_structural_equal(after, Expected)
 

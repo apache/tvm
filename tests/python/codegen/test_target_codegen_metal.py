@@ -15,22 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_metal_inf_nan():
     target = "metal"
 
     def check_inf_nan(dev, n, value, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
@@ -59,12 +61,12 @@ def test_metal_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_unaligned_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -84,15 +86,15 @@ def test_unaligned_vectorize():
     tvm.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_metal_erf():
     target = "metal"
 
     def check_erf(dev, n, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
@@ -117,14 +119,14 @@ def test_metal_erf():
     check_erf(dev, 1, "float16")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_ramp():
     target = "metal"
 
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 2), "int32")):
             T.func_attr({"global_symbol": "main"})
             for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -140,12 +142,12 @@ def test_ramp():
     assert tuple(a_nd.numpy()[0, :]) == (0, 3)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_select_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((6), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -165,10 +167,10 @@ def test_select_vectorize():
     tvm.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_metal
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_vectorized_uint8():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
         for i in T.thread_binding(4, thread="threadIdx.x"):
             for j in T.vectorized(4):
@@ -185,11 +187,12 @@ def test_vectorized_uint8():
     tvm.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_func_with_trailing_pod_params():
-    from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+    from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
         for i in T.thread_binding(16, thread="threadIdx.x"):
             with T.sblock("block"):
@@ -208,14 +211,15 @@ def test_func_with_trailing_pod_params():
     assert occurrences == 1, occurrences
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

@@ -17,6 +17,7 @@
 """Test eliminate common subexpr pass"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -25,6 +26,7 @@ from tvm.ir.module import IRModule
 from tvm.runtime import Device
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
+from tvm.testing import env
 
 
 def compile(
@@ -85,8 +87,11 @@ def test_multi_cpu():
     tvm.testing.assert_allclose(res.numpy(), np_res)
 
 
-@tvm.testing.requires_multi_gpu
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple gpus")
 def test_multi_gpu():
+    if not tvm.cuda(2).exist:
+        pytest.skip("requires at least 3 visible CUDA devices")
+
     @I.ir_module
     class Example:
         I.module_attrs({"attr": 10})
@@ -141,7 +146,8 @@ def test_multi_gpu():
     tvm.testing.assert_allclose(res.numpy(), np_res)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_multi_device():
     @I.ir_module
     class Example:

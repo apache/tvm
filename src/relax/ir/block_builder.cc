@@ -70,7 +70,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   // Global Context management
   //-------------------------------
-  NameSupply name_supply() final { return name_supply_; }
+  UniqueNameSupply name_supply() final { return name_supply_; }
 
   IRModule GetContextIRModule() const final { return context_mod_; }
 
@@ -149,17 +149,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  [[noreturn]] void ReportFatal(const Diagnostic& diagnostic) final {
-    // TODO(relax-team): Print more context information by looking
-    // into the diagnostic->loc and surrounding IRModule.
-    // We do not materialzie DiagnosticContext to avoid double referencing to
-    // the change IRModule in COW. Additionally, we need to be able to
-    // continue use the builder after an error is thrown to avoid state building up.
-    // in an interactive environment.
-    throw ffi::Error(diagnostic->error_kind, diagnostic->message,
-                     TVMFFIBacktrace(__FILE__, __LINE__, "", 0));
-  }
-
   //-------------------------------
   // Scope management
   //-------------------------------
@@ -219,11 +208,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // of shape inference.  In many cases, knowning that the
         // shape variable is non-negative allows for simpler
         // expressions for dynamic shapes.
-        analyzer_.MarkGlobalNonNegValue(shape_var);
+        analyzer_->MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
         TVM_FFI_ICHECK(old_shape_expr.same_as(shape_expr) ||
-                       analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+                       analyzer_->CanProveEqual(old_shape_expr, shape_expr))
             << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
             << shape_expr;
       }
@@ -307,7 +296,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  arith::Analyzer* GetAnalyzer() final { return &analyzer_; }
+  arith::Analyzer GetAnalyzer() final { return analyzer_; }
 
  protected:
   /*!
@@ -357,8 +346,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   /*! \brief A binding table that maps var to value. */
   std::unordered_map<Id, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
 
-  /*! \brief A name supply to get unique names for IR construction. */
-  NameSupply name_supply_;
+  /*! \brief A unique name supply to get unique names for IR construction. */
+  UniqueNameSupply name_supply_;
 
   /*! \brief The IRModule being built by the BlockBuilder. */
   IRModule context_mod_;
@@ -855,7 +844,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), &analyzer_);
+      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), analyzer_);
     }
   }
 

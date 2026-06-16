@@ -425,9 +425,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  Integer(low_inclusive));
+                  IntImm(DataType::Int(32), low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  Integer(high_inclusive));
+                  IntImm(DataType::Int(32), high_inclusive));
   }
   return {state};
 }
@@ -668,15 +668,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     if (state->is_mma) {
       // Add vector bytes for memhammer
-      sch->Annotate(cache_read, s_tir::attr::vector_bytes, Integer(16));
+      sch->Annotate(cache_read, s_tir::attr::vector_bytes, IntImm(DataType::Int(32), 16));
       if (!state->use_async) {
-        sch->Annotate(cache_read, s_tir::attr::local_stage, Integer(1));
-        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
+        sch->Annotate(cache_read, s_tir::attr::local_stage, IntImm(DataType::Int(32), 1));
+        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
       }
     } else {
       // Add local stage and double buffering
-      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, Integer(1));
-      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, Integer(0));
+      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage,
+                    IntImm(DataType::Int(32), 1));
+      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
     }
   }
 
@@ -708,16 +709,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   //   compute matmul with fragment K1 - 1
   //
   sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_stage,
-                ffi::Array<Integer>{0, 0, 1});
+                ffi::Array<int64_t>{0, 0, 1});
   sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_order,
-                ffi::Array<Integer>{0, 1, 2});
+                ffi::Array<int64_t>{0, 1, 2});
   if (state->is_mma && state->use_async) {
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_async_stages,
-                  ffi::Array<Integer>{0});
+                  ffi::Array<int64_t>{0});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
-                  ffi::Array<Integer>{0, 0, 1, 2, 2});
+                  ffi::Array<int64_t>{0, 0, 1, 2, 2});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
-                  ffi::Array<Integer>{0, 1, 3, 2, 4});
+                  ffi::Array<int64_t>{0, 1, 3, 2, 4});
   } else {
     // Outer software pipeline: Interleave the outer loop with the (pipelined) inner loop.
     // The prefetching stage of the inner pipeline is executed by one iteration in the outer loop.
@@ -760,9 +761,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     //   compute matmul with fragment K1 - 1 of tile K0 - 1
     //
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
-                  ffi::Array<Integer>{0, 0, 0, 0, 0, 1, 1});
+                  ffi::Array<int64_t>{0, 0, 0, 0, 0, 1, 1});
     sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
-                  ffi::Array<Integer>{0, 3, 1, 4, 5, 2, 6});
+                  ffi::Array<int64_t>{0, 3, 1, 4, 5, 2, 6});
   }
 
   return {state};
@@ -908,14 +909,14 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
                        state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, s_tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, Integer(1));
+  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, IntImm(DataType::Int(32), 1));
   return {std::move(state)};
 }
 
 ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     ffi::Array<ffi::Map<ffi::String, ffi::String>> intrin_groups, ffi::String structure,
-    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<Integer> max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<ffi::Array<ffi::String>> tile_binds, ffi::Optional<int64_t> max_innermost_factor,
+    ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline) {
   if (tile_binds.defined()) {

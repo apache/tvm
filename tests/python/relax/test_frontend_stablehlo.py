@@ -1,3 +1,8 @@
+import pytest
+
+pytest.importorskip("jaxlib", reason="jaxlib not available")
+pytest.importorskip("jax", reason="jax not available")
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,6 +35,7 @@ from tvm.relax.frontend.stablehlo import from_stablehlo
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def generate_np_inputs(
@@ -165,7 +171,8 @@ def get_vm_res(
     return tvm_output
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_add_dynamic():
     add_dyn = """
     func.func @test(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
@@ -196,7 +203,8 @@ def test_add_dynamic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_unary():
     import jax
 
@@ -229,7 +237,8 @@ def test_unary():
         check_correctness(jax.jit(fn), input_shapes)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_binary():
     import jax
 
@@ -250,7 +259,8 @@ def test_binary():
     check_correctness(jit_fn, input_shapes)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_const():
     import jax
 
@@ -260,7 +270,8 @@ def test_const():
     check_correctness(jax.jit(fn), (2,))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_maximum():
     import jax
     import jax.numpy as jnp
@@ -271,7 +282,8 @@ def test_maximum():
     check_correctness(jax.jit(fn), ((2, 3), (2, 3)))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_minimum():
     import jax
     import jax.numpy as jnp
@@ -282,7 +294,8 @@ def test_minimum():
     check_correctness(jax.jit(fn), ((2, 3), (2, 3)))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.skip(
     reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
 )
@@ -297,7 +310,8 @@ def test_reduce():
     check_correctness(jax.jit(fn), (2, 3, 4, 5))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.skip(
     reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
 )
@@ -312,7 +326,8 @@ def test_reduce_window():
     check_correctness(jax.jit(fn), (2, 3, 4))
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_dot_general():
     import jax
 
@@ -323,7 +338,8 @@ def test_dot_general():
     check_correctness(jax.jit(fn), input_shapes)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.skip(
     reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
 )

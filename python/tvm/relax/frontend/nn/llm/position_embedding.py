@@ -390,7 +390,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_q: T.handle,
@@ -522,7 +522,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -564,7 +564,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -749,7 +749,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -791,7 +791,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,

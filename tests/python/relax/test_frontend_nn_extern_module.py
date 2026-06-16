@@ -21,8 +21,10 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import tvm_ffi
 
 import tvm
+import tvm.libinfo
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend import nn
@@ -40,7 +42,7 @@ def _infer_scalar_add(x, y):  # pylint: disable=invalid-name
 
 def _infer_test_sym(a, b):  # pylint: disable=invalid-name
     def _var_equal(a, b):  # pylint: disable=invalid-name
-        return tvm.ir.structural_equal(a, b, map_free_vars=True)
+        return tvm_ffi.structural_equal(a, b, map_free_vars=True)
 
     assert isinstance(a, nn.Tensor)
     assert isinstance(b, nn.Tensor)
@@ -119,14 +121,13 @@ def _check_ir_equality(mod):
 
 
 def _compile_cc(src: Path, dst: Path):
-    # pylint: disable=import-outside-toplevel
-    from tvm.base import py_str
-    from tvm.libinfo import find_include_path
-
-    # pylint: enable=import-outside-toplevel
-
     cmd = ["g++", str(src)]
-    for include_path in find_include_path():
+    default_include_paths = [
+        tvm.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_include_path(),
+        tvm_ffi.libinfo.find_dlpack_include_path(),
+    ]
+    for include_path in default_include_paths:
         cmd += ["-I", include_path]
     cmd += [
         "-c",
@@ -139,7 +140,7 @@ def _compile_cc(src: Path, dst: Path):
         (out, _) = proc.communicate()
         if proc.returncode != 0:
             msg = "Compilation error:\n"
-            msg += py_str(out)
+            msg += out.decode("utf-8", errors="replace")
             msg += "\nCommand line: " + " ".join(cmd)
             raise RuntimeError(msg)
 

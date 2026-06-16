@@ -27,7 +27,7 @@ from .dot_product_common import get_dp4a_intrin
 lift = convert
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def sdot4(
     A: T.Buffer((4,), "int8", offset_factor=1, align=4, scope="shared"),
     B: T.Buffer((4,), "int8", offset_factor=1, align=4, scope="shared"),
@@ -121,7 +121,7 @@ def get_mma_fill_intrin(dtype, local_size):
     # Assume M = N = 16
     index_map = shared_16x16_to_local_64x4_layout_C
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mma_fill_desc(a: T.handle) -> None:
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
 
@@ -136,7 +136,7 @@ def get_mma_fill_intrin(dtype, local_size):
                     T.writes(C_warp[thread_id, local_id])
                     C_warp[thread_id, local_id] = zero
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mma_fill_impl(a: T.handle) -> None:
         C_warp = T.match_buffer(
             a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
@@ -199,7 +199,7 @@ def get_mfma_load_intrin(
     else:
         raise ValueError("k_dim must be 4 or 16 currently")
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_load_desc(reg_handle: T.handle, memory_handle: T.handle) -> None:
         memory = T.match_buffer(
             memory_handle,
@@ -225,7 +225,7 @@ def get_mfma_load_intrin(
                     T.writes(reg[thread_id, local_id])
                     reg[thread_id, local_id] = memory[v0, v1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_load_impl(reg_handle: T.handle, memory_handle: T.handle) -> None:
         s0 = T.int32()
         s1 = T.int32()
@@ -285,7 +285,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             return j, i
         return i, j
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
@@ -301,11 +301,11 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
             for i, j, k in T.grid(M_DIM, N_DIM, k_dim):
                 with T.sblock("C"):
-                    i, j, k = T.axis.remap("SSR", [i, j, k])
-                    b_row_ind, b_col_ind = T.meta_var(maybe_swap(k, j))
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    b_row_ind, b_col_ind = T.meta_var(maybe_swap(vk, vj))
 
-                    thread_id_C, local_id_C = T.meta_var(index_map_C(i, j))
-                    thread_id_A, local_id_A = T.meta_var(index_map_A(i, k))
+                    thread_id_C, local_id_C = T.meta_var(index_map_C(vi, vj))
+                    thread_id_A, local_id_A = T.meta_var(index_map_A(vi, vk))
                     thread_id_B, local_id_B = T.meta_var(index_map_B(b_row_ind, b_col_ind))
 
                     T.reads(
@@ -319,7 +319,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                         A[thread_id_A, local_id_A]
                     ) * maybe_cast(B[thread_id_B, local_id_B])
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_sync_impl_float(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
@@ -345,7 +345,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 dtype=f"{out_dtype}x4",
             )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_sync_impl_integer(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
@@ -382,7 +382,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
     index_map = shared_16x16_to_local_64x4_layout_C
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_store_desc(a: T.handle, c: T.handle) -> None:
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
         C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
@@ -398,7 +398,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
                     T.writes(C[v0, v1])
                     C[v0, v1] = C_warp[thread_id, local_id]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def mfma_store_impl(a: T.handle, c: T.handle) -> None:
         s0 = T.int32()
         s1 = T.int32()

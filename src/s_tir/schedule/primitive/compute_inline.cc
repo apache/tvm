@@ -480,8 +480,8 @@ class ComputeInliner : public BaseInliner {
         const IterVar& iter = producer_block->iter_vars[i];
         const PrimExpr& e = inlined_store_->indices[i];
         if (e.same_as(iter->var) ||
-            (analyzer_.CanProveEqual(e, 0) && analyzer_.CanProveEqual(iter->dom->min, 0) &&
-             analyzer_.CanProveEqual(iter->dom->extent, 1))) {
+            (analyzer_->CanProveEqual(e, 0) && analyzer_->CanProveEqual(iter->dom->min, 0) &&
+             analyzer_->CanProveEqual(iter->dom->extent, 1))) {
           idx_vars.push_back(iter->var);
         } else {
           break;
@@ -505,7 +505,7 @@ class ComputeInliner : public BaseInliner {
         /*input_iters=*/producer_iter_doms,
         /*predicate=*/true,
         /*check_level=*/arith::IterMapLevel::Bijective,
-        /*analyzer=*/&analyzer_,
+        /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     if (!res->errors.empty()) {
       // Failure: indices of BufferStore are not bijective affine
@@ -518,7 +518,7 @@ class ComputeInliner : public BaseInliner {
     auto inverse_iter_map = arith::InverseAffineIterMap(
         res->indices, ffi::Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
     for (const auto& iter : producer_block->iter_vars) {
-      if (is_const_int(iter->dom->min) && analyzer_.CanProveEqual(iter->dom->extent, 1)) {
+      if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters
         inverse_iter_map.Set(iter->var, iter->dom->min);
       }
@@ -625,7 +625,7 @@ class ReverseComputeInliner : public BaseInliner {
         producer_block_(producer_block),
         consumer_block_(consumer_block_realize->block.get()) {
     // Initialize the predicates to ensure consumer block iters are in-bound
-    consumer_iter_in_bound_ = Bool(true);
+    consumer_iter_in_bound_ = const_true();
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
       consumer_iter_in_bound_ =
           consumer_iter_in_bound_ &&
@@ -671,7 +671,7 @@ class ReverseComputeInliner : public BaseInliner {
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
         /*check_level=*/arith::IterMapLevel::NoCheck,
-        /*analyzer=*/&analyzer_,
+        /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     buffer_load_iter_map_ = res->indices;
     if (buffer_load_iter_map_.empty()) {
@@ -721,12 +721,12 @@ class ReverseComputeInliner : public BaseInliner {
       const IterVar& iter = producer_block->iter_vars[i];
       const PrimExpr& binding = producer_block_realize->iter_values[i];
       subst_map.Set(iter->var, binding);
-      analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+      analyzer_->Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
     }
     if (producer_block->annotations.count(s_tir::attr::auto_copy) != 0) {
       auto bind = [&](const ForNode* loop) {
-        analyzer_.Bind(loop->loop_var,
-                       Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
+        analyzer_->Bind(loop->loop_var,
+                        Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
       };
       const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
       while (producer_inner_loop->body.as<ForNode>()) {
@@ -738,15 +738,15 @@ class ReverseComputeInliner : public BaseInliner {
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
     PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
-    predicate = analyzer_.Simplify(predicate);
+    predicate = analyzer_->Simplify(predicate);
     if (is_one(predicate)) {
       return producer_block_realize;
     }
     if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
       if (!if_->else_case.defined()) {
-        PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
+        PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
         if (!ffi::StructuralEqual()(predicate, if_predicate)) {
-          predicate = analyzer_.Simplify(predicate && if_->condition);
+          predicate = analyzer_->Simplify(predicate && if_->condition);
           producer_block.CopyOnWrite()->body = if_->then_case;
         }
       }
@@ -754,7 +754,7 @@ class ReverseComputeInliner : public BaseInliner {
     PrimExpr outer_predicate = Substitute(predicate, subst_map);
     auto n = producer_block_realize.CopyOnWrite();
     n->block = producer_block;
-    n->predicate = analyzer_.Simplify(outer_predicate);
+    n->predicate = analyzer_->Simplify(outer_predicate);
     return ffi::GetRef<SBlockRealize>(n);
   }
 
@@ -790,9 +790,9 @@ class ReverseComputeInliner : public BaseInliner {
       if (auto it = idx_sub_.find(iter->var.get()); it != idx_sub_.end()) {
         const PrimExpr& producer_iter = it->second;
         arith::IntSet producer_iter_range = arith::EvalSet(producer_iter, producer_iter_doms);
-        if (analyzer_.CanProve(producer_iter_range.min() > iter->dom->min) ||
-            analyzer_.CanProve(producer_iter_range.max() <
-                               iter->dom->min + iter->dom->extent - 1)) {
+        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom->min) ||
+            analyzer_->CanProve(producer_iter_range.max() <
+                                iter->dom->min + iter->dom->extent - 1)) {
           return false;
         }
       } else {
@@ -972,7 +972,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
       /*realize=*/GetSBlockRealize(self, producer_block_sref),
       /*loop_var_ranges=*/
       LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(producer_block_sref->parent)),
-      /*analyzer=*/&analyzer);
+      /*analyzer=*/analyzer.get());
 }
 
 bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {
@@ -1299,7 +1299,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   // Simplify the expression (e.g., 0 + C[vi, vj] -> C[vi, vj])
   arith::Analyzer analyzer;
-  init_epilogue = analyzer.Simplify(init_epilogue);
+  init_epilogue = analyzer->Simplify(init_epilogue);
 
   BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue,
                                            Substitute(epilogue_output_indices_, var_map));

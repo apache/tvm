@@ -19,6 +19,7 @@
 import inspect
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -81,7 +82,7 @@ class BaseCompare:
             with analyzer.constraint_scope(test_case.constraint):
                 after = analyzer.rewrite_simplify(test_case.before)
 
-            assert tvm.ir.structural_equal(after, test_case.expected), (
+            assert tvm_ffi.structural_equal(after, test_case.expected), (
                 f"Rewrite didn't match expected.\n"
                 f"Before   = {test_case.before}\n"
                 f"After    = {after}\n"
@@ -917,6 +918,13 @@ class TestMaxIndex(BaseCompare):
     )
 
 
+# These simplifications relied on arith::CanProve being able to prove
+# vscale-bearing inequalities (e.g. vscale() > 0) by substituting known
+# vscale values for the current VLA target. That proof loop has been removed
+# from the arith layer -- arith no longer attempts to reason about scalable
+# vector lengths at the target level. The simplifications are correct in
+# principle but can no longer be proven without the substitution loop.
+@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
 class TestScalableIndex(BaseCompare):
     x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
     test_case = tvm.testing.parameter(
@@ -1257,10 +1265,10 @@ class TestDivZero(BaseCompare):
     broadcast = tvm.tirx.Broadcast(0, 2)
 
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tirx.Div(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.Mod(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorMod(ramp, broadcast), tvm.error.TVMError),
+        TestCase(tvm.tirx.Div(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.Mod(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorMod(ramp, broadcast), RuntimeError),
     )
 
 

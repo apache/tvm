@@ -239,6 +239,10 @@ class ExprEvaluator:
                 end_col_offset=node.end_col_offset,
             )
 
+        if isinstance(node, doc.ListComp | doc.SetComp | doc.DictComp):
+            value = self._eval_expr(node)
+            return self._add_intermediate_result(value)
+
         fields = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
             attr = getattr(node, field)

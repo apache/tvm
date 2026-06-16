@@ -18,9 +18,11 @@
 """Test parallelism for multiple different scalar workloads."""
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
@@ -34,7 +36,7 @@ TEST_OUTPUT_TEMPLATE = (
 def get_add_operator(operations):
     """Generate add operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
@@ -51,7 +53,7 @@ def get_add_operator(operations):
 def get_multiply_operator(operations):
     """Generate multiply operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
@@ -68,7 +70,7 @@ def get_multiply_operator(operations):
 def get_sub_operator(operations):
     """Generate subtract operator."""
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a, [operations], dtype="float64")
@@ -141,7 +143,7 @@ class TestMatMulVec:
 
     split_factor = tvm.testing.parameter(4)
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_add(
         self,
         hexagon_session,

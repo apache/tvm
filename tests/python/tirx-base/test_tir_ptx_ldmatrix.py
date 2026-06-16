@@ -16,13 +16,15 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def ptx_ldmatrix(
     A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
@@ -39,7 +41,7 @@ def ptx_ldmatrix(
             A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
 
         T.evaluate(
-            T.ptx_ldmatrix(
+            T.ptx.ldmatrix_legacy(
                 trans,
                 num,
                 ".b16",
@@ -57,7 +59,8 @@ def ptx_ldmatrix(
                     B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
-@tvm.testing.requires_cuda_compute_version(7, 5)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_ptx_ldmatrix():
     f = ptx_ldmatrix
     _, _, param_num, param_trans = f.params

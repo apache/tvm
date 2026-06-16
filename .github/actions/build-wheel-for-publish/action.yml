@@ -1,0 +1,148 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Build TVM Wheel
+description: >
+  Build and test the LLVM-enabled TVM wheel for a given OS/architecture
+  combination using cibuildwheel.
+
+inputs:
+  arch:
+    description: "Target architecture for cibuildwheel (e.g., x86_64, aarch64, arm64, AMD64)"
+    required: true
+  build:
+    description: "cibuildwheel build selector (e.g., cp310-manylinux_x86_64)"
+    required: true
+  cmake_defines:
+    description: "Feature CMake defines that vary by wheel (e.g. -DUSE_METAL=ON on macOS)"
+    required: false
+    default: ""
+  include_cuda_runtime:
+    description: "Set to 1 to build and inject the CUDA runtime library (Linux only)"
+    required: false
+    default: "0"
+
+runs:
+  using: "composite"
+  steps:
+    # Single source of truth for the LLVM toolchain version, shared by the cache
+    # key and the conda install steps below.
+    - name: Set LLVM version
+      shell: bash
+      run: echo "LLVM_VERSION=22.1.0" >> "$GITHUB_ENV"
+
+    - name: Prepare LLVM cache path (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -eux
+        sudo mkdir -p /opt/llvm
+        sudo chown -R "$(whoami)" /opt/llvm
+
+    # ---- Cache LLVM prefix ----
+    - name: Cache LLVM
+      uses: actions/cache@v5.0.5
+      id: llvm-cache
+      with:
+        path: ${{ runner.os == 'Windows' && 'C:/opt/llvm' || '/opt/llvm' }}
+        key: tvm-wheel-llvm-${{ env.LLVM_VERSION }}-${{ runner.os }}-${{ inputs.arch }}-v6
+
+    # ---- Install LLVM via conda (cache miss only) ----
+    - name: Setup conda
+      if: steps.llvm-cache.outputs.cache-hit != 'true'
+      uses: conda-incubator/setup-miniconda@v4.0.1
+      continue-on-error: true
+      id: conda1
+      with:
+        miniforge-version: latest
+        conda-remove-defaults: true
+
+    - name: Setup conda (retry with tar.bz2)
+      if: steps.llvm-cache.outputs.cache-hit != 'true' && steps.conda1.outcome == 'failure'
+      uses: conda-incubator/setup-miniconda@v4.0.1
+      with:
+        miniforge-version: latest
+        use-only-tar-bz2: true
+        conda-remove-defaults: true
+
+    - name: Install LLVM (Unix)
+      if: steps.llvm-cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      shell: bash -l {0}
+      run: |
+        set -eux
+        if [[ "${RUNNER_OS}" == "Linux" ]]; then
+          sudo mkdir -p /opt/llvm
+          sudo chown -R "$(whoami)" /opt/llvm
+        fi
+        conda create -q -p /opt/llvm -c conda-forge \
+          "llvmdev=${LLVM_VERSION}" "clangdev=${LLVM_VERSION}" "compiler-rt=${LLVM_VERSION}" zlib zstd-static libxml2-devel \
+          -y
+
+    - name: Install LLVM (Windows)
+      if: steps.llvm-cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: cmd /C call {0}
+      run: |
+        call conda create -q -p C:\opt\llvm -c conda-forge llvmdev=%LLVM_VERSION% zlib zstd-static libxml2-devel -y
+
+    # The {project} placeholder is not expanded inside CIBW_ENVIRONMENT values, so
+    # compute the forward-slash host path here (the Windows analog of the Linux
+    # /project hardcode).
+    - name: Compute CUDA sidecar path (Windows)
+      if: runner.os == 'Windows' && inputs.include_cuda_runtime == '1'
+      shell: bash
+      run: echo "TVM_CUDA_EXTRA_LIB=$(cygpath -m "$(pwd)")/build-wheel-cuda/lib/tvm_runtime_cuda.dll" >> "$GITHUB_ENV"
+
+    # ---- Build and test wheels ----
+    - name: Build and test wheels
+      uses: pypa/cibuildwheel@v4.1.0
+      with:
+        package-dir: .
+        output-dir: wheelhouse
+      env:
+        CIBW_BUILD: ${{ inputs.build }}
+        CIBW_ARCHS_LINUX: ${{ inputs.arch }}
+        CIBW_ARCHS_MACOS: ${{ inputs.arch }}
+        CIBW_ARCHS_WINDOWS: ${{ inputs.arch }}
+        # Linux builds run in cibuildwheel's default manylinux_2_28 container;
+        # bind-mount the cached LLVM prefix into it. Ignored on macOS/Windows,
+        # which build without a container.
+        CIBW_CONTAINER_ENGINE: "docker; create_args: --volume /opt/llvm:/opt/llvm:ro"
+        # Each per-OS block carries the toolchain location (conda LLVM prefix +
+        # llvm-config path), the universal static-link policy (USE_LLVM --link-static
+        # and ZLIB_USE_STATIC_LIBS), and the CUDA sidecar. Feature defines that vary by
+        # wheel (e.g. USE_METAL on macOS) come from the matrix via inputs.cmake_defines.
+        # One explicit block per build platform (macOS / Linux / Windows); cibuildwheel
+        # env overrides replace rather than merge, so there is no shared base block.
+        CIBW_ENVIRONMENT_MACOS: >-
+          CMAKE_PREFIX_PATH="/opt/llvm"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }}"
+        CIBW_ENVIRONMENT_LINUX: >-
+          CMAKE_PREFIX_PATH="/opt/llvm"
+          LIBRARY_PATH="/opt/llvm/lib"
+          CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so"
+        CIBW_ENVIRONMENT_WINDOWS: >-
+          CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
+          PATH="C:/opt/llvm/Library/bin;$PATH"
+          CMAKE_ARGS="-DUSE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=${{ env.TVM_CUDA_EXTRA_LIB }}"
+        # Turns the wheel-specific assertions in
+        # tests/python/all-platform-minimal-test/test_validate_runtime_library.py
+        # ON (they skip unless these are set). Every published wheel is LLVM-enabled,
+        # so TVM_WHEEL_EXPECT_LLVM is always "1"; the CUDA runtime is only bundled on
+        # the CUDA wheels, so TVM_WHEEL_EXPECT_CUDA_RUNTIME is "0" for CPU wheels.
+        CIBW_TEST_ENVIRONMENT: >-
+          TVM_WHEEL_EXPECT_LLVM="1"
+          TVM_WHEEL_EXPECT_CUDA_RUNTIME="${{ inputs.include_cuda_runtime }}"

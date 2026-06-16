@@ -16,17 +16,55 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/op.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
+#include <tvm/tirx/stmt_functor.h>
 
-#include "../../ir/script/script_complete.h"
+#include "../../../tirx/ir/script/script_complete.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace tirx {
+
+namespace {
+
+// In s_tir functions, buffer-typed parameters must not carry a layout (the
+// s_tir IR doesn't track per-buffer layouts on params). When `T.Buffer(...)` is
+// used as a parameter annotation, the parser evaluates the annotation outside
+// the PrimFunc frame; if the annotation captures an outer-scope variable (e.g.
+// `dtype` in a closure-based generator), the evaluation happens *before*
+// `_current_s_tir()` becomes true, so the resulting Buffer is built with the
+// default tile layout instead of None. Direct annotations using only literals
+// are re-evaluated inside the frame and correctly get layout=None.
+//
+// This normalizer runs at PrimFunc construction time: it strips any defined
+// layout from buffers in `buffer_map` / `root_alloc_buffers` and rewrites
+// matching body references through the StmtExprMutator's built-in
+// `buffer_remap_` machinery, so the body remains well-formed.
+class STirBufferLayoutNormalizer : public tvm::tirx::StmtExprMutator {
+ public:
+  void Register(const tvm::tirx::Buffer& old_buf, const tvm::tirx::Buffer& new_buf) {
+    this->buffer_remap_.Set(old_buf, new_buf);
+  }
+  bool Empty() const { return this->buffer_remap_.empty(); }
+  tvm::tirx::Buffer Lookup(const tvm::tirx::Buffer& buf) const {
+    auto it = this->buffer_remap_.find(buf);
+    if (it != this->buffer_remap_.end()) {
+      return (*it).second;
+    }
+    return buf;
+  }
+};
+
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
@@ -41,23 +79,75 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
+  ComposeOpFrameNode::RegisterReflection();
+  DeclBufferFrameNode::RegisterReflection();
+  AllocBufferFrameNode::RegisterReflection();
+  HintFrameNode::RegisterReflection();
 }
 
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
   // add a global symbol
+  auto insert_attr = [&](ffi::String key, ffi::Any value) {
+    if (!attrs.defined()) {
+      attrs = {{key, value}};
+    } else if (!attrs.count(key)) {
+      // copy over attributes (can't mutate the dict inside the optional in-place)
+      ffi::Map<ffi::String, ffi::Any> new_attrs;
+      for (auto kv : attrs) {
+        new_attrs.Set(kv.first, kv.second);
+      }
+      new_attrs.Set(key, value);
+      attrs = std::move(new_attrs);
+    }
+  };
   if (!is_private && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
-    attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+    insert_attr(tvm::attr::kGlobalSymbol, name.value());
   }
-
+  if (s_tir) {
+    insert_attr(tvm::attr::kSTir, true);
+  }
+  if (persistent) {
+    insert_attr(tvm::tirx::attr::kPersistentKernel, true);
+  }
+  // s_tir-mode normalization: drop stale default layouts (see comment on
+  // STirBufferLayoutNormalizer above) and rewrite body references coherently.
+  ffi::Map<tvm::tirx::Var, tvm::tirx::Buffer> effective_buffer_map = buffer_map;
+  ffi::Array<tvm::tirx::Buffer> effective_root_alloc_buffers = root_alloc_buffers;
+  tvm::tirx::Stmt body = AsStmt(stmts);
+  if (s_tir) {
+    STirBufferLayoutNormalizer normalizer;
+    ffi::Map<tvm::tirx::Var, tvm::tirx::Buffer> new_buffer_map;
+    for (const auto& kv : buffer_map) {
+      tvm::tirx::Buffer buf = kv.second;
+      if (buf->layout.has_value()) {
+        tvm::tirx::Buffer new_buf = buf;
+        new_buf.CopyOnWrite()->layout = std::nullopt;
+        normalizer.Register(buf, new_buf);
+        new_buffer_map.Set(kv.first, new_buf);
+      } else {
+        new_buffer_map.Set(kv.first, buf);
+      }
+    }
+    if (!normalizer.Empty()) {
+      body = normalizer(std::move(body));
+      ffi::Array<tvm::tirx::Buffer> new_root_alloc_buffers;
+      for (const tvm::tirx::Buffer& buf : root_alloc_buffers) {
+        new_root_alloc_buffers.push_back(normalizer.Lookup(buf));
+      }
+      effective_buffer_map = std::move(new_buffer_map);
+      effective_root_alloc_buffers = std::move(new_root_alloc_buffers);
+    }
+  }
   tvm::tirx::PrimFunc func(
       /*params=*/args,
-      /*body=*/AsStmt(stmts),
+      /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
-      /*buffer_map=*/buffer_map,
-      /*attrs=*/DictAttrs(attrs));
-  func = tvm::tirx::ScriptComplete(func, root_alloc_buffers);
+      /*buffer_map=*/effective_buffer_map,
+      /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
+      /*span=*/tvm::Span());
+  func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
     TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
@@ -82,6 +172,10 @@ void PrimFuncFrameNode::ExitWithScope() {
 
 void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
+
+  // Allow SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
+  // so test fixtures can construct blocks/block-realizes directly.
+
   ffi::Array<tvm::tirx::Buffer> tir_alloc_buffers;
   for (const tvm::tirx::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
@@ -92,7 +186,8 @@ void SBlockFrameNode::ExitWithScope() {
   }
   tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tirx::BufferRegion>()),
                           writes.value_or(ffi::Array<tvm::tirx::BufferRegion>()), name,
-                          AsStmt(stmts), init, tir_alloc_buffers, match_buffers, attrs);
+                          AsStmt(stmts), init, tir_alloc_buffers, match_buffers, attrs,
+                          tvm::Span());
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
@@ -100,7 +195,8 @@ void SBlockFrameNode::ExitWithScope() {
         << "`T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
-    AddToParent(tvm::tirx::SBlockRealize(iter_values, predicate.value_or(Bool(true)), block));
+    AddToParent(tvm::tirx::SBlockRealize(iter_values,
+                                         predicate.value_or(IntImm(DataType::Bool(), 1)), block));
   }
 }
 
@@ -195,6 +291,48 @@ void ElseFrameNode::EnterWithScope() {
 void ElseFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   FindIfFrame("T.else_")->else_stmts = stmts;
+}
+
+void DeclBufferFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  if (allocated) {
+    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::DeclBuffer(buffer), AsStmt(stmts)));
+  } else {
+    // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
+    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer), AsStmt(stmts)));
+  }
+}
+
+void ComposeOpFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  ffi::Array<ffi::ObjectRef> ops;
+  for (const auto& stmt : stmts) {
+    auto op_call = stmt.as<tvm::tirx::TilePrimitiveCallNode>();
+    TVM_FFI_ICHECK(op_call) << "ValueError: Only TIRx op calls allowed in ComposeOp. Violated by "
+                            << stmt;
+    ops.push_back(ffi::GetRef<tvm::tirx::TilePrimitiveCall>(op_call));
+  }
+  static const Op& compose_op_op = Op::Get("tirx.tile.compose_op");
+  AddToParent(tvm::tirx::TilePrimitiveCall(compose_op_op, ops, workspace, config, dispatch));
+}
+
+void AllocBufferFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer), AsStmt(stmts)));
+}
+
+void HintFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  // Always store attrs as a structured Map in the node field
+  ffi::Map<ffi::String, Any> full_attrs;
+  if (!message.empty()) {
+    full_attrs.Set("message", ffi::String(message));
+  }
+  for (const auto& [k, v] : attrs) {
+    full_attrs.Set(k, v);
+  }
+  AddToParent(
+      tvm::tirx::AttrStmt(full_attrs, "tirx_hint", IntImm(DataType::Int(32), 1), AsStmt(stmts)));
 }
 
 }  // namespace tirx

@@ -129,6 +129,7 @@ def detect_iter_map(
     predicate=True,
     check_level=IterMapLevel.Surjective,
     simplify_trivial_iterators=True,
+    analyzer=None,
 ):
     """Detect if indices can be written as mapped iters from input iters
 
@@ -150,6 +151,10 @@ def detect_iter_map(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     -------
     results : IterMapResult
@@ -162,11 +167,11 @@ def detect_iter_map(
     elif check_level is None:
         check_level = IterMapLevel.NoCheck
     return _ffi_api.DetectIterMap(
-        indices, input_iters, predicate, check_level, simplify_trivial_iterators
+        indices, input_iters, predicate, check_level, simplify_trivial_iterators, analyzer
     )
 
 
-def normalize_to_iter_sum(index, input_iters):
+def normalize_to_iter_sum(index, input_iters, analyzer=None):
     """Normalize expr to iter sum.
 
     The normalized result ensures that
@@ -181,6 +186,10 @@ def normalize_to_iter_sum(index, input_iters):
     input_iters : Map[tvm.tirx.Var, Range]
         The domain of each input iterators.
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     -------
     iter_sum: IterSumExpr
@@ -194,7 +203,7 @@ def normalize_to_iter_sum(index, input_iters):
     This function is useful to decide the stride multiplier and
     division factor in buffer access patterns.
     """
-    return _ffi_api.NormalizeToIterSum(index, input_iters)
+    return _ffi_api.NormalizeToIterSum(index, input_iters, analyzer)
 
 
 def iter_map_simplify(
@@ -203,6 +212,7 @@ def iter_map_simplify(
     predicate=True,
     check_level=IterMapLevel.Surjective,
     simplify_trivial_iterators=True,
+    analyzer=None,
 ):
     """Simplify the indices using iter map detection.
 
@@ -224,6 +234,10 @@ def iter_map_simplify(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     -------
     results : IterMapResult
@@ -236,7 +250,7 @@ def iter_map_simplify(
     elif check_level is None:
         check_level = IterMapLevel.NoCheck
     return _ffi_api.IterMapSimplify(
-        indices, input_iters, predicate, check_level, simplify_trivial_iterators
+        indices, input_iters, predicate, check_level, simplify_trivial_iterators, analyzer
     )
 
 
@@ -263,6 +277,7 @@ def subspace_divide(
     predicate=True,
     check_level=IterMapLevel.Surjective,
     simplify_trivial_iterators=True,
+    analyzer=None,
 ):
     """Detect if bindings can be written as
     ``[a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]``
@@ -305,6 +320,10 @@ def subspace_divide(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
+    analyzer : Optional[tvm.arith.Analyzer]
+        The analyzer to use.  When provided, its accumulated bindings and
+        constraints are reused; otherwise a fresh analyzer is created.
+
     Returns
     -------
     results : List[List[PrimExpr]]
@@ -319,7 +338,13 @@ def subspace_divide(
     if isinstance(check_level, str):
         check_level = IterMapLevel.from_str(check_level)
     return _ffi_api.SubspaceDivide(
-        bindings, input_iters, sub_iters, predicate, check_level, simplify_trivial_iterators
+        bindings,
+        input_iters,
+        sub_iters,
+        predicate,
+        check_level,
+        simplify_trivial_iterators,
+        analyzer,
     )
 
 

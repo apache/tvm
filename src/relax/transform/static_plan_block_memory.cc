@@ -78,7 +78,7 @@
 #include <set>
 #include <vector>
 
-#include "../../runtime/texture.h"
+#include "../../backend/opencl/runtime/texture.h"
 #include "utils.h"
 
 namespace tvm {
@@ -195,7 +195,7 @@ using Tokens = NestedMsg<StorageToken>;
  */
 class TokenAllocatorMixed {
  public:
-  explicit TokenAllocatorMixed(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocatorMixed(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
@@ -314,7 +314,7 @@ class TokenAllocatorMixed {
   };
 
   /*! \brief The arithmetic analyzer. */
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
   /*! \brief The pool of available storage tokens for each storage scope and dtype. */
@@ -408,7 +408,7 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param ana The analyzer which contains the TIR var upper bounds.
  * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
+void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
                                ffi::Map<tirx::Var, arith::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
@@ -468,7 +468,7 @@ void SetTIRVarRangeConstraints(Function func, arith::Analyzer* ana,
  * \return The upper-bounded shape. When a dimension's upper bound
  * cannot be determined, we keep the dimension unchanged.
  */
-ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::Analyzer* ana,
+ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, arith::AnalyzerObj* ana,
                                         const ffi::Map<tirx::Var, arith::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   ffi::Array<PrimExpr> upper_bounded_shape;
@@ -517,7 +517,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    * \return The mapping from each Expr to the token it uses.
    */
   static std::unordered_map<const ExprNode*, Tokens> Initialize(const IRModule& mod,
-                                                                arith::Analyzer* analyzer) {
+                                                                arith::AnalyzerObj* analyzer) {
     StorageAllocatorInit initializer(mod, analyzer);
 
     for (auto it : mod->functions) {
@@ -533,7 +533,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  private:
   using ExprVisitor::VisitExpr_;
 
-  explicit StorageAllocatorInit(const IRModule& ctx_mod, arith::Analyzer* analyzer)
+  explicit StorageAllocatorInit(const IRModule& ctx_mod, arith::AnalyzerObj* analyzer)
       : ctx_mod_(ctx_mod), analyzer_(analyzer) {}
 
   void VisitExpr_(const FunctionNode* func) final {
@@ -724,7 +724,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
    */
   const IRModule& ctx_mod_;
   /*! \brief The arithmetic analyzer. */
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
   ffi::Map<tirx::Var, arith::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
@@ -750,7 +750,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 class StorageAllocator : public StorageAllocatorBaseVisitor {
  public:
   explicit StorageAllocator(std::unordered_map<const ExprNode*, Tokens> token_map,
-                            arith::Analyzer* analyzer)
+                            arith::AnalyzerObj* analyzer)
       : allocator_(analyzer) {
     this->token_map_ = std::move(token_map);
   }
@@ -902,7 +902,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), &ana_, &dom_map_);
+        SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), ana_.get(), &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));
@@ -966,7 +966,8 @@ class StorageAllocationRewriter : public ExprMutator {
       TVM_FFI_ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK_NOTNULL(shape);
-      ffi::Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
+      ffi::Array<PrimExpr> upper_bounded_shape =
+          GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
         TVM_FFI_ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
@@ -1014,9 +1015,9 @@ IRModule StaticPlanBlockMemory(IRModule mod) {
 
   // Step 1. Initialize.
   std::unordered_map<const ExprNode*, Tokens> token_map =
-      StorageAllocatorInit::Initialize(mod, &ana);
+      StorageAllocatorInit::Initialize(mod, ana.get());
   // Step 2. Collect the memory allocation info.
-  StorageAllocator allocator(std::move(token_map), &ana);
+  StorageAllocator allocator(std::move(token_map), ana.get());
   allocator.Allocate(mod);
   // Step 3. Rewrite the function.
   StorageAllocationRewriter rewriter(std::move(mod),  //
@@ -1041,9 +1042,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
                                          VDevice vdevice) {
-  int image_row_align = vdevice->target->GetAttr<Integer>("image_base_address_alignment")
-                            .value_or(Integer(64))
-                            ->value;
+  int image_row_align = static_cast<int>(
+      vdevice->target->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
 
   struct Shape {
     const ffi::Array<PrimExpr>& shape;

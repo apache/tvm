@@ -229,17 +229,16 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
 }
 
 TupleGetItem WithFields(TupleGetItem tuple_get_item, ffi::Optional<Expr> opt_tuple,
-                        ffi::Optional<Integer> opt_index, ffi::Optional<Span> opt_span) {
+                        ffi::Optional<int64_t> opt_index, ffi::Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
-  Integer index = opt_index.value_or(tuple_get_item->index);
+  int64_t index = opt_index.value_or(tuple_get_item->index);
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
                    span.same_as(tuple_get_item->span);
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
-    cow_tuple_get_item_node->tuple = tuple;
-    cow_tuple_get_item_node->index = index.IntValue();
+    cow_tuple_get_item_node->index = static_cast<int>(index);
     cow_tuple_get_item_node->span = span;
   }
   return tuple_get_item;
@@ -542,10 +541,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> ret_struct_info,
                    bool is_pure, DictAttrs attrs, Span span) {
-  if (!attrs.defined()) {
-    attrs = DictAttrs();
-  }
-
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.

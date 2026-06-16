@@ -16,6 +16,7 @@
 # under the License.
 """Abstraction for array data structures."""
 
+import functools
 from numbers import Integral
 
 import tvm_ffi
@@ -176,6 +177,18 @@ class Buffer(Object, Scriptable):
         """
         return _ffi_api.BufferGetFlattenedBuffer(self)  # type: ignore
 
+    def with_allocated_addr(self, allocated_addr):
+        """Return a new buffer with the allocated address."""
+        return _ffi_api.BufferWithAllocatedAddr(self, allocated_addr)  # type: ignore
+
+    def with_dtype(self, dtype):
+        """Return a new buffer with the dtype."""
+        return _ffi_api.BufferWithDtype(self, dtype)  # type: ignore
+
+    def with_data(self, data):
+        """Return a new buffer with the data."""
+        return _ffi_api.BufferWithData(self, data)  # type: ignore
+
     def offset_of(self, indices):
         """Determine the offset of the provided indices in the flattened buffer.
 
@@ -193,6 +206,260 @@ class Buffer(Object, Scriptable):
         """
         return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
 
+    @property
+    def byte_offset(self):
+        """Get the byte offset of the buffer."""
+        return self.elem_offset * tvm.DataType(self.dtype).bits // 8
+
+    def elem_offset_of(self, indices, inner=True):
+        """Get the element offset of the buffer at the given indices.
+        Note that indices subject to buffer's layout mapping.
+
+        Parameters
+        ----------
+        indices : Union[PrimExpr, List[PrimExpr]]
+            The indices of the element in the original buffer.
+
+        inner : bool, optional
+            If False, the offset is relative to the original buffer.
+            Default is True.
+
+        Returns
+        -------
+        offset: PrimExpr
+            The element offset of the buffer at the given indices.
+        """
+        if inner:
+            return _ffi_api.BufferOffsetOfp(self, indices)
+        return self.elem_offset + _ffi_api.BufferOffsetOfp(self, indices)
+
+    def byte_offset_of(self, indices, inner=True):
+        """Get the byte offset of the buffer at the given indices.
+        Note that indices subject to buffer's layout mapping.
+
+        Parameters
+        ----------
+        indices : Union[PrimExpr, List[PrimExpr]]
+            The indices of the element in the original buffer.
+
+        inner : bool, optional
+            If False, the offset is relative to the original buffer.
+            Default is True.
+
+        Returns
+        -------
+        offset: PrimExpr
+            The byte offset of the buffer at the given indices.
+        """
+        return self.elem_offset_of(indices, inner) * tvm.DataType(self.dtype).bits // 8
+
+    def is_scalar(self, alloc_or_decl=True):
+        """Check if the buffer is a scalar.
+
+        Parameters
+        ----------
+        alloc_or_decl : bool, optional
+            Whether to consider alloc_scalar and decl_scalar as scalar. True for alloc_scalar,
+            False for decl_scalar.
+
+        Returns
+        -------
+            bool: True if the buffer is a scalar, False otherwise.
+        """
+        return _ffi_api.BufferIsScalar(self, alloc_or_decl)
+
+    def ptr_to(self, indices):
+        """Get the pointer to the buffer at the given indices (logical indices).
+
+        Note that the bufferload inside requires LowerTIPp pass to apply the layout to get the physical indices.
+        """  # noqa: E501
+        assert len(indices) == len(self.shape), (
+            f"The number of indices {indices} does not match the shape of the buffer {self.shape}"
+        )
+        return tvm.tirx.address_of(self[tuple(indices)])
+
+    def view(self, *args, **kwargs) -> "Buffer":
+        """Creates a new view of the buffer. (used by parser)
+
+        Supported signatures are ``view(*shape, layout=None)``, where shape can contain
+        ``-1`` to indicate that the dimension size is auto-inferred, and
+        ``view(dtype: Union[str, tvm.DataType])``.
+
+        Returns
+        -------
+        view : DeclBufferFrame
+            The corresponding view buffer.
+        """
+
+        def _infer_shape(shape):
+            shape = list(shape)
+            if -1 in shape and shape.count(-1) == 1:
+                size = functools.reduce(lambda x, y: x * y, self.shape)
+                n_size = functools.reduce(lambda x, y: x * y, [s for s in shape if s != -1], 1)
+                shape[shape.index(-1)] = size // n_size
+            else:
+                # Only validate the shape product when both old and new shapes
+                # are fully concrete: a PrimExpr `==` returns an `EQ` node, not
+                # a Python bool, and `assert <PrimExpr>` raises (no __bool__).
+                if all(isinstance(s, int) for s in shape) and all(
+                    isinstance(s, int) for s in self.shape
+                ):
+                    assert functools.reduce(lambda x, y: x * y, shape) == functools.reduce(
+                        lambda x, y: x * y, self.shape
+                    ), (
+                        "The shape of the buffer "
+                        + str(self.shape)
+                        + " and the new shape "
+                        + str(shape)
+                        + " are not compatible"
+                    )
+            return shape
+
+        if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
+            cast_dtype = tvm.DataType(args[0])
+            cur_dtype = tvm.DataType(self.dtype)
+            if cast_dtype.bits > cur_dtype.bits:
+                # cast up
+                assert cast_dtype.bits % cur_dtype.bits == 0
+                ratio = cast_dtype.bits // cur_dtype.bits
+                layout = self.layout.pack(ratio)
+                shape = [s for s in self.shape[:-1]] + [self.shape[-1] // ratio]
+                new_elem_offset = self.elem_offset // ratio
+            else:
+                # cast down
+                assert cur_dtype.bits % cast_dtype.bits == 0
+                ratio = cur_dtype.bits // cast_dtype.bits
+                layout = self.layout.unpack(ratio)
+                shape = [s for s in self.shape[:-1]] + [self.shape[-1] * ratio]
+                new_elem_offset = self.elem_offset * ratio
+            return tvm.tirx.script.builder.decl_buffer(
+                shape,
+                cast_dtype,
+                self.data,
+                self.strides,
+                new_elem_offset,
+                None,
+                self.scope(),
+                self.data_alignment,
+                self.offset_factor,
+                "",
+                self.axis_separators,
+                layout,
+            )
+        else:
+            # --- Signature 1: view(*shape, **opts) ---
+            # Check if all positional args are integers/PrimExprs with dtype int32 or int64 (the shape)  # noqa: E501
+            shape = args
+            assert all(
+                isinstance(arg, int)
+                or (isinstance(arg, PrimExpr) and arg.dtype in ["int32", "int64"])
+                for arg in shape
+            ), "shape must be a list of integers or PrimExprs with dtype int32 or int64"
+            # Safely get optional keyword arguments
+            layout = kwargs.get("layout", None)
+            # Assert there are no other kwargs
+            assert set(kwargs.keys()).issubset({"layout"}), (
+                f"Unsupported kwargs for view: {set(kwargs.keys()) - {'layout'}}"
+            )
+
+            if layout is None:
+                shape = _infer_shape(shape)
+
+            return tvm.tirx.script.builder.decl_buffer(
+                shape,
+                self.dtype,
+                self.data,
+                self.strides,
+                self.elem_offset,
+                None,
+                self.scope(),
+                self.data_alignment,
+                self.offset_factor,
+                "",
+                self.axis_separators,
+                self.layout if layout is None else layout,
+            )
+
+    def local(self, *shape, layout=None) -> "Buffer":
+        """Create a thread-local view of this buffer.
+
+        When called with no shape arguments, auto-infers a 1D shape from
+        the layout's non-thread component (i.e. ``layout.storage().shard``).
+
+        Parameters
+        ----------
+        shape : tuple of Expr
+            The shape of the local view for indexing. If omitted, a 1D
+            shape is computed automatically.
+
+        layout : optional
+            Override layout. If None, uses the storage layout
+            (parent layout with thread axes removed).
+
+        Returns
+        -------
+        local : DeclBufferFrame
+            The corresponding local buffer.
+        """
+        if not shape:
+            local_layout = self.layout.storage()
+            total = functools.reduce(
+                lambda x, y: x * y, [it.extent for it in local_layout.shard], 1
+            )
+            shape = (total,)
+        return tvm.tirx.script.builder.decl_buffer(
+            shape,
+            self.dtype,
+            self.data,
+            self.strides,
+            self.elem_offset,
+            None,
+            self.scope(),
+            self.data_alignment,
+            self.offset_factor,
+            "",
+            self.axis_separators,
+            self.layout.storage() if layout is None else layout,
+        )
+
+    def permute(self, *dims) -> "Buffer":
+        """Permute the dimensions of the buffer.
+
+        Parameters
+        ----------
+        dims : tuple of int
+            The permutation of dimensions.
+
+        Returns
+        -------
+        permuted : DeclBufferFrame
+            The buffer with permuted dimensions.
+        """
+        new_shape = [self.shape[d] for d in dims]
+        # Permute *logical* dims, not the layout's fine-grained shard iters: a
+        # tcgen05/atom layout maps several shard iters to each logical axis, so
+        # group by the current shape first and permute whole groups. ``group``
+        # returns a regrouped layout (degenerate extent-1 iters folded away)
+        # plus seps over *that* layout — permute the regrouped one, not
+        # ``self.layout``. For a simple layout (one shard iter per axis) this
+        # reduces to ``permute_dims(dims)``.
+        grouped, seps = self.layout.group(list(self.shape))
+        new_layout = grouped.permute_by_groups(seps, list(dims))
+        return tvm.tirx.script.builder.decl_buffer(
+            new_shape,
+            self.dtype,
+            self.data,
+            self.strides,
+            self.elem_offset,
+            None,
+            self.scope(),
+            self.data_alignment,
+            self.offset_factor,
+            "",
+            self.axis_separators,
+            new_layout,
+        )
+
     def __getitem__(self, indices):
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
         from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
@@ -201,9 +468,12 @@ class Buffer(Object, Scriptable):
         if not isinstance(indices, tuple | list):
             indices = [indices]
         has_slice = any(isinstance(i, slice) for i in indices)
-        has_step = any(isinstance(i, slice) and i.step is not None for i in indices)
+        has_step = any(
+            isinstance(i, slice) and (i.step is not None and i.step != 1) for i in indices
+        )
+        has_implicit_slice = len(indices) < len(self.shape)
         analyzer = Analyzer()
-        if has_slice and not has_step:
+        if (has_slice and not has_step) or has_implicit_slice:
             region = []
             for i, index in enumerate(indices):
                 if isinstance(index, slice):
@@ -216,6 +486,9 @@ class Buffer(Object, Scriptable):
                             index, const(1, index.dtype) if isinstance(index, PrimExpr) else 1
                         )
                     )
+            if has_implicit_slice:
+                for i in range(len(indices), len(self.shape)):
+                    region.append(Range.from_min_extent(0, self.shape[i]))
             return BufferRegion(self, region)
         else:
             expr_indices = []
@@ -250,82 +523,11 @@ def decl_buffer(
     buffer_type="",
     axis_separators=None,
     span=None,
+    layout="default",
 ):
-    """Declare a new symbolic buffer.
-
-    Normally buffer is created automatically during lower and build.
-    This is only needed if user want to specify their own buffer layout.
-
-    See the note below for detailed discussion on usage of buffer.
-
-    Parameters
-    ----------
-    shape : tuple of Expr
-        The shape of the buffer.
-
-    dtype : str, optional
-        The data type of the buffer.
-
-    name : str, optional
-        The name of the buffer.
-
-    data : tirx.Var, optional
-        The data pointer in the buffer.
-
-    strides: array of Expr
-        The stride of the buffer.
-
-    elem_offset: Expr, optional
-        The beginning offset of the array to data.
-        In terms of number of elements of dtype.
-
-    scope: str, optional
-        The storage scope of the buffer, if not global.
-        If scope equals empty string, it means it is global memory.
-
-    data_alignment: int, optional
-        The alignment of data pointer in bytes.
-        If -1 is passed, the alignment will be set to TVM's internal default.
-
-    offset_factor: int, optional
-        The factor of elem_offset field, when set,
-        elem_offset is required to be multiple of offset_factor.
-        If 0 is pssed, the alignment will be set to 1.
-        if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
-
-    buffer_type: str, optional, {"", "auto_broadcast"}
-        auto_broadcast buffer allows one to implement broadcast computation
-        without considering whether dimension size equals to one.
-        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
-
-    axis_separators : list of int, optional
-        If passed, a list of separators between groups of axes,
-        each of which is flattened to an output axis.  For flat
-        memory spaces, should either be None, or an empty list.
-
-    span: Optional[Span]
-        The location of the decl_buffer creation in the source.
-
-    Returns
-    -------
-    buffer : tvm.tirx.Buffer
-        The created buffer
-
-    Note
-    ----
-    Buffer data structure reflects the DLTensor structure in dlpack.
-    While DLTensor data structure is very general, it is usually helpful
-    to create function that only handles specific case of data structure
-    and make compiled function benefit from it.
-
-    If user pass strides and elem_offset is passed as None
-    when constructing the function, then the function will be specialized
-    for the DLTensor that is compact and aligned.
-    If user pass a fully generic symbolic array to the strides,
-    then the resulting function becomes fully generic.
-    """
     # pylint: disable=import-outside-toplevel
     from .expr import Var
+    from .layout import S, TileLayout
 
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     dtype = "float32" if dtype is None else dtype
@@ -333,6 +535,9 @@ def decl_buffer(
 
     if axis_separators is None:
         axis_separators = []
+
+    if layout == "default":
+        layout = TileLayout(S[tuple(shape)]) if shape else None
 
     if offset_factor != 0 and elem_offset is None:
         shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
@@ -354,6 +559,7 @@ def decl_buffer(
         buffer_type,
         axis_separators,
         span,
+        layout,
     )
 
 

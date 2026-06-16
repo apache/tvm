@@ -22,12 +22,17 @@
  * \brief Tensor container infratructure.
  */
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
 
+#include <algorithm>
+
+#include "../support/base64.h"
+#include "../support/bytes_io.h"
 #include "tvm/runtime/data_type.h"
 
 namespace tvm {
@@ -214,6 +219,30 @@ Tensor Tensor::CopyTo(const Device& dev, ffi::Optional<ffi::String> mem_scope) c
   return ret;
 }
 
+inline char* StorageBegin(const DLTensor* tensor) {
+  TVM_FFI_ICHECK(tensor != nullptr);
+  return static_cast<char*>(tensor->data) + tensor->byte_offset;
+}
+
+inline char* StorageEnd(const DLTensor* tensor) {
+  TVM_FFI_ICHECK(tensor != nullptr);
+  return StorageBegin(tensor) + ffi::GetDataSize(*tensor);
+}
+
+bool Tensor::IsStorageShared(const DLTensor* a, const DLTensor* b) {
+  TVM_FFI_ICHECK(a != nullptr && b != nullptr);
+  if (a->device.device_type != b->device.device_type ||
+      a->device.device_id != b->device.device_id) {
+    return false;
+  }
+  return StorageBegin(a) == StorageBegin(b) && StorageEnd(a) == StorageEnd(b);
+}
+
+bool Tensor::IsStorageShared(const Tensor& a, const Tensor& b) {
+  TVM_FFI_ICHECK(a.defined() && b.defined());
+  return IsStorageShared(a.operator->(), b.operator->());
+}
+
 void Tensor::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = ffi::GetDataSize(*from);
   size_t to_size = ffi::GetDataSize(*to);
@@ -241,6 +270,24 @@ using namespace tvm::runtime;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::TypeAttrDef<tvm::ffi::TensorObj>()
+      .def("__data_to_json__",
+           [](const tvm::ffi::TensorObj* node) {
+             std::string result;
+             tvm::support::BytesOutStream mstrm(&result);
+             tvm::support::Base64OutStream b64strm(&mstrm);
+             tvm::runtime::SaveDLTensor(&b64strm, node);
+             b64strm.Finish();
+             return tvm::ffi::String(std::move(result));
+           })
+      .def("__data_from_json__", [](const std::string& blob) {
+        tvm::support::BytesInStream mstrm(blob);
+        tvm::support::Base64InStream b64strm(&mstrm);
+        b64strm.InitPosition();
+        tvm::runtime::Tensor temp;
+        TVM_FFI_ICHECK(temp.Load(&b64strm));
+        return temp;
+      });
   refl::GlobalDef()
       .def("runtime.TVMTensorAllocWithScope", Tensor::Empty)
       .def_method("runtime.TVMTensorCreateView", &Tensor::CreateView)
@@ -249,5 +296,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.TVMTensorCopyToBytes",
            [](DLTensor* arr, void* data, size_t nbytes) { Tensor::CopyToBytes(arr, data, nbytes); })
       .def("runtime.TVMTensorCopyFromTo",
-           [](DLTensor* from, DLTensor* to) { Tensor::CopyFromTo(from, to); });
+           [](DLTensor* from, DLTensor* to) { Tensor::CopyFromTo(from, to); })
+      .def("runtime.TVMTensorIsStorageShared",
+           [](Tensor a, Tensor b) { return Tensor::IsStorageShared(a, b); });
 }

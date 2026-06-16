@@ -27,15 +27,21 @@ from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     import triton
     import triton.language as tl
+    from packaging import version
 except ImportError:
     pytestmark = pytest.skip("Triton is not available", allow_module_level=True)
+else:
+    if version.parse(triton.__version__) < version.parse("3.3.0"):
+        pytestmark = pytest.skip("Triton >= 3.3.0 is required", allow_module_level=True)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_triton_integration():
     @triton.jit
     def add_kernel(
@@ -55,9 +61,9 @@ def test_tir_triton_integration():
         output = x + y
         tl.store(output_ptr + offsets, output, mask=mask)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
             T.func_attr({"global_symbol": "add"})
             m = T.int64()
@@ -76,6 +82,7 @@ def test_tir_triton_integration():
                     output.data,
                     m,
                     BLOCK_SIZE,
+                    num_warps=8,
                 )
 
         @R.function
@@ -86,9 +93,11 @@ def test_tir_triton_integration():
                 R.output(output)
             return output
 
-    @I.ir_module
+    # Constexpr parameters (BLOCK_SIZE) stay in the kernel arguments, and the
+    # thread extent is 256 because the kernel is compiled with num_warps=8.
+    @I.ir_module(s_tir=True)
     class Parsed:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
             m = T.int64()
             x = T.match_buffer(x_handle, (m,))
@@ -103,7 +112,8 @@ def test_tir_triton_integration():
                     y.data,
                     output.data,
                     m,
-                    128,
+                    64,
+                    256,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                 )
 

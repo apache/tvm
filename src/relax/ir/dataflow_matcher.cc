@@ -55,6 +55,7 @@ namespace tvm {
 namespace relax {
 
 using tvm::arith::Analyzer;
+using tvm::arith::AnalyzerObj;
 
 /*!
  * \brief Match the attributes of an object.
@@ -209,7 +210,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   } else if (auto* op = expr.as<FunctionNode>()) {
     matches = true;
     for (auto kv : attributes) {
-      if (matches && op->attrs.defined() && op->attrs->dict.count(kv.first)) {
+      if (matches && op->attrs->dict.count(kv.first)) {
         matches &= ffi::StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
       } else {
         matches = false;
@@ -471,15 +472,15 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
       constraints.begin(), constraints.end(),
       [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
 
-  PrimExpr sorted_condition = Bool(true);
+  PrimExpr sorted_condition = tirx::const_true();
   for (const PrimExpr& constraint : constraints) {
     sorted_condition = sorted_condition && constraint;
   }
 
-  return analyzer_.Simplify(sorted_condition);
+  return analyzer_->Simplify(sorted_condition);
 }
 
-static bool ShapeEqual(Analyzer* analyzer, const ffi::Array<PrimExpr>& lhs,
+static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
@@ -491,7 +492,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   // no need to jump, as var.shape == value.shape
   if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
-      return ShapeEqual(&analyzer_, op->shape, shape_expr->values) &&
+      return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
     }
   }
@@ -504,7 +505,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
   bool all_shapes_defined = true;
 
   // The expression that must be true in order
-  PrimExpr all_dimensions_equal = Bool(true);
+  PrimExpr all_dimensions_equal = IntImm(DataType::Bool(), 1);
 
   for (const auto& arg : args) {
     if (auto opt_var = match_state(arg.get())) {
@@ -523,7 +524,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
       if (!opt_var_shape.defined()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
-        return {PrimExpr(Bool(false)), true};
+        return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
       }
       auto var_shape = opt_var_shape.value();
 
@@ -540,7 +541,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
           // The shapes have different dimensionality.  No need to
           // perform potentially-expensive simplifications, because
           // the dimensions do not match.
-          return {PrimExpr(Bool(false)), true};
+          return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
         }
 
       } else {
@@ -564,7 +565,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = UnwrapBindings(expr0, var2val_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
-    return ShapeEqual(&analyzer_, op->fields, shape_expr->values);
+    return ShapeEqual(analyzer_.get(), op->fields, shape_expr->values);
   return false;
 }
 

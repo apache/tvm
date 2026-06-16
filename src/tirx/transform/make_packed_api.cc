@@ -178,8 +178,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
 ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
-  if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
-    if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
+  if (auto opt = func->GetAttr<int64_t>(tvm::attr::kCallingConv)) {
+    if (CallingConv(opt.value()) != CallingConv::kDefault) {
       return std::nullopt;
     }
   }
@@ -228,7 +228,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // The device context
   Var device_id("dev_id");
-  Integer device_type(target_device_type);
+  IntImm device_type(DataType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
@@ -268,7 +268,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   // Return error code of zero on success
-  body = SeqStmt({body, Evaluate(ret(Integer(0)))});
+  body = SeqStmt({body, Evaluate(ret(IntImm(DataType::Int(32), 0)))});
 
   body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
                     std::move(result.decl_buffers)},

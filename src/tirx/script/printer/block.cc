@@ -30,6 +30,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   const tirx::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
+
   // Step 1. Handle block var and block bindings
   // Step 1.1. Obtain all loop var defined along path
   std::unordered_map<const tirx::VarNode*, tirx::For> loop_vars;
@@ -107,9 +108,6 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   auto print_remapped_iter_var = [&]() {
     if (remap_vars_indices.size()) {
       int m = remap_vars_indices.size();
-      if (!m) {
-        return;
-      }
       if (m == 1) {
         print_single_iter_var(remap_vars_indices[0]);
         remap_vars_indices.clear();
@@ -233,6 +231,59 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
 TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ScopeIdDefStmt>(
+        "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
+          // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
+          // (or the appropriate API name for the binding).
+          TVM_FFI_ICHECK(!d->frames.empty());
+          tirx::ScopeIdDef def = stmt->def;
+          AccessPath def_p = p->Attr("def");
+          ffi::Array<ExprDoc> lhs;
+          for (auto scope_id : def->def_ids) {
+            lhs.push_back(DefineVar(scope_id, d->frames.back(), d));
+          }
+          ffi::Array<ExprDoc> rhs_args;
+          if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
+            rhs_args.push_back(d->AsDoc<ExprDoc>(def->extents.value(), def_p->Attr("extents")));
+          }
+          ffi::Array<ffi::String> kwarg_keys;
+          ffi::Array<ExprDoc> kwarg_vals;
+          if (def->preferred_extents.defined()) {
+            kwarg_keys.push_back("preferred");
+            kwarg_vals.push_back(d->AsDoc<ExprDoc>(def->preferred_extents.value(),
+                                                   def_p->Attr("preferred_extents")));
+          }
+          ExprDoc rhs = TIR(d, ScopeIdApiName(def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
+          return AssignDoc(TupleDoc(lhs), rhs, std::nullopt);
+        });
+
+TVM_SCRIPT_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ExecScope>(
+        "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
+          Doc doc =
+              TIR(d, "ExecScope")->Call({LiteralDoc::Str(exec_scope->name(), p->Attr("name"))});
+          return doc;
+        });
+TVM_SCRIPT_REPR(tirx::ExecScopeNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::ScopeIdDef>(
+        "", [](tirx::ScopeIdDef def, AccessPath p, IRDocsifier d) -> Doc {
+          auto [parent, cur] = tirx::ScopeBindingToStringPair(def->scope);
+          ExprDoc extents_doc = def->extents.has_value()
+                                    ? d->AsDoc<ExprDoc>(def->extents.value(), p->Attr("extents"))
+                                    : LiteralDoc::None(p->Attr("extents"));
+          Doc doc = TIR(d, "ScopeIdDef")
+                        ->Call({d->AsDoc<ExprDoc>(def->def_ids, p->Attr("def_ids")), extents_doc,
+                                LiteralDoc::Str(parent, p->Attr("parent")),
+                                LiteralDoc::Str(cur, p->Attr("cur"))});
+          return doc;
+        });
+TVM_SCRIPT_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

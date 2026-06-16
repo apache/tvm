@@ -441,7 +441,7 @@ def flip(data, axis):
         The input data to the operator.
 
     axis: int
-        axis to flip on
+        The axis along which to flip over.
 
     Returns
     -------

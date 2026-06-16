@@ -190,7 +190,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
 static std::optional<MatchState> TryValidate(
     const MatchState& current_match,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
-    const std::vector<DFConstraint>& validation_constraints, arith::Analyzer* analyzer) {
+    const std::vector<DFConstraint>& validation_constraints, arith::AnalyzerObj* analyzer) {
   MatchState new_match;
 
   std::function<ffi::Optional<Var>(const DFPatternNode*)> query_match_state =
@@ -244,7 +244,7 @@ static std::optional<MatchState> MatchTree(
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const std::vector<DFConstraint>& validation_constraints,
-    const MatcherUseDefAnalysis& ud_analysis, arith::Analyzer* analyzer) {
+    const MatcherUseDefAnalysis& ud_analysis, arith::AnalyzerObj* analyzer) {
   auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
@@ -348,7 +348,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
 
   arith::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
-                         ctx->validation_constraints, ud_analysis, &analyzer);
+                         ctx->validation_constraints, ud_analysis, analyzer.get());
   if (!match) {
     return std::nullopt;
   }

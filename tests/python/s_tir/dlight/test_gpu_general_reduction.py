@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F841
+
 import tvm
 import tvm.testing
 from tvm.ir import IRModule, assert_structural_equal
@@ -36,9 +37,9 @@ def _check(mod_before: IRModule, mod_after: IRModule):
 
 def test_softmax_1():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(p_lv44: T.handle, p_output0: T.handle):
             T.func_attr({"tirx.noalias": True})
             n, m = T.int64(), T.int64()
@@ -85,9 +86,9 @@ def test_softmax_1():
                     T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                     var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(p_lv44: T.handle, p_output0: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n, m = T.int64(), T.int64()
@@ -139,9 +140,9 @@ def test_softmax_1():
 
 def test_softmax_2():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             # with T.sblock("root"):
             T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(1)))
@@ -178,16 +179,16 @@ def test_softmax_2():
                     T_softmax_norm[v_i0, v_i1, v_i2] = T_softmax_exp[v_i0, v_i1, v_i2] / T_softmax_expsum[v_i0, v_i1]
 
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
             T_softmax_maxelem_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(1)), scope="shared")
             T_softmax_expsum_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(1)), scope="shared")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for ax0 in range(T.int64(1)):
+                for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         for ax1_fused_0 in T.serial(T.int64(125), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                             with T.sblock("T_softmax_maxelem"):
@@ -198,7 +199,7 @@ def test_softmax_2():
                                 with T.init():
                                     T_softmax_maxelem_shared[T.int64(0), T.int64(0)] = T.float32(-3.4028234663852886e+38)
                                 T_softmax_maxelem_shared[T.int64(0), T.int64(0)] = T.max(T_softmax_maxelem_shared[T.int64(0), T.int64(0)], A[T.int64(0), T.int64(0), v1])
-                for ax0 in range(T.int64(1)):
+                for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         for ax1_fused_0 in T.serial(T.int64(125), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                             with T.sblock("T_softmax_expsum"):
@@ -225,9 +226,9 @@ def test_softmax_2():
 
 def test_softmax_3():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             # with T.sblock("root"):
             T_softmax_maxelem = T.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
@@ -264,9 +265,9 @@ def test_softmax_3():
                     T_softmax_norm[v_i0, v_i1, v_i2, v_i3] = T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i3]
 
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):
@@ -316,9 +317,9 @@ def test_softmax_3():
 
 def test_layer_norm():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -336,8 +337,8 @@ def test_layer_norm():
                     with T.init():
                         A_red_temp_v0[v_ax0, v_ax1] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
                     A_red_temp_v0[v_ax0, v_ax1] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(2560)):
@@ -353,9 +354,9 @@ def test_layer_norm():
                     T.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                     var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int64()
@@ -365,7 +366,7 @@ def test_layer_norm():
             A_red_temp_v0_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
             A_red_temp_v1_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
-                for ax0 in range(T.int64(1)):
+                for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         for ax1_fused_0 in T.serial(T.int64(10), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                             with T.sblock("A_red_temp"):
@@ -376,8 +377,8 @@ def test_layer_norm():
                                 with T.init():
                                     A_red_temp_v0_shared[T.int64(0), v0] = T.float32(0)
                                     A_red_temp_v1_shared[T.int64(0), v0] = T.float32(0)
-                                v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1]
-                                v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1] * lv6[T.int64(0), v0, v1]
+                                v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1]
+                                v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1] * lv6[T.int64(0), v0, v1]
                                 A_red_temp_v0_shared[T.int64(0), v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[T.int64(0), v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
@@ -394,9 +395,9 @@ def test_layer_norm():
 
 def test_rms_norm():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             n = T.int64()
@@ -419,9 +420,9 @@ def test_rms_norm():
                     T.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
             T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
             n = T.int64()
@@ -430,7 +431,7 @@ def test_rms_norm():
             # with T.sblock("root"):
             Ared_temp_shared = T.sblock_alloc_buffer((T.int64(1), n), scope="shared")
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
-                for ax0 in range(T.int64(1)):
+                for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         for ax1_fused_0 in T.serial(T.int64(16), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                             with T.sblock("Ared_temp"):
@@ -455,9 +456,9 @@ def test_rms_norm():
 
 def test_group_norm():
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_reshape_1 = T.sblock_alloc_buffer((1, 32, 64))
@@ -480,8 +481,8 @@ def test_group_norm():
                     with T.init():
                         A_red_temp_v0[v_ax0, v_ax1] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1] = T.float32(0)
-                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2]
-                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2] * T_reshape_1[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2]
+                    v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1] + T_reshape_1[v_ax0, v_ax1, v_k2] * T_reshape_1[v_ax0, v_ax1, v_k2]
                     A_red_temp_v0[v_ax0, v_ax1] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1] = v_A_red_temp_v1
             for ax0, ax1 in T.grid(32, 64):
@@ -509,9 +510,9 @@ def test_group_norm():
                     T.writes(T_reshape[v_ax0, v_ax1])
                     T_reshape[v_ax0, v_ax1] = T_group_norm[0, v_ax1 % 2048 // 64, v_ax1 % 64]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with T.sblock("root"):
@@ -530,8 +531,8 @@ def test_group_norm():
                                 with T.init():
                                     A_red_temp_v0_shared[0, v0] = T.float32(0)
                                     A_red_temp_v1_shared[0, v0] = T.float32(0)
-                                v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[0, v0] + A[0, v0 * 64 + v1]
-                                v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[0, v0] + A[0, v0 * 64 + v1] * A[0, v0 * 64 + v1]
+                                v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0_shared[0, v0] + A[0, v0 * 64 + v1]
+                                v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1_shared[0, v0] + A[0, v0 * 64 + v1] * A[0, v0 * 64 + v1]
                                 A_red_temp_v0_shared[0, v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[0, v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(256, thread="threadIdx.x"):
@@ -546,9 +547,9 @@ def test_group_norm():
 
 
 def test_logsumexp():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
             T.func_attr({"tirx.noalias": True})
             batch_size = T.int64(is_size_var=True)
@@ -592,9 +593,9 @@ def test_logsumexp():
                     v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                     blocked_lse[v0, v1] = T.log(temp_sum[v0, v1]) + temp_max[v0, v1]
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class After:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             batch_size, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)

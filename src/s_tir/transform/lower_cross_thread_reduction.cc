@@ -109,7 +109,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
-                      const SBlock& scope_block, arith::Analyzer* analyzer) {
+                      const SBlock& scope_block, arith::AnalyzerObj* analyzer) {
   const auto* block = realize->block.as<SBlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
@@ -149,8 +149,8 @@ ffi::Array<Buffer> MakeScratchpads(const ffi::Array<Buffer>& reduction_buffers,
     name = name + "_thread_" + buffer->name;
     new_buffers.push_back(Buffer(/*ptr=*/Var(name, PointerType(PrimType(buffer->dtype), "local")),
                                  /*dtype=*/buffer->dtype,
-                                 /*shape=*/{Integer(1)},
-                                 /*strides=*/{Integer(1)},
+                                 /*shape=*/{IntImm(DataType::Int(32), 1)},
+                                 /*strides=*/{IntImm(DataType::Int(32), 1)},
                                  /*elem_offset=*/PrimExpr{nullptr},
                                  /*name=*/name,
                                  /*data_alignment=*/0,
@@ -335,8 +335,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<Stmt> inits;
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
-      inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {Integer(0)}));
+      inits.push_back(BufferStore(it_buffers.value()[i], reducer->identity_element[i],
+                                  {IntImm(DataType::Int(32), 0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/const_true(),
@@ -380,7 +380,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // Next `n_buffers` arguments: sources
     if (it_buffers.defined()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(BufferLoad(it_buffers.value()[i], {Integer(0)}));
+        parameters.push_back(BufferLoad(it_buffers.value()[i], {IntImm(DataType::Int(32), 0)}));
       }
     } else {
       parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
@@ -464,8 +464,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       wb_indices.push_back(Substitute(old_wb_indices[d], var_map));
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {Integer(0)}), wb_indices));
+      wb_updates.push_back(BufferStore(
+          wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm(DataType::Int(32), 0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 
@@ -548,7 +548,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Step 1. If the block is not a reduction block, cross-thread reduction is not needed.
     if (!IsReductionBlock(ffi::GetRef<SBlockRealize>(realize), loop_range_map_,
-                          ffi::GetRef<SBlock>(block_stack_.back()), &analyzer_)) {
+                          ffi::GetRef<SBlock>(block_stack_.back()), analyzer_.get())) {
       return {};
     }
 
@@ -881,7 +881,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(NullValue<Range>(), Var("", loop_vars[i]->dtype), IterVarType::kThreadIndex,
+          IterVar(Range(), Var("", loop_vars[i]->dtype), IterVarType::kThreadIndex,
                   "threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);

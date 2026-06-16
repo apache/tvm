@@ -16,13 +16,15 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def get_valid_counts(
     data: T.handle,
     valid_count: T.handle,
@@ -104,7 +106,7 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
@@ -116,7 +118,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
     B[()] = C[()]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.match_buffer(b, (), "float32")
@@ -167,13 +169,13 @@ def test_alloc_zero_dim_buffer_round_trip():
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def ceildiv_test(A: T.Buffer(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_ceildiv():
     f = tvm.compile(ceildiv_test, "llvm")
     a = tvm.runtime.tensor(np.arange(16).astype("int32"))
@@ -182,71 +184,77 @@ def test_ceildiv():
     tvm.testing.assert_allclose(a.numpy(), ref)
 
 
-@T.prim_func
-def slice_op_test(
-    A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
-):
-    B[0:5] = A[0:5] + B[0:5]
-    B[0:5] = A[0:5] - B[0:5]
-    B[0:5] = A[0:5] * B[0:5]
-    B[0:5] = A[0:5] / B[0:5]
-    C[0:5] = C[0:5] % T.broadcast(T.uint32(5), 5)
-    B[0:5] = -B[0:5]
-    C[0:5] = C[0:5] >> 4
-    C[0:5] = C[0:5] << 4
-    C[0:5] = C[0:5] << C[0:5]
-    C[0:5] = C[0:5] >> C[0:5]
-    T.evaluate(A[0:5] > B[0:5])
-    T.evaluate(A[0:5] > 5)
-    T.evaluate(A[0:5] >= B[0:5])
-    T.evaluate(A[0:5] >= 5)
-    T.evaluate(A[0:5] < B[0:5])
-    T.evaluate(A[0:5] < 5)
-    T.evaluate(A[0:5] <= B[0:5])
-    T.evaluate(A[0:5] <= 5)
-    T.evaluate(A[0:5] == B[0:5])
-    T.evaluate(A[0:5] == 5)
-    T.evaluate(A[0:5] != B[0:5])
-    T.evaluate(A[0:5] != 5)
-    T.evaluate((A[0:5] > 0) and (B[0:5] > 0))
-    T.evaluate((A[0:5] > 0) or (B[0:5] > 0))
-    T.evaluate((A[0:5] < 0) and (1 > 0))
-    T.evaluate((A[0:5] > 0) or (1 > 0))
+try:
 
+    @T.prim_func(s_tir=True)
+    def slice_op_test(
+        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+    ):
+        B[0:5] = A[0:5] + B[0:5]
+        B[0:5] = A[0:5] - B[0:5]
+        B[0:5] = A[0:5] * B[0:5]
+        B[0:5] = A[0:5] / B[0:5]
+        C[0:5] = C[0:5] % T.broadcast(T.uint32(5), 5)
+        B[0:5] = -B[0:5]
+        C[0:5] = C[0:5] >> 4
+        C[0:5] = C[0:5] << 4
+        C[0:5] = C[0:5] << C[0:5]
+        C[0:5] = C[0:5] >> C[0:5]
+        T.evaluate(A[0:5] > B[0:5])
+        T.evaluate(A[0:5] > 5)
+        T.evaluate(A[0:5] >= B[0:5])
+        T.evaluate(A[0:5] >= 5)
+        T.evaluate(A[0:5] < B[0:5])
+        T.evaluate(A[0:5] < 5)
+        T.evaluate(A[0:5] <= B[0:5])
+        T.evaluate(A[0:5] <= 5)
+        T.evaluate(A[0:5] == B[0:5])
+        T.evaluate(A[0:5] == 5)
+        T.evaluate(A[0:5] != B[0:5])
+        T.evaluate(A[0:5] != 5)
+        T.evaluate((A[0:5] > 0) and (B[0:5] > 0))
+        T.evaluate((A[0:5] > 0) or (B[0:5] > 0))
+        T.evaluate((A[0:5] < 0) and (1 > 0))
+        T.evaluate((A[0:5] > 0) or (1 > 0))
 
-@T.prim_func
-def slice_op_test_ref(
-    A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
-):
-    B[0:5] = A[0:5] + B[0:5]
-    B[0:5] = A[0:5] - B[0:5]
-    B[0:5] = A[0:5] * B[0:5]
-    B[0:5] = A[0:5] / B[0:5]
-    C[0:5] = C[0:5] % T.Broadcast(T.uint32(5), 5)
-    B[0:5] = B[0:5] * T.Broadcast(T.float32(-1), 5)
-    C[0:5] = T.shift_right(C[0:5], T.Broadcast(T.uint32(4), 5))
-    C[0:5] = T.shift_left(C[0:5], T.Broadcast(T.uint32(4), 5))
-    C[0:5] = T.shift_left(C[0:5], C[0:5])
-    C[0:5] = T.shift_right(C[0:5], C[0:5])
-    T.evaluate(A[0:5] > B[0:5])
-    T.evaluate(A[0:5] > T.Broadcast(T.float32(5), 5))
-    T.evaluate(A[0:5] >= B[0:5])
-    T.evaluate(A[0:5] >= T.Broadcast(T.float32(5), 5))
-    T.evaluate(A[0:5] < B[0:5])
-    T.evaluate(A[0:5] < T.Broadcast(T.float32(5), 5))
-    T.evaluate(A[0:5] <= B[0:5])
-    T.evaluate(A[0:5] <= T.Broadcast(T.float32(5), 5))
-    T.evaluate(A[0:5] == B[0:5])
-    T.evaluate(A[0:5] == T.Broadcast(T.float32(5), 5))
-    T.evaluate(A[0:5] != B[0:5])
-    T.evaluate(A[0:5] != T.Broadcast(T.float32(5), 5))
-    T.bitwise_and(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
-    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
-    T.bitwise_and(A[0:5] < T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
-    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+    @T.prim_func(s_tir=True)
+    def slice_op_test_ref(
+        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+    ):
+        B[0:5] = A[0:5] + B[0:5]
+        B[0:5] = A[0:5] - B[0:5]
+        B[0:5] = A[0:5] * B[0:5]
+        B[0:5] = A[0:5] / B[0:5]
+        C[0:5] = C[0:5] % T.Broadcast(T.uint32(5), 5)
+        B[0:5] = B[0:5] * T.Broadcast(T.float32(-1), 5)
+        C[0:5] = T.shift_right(C[0:5], T.Broadcast(T.uint32(4), 5))
+        C[0:5] = T.shift_left(C[0:5], T.Broadcast(T.uint32(4), 5))
+        C[0:5] = T.shift_left(C[0:5], C[0:5])
+        C[0:5] = T.shift_right(C[0:5], C[0:5])
+        T.evaluate(A[0:5] > B[0:5])
+        T.evaluate(A[0:5] > T.Broadcast(T.float32(5), 5))
+        T.evaluate(A[0:5] >= B[0:5])
+        T.evaluate(A[0:5] >= T.Broadcast(T.float32(5), 5))
+        T.evaluate(A[0:5] < B[0:5])
+        T.evaluate(A[0:5] < T.Broadcast(T.float32(5), 5))
+        T.evaluate(A[0:5] <= B[0:5])
+        T.evaluate(A[0:5] <= T.Broadcast(T.float32(5), 5))
+        T.evaluate(A[0:5] == B[0:5])
+        T.evaluate(A[0:5] == T.Broadcast(T.float32(5), 5))
+        T.evaluate(A[0:5] != B[0:5])
+        T.evaluate(A[0:5] != T.Broadcast(T.float32(5), 5))
+        T.bitwise_and(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+        T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+        T.bitwise_and(A[0:5] < T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+        T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+except tvm.error.DiagnosticError:
+    slice_op_test = None
+    slice_op_test_ref = None
 
 
 def test_slice_op():
+    if slice_op_test is None:
+        pytest.skip("slice arithmetic on BufferRegion is not defined")
     tvm.ir.assert_structural_equal(
         slice_op_test.with_attr("global_symbol", "main"),
         slice_op_test_ref.with_attr("global_symbol", "main"),

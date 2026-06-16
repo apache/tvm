@@ -24,13 +24,13 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tirx.transform.Simplify()(mod)
+    mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -51,19 +51,23 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
                     C[i, j] = B[0, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
-        B_new = T.decl_buffer(shape=[1, 16], dtype="float32")
+        B_new = T.alloc_buffer(
+            [1, 16],
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
             C[i, j] = B_new[0, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -86,7 +90,7 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
                             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -98,14 +102,19 @@ def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B = T.decl_buffer(shape=[1, 16], dtype="float32", scope="local")
+    B = T.alloc_buffer(
+        [1, 16],
+        "float32",
+        scope="local",
+        annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+    )
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
     for j in range(0, 16):
         C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n, m), "float32")
     C = T.match_buffer(c, (n, m), "float32")
@@ -127,20 +136,24 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
                     C[i, j] = B[j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n, m), "float32")
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B = T.decl_buffer(shape=[m], dtype="float32")
+        B = T.alloc_buffer(
+            [m],
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
             C[i, j] = B[j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
@@ -153,7 +166,7 @@ def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_predicate_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
@@ -163,7 +176,7 @@ def transformed_predicate_func(a: T.handle, c: T.handle) -> None:
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
@@ -175,7 +188,7 @@ def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_unit_loop_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
@@ -184,7 +197,7 @@ def transformed_unit_loop_func(a: T.handle, c: T.handle) -> None:
         C[x * 8 + z] = A[x * 8 + z] + 1.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     D = T.match_buffer(d, (32), "float32")
@@ -200,20 +213,28 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
             D[i] = C[i] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B = T.decl_buffer(shape=(32,), dtype="float32")
-        C = T.decl_buffer(shape=(32,), dtype="float32")
+        B = T.alloc_buffer(
+            (32,),
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
+        C = T.alloc_buffer(
+            (32,),
+            "float32",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
         D[i] = C[i] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
@@ -236,20 +257,25 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
                         C[i0 * 4 + i1, j] = B[i1, j] * 2.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_strided_buffer_func(
     A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1])
+        B = T.alloc_buffer(
+            [4, 16],
+            "float32",
+            strides=[17, 1],
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
             C[i0 * 4 + i1, j] = B[i1, j] * T.float32(2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
@@ -270,15 +296,16 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
                     )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def transformed_symbolic_strided_buffer_func(a: T.handle):
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        A_pad_shared_dyn = T.decl_buffer(
+        A_pad_shared_dyn = T.alloc_buffer(
             (1, T.min((n + 63) // 64 * 64, 96), 64),
             strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
             scope="shared.dyn",
+            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
@@ -289,14 +316,14 @@ def transformed_symbolic_strided_buffer_func(a: T.handle):
                 )
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def annotated_loops(a: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
         A[i] = 0.0
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def boolean_handling_before(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     for i0 in T.serial(10):
         with T.sblock("b"):
@@ -305,7 +332,7 @@ def boolean_handling_before(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) ->
             b[i0] = a[i0]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def boolean_handling_after(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     # body
     for i0 in T.serial(10):
@@ -358,7 +385,7 @@ def test_annotated_loops():
 
 
 def test_annotated_block():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def annotated_block() -> None:
         with T.sblock():
             T.sblock_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
@@ -377,14 +404,14 @@ def test_annotated_block():
 
 
 def test_preserved_annotations():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             with T.sblock("block"):
                 T.sblock_attr({"k_3": "oops"})
                 B[i] = A[i] + 1.0
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0

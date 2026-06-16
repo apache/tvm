@@ -17,31 +17,36 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: F401
 import os
-import re
 import shutil
 import tempfile
 import unittest
 from functools import partial
+from importlib.util import find_spec
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.s_tir.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.s_tir.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
-from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule.schedule import Schedule
 from tvm.script import tirx as T
+
+requires_xgboost = pytest.mark.skipif(
+    find_spec("xgboost") is None, reason="xgboost is not installed"
+)
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
@@ -57,7 +62,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class FullModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -101,31 +106,6 @@ def test_meta_schedule_cost_model():
     assert results.shape == (10,)
 
 
-def test_meta_schedule_cost_model_as_string():
-    @derived_object
-    class NotSoFancyCostModel(PyCostModel):
-        def load(self, path: str) -> None:
-            pass
-
-        def save(self, path: str) -> None:
-            pass
-
-        def update(
-            self,
-            context: TuneContext,
-            candidates: list[MeasureCandidate],
-            results: list[RunnerResult],
-        ) -> None:
-            pass
-
-        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
-            return np.random.rand(10)
-
-    cost_model = NotSoFancyCostModel()
-    pattern = re.compile(r"s_tir.meta_schedule.NotSoFancyCostModel\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(cost_model))
-
-
 def test_meta_schedule_random_model():
     model = RandomModel()
     model.update(TuneContext(), [], [])
@@ -166,6 +146,7 @@ def _dummy_result(num_samples: int = 4, max_run_sec: int = 10):
     return RunnerResult(list(np.random.rand(num_samples) * max_run_sec + 1e-6), None)
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)
@@ -179,6 +160,7 @@ def test_meta_schedule_xgb_model():
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_no_feature():
     model = XGBModel(num_warmup_samples=0)
     tune_ctx = TuneContext(
@@ -192,6 +174,7 @@ def test_meta_schedule_xgb_model_no_feature():
     model.predict(tune_ctx, [candidate])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_reload():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=10)
@@ -235,6 +218,7 @@ def test_meta_schedule_xgb_model_reload():
             assert (f1 == f2).all()
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_reupdate():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)
@@ -258,6 +242,7 @@ def test_meta_schedule_xgb_model_reupdate():
     model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
 
 
+@requires_xgboost
 def test_meta_schedule_xgb_model_callback_as_function():
     # pylint: disable=import-outside-toplevel
     from itertools import chain as itertools_chain

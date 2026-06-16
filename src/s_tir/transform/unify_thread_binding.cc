@@ -100,7 +100,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // thread axes with different extents.
     bool is_kernel_launch_scope = false;
     int old_thread_block_depth = thread_block_depth_;
-    if (StartsWith(thread_tag, "blockIdx.") || !thread_block_depth_) {
+    if (StartsWith(thread_tag, "blockIdx.") || StartsWith(thread_tag, "clusterIdx.") ||
+        StartsWith(thread_tag, "clusterCtaIdx") || !thread_block_depth_) {
       if (!thread_block_depth_) {
         thread_tag2iter_var_map_.clear();
         is_kernel_launch_scope = true;
@@ -114,8 +115,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
     ffi::Map<ffi::String, IterVar>::iterator it = thread_tag2iter_var_map_.find(thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
-      TVM_FFI_ICHECK(ana.CanProveEqual(dom->min, new_iter_var->dom->min));
-      TVM_FFI_CHECK(ana.CanProveEqual(dom->extent, new_iter_var->dom->extent), ValueError)
+      TVM_FFI_ICHECK(ana->CanProveEqual(dom->min, new_iter_var->dom->min));
+      TVM_FFI_CHECK(ana->CanProveEqual(dom->extent, new_iter_var->dom->extent), ValueError)
           << "All loops that are bound to `" << thread_tag
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
@@ -158,8 +159,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
       // necessary for unit tests.
       result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
                    ForKind::kThreadBinding, result,
-                   IterVar(NullValue<Range>(), Var(""), IterVarType::kThreadIndex,
-                           thread_binding->thread_tag),
+                   IterVar(Range(), Var(""), IterVarType::kThreadIndex, thread_binding->thread_tag),
                    {}, std::nullopt);
       launch_threads_.pop_back();
     }

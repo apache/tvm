@@ -20,6 +20,7 @@
  * \file src/runtime/vm/paged_kv_cache.cc
  * \brief Runtime paged KV cache object for language models.
  */
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -27,6 +28,7 @@
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <numeric>
@@ -157,6 +159,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   bool dirty_aux_data_device_ = false;
   /*! \brief The batch size of the current round of forwarding. */
   int64_t cur_batch_size_;
+  /*! \brief The number of sequences reserved in the KV cache. */
+  int64_t reserved_num_seqs_;
   /*! \brief The ids of the sequences in the current round of forwarding. */
   ffi::Shape cur_seq_ids_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
@@ -191,6 +195,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<Tensor> temp_int_pinned_attn_workspace_;
   Tensor temp_float_attn_workspace_;
 
+  std::vector<ffi::Any> retrieve_ret_;
+
   //-------------------------------------------
   // Below are the auxiliary data structure on CPU.
   // We make them class members to avoid repetitive allocation time in BeginForward.
@@ -205,6 +211,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<HostMemoryVector> sink_size_on_depths_host_;
   std::vector<HostMemoryVector> k_rope_pos_offset_on_depths_host_;
   std::vector<HostMemoryVector> k_rope_pos_offset_sliding_window_on_depths_host_;
+  HostMemoryVector kv_len_arr_host_;
   HostMemoryVector k_ragged_rope_pos_offset_host_;
   HostMemoryVector q_rope_position_map_host_;
   HostMemoryVector append_position_map_host_;
@@ -219,7 +226,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   HostMemoryVector kv_transfer_page_to_page_local_position_map_host_;
   HostMemoryVector kv_transfer_page_to_page_remote_position_map_host_;
   HostMemoryVector kv_transfer_page_to_page_recver_id_host_;
-
   //-------------------------------------------
   // For efficient memory management, the actual sizes of the arrays
   // above are over allocated.
@@ -321,6 +327,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         rotary_theta_(rotary_theta),
         rope_ext_factors_(std::move(rope_ext_factors)),
         kv_dtype_(DataType(dtype)),
+        reserved_num_seqs_(reserved_num_seqs),
         f_transpose_append_mha_(std::move(f_transpose_append_mha)),
         f_transpose_append_mla_(std::move(f_transpose_append_mla)),
         f_compact_copy_(std::move(f_compact_copy)),
@@ -412,6 +419,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       tree_attn_mn_indptr_host_.push_back(
           HostMemoryVector(reserved_num_seqs + 1, dtype_aux_, preferred_host_device));
     }
+    kv_len_arr_host_ = HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device);
     k_ragged_rope_pos_offset_host_ =
         HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device);
     q_rope_position_map_host_ =
@@ -1117,6 +1125,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     // Map each the token position in the input batch to the position
     // in the global KV cache. The mapping is used in when appending k/v values.
+    kv_len_arr_host_.clear();
     q_rope_position_map_host_.clear();
     append_position_map_host_.clear();
     kv_transfer_remote_position_map_host_.clear();
@@ -1129,6 +1138,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int i = 0; i < cur_batch_size_; ++i) {
       int64_t append_length = append_lengths[i];
       const Block& block = global_block_pool_[sequences[i]->last_block_idx];
+      kv_len_arr_host_.push_back(block.seq_length);
       for (int64_t pos = 0; pos < append_length; ++pos) {
         if (sequences[i]->token_tree_node_depths.empty()) {
           q_rope_position_map_host_.push_back(k_ragged_rope_pos_offset_host_[i] + pos);
@@ -1706,6 +1716,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) final {
     TVM_FFI_ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
+
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.vm.PagedAttentionKVCache", PagedAttentionKVCacheObj,
                                     AttentionKVCacheObj);
 
@@ -2067,7 +2078,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               temp_float_attn_workspace_, temp_int_attn_workspace_[0],
               temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
               &cur_append_lengths_indptr_host_, cur_batch_size_,
-              cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_qo_heads_, qk_head_dim_,
+              cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
               v_head_dim_, /*causal=*/true, copy_stream_);
         }
       }
@@ -2295,6 +2306,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * invoked before running attention computation on device.
    */
   void SyncAuxArrayToDevice() {
+    support::NVTXScopedRange range("SyncAuxArrayToDevice");
     TVM_FFI_ICHECK(dtype_aux_.bits == 32 && dtype_aux_.code == kDLInt);
     int64_t total_append_length = 0;
     int num_sequences = cur_append_lengths_.size();

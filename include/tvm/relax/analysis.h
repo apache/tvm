@@ -25,7 +25,6 @@
 #define TVM_RELAX_ANALYSIS_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
@@ -55,7 +54,7 @@ namespace relax {
  *       two shapes equals to each other during runtime.
  */
 TVM_DLL bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs,
-                                arith::Analyzer* ana);
+                                const arith::Analyzer& ana);
 
 /*!
  * \brief Can prove the two symbolic shape expressions equals to each other.
@@ -68,7 +67,7 @@ TVM_DLL bool CanProveShapeEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Arra
  *       if result is false, there is still possibility that
  *       two shapes equals to each other during runtime.
  */
-TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, arith::Analyzer* ana);
+TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, const arith::Analyzer& ana);
 
 //-----------------------------------
 // Foundational StructInfo analysis
@@ -92,13 +91,22 @@ TVM_DLL StructInfo StructInfoFromType(const Type& type);
  * \param finfo The function struct info.
  * \param call The call expression to be derived.
  * \param ctx The builder context.
- * \param ana Optional context analyzer to prove symbolic expression equality.
  * \return The derived struct info of the call.
  * \note  call->op field is ignored during derivation and we only rely on information
  *        presented by func_sinfo.
  */
 TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
-                                           const BlockBuilder& ctx, arith::Analyzer* ana = nullptr);
+                                           const BlockBuilder& ctx);
+/*!
+ * \brief Derive the call's ret value struct info using a caller-provided analyzer.
+ * \param finfo The function struct info.
+ * \param call The call expression to be derived.
+ * \param ctx The builder context.
+ * \param ana Context analyzer to prove symbolic expression equality.
+ * \return The derived struct info of the call.
+ */
+TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
+                                           const BlockBuilder& ctx, const arith::Analyzer& ana);
 
 /*!
  * \brief Erase the info to a corresponding more coarse grained
@@ -152,15 +160,29 @@ TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Ca
  * \param f_var_map callback function to specify
  *        whether a var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
- * \param ana Optional context analyzer to prove symbolic expression equality.
  *
  * \return the corresponding erased struct info.
  */
 TVM_DLL StructInfo EraseToWellDefined(
     const StructInfo& info,
     std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr,
-    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr,
-    arith::Analyzer* ana = nullptr);
+    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr);
+/*!
+ * \brief EraseToWellDefined overload using a caller-provided analyzer.
+ * \param info The struct info.
+ * \param f_shape_var_map callback function to specify
+ *        whether a symbolic shape var is defined and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param f_var_map callback function to specify
+ *        whether a var is defined in the target scope and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param ana Context analyzer to prove symbolic expression equality.
+ * \return the corresponding erased struct info.
+ */
+TVM_DLL StructInfo EraseToWellDefined(
+    const StructInfo& info,
+    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
+    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, const arith::Analyzer& ana);
 
 /*!
  * \brief EraseToWellDefined variant with map.
@@ -171,13 +193,27 @@ TVM_DLL StructInfo EraseToWellDefined(
  * \param var_map map to specify
  *        whether a var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
- * \param ana Optional context analyzer to prove symbolic expression equality.
  *
  * \return the corresponding erased struct info.
  */
 TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info,
                                       ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                                      ffi::Map<Var, Expr> var_map, arith::Analyzer* ana = nullptr);
+                                      ffi::Map<Var, Expr> var_map);
+/*!
+ * \brief EraseToWellDefined map overload using a caller-provided analyzer.
+ * \param info The struct info.
+ * \param shape_var_map map to specify
+ *        whether a symbolic shape var is defined and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param var_map map to specify
+ *        whether a var is defined in the target scope and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param ana Context analyzer to prove symbolic expression equality.
+ * \return the corresponding erased struct info.
+ */
+TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info,
+                                      ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                                      ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana);
 
 /*!
  * \brief Fine grained result of base check.
@@ -233,24 +269,40 @@ enum class BaseCheckResult {
  *
  * \param base The base struct info.
  * \param derived The derived struct info.
- * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return Whether the relation holds.
+ *
+ * \sa BaseCheckResult
+ */
+TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived);
+/*!
+ * \brief Run a base check using a caller-provided analyzer.
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \param ana Context analyzer to prove symbolic expression equality.
  * \return Whether the relation holds.
  *
  * \sa BaseCheckResult
  */
 TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived,
-                                            arith::Analyzer* ana = nullptr);
+                                            const arith::Analyzer& ana);
 
 /*!
  * \brief Check the relation of two struct info to see if one subsumes another one.
  *
  * \param base The base struct info.
  * \param derived The derived struct info.
- * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return Whether the relation holds.
+ */
+TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived);
+/*!
+ * \brief Check whether one struct info subsumes another using a caller-provided analyzer.
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \param ana Context analyzer to prove symbolic expression equality.
  * \return Whether the relation holds.
  */
 TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
-                      arith::Analyzer* ana = nullptr);
+                      const arith::Analyzer& ana);
 
 /*!
  * \brief Return the condition for which base is a superset of derived
@@ -279,11 +331,18 @@ TVM_DLL PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const S
  *
  * \param lhs The left operand.
  * \param rhs The right operand.
- * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return The unified information.
+ */
+TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs);
+/*!
+ * \brief Unify two struct infos using a caller-provided analyzer.
+ * \param lhs The left operand.
+ * \param rhs The right operand.
+ * \param ana Context analyzer to prove symbolic expression equality.
  * \return The unified information.
  */
 TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
-                                 arith::Analyzer* ana = nullptr);
+                                 const arith::Analyzer& ana);
 
 /*!
  * \brief Get the TIR variables that appear in the input struct info.
@@ -572,17 +631,31 @@ TVM_DLL bool ContainsImpureCall(
     const Expr& expr, const ffi::Optional<Expr>& own_name = ffi::Optional<Expr>(std::nullopt));
 
 /*!
- * \brief Check if the IRModule is well formed.
+ * \brief Check if an IRModule or Function is well-formed.
+ *
+ * Throws an ffi::Error on the first well-formedness violation. The error is
+ * seeded with the offending node so a pass runner can resolve a precise access
+ * path. Use \ref CheckWellFormed for a boolean answer.
  *
  * \param obj The IRModule or relax::Function to check.
- * \param check_struct_info A boolean flag indicating if the property "every Expr
- * must have defined structure info" will be checked.
- * \return true if the object is well formed, false if not.
+ * \param check_struct_info If true, verify that every Expr has struct_info populated.
  * \note By default the structure info is always checked. It is only in test cases
  * where `check_struct_info` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
+TVM_DLL void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
+
+/*!
+ * \brief Return whether an IRModule or Function is well-formed.
+ *
+ * Wraps \ref WellFormed, returning false instead of throwing on the first
+ * violation.
+ *
+ * \param obj The IRModule or relax::Function to check.
+ * \param check_struct_info If true, verify that every Expr has struct_info populated.
+ * \return true if the object is well-formed, false otherwise.
+ */
+TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks

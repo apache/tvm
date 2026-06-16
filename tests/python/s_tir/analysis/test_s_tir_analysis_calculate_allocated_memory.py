@@ -27,14 +27,14 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def scale_by_two(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         for i in T.serial(128):
             with T.sblock("C"):
                 c[i] = a[i] * T.int8(2)
 
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         B = T.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
         for i in T.serial(128):
@@ -69,7 +69,7 @@ def test_scale_by(primFunc, size):
     assert sizes.get("global.vtcm", 0) == size
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul_mix_scope(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], scope="global")
     B = T.match_buffer(b, [128, 128], scope="global")

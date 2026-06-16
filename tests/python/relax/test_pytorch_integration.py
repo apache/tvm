@@ -39,7 +39,7 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
-@I.ir_module
+@I.ir_module(s_tir=True)
 class PyTorchIntegrationModule(BasePyModule):
     """Test module for PyTorch integration with TVM."""
 
@@ -62,7 +62,7 @@ class PyTorchIntegrationModule(BasePyModule):
 
         return lv3
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def matmul(
         var_A: T.handle,
         var_B: T.handle,

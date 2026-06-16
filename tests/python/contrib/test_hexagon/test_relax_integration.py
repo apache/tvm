@@ -20,11 +20,14 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("onnx")  # tvm.relax.frontend.onnx imports onnx
+
 import tvm.testing
 from tvm import relax, runtime
 from tvm.contrib.hexagon.session import Session
 from tvm.relax.frontend import onnx
 from tvm.relax.testing import relay_translator
+from tvm.testing import env
 
 
 def get_onnx_mobilenet():
@@ -40,7 +43,7 @@ def get_onnx_mobilenet():
 
 
 @pytest.mark.skip("takes too long (~20min)")
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_mobilenet_onnx(hexagon_session: Session):
     """Test MobileNetV2 ONNX model"""
     onnx_model = get_onnx_mobilenet()
@@ -75,7 +78,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
 
 @pytest.mark.skip("takes too long (~20min)")
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_mobilenet(hexagon_session: Session):
     """Test MobileNet workload"""
     relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")

@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.s_tir import bijective_layout, layout
+from tvm.s_tir import sbijective_layout, slayout
 from tvm.tirx import SizeVar
 
 from . import cpp, tag
@@ -427,13 +427,13 @@ def get_shape(src_shape, src_layout, dst_layout):
         return get_const_tuple(src_shape)
 
     if isinstance(src_layout, str):
-        src_layout = layout(src_layout)
+        src_layout = slayout(src_layout)
     if isinstance(dst_layout, str):
-        dst_layout = layout(dst_layout)
+        dst_layout = slayout(dst_layout)
 
     assert len(src_layout) == len(dst_layout), f"Incompatible layout {src_layout} vs {dst_layout}"
 
-    layout_mapping = bijective_layout(src_layout, dst_layout)
+    layout_mapping = sbijective_layout(src_layout, dst_layout)
     dst_indices = layout_mapping.forward_index(tvm.runtime.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))

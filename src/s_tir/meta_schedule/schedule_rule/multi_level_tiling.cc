@@ -80,11 +80,11 @@ State StateNode::Copy() const {
 
 // Do nothing; Inherited from ScheduleRuleNode
 void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context) {
-  if (ffi::Optional<Integer> v =
-          context->target.value()->GetAttr<Integer>("max_threads_per_block")) {
-    this->max_threads_per_block_ = v.value()->value;
-    if (ffi::Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
-      this->thread_warp_size_ = v.value()->value;
+  if (ffi::Optional<int64_t> v =
+          context->target.value()->GetAttr<int64_t>("max_threads_per_block")) {
+    this->max_threads_per_block_ = v.value();
+    if (ffi::Optional<int64_t> v = context->target.value()->GetAttr<int64_t>("thread_warp_size")) {
+      this->thread_warp_size_ = v.value();
     } else {
       TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
     }
@@ -146,12 +146,12 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   }
   std::vector<int> levels = config.levels;
   ReuseType req = config.req;
-  if (ffi::Optional<ffi::Array<Integer>> ann = s_tir::GetAnn<ffi::Array<Integer>>(
+  if (ffi::Optional<ffi::Array<int64_t>> ann = s_tir::GetAnn<ffi::Array<int64_t>>(
           state->sch->GetSRef(state->block_rv), "s_tir.meta_schedule.write_cache_level")) {
     req = ReuseType::kMustReuse;
     levels.clear();
     std::transform(ann.value().begin(), ann.value().end(), std::back_inserter(levels),
-                   [](auto&& v) { return v.IntValue(); });
+                   [](int64_t v) { return static_cast<int>(v); });
   }
   std::vector<State> results;
   if (req == ReuseType::kMayReuse) {
@@ -284,9 +284,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  Integer(low_inclusive));
+                  IntImm(DataType::Int(32), low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  Integer(high_inclusive));
+                  IntImm(DataType::Int(32), high_inclusive));
   }
   return {state};
 }
@@ -354,11 +354,11 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
     State new_state = state->Copy();
     LoopRV r_loop_fused = new_state->sch->Fuse(new_state->tiles[r_indices_[0]]);
     new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_stage,
-                             ffi::Array<Integer>{0, 0, stage - 2});
+                             ffi::Array<int64_t>{0, 0, stage - 2});
     new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_order,
-                             ffi::Array<Integer>{0, 1, 2});
+                             ffi::Array<int64_t>{0, 1, 2});
     new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_async_stages,
-                             ffi::Array<Integer>{0});
+                             ffi::Array<int64_t>{0});
     ret.push_back(std::move(new_state));
   }
   return ret;
@@ -392,9 +392,11 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
   if (!valid_vector_lens.empty()) {
     int n = valid_vector_lens.size();
     double prob = 1.0 / n;
-    s_tir::ExprRV vector_load_len =
-        (*sch)->SampleCategorical(support::AsArray<int, Integer>(valid_vector_lens),
-                                  ffi::Array<FloatImm>(n, FloatImm(DataType::Float(32), prob)));
+    ffi::Array<int64_t> valid_vector_lens_arr;
+    valid_vector_lens_arr.reserve(valid_vector_lens.size());
+    for (int v : valid_vector_lens) valid_vector_lens_arr.push_back(static_cast<int64_t>(v));
+    s_tir::ExprRV vector_load_len = (*sch)->SampleCategorical(
+        valid_vector_lens_arr, ffi::Array<FloatImm>(n, FloatImm(DataType::Float(32), prob)));
     (*sch)->Annotate(block, s_tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
 }
@@ -403,8 +405,8 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
 
 ScheduleRule ScheduleRule::MultiLevelTiling(
     ffi::String structure, ffi::Optional<ffi::Array<ffi::String>> tile_binds,
-    ffi::Optional<Integer> max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> vector_load_lens,
+    ffi::Optional<int64_t> max_innermost_factor,
+    ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write,
     ffi::Optional<ffi::Function> filter_fn) {

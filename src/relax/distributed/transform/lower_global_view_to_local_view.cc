@@ -230,7 +230,7 @@ class DistributedBufferCompactor : StmtExprMutator {
         for (const auto& pr : dim_shards) {
           int dim = pr.first;
           int shard = pr.second;
-          Var var = GetShardingVarFromIndex(access_index[dim], iter_var_range, &analyzer);
+          Var var = GetShardingVarFromIndex(access_index[dim], iter_var_range, analyzer);
           TVM_FFI_ICHECK(!iter_var_shards_.count(var) || iter_var_shards_[var] == shard)
               << "A loop cannot have different sharding";
           iter_var_shards_[var] = shard;
@@ -246,7 +246,7 @@ class DistributedBufferCompactor : StmtExprMutator {
           Range dom = iter_var->dom;
           TVM_FFI_ICHECK(is_zero(dom->min));
           arith::Analyzer analyzer;
-          TVM_FFI_ICHECK(analyzer.CanProve(floormod(dom->extent, shard) == 0));
+          TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(
               IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)), iter_var->var,
                       iter_var->iter_type, iter_var->thread_tag));
@@ -334,7 +334,7 @@ class DistributedBufferCompactor : StmtExprMutator {
       int shard = loop_var_shards_[op->loop_var];
       if (shard > 1) {
         arith::Analyzer analyzer;
-        TVM_FFI_ICHECK(analyzer.CanProve(floormod(new_loop->extent, shard) == 0));
+        TVM_FFI_ICHECK(analyzer->CanProve(floormod(new_loop->extent, shard) == 0));
         new_loop.CopyOnWrite()->extent = floordiv(new_loop->extent, shard);
         return new_loop;
       }

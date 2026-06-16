@@ -154,7 +154,7 @@ void RewriteSpec::Append(RewriteSpec other) {
     return;
   }
 
-  NameSupply gvar_name_supply("");
+  UniqueNameSupply gvar_name_supply("");
   for (const auto& [gvar, func] : new_subroutines) {
     gvar_name_supply->ReserveName(gvar->name_hint);
   }

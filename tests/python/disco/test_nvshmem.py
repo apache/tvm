@@ -14,19 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F841
 """Basic tests for a Disco nvshmem support"""
 
 # pylint: disable=missing-docstring
 import multiprocessing
+import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Callable
-from multiprocessing import Process
-from typing import Any
 
 import numpy as np
 import pytest
@@ -34,50 +32,67 @@ from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
+
+if di is None:
+    pytest.skip("disco runtime is not available", allow_module_level=True)
+
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_nvshmem(), reason="need nvshmem"),
+]
+
 
 _SOCKET_SESSION_TESTER = None
 
 
-def get_free_port():
-    import socket
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("", 0))
-    port = s.getsockname()[1]
-    s.close()
+def _get_free_port():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("", 0))
+    port = sock.getsockname()[1]
+    sock.close()
     return port
 
 
 class SocketSessionTester:
-    def __init__(self, num_workers):
-        num_nodes = 2
-        num_groups = 1
+    """Run a disco SocketSession with one local node and remote nodes.
+
+    Each remote node is a `tvm.exec.disco_remote_socket_session` subprocess
+    launched with the current Python interpreter.
+    """
+
+    def __init__(self, num_workers, num_nodes=2, num_groups=1):
+        # Initialize the attributes used by __del__ first, so that teardown is
+        # safe even when __init__ raises below.
+        self.sess = None
+        self.remote_nodes = []
         assert num_workers % num_nodes == 0
         num_workers_per_node = num_workers // num_nodes
         server_host = "localhost"
-        server_port = get_free_port()
-        self.sess = None
+        server_port = _get_free_port()
+        server_exc = []
 
         def start_server():
-            self.sess = di.SocketSession(
-                num_nodes, num_workers_per_node, num_groups, server_host, server_port
-            )
+            try:
+                self.sess = di.SocketSession(
+                    num_nodes, num_workers_per_node, num_groups, server_host, server_port
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                server_exc.append(exc)
 
         thread = threading.Thread(target=start_server)
         thread.start()
 
         cmd = "tvm.exec.disco_remote_socket_session"
-        self.remote_nodes = []
         for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [
-                        "python3",
+                        sys.executable,
                         "-m",
                         cmd,
                         server_host,
@@ -90,26 +105,73 @@ class SocketSessionTester:
             )
 
         thread.join()
+        if server_exc:
+            raise server_exc[0]
+
+    # Bound at class creation: module globals may already be cleared when
+    # __del__ runs during interpreter shutdown.
+    _TIMEOUT_EXPIRED = subprocess.TimeoutExpired
 
     def __del__(self):
-        if self.sess is not None:
-            self.sess.shutdown()
-            del self.sess
+        try:
+            # Shut down the session first so remote nodes can exit gracefully.
+            if self.sess is not None:
+                self.sess.shutdown()
+        finally:
+            for node in self.remote_nodes:
+                try:
+                    node.wait(timeout=10)
+                except self._TIMEOUT_EXPIRED:
+                    node.kill()
+                    node.wait()
 
 
 def create_socket_session(num_workers):
+    """Create a socket session backed by one local and one remote node.
+
+    The tester is kept alive in a module-level global so that the session
+    survives until the next call (or interpreter exit) replaces it.
+    """
     global _SOCKET_SESSION_TESTER
-    if _SOCKET_SESSION_TESTER is not None:
-        del _SOCKET_SESSION_TESTER
+    # Rebind (not `del`) so the global stays defined if the constructor raises.
+    _SOCKET_SESSION_TESTER = None
     _SOCKET_SESSION_TESTER = SocketSessionTester(num_workers)
     assert _SOCKET_SESSION_TESTER.sess is not None
     return _SOCKET_SESSION_TESTER.sess
 
 
-def test_nvshmem_init_finalize(session_kind: di.Session, num_workers: int):
-    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
-        return
+_all_session_kinds = [di.ProcessSession, create_socket_session]
+_all_num_workers = [2, 4]
 
+_SUBPROCESS_TIMEOUT_SEC = 600
+
+
+def _run_in_fresh_process(target, *args):
+    """Run a test body in a freshly spawned process.
+
+    After the first call to `nvshmem_init`, a subsequent call to `nvshmem_init`
+    or `nvshmem_init_thread` in the same program results in undefined behavior,
+    and worker-0 of a Disco session lives in the calling process. So each test
+    body must run in its own process. The 'spawn' start method avoids
+    inheriting CUDA state from this process.
+    """
+    proc = multiprocessing.get_context("spawn").Process(target=target, args=args)
+    proc.start()
+    proc.join(timeout=_SUBPROCESS_TIMEOUT_SEC)
+    if proc.is_alive():
+        proc.kill()
+        proc.join()
+        pytest.fail(f"{target.__name__}{args} timed out after {_SUBPROCESS_TIMEOUT_SEC} seconds")
+    assert proc.exitcode == 0, f"{target.__name__}{args} failed with exit code {proc.exitcode}"
+
+
+def _require_cuda_devices(num_workers):
+    # Each nvshmem worker binds its own CUDA device (cudaSetDevice(worker_id)).
+    if not all(tvm.cuda(i).exist for i in range(num_workers)):
+        pytest.skip(f"Requires {num_workers} CUDA devices")
+
+
+def _init_finalize(session_kind, num_workers):
     sess = session_kind(num_workers=num_workers)
     f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
@@ -121,10 +183,7 @@ def test_nvshmem_init_finalize(session_kind: di.Session, num_workers: int):
     sess.sync_worker_0()
 
 
-def test_nvshmem_empty(session_kind: di.Session, num_workers: int):
-    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
-        return
-
+def _empty(session_kind, num_workers):
     device = tvm.cuda()
     sess = session_kind(num_workers=num_workers)
     f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
@@ -133,18 +192,29 @@ def test_nvshmem_empty(session_kind: di.Session, num_workers: int):
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
     empty_dfunc = sess.get_global_func("runtime.disco.nvshmem.empty")
-    a = empty_dfunc(Shape((32, 64)), "float32", device)
-    b = empty_dfunc(Shape((64, 32)), "float32", device)
+    _a = empty_dfunc(Shape((32, 64)), "float32", device)
+    _b = empty_dfunc(Shape((64, 32)), "float32", device)
     sess.sync_worker_0()
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()
     sess.sync_worker_0()
 
 
-def test_nvshmem_compile():
-    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
-        return
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("num_workers", _all_num_workers)
+def test_nvshmem_init_finalize(session_kind, num_workers: int):
+    _require_cuda_devices(num_workers)
+    _run_in_fresh_process(_init_finalize, session_kind, num_workers)
 
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("num_workers", _all_num_workers)
+def test_nvshmem_empty(session_kind, num_workers: int):
+    _require_cuda_devices(num_workers)
+    _run_in_fresh_process(_empty, session_kind, num_workers)
+
+
+def _compile():
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
@@ -154,7 +224,7 @@ def test_nvshmem_compile():
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
         for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
             for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
@@ -194,6 +264,11 @@ def test_nvshmem_compile():
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def test_nvshmem_compile():
+    _require_cuda_devices(2)
+    _run_in_fresh_process(_compile)
+
+
 NVSHMEM_QUERY_KERNEL_SOURCE = """
 #include <nvshmem.h>
 
@@ -204,10 +279,12 @@ extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) 
 """
 
 
-def _test_nvshmem_kernel_compile_impl():
-    """Test compiling and running a kernel that calls NVSHMEM functions"""
-    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
-        return
+def _kernel_compile(compile_mode):
+    """Compile and run a kernel that calls NVSHMEM functions.
+
+    Runs in a fresh process, so setting the env var is safe.
+    """
+    os.environ["TVM_CUDA_COMPILE_MODE"] = compile_mode
 
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
@@ -220,9 +297,9 @@ def _test_nvshmem_kernel_compile_impl():
 
     try:
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class NvshmemQueryModule:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def query_pe(
                 my_pe_out: T.Buffer((1,), "int32"),
                 n_pes_out: T.Buffer((1,), "int32"),
@@ -288,55 +365,20 @@ def _test_nvshmem_kernel_compile_impl():
 
 def test_nvshmem_kernel_compile_nvcc():
     """Test NVSHMEM kernel compilation with nvcc."""
-    # Since this test runs in a separate process, we can safely set the env var
-    import os
-
-    os.environ["TVM_CUDA_COMPILE_MODE"] = "nvcc"
-    _test_nvshmem_kernel_compile_impl()
+    _require_cuda_devices(2)
+    _run_in_fresh_process(_kernel_compile, "nvcc")
 
 
 def test_nvshmem_kernel_compile_nvrtc():
     """Test NVSHMEM kernel compilation with nvrtc."""
+    _require_cuda_devices(2)
     try:
-        from cuda.bindings import nvrtc
+        from cuda.bindings import nvrtc  # noqa: F401
     except ImportError:
         pytest.skip("cuda-python not available, skipping nvrtc test")
 
-    # Since this test runs in a separate process, we can safely set the env var
-    import os
-
-    os.environ["TVM_CUDA_COMPILE_MODE"] = "nvrtc"
-    _test_nvshmem_kernel_compile_impl()
+    _run_in_fresh_process(_kernel_compile, "nvrtc")
 
 
 if __name__ == "__main__":
-    # After the first call to `nvshmem_init`, a subsequent call to `nvshmem_init`
-    # or `nvshmem_init_thread` in the same program results in undefined behavior.
-    # So we always create a new process to run the test. Then no repeated nvshmem
-    # init happens in the same process, since the worker0 may share the same process.
-
-    # Use 'spawn' start method to avoid inheriting CUDA state from parent process
-    # 'fork' (default on Linux) can cause issues with CUDA contexts in child processes
-    multiprocessing.set_start_method("spawn", force=True)
-
-    for session_kind in [create_socket_session, di.ProcessSession]:
-        for num_workers in [2, 4]:
-            for test_func in [test_nvshmem_init_finalize, test_nvshmem_empty]:
-                p = Process(target=test_func, args=[session_kind, num_workers])
-                p.start()
-                p.join()
-                # Ensure the process finished successfully
-                assert p.exitcode == 0, (
-                    f"Test {test_func.__name__} failed with exit code {p.exitcode}"
-                )
-
-    p = Process(target=test_nvshmem_compile)
-    p.start()
-    p.join()
-    assert p.exitcode == 0, f"Test test_nvshmem_compile failed with exit code {p.exitcode}"
-
-    for test_func in [test_nvshmem_kernel_compile_nvcc, test_nvshmem_kernel_compile_nvrtc]:
-        p = Process(target=test_func)
-        p.start()
-        p.join()
-        assert p.exitcode == 0, f"Test {test_func.__name__} failed with exit code {p.exitcode}"
+    tvm.testing.main()

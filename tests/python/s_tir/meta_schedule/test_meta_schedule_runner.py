@@ -26,8 +26,11 @@ import numpy as np
 import pytest
 from tvm_ffi import register_global_func
 
+pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
+
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
@@ -53,7 +56,6 @@ from tvm.s_tir.meta_schedule.runner.rpc_runner import (
 )
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.meta_schedule.utils import (
-    derived_object,
     get_global_func_with_default_on_worker,
 )
 from tvm.script import tirx as T
@@ -68,7 +70,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -84,7 +86,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
@@ -105,7 +107,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [16, 32, 32])
@@ -121,7 +123,7 @@ class BatchMatmulModule:
 
 @tvm.script.ir_module
 class AddModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, [32], "float32")
@@ -136,7 +138,7 @@ class AddModule:
 # A huge matmul that must cause timeout in the timeout test below.
 @tvm.script.ir_module
 class MatmulHugeModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         A = T.match_buffer(a, (4096, 4096), "float32")

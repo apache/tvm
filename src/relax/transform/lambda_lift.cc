@@ -372,8 +372,8 @@ class LambdaLifter : public ExprMutator {
         Call orig_call = Downcast<Call>(builder_->LookupBinding(var));
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
-            static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
-            return purity_map.get(op.value(), Bool(false))->value;
+            static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
+            return purity_map.get(op.value(), false);
           } else if (const auto* func_sinfo =
                          orig_call->op->struct_info_.as<FuncStructInfoNode>()) {
             return func_sinfo->purity;

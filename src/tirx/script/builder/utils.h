@@ -20,6 +20,7 @@
 #define TVM_TIRX_SCRIPT_BUILDER_UTILS_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/builder/frame.h>
 #include <tvm/tirx/script/builder/ir.h>
@@ -83,7 +84,7 @@ inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
  * \return The top frame of SBlockFrame.
  */
 inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
-  if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
+  if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->GetLastFrame<SBlockFrame>()) {
     return frame.value();
   } else if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
     TVM_FFI_THROW(ValueError)

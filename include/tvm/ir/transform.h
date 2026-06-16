@@ -57,15 +57,16 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
@@ -85,8 +86,6 @@ class PassContextNode : public ffi::Object {
   ffi::Array<ffi::String> required_pass;
   /*! \brief The list of disabled passes. */
   ffi::Array<ffi::String> disabled_pass;
-  /*! \brief The diagnostic context. */
-  mutable ffi::Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
   ffi::Map<ffi::String, Any> config;
 
@@ -131,8 +130,7 @@ class PassContextNode : public ffi::Object {
         .def_ro("required_pass", &PassContextNode::required_pass)
         .def_ro("disabled_pass", &PassContextNode::disabled_pass)
         .def_ro("instruments", &PassContextNode::instruments)
-        .def_ro("config", &PassContextNode::config)
-        .def_ro("diag_ctx", &PassContextNode::diag_ctx);
+        .def_ro("config", &PassContextNode::config);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
 };
@@ -299,6 +297,25 @@ class PassContext : public ffi::ObjectRef {
   friend class Internal;
   friend class With<PassContext>;
 };
+
+/*!
+ * \brief Create a pass-config object with all default values, using the
+ *        reflection defaults.
+ * \tparam TConfig the ObjectRef type to be created.
+ * \return An instance with all reflection-defined default values applied.
+ */
+template <typename TConfig>
+inline TConfig PassConfigWithDefaults() {
+  static_assert(std::is_base_of_v<ffi::ObjectRef, TConfig>,
+                "Can only create ObjectRef-derived types");
+  using ContainerType = typename TConfig::ContainerType;
+  static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+  ffi::AnyView packed_args[1];
+  packed_args[0] = ContainerType::RuntimeTypeIndex();
+  ffi::Any rv;
+  finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+  return rv.cast<TConfig>();
+}
 
 #define TVM_PASS_CTX_CONFIG_VAR_DEF [[maybe_unused]] static uint32_t __make_PassContext_tid
 
@@ -529,37 +546,37 @@ TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pas
                               int opt_level, ffi::String name, ffi::Array<ffi::String> required,
                               bool traceable = false);
 
-/*
- * \brief Utility to apply a pass to specific functions in an IRModule
- *
- * TVM uses IRModule to IRModule transformations at all stages of
- * lowering.  These transformations may be useful when hand-writing an
- * optimized model, or to perform optimizations on specific kernels
- * within an IRModule.  This utility allows a pass to be applied to a
- * specified function, without altering other functions in the module.
- *
- * \param pass The IRModule to IRModule pass to be applied.
- *
- * \param func_name_regex A regex used to select the functions to be
- * updated.  The pass will be applied to all functions whose name
- * matches the regex.
- *
- * \param error_if_no_function_matches_regex Specifies the behavior if
- *     an IRModule does not contain any function matching the provided
- *     regex.  If true, an error will be raised.  If false (default),
- *     the IRModule will be returned unmodified.
- *
- * \return The modified IRModule to IRModule pass.
- */
-TVM_DLL Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
-                                 bool error_if_no_function_matches_regex = false);
-
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
  * \param header The header to be attached to the output.
  * \return The pass.
  */
 TVM_DLL Pass PrintIR(ffi::String header = "");
+
+/*!
+ * \brief Enrich a pass-time error with a TVMScript-rendered, underlined source
+ *        location derived from the error's embedded VisitErrorContext.
+ *
+ * Returns an ffi::Error that preserves err's kind, original message, and
+ * backtrace, and appends the failing pass name plus the offending location
+ * rendered as TVMScript (the whole \p mod, or local to \p func when provided).
+ * The returned error drops the VisitErrorContext payload, so an outer catch
+ * that re-enriches finds no context and returns the error unchanged.
+ *
+ * Pure and total: never throws; returns \p err unchanged when there is no
+ * context, the path is unresolvable, or rendering fails.
+ *
+ * \param err The error thrown by the pass body.
+ * \param mod The IRModule the pass ran on (the access-path root, or the
+ *            container of \p func when \p func is provided).
+ * \param pass_name The name of the failing pass, shown in the message.
+ * \param func When set, resolve and render the location local to
+ *             \p mod->functions[func]; otherwise use the whole module.
+ * \return The enriched (or, on any fallback, the original) error.
+ */
+TVM_DLL ffi::Error EnrichPassErrorWithContext(
+    const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
+    ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
 
 }  // namespace transform
 }  // namespace tvm

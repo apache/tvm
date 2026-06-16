@@ -28,7 +28,7 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tirx as T
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -43,7 +43,7 @@ def indirect_mem_access(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.hand
             B[IB[vi]] = A[IA[vi]]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -58,7 +58,7 @@ def indirect_mem_access_hide_ia(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
             B[IB[vi]] = A[IA[vi]]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     IA = T.match_buffer(idx_a, [10], dtype="int32")
@@ -92,14 +92,14 @@ def test_hide_buffer_access_write():
 def test_hide_buffer_access_fail_buffer_type():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         sch.unsafe_hide_buffer_access(block_b, "opaque", [0])
 
 
 def test_hide_buffer_access_fail_buffer_index():
     sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         sch.unsafe_hide_buffer_access(block_b, "read", [2])
 
 

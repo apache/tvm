@@ -14,23 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import TVMError, tirx
 from tvm import relax as rx
-from tvm.ir import Range, structural_equal
+from tvm import tirx
+from tvm.ir import Range
 
 
 def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm_ffi.structural_hash(x, map_free_vars)
+    yhash = tvm_ffi.structural_hash(y, map_free_vars)
 
     assert xhash == yhash
 

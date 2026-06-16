@@ -81,7 +81,7 @@ class ExprBinder : public ExprMutator {
     auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
-      new_expr = analyzer.Simplify(new_expr);
+      new_expr = analyzer->Simplify(new_expr);
     }
     return new_expr;
   }
@@ -109,7 +109,9 @@ StructInfo Bind(const StructInfo& sinfo,
 }
 
 tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
+    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap,
+    const arith::Analyzer& analyzer) {
+  (void)analyzer;
   tvm::ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
 
   auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,
@@ -221,10 +223,10 @@ bool IsLeafOrTuple(const Expr& expr) {
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
-    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    static auto purity_map = Op::GetAttrMap<bool>("FPurity");
     TVM_FFI_ICHECK(purity_map.count(op))
         << "Cannot find the registered purity of this op: " << op->name;
-    return !(purity_map[op]->value);
+    return !(purity_map[op]);
   }
   // the StructInfo must be FuncStructInfo
   auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);

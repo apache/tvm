@@ -133,6 +133,8 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
   builder_.reset(new IRBuilder(*ctx));
   module_.reset(new llvm::Module(module_name, *ctx));
   md_builder_.reset(new llvm::MDBuilder(*ctx));
+  functions_.clear();
+  function_symbol_owners_.clear();
   // types
   t_void_ = llvm::Type::getVoidTy(*ctx);
   t_void_p_ = llvmGetPointerTo(llvm::Type::getInt8Ty(*ctx), GetGlobalAddressSpace());
@@ -220,7 +222,7 @@ void CodeGenLLVM::InitFuncState() {
   alias_var_set_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
-  analyzer_.reset(new arith::Analyzer());
+  analyzer_ = arith::Analyzer();
 }
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
@@ -260,6 +262,21 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
       llvm::FunctionType::get(GetLLVMType(func->ret_type), param_types, false);
 
   auto [symbol_name, linkage_type] = GetLinkage(gvar, func);
+  if (auto it = function_symbol_owners_.find(symbol_name); it != function_symbol_owners_.end()) {
+    constexpr const char* kFFISymbolPrefix = "__tvm_ffi_";
+    std::string user_symbol = symbol_name;
+    if (user_symbol.rfind(kFFISymbolPrefix, 0) == 0) {
+      user_symbol = user_symbol.substr(std::char_traits<char>::length(kFFISymbolPrefix));
+    }
+    TVM_FFI_THROW(InternalError) << "Duplicate PrimFunc global_symbol '" << user_symbol
+                                 << "' in LLVM codegen: IRModule keys '" << it->second
+                                 << "' and '" << gvar->name_hint
+                                 << "' both lower to the same exported symbol '" << symbol_name
+                                 << "'. "
+                                 << "Each exposed PrimFunc in one IRModule must have a unique "
+                                    "global_symbol.";
+  }
+  function_symbol_owners_[symbol_name] = gvar->name_hint;
 
   auto function = module_->getFunction(MakeStringRef(symbol_name));
   if (function == nullptr) {
@@ -597,11 +614,10 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return DTypeToLLVMType(ptr->dtype);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    // LLVM IR doesn't allow void*, nor do we require custom datatypes
-    // to have LLVM equivalents, so we need to recognize these
-    // patterns explicitly.
+    // LLVM IR doesn't allow void*, so pointer element types that do not
+    // have an LLVM scalar equivalent need explicit handling.
     if (auto* primtype = ptr->element_type.as<PrimTypeNode>()) {
-      if (primtype->dtype.is_void() || primtype->dtype.code() >= DataType::kCustomBegin) {
+      if (primtype->dtype.is_void()) {
         return t_void_p_;
       }
     } else if (ptr->element_type->IsInstance<TensorMapTypeNode>()) {
@@ -650,6 +666,14 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
   } else if (auto* ptr = index.as<tirx::IntImmNode>()) {
     base = ptr->value;
     xwith = 1;
+  }
+  if (access_dtype.is_scalable_vector()) {
+    llvm::MDNode* meta = md_tbaa_root_;
+    std::ostringstream buffer_addr;
+    buffer_addr << buffer_var;
+    meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
+    inst->setMetadata("tbaa", md_builder_->createTBAAStructTagNode(meta, meta, 0));
+    return;
   }
   // adjust address index unit to byte
   const int64_t unit_bit_width = 8;
@@ -1652,6 +1676,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
 }
 
 bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
+  if (dtype.is_scalable_vector()) {
+    return false;
+  }
   const llvm::DataLayout& data_layout = module_->getDataLayout();
   int bytes = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype));
   int bytes_scalar = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype.element_of()));
@@ -1683,8 +1710,10 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 
   PrimExpr last_index = indices[indices.size() - 1];
+  int last_index_lanes = last_index.dtype().get_lanes_or_vscale_factor();
+  int buffer_element_lanes = buffer_element_dtype.get_lanes_or_vscale_factor();
   TVM_FFI_ICHECK_EQ(value_dtype.get_lanes_or_vscale_factor(),
-                    last_index.dtype().get_lanes_or_vscale_factor() * buffer_element_dtype.lanes());
+                    last_index_lanes * buffer_element_lanes);
 
   // Record index and elemtype in original form used for alias info
   PrimExpr last_index_origin = last_index;
@@ -1697,19 +1726,22 @@ void CodeGenLLVM::BufferAccessHelper(
   if (const RampNode* ramp_index = last_index.as<RampNode>()) {
     if (is_one(ramp_index->stride)) {
       last_index = ramp_index->base;
+      last_index_lanes = last_index.dtype().get_lanes_or_vscale_factor();
     }
   }
 
   // All TVM arrays are densely packed.  If the vectorized LLVM type
   // contains padding for alignment, we need to index based on the
   // size of the scalar type to avoid introducing that padding.
-  if (last_index.dtype().lanes() == 1 && HasAlignmentPadding(buffer_element_dtype)) {
-    last_index = buffer_element_dtype.lanes() * last_index;
+  bool last_index_is_scalar = !last_index.dtype().is_scalable_vector() && last_index_lanes == 1;
+  if (last_index_is_scalar && HasAlignmentPadding(buffer_element_dtype)) {
+    last_index = buffer_element_lanes * last_index;
     buffer_element_dtype = buffer_element_dtype.element_of();
+    buffer_element_lanes = 1;
   }
 
   int alignment;
-  if (last_index.dtype().lanes() == 1) {
+  if (last_index_is_scalar) {
     // If we are accessing with a single index, then the vectorized
     // element being accessed may require more alignment than the
     // underlying data type.
@@ -1722,8 +1754,10 @@ void CodeGenLLVM::BufferAccessHelper(
     alignment = value_dtype.bits() / 8;
   }
 
+  TVM_FFI_ICHECK(!last_index.dtype().is_scalable_vector())
+      << "Scalable vector indices are not supported in LLVM buffer access codegen";
   llvm::Value* cached_vector_index = nullptr;
-  for (int i = 0; i < last_index.dtype().lanes(); ++i) {
+  for (int i = 0; i < last_index_lanes; ++i) {
     llvm::Value* last_index_value;
     int subelement_i = i;
     if (const RampNode* ramp = last_index.as<RampNode>()) {
@@ -1751,10 +1785,9 @@ void CodeGenLLVM::BufferAccessHelper(
         value_dtype.is_scalable_vector()
             ? CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                               value_dtype.with_scalable_vscale_factor(value_dtype.vscale_factor() /
-                                                                      last_index.dtype().lanes()))
-            : CreateBufferPtr(
-                  MakeValue(buffer->data), buffer_element_dtype, all_index_values,
-                  value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
+                                                                      last_index_lanes))
+            : CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+                              value_dtype.with_lanes(value_dtype.lanes() / last_index_lanes));
     auto instruction =
         make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
     AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);

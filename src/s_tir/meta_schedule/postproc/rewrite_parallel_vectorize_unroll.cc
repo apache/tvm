@@ -222,7 +222,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       const auto* var = loop_sref->StmtAs<ForNode>();
       arith::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
-        PrimExpr idx = analyzer.Simplify(Substitute(access->region[i]->min, binding_map));
+        PrimExpr idx = analyzer->Simplify(Substitute(access->region[i]->min, binding_map));
         int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
         if (coef != 0) {
           stride = coef * buffer_stride;
@@ -380,7 +380,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* 
                                        int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
+  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, IntImm(DataType::Int(32), vec_len)});
   TVM_FFI_ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];

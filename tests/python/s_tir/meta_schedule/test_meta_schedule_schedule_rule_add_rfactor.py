@@ -27,7 +27,7 @@ from tvm.te import create_prim_func
 
 
 def test_cpu_matmul():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_0(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -43,7 +43,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_1(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -71,7 +71,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + C_rf[i, j, vi2_1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def cpu_matmul_2(
         A: T.Buffer((4, 512), "float32"),
         B: T.Buffer((512, 4), "float32"),
@@ -122,7 +122,7 @@ def test_cpu_matmul():
 
 
 def test_cpu_argmax():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -138,14 +138,16 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.min_value("float32")
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_0(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -160,14 +162,16 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
+                )
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
                 )
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_1(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -184,12 +188,12 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0_rf[i, vi1_1] = -1
                     argmax_v1_rf[i, vi1_1] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0_rf: T.int32 = T.Select(
+                v_argmax_v0_rf: T.let[T.int32] = T.Select(
                     argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v0_rf[i, vi1_1],
                     idx[i, vi1_0 * 16 + vi1_1],
                 )
-                v_argmax_v1_rf: T.float32 = T.Select(
+                v_argmax_v1_rf: T.let[T.float32] = T.Select(
                     argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v1_rf[i, vi1_1],
                     val[i, vi1_0 * 16 + vi1_1],
@@ -205,16 +209,16 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
                 )
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v1[i], argmax_v1_rf[i, vi1_1]
                 )
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def argmax_2(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -233,12 +237,12 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0_rf[i, vi1_0] = -1
                     argmax_v1_rf[i, vi1_0] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0_rf: T.int32 = T.Select(
+                v_argmax_v0_rf: T.let[T.int32] = T.Select(
                     argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v0_rf[i, vi1_0],
                     idx[i, vi1_0 * 16 + vi1_1],
                 )
-                v_argmax_v1_rf: T.float32 = T.Select(
+                v_argmax_v1_rf: T.let[T.float32] = T.Select(
                     argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
                     argmax_v1_rf[i, vi1_0],
                     val[i, vi1_0 * 16 + vi1_1],
@@ -254,10 +258,10 @@ def test_cpu_argmax():
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
-                v_argmax_v0: T.int32 = T.Select(
+                v_argmax_v0: T.let[T.int32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v0[i], argmax_v0_rf[i, vi1_0]
                 )
-                v_argmax_v1: T.float32 = T.Select(
+                v_argmax_v1: T.let[T.float32] = T.Select(
                     argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v1[i], argmax_v1_rf[i, vi1_0]
                 )
                 argmax_v0[i] = v_argmax_v0

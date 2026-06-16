@@ -24,6 +24,7 @@
 
 #include "qdq.h"
 
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
@@ -56,9 +57,8 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   if (attrs->out_dtype != DataType::Int(8) && attrs->out_dtype != DataType::UInt(8) &&
       attrs->out_dtype != DataType::Int(16) && attrs->out_dtype != DataType::UInt(16) &&
       attrs->out_dtype != DataType::Float8E4M3FN() && attrs->out_dtype != DataType::Float8E5M2()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Unsupported output datatype attribute for operation: '"
-                     << attrs->out_dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Unsupported output datatype attribute for operation: '" << attrs->out_dtype;
   }
 
   TensorStructInfo input_sinfo = GetInputTensorStructInfo(call, ctx)[0];
@@ -67,15 +67,15 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
 
   // Check input datatype:
   if (input_sinfo->dtype != DataType::Float(16) && input_sinfo->dtype != DataType::Float(32)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Unsupported input datatype for operation: " << input_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Unsupported input datatype for operation: " << input_sinfo->dtype;
   }
 
   // Check datatype of scale param:
   if (scale_sinfo->dtype != DataType::Float(32) && scale_sinfo->dtype != DataType::Float(16)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "scale param datatype should be one of [float16, float32], but got "
-                     << scale_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "scale param datatype should be one of [float16, float32], but got "
+        << scale_sinfo->dtype;
   }
 
   // Check datatype of zero_point param:
@@ -83,17 +83,17 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
       zp_sinfo->dtype != DataType::Int(16) && zp_sinfo->dtype != DataType::UInt(16) &&
       zp_sinfo->dtype != DataType::Int(32) && zp_sinfo->dtype != DataType::UInt(32) &&
       zp_sinfo->dtype != DataType::Float(16)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "zero_point param datatype should be one of "
-                     << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
-                     << "but got " << zp_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "zero_point param datatype should be one of "
+        << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
+        << "but got " << zp_sinfo->dtype;
   }
 
   // Check that "axis" attribute is not out of range:
   int axis = (attrs->axis < 0) ? (input_sinfo->ndim + attrs->axis) : attrs->axis;
   if (axis < 0 || axis > input_sinfo->ndim - 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "relax.quantize: axis param is out of range (" << attrs->axis << ")");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "relax.quantize: axis param is out of range (" << attrs->axis << ")";
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
@@ -101,10 +101,9 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Size mismatch: " << call->op << ": the input shape at dim "
-                       << attrs->axis << " is '" << input_dim << "', but size of " << param_name
-                       << " param is '" << param_dim << "'");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "Size mismatch: " << call->op << ": the input shape at dim " << attrs->axis << " is '"
+          << input_dim << "', but size of " << param_name << " param is '" << param_dim << "'";
     }
   };
 
@@ -139,7 +138,7 @@ TVM_REGISTER_OP("relax.quantize")
     .add_argument("scale", "Tensor", "The quantization scale of the output tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the output tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoQuantize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 /* relax.dequantize */
 
@@ -159,9 +158,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
   if (attrs->out_dtype != DataType::Float(16) && attrs->out_dtype != DataType::Float(32)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Unsupported output datatype attribute for operation: "
-                     << attrs->out_dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Unsupported output datatype attribute for operation: " << attrs->out_dtype;
   }
 
   TensorStructInfo input_sinfo = GetInputTensorStructInfo(call, ctx)[0];
@@ -174,15 +172,15 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
       input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::Float8E4M3FN() &&
       input_sinfo->dtype != DataType::Float8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
       input_sinfo->dtype != DataType::Float(32)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Unsupported input datatype for operation: " << attrs->out_dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "Unsupported input datatype for operation: " << attrs->out_dtype;
   }
 
   // Check datatype of scale param:
   if (scale_sinfo->dtype != DataType::Float(32) && scale_sinfo->dtype != DataType::Float(16)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "scale param datatype should be one of [float16, float32], but got "
-                     << scale_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "scale param datatype should be one of [float16, float32], but got "
+        << scale_sinfo->dtype;
   }
 
   // Check datatype of zero_point param:
@@ -190,17 +188,17 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
       zp_sinfo->dtype != DataType::Int(16) && zp_sinfo->dtype != DataType::UInt(16) &&
       zp_sinfo->dtype != DataType::Int(32) && zp_sinfo->dtype != DataType::UInt(32) &&
       zp_sinfo->dtype != DataType::Float(16)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "zero_point param datatype should be one of "
-                     << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
-                     << "but got " << zp_sinfo->dtype);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "zero_point param datatype should be one of "
+        << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
+        << "but got " << zp_sinfo->dtype;
   }
 
   // Check that "axis" attribute is not out of range:
   int axis = (attrs->axis < 0) ? (input_sinfo->ndim + attrs->axis) : attrs->axis;
   if (axis < 0 || axis > input_sinfo->ndim - 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "relax.dequantize: axis param is out of range (" << attrs->axis << ")");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "relax.dequantize: axis param is out of range (" << attrs->axis << ")";
   }
 
   auto check_param_size = [&](const TensorStructInfo& param_sinfo,
@@ -208,10 +206,9 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
     const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
     const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Size mismatch: " << call->op << ": the input shape at dim "
-                       << attrs->axis << " is '" << input_dim << "', but size of " << param_name
-                       << " param is '" << param_dim << "'");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "Size mismatch: " << call->op << ": the input shape at dim " << attrs->axis << " is '"
+          << input_dim << "', but size of " << param_name << " param is '" << param_dim << "'";
     }
   };
 
@@ -246,7 +243,7 @@ TVM_REGISTER_OP("relax.dequantize")
     .add_argument("scale", "Tensor", "The quantization scale of the input tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDequantize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 }  // namespace relax
 }  // namespace tvm

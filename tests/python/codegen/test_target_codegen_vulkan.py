@@ -28,6 +28,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I_builder
 from tvm.script.ir_builder import tirx as T_builder
+from tvm.testing import env
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))
@@ -50,9 +51,9 @@ def test_vector_comparison(target, dev, dtype):
     zero = tvm.tirx.const(0, dtype)
     one = tvm.tirx.const(1, dtype)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1024,), dtype), B: T.Buffer((1024,), dtype)):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
@@ -85,21 +86,18 @@ def test_array_copy(dev, dtype, fuzz_seed):
     tvm.testing.assert_allclose(a_np, a.numpy())
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_array_vectorize_add(target, dev, dtype):
     target = tvm.target.Target(target)
     arr_size = 64
     lanes = 2
 
-    if "opencl" in str(target) and dtype == "float16":
-        pytest.xfail("Opencl target does not support float16")
-
     vec_dtype = f"{dtype}x{lanes}"
     one = tvm.tirx.const(1, vec_dtype)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((64,), vec_dtype), B: T.Buffer((64,), vec_dtype)):
             for i_0 in T.thread_binding(16, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(4, thread="threadIdx.x"):
@@ -117,14 +115,14 @@ def test_array_vectorize_add(target, dev, dtype):
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_bool_load(target, dev):
     target = tvm.target.Target(target)
     arr_size = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((1024,), "bool"), B: T.Buffer((1024,), "int32")):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(128, thread="threadIdx.x"):
@@ -211,39 +209,23 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
     tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
 
 
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_while_if(target, dev):
     target = tvm.target.Target(target)
     n = 1
     dtype = "int32"
 
-    def get_module(is_gpu):
-        if is_gpu:
+    @T.prim_func(s_tir=True)
+    def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
+        for bx in T.thread_binding(1, thread="blockIdx.x"):
+            iterations = T.decl_buffer((1,), "int32", scope="local")
+            iterations[0] = 0
+            B[0] = 0
+            while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
+                iterations[0] = iterations[0] + 1
+                B[0] = B[0] + iterations[0]
 
-            @T.prim_func
-            def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
-                for bx in T.thread_binding(1, thread="blockIdx.x"):
-                    iterations = T.decl_buffer((1,), "int32", scope="local")
-                    iterations[0] = 0
-                    B[0] = 0
-                    while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
-                        iterations[0] = iterations[0] + 1
-                        B[0] = B[0] + iterations[0]
-
-            return tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
-        else:
-
-            @T.prim_func
-            def while_if_cpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
-                iterations = T.decl_buffer((1,), "int32", scope="local")
-                iterations[0] = 0
-                B[0] = 0
-                while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
-                    iterations[0] = iterations[0] + 1
-                    B[0] = B[0] + iterations[0]
-
-            return tvm.IRModule.from_expr(while_if_cpu.with_attr("target", target))
-
-    mod = get_module("gpu" in target.keys)
+    mod = tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
     compiled_func = tvm.compile(mod, target=target)
 
     a = tvm.runtime.tensor(np.array([5], dtype=dtype), dev)
@@ -257,12 +239,12 @@ def test_vulkan_while_if(target, dev):
     tvm.testing.assert_allclose(b.numpy(), [210])
 
 
-@tvm.testing.exclude_targets("llvm")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_local_threadidx(target, dev):
     target = tvm.target.Target(target)
     n = 32
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def local_threadidx_func(A: T.Buffer((32,), "int32"), B: T.Buffer((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
@@ -290,9 +272,9 @@ def test_vectorized_index_ramp(target, dev):
     n = 4
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
@@ -321,9 +303,9 @@ def test_vectorized_index_broadcast(target, dev):
     broadcast_index = tvm.tirx.Broadcast(0, 4)
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
             A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
@@ -347,6 +329,7 @@ def test_vectorized_index_broadcast(target, dev):
     tvm.testing.assert_allclose(b.numpy(), np.full(n, a_np[0]))
 
 
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_negative_operand_divmod(target, dev):
     """Test handling of negative offsets to floormod/floordiv
 
@@ -365,25 +348,13 @@ def test_negative_operand_divmod(target, dev):
     offset = 16
     divisor = 5
 
-    if "gpu" in tvm.target.Target(target).keys:
-
-        @T.prim_func
-        def func(A: T.Buffer((N, 2), "int32")):
-            for i in T.thread_binding(N, thread="threadIdx.x"):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(N, i)
-                    A[v_i, 0] = T.floordiv(v_i - offset, divisor)
-                    A[v_i, 1] = T.floormod(v_i - offset, divisor)
-
-    else:
-
-        @T.prim_func
-        def func(A: T.Buffer((N, 2), "int32")):
-            for i in T.serial(N):
-                with T.sblock("A"):
-                    v_i = T.axis.spatial(N, i)
-                    A[v_i, 0] = T.floordiv(v_i - offset, divisor)
-                    A[v_i, 1] = T.floormod(v_i - offset, divisor)
+    @T.prim_func(s_tir=True)
+    def func(A: T.Buffer((N, 2), "int32")):
+        for i in T.thread_binding(N, thread="threadIdx.x"):
+            with T.sblock("A"):
+                v_i = T.axis.spatial(N, i)
+                A[v_i, 0] = T.floordiv(v_i - offset, divisor)
+                A[v_i, 1] = T.floormod(v_i - offset, divisor)
 
     built = tvm.compile(func, target=target)
 
@@ -400,9 +371,9 @@ def test_cooperative_matrix(out_dtype):
     M, N, K = 16, 16, 32
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
             X_shared = T.sblock_alloc_buffer((16, 32), "float16", scope="shared")
@@ -498,13 +469,14 @@ def test_cooperative_matrix(out_dtype):
         tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
     """The codegen should accept DeclBuffer nodes in its input"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
             A = T.alloc_buffer((256,), dtype="float32", scope="local")
@@ -515,13 +487,14 @@ def test_codegen_decl_buffer():
     vulkan_codegen(Module, target)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_static_shared_memory():
     """The codegen should accept static shared/workgroup allocations."""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
 
@@ -533,8 +506,8 @@ def test_codegen_static_shared_memory():
     tvm.compile(Module, target="vulkan")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_vulkan
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_unary():
     test_funcs = [
         (tvm.tirx.sin, lambda x: np.sin(x)),
@@ -554,9 +527,9 @@ def test_unary():
     def run_test(tvm_intrin, np_func):
         n = 16
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(var_A: T.handle, var_B: T.handle):
                 m = T.int32(is_size_var=True)
                 A = T.match_buffer(var_A, (m,), "float32")
@@ -592,14 +565,15 @@ def test_unary():
         run_test(*func)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

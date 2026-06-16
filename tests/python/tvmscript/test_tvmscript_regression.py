@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 np_array = numpy.array([0, 1, 2, 3])
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
@@ -47,11 +47,11 @@ def test_multi_element_array_in_outmost_namespace():
 
 
 def test_different_dtype_assignment_to_var():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_case():
         a = T.sblock_alloc_buffer((10, 10), dtype="int8")
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func_ref():
         a = T.sblock_alloc_buffer([10, 10], dtype="int8")
         T.evaluate(0)
@@ -64,13 +64,13 @@ def test_different_dtype_assignment_to_var():
 def test_var_capturing_order():
     b = 2
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def test_case():
-        k: T.int32 = b
+        k: T.let[T.int32] = b
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func_ref():
-        k: T.int32 = 2
+        k: T.let[T.int32] = 2
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(
@@ -79,7 +79,7 @@ def test_var_capturing_order():
 
 
 def test_tir_buffer_region_extent_correct_dtype():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((T.int64(16), T.int64(1)), "float32")):
         for i in T.grid(T.int64(16)):
             with T.sblock("block"):

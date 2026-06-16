@@ -23,7 +23,7 @@ from collections.abc import Callable
 import tvm_ffi
 
 from tvm.ir import PrimExpr
-from tvm.runtime.support import derived_object
+from tvm.ir.utils import derived_object
 
 from . import _ffi_api
 from .expr import (
@@ -78,39 +78,10 @@ from .stmt import (
     While,
 )
 
+# visitor and mutator are aliases for derived_object
 visitor = derived_object
-"""
-A decorator to wrap user-customized PyStmtExprVisitor as TVM object _PyStmtExprVisitor.
-
-Parameters
-----------
-visitor_cls : PyStmtExprVisitor
-    The user-customized PyStmtExprVisitor.
-
-Returns
--------
-cls : _PyStmtExprVisitor
-    The decorated TVM object _PyStmtExprVisitor(StmtExprVisitor on the C++ side).
-
-Example
--------
-.. code-block:: python
-
-    @tirx.functor.stmt_expr_visitor
-    class MyStmtExprVisitor(PyStmtExprVisitor):
-        # customize visit function
-        def visit_call_(self, op: Call) -> None:
-            # just for demo purposes
-            ...
-    # myvisitor is now a special visitor that visit every Call with
-    # user-customized visit_call_
-    myvisitor = MyStmtExprVisitor()
-    # apply myvisitor to PrimExpr and Stmt
-    myvisitor.visit_expr(expr)
-    myvisitor.visit_stmt(stmt)
-"""
-
 mutator = derived_object
+
 """
 A decorator to wrap user-customized PyStmtExprMutator as TVM object _PyStmtExprMutator.
 

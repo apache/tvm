@@ -37,7 +37,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -82,7 +82,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -148,7 +148,7 @@ def test_matmul_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((1024, 1024), "float16"),
             B: T.Buffer((1024, 1024), "float16"),
@@ -207,7 +207,7 @@ def test_simple_alloc_no_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -230,7 +230,7 @@ def test_simple_alloc_reuse():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
@@ -252,25 +252,97 @@ def test_async_copy():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
-            threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            T.ptx_cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
-            T.ptx_cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
+            T.ptx.cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
+            T.ptx.cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
 
     After = transform(Before)
-    # The pass merges shared.dyn allocations but DeclBuffer nodes from the original
-    # allocations remain with remapped data vars. The output can't be precisely
-    # represented in TVMScript due to same-name var constraints, so we verify
-    # key properties instead of exact structural equality.
+    # The pass merges shared.dyn allocations. A_sh and B_sh are accessed
+    # sequentially inside the thread_extent with non-overlapping lifetimes,
+    # so the liveness analysis allows reuse — both fit in 512 bytes
+    # (= 128 elements * 4 bytes).
     script = After["main"].script()
-    # Verify merged allocation (1024 bytes = 128*4 + 128*4)
-    assert '"uint8"' in script and '"shared.dyn"' in script and "(1024,)" in script
-    # Verify cp_async uses correct byte offsets
+    # Verify merged allocation (512 bytes - A_sh and B_sh can be reused)
+    assert '"uint8"' in script and '"shared.dyn"' in script and "(512,)" in script
+    # Verify cp_async uses the merged buffer
+    assert "buf_dyn_shmem" in script
     assert "threadIdx_x * 4" in script
-    assert "(128 + threadIdx_x) * 4" in script
+
+
+def test_multi_thread_extent_blocks():
+    """Each thread_extent block must get its own merged buffer.
+
+    Reproduces the scoping bug from PR #19605: a single PrimFunc
+    with two sibling thread_extent regions, each containing its
+    own shared.dyn allocations. The merged buffer must be allocated
+    inside each kernel body — not just the first.
+    """
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
+
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.prim_func(s_tir=True, check_well_formed=False)
+        def main(
+            X: T.Buffer((128,), "float32"),
+            Y: T.Buffer((128,), "float32"),
+        ):
+            X_flat = T.decl_buffer(128, data=X.data)
+            Y_flat = T.decl_buffer(128, data=Y.data)
+
+            # First kernel launch
+            tx0 = T.env_thread("threadIdx.x")
+            with T.attr(tx0, "thread_extent", 128):
+                A_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+                B_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+                A_sh[tx0] = X_flat[tx0]
+                B_sh[tx0] = A_sh[tx0]
+                X_flat[tx0] = B_sh[tx0]
+
+            # Second kernel launch — must NOT see kernel #0's merged buffer.
+            tx1 = T.env_thread("threadIdx.x")
+            with T.attr(tx1, "thread_extent", 128):
+                C_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+                D_sh = T.alloc_buffer((128,), "float32", scope="shared.dyn")
+                C_sh[tx1] = Y_flat[tx1]
+                D_sh[tx1] = C_sh[tx1]
+                Y_flat[tx1] = D_sh[tx1]
+
+    After = transform(Before)
+    script = After["main"].script()
+
+    # Two merged allocations — one per thread_extent body.
+    # Each of the four original 128-float32 buffers (A_sh, B_sh, C_sh, D_sh)
+    # gets merged within its own kernel scope.
+    assert script.count("shared.dyn") >= 2, (
+        "Expected at least two shared.dyn allocations (one per kernel)"
+    )
+    assert script.count("alloc_buffer") >= 2, (
+        "Expected at least two alloc_buffer nodes (one merged buf per kernel)"
+    )
+
+    # Both thread_extent blocks must contain their own merged buffer —
+    # they must NOT share the same buf_dyn_shmem variable.
+    # Structurally verify that the first kernel's body accesses are
+    # not rewritten to the second kernel's buf_dyn_shmem (and vice versa).
+    first_block = script.split("with T.attr(tx1")[0]
+    second_block = script.split("with T.attr(tx1")[1] if "tx1" in script else ""
+    assert "buf_dyn_shmem" in first_block, "Kernel 1 must have a merged buffer"
+    if second_block:
+        assert "buf_dyn_shmem" in second_block, "Kernel 2 must have a merged buffer"
+
+    # End-to-end: post-merge IR must remain well-formed through
+    # the host/device split — this is the exact ordering from
+    # PR #19605 that triggers the scoping bug.
+    target = tvm.target.Target("llvm")
+    mod_with_target = tvm.IRModule({"main": After["main"].with_attr({"target": target})})
+    split = tvm.tirx.transform.SplitHostDevice()
+    # If kernel #1 referenced an undefined buf_dyn_shmem, this
+    # would raise during well-formedness checking inside SplitHostDevice.
+    split(mod_with_target)
 
 
 if __name__ == "__main__":

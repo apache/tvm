@@ -167,7 +167,7 @@ class Range(Node, Scriptable):
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
 
     def __eq__(self, other: Object) -> bool:
-        return tvm.ir.structural_equal(self, other)
+        return tvm_ffi.structural_equal(self, other)
 
     def __ne__(self, other: Object) -> bool:
         return not self.__eq__(other)

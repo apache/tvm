@@ -37,7 +37,7 @@ def _assert_test(input, expected=None, expected2=None):
 
 
 def test_conv2d():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -48,7 +48,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -72,7 +72,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -101,7 +101,7 @@ def test_conv2d():
 
 
 def test_conv2d_relu():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -113,7 +113,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -140,7 +140,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -170,7 +170,7 @@ def test_conv2d_relu():
 
 
 def test_relu_conv2d_relu():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -183,7 +183,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -211,7 +211,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -242,7 +242,7 @@ def test_relu_conv2d_relu():
 
 
 def test_conv2d_relu_conv2d():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -257,7 +257,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -298,7 +298,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -343,7 +343,7 @@ def test_conv2d_relu_conv2d():
 
 
 def test_gemm_add_silu():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -358,7 +358,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -377,7 +377,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -399,7 +399,7 @@ def test_gemm_add_silu():
 
 
 def test_tuple():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -418,7 +418,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -487,7 +487,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -559,7 +559,7 @@ def test_tuple():
 
 
 def test_concat_matmul():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -573,7 +573,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -589,7 +589,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -610,7 +610,7 @@ def test_concat_matmul():
 
 
 def test_conv2d_softmax():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -623,7 +623,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -651,7 +651,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -730,7 +730,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(
@@ -781,7 +781,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected2:
         @R.function
         def main(
@@ -1040,7 +1040,7 @@ def test_convert_sig():
 
 
 def test_call_tir_with_float16_args():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Before:
         @R.function
         def main(A: R.Tensor([64], "float16")):
@@ -1051,7 +1051,7 @@ def test_call_tir_with_float16_args():
                 R.output(C)
             return C
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def tir_identity(
             Input: T.Buffer(64, "float16"),
             Output: T.Buffer(64, "float16"),
@@ -1068,7 +1068,7 @@ def test_call_tir_with_float16_args():
 
 
 def test_dynamic_strided_slice():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         @R.function
         def main(
@@ -1084,7 +1084,7 @@ def test_dynamic_strided_slice():
                 R.output(gv)
             return gv
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         @R.function
         def main(

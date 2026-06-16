@@ -16,11 +16,13 @@
 # under the License.
 """Common base structures."""
 
+import tvm_ffi
 from tvm_ffi import get_global_func, register_object
+from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
-import tvm.error
-from tvm.runtime import Object, _ffi_node_api
+from tvm.runtime import Object
 
+from ..libinfo import __version__
 from . import _ffi_api, json_compact
 
 
@@ -141,7 +143,7 @@ def load_json(json_str) -> Object:
     """
 
     json_str = json_compact.upgrade_json(json_str)
-    return _ffi_node_api.LoadJSON(json_str)
+    return from_json_graph_str(json_str)
 
 
 def save_json(node) -> str:
@@ -157,86 +159,7 @@ def save_json(node) -> str:
     json_str : str
         Saved json string.
     """
-    return _ffi_node_api.SaveJSON(node)
-
-
-def structural_equal(lhs, rhs, map_free_vars=False):
-    """Check structural equality of lhs and rhs.
-
-    The structural equality is recursively defined in the DAG of IRNodes.
-    There are two kinds of nodes:
-
-    - Graph node: a graph node in lhs can only be mapped as equal to
-      one and only one graph node in rhs.
-    - Normal node: equality is recursively defined without the restriction
-      of graph nodes.
-
-    Vars(tirx::Var, relax::Var) are graph nodes.
-
-    A var-type node(e.g. tirx::Var) can be mapped as equal to another var
-    with the same type if one of the following condition holds:
-
-    - They appear in a same definition point(e.g. function argument).
-    - They points to the same VarNode via the same_as relation.
-    - They appear in a same usage point, and map_free_vars is set to be True.
-
-    The rules for var are used to remap variables occurs in function
-    arguments and let-bindings.
-
-    Parameters
-    ----------
-    lhs : Object
-        The left operand.
-
-    rhs : Object
-        The left operand.
-
-    map_free_vars : bool
-        Whether free variables (i.e. variables without a definition site) should be mapped
-        as equal to each other.
-
-    Return
-    ------
-    result : bool
-        The comparison result.
-
-    See Also
-    --------
-    structural_hash
-    assert_strucural_equal
-    """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
-
-
-def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
-    """Like structural_equal(), but returns the AccessPath pair of the first detected mismatch.
-
-    Parameters
-    ----------
-    lhs : Object
-        The left operand.
-
-    rhs : Object
-        The left operand.
-
-    map_free_vars : bool
-        Whether free variables (i.e. variables without a definition site) should be mapped
-        as equal to each other.
-
-    skip_tensor_content : bool
-        Whether to skip the content of ndarray.
-
-    Returns
-    -------
-    mismatch: Optional[Tuple[AccessPath, AccessPath]]
-        `None` if `lhs` and `rhs` are structurally equal.
-        Otherwise, a tuple of two AccessPath objects that point to the first detected mismtach.
-    """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
+    return to_json_graph_str(node, {"tvm_version": __version__})
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -260,53 +183,24 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
 
     See Also
     --------
-    structural_equal
+    tvm_ffi.structural_equal
     """
-    lhs = tvm.runtime.convert(lhs)
-    rhs = tvm.runtime.convert(rhs)
-    _ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)  # type: ignore # pylint: disable=no-member
+    first_mismatch = tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars)
+    if first_mismatch is not None:
+        from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
+            PrinterConfig,
+            _script,
+        )
 
-
-def structural_hash(node, map_free_vars=False):
-    """Compute structural hash of node
-
-    The structural hash value is recursively defined in the DAG of IRNodes.
-    There are two kinds of nodes:
-
-    - Normal node: the hash value is defined by its content and type only.
-    - Graph node: each graph node will be assigned a unique index ordered by the
-      first occurrence during the visit. The hash value of a graph node is
-      combined from the hash values of its contents and the index.
-
-    structural_hash is made to be concistent with structural_equal.
-    If two nodes are structurally equal to each other,
-    then their structural hash (with the same map_free_vars option)
-    should be equal to each other as well.
-
-    If the structural hash of two nodes equals to each other,
-    then it is highly likely(except for rare hash value collison cases)
-    that the two nodes are structurally equal to each other.
-
-    Parameters
-    ----------
-    node : Object
-        The input to be hashed.
-
-    map_free_vars : bool
-        If map_free_vars is set to true, we will hash free variables
-        by the order of their occurrences. Otherwise, we will hash by
-        their in-memory pointer address.
-
-    Return
-    ------
-    result : int
-        The hash result
-
-    See Also
-    --------
-    structrual_equal
-    """
-    return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore # pylint: disable=no-member
+        lhs_path, rhs_path = first_mismatch
+        lhs_script = _script(lhs, PrinterConfig(syntax_sugar=False, path_to_underline=[lhs_path]))
+        rhs_script = _script(rhs, PrinterConfig(syntax_sugar=False, path_to_underline=[rhs_path]))
+        raise ValueError(
+            f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
+            f"{lhs_script}\n"
+            f"and rhs at {rhs_path}:\n"
+            f"{rhs_script}"
+        )
 
 
 def deprecated(

@@ -33,9 +33,9 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   n->state_ = ScheduleState(mod, debug_mask, enable_check);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
-  n->analyzer_ = std::make_unique<arith::Analyzer>();
+  n->analyzer_ = arith::Analyzer();
   n->Seed(seed);
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -201,7 +201,7 @@ Schedule ConcreteScheduleNode::Copy() {
   n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
-  n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
+  n->analyzer_ = arith::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   return Schedule(std::move(n));
 }
@@ -236,9 +236,9 @@ LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<Integer>& candidates,
+ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<int64_t>& candidates,
                                                const ffi::Array<FloatImm>& probs,
-                                               ffi::Optional<Integer> decision) {
+                                               ffi::Optional<int64_t> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(s_tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
@@ -247,7 +247,7 @@ ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<Integer>& candid
 
 ffi::Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(
     const LoopRV& loop_rv, int n, int max_innermost_factor,
-    ffi::Optional<ffi::Array<Integer>> decision) {
+    ffi::Optional<ffi::Array<int64_t>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   // use None RV object to denotes auto-infer tile factors.
   return CreateRV(s_tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
@@ -259,7 +259,7 @@ ffi::Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(
 
 ffi::Array<ExprRV> ConcreteScheduleNode::SamplePartitionedTile(
     const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
-    ffi::Optional<ffi::Array<Integer>> decision) {
+    ffi::Optional<ffi::Array<int64_t>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(s_tir::SamplePartitionedTile(&this->rand_state_, this->GetSRef(loop_rv), n,
                                                partition_pos, innerpart_factor, &decision));
@@ -268,7 +268,7 @@ ffi::Array<ExprRV> ConcreteScheduleNode::SamplePartitionedTile(
 }
 
 LoopRV ConcreteScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
-                                                   ffi::Optional<Integer> decision) {
+                                                   ffi::Optional<int64_t> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV<LoopRV>(
       s_tir::SampleComputeLocation(state_, &this->rand_state_, this->GetSRef(block_rv), &decision));
@@ -316,7 +316,7 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
     IRModule mod_;
     ffi::Array<SBlock> blocks_;
   };
-  GlobalVar gv = NullValue<GlobalVar>();
+  GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.has_value()) {
@@ -488,7 +488,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].defined()) {
-      factors.push_back(Integer(-1));
+      factors.push_back(IntImm(DataType::Int(32), -1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }
@@ -555,7 +555,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
     if (!factor_rvs[i].defined()) {
-      factors.push_back(Integer(-1));
+      factors.push_back(IntImm(DataType::Int(32), -1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }
@@ -600,7 +600,7 @@ void ConcreteScheduleNode::Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) {
 }
 
 void ConcreteScheduleNode::ReorderBlockIterVar(const SBlockRV& block_rv,
-                                               const ffi::Array<Integer> new_order) {
+                                               const ffi::Array<int64_t> new_order) {
   TVM_TIR_SCHEDULE_BEGIN();
   s_tir::ReorderBlockIterVar(state_, GetSRef(block_rv), new_order);
   TVM_TIR_SCHEDULE_END("reorder_block_iter_var", this->error_render_level_);
@@ -1070,7 +1070,7 @@ SBlockRV ConcreteScheduleNode::DecomposePadding(const SBlockRV& block_rv, const 
   return CreateRV<SBlockRV>(result);
 }
 
-void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) {
+void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) {
   TVM_TIR_SCHEDULE_BEGIN();
   s_tir::PadEinsum(state_, this->GetSRef(block_rv), padding);
   TVM_TIR_SCHEDULE_END("pad-einsum", this->error_render_level_);

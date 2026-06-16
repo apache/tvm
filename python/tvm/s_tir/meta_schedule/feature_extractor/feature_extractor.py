@@ -33,7 +33,6 @@ from tvm.runtime._tensor import Tensor
 from .. import _ffi_api
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import _get_default_str
 
 
 @register_object("s_tir.meta_schedule.FeatureExtractor")
@@ -87,13 +86,12 @@ class _PyFeatureExtractor(FeatureExtractor):
     See also: PyFeatureExtractor
     """
 
-    def __init__(self, f_extract_from: Callable, f_as_string: Callable | None = None):
+    def __init__(self, f_extract_from: Callable):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.FeatureExtractorPyFeatureExtractor,  # type: ignore # pylint: disable=no-member
             f_extract_from,
-            f_as_string,
         )
 
 
@@ -107,7 +105,7 @@ class PyFeatureExtractor:
 
     _tvm_metadata = {
         "cls": _PyFeatureExtractor,
-        "methods": ["extract_from", "__str__"],
+        "methods": ["extract_from"],
     }
 
     def extract_from(
@@ -128,6 +126,3 @@ class PyFeatureExtractor:
             The feature tvm ndarray extracted.
         """
         raise NotImplementedError
-
-    def __str__(self) -> str:
-        return _get_default_str(self)

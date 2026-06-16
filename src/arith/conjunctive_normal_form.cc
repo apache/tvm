@@ -25,6 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 #include <optional>
 #include <unordered_map>
@@ -54,7 +55,7 @@ class AndOfOrs {
   PrimExpr AsPrimExpr() const;
 
   /*! \brief Simplify the internal representation */
-  void Simplify(Analyzer* analyzer);
+  void Simplify(AnalyzerObj* analyzer);
 
  private:
   /*! \brief Internal utility, simplify within each group of expressions
@@ -66,7 +67,7 @@ class AndOfOrs {
    *    before = (a == 5) && ((b < 10) || (b > 10))
    *    after  = (a == 5) && ((b != 10) || false)
    */
-  void SimplifyWithinChunks(Analyzer* analyzer);
+  void SimplifyWithinChunks(AnalyzerObj* analyzer);
 
   /*! \brief Internal utility, simplify across groups of expressions
    *
@@ -77,7 +78,7 @@ class AndOfOrs {
    *    before = ((a == 5) || (b <= 10)) && ((a == 5) || (b >= 10))
    *    after  = ((a == 5) || (b == 10)) && ((a == 5) || true)
    */
-  void SimplifyAcrossChunks(Analyzer* analyzer);
+  void SimplifyAcrossChunks(AnalyzerObj* analyzer);
 
   /*! \brief Remove instances of true/false from internal representation
    *
@@ -117,14 +118,14 @@ class AndOfOrs {
    * If successful, will overwrite the parameters `a` and `b` with the
    * simplified form.
    */
-  void TrySimplifyOr(Key* a, Key* b, Analyzer* analyzer);
+  void TrySimplifyOr(Key* a, Key* b, AnalyzerObj* analyzer);
 
   /*! \brief Attempt to simplify (a || b)
    *
    * If successful, will overwrite the parameters `a` and `b` with the
    * simplified form.
    */
-  void TrySimplifyAnd(Key* a, Key* b, Analyzer* analyzer);
+  void TrySimplifyAnd(Key* a, Key* b, AnalyzerObj* analyzer);
 
   /*! \brief The internal representation
    *
@@ -138,15 +139,16 @@ class AndOfOrs {
   /*! \brief Mapping from PrimExpr to internal Key */
   std::unordered_map<PrimExpr, Key, ffi::StructuralHash, ffi::StructuralEqual> expr_to_key_;
 
-  /*! \brief Cached key representing tirx::Bool(true) */
+  /*! \brief Cached key representing tirx::IntImm(DataType::Bool(), 1) */
   Key key_true_;
 
-  /*! \brief Cached key representing tirx::Bool(false) */
+  /*! \brief Cached key representing tirx::IntImm(DataType::Bool(), 0) */
   Key key_false_;
 };
 
 AndOfOrs::AndOfOrs(const PrimExpr& expr)
-    : key_true_(GetKey(Bool(true))), key_false_(GetKey(Bool(false))) {
+    : key_true_(GetKey(IntImm(DataType::Bool(), 1))),
+      key_false_(GetKey(IntImm(DataType::Bool(), 0))) {
   VisitAndExpressions(expr, [&](const PrimExpr& outer_expr) {
     std::vector<Key> or_components;
     VisitOrExpressions(outer_expr, [&](const PrimExpr& inner_expr) {
@@ -233,9 +235,9 @@ PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
 }
 
 PrimExpr AndOfOrs::AsPrimExpr() const {
-  PrimExpr expr = Bool(true);
+  PrimExpr expr = IntImm(DataType::Bool(), 1);
   for (const auto& chunk : chunks_) {
-    PrimExpr chunk_expr = Bool(false);
+    PrimExpr chunk_expr = IntImm(DataType::Bool(), 0);
     for (Key j : chunk) {
       chunk_expr = chunk_expr || GetExpr(j);
     }
@@ -244,7 +246,7 @@ PrimExpr AndOfOrs::AsPrimExpr() const {
   return expr;
 }
 
-void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
+void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, AnalyzerObj* analyzer) {
   Key& a = *a_ptr;
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) || GetExpr(b);
@@ -260,7 +262,7 @@ void AndOfOrs::TrySimplifyOr(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
   }
 }
 
-void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
+void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, AnalyzerObj* analyzer) {
   Key& a = *a_ptr;
   Key& b = *b_ptr;
   PrimExpr joint = GetExpr(a) && GetExpr(b);
@@ -276,14 +278,14 @@ void AndOfOrs::TrySimplifyAnd(Key* a_ptr, Key* b_ptr, Analyzer* analyzer) {
   }
 }
 
-void AndOfOrs::Simplify(Analyzer* analyzer) {
+void AndOfOrs::Simplify(AnalyzerObj* analyzer) {
   SimplifyWithinChunks(analyzer);
   RemoveTrueFalse();
   SimplifyAcrossChunks(analyzer);
   RemoveTrueFalse();
 }
 
-void AndOfOrs::SimplifyWithinChunks(Analyzer* analyzer) {
+void AndOfOrs::SimplifyWithinChunks(AnalyzerObj* analyzer) {
   for (auto& chunk : chunks_) {
     for (size_t expr_i = 0; expr_i < chunk.size(); expr_i++) {
       for (size_t expr_j = expr_i + 1; expr_j < chunk.size(); expr_j++) {
@@ -296,7 +298,7 @@ void AndOfOrs::SimplifyWithinChunks(Analyzer* analyzer) {
   }
 }
 
-void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
+void AndOfOrs::SimplifyAcrossChunks(AnalyzerObj* analyzer) {
   for (size_t i_and = 0; i_and < chunks_.size(); i_and++) {
     for (size_t j_and = i_and + 1; j_and < chunks_.size(); j_and++) {
       auto& i_chunk = chunks_[i_and];
@@ -366,7 +368,7 @@ void AndOfOrs::SimplifyAcrossChunks(Analyzer* analyzer) {
           // When attempting to simplify (B and C), the analyzer may
           // assume that A is false.
           PrimExpr known = [&]() {
-            PrimExpr known = Bool(true);
+            PrimExpr known = IntImm(DataType::Bool(), 1);
             for (const auto& key : i_chunk) {
               if (&key != &key_i) {
                 known = known && analyzer->Simplify(!GetExpr(key));
@@ -415,7 +417,7 @@ void AndOfOrs::RemoveTrueFalse() {
 // recursion.
 class DisableAndOfOrRecursion {
  public:
-  explicit DisableAndOfOrRecursion(Analyzer* analyzer)
+  explicit DisableAndOfOrRecursion(AnalyzerObj* analyzer)
       : analyzer_(analyzer), cached_flags_(analyzer->rewrite_simplify.GetEnabledExtensions()) {
     auto new_flags = static_cast<RewriteSimplifier::Extension>(
         cached_flags_ & (~RewriteSimplifier::kConvertBooleanToAndOfOrs));
@@ -427,13 +429,13 @@ class DisableAndOfOrRecursion {
   DisableAndOfOrRecursion& operator=(const DisableAndOfOrRecursion&) = delete;
 
  private:
-  Analyzer* analyzer_;
+  AnalyzerObj* analyzer_;
   RewriteSimplifier::Extension cached_flags_;
 };
 
 }  // namespace
 
-PrimExpr SimplifyAsAndOfOrs(const PrimExpr& expr, Analyzer* analyzer) {
+PrimExpr SimplifyAsAndOfOrs(const PrimExpr& expr, AnalyzerObj* analyzer) {
   DisableAndOfOrRecursion context(analyzer);
   AndOfOrs repr(analyzer->Simplify(expr));
   repr.Simplify(analyzer);

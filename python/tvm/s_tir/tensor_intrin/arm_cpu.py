@@ -36,7 +36,7 @@ from .dot_product_common import (
 # shape and dtype, and share the common description with x86.
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def neon_4x4_i8i8i32_desc(
     A: T.Buffer((4,), "int8", offset_factor=1),
     B: T.Buffer((4, 4), "int8", offset_factor=1),
@@ -52,7 +52,7 @@ def neon_4x4_i8i8i32_desc(
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def neon_4x4_i8i8i32_impl(
     A: T.Buffer((4,), "int8", offset_factor=1),
     B: T.Buffer((4, 4), "int8", offset_factor=1),
@@ -118,7 +118,7 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     out_dtype_x4 = f"{out_dtype}x4"
     in_dtype_x16 = f"{in_dtype}x16"
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_prod_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
         B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
@@ -134,7 +134,7 @@ def get_dotprod_intrin(in_dtype, out_dtype):
                             B[vi, vk], dtype=out_dtype
                         )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def dot_prod_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
         B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
@@ -256,7 +256,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, a_t: T.handle) -> None:
         A = T.match_buffer(a, (SVF2, SVF2), dtype="float32", offset_factor=1)
         A_t = T.match_buffer(a_t, (SVF2, SVF2), dtype="float32", offset_factor=1)
@@ -359,24 +359,24 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     of A are loaded onto the accumulator tile by interleaving rows in the first half (0, SVL//2]
     of the tile and rows in the second half (SVL//2, SVL]. Columns of fp32 values are stored
     into the output buffer. The fp32 store is used to group pairs of consecutive values together,
-    resulting in the arrangement displayed below.
+    resulting in the arrangement displayed below::
 
-    A:                                Accumulator tile:
-         +----------------+            +----------------+
-         |-------0a-------|            |-------0a-------|
-         |-------0b-------|            |-------0x-------|
-         |      ...       |            |-------0b-------|            A_t:
-         |-------0x-------|            |-------0y-------|             +------------------------------------------------+
-         |-------0y-------|            |      ...       |             |0a.0 0a.1 0b.0 0b.1    | 1a.0 1a.1 1b.0 1b.1    |
-         |      ...       | ld1h.horiz |                |  st1w.vert  |0x.0 0x.1 0y.0 0y.1    | 1x.0 1x.1 1y.0 1y.1    |
-         |================|   ====>    |================|    ====>    |0a.2 0a.3 0b.2 0b.3 ...| 1a.2 1a.3 1b.2 1b.3 ...|
-         |-------1a-------|            |-------1a-------|             |0x.2 0x.3 0y.2 0y.3    | 1x.2 1x.3 1y.2 1y.3    |
-         |-------1b-------|            |-------1x-------|             |...  ...  ...  ...     | ...  ...  ...  ...     |
-         |      ...       |            |-------1b-------|             +------------------------------------------------+
-         |-------1x-------|            |-------1y-------|
-         |-------1y-------|            |      ...       |
-         |      ...       |            |                |
-         +----------------+            +----------------+
+        A:                                Accumulator tile:
+             +----------------+            +----------------+
+             |-------0a-------|            |-------0a-------|
+             |-------0b-------|            |-------0x-------|
+             |      ...       |            |-------0b-------|            A_t:
+             |-------0x-------|            |-------0y-------|             +------------------------------------------------+
+             |-------0y-------|            |      ...       |             |0a.0 0a.1 0b.0 0b.1    | 1a.0 1a.1 1b.0 1b.1    |
+             |      ...       | ld1h.horiz |                |  st1w.vert  |0x.0 0x.1 0y.0 0y.1    | 1x.0 1x.1 1y.0 1y.1    |
+             |================|   ====>    |================|    ====>    |0a.2 0a.3 0b.2 0b.3 ...| 1a.2 1a.3 1b.2 1b.3 ...|
+             |-------1a-------|            |-------1a-------|             |0x.2 0x.3 0y.2 0y.3    | 1x.2 1x.3 1y.2 1y.3    |
+             |-------1b-------|            |-------1x-------|             |...  ...  ...  ...     | ...  ...  ...  ...     |
+             |      ...       |            |-------1b-------|             +------------------------------------------------+
+             |-------1x-------|            |-------1y-------|
+             |-------1y-------|            |      ...       |
+             |      ...       |            |                |
+             +----------------+            +----------------+
 
     In the A_t output matrix in the diagram above, .x is used to denote the offset into the
     labelled row.
@@ -391,7 +391,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     SVF = tirx.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, a_t: T.handle) -> None:
         A = T.match_buffer(a, (SVF2, SVF), dtype="float16", offset_factor=1)
         A_t = T.match_buffer(a_t, (SVF, SVF2), dtype="float16", offset_factor=1)
@@ -595,7 +595,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
     )
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(a: T.handle, b: T.handle, c: T.handle):
         A = T.match_buffer(a, (K, SVF2), dtype=in_dtype, offset_factor=1)
         B = T.match_buffer(b, (K, SVF2), dtype=in_dtype, offset_factor=1)
@@ -725,7 +725,7 @@ def get_sme_init_intrin():
     """
     SVF2 = 2 * 4 * T.vscale()
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def desc(c: T.handle) -> None:
         C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
         with T.sblock("root"):
@@ -736,7 +736,7 @@ def get_sme_init_intrin():
                     v_m, v_n = T.axis.remap("SS", [m, n])
                     C[v_m, v_n] = T.float32(0)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def impl(c: T.handle) -> None:
         C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
         with T.sblock("root"):

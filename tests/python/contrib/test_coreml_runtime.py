@@ -22,7 +22,8 @@ import pytest
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import coreml_runtime, utils, xcode
+from tvm.contrib import coreml_runtime
+from tvm.support import utils, xcode
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)

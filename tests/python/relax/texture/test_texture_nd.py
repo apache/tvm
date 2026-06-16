@@ -30,12 +30,13 @@ from tvm import (
     relax,
     tirx,
 )
-from tvm.contrib import ndk
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import ndk
 from tvm.target import Target
+from tvm.testing import env
 
 
 def get_rpc():
@@ -105,8 +106,9 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
     return mod
 
 
-@tvm.testing.requires_rpc
-@tvm.testing.requires_adreno_opencl
+@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_adreno_opencl(), reason="need adreno opencl")
 @pytest.mark.parametrize("backend", ["opencl"])
 @pytest.mark.parametrize("dtype", ["int8", "float16", "int16", "float32", "int32"])
 @pytest.mark.parametrize("channel_size", [64, 128])
@@ -118,9 +120,9 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     if read_width > lanes:
         return
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class TextureCopy:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):

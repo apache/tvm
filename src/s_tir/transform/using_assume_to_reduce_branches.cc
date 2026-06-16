@@ -115,7 +115,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
  public:
   using Parent = IRMutatorWithAnalyzer;
-  explicit ParseAssumeAndOvercompute(Analyzer* analyzer) : Parent(analyzer) {}
+  explicit ParseAssumeAndOvercompute(AnalyzerObj* analyzer) : Parent(analyzer) {}
 
  private:
   using Parent::VisitExpr_;
@@ -177,7 +177,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   PrimExpr CurrentScopePredicate() const {
     /* This combines all the constraints in a scope */
-    PrimExpr predicate = Bool(true);
+    PrimExpr predicate = const_true();
     for (const auto& condition : conditions_) {
       predicate = predicate && condition;
     }
@@ -281,7 +281,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   void AssumeConstraintComponent(PrimExpr assumption) {
-    PrimExpr additional_predicate = Bool(true);
+    PrimExpr additional_predicate = const_true();
     assume_struct buf_data;
 
     std::vector<PrimExpr> buffer_exprs;
@@ -366,11 +366,11 @@ Pass UseAssumeToReduceBranches() {
     // The pass runs & eliminates pad branch with overcompute only if,
     // the primfunc has op_pattern defined and is an elementwise op.
     // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
-    if (n->attrs.GetAttr<Integer>("op_pattern").defined()) {
-      ffi::Optional<Integer> opt_pattern = f->GetAttr<Integer>("op_pattern");
-      if (opt_pattern.defined()) {
+    if (n->attrs.GetAttr<int64_t>("op_pattern").has_value()) {
+      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>("op_pattern");
+      if (opt_pattern.has_value()) {
         relax::OpPatternKind pattern;
-        pattern = static_cast<relax::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        pattern = static_cast<relax::OpPatternKind>(opt_pattern.value());
 
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {
@@ -380,7 +380,7 @@ Pass UseAssumeToReduceBranches() {
 
           if (assume_checker.has_assume) {
             // Leverage from assume and eliminate the branch
-            ParseAssumeAndOvercompute func_analyzer_mutator(&analyzer);
+            ParseAssumeAndOvercompute func_analyzer_mutator(analyzer.get());
             n->body = func_analyzer_mutator(std::move(n->body));
           }
         }

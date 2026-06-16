@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-04-25T15:49:49.200674
+// Generated at 2026-06-09T19:52:01.271485
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -133,12 +133,15 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  if (env.BRANCH_NAME == 'main') {
-    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
-    update_upstream_revision("HEAD")
+  if (env.CHANGE_TARGET) {
+    // This is a PR build, so merge with the latest of the PR's target branch
+    // (e.g. main or a release branch like v0.25.0).
+    merge_with_target()
   } else {
-    // This is PR branch so merge with latest main.
-    merge_with_main()
+    // This is a branch build (main or a release branch). Only set
+    // upstream_revision to HEAD and skip merging to avoid a race with another
+    // commit merged to the branch.
+    update_upstream_revision("HEAD")
   }
 
   sh(
@@ -162,15 +165,16 @@ def update_upstream_revision(git_ref) {
   }
 }
 
-def merge_with_main() {
+def merge_with_target() {
+  def target = env.CHANGE_TARGET
   sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
+    script: "git fetch origin ${target}",
+    label: "Fetch target branch ${target}",
   )
   update_upstream_revision("FETCH_HEAD")
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
+    label: "Merge to origin/${target}"
   )
 }
 
@@ -492,7 +496,7 @@ def run_build(node_type) {
             sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/lib/libtvm_compiler.so build/lib/libtvm_runtime.so build/lib/libtvm_ffi.so build/config.cmake build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --bundle tvm_lib --bundle tvm_lib_gpu_extra",
             label: 'Upload artifacts to S3',
           )
 
@@ -502,7 +506,7 @@ def run_build(node_type) {
         sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/lib/libtvm_compiler.so build/lib/libtvm_runtime.so build/lib/libtvm_ffi.so build/config.cmake",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --bundle tvm_lib",
             label: 'Upload artifacts to S3',
           )
           })

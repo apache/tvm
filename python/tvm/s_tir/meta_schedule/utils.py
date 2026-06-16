@@ -16,160 +16,17 @@
 # under the License.
 """Utilities for meta schedule"""
 
-import ctypes
 import os
 import shutil
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np  # type: ignore
-import psutil  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
-from tvm.error import TVMError
 from tvm.ir import IRModule
 from tvm.rpc import RPCSession
 from tvm.tirx import FloatImm, IntImm
-
-
-def derived_object(cls: type) -> type:
-    """A decorator to register derived subclasses for TVM objects.
-
-    Parameters
-    ----------
-    cls : type
-        The derived class to be registered.
-
-    Returns
-    -------
-    cls : type
-        The decorated TVM object.
-
-    Example
-    -------
-    .. code-block:: python
-
-        @register_object("s_tir.meta_schedule.PyRunner")
-        class _PyRunner(meta_schedule.Runner):
-            def __init__(self, f_run: Callable = None):
-                self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, f_run)
-
-        class PyRunner:
-            _tvm_metadata = {
-                "cls": _PyRunner,
-                "methods": ["run"]
-            }
-            def run(self, runner_inputs):
-                raise NotImplementedError
-
-        @derived_object
-        class LocalRunner(PyRunner):
-            def run(self, runner_inputs):
-                ...
-    """
-
-    import functools  # pylint: disable=import-outside-toplevel
-    import weakref  # pylint: disable=import-outside-toplevel
-
-    def _extract(inst: type, name: str):
-        """Extract function from intrinsic class."""
-
-        def method(*args, **kwargs):
-            return getattr(inst, name)(*args, **kwargs)
-
-        for inherit_cls, base_cls in zip(cls.__mro__, cls.__mro__[1:]):
-            # extract functions that differ from the base class
-            if not hasattr(base_cls, name):
-                continue
-            if getattr(base_cls, name) is getattr(inherit_cls, name) and name != "__str__":
-                continue
-            return method
-
-        # for task scheduler return None means calling default function
-        # otherwise it will trigger a TVMError of method not implemented
-        # on the c++ side when you call the method, __str__ not required
-        return None
-
-    assert isinstance(cls.__base__, type)
-    if hasattr(cls, "_type") and cls._type == "TVMDerivedObject":  # type: ignore
-        raise TypeError(
-            f"Inheritance from a decorated object `{cls.__name__}` is not allowed. "
-            f"Please inherit from `{cls.__name__}._cls`."
-        )
-    assert hasattr(cls, "_tvm_metadata"), (
-        "Please use the user-facing method overriding class, i.e., PyRunner."
-    )
-
-    base = cls.__base__
-    metadata = getattr(base, "_tvm_metadata")
-    fields = metadata.get("fields", [])
-    methods = metadata.get("methods", [])
-
-    base_cls = metadata["cls"]
-    slots = []
-    if getattr(base_cls, "__dictoffset__", 0) == 0:
-        slots.append("__dict__")
-    if getattr(base_cls, "__weakrefoffset__", 0) == 0:
-        slots.append("__weakref__")
-
-    class TVMDerivedObject(base_cls):  # type: ignore
-        """The derived object to avoid cyclic dependency."""
-
-        __slots__ = tuple(slots)
-
-        _cls = cls
-        _type = "TVMDerivedObject"
-
-        def __init__(self, *args, **kwargs):
-            """Constructor."""
-            self._inst = cls(*args, **kwargs)
-
-            super().__init__(
-                # the constructor's parameters, builder, runner, etc.
-                *[getattr(self._inst, name) for name in fields],
-                # the function methods, init_with_tune_context, build, run, etc.
-                *[_extract(self._inst, name) for name in methods],
-            )
-
-            # for task scheduler hybrid funcs in c++ & python side
-            # using weakref to avoid cyclic dependency
-            self._inst._outer = weakref.ref(self)
-
-        def __getattr__(self, name):
-            import inspect  # pylint: disable=import-outside-toplevel
-
-            try:
-                # fall back to instance attribute if there is not any
-                # return self._inst.__getattribute__(name)
-                result = self._inst.__getattribute__(name)
-            except AttributeError:
-                result = super().__getattr__(name)
-
-            if inspect.ismethod(result):
-
-                def method(*args, **kwargs):
-                    return result(*args, **kwargs)
-
-                # set __own__ to aviod implicit deconstruction
-                setattr(method, "__own__", self)
-                return method
-
-            return result
-
-        def __setattr__(self, name, value):
-            if name not in ["_inst", "key", "handle"]:
-                self._inst.__setattr__(name, value)
-            else:
-                super().__setattr__(name, value)
-
-    functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)  # type: ignore
-    TVMDerivedObject.__name__ = cls.__name__
-    TVMDerivedObject.__doc__ = cls.__doc__
-    TVMDerivedObject.__module__ = cls.__module__
-    for key, value in cls.__dict__.items():
-        if isinstance(value, classmethod | staticmethod):
-            setattr(TVMDerivedObject, key, value)
-    return TVMDerivedObject
 
 
 @register_global_func("s_tir.meta_schedule.cpu_count")
@@ -197,6 +54,12 @@ def _cpu_count_impl(logical: bool = True) -> int:
     Setting these variables may interfere the host-side search with profiling of generated kernels
     when measuring locally.
     """
+    try:
+        import psutil  # type: ignore  # pylint: disable=import-outside-toplevel
+    except ImportError as err:
+        raise ImportError(
+            "psutil is required by the meta schedule search. Install it with: pip install psutil"
+        ) from err
     return psutil.cpu_count(logical=logical) or 1
 
 
@@ -295,7 +158,7 @@ def get_global_func_with_default_on_worker(
         return name
     try:
         return get_global_func(name)
-    except TVMError as error:
+    except (ValueError, RuntimeError) as error:
         raise ValueError(
             "Function '{name}' is not registered on the worker process. "
             "The build function and export function should be registered in the worker process. "
@@ -385,29 +248,6 @@ def shash2hex(mod: IRModule) -> str:
     """
     func = get_global_func("s_tir.meta_schedule._SHash2Hex")
     return str(func(mod))
-
-
-def _get_default_str(obj: Any) -> str:
-    return (
-        # pylint: disable=protected-access
-        f"s_tir.meta_schedule.{obj.__class__.__name__}"
-        + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
-        # pylint: enable=protected-access
-    )
-
-
-def _to_hex_address(handle: ctypes.c_void_p) -> str:
-    """Get the hexadecimal address of a handle.
-    Parameters
-    ----------
-    handle : ctypes.c_void_p
-        The handle to be converted.
-    Returns
-    -------
-    result : str
-        The hexadecimal address of the handle.
-    """
-    return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
 def fork_seed(seed: int | None, n: int) -> list[int]:

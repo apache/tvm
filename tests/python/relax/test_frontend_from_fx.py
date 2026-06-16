@@ -22,7 +22,6 @@ import operator
 import pytest
 import torch
 import torch.nn.functional as F
-import torchvision
 from torch import fx
 from torch.nn import Module
 
@@ -34,6 +33,7 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -901,7 +901,8 @@ def test_outer():
     verify_model(Outer(), input_infos, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_softplus():
     import torch
     from torch.nn import Module
@@ -938,7 +939,8 @@ def test_softplus():
     verify_model(Softplus1(), input_info, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_leakyrelu():
     import torch
     from torch.nn import Module
@@ -1821,6 +1823,8 @@ def test_embedding():
 
 
 def test_stochastic_depth():
+    torchvision = pytest.importorskip("torchvision")
+
     input_info = [([1, 3, 10, 10], "float32")]
 
     class StochasticDepth1(Module):
@@ -3195,11 +3199,12 @@ def test_extended_unary_ops():
     class expected_logical_not:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 10, 10), dtype="float32"
+            (1, 3, 10, 10), dtype="bool"
         ):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.logical_not(inp_0)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(inp_0, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_not(lv)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv1
                 R.output(gv)
             return gv
 
@@ -3524,6 +3529,103 @@ def test_extended_unary_ops():
             return gv
 
     verify_model(Trunc(), input_info, {}, expected_trunc)
+
+
+def test_logical_and():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalAnd(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_and(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_and(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalAnd(), input_info, {}, expected)
+
+
+def test_logical_or():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalOr(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_or(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_or(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalOr(), input_info, {}, expected)
+
+
+def test_logical_xor():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalXor(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_xor(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_xor(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalXor(), input_info, {}, expected)
+
+
+def test_pow_integer():
+    input_info = [([4], "int64")]
+
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(4)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((4,), dtype="int64")) -> R.Tensor((4,), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="int64") = R.multiply(inp_0, inp_0)
+                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, inp_0)
+                lv2: R.Tensor((4,), dtype="int64") = R.multiply(lv1, inp_0)
+                gv: R.Tensor((4,), dtype="int64") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(Pow(), input_info, {}, expected)
 
 
 def test_interpolate():

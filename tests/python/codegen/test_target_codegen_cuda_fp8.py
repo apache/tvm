@@ -28,6 +28,7 @@ from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 try:
     import ml_dtypes
@@ -42,14 +43,15 @@ except ImportError:
         ("float8_e5m2", "__nv_fp8_e5m2"),
     ],
 )
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
     def _create_mod(dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((64,), dtype),
                 B: T.Buffer((64,), dtype),
@@ -91,16 +93,17 @@ def test_fp8_conversions(input):
     "dtype",
     ["float8_e4m3fn", "float8_e5m2", "float8_e8m0fnu"],
 )
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_packing(dtype):
     length = 64
     vector_length = 4
     native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
     def _create_mod(native_dtype, packed_dtype, length):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((length,), native_dtype),
                 R: T.Buffer((length,), packed_dtype),
@@ -156,14 +159,15 @@ native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
 )
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
     def _create_mod(native_dtype, promoted_dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((64,), native_dtype),
                 B: T.Buffer((64,), native_dtype),
@@ -217,14 +221,15 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 bcast_length = tvm.testing.parameter(2, 4, 6, 8)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half_broadcast(bcast_length):
     dtype = "float16"
 
     def _create_mod(bcast_length, dtype):
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -252,13 +257,14 @@ def test_half_broadcast(bcast_length):
 vector_length = tvm.testing.parameter(2, 4)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half_misaligned_vector_load(vector_length):
     dtype = "float16"
     vec_dtype = dtype + "x" + str(vector_length)
     length = 256
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def vector_load(
         A: T.Buffer((length,), dtype), B: T.Buffer((length // vector_length,), vec_dtype)
     ):
@@ -287,16 +293,17 @@ def test_half_misaligned_vector_load(vector_length):
     tvm.testing.assert_allclose(b.numpy(), b_np)
 
 
-@tvm.testing.requires_cuda_compute_version(8)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_half4_vector_add():
     dtype = "float16"
     length = 64
     vector_length = 4
     vec_dtype = dtype + "x" + str(vector_length)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             A: T.Buffer((64,), "float16x4"),
             B: T.Buffer((64,), "float16x4"),
@@ -558,7 +565,7 @@ class BaseFP8E4M3QuantScaleOnly:
             f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def quant_pack(
             A: T.Buffer(weight_shape, model_dtype),
             scale: T.Buffer(scale_shape, model_dtype),
@@ -607,7 +614,7 @@ class BaseFP8E4M3QuantScaleOnly:
         vec_model_dtype = f"{model_dtype}x{vector_length}"
         num_elem_per_storage = vector_length
 
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def dequant(
             packed_weight: T.Buffer(packed_weight_shape, storage_dtype),
             scale: T.Buffer(scale_shape, model_dtype),
@@ -790,7 +797,8 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
             dev,
         )
 
-    @tvm.testing.requires_cuda_compute_version(8, 9)
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
     def test_main(self, weight_shape, model_dtype, target_str, compiled_functions):
         quant, dequant = compiled_functions
         dev = tvm.device(target_str, 0)
@@ -805,10 +813,11 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(A: T.Buffer((4,), dtype)) -> None:
         A_local = T.sblock_alloc_buffer((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
@@ -820,11 +829,12 @@ def test_const(dtype):
     tvm.compile(mod, target="cuda")
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def func(
         A: T.Buffer(
             (
@@ -854,16 +864,17 @@ reduce_size = 1792
 spatial_size = 4096
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes to be installed")
 def test_moe_gemv_shfl_down_illegal_instr():
     global num_experts
     global reduce_size
     global spatial_size
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class SingleBatchMoE_float8_e4m3:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def moe_dequantize_gemv(
             x_handle: T.handle,
             w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
@@ -965,14 +976,15 @@ def test_moe_gemv_shfl_down_illegal_instr():
 
 @pytest.mark.parametrize("vec_length", [2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
-@tvm.testing.requires_cuda_compute_version(8, 9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
 def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     def _create_mod(vec_length, dtype):
         num_threads = 128 // vec_length
 
-        @I.ir_module
+        @I.ir_module(s_tir=True)
         class Module:
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def main(
                 A: T.Buffer((128,), "float8_e4m3fn"),
                 B: T.Buffer((128,), dtype),

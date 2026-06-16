@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring, unused-variable, invalid-name
 # ruff: noqa: E501, F841
+
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl
@@ -25,7 +26,7 @@ from tvm.target import Target
 
 def test_matmul_tensorize():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
@@ -38,7 +39,7 @@ def test_matmul_tensorize():
                     compute[v_i, v_j] = T.float16(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + X[v_i, v_k] * W[v_j, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with T.sblock("root"):
@@ -164,7 +165,7 @@ def test_matmul_tensorize():
 
 def test_matmul_tensorize_too_small():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
         T.func_attr({"tirx.noalias": True})
         m = T.int32()
@@ -180,7 +181,7 @@ def test_matmul_tensorize_too_small():
                     compute[v_i, v_j] = T.float32(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("float32", X[v_i, v_k]) * T.Cast("float32", W[v_j, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         m = T.int32()
@@ -260,7 +261,7 @@ def test_matmul_tensorize_too_small():
 
 def test_matmul_tensorize_epilogue():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(lv686: T.Buffer((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Buffer((T.int32(4096), T.int32(64)), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.noalias": True})
         n = T.int32()
@@ -298,7 +299,7 @@ def test_matmul_tensorize_epilogue():
                 T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_T_divide_intermediate[v_ax0, v_ax1, v_ax2] + var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(lv686: T.Buffer((4096, 256), "uint32"), lv687: T.Buffer((4096, 64), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         n = T.int32()
@@ -428,7 +429,7 @@ def test_matmul_tensorize_epilogue():
 
 def test_matmul_int8_tensorize():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
         T.func_attr({"tirx.noalias": True})
         # with T.sblock("root"):
@@ -441,7 +442,7 @@ def test_matmul_int8_tensorize():
                     compute[v_i, v_j] = 0
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("int32", X[v_i, v_k]) * T.Cast("int32", W[v_j, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with T.sblock("root"):
@@ -566,7 +567,7 @@ def test_matmul_int8_tensorize():
 
 def test_matmul_int8_tensorize_3d2d_dyn():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
         m = T.int32()
@@ -582,7 +583,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
                     matmul_1[v_i0, v_i1, v_i2] = 0
                 matmul_1[v_i0, v_i1, v_i2] = matmul_1[v_i0, v_i1, v_i2] + T.Cast("int32", A[v_i0, v_i1, v_k]) * T.Cast("int32", B[v_i2, v_k])
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
         m = T.int32()
@@ -711,7 +712,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
 
 def test_matmul_metal():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         var_A: T.handle,
         B: T.Buffer((28672, 4096), "float16"),
@@ -728,7 +729,7 @@ def test_matmul_metal():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] += A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(var_A: T.handle, B: T.Buffer((28672, 4096), "float16"), var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
@@ -754,7 +755,7 @@ def test_matmul_metal():
                                     T.reads()
                                     T.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
-                                    T.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
+                                    T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
                                     for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
@@ -790,7 +791,7 @@ def test_matmul_metal():
                                             T.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             A_1 = T.match_buffer(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=1)
                                             C_1 = T.match_buffer(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(False))
+                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with T.sblock("B_reindex_shared_metal.simdgroup_o"):
                                             v0_o = T.axis.spatial(1, 0)
@@ -800,7 +801,7 @@ def test_matmul_metal():
                                             T.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
                                             A_1 = T.match_buffer(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=1)
                                             C_1 = T.match_buffer(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(True))
+                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with T.sblock("C_update_o"):
                                             v0_o = T.axis.spatial(1, ax0)
@@ -812,7 +813,7 @@ def test_matmul_metal():
                                             A_1 = T.match_buffer(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
                                             B_1 = T.match_buffer(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("B_s0", "B_s1"), scope="metal.simdgroup", offset_factor=1)
                                             C_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B_1.data, B_1.elem_offset // B_1.strides[0] // 8 * (B_1.strides[0] // 8) + B_1.elem_offset % B_1.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
+                                            T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B_1.data, B_1.elem_offset // B_1.strides[0] // 8 * (B_1.strides[0] // 8) + B_1.elem_offset % B_1.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with T.sblock("C_reindex_pad_metal.simdgroup_o"):
                                     v0_o = T.axis.spatial(1, ax0_1)
@@ -822,7 +823,7 @@ def test_matmul_metal():
                                     T.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
                                     C_1 = T.match_buffer(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="shared", offset_factor=1)
-                                    T.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), C_1.data, C_1.elem_offset, C_1.strides[0] * 8, 2), C_1.strides[0], 8, 8, T.bool(False))
+                                    T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), C_1.data, C_1.elem_offset, C_1.strides[0] * 8, 2), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
                             for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):
@@ -846,7 +847,7 @@ def test_matmul_metal():
 
 def test_matmul_metal_int4_quant():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def before(
         B0: T.Buffer((28672, 512), "uint32"),
         B1: T.Buffer((28672, 128), "float16"),
@@ -873,7 +874,7 @@ def test_matmul_metal_int4_quant():
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(B0: T.Buffer((28672, 512), "uint32"), B1: T.Buffer((28672, 128), "float16"), var_A: T.handle, var_C: T.handle):
         T.func_attr({"tirx.is_scheduled": True})
         batch_size = T.int32()
@@ -899,7 +900,7 @@ def test_matmul_metal_int4_quant():
                                     T.reads()
                                     T.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
-                                    T.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
+                                    T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
                                     for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
@@ -935,7 +936,7 @@ def test_matmul_metal_int4_quant():
                                             T.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             A_1 = T.match_buffer(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=1)
                                             C_1 = T.match_buffer(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(False))
+                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with T.sblock("B_reindex_shared_metal.simdgroup_o"):
                                             v0_o = T.axis.spatial(1, 0)
@@ -945,7 +946,7 @@ def test_matmul_metal_int4_quant():
                                             T.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
                                             A_1 = T.match_buffer(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="shared", offset_factor=1)
                                             C_1 = T.match_buffer(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(True))
+                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), A_1.data, A_1.elem_offset, A_1.strides[0] * 8, 1), A_1.strides[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with T.sblock("NT_matmul_update_o"):
                                             v0_o = T.axis.spatial(1, ax0)
@@ -957,7 +958,7 @@ def test_matmul_metal_int4_quant():
                                             A_1 = T.match_buffer(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
                                             B = T.match_buffer(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("B_s0", "B_s1"), scope="metal.simdgroup", offset_factor=1)
                                             C_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="metal.simdgroup", offset_factor=1)
-                                            T.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B.data, B.elem_offset // B.strides[0] // 8 * (B.strides[0] // 8) + B.elem_offset % B.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
+                                            T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B.data, B.elem_offset // B.strides[0] // 8 * (B.strides[0] // 8) + B.elem_offset % B.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with T.sblock("C_reindex_pad_metal.simdgroup_o"):
                                     v0_o = T.axis.spatial(1, ax0_1)
@@ -967,7 +968,7 @@ def test_matmul_metal_int4_quant():
                                     T.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = T.match_buffer(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("A_s0", "A_s1"), scope="metal.simdgroup", offset_factor=1)
                                     C_1 = T.match_buffer(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=("C_s0", "C_s1"), scope="shared", offset_factor=1)
-                                    T.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), C_1.data, C_1.elem_offset, C_1.strides[0] * 8, 2), C_1.strides[0], 8, 8, T.bool(False))
+                                    T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.tvm_access_ptr(T.type_annotation("float16"), C_1.data, C_1.elem_offset, C_1.strides[0] * 8, 2), C_1.strides[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.thread_binding(4, thread="threadIdx.z"):
                             for ax1_ax2_fused_2 in T.thread_binding(1, thread="threadIdx.y"):

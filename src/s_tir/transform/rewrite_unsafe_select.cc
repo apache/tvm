@@ -52,7 +52,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
       }
       return false;
     } else if (auto opt = op->op.as<Op>()) {
-      auto effect_kind = op_call_effect_[opt.value()];
+      auto effect_kind = static_cast<CallEffectKind>(op_call_effect_[opt.value()]);
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
         for (PrimExpr e : op->args) {
           if (VisitExpr(e)) return true;

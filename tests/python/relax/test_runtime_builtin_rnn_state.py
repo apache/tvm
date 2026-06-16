@@ -26,6 +26,7 @@ import tvm.testing
 from tvm import tirx
 from tvm.s_tir import dlight as dl
 from tvm.script import tirx as T
+from tvm.testing import env
 
 # pylint: disable=invalid-name
 
@@ -116,7 +117,8 @@ def verify_state(state, seq_ids, expected_values):
             tvm.testing.assert_allclose(state_value.numpy(), expected_value)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -131,7 +133,8 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     tvm.testing.assert_allclose(tvm_nd_1.numpy(), np.ones((1, 32, 32), "float32"))
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -147,7 +150,8 @@ def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
     verify_state(state, [0, 1, 2], expected_values)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -161,11 +165,12 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
     verify_state(state, [0], [[np_two, np_three]])
     f_popn(state, 0, 1)
     verify_state(state, [0], [[np_zero, np_one]])
-    with pytest.raises(tvm.error.TVMError):
+    with pytest.raises(RuntimeError):
         f_popn(state, 0, 1)  # no available history to pop
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-name
     state = rnn_state
     f_clear(state)
@@ -187,7 +192,7 @@ def rnn_state_get(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def _rnn_state_get(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -205,8 +210,8 @@ def rnn_state_get(
             for s in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                    seq_id: T.int32 = seq_slot_ids[vi]
-                    history_id: T.int32 = history_slot_ids[vi]
+                    seq_id: T.let[T.int32] = seq_slot_ids[vi]
+                    history_id: T.let[T.int32] = history_slot_ids[vi]
                     # The following line is equivalent to:
                     # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
@@ -222,7 +227,7 @@ def rnn_state_set(
     dtype: str,
 ):
     # fmt: off
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def _rnn_state_set(
         var_storage: T.handle,
         var_seq_slot_ids: T.handle,
@@ -240,8 +245,8 @@ def rnn_state_set(
             for s in T.grid(*shape):
                 with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                    seq_id: T.int32 = seq_slot_ids[vi]
-                    history_id: T.int32 = (history_slot_ids[vi] + 1) % T.cast(
+                    seq_id: T.let[T.int32] = seq_slot_ids[vi]
+                    history_id: T.let[T.int32] = (history_slot_ids[vi] + 1) % T.cast(
                         max_history, "int32"
                     )
                     # The following line is equivalent to:

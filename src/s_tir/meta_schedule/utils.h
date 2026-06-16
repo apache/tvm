@@ -416,7 +416,7 @@ struct ThreadedTraceApply {
  * \return The number of cores.
  */
 inline int GetTargetNumCores(const Target& target) {
-  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
+  int num_cores = target->GetAttr<int64_t>("num-cores").value_or(-1);
   if (num_cores == -1) {
     static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("s_tir.meta_schedule.cpu_count");
     TVM_FFI_CHECK(f_cpu_count.has_value(), ValueError)
@@ -484,10 +484,10 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
  * \param obj The object to be converted
  * \return The array of integers
  */
-inline ffi::Array<Integer> AsIntArray(const ffi::ObjectRef& obj) {
+inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
-  ffi::Array<Integer> results;
+  ffi::Array<int64_t> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
@@ -498,7 +498,7 @@ inline ffi::Array<Integer> AsIntArray(const ffi::ObjectRef& obj) {
         TVM_FFI_UNREACHABLE();
       }
     }();
-    results.push_back(Integer(int_value));
+    results.push_back(int_value);
   }
   return results;
 }
@@ -655,9 +655,9 @@ class SBlockCollector : public tirx::StmtVisitor {
 
     // If filter function is provided, use it to selectively collect blocks.
     // Otherwise collect all blocks.
-    Bool collect_block = Bool(true);
+    bool collect_block = true;
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<Bool>();
+      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<IntImm>()->value != 0;
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

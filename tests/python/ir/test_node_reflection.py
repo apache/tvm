@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E712, F401, F841
+import json
 import sys
 
 import numpy as np
@@ -35,6 +36,13 @@ def test_const_saveload_json():
     json_str = tvm.ir.save_json(z)
     zz = tvm.ir.load_json(json_str)
     tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
+
+
+def test_save_json_metadata_version():
+    obj = tvm.runtime.convert([1, 2])
+    json_str = tvm.ir.save_json(obj)
+    assert json.loads(json_str)["metadata"]["tvm_version"] == tvm.__version__
+    assert list(tvm.ir.load_json(json_str)) == [1, 2]
 
 
 def _test_infinity_value(value, dtype):

@@ -19,10 +19,11 @@
 """Tests analysis functions of struct info"""
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import TVMError, ir, tirx
+from tvm import ir, tirx
 from tvm import relax as rx
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -404,7 +405,7 @@ def test_derive_call_ret_struct_info():
         )
 
         # Error: wrong number of arguments
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(
                 bb,
                 func0(2),
@@ -413,7 +414,7 @@ def test_derive_call_ret_struct_info():
             )
 
         # Error:type mismatch
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(bb, func0(2), [obj0], obj0)
 
         # Tensor with vdevice
@@ -483,7 +484,7 @@ def test_derive_call_ret_struct_info():
         )
 
         # tuple length mismatch is not causes an error
-        with pytest.raises(TVMError):
+        with pytest.raises(ValueError):
             _check_derive(
                 bb,
                 func_tuple0(4),
@@ -708,7 +709,7 @@ def test_prim_struct_info_lca(test_case):
     lhs, rhs, expected = map(_normalize_sinfo, test_case)
 
     lca = rx.analysis.struct_info_lca(lhs, rhs)
-    assert tvm.ir.structural_equal(lca, expected), (
+    assert tvm_ffi.structural_equal(lca, expected), (
         f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
     )
 

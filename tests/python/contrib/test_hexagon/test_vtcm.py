@@ -22,11 +22,12 @@ import pytest
 import tvm.testing
 from tvm import tirx
 from tvm.script import tirx as T
+from tvm.testing import env
 
 from .infrastructure import get_hexagon_target
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def scale_by_two(buffer_a: T.Buffer((8192,), "int8"), buffer_c: T.Buffer((8192,), "int8")):
     for i in T.serial(
         0,
@@ -47,7 +48,7 @@ def get_scale_by_two_schedule():
     return sch
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_vtcm_building():
     """Test building with vtcm mem scope"""
     sch = get_scale_by_two_schedule()
@@ -56,7 +57,7 @@ def test_vtcm_building():
     assert "global.vtcm" in built.inspect_source("asm")
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 @pytest.mark.parametrize("vtcm_capacity,limited", [(8192, False), (1024, False), (128, True)])
 def test_vtcm_limit(vtcm_capacity, limited):
     """Test building with vtcm mem scope limit"""
@@ -65,7 +66,7 @@ def test_vtcm_limit(vtcm_capacity, limited):
     def _raises_exception(f):
         try:
             f()
-        except tvm.base.TVMError:
+        except RuntimeError:
             return True
         return False
 

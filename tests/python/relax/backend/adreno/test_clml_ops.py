@@ -44,7 +44,7 @@ from mod_utils import (
     get_relax_reshape_mod,
     get_unary_op_mod,
 )
-from utils import requires_adreno_clml, verify_results
+from utils import skip_unless_adreno_clml, verify_results
 
 import tvm
 import tvm.testing
@@ -105,7 +105,8 @@ def verify(
         verify_results(clml_mod, target=clml_target, ref_target=ref_target)
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "kernel_h, kernel_w, padding, stride, dilation, out_channels, shape, has_bias, has_bn, has_activation, has_pad, is_depthwise",
@@ -199,7 +200,8 @@ def test_conv2d_offload(
     verify(mod, clml_codegen, inputs_np, params_np)
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "dshape, kshape, channels, kernel_size, strides, padding, out_shape",
@@ -244,7 +246,8 @@ def test_conv2d_transpose(
     verify(mod, clml_codegen, inputs_np, params_np, target_test=False)
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.skipif(
     CLML_VERSION < 3,
     reason="Requires compiler supporting CLML v5 or above",
@@ -314,7 +317,8 @@ def test_batchnorm(dtype, trials):
     verify(mod, clml_codegen, inputs_np, params_np)
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "a_shape, b_shape, op",
@@ -333,7 +337,8 @@ def test_batchnorm(dtype, trials):
         ((1, 256), (1, 256), R.maximum),
     ],
 )
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 def test_binary_ops(a_shape, b_shape, op, dtype):
     (mod, inputs_np) = get_binary_op_mod(a_shape, b_shape, op, dtype)
     clml_codegen = [
@@ -368,7 +373,8 @@ def test_binary_ops(a_shape, b_shape, op, dtype):
     verify(mod, clml_codegen, inputs_np, {})
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -384,7 +390,8 @@ def test_binary_ops(a_shape, b_shape, op, dtype):
         ((1, 14, 14, 256), R.nn.relu),
     ],
 )
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 def test_unary_ops(a_shape, op, dtype):
     (mod, inputs_np) = get_unary_op_mod(a_shape, op, dtype)
     clml_codegen = [
@@ -412,7 +419,8 @@ def test_unary_ops(a_shape, op, dtype):
     verify(mod, clml_codegen, inputs_np, {})
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -439,7 +447,8 @@ def test_max_pool(dtype, trials):
     verify(mod, clml_codegen, inputs_np, {})
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -467,7 +476,8 @@ def test_avg_pool(dtype, trials):
     verify(mod, clml_codegen, inputs_np, {})
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -488,7 +498,8 @@ def test_reshape(dtype, trials):
 
 
 @pytest.mark.skip(reason="Codegen Comparision Failing")
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -514,7 +525,8 @@ def test_global_avg_pool(dtype, trials):
     verify(mod, clml_codegen, inputs_np, {})
 
 
-@requires_adreno_clml
+@pytest.mark.gpu
+@skip_unless_adreno_clml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",

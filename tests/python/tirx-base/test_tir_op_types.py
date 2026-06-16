@@ -18,6 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx
+from tvm.backend.cuda import op as _cuda_op
 
 
 def test_tir_op_tvm_tuple():
@@ -149,8 +150,7 @@ def test_tir_op_ptx_mma():
     buffer_a = tirx.decl_buffer([32], "int4", scope="local")
     buffer_b = tirx.decl_buffer([16], "uint4", scope="local")
     buffer_c = tirx.decl_buffer([4], "int32", scope="local")
-    expr = tirx.ptx_mma(
-        "int32",
+    expr = _cuda_op.ptx_mma_legacy(
         "m8n8k32",
         "row",
         "col",
@@ -165,7 +165,7 @@ def test_tir_op_ptx_mma():
         0,
         False,
     )
-    assert expr.op.name == "tirx.ptx_mma"
+    assert expr.op.name == "tirx.ptx.mma_legacy"
 
 
 def test_tir_op_ptx_mma_sp():
@@ -173,8 +173,7 @@ def test_tir_op_ptx_mma_sp():
     buffer_b = tirx.decl_buffer([16], "uint4", scope="local")
     buffer_c = tirx.decl_buffer([4], "int32", scope="local")
     buffer_d = tirx.decl_buffer([1], "uint32", scope="local")
-    expr = tirx.ptx_mma_sp(
-        "int32",
+    expr = _cuda_op.ptx_mma_sp_legacy(
         "m8n8k32",
         "row",
         "col",
@@ -192,7 +191,7 @@ def test_tir_op_ptx_mma_sp():
         0,
         False,
     )
-    assert expr.op.name == "tirx.ptx_mma_sp"
+    assert expr.op.name == "tirx.ptx.mma_sp"
 
 
 def test_tir_op_mma_store():
@@ -202,7 +201,7 @@ def test_tir_op_mma_store():
     buffer = tirx.decl_buffer(
         [16, 16], dtype="int32", scope="global", offset_factor=1, strides=[x, y]
     )
-    expr = tirx.mma_store(
+    expr = _cuda_op.mma_store(
         "int32",
         16,
         16,
@@ -216,71 +215,39 @@ def test_tir_op_mma_store():
 
 def test_tir_op_mma_fill():
     buffer_w = tirx.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    expr = tirx.mma_fill("int32", 8, buffer_w.data, buffer_w.elem_offset)
+    expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.elem_offset)
     assert expr.op.name == "tirx.mma_fill"
 
 
 def test_op_ptx_ldmatrix():
     buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
     buffer_local = tirx.decl_buffer([8], "float16", scope="local")
-    expr = tirx.ptx_ldmatrix(
-        "float16", False, 4, ".b16", buffer_local.data, 0, buffer_shared.data, 0
+    # New API: 4 scatter-form dst handles for .x4.b16 (one per output register).
+    expr = _cuda_op.ptx_ldmatrix(
+        False,
+        4,
+        ".b16",
+        buffer_shared.data,
+        buffer_local.data,
+        buffer_local.data,
+        buffer_local.data,
+        buffer_local.data,
     )
-    assert expr.op.name == "tirx.ptx_ldmatrix"
+    assert expr.op.name == "tirx.ptx.ldmatrix"
 
 
 def test_op_ptx_cp_async():
     buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
     buffer_local = tirx.decl_buffer([8], "float16", scope="local")
-    expr = tirx.ptx_cp_async("float16", buffer_shared.data, 0, buffer_local.data, 0, 16)
-    assert expr.op.name == "tirx.ptx_cp_async"
+    expr = _cuda_op.ptx_cp_async_legacy(buffer_shared.data, 0, buffer_local.data, 0, 16)
+    assert expr.op.name == "tirx.ptx.cp_async"
 
 
 def test_op_ptx_cp_async_bulk():
     buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
     buffer_local = tirx.decl_buffer([8], "float16", scope="local")
-    expr = tirx.ptx_cp_async_bulk("float16", buffer_shared.data, 0, buffer_local.data, 0, 16, 0)
-    assert expr.op.name == "tirx.ptx_cp_async_bulk"
-
-
-def test_op_ptx_commit_group():
-    expr = tirx.ptx_commit_group()
-    assert expr.op.name == "tirx.ptx_commit_group"
-
-
-def test_op_ptx_wait_group():
-    expr = tirx.ptx_wait_group(8)
-    assert expr.op.name == "tirx.ptx_wait_group"
-
-
-def test_op_ptx_cp_async_barrier():
-    expr = tirx.ptx_cp_async_barrier(0)
-    assert expr.op.name == "tirx.ptx_cp_async_barrier"
-
-
-def test_op_ptx_init_barrier_thread_count():
-    expr = tirx.ptx_init_barrier_thread_count(0, 32)
-    assert expr.op.name == "tirx.ptx_init_barrier_thread_count"
-
-
-def test_op_ptx_arrive_barrier():
-    expr = tirx.ptx_arrive_barrier(0)
-    assert expr.op.name == "tirx.ptx_arrive_barrier"
-
-
-def test_op_ptx_arrive_barrier_expect_tx():
-    expr = tirx.ptx_arrive_barrier_expect_tx(0, 32)
-    assert expr.op.name == "tirx.ptx_arrive_barrier_expect_tx"
-
-
-def test_op_ptx_wait_barrier():
-    expr = tirx.ptx_wait_barrier(0)
-    assert expr.op.name == "tirx.ptx_wait_barrier"
-
-
-def test_op_create_barriers():
-    expr = tirx.create_barriers(16)
-    assert expr.op.name == "tirx.create_barriers"
+    expr = _cuda_op.ptx_cp_async_bulk("float16", buffer_shared.data, 0, buffer_local.data, 0, 16, 0)
+    assert expr.op.name == "tirx.ptx.cp_async_bulk"
 
 
 def test_tir_op_vectorlow():

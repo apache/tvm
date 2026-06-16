@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -58,7 +58,7 @@ def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
             D[vi, vj] = B[vi, vj] + T.float32(2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -87,7 +87,7 @@ def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
                 D[vi, vj] = B[vi, vj] + T.float32(2)
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def elementwise_merged2(a: T.handle, c: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -139,7 +139,7 @@ def test_merge2():
 
 
 def test_merge_fail_not_only_child():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_with_seq(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
@@ -170,7 +170,7 @@ def test_merge_fail_not_only_child():
 
 
 def test_merge_fail_not_start_with_zero():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_loops_not_start_with_zero(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
@@ -196,7 +196,7 @@ def test_merge_fail_not_start_with_zero():
 
 
 def test_merge_fail_not_same_extent():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_loops_not_same_extent(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
@@ -222,7 +222,7 @@ def test_merge_fail_not_same_extent():
 
 
 def test_merge_fail_not_same_level():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_not_same_level(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
@@ -248,7 +248,7 @@ def test_merge_fail_not_same_level():
 
 
 def test_merge_fail_with_different_scope():
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def elementwise_with_different_scope(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))

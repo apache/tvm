@@ -32,7 +32,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Conv2DBiasBnReLU:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
         X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
         W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
@@ -75,7 +75,7 @@ class Conv2DBiasBnReLU:
 
 @tvm.script.ir_module
 class Conv2DBiasBnReLUInlined:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
         X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
         W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
@@ -103,7 +103,7 @@ class Conv2DBiasBnReLUInlined:
 
 @tvm.script.ir_module
 class MultiLevelTiledConv2D:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(var_X: T.handle, var_W: T.handle, var_B: T.handle, var_bn_scale: T.handle, var_bn_offset: T.handle, var_compute: T.handle) -> None:
         X = T.match_buffer(var_X, [1, 512, 56, 56], dtype="float32")
         W = T.match_buffer(var_W, [512, 512, 3, 3], dtype="float32")
@@ -166,7 +166,7 @@ class MultiLevelTiledConv2D:
 
 @tvm.script.ir_module
 class MultiLevelTiledConv2DAfterInline:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(X: T.Buffer((1, 512, 56, 56), "float32"), W: T.Buffer((512, 512, 3, 3), "float32"), B: T.Buffer((512, 1, 1), "float32"), bn_scale: T.Buffer((512, 1, 1), "float32"), bn_offset: T.Buffer((512, 1, 1), "float32"), compute: T.Buffer((1, 512, 56, 56), "float32")) -> None:
         compute_local = T.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
@@ -194,7 +194,7 @@ class MultiLevelTiledConv2DAfterInline:
 
 @tvm.script.ir_module
 class SoftmaxBeforeInline:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
         T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
@@ -223,7 +223,7 @@ class SoftmaxBeforeInline:
 
 @tvm.script.ir_module
 class SoftmaxAfterInline:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
         T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
@@ -247,7 +247,7 @@ class SoftmaxAfterInline:
 
 @tvm.script.ir_module
 class BeforePureSpatial:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         placeholder: T.Buffer((1, 384), "int64"),
         placeholder_1: T.Buffer((30522, 768), "float32"),
@@ -312,7 +312,7 @@ class BeforePureSpatial:
 
 @tvm.script.ir_module
 class AfterPureSpatial:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(placeholder: T.Buffer((1, 384), "int64"), placeholder_1: T.Buffer((30522, 768), "float32"), placeholder_2: T.Buffer((1, 384, 768), "float32"), T_add: T.Buffer((1, 384, 768), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -327,7 +327,7 @@ class AfterPureSpatial:
 
 @tvm.script.ir_module
 class ConstConsumer:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(T_full: T.Buffer((1, 12, 4096), "int64")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -343,7 +343,7 @@ class ConstConsumer:
 
 @tvm.script.ir_module
 class Conv2dInt8:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(p0: T.Buffer((16, 14, 14, 256), "int8"), p1: T.Buffer((1024, 1, 1, 256), "int8"), p2: T.Buffer((1, 1, 1, 1024), "int32"), p3: T.Buffer((1, 1, 1, 1024), "int32"), p4: T.Buffer(1024, "int32"), p5: T.Buffer(1024, "int32"), p6: T.Buffer(1024, "int32"), p7: T.Buffer(1, "int32"), p8: T.Buffer((16, 14, 14, 1024), "int32"), compute: T.Buffer((16, 14, 14, 1024), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -520,7 +520,7 @@ def test_inline_constant_scalars_skip_output_block():
 
     @tvm.script.ir_module
     class Full:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(T_full: T.Buffer((), "float32")):
             with T.sblock("T_full"):
                 vi = T.axis.spatial(1, 0)
@@ -536,19 +536,19 @@ def test_inline_constant_scalars_skip_output_block():
 def test_no_inline_root_block():
     @tvm.script.ir_module
     class MaxReduction:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(
             data: T.Buffer((8, 8), "float32"),
             data_red: T.Buffer((), "float32"),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
-            with T.block("data_red"):
+            with T.sblock("data_red"):
                 T.reads(data[0:8, 0:8])
                 T.writes(data_red[()])
                 with T.init():
                     data_red[()] = T.float32(-3.4e38)
                 for i, j in T.grid(8, 8):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         T.reads(data_red[()], data[i, j])
                         T.writes(data_red[()])
                         data_red[()] = T.max(data_red[()], data[i, j])

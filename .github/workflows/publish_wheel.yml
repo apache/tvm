@@ -1,0 +1,219 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Publish TVM wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag, branch, or SHA to build"
+        required: true
+        type: string
+      publish_repository:
+        description: "Where to publish after the wheel build succeeds"
+        required: true
+        default: "none"
+        type: choice
+        options:
+          - none
+          - pypi
+
+permissions:
+  contents: read
+
+# CI runners are ephemeral, so pip's HTTP cache buys nothing and a stale
+# preinstalled cache (e.g. on the macOS image) only produces noisy
+# "Cache entry deserialization failed" warnings. Disable it everywhere.
+env:
+  PIP_NO_CACHE_DIR: "1"
+
+jobs:
+  # Build the CUDA runtime sidecar once per arch and upload it as an artifact that
+  # build_wheels bundles. The Linux legs build inside the official manylinux_2_28
+  # CUDA image (CUDA toolkit preinstalled, see pypa/manylinux) -- the same glibc
+  # baseline cibuildwheel targets for the wheel -- so the sidecar stays
+  # ABI-compatible with the wheel's libtvm_runtime.so regardless of the exact tag.
+  build_cuda_runtime:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "CUDA runtime sidecar (Linux x86_64, manylinux_2_28)"
+            os: ubuntu-latest
+            container: quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda13_1:latest
+            arch: x86_64
+            script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
+            lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
+          - name: "CUDA runtime sidecar (Linux aarch64, manylinux_2_28)"
+            os: ubuntu-24.04-arm
+            container: quay.io/manylinux_cuda/manylinux_2_28_aarch64_cuda13_1:latest
+            arch: aarch64
+            script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
+            lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
+          - name: "CUDA runtime sidecar (Windows AMD64)"
+            os: windows-2022
+            container: ""
+            arch: AMD64
+            script: ci/scripts/package/windows_build_libtvm_runtime_cuda.bat
+            lib: build-wheel-cuda/lib/tvm_runtime_cuda.dll
+    steps:
+      # The containerized Linux legs check out as root; mark the tree safe so git
+      # (submodule init in checkout) does not bail on "dubious ownership".
+      - name: Mark workspace safe for git
+        if: runner.os == 'Linux'
+        shell: bash
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout source
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          fetch-depth: 1
+          fetch-tags: true
+
+      # Windows has no manylinux interpreter; the script's pip install needs one.
+      - name: Set up Python (Windows host)
+        if: runner.os == 'Windows'
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Build CUDA runtime sidecar (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash ${{ matrix.script }}
+
+      - name: Build CUDA runtime sidecar (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: call ${{ matrix.script }}
+
+      - name: Upload CUDA runtime sidecar
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: tvm-cuda-runtime-${{ matrix.arch }}
+          path: ${{ matrix.lib }}
+          if-no-files-found: error
+
+  build_wheels:
+    name: ${{ matrix.name }}
+    # All-or-nothing: a failed sidecar leg blocks the whole wheel matrix (a publish
+    # needs the complete 4-wheel set anyway).
+    needs: [build_cuda_runtime]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Linux x86_64 wheel with CUDA runtime (manylinux_2_28)"
+            os: ubuntu-latest
+            arch: x86_64
+            build: cp310-manylinux_x86_64
+            include_cuda_runtime: "1"
+            artifact_suffix: linux-x86_64-manylinux_2_28
+          - name: "Linux aarch64 wheel with CUDA runtime (manylinux_2_28)"
+            os: ubuntu-24.04-arm
+            arch: aarch64
+            build: cp310-manylinux_aarch64
+            include_cuda_runtime: "1"
+            artifact_suffix: linux-aarch64-manylinux_2_28
+          - name: "macOS arm64 wheel with Metal"
+            os: macos-14
+            arch: arm64
+            build: cp310-macosx_arm64
+            include_cuda_runtime: "0"
+            artifact_suffix: macos-arm64
+            cmake_defines: "-DUSE_METAL=ON"
+          - name: "Windows AMD64 wheel with CUDA runtime"
+            os: windows-2022
+            arch: AMD64
+            build: cp310-win_amd64
+            include_cuda_runtime: "1"
+            artifact_suffix: windows-amd64
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: recursive
+          # Full history + tags so setuptools_scm can derive the wheel version from
+          # the most recent Git tag during the build (shallow clones break it).
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Land the sidecar where -DTVM_PACKAGE_EXTRA_LIBS / cibuildwheel's /project
+      # mount expects it. Skipped on CPU-only rows (macOS).
+      - name: Download CUDA runtime sidecar
+        if: ${{ matrix.include_cuda_runtime == '1' }}
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: tvm-cuda-runtime-${{ matrix.arch }}
+          path: build-wheel-cuda/lib
+
+      - name: Build TVM wheel
+        uses: ./.github/actions/build-wheel-for-publish
+        with:
+          arch: ${{ matrix.arch }}
+          build: ${{ matrix.build }}
+          cmake_defines: ${{ matrix.cmake_defines }}
+          include_cuda_runtime: ${{ matrix.include_cuda_runtime }}
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: tvm-wheel-${{ matrix.artifact_suffix }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  upload_pypi:
+    name: Upload package distributions
+    needs: [build_wheels]
+    if: ${{ inputs.publish_repository != 'none' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.publish_repository }}
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: tvm-wheel-*
+          path: dist
+          merge-multiple: true
+
+      # Print wheel sizes for visibility only. We do not fail on the PyPI 100 MB
+      # limit here -- the publish step's upload would surface that error directly.
+      - name: Print wheel sizes
+        shell: bash
+        run: ls -alh dist/*.whl
+
+      - name: Generate artifact attestation for wheels
+        uses: actions/attest-build-provenance@v4.1.0
+        with:
+          subject-path: dist/*
+
+      - name: Publish package distributions to PyPI
+        if: ${{ inputs.publish_repository == 'pypi' }}
+        uses: pypa/gh-action-pypi-publish@v1.13.0
+        with:
+          attestations: true
+          verbose: true

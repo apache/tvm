@@ -31,6 +31,7 @@ class MemoryDatabase(Database):
     module_equality : Optional[str]
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
+
           - "structural": Use StructuralEqual/Hash
           - "ignore-tensor": Same as "structural", but ignore tensor raw data during
                               equality testing and hashing.

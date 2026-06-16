@@ -16,25 +16,38 @@
 # under the License.
 
 if(USE_OPENCL)
-  tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
+  tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/backend/opencl/runtime/*.cc)
 
+  set(_opencl_libs "")
   if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
     message(STATUS "Enabled runtime search for OpenCL library location")
     file_glob_append(RUNTIME_OPENCL_SRCS
-      "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
+      "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
     )
     include_directories(SYSTEM "3rdparty/OpenCL-Headers")
   else()
     find_opencl(${USE_OPENCL})
     if(NOT OpenCL_FOUND)
-        message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
+      message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
     endif()
     message(STATUS "Build with OpenCL support")
     include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
+    list(APPEND _opencl_libs ${OpenCL_LIBRARIES})
   endif()
 
-  list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
+  message(STATUS "Build opencl device runtime")
+
+  add_library(tvm_runtime_opencl_objs OBJECT ${RUNTIME_OPENCL_SRCS})
+  target_link_libraries(tvm_runtime_opencl_objs PUBLIC tvm_ffi_header)
+  set_target_properties(tvm_runtime_opencl_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  if(TVM_VISIBILITY_FLAG)
+    target_compile_options(tvm_runtime_opencl_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
+  endif()
+  add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
+  target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime ${_opencl_libs})
+  tvm_configure_target_library(tvm_runtime_opencl RUNTIME_MODULE)
+
   if(USE_OPENCL_ENABLE_HOST_PTR)
     add_definitions(-DOPENCL_ENABLE_HOST_PTR)
   endif(USE_OPENCL_ENABLE_HOST_PTR)

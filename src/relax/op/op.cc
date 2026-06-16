@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -51,7 +52,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
     return pdiff[0] == 0;
   }
   tvm::arith::Analyzer ana;
-  diff = ana.Simplify(diff);
+  diff = ana->Simplify(diff);
   if (const int64_t* pdiff = tirx::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
@@ -89,8 +90,8 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "call_pure_packed must be called with at least one argument");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "call_pure_packed must be called with at least one argument";
   }
 
   // the callee must be an opaque function
@@ -119,7 +120,7 @@ TVM_REGISTER_OP("relax.call_pure_packed")
                   "The first argument is the function being called. The rest are the "
                   "arguments to that function.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& attrs,
                         ffi::Array<StructInfo> sinfo_args) {
@@ -140,11 +141,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() <= 1) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
+    TVM_FFI_VISIT_THROW(ValueError, call)
         << "call_inplace_packed must be called with at least two arguments"
         << " (the packed call and at least one argument to the packed call"
-        << "if the packed call does not need arguments, use call_pure_packed instead)");
+        << "if the packed call does not need arguments, use call_pure_packed instead)";
   }
 
   // the callee must be an opaque function
@@ -162,24 +162,23 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   size_t num_args = call->args.size() - 1;
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
-    int index = attrs->inplace_indices[i].IntValue();
+    int index = attrs->inplace_indices[i];
     if (index < -1 || index >= static_cast<int>(num_args)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In-place index " << i << " is out of range (must be between -1 and "
-                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In-place index " << i << " is out of range (must be between -1 and " << (num_args - 1)
+          << ", inclusive, but is " << index << ")";
     }
     if (index != -1) {
       if (encountered.count(index)) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "All in-place indices must be unique, but index " << index
-                         << " appears more than once.");
+        TVM_FFI_VISIT_THROW(ValueError, call) << "All in-place indices must be unique, but index "
+                                              << index << " appears more than once.";
       }
       encountered.insert(index);
     }
   }
   if (encountered.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "At least one index must have a value other than "
-                                                "-1 (or else simply use call_pure_packed)");
+    TVM_FFI_VISIT_THROW(ValueError, call) << "At least one index must have a value other than "
+                                             "-1 (or else simply use call_pure_packed)";
   }
 
   // same logic as from DeriveCallRetStructInfo for ordinary calls
@@ -195,32 +194,32 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   // make sure that the derived return struct info matches that of the in-place args
   // (note: arg 0 is the packed func, so we add 1 to the arg index)
   if (attrs->inplace_indices.size() == 1) {
-    auto arg_idx = attrs->inplace_indices[0].IntValue() + 1;
+    auto arg_idx = attrs->inplace_indices[0] + 1;
     auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
     if (!IsBaseOf(ret, arg_sinfo, ctx->GetAnalyzer())) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The derived return StructInfo does not match that for "
-                       << "the in-place argument at index " << (arg_idx - 1) << ": " << ret
-                       << " vs " << arg_sinfo);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The derived return StructInfo does not match that for "
+          << "the in-place argument at index " << (arg_idx - 1) << ": " << ret << " vs "
+          << arg_sinfo;
     }
   } else {
     auto* tup_info = ret.as<TupleStructInfoNode>();
     if (!tup_info) {
-      ctx->ReportFatal(Diagnostic::Error(call) << "Multiple outputs given via the inplace indices "
-                                                  "but the derived StructInfo is not a tuple");
+      TVM_FFI_VISIT_THROW(ValueError, call) << "Multiple outputs given via the inplace indices "
+                                               "but the derived StructInfo is not a tuple";
     }
     for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
       if (attrs->inplace_indices[i] == -1) {
         continue;
       }
-      auto arg_idx = attrs->inplace_indices[i].IntValue() + 1;
+      auto arg_idx = attrs->inplace_indices[i] + 1;
       auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
       auto ret_sinfo = tup_info->fields[i];
       if (!IsBaseOf(ret_sinfo, arg_sinfo, ctx->GetAnalyzer())) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "The derived return StructInfo does not match that for "
-                         << "the in-place argument at index " << (arg_idx - 1) << ": " << ret_sinfo
-                         << " vs " << arg_sinfo);
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "The derived return StructInfo does not match that for "
+            << "the in-place argument at index " << (arg_idx - 1) << ": " << ret_sinfo << " vs "
+            << arg_sinfo;
       }
     }
   }
@@ -239,12 +238,12 @@ TVM_REGISTER_OP("relax.call_inplace_packed")
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
     // arguments will no longer be live) and the user believes the packed func to have no
     // side effects other than modifying the arguments specified as "inplace"
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
-Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<Integer> inplace_indices,
+Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<int64_t> inplace_indices,
                            ffi::Array<StructInfo> sinfo_args) {
   ffi::ObjectPtr<CallInplacePackedAttrs> attrs = ffi::make_object<CallInplacePackedAttrs>();
-  attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+  attrs->inplace_indices = ffi::Array<int64_t>(inplace_indices.begin(), inplace_indices.end());
 
   static const Op& op = Op::Get("relax.call_inplace_packed");
   ffi::Array<Expr> call_args = {func};
@@ -291,7 +290,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     StructInfo func_sinfo, StructInfo arg_sinfo, ffi::Optional<StructInfo> packed_ints_sinfo,
-    ffi::Optional<ffi::Array<Integer>> opt_inplace_indices) {
+    ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
   auto opt_callee_sinfo = func_sinfo.as<FuncStructInfo>();
   TVM_FFI_CHECK(opt_callee_sinfo, TypeError)
       << "The first argument to `R.call_tir` must be a function, "
@@ -388,7 +387,7 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
       // `out_sinfo`.
       auto inplace_indices = opt_inplace_indices.value();
       for (size_t i = 0; i < inplace_indices.size(); i++) {
-        auto inplace_input_index = inplace_indices[i]->value;
+        int64_t inplace_input_index = inplace_indices[i];
         if (inplace_input_index >= 0) {
           dummy_ret.insert(dummy_ret.begin() + i, callee_params[inplace_input_index]);
         }
@@ -434,8 +433,8 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exactly 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exactly 1 output struct info.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
@@ -555,7 +554,7 @@ void ValidateCallTIR(Call call) {
     }
   }();
 
-  auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<Integer>> {
+  auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<int64_t>> {
     if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
       return attrs->inplace_indices;
     } else {
@@ -584,7 +583,7 @@ TVM_REGISTER_OP("relax.call_tir")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list,
                  ffi::Optional<Expr> packed_ints) {
@@ -632,7 +631,7 @@ TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list,
                          ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs,
@@ -693,33 +692,31 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
   TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != sinfo_outputs.size()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "There must be an in-place index specified for each output");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "There must be an in-place index specified for each output";
   }
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
   size_t num_args = Downcast<Tuple>(call->args[1])->fields.size();
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
-    int index = attrs->inplace_indices[i].IntValue();
+    int index = attrs->inplace_indices[i];
     if (index < -1 || index >= static_cast<int>(num_args)) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "In-place index " << i << " is out of range (must be between -1 and "
-                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "In-place index " << i << " is out of range (must be between -1 and " << (num_args - 1)
+          << ", inclusive, but is " << index << ")";
     }
     if (index != -1) {
       if (encountered.count(index)) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "All in-place indices must be unique, but index " << index
-                         << " appears more than once.");
+        TVM_FFI_VISIT_THROW(ValueError, call) << "All in-place indices must be unique, but index "
+                                              << index << " appears more than once.";
       }
       encountered.insert(index);
     }
   }
   if (encountered.empty()) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "At least one index must have a value other than -1 (or else simply use call_tir)");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "At least one index must have a value other than -1 (or else simply use call_tir)";
   }
 
   // for safety, we will make sure the output shape for each in-place argument exactly matches the
@@ -728,7 +725,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   Tuple call_args = Downcast<Tuple>(call->args[1]);
 
   for (size_t i_output = 0; i_output < attrs->inplace_indices.size(); i_output++) {
-    auto i_input = attrs->inplace_indices[i_output].IntValue();
+    auto i_input = attrs->inplace_indices[i_output];
     if (i_input == -1) {
       continue;
     }
@@ -737,10 +734,10 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
     auto tinfo_output = sinfo_output.as<TensorStructInfoNode>();
 
     if (!tinfo_output || !tinfo_output->shape.defined() || tinfo_output->IsUnknownDtype()) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The output struct info for an in-place mutation must be a tensor "
-                       << "with a defined shape and dtype, "
-                       << "but output " << i_output << " has struct info " << sinfo_output);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The output struct info for an in-place mutation must be a tensor "
+          << "with a defined shape and dtype, "
+          << "but output " << i_output << " has struct info " << sinfo_output;
     }
 
     auto sinfo_input = GetStructInfo(call_args->fields[i_input]);
@@ -751,12 +748,12 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
         (!tinfo_input->shape.defined() ||
          !CanProveShapeEqual(tinfo_input->shape.value(), tinfo_output->shape.value(),
                              ctx->GetAnalyzer()))) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The input used for an in-place mutation must be "
-                       << "a tensor with identical shape and dtype as the output.  "
-                       << "However, output " << i_output << " with struct info " << sinfo_output
-                       << " is specified as an in-place mutation of input " << i_input
-                       << " with struct info " << sinfo_input);
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "The input used for an in-place mutation must be "
+          << "a tensor with identical shape and dtype as the output.  "
+          << "However, output " << i_output << " with struct info " << sinfo_output
+          << " is specified as an in-place mutation of input " << i_input << " with struct info "
+          << sinfo_input;
     }
   }
 
@@ -777,9 +774,9 @@ TVM_REGISTER_OP("relax.call_tir_inplace")
     // Warning: considered pure, but it has the potential to create visible effects!
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
     // arguments will no longer be live)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
-Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indices,
+Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indices,
                         ffi::Array<TensorStructInfo> out_sinfo_list,
                         ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -791,7 +788,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indic
   }
 
   ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
-  attrs->inplace_indices = ffi::Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+  attrs->inplace_indices = ffi::Array<int64_t>(inplace_indices.begin(), inplace_indices.end());
 
   StructInfo out_sinfo{nullptr};
   if (out_sinfo_list.size() == 1) {
@@ -820,8 +817,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallDPSPacked(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exact 1 output struct info.";
   }
   return call->sinfo_args[0];
 }
@@ -833,7 +830,7 @@ TVM_REGISTER_OP("relax.call_dps_packed")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
     // technically, an impure op could be used with this, but there is
     // little reason to use DPS with an impure op
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -864,8 +861,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoCallPyFunc(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+    TVM_FFI_VISIT_THROW(InternalError, call)
+        << "sinfo_args should have exact 1 output struct info.";
   }
   return call->sinfo_args[0];
 }
@@ -898,7 +895,7 @@ TVM_REGISTER_OP("relax.call_py_func")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPyFunc)
     .set_attr<FValidate>("FValidate", ValidateCallPyFunc)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -942,7 +939,7 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx)
     // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
@@ -957,7 +954,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeCallNullValue() {
   static const Op& op = Op::Get("relax.null_value");
@@ -978,7 +975,7 @@ TVM_REGISTER_OP("relax.print")
                   "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
   ffi::Array<Expr> params;
@@ -1004,14 +1001,13 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
   if (call->args.size() < 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Assert must have at least one argument (the condition).");
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "Assert must have at least one argument (the condition).";
   }
   StructInfo arg_struct_info = GetStructInfo(call->args[0]);
   if (!IsBoolStructInfo(arg_struct_info)) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument to assert must be a boolean scalar, but received "
-                     << arg_struct_info);
+    TVM_FFI_VISIT_THROW(TypeError, call)
+        << "The argument to assert must be a boolean scalar, but received " << arg_struct_info;
   }
   return ReturnVoidStructInfo(call, ctx);
 }
@@ -1024,7 +1020,7 @@ TVM_REGISTER_OP("relax.assert_op")
                   "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
   static const Op& op = Op::Get("relax.assert_op");
@@ -1048,7 +1044,7 @@ TVM_REGISTER_OP("relax.make_closure")
     .add_argument("func", "Expr", "The closure.")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeClosure(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.make_closure");
@@ -1078,7 +1074,7 @@ TVM_REGISTER_OP("relax.invoke_closure")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
     // Not all closures are pure. Use invoke_pure_closure for specifying purity
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr InvokeClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
@@ -1097,7 +1093,7 @@ TVM_REGISTER_OP("relax.invoke_pure_closure")
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr InvokePureClosure(Expr closure, Tuple args, ffi::Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_pure_closure");
@@ -1115,7 +1111,7 @@ TVM_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
@@ -1141,7 +1137,7 @@ TVM_REGISTER_OP("relax.size")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSize)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeSize(Expr expr) {
   static const Op& op = Op::Get("relax.size");
@@ -1178,7 +1174,7 @@ TVM_REGISTER_OP("relax.tensor_to_shape")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeTensorToShape(Expr expr) {
   static const Op& op = Op::Get("relax.tensor_to_shape");
@@ -1205,7 +1201,7 @@ TVM_REGISTER_OP("relax.shape_to_tensor")
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeShapeToTensor(Expr expr) {
   static const Op& op = Op::Get("relax.shape_to_tensor");
@@ -1252,8 +1248,8 @@ TVM_REGISTER_OP("relax.builtin.alloc_tensor")
                   "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("TAllocator", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("TAllocator", true);
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
                      StringImm storage_scope) {
@@ -1280,8 +1276,8 @@ TVM_REGISTER_OP("relax.memory.alloc_storage")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("TAllocator", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("TAllocator", true);
 
 Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
@@ -1330,8 +1326,8 @@ TVM_REGISTER_OP("relax.memory.alloc_tensor")
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("TAllocator", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("TAllocator", true);
 
 Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
                         PrimValue virtual_device_index) {
@@ -1362,7 +1358,7 @@ TVM_REGISTER_OP("relax.memory.kill_storage")
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -1381,7 +1377,7 @@ TVM_REGISTER_OP("relax.memory.kill_tensor")
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
@@ -1406,8 +1402,8 @@ TVM_REGISTER_OP("relax.vm.alloc_storage")
                   "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("TAllocator", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("TAllocator", true);
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope) {
@@ -1457,8 +1453,8 @@ TVM_REGISTER_OP("relax.vm.alloc_tensor")
                   "to be allocated at runtime.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true))
-    .set_attr<Bool>("TAllocator", Bool(true));
+    .set_attr<bool>("FPurity", true)
+    .set_attr<bool>("TAllocator", true);
 
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
                        PrimValue runtime_device_index) {
@@ -1487,7 +1483,7 @@ TVM_REGISTER_OP("relax.vm.kill_object")
     .add_argument("obj", "Expr", "The object to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op& op = Op::Get("relax.vm.kill_object");
@@ -1508,7 +1504,7 @@ TVM_REGISTER_OP("relax.vm.call_tir_dyn")
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
-    .set_attr<Bool>("FPurity", Bool(false));
+    .set_attr<bool>("FPurity", false);
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
@@ -1529,7 +1525,7 @@ TVM_REGISTER_OP("relax.builtin.stop_lift_params")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The input data")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeStopLiftParams(Expr x) {
   static const Op& op = Op::Get("relax.builtin.stop_lift_params");
@@ -1560,7 +1556,7 @@ TVM_REGISTER_OP("relax.to_vdevice")
     .set_attrs_type<ToVDeviceAttrs>()
     .add_argument("data", "Expr", "The input expression to be copied")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
@@ -1588,7 +1584,7 @@ TVM_REGISTER_OP("relax.hint_on_device")
     .set_attrs_type<HintOnDeviceAttrs>()
     .add_argument("data", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<bool>("FPurity", true);
 
 Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {
   static const Op& op = Op::Get("relax.hint_on_device");

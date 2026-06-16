@@ -40,6 +40,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_with_paged_kv_cache,
 )
 from tvm.s_tir import dlight as dl
+from tvm.testing import env
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -587,8 +588,8 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -612,8 +613,8 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -639,8 +640,8 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -717,8 +718,8 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -768,8 +769,8 @@ def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
     assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -803,8 +804,8 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -855,8 +856,8 @@ def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -928,8 +929,8 @@ def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
     # seq_len: [15+6, 20+13, 25+7, 38, 41, 43, 24+6]
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:

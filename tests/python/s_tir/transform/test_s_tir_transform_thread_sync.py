@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401, F821, F841
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def run_passes(func: tvm.tirx.PrimFunc):
@@ -30,14 +33,14 @@ def run_passes(func: tvm.tirx.PrimFunc):
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
 
-    mod = tvm.tirx.transform.AnnotateDeviceRegions()(mod)
     mod = tvm.tirx.transform.SplitHostDevice()(mod)
     return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_read_thread_id_independent_location():
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func(check_well_formed=False, s_tir=True)
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -59,7 +62,7 @@ def test_sync_read_thread_id_independent_location():
 
 
 def test_sync_shared_dyn():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B = T.alloc_buffer((24,), "float32", scope="shared.dyn")
@@ -76,7 +79,7 @@ def test_sync_shared_dyn():
         E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1[threadIdx_x]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B_1 = T.alloc_buffer((24,), "float32", scope="shared.dyn")
@@ -89,7 +92,7 @@ def test_sync_shared_dyn():
         C_1_1 = T.decl_buffer((1,), data=C_1.data, scope="local")
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
         D_1_1 = T.decl_buffer((16,), data=D_1.data, scope="shared.dyn")
-        T.tvm_storage_sync("shared.dyn")
+        T.evaluate(T.call_intrin("int32", "tirx.tvm_storage_sync", "shared.dyn"))
         D_1_1[threadIdx_x] = C_1_1[0]
         E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
@@ -99,9 +102,10 @@ def test_sync_shared_dyn():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def func(A: T.Buffer((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared = T.alloc_buffer((512,), "float32", scope="shared")
@@ -135,7 +139,7 @@ def test_sync_bind():
                 threadIdx_x,
             )
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def expected(A: T.Buffer((8192,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared_1 = T.alloc_buffer((512,), "float32", scope="shared")
@@ -147,7 +151,7 @@ def test_sync_bind():
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
         in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1.data, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
-        T.tvm_storage_sync("shared")
+        T.evaluate(T.call_intrin("int32", "tirx.tvm_storage_sync", "shared"))
         A_temp_1 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
         in_thread_A_temp_1_1[0] = A_temp_1
         A_temp_2 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128])

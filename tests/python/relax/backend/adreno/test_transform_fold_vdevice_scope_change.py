@@ -31,7 +31,7 @@ def verify(input, expected):
 
 
 def test_maxpool2d_scope_folding():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Input:
         I.module_global_infos(
             {
@@ -42,7 +42,7 @@ def test_maxpool2d_scope_folding():
             }
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def max_pool2d_opencl(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Buffer(
@@ -83,7 +83,7 @@ def test_maxpool2d_scope_folding():
                         ],
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Buffer(
@@ -104,7 +104,7 @@ def test_maxpool2d_scope_folding():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_layout_transform2(
             lv2: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
@@ -156,7 +156,7 @@ def test_maxpool2d_scope_folding():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Expected:
         I.module_global_infos(
             {
@@ -167,7 +167,7 @@ def test_maxpool2d_scope_folding():
             }
         )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def max_pool2d_opencl(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Buffer(
@@ -208,7 +208,7 @@ def test_maxpool2d_scope_folding():
                         ],
                     )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Buffer(
@@ -229,7 +229,7 @@ def test_maxpool2d_scope_folding():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def te_layout_transform2(
             lv2: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"

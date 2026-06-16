@@ -18,6 +18,11 @@
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
 
+import tvm.script
+
+tvm.script.register_dialect("tirx", "tvm.tirx.script")
+
+
 from tvm.ir import PrimExpr
 from tvm.runtime import const
 
@@ -30,16 +35,16 @@ from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
 from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While
-from .stmt import (
-    BufferStore,
-    AllocBuffer,
-    AttrStmt,
-    DeclBuffer,
-)
+
+# Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
+LetStmt = Bind
+
+from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import TilePrimitiveCall, ScopeIdDefStmt
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
@@ -50,38 +55,14 @@ from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
 from .op import continue_loop, break_loop
-from .op import (
-    tvm_thread_allreduce,
-    type_annotation,
-    tvm_access_ptr,
-    tvm_throw_last_error,
-)
+from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
+from .op import tvm_throw_last_error
 from .op import (
     tvm_load_matrix_sync,
     tvm_store_matrix_sync,
     tvm_mma_sync,
     tvm_bmma_sync,
     tvm_fill_fragment,
-)
-from .op import ptx_mma, ptx_mma_sp, mma_store, mma_fill
-from .op import (
-    ptx_ldmatrix,
-    ptx_cp_async,
-    ptx_cp_async_bulk,
-    ptx_commit_group,
-    ptx_wait_group,
-    ptx_cp_async_barrier,
-    ptx_init_barrier_thread_count,
-    ptx_arrive_barrier,
-    ptx_arrive_barrier_expect_tx,
-    ptx_wait_barrier,
-    create_barriers,
-)
-from .op import (
-    make_filled_simdgroup_matrix,
-    simdgroup_load,
-    simdgroup_multiply_accumulate,
-    simdgroup_store,
 )
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
@@ -91,18 +72,7 @@ from .op import cos, cosh, acos, acosh
 from .op import tan, tanh, atan, atan2, atanh
 from .op import bitwise_and, bitwise_not, bitwise_or, bitwise_xor
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
-from .op import (
-    trunc,
-    abs,
-    round,
-    nextafter,
-    nearbyint,
-    power,
-    pow,
-    popcount,
-    fmod,
-    if_then_else,
-)
+from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
 from .op import comm_reducer, min, max, sum
@@ -114,13 +84,31 @@ from .op import dp4a
 from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
+# TIRX-specific imports (must come before subpackage imports to avoid circular imports)
+from .exec_scope import ExecScope, ScopeIdDef
+from .layout import TileLayout, Layout, SwizzleLayout, ComposeLayout
+from .predicate import Predicate
+from .expr_functor import ExprFunctor
+
 from . import transform
 from . import analysis
 from . import backend
 from . import stmt_functor
-from .build import build
-from .pipeline import get_tir_pipeline, get_default_tir_pipeline
+
 from .functor import PyStmtExprVisitor, PyStmtExprMutator
+
+# Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
+# perform compiler-side FFI at module load (schema engine looks up
+# `ir.RegisterOp`; codegen registry hooks the build pipeline).
+from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
+
+if not _RUNTIME_ONLY_TIRX:
+    from .build import build
+    from .compilation_pipeline import (
+        get_tir_pipeline,
+        get_default_tir_pipeline,
+        register_tir_pipeline,
+    )
 
 import tvm.script
 

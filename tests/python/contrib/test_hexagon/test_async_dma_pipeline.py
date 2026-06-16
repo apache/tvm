@@ -23,13 +23,14 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
 
 # pylint: disable=invalid-name
-@T.prim_func
+@T.prim_func(s_tir=True)
 def conv2d_async_non_contig(
     p0: T.Buffer((T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)), "uint8"),
     fused_constant_1: T.Buffer(
@@ -221,7 +222,7 @@ def conv_approximation(size_a, size_w):
     w_shape = (size_w, VRMPY_SIZE_B)
     out_shape = (size_a, VRMPY_SIZE_INT32)
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def operator(a_input: T.handle, b_input: T.handle, c_output: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         a_buffer = T.match_buffer(a_input, a_shape, dtype="uint8")
@@ -390,7 +391,7 @@ class TestAsyncDMAPipeline:
                         ) * np.uint32(input_w[x, index_0 * 4 + r_index])
         return expected_result
 
-    @tvm.testing.requires_hexagon
+    @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
     def test_loading_vtcm_for_vrmpy(
         self,
         hexagon_session,
@@ -534,7 +535,7 @@ class ModulePipelined:
     """Pipelined module class."""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
         p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
@@ -691,7 +692,7 @@ class ModuleBase:
     """Base module test class."""
 
     # pylint: disable=no-self-argument
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(
         p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
         p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
@@ -839,7 +840,7 @@ class ModuleBase:
                                 ]
 
 
-@tvm.testing.requires_hexagon
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_meta(hexagon_session):
     """Test meta."""
     if tvm.testing.utils.IS_IN_CI:

@@ -48,7 +48,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Conv2dCuda0:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -90,7 +90,7 @@ class Conv2dCuda0:
 
 @tvm.script.ir_module
 class Conv2dCuda1:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -136,7 +136,7 @@ class Conv2dCuda1:
 
 @tvm.script.ir_module
 class Conv2dCuda2:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -182,7 +182,7 @@ class Conv2dCuda2:
 
 @tvm.script.ir_module
 class Conv2dCuda3:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(a: T.handle, b: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -221,7 +221,7 @@ class Conv2dCuda3:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -275,7 +275,7 @@ def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         T.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -334,7 +334,7 @@ def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -393,7 +393,7 @@ def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
 
-@T.prim_func
+@T.prim_func(s_tir=True)
 def GMMCUDATensorCore(
     X: T.Buffer((1024, 1024), "float16"),
     Y: T.Buffer((1024, 1024), "float16"),

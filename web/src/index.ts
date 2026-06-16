@@ -26,6 +26,7 @@ export {
 } from "./runtime";
 export {
   ArtifactCacheType,
+  OPFSAccessMode,
   TensorCacheAccessOptions,
   ArtifactCacheTemplate,
   ArtifactCache,

@@ -22,10 +22,10 @@
  * \brief Relax specific transformation passes.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/repr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
@@ -110,19 +110,6 @@ FunctionPass::FunctionPass(std::function<Function(Function, IRModule, PassContex
 
 // Perform IRModule -> IRModule optimizations at the Function level.
 IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  DiagnosticContext previous = DiagnosticContext::Default(mod);
-
-  if (pass_ctx->diag_ctx) {
-    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
-    pass_ctx->diag_ctx = previous;
-    previous = tmp;
-  } else {
-    pass_ctx->diag_ctx = previous;
-  }
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
   const PassInfo& pass_info = Info();
 
   TVM_FFI_ICHECK(mod.defined());
@@ -138,7 +125,15 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     // only picks up relax::Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = ffi::GetRef<Function>(n);
-      auto updated_func = pass_func(func, updated_mod, pass_ctx);
+      // Enrich at this leaf executor, rendering the location local to the
+      // currently-processed function (the access path is function-rooted).
+      Function updated_func;
+      try {
+        updated_func = pass_func(func, updated_mod, pass_ctx);
+      } catch (ffi::Error& err) {
+        throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
+                                                         it.first);
+      }
       updates.push_back({it.first, updated_func});
     }
   }
@@ -146,12 +141,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   for (const auto& pair : updates) {
     updated_mod->Add(pair.first, pair.second, true);
   }
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block, this is a bug.";
-
-  pass_ctx->diag_ctx.value().Render();
-  pass_ctx->diag_ctx = previous;
 
   VLOG(1) << "Output module:" << std::endl << updated_mod;
 
@@ -325,19 +314,6 @@ DataflowBlockPass::DataflowBlockPass(
 
 // Perform IRModule -> IRModule transformations at the DataflowBlock level.
 IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  DiagnosticContext previous = DiagnosticContext::Default(mod);
-
-  if (pass_ctx->diag_ctx) {
-    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
-    pass_ctx->diag_ctx = previous;
-    previous = tmp;
-  } else {
-    pass_ctx->diag_ctx = previous;
-  }
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block, this is a bug.";
-
   const PassInfo& pass_info = Info();
 
   TVM_FFI_ICHECK(mod.defined());
@@ -354,7 +330,15 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
     // only picks up relax::Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = ffi::GetRef<Function>(n);
-      Function updated_func = Downcast<Function>(dataflow_block_mutator.VisitExpr(func));
+      // Enrich at this leaf executor, rendering the location local to the
+      // currently-processed function.
+      Function updated_func;
+      try {
+        updated_func = Downcast<Function>(dataflow_block_mutator.VisitExpr(func));
+      } catch (ffi::Error& err) {
+        throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
+                                                         it.first);
+      }
       updates.push_back({it.first, updated_func});
     }
   }
@@ -362,12 +346,6 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
   for (const auto& pair : updates) {
     updated_mod->Add(pair.first, pair.second, true);
   }
-
-  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
-  pass_ctx->diag_ctx.value().Render();
-  pass_ctx->diag_ctx = previous;
 
   VLOG(1) << "Output module:" << std::endl << updated_mod;
 

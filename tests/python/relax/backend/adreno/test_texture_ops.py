@@ -16,7 +16,7 @@
 # under the License.
 
 import pytest
-from utils import requires_adreno_opencl_vulkan, verify_results
+from utils import skip_unless_adreno_opencl_vulkan, verify_results
 
 import tvm
 import tvm.testing
@@ -30,7 +30,8 @@ TARGETS = [
 ref_target = tvm.target.Target("llvm")
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d(target):
     @I.ir_module
@@ -47,7 +48,8 @@ def test_conv2d(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_relu(target):
     @I.ir_module
@@ -65,7 +67,8 @@ def test_conv2d_relu(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_relu_conv2d_relu(target):
     @I.ir_module
@@ -84,7 +87,8 @@ def test_relu_conv2d_relu(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_relu_tanh(target):
     @I.ir_module
@@ -103,7 +107,8 @@ def test_conv2d_relu_tanh(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_add(target):
     @I.ir_module
@@ -123,7 +128,8 @@ def test_conv2d_add(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_sum(target):
     @I.ir_module
@@ -141,7 +147,8 @@ def test_conv2d_sum(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_sum_keepdims(target):
     @I.ir_module
@@ -159,7 +166,8 @@ def test_conv2d_sum_keepdims(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_sum_reduce(target):
     @I.ir_module
@@ -177,7 +185,8 @@ def test_conv2d_sum_reduce(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_transpose(target):
     @I.ir_module
@@ -195,7 +204,8 @@ def test_conv2d_transpose(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_expand_dims(target):
     @I.ir_module
@@ -213,7 +223,8 @@ def test_conv2d_expand_dims(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_squeeze(target):
     @I.ir_module
@@ -231,7 +242,8 @@ def test_conv2d_squeeze(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_strided_slice(target):
     @I.ir_module
@@ -251,7 +263,8 @@ def test_conv2d_strided_slice(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_relu_concat(target):
     @I.ir_module
@@ -270,7 +283,8 @@ def test_conv2d_relu_concat(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_relu_concat_split(target):
     @I.ir_module
@@ -290,7 +304,8 @@ def test_conv2d_relu_concat_split(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_relu_concat_split_transpose_concat(target):
     @I.ir_module
@@ -312,7 +327,8 @@ def test_conv2d_relu_concat_split_transpose_concat(target):
 
 
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_maxpool2d(target):
     @I.ir_module
@@ -338,7 +354,8 @@ def test_conv2d_maxpool2d(target):
 
 
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_avgpool2d(target):
     @I.ir_module
@@ -356,7 +373,8 @@ def test_conv2d_avgpool2d(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_softmax(target):
     @I.ir_module
@@ -374,7 +392,8 @@ def test_conv2d_softmax(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_layernorm(target):
     @I.ir_module
@@ -397,7 +416,8 @@ def test_conv2d_layernorm(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_binary_broadcast(target):
     @I.ir_module
@@ -417,7 +437,8 @@ def test_binary_broadcast(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_binary_ewise_scalar(target):
     @I.ir_module
@@ -435,7 +456,8 @@ def test_binary_ewise_scalar(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_residual_block(target):
     r"""
@@ -483,7 +505,8 @@ def test_residual_block(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
     r"""
@@ -522,7 +545,8 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_conv2d_conv2d_conv2d_concat(target):
     r"""
@@ -562,7 +586,8 @@ def test_conv2d_conv2d_conv2d_concat(target):
 
 
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_pooling_branching_texture_params(target):
     r"""
@@ -613,7 +638,8 @@ def test_pooling_branching_texture_params(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_injective_inputs1(target):
     r"""
@@ -662,7 +688,8 @@ def test_injective_inputs1(target):
     verify_results(Input, target, ref_target)
 
 
-@requires_adreno_opencl_vulkan
+@pytest.mark.gpu
+@skip_unless_adreno_opencl_vulkan
 @tvm.testing.parametrize_targets(*TARGETS)
 def test_injective_nwo_inputs2(target):
     r"""

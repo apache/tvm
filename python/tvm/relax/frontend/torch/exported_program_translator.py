@@ -25,8 +25,13 @@ from collections import ChainMap, OrderedDict
 from collections.abc import Callable
 from functools import partial
 
-import torch
-from torch import fx
+try:
+    import torch
+    from torch import fx
+except ImportError as err:
+    raise ImportError(
+        "torch is required by the PyTorch frontend. Install it with: pip install torch"
+    ) from err
 
 import tvm
 from tvm import relax
@@ -1551,8 +1556,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log2.default": self._log2,
             "log10.default": self._log10,
             "log1p.default": self._log1p,
-            "logical_not.default": self._unary_op(relax.op.logical_not),
-            "logical_and.default": self._binary_op(relax.op.logical_and, operator.and_),
+            "logical_not.default": self._logical_not,
+            "logical_and.default": self._logical_and,
+            "logical_or.default": self._logical_or,
+            "logical_xor.default": self._logical_xor,
             "log_softmax.int": self._log_softmax,
             "_log_softmax.default": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
@@ -1645,7 +1652,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
             ),
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
-            "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
+            "pow.Tensor_Scalar": self._pow,
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             "sub.Scalar": self._binary_op(relax.op.subtract, operator.sub),
@@ -2024,6 +2031,21 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     exported_program.graph_module, nodes, inputs_vars, custom_ops
                 )
                 output_args = self._flatten_output_args(output_args)
+
+                # Functionalization in torch.export prepends mutation outputs
+                # (e.g. buffer mutations from in-place ops such as `copy_`) to the
+                # graph outputs. Only user-facing outputs should be returned so the
+                # Relax function matches the original module's calling convention.
+                output_kind = torch.export.graph_signature.OutputKind
+                output_specs = exported_program.graph_signature.output_specs
+                if len(output_specs) == len(output_args):
+                    user_outputs = tuple(
+                        arg
+                        for arg, spec in zip(output_args, output_specs)
+                        if spec.kind in (output_kind.USER_OUTPUT, output_kind.LOSS_OUTPUT)
+                    )
+                    if user_outputs:
+                        output_args = user_outputs
 
                 if unwrap_unit_return_tuple and len(output_args) == 1:
                     ret = output_args[0]

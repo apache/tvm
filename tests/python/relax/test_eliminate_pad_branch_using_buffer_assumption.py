@@ -20,6 +20,8 @@
 # The test attempts to eliminate redundant pad branch and overcompute the value for elementwise ops.
 # This helps to expose more opportunities to vectorize the code.
 
+import tvm_ffi
+
 import tvm
 import tvm.script
 import tvm.testing
@@ -29,7 +31,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class AddBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -126,7 +128,7 @@ class AddBefore:
 
 @tvm.script.ir_module
 class AddExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -228,7 +230,7 @@ class AddExpected:
 
 @tvm.script.ir_module
 class SubBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -325,7 +327,7 @@ class SubBefore:
 
 @tvm.script.ir_module
 class SubExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -427,7 +429,7 @@ class SubExpected:
 
 @tvm.script.ir_module
 class MulBefore:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -524,7 +526,7 @@ class MulBefore:
 
 @tvm.script.ir_module
 class MulExpected:
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -626,17 +628,17 @@ class MulExpected:
 
 def test_add_primfunc_overcompute():
     add_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(AddBefore)
-    tvm.ir.structural_equal(add_after["add"], AddExpected["add"], map_free_vars=True)
+    tvm_ffi.structural_equal(add_after["add"], AddExpected["add"], map_free_vars=True)
 
 
 def test_sub_primfunc_overcompute():
     sub_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(SubBefore)
-    tvm.ir.structural_equal(sub_after["sub"], SubExpected["sub"], map_free_vars=True)
+    tvm_ffi.structural_equal(sub_after["sub"], SubExpected["sub"], map_free_vars=True)
 
 
 def test_mul_primfunc_overcompute():
     mul_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(MulBefore)
-    tvm.ir.structural_equal(mul_after["mul"], MulExpected["mul"], map_free_vars=True)
+    tvm_ffi.structural_equal(mul_after["mul"], MulExpected["mul"], map_free_vars=True)
 
 
 if __name__ == "__main__":

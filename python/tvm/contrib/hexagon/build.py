@@ -34,8 +34,6 @@ import subprocess
 import sys
 import tempfile
 
-from tvm_ffi import libinfo
-
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 
 from .session import Session
@@ -74,14 +72,9 @@ def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
         The path to the Hexagon API directory.
     """
     global HEXAGON_RPC_LIB_DIR
+    HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
     if HEXAGON_RPC_LIB_DIR is None:
-        for path in libinfo.find_lib_path():
-            rpc_dir = os.path.join(os.path.dirname(path), "hexagon_api_output")
-            if os.path.isdir(rpc_dir):
-                HEXAGON_RPC_LIB_DIR = rpc_dir
-                break
-        else:
-            raise RuntimeError("hexagon_api binaries not found, please define HEXAGON_RPC_LIB_DIR")
+        raise RuntimeError("hexagon_api binaries not found, please define HEXAGON_RPC_LIB_DIR")
     return pathlib.Path(HEXAGON_RPC_LIB_DIR)
 
 

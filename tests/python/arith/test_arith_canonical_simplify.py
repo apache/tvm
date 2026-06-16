@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F841
+import tvm_ffi
+
 import tvm
 import tvm.testing
 from tvm import te, tirx
@@ -38,7 +40,7 @@ class CanonicalChecker:
     def verify(self, data, expected):
         res = self.analyzer.canonical_simplify(data)
         expected = self._convert(expected)
-        assert tvm.ir.structural_equal(res, expected), (
+        assert tvm_ffi.structural_equal(res, expected), (
             f"\ndata={data}\nres={res}\nexpected={expected}"
         )
 
@@ -106,6 +108,16 @@ def test_split_index_simplify():
     ck.verify(fld(flm(x, 2), 8), 0)
     ck.verify(fld(flm(x, 2), 7), 0)
     ck.verify(fld(fld(flm(x, 16), 2) * 2, 6), fld(flm(x, 16), 6))
+
+    # floordiv(floormod(sum, m*n), n) => floormod(floordiv(sum, n), m)
+    # when sum has parts divisible by n
+    d_tile = te.var("d_tile")
+    i = te.var("i")
+    v = te.var("v")
+    ck.analyzer.update(d_tile, tvm.arith.ConstIntBound(0, 7), True)
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 1), True)
+    ck.analyzer.update(v, tvm.arith.ConstIntBound(0, 7), True)
+    ck.verify(fld(flm(d_tile * 16 + i * 8 + v, 64), 8), flm(d_tile * 2 + i, 8))
 
     # cannot simplify mixed case, unless we canonicalize into one mode.
     ck.verify(tdiv(x, 6) * 2 + tmod(fld(x, 3), 2), tdiv(x, 6) * 2 + tmod(fld(x, 3), 2))
@@ -476,6 +488,50 @@ def test_simplify_le():
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
     ck.analyzer.bind(y, tvm.ir.Range(0, 1024))
     ck.verify(x * 1024 + y < z * 7168, x - z * 7 < 0)
+
+
+def test_simplify_le_negative_scale_extra():
+    """Regression: Case 2 of the LT-with-divisible-coeffs rewrite must not
+    fire when the leftover split term has a negative scale.
+
+    The rewrite ``S + xn < 0  ⇔  S/d + xn // d < 0`` is only sound when
+    the leftover ``xn`` has scale ``+1``. With scale ``-1`` the equivalence
+    becomes ``≤`` rather than ``<`` and the rewrite silently strengthens
+    the predicate. The original bug surfaced as ``row > col`` masks of
+    ``.16x*b`` tcgen05 readbacks collapsing to plain ``warp_id > k``
+    comparisons (lower-triangle writes were silently dropped on the
+    boundary warp).
+    """
+    ck = CanonicalChecker()
+    tx = tvm.tirx.Var("tx", "int32")
+    warp = tvm.tirx.Var("warp", "int32")
+    ck.analyzer.bind(tx, tvm.ir.Range(0, 128))
+    ck.analyzer.bind(warp, tvm.ir.Range(0, 4))
+
+    # Same-source joint projection: the comparison genuinely depends on tx
+    # at warp == 0 (e.g. tx == 4 ⇒ 0 < 1 = True; tx == 1 ⇒ 2 < 0 = False),
+    # so the simplifier must keep both sides.  Pre-fix this folded to
+    # ``0 < warp`` and dropped every True case in warp 0.
+    expr = (tx % 4) * 2 < warp * 16 + (tx % 32) // 4
+    ck.verify(expr, expr)
+
+    # The simpler ``scale = -1`` with ``lower_factor = 1`` shape.  Pre-fix
+    # this folded to ``False`` (drops all warp >= 1 cases where the rhs
+    # actually exceeds 8*warp).
+    expr = warp * 8 < (tx % 32)
+    ck.verify(expr, expr)
+
+    # The corresponding ``scale = +1`` Case 2 path (the rewrite this guards)
+    # must still optimize — verifies we did not over-restrict.
+    x1 = tvm.tirx.Var("x1", "int32")
+    y1 = tvm.tirx.Var("y1", "int32")
+    ck.verify(x1 * 64 + (y1 % 64) < 120, x1 * 8 + (y1 % 64) // 8 < 15)
+
+    # The truly-always-true comparison that arises from the same kernel
+    # (``r = 2 / va = 1`` in the tcgen05.ld.16x256b readback) must still
+    # fold to True so the masked store can be elided.
+    expr_true = (tx % 4) * 2 < warp * 16 + (tx % 32) // 4 + 8
+    ck.verify(expr_true, tvm.tirx.const(True, "bool"))
 
 
 if __name__ == "__main__":

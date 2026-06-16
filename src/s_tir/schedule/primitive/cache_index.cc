@@ -60,11 +60,11 @@ struct IndexInfo {
  */
 DataType DetermineDatatype(const arith::IntSet& range) {
   arith::Analyzer ana;
-  if (ana.CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
+  if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
     return DataType::Int(32);
   } else {
-    TVM_FFI_ICHECK(ana.CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
-                                range.max() <= make_const(DataType::Int(64), INT64_MAX)));
+    TVM_FFI_ICHECK(ana->CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
+                                 range.max() <= make_const(DataType::Int(64), INT64_MAX)));
     return DataType::Int(64);
   }
 }
@@ -483,7 +483,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(result_block_sref->parent);
       affine_binding = IsAffineBinding(/*realize=*/GetSBlockRealize(self, result_block_sref),
                                        /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
-                                       /*analyzer=*/&analyzer);
+                                       /*analyzer=*/analyzer.get());
     }
 
     block_info.affine_binding = affine_binding;
@@ -507,12 +507,12 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
 
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                                       ffi::String storage_scope,
-                                                      Integer cse_thresh) {
+                                                      IntImm cse_thresh) {
     return sch->CacheIndex(block, storage_scope, cse_thresh->value);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::String storage_scope, Integer cse_thresh) {
+                                      ffi::String storage_scope, IntImm cse_thresh) {
     PythonAPICall py("cache_index");
     py.Input("block", block);
     py.Input("storage_scope", storage_scope);

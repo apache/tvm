@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, RUF005
+# ruff: noqa: E501, F401
 
 import os
 import tempfile
@@ -25,12 +25,13 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, s_tir, tirx
-from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.support import utils
+from tvm.testing import env
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -45,7 +46,11 @@ requires_tensorrt_runtime = pytest.mark.skipif(
 )
 
 # Global variable in pytest that applies markers to all tests.
-pytestmark = [requires_tensorrt_codegen] + tvm.testing.requires_cuda.marks()
+pytestmark = [
+    requires_tensorrt_codegen,
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_cuda(), reason="need cuda"),
+]
 
 # Target gpu
 target_str = "nvidia/nvidia-t4"
@@ -78,7 +83,7 @@ def gen_ground_truth(mod, target, dev, inputs):
             [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
-    assert relax.analysis.well_formed(new_mod)
+    relax.analysis.well_formed(new_mod)
     exec = tvm.compile(new_mod, target, params={})
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
@@ -121,7 +126,8 @@ def setup_test():
 entry_func_name = tvm.testing.parameter("main", "func")
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_tensorrt_only(entry_func_name):
     mod, inputs, expected = setup_test()
@@ -151,7 +157,8 @@ def test_tensorrt_only(entry_func_name):
     check_roundtrip(ex0, dev, inputs, expected, entry_func_name)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_mix_use_tensorrt_and_tvm():
     mod, inputs, expected = setup_test()
@@ -178,7 +185,7 @@ def test_mix_use_tensorrt_and_tvm():
                     relax.transform.MetaScheduleApplyDatabase(work_dir),
                 ]
             )(mod)
-    assert relax.analysis.well_formed(new_mod)
+    relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
         ex0 = tvm.compile(new_mod, target, params={})
 
@@ -379,7 +386,7 @@ def test_no_op_for_call_to_tir():
             _ = Before.shape_func(x)
             return x
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

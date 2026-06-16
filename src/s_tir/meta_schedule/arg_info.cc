@@ -127,13 +127,13 @@ TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
 ffi::ObjectRef TensorInfoNode::AsJSON() const {
   static ffi::String tag = "TENSOR";
   ffi::String dtype = ffi::DLDataTypeToString(this->dtype);
-  ffi::Array<Integer> shape = support::AsArray(this->shape);
+  ffi::Array<int64_t> shape = support::AsArray(this->shape);
   return ffi::Array<ffi::Any>{tag, dtype, shape};
 }
 
 TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   DLDataType dtype;
-  ffi::Array<Integer> shape;
+  ffi::Array<int64_t> shape;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     TVM_FFI_ICHECK(json_array && json_array->size() == 3);
@@ -149,8 +149,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
                               << "\nThe error is: " << e.what();
   }
   std::vector<int64_t> s;
-  std::transform(shape.begin(), shape.end(), std::back_inserter(s),
-                 [](Integer i) { return i.IntValue(); });
+  std::transform(shape.begin(), shape.end(), std::back_inserter(s), [](int64_t i) { return i; });
   return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
 }
 

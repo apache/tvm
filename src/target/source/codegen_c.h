@@ -191,6 +191,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const BreakNode* op) override;
+  void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -229,7 +231,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
-  virtual void SetConstantsByteAlignment(Integer constants_byte_alignment) {
+  virtual void SetConstantsByteAlignment(int64_t constants_byte_alignment) {
     constants_byte_alignment_ = constants_byte_alignment;
   }
 
@@ -299,6 +301,14 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param t The type to be checked.
    */
   void RegisterHandleType(const VarNode* buf_var, DataType t);
+  /*!
+   * \brief Register a typed pointer produced by explicit pointer-offset intrinsics.
+   *
+   * Ordinary handle lets remain void* so generic buffer views do not change
+   * code shape.  Only explicit pointer-offset values opt into typed pointer
+   * arithmetic.
+   */
+  void RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value);
   // override
   void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) override;
   /*! \brief reserves common C keywords */
@@ -315,12 +325,14 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, DataType> handle_data_type_;
+  /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
+  std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
   // cache commonly used ops
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
-  Integer constants_byte_alignment_ = 16;
+  int64_t constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
   /*! \brief whether the module has a main function declared */
@@ -345,8 +357,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   std::unordered_map<GlobalVar, ffi::String> internal_functions_;
 
-  /* \brief Name supply to generate unique function names */
-  NameSupply func_name_supply_;
+  /* \brief Unique unique name supply to generate unique function names */
+  UniqueNameSupply func_name_supply_;
 };
 
 }  // namespace codegen

@@ -19,17 +19,17 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm.contrib import utils
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.support import utils
 
 
 def test_add():
     nn = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def test_fadd(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -64,9 +64,9 @@ def test_add():
 def test_reinterpret():
     nn = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def test_reinterpret(
             A: T.Buffer((1024,), "int32"),
             B: T.Buffer((1024,), "float32"),
@@ -99,9 +99,9 @@ def test_reinterpret():
 def test_ceil():
     nn = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def test_ceil(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -134,9 +134,9 @@ def test_ceil():
 def test_floor():
     nn = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def test_floor(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -169,9 +169,9 @@ def test_floor():
 def test_round():
     nn = 1024
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def test_round(
             A: T.Buffer((1024,), "float32"),
             B: T.Buffer((1024,), "float32"),
@@ -202,13 +202,13 @@ def test_round():
 
 
 def test_subroutine_call():
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class Module:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, dtype="float32")):
             Module.subroutine(A.data)
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0

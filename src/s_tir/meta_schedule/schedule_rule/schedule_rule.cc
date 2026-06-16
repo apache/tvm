@@ -45,13 +45,11 @@ ScheduleRule PyScheduleRuleNode::Clone() const {
 ScheduleRule ScheduleRule::PyScheduleRule(
     PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyScheduleRuleNode::FApply f_apply,                                             //
-    PyScheduleRuleNode::FClone f_clone,                                             //
-    PyScheduleRuleNode::FAsString f_as_string) {
+    PyScheduleRuleNode::FClone f_clone) {
   ffi::ObjectPtr<PyScheduleRuleNode> n = ffi::make_object<PyScheduleRuleNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  n->f_as_string = std::move(f_as_string);
   return ScheduleRule(n);
 }
 
@@ -69,21 +67,21 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
           /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
-          /*max_innermost_factor=*/Integer(64)),
+          /*max_innermost_factor=*/static_cast<int64_t>(64)),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/static_cast<int64_t>(64),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/ffi::Array<int64_t>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -105,32 +103,32 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultX86(const ffi::String& type) {
           /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
-          /*max_innermost_factor=*/Integer(64)),
+          /*max_innermost_factor=*/static_cast<int64_t>(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/static_cast<int64_t>(64),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/static_cast<int64_t>(64),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/ffi::Array<int64_t>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -142,15 +140,15 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.x", "vthread.x", "threadIdx.x"},
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/ffi::Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/static_cast<int64_t>(64),
+          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<Integer>{4}},  //
+                                          {"levels", ffi::Array<int64_t>{4}},  //
                                           {"scope", ffi::String("shared")}},
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<Integer>{3}},  //
+                                          {"levels", ffi::Array<int64_t>{3}},  //
                                           {"scope", ffi::String("local")}}),
       ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
@@ -162,15 +160,15 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           /*require_ordered=*/false,
           /*disallow_op=*/ffi::Array<ffi::String>{}),
       ScheduleRule::CrossThreadReduction(
-          /*thread_extents=*/ffi::Array<Integer>{4, 8, 16, 32, 64, 128, 256, 512}),
+          /*thread_extents=*/ffi::Array<int64_t>{4, 8, 16, 32, 64, 128, 256, 512}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/-1,
           /*max_vectorize_extent=*/-1,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 32, 64, 128, 256, 512, 1024},
+          /*unroll_max_steps=*/ffi::Array<int64_t>{0, 16, 32, 64, 128, 256, 512, 1024},
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
-          /*thread_extents*/ ffi::Array<Integer>{32, 64, 128, 256, 512, 1024}),
+          /*thread_extents*/ ffi::Array<int64_t>{32, 64, 128, 256, 512, 1024}),
   };
 }
 
@@ -245,30 +243,30 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           /*intrin_groups=*/wmma_intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/Integer(4),
-          /*vector_load_lens=*/ffi::Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/static_cast<int64_t>(4),
+          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<Integer>{4}},  //
+                                          {"levels", ffi::Array<int64_t>{4}},  //
                                           {"scope", ffi::String("shared.dyn")}},
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<Integer>{2}},  //
+                                          {"levels", ffi::Array<int64_t>{2}},  //
                                           {"scope", ffi::String("shared.dyn")}},
           /*use_software_pipeline=*/false),  //
       ScheduleRule::MultiLevelTilingTensorCore(
           /*intrin_groups=*/mma_intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/Integer(4),
-          /*vector_load_lens=*/ffi::Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/static_cast<int64_t>(4),
+          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<Integer>{4}},  //
+                                          {"levels", ffi::Array<int64_t>{4}},  //
                                           {"scope", ffi::String("shared.dyn")}},
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("no")},
-                                          {"levels", ffi::Array<Integer>{2}},  //
+                                          {"levels", ffi::Array<int64_t>{2}},  //
                                           {"scope", ffi::String("shared.dyn")}},
           /*use_software_pipeline=*/true)  //
   };
@@ -292,16 +290,16 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
       ScheduleRule::MultiLevelTilingWideVector(
           /*structure=*/"SRSRS",
           /*vector_length_in_bits=*/1024,
-          /*max_innermost_factor=*/Integer(128),
+          /*max_innermost_factor=*/static_cast<int64_t>(128),
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/128,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/ffi::Array<int64_t>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
   };
 }
@@ -320,7 +318,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
       /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}));
   rules.push_back(ScheduleRule::AddRFactor(
       /*max_jobs_per_core=*/16,
-      /*max_innermost_factor=*/Integer(64)));
+      /*max_innermost_factor=*/static_cast<int64_t>(64)));
   auto current_target = tvm::Target::Current();
   const auto reg_rvv_intrinsics =
       tvm::ffi::Function::GetGlobalRequired("tirx.tensor_intrin.register_rvv_isa_intrinsics");
@@ -335,28 +333,28 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
         /*intrin_name=*/intrin.first,
         /*structure=*/"SSRSRS",
         /*tile_binds=*/std::nullopt,
-        /*max_innermost_factor=*/Integer(intrin.second),
+        /*max_innermost_factor=*/static_cast<int64_t>(intrin.second),
         /*vector_load_lens=*/std::nullopt,
         /*reuse_read=*/std::nullopt,
         /*reuse_write=*/
         ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                        {"levels", ffi::Array<Integer>{1, 2}},
+                                        {"levels", ffi::Array<int64_t>{1, 2}},
                                         {"scope", ffi::String("global")}}));
   }
   rules.push_back(ScheduleRule::MultiLevelTiling(
       /*structure=*/"SSRSRS",
       /*tile_binds=*/std::nullopt,
-      /*max_innermost_factor=*/Integer(64),
+      /*max_innermost_factor=*/static_cast<int64_t>(64),
       /*vector_load_lens=*/std::nullopt,
       /*reuse_read=*/std::nullopt,
       /*reuse_write=*/
       ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                      {"levels", ffi::Array<Integer>{1, 2}},
+                                      {"levels", ffi::Array<int64_t>{1, 2}},
                                       {"scope", ffi::String("global")}}));
   rules.push_back(ScheduleRule::ParallelizeVectorizeUnroll(
       /*max_jobs_per_core=*/16,
       /*max_vectorize_extent=*/64,
-      /*unroll_max_steps=*/ffi::Array<Integer>{0, 16, 64, 512},
+      /*unroll_max_steps=*/ffi::Array<int64_t>{0, 16, 64, 512},
       /*unroll_explicit=*/true));
   rules.push_back(ScheduleRule::RandomComputeLocation());
 
@@ -369,12 +367,12 @@ ffi::Array<ScheduleRule> GetARMNeonSpecificRules() {
           /*intrin_name=*/ffi::String("dot_4x4_i8i8s32_neon"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/static_cast<int64_t>(32),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
   };
 }
@@ -385,34 +383,34 @@ ffi::Array<ScheduleRule> GetARMDotprodSpecificRules() {
           /*intrin_name=*/ffi::String("dot_4x4_i8i8s32_sdot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/static_cast<int64_t>(32),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/ffi::String("dot_4x4_u8u8u32_udot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/static_cast<int64_t>(32),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/ffi::String("dot_4x4_u8u8i32_hdot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/static_cast<int64_t>(32),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
   };
 }
@@ -430,23 +428,23 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
           /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
-          /*max_innermost_factor=*/Integer(32)),
+          /*max_innermost_factor=*/static_cast<int64_t>(32)),
       "neon" == type ? GetARMNeonSpecificRules() : ffi::Array<ScheduleRule>{},
       "dotprod" == type ? GetARMDotprodSpecificRules() : ffi::Array<ScheduleRule>{},
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/std::nullopt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/static_cast<int64_t>(32),
           /*vector_load_lens=*/std::nullopt,
           /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("may")},
-                                          {"levels", ffi::Array<Integer>{1, 2}},
+                                          {"levels", ffi::Array<int64_t>{1, 2}},
                                           {"scope", ffi::String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/8,
           /*max_vectorize_extent=*/32,
-          /*unroll_max_steps=*/ffi::Array<Integer>{0, 8, 32, 256},
+          /*unroll_max_steps=*/ffi::Array<int64_t>{0, 8, 32, 256},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation());
 }

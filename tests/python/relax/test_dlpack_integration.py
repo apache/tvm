@@ -211,7 +211,7 @@ class TestDLPackIntegration:
         """Test DLPack conversion within BasePyModule context."""
 
         # Create a simple IRModule
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
             for i in T.grid(3):
                 B[i] = A[i]

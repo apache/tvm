@@ -20,7 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax, tirx
+from tvm import relax, tirx
 from tvm.ir import Op, VDevice
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -329,9 +329,9 @@ def test_take_infer_struct_info_indices_not_integer_dtype():
     idx0 = relax.Var("idx", R.Tensor((6, 6), "float32"))
     idx1 = relax.Var("idx", R.Tensor((6, 6), "float64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.take(x, idx0, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.take(x, idx1, axis=1))
 
 
@@ -343,17 +343,17 @@ def test_take_infer_struct_info_multi_dimensional_without_axis():
     idx0 = relax.Var("idx", R.Tensor((6,), "int64"))
     idx1 = relax.Var("idx", R.Tensor("int64", ndim=1))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x0, idx0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x1, idx0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x2, idx0))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x0, idx1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x1, idx1))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x2, idx1))
 
 
@@ -362,9 +362,9 @@ def test_take_infer_struct_info_axis_out_of_range():
     x = relax.Var("x", R.Tensor((4, 10), "float32"))
     idx = relax.Var("idx", R.Tensor((6,), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x, idx, axis=-3))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.take(x, idx, axis=2))
 
 
@@ -375,9 +375,9 @@ def test_take_infer_struct_info_wrong_input_type():
     idx0 = relax.Var("idx", relax.ShapeStructInfo((6,)))
     idx1 = relax.Var("idx", R.Tensor((6,), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.take(x0, idx1, axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.take(x1, idx0, axis=1))
 
 
@@ -741,11 +741,11 @@ def test_strided_slice_begin_end_strides_int64():
 def test_strided_slice_inconsistent_axes_begin_end_strides_length():
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.strided_slice(x, axes=[1], begin=[], end=[9])
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.strided_slice(x, axes=[1], begin=[0], end=[])
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         relax.op.strided_slice(x, axes=[1], begin=[0], end=[9], strides=[])
 
 
@@ -753,9 +753,9 @@ def test_strided_slice_infer_struct_info_repetitive_axes():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.strided_slice(x, axes=[0, 0], begin=[0, 0], end=[8, 8]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.strided_slice(x, axes=[0, -2], begin=[0, 0], end=[8, 8]))
 
 
@@ -763,9 +763,9 @@ def test_strided_slice_infer_struct_info_axis_out_of_range():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.strided_slice(x, axes=[2], begin=[0], end=[8]))
-    with pytest.raises(TVMError):
+    with pytest.raises(ValueError):
         bb.normalize(relax.op.strided_slice(x, axes=[-3], begin=[0], end=[8]))
 
 
@@ -774,9 +774,9 @@ def test_strided_slice_infer_struct_info_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeStructInfo((8, 9)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((8, 9), "float32")))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, axes=[0], begin=[0], end=[8]))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x1, axes=[0], begin=[0], end=[8]))
 
 
@@ -949,7 +949,7 @@ def test_dynamic_strided_slice_infer_struct_info_arg_wrong_dtype():
     e0 = relax.Var("end", R.Tensor((4,), "float32"))
     s0 = relax.Var("stride", R.Tensor((4,), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
 
 
@@ -966,27 +966,27 @@ def test_dynamic_strided_slice_infer_struct_info_arg_wrong_shape_info():
     e0 = relax.Var("end", R.Tensor((4,), "int64"))
     s0 = relax.Var("stride", R.Tensor((4,), "int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, b1, e0, s0))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, b2, e0, s0))
-    with pytest.raises(TVMError):
+    with pytest.raises(tvm.error.InternalError):
         bb.normalize(relax.op.strided_slice(x0, b3, e0, s0))
 
 
 def test_legalize_dynamic_begin_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class before:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
             index = T.int64()
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class expected:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
@@ -998,7 +998,7 @@ def test_legalize_dynamic_begin_end():
                 tir_vars=R.shape([index]),
             )
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
             B: T.Buffer((T.int64(1), T.int64(16))),
@@ -1017,7 +1017,7 @@ def test_legalize_dynamic_begin_end():
 def test_legalize_dynamic_begin_inf_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class before:
         @R.function
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
@@ -1027,9 +1027,9 @@ def test_legalize_dynamic_begin_inf_end():
             )
 
     # fmt: off
-    @I.ir_module
+    @I.ir_module(s_tir=True)
     class expected:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
             T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))

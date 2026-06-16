@@ -50,11 +50,11 @@ std::string GetStorageScope(const Var& var) {
  */
 class AllocBufferCalculator : public StmtExprVisitor {
  public:
-  tvm::ffi::Map<ffi::String, Integer> operator()(const PrimFunc& func) {
+  tvm::ffi::Map<ffi::String, int64_t> operator()(const PrimFunc& func) {
     this->VisitStmt(func->body);
-    tvm::ffi::Map<ffi::String, Integer> res;
+    tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
-      res.Set(ffi::String(k), Integer(v));
+      res.Set(ffi::String(k), v);
     }
     return res;
   }
@@ -100,17 +100,17 @@ class AllocBufferCalculator : public StmtExprVisitor {
   std::unordered_map<std::string, int64_t> _current_size;
 };
 
-tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAllocatedBytes(
+tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const PrimFunc& func) {
-  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > results;
+  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
   auto alloc_buffer_result = AllocBufferCalculator()(func);
   results.Set("main", alloc_buffer_result);
   return results;
 }
 
-tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAllocatedBytes(
+tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const IRModule& mod) {
-  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > results;
+  tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
   for (const auto& kv : mod->functions) {
     if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
       ffi::String func_name = kv.first->name_hint;
@@ -125,7 +125,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "s_tir.analysis.calculate_allocated_bytes",
-      [](ffi::ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
+      [](ffi::ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > {
         if (auto func = obj.as<PrimFunc>()) {
           return CalculateAllocatedBytes(func.value());
         } else if (auto mod = obj.as<IRModule>()) {
@@ -139,22 +139,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-bool VerifyVTCMLimit(const IRModule& mod, Integer limit) {
+bool VerifyVTCMLimit(const IRModule& mod, int64_t limit) {
   auto all_sizes = CalculateAllocatedBytes(mod);
   for (const auto& kv : all_sizes) {
     auto sizes = kv.second;
     const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
-    if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
+    if (limit > 0 && vtcm_allocated > limit) {
       return false;
     }
   }
   return true;
 }
 
-bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
+bool VerifyVTCMLimit(const PrimFunc& func, int64_t limit) {
   auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
-  if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
+  if (limit > 0 && vtcm_allocated > limit) {
     return false;
   }
   return true;
@@ -163,10 +163,10 @@ bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
 int64_t GetVTCMCapacity(Target target, const tvm::transform::PassContext& pass_ctx) {
   if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
   if (target.defined() && target->kind->name == "hexagon") {
-    auto value = target->GetAttr<Integer>("vtcm-capacity").value()->value;
+    auto value = target->GetAttr<int64_t>("vtcm-capacity").value();
     if (value > 0) return value;
   }
-  return pass_ctx->GetConfig<Integer>("tirx.vtcm_capacity", Integer(0)).value()->value;
+  return pass_ctx->GetConfig<int64_t>("tirx.vtcm_capacity", 0).value();
 }
 
 ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
@@ -179,7 +179,7 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tirx::transform::FlattenBuffer());
-  pass_list.push_back(tirx::transform::Simplify());
+  pass_list.push_back(tirx::transform::StmtSimplify());
   pass_list.push_back(tirx::transform::VectorizeLoop(true));
   pass_list.push_back(tirx::transform::StorageRewrite());
   return pass_list;
@@ -209,7 +209,7 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
         if (limit.has_value() && limit.value() > 0) {
           auto sizes = CalculateAllocatedBytes(func)["main"];
           const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
-          if (vtcm_allocated.IntValue() > limit.value()) {
+          if (vtcm_allocated > limit.value()) {
             TVM_FFI_THROW(RuntimeError)
                 << "The global.vtcm memory allocation limit has been exceeded "
                 << "(allocated: " << vtcm_allocated << ", limit: " << limit.value() << ").\n"

@@ -24,6 +24,7 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -40,7 +41,7 @@ namespace tirx {
  */
 class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
  public:
-  explicit SymbolicMatcher(arith::Analyzer* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
+  explicit SymbolicMatcher(arith::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
       : analyzer_(analyzer), var_remap_(var_remap) {}
 
   void Match(const ffi::Array<PrimExpr>& params, const ffi::Array<PrimExpr>& args) {
@@ -152,9 +153,9 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     }
   }
 
-  arith::Analyzer* analyzer_;
+  arith::AnalyzerObj* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
-  PrimExpr must_prove_ = Bool(true);
+  PrimExpr must_prove_ = const_true();
 };
 
 /*!
@@ -414,18 +415,17 @@ class SBlockNameDeduplicator : public tirx::StmtMutator {
 
 namespace relax {
 
-static ffi::Array<Integer> GetInplaceOutputIndices(const ffi::Array<Integer>& inplace_indices,
+static ffi::Array<int64_t> GetInplaceOutputIndices(const ffi::Array<int64_t>& inplace_indices,
                                                    int num_inputs) {
-  ffi::Array<Integer> ret;
+  ffi::Array<int64_t> ret;
   int last_idx = num_inputs;
-  for (auto idx : inplace_indices) {
-    int i = idx.IntValue();
+  for (int64_t i : inplace_indices) {
     if (i >= 0) {
-      ret.push_back(Integer(i));
+      ret.push_back(i);
     } else {
       TVM_FFI_ICHECK_EQ(i, -1)
           << "The only negative index expected in inplace_indices is -1, but got " << i;
-      ret.push_back(Integer(last_idx));
+      ret.push_back(last_idx);
       last_idx++;
     }
   }
@@ -478,7 +478,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     size_t num_inputs = relax_args.size();
     size_t num_outputs = relax_results.size();
 
-    ffi::Array<Integer> output_idxs;
+    ffi::Array<int64_t> output_idxs;
     if (in_place) {
       const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
@@ -532,7 +532,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param gv The global var of relax subfunction to be fused into one PrimFunc
    * \return The fused TIR PrimFunc and the in-place indices (non-empty for an in-place call)
    */
-  static std::pair<tirx::PrimFunc, ffi::Array<Integer>> GetFusedTIR(const IRModule& mod,
+  static std::pair<tirx::PrimFunc, ffi::Array<int64_t>> GetFusedTIR(const IRModule& mod,
                                                                     const GlobalVar& gv) {
     FusedTIRConstructor visitor(mod, gv->name_hint);
     BaseFunc f = mod->Lookup(gv);
@@ -541,9 +541,9 @@ class FusedTIRConstructor : public ExprVisitor {
     TVM_FFI_ICHECK(f->HasNonzeroAttr(relax::attr::kPrimitive))
         << "Expected a function with attr `kPrimitive`";
     visitor(Downcast<relax::Function>(f));
-    ffi::Array<Integer> inplace_indices;
+    ffi::Array<int64_t> inplace_indices;
     for (size_t idx : visitor.inplace_indices_) {
-      inplace_indices.push_back(Integer(idx));
+      inplace_indices.push_back(static_cast<int64_t>(idx));
     }
     return {visitor.fused_tir_, inplace_indices};
   }
@@ -848,15 +848,15 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   static ffi::Array<tirx::Var> GetPrimFuncOutputParams(const tirx::PrimFunc& func,
-                                                       const ffi::Array<Integer>& output_indices) {
+                                                       const ffi::Array<int64_t>& output_indices) {
     size_t n = func->params.size();
     int symbolic_var_index = -1;
     size_t output_size = output_indices.size();
     TVM_FFI_ICHECK_GE(n, output_size);
 
     ffi::Array<tirx::Var> ret;
-    for (auto idx : output_indices) {
-      int i = idx.IntValue();
+    for (int64_t idx : output_indices) {
+      int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
       if (param->dtype.is_int() || param->dtype.is_uint()) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
@@ -893,7 +893,7 @@ class FusedTIRConstructor : public ExprVisitor {
     size_t output_size = output_shapes.size();
     TVM_FFI_ICHECK_GE(n, output_size);
     ffi::Array<tirx::Buffer> output_buffers;
-    ffi::Array<Integer> output_idxs;
+    ffi::Array<int64_t> output_idxs;
     if (is_inplace) {
       const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       TVM_FFI_ICHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
@@ -911,10 +911,10 @@ class FusedTIRConstructor : public ExprVisitor {
       const tirx::Buffer& buffer = func->buffer_map.at(param);
 
       // if this is an inplace output, do not do an intermediate allocation
-      if (output_idxs[i].IntValue() < num_inputs) {
+      if (output_idxs[i] < num_inputs) {
         TVM_FFI_ICHECK(input_buffers.has_value())
             << "Inplace functions must have some defined input";
-        output_buffers.push_back(input_buffers.value()[output_idxs[i].IntValue()]);
+        output_buffers.push_back(input_buffers.value()[output_idxs[i]]);
         continue;
       }
 
@@ -1006,6 +1006,7 @@ class FusedTIRConstructor : public ExprVisitor {
   tirx::PrimFunc ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tirx::attr::kNoAlias, true);
+    attr_map.Set(tvm::attr::kSTir, true);
     tirx::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map,
                                          func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
@@ -1020,7 +1021,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, Bool(true), Downcast<tirx::SBlock>(body));
+    body = tirx::SBlockRealize({}, IntImm(DataType::Bool(), 1), Downcast<tirx::SBlock>(body));
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                         DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
@@ -1090,7 +1091,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
     tirx::SymbolicMatcher symbolic_var_matcher =
-        tirx::SymbolicMatcher(&analyzer, &symbolic_var_remap);
+        tirx::SymbolicMatcher(analyzer.get(), &symbolic_var_remap);
   };
 
   /*! \brief The IRModule */
@@ -1184,7 +1185,7 @@ class TIRFuseMutator : public ExprMutator {
   struct Replacement {
     GlobalVar fused_tir_gvar;
     Function original_function;
-    ffi::Array<Integer> inplace_indices;
+    ffi::Array<int64_t> inplace_indices;
   };
 
   explicit TIRFuseMutator(std::unordered_map<GlobalVar, Replacement> replacements)

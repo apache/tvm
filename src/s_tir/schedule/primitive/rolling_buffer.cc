@@ -351,8 +351,8 @@ class RollingBufferRewriter : public StmtExprMutator {
               std::make_pair(var, arith::IntSet::Interval(0, 0))};
           auto iter_value = realize->iter_values[i];
           arith::Analyzer analyzer;
-          auto term_2 = analyzer.int_set(iter_value, dmap).min();
-          condition = analyzer.Simplify(
+          auto term_2 = analyzer->int_set(iter_value, dmap).min();
+          condition = analyzer->Simplify(
               And(condition, Or(LT(var, 1), GE(term_2, info_->axis_overlaps[i]))));
         }
       }
@@ -458,12 +458,12 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer write_buffer_index) {
-    return sch->RollingBuffer(block, write_buffer_index.IntValue());
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm write_buffer_index) {
+    return sch->RollingBuffer(block, write_buffer_index->value);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      Integer write_buffer_index) {
+                                      IntImm write_buffer_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
     py.Input("write_buffer_index", write_buffer_index);

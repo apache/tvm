@@ -88,26 +88,6 @@ def module_attrs(attrs: dict[str, tvm_Object], allow_overwrite=False) -> None:
     return _ffi_api.ModuleAttrs(attrs, allow_overwrite)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def current_ir_module() -> IRModuleFrame:
-    """Get the current ir_module frame.
-    Returns
-    -------
-    frame: IRModuleFrame
-        The current frame.
-    """
-    return _ffi_api.CurrentIRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def module_get_attrs() -> dict[str, tvm_Object]:
-    """Get the attrs of the ir_module frame.
-    Returns
-    -------
-    attrs: Dict[str, Object]
-        The module attrs.
-    """
-    return _ffi_api.ModuleGetAttrs()  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def module_get_attr(attr_key: str) -> tvm_Object | None:
     """Get the specified attr of the ir_module frame.
     Parameters
@@ -195,3 +175,18 @@ def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> VD
         The result virtual device.
     """
     return _ffi_api.LookupVDevice(target_kind, device_index)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def lookup_name(name: str) -> bool:
+    """Check if a global variable with the given name exists.
+    Parameters
+    ----------
+    name: str
+        The name of the global variable.
+
+    Returns
+    -------
+    res : bool
+        True if the global variable exists, False otherwise.
+    """
+    return _ffi_api.LookupName(name)  # type: ignore[attr-defined] # pylint: disable=no-member

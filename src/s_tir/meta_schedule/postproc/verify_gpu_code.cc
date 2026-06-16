@@ -77,12 +77,12 @@ class ThreadExtentChecker : private StmtVisitor {
     if (block->annotations.count(s_tir::attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
     }
-    if (ffi::Optional<Integer> low_inclusive =
-            GetAnn<Integer>(block, s_tir::attr::meta_schedule_thread_extent_low_inclusive)) {
-      if (ffi::Optional<Integer> high_inclusive =
-              GetAnn<Integer>(block, s_tir::attr::meta_schedule_thread_extent_high_inclusive)) {
-        int64_t low = low_inclusive.value()->value;
-        int64_t high = high_inclusive.value()->value;
+    if (ffi::Optional<int64_t> low_inclusive =
+            GetAnn<int64_t>(block, s_tir::attr::meta_schedule_thread_extent_low_inclusive)) {
+      if (ffi::Optional<int64_t> high_inclusive =
+              GetAnn<int64_t>(block, s_tir::attr::meta_schedule_thread_extent_high_inclusive)) {
+        int64_t low = low_inclusive.value();
+        int64_t high = high_inclusive.value();
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
         if (!(low <= thread_extent_product && thread_extent_product <= high)) {
           throw std::runtime_error("Thread extent");
@@ -107,10 +107,10 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
-Integer Extract(const Target& target, const char* name) {
+IntImm Extract(const Target& target, const char* name) {
   TVM_FFI_ICHECK(target.defined());
-  if (ffi::Optional<Integer> v = target->GetAttr<Integer>(name)) {
-    return v.value();
+  if (ffi::Optional<int64_t> v = target->GetAttr<int64_t>(name)) {
+    return IntImm(DataType::Int(64), v.value());
   }
   TVM_FFI_THROW(AttributedError) << "\"" << name << "\" is not defined in the target";
   throw;
@@ -129,10 +129,10 @@ class VerifyGPUCodeNode : public PostprocNode {
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
         {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
-        {"max_vthread", Integer(8)},
-        {"max_vector_bytes", Integer(16)},
+        {"max_vthread", IntImm(DataType::Int(32), 8)},
+        {"max_vector_bytes", IntImm(DataType::Int(32), 16)},
     };
-    thread_warp_size_ = Extract(this->target_, "thread_warp_size").IntValue();
+    thread_warp_size_ = static_cast<int>(Extract(this->target_, "thread_warp_size")->value);
   }
 
   bool Verify(const IRModule& mod) const {
@@ -166,7 +166,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::LiftThreadBinding());
           pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::LowerAutoCopy());
           pass_list.push_back(s_tir::transform::UnifyThreadBinding());
           pass_list.push_back(s_tir::transform::LowerMatchBuffer());
@@ -175,7 +175,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tirx::transform::FlattenBuffer());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
-          pass_list.push_back(tirx::transform::Simplify());
+          pass_list.push_back(tirx::transform::StmtSimplify());
           // Phase 2
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(s_tir::transform::InjectVirtualThread());

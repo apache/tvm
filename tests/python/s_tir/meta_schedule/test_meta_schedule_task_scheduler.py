@@ -24,6 +24,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
@@ -34,7 +35,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,
@@ -54,7 +55,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,
@@ -79,7 +80,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def main(  # type: ignore
         a: T.handle,
         b: T.handle,
@@ -119,7 +120,7 @@ def _schedule_batch_matmul(sch: Schedule):
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3, t_0, t_1)
 
 
-@ms.derived_object
+@derived_object
 class MyTaskScheduler(ms.task_scheduler.PyTaskScheduler):
     done: set = set()
 
@@ -233,7 +234,7 @@ def test_meta_schedule_task_scheduler_multiple():
 
 
 def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
-    @ms.derived_object
+    @derived_object
     class NIETaskScheduler(ms.task_scheduler.PyTaskScheduler):
         pass
 
@@ -360,7 +361,7 @@ def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()
     the scheduler should continue working as normal for other tasks
     """
 
-    @ms.derived_object
+    @derived_object
     class NullSearchStrategy(ms.search_strategy.PySearchStrategy):
         def __init__(self, rounds_with_empty_candidates):
             self.rounds_with_empty_candidates = rounds_with_empty_candidates

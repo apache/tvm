@@ -104,7 +104,7 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
   });
   auto constraints_union = ExtractComponents(constraint);
   Analyzer analyzer;
-  PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
+  PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   auto space = PresburgerSpace::getRelationSpace(vars.size(), 0, 0, 0);
   auto node = ffi::make_object<PresburgerSetNode>(std::move(space), vars);
   node->SetVars(vars);
@@ -120,15 +120,15 @@ PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
 
 void PresburgerSetNode::UpdateConstraint(const PrimExpr& constraint, const ffi::Array<Var>& vars) {
   Analyzer analyzer;
-  PrimExpr simplified_constraint = analyzer.Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
+  PrimExpr simplified_constraint = analyzer->Simplify(constraint, kSimplifyRewriteCanonicalRewrite);
   Update(simplified_constraint, this);
   SetVars(vars);
 }
 
 PrimExpr PresburgerSetNode::GenerateConstraint() const {
-  PrimExpr constraint = Bool(0);
+  PrimExpr constraint = const_false();
   for (const IntegerRelation& disjunct : disjuncts) {
-    PrimExpr union_entry = Bool(1);
+    PrimExpr union_entry = const_true();
     for (unsigned i = 0, e = disjunct.getNumEqualities(); i < e; ++i) {
       PrimExpr linear_eq = IntImm(DataType::Int(64), 0);
       if (disjunct.getNumCols() > 1) {

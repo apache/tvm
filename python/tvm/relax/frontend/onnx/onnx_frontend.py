@@ -46,12 +46,20 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as _np
-import onnx.onnx_ml_pb2
+
+try:
+    import onnx.onnx_ml_pb2
+except ImportError as err:
+    raise ImportError(
+        "onnx is required by the ONNX frontend. Install it with: pip install onnx"
+    ) from err
+
+import tvm_ffi
 
 import tvm
-from tvm import TVMError, relax, tirx, topi
+from tvm import relax, tirx, topi
 from tvm.ir import IRModule
-from tvm.ir.supply import NameSupply
+from tvm.ir.supply import UniqueNameSupply
 from tvm.runtime import DataType, DataTypeCode
 from tvm.tirx.generic import cast
 from tvm.topi.utils import get_const_tuple
@@ -63,7 +71,7 @@ def _relax_dtype_is_floating_point(dtype: str) -> bool:
     """Whether a Relax dtype string is a floating point type."""
     try:
         code = DataType(dtype).type_code
-    except (ValueError, TypeError, TVMError):
+    except (ValueError, TypeError, RuntimeError):
         return False
     return (
         code == DataTypeCode.FLOAT
@@ -526,6 +534,20 @@ class Div(BinaryBase):
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
+        try:
+            lhs_code = DataType(inputs[0].struct_info.dtype).type_code
+            rhs_code = DataType(inputs[1].struct_info.dtype).type_code
+        except (AttributeError, ValueError, TypeError, RuntimeError):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        lhs_is_integer = lhs_code == DataTypeCode.INT or lhs_code == DataTypeCode.UINT
+        rhs_is_integer = rhs_code == DataTypeCode.INT or rhs_code == DataTypeCode.UINT
+        if not (lhs_is_integer and rhs_is_integer):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
+            raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -647,7 +669,7 @@ class Equal(OnnxOpConverter):
             rhs = get_prim_expr_list(inputs[1])
             if len(lhs) != len(rhs):
                 raise ValueError("Cannot compare two tensors with different shapes")
-            output = [tvm.ir.structural_equal(l, r) for l, r in zip(lhs, rhs)]
+            output = [tvm_ffi.structural_equal(l, r) for l, r in zip(lhs, rhs)]
             return relax.const(output, "bool")
         return relax.op.equal(inputs[0], inputs[1])
 
@@ -1090,6 +1112,63 @@ class Cast(OnnxOpConverter):
             return relax.const(output, to_type)
         if isinstance(inputs[0], relax.PrimValue):
             return relax.PrimValue(inputs[0].value.astype(to_type))
+
+        try:
+            np_dst = _np.dtype(str(to_type))
+        except Exception:
+            return relax.op.astype(inputs[0], to_type)
+
+        if np_dst.kind in ("i", "u"):
+            src = inputs[0]
+            src_dtype = getattr(getattr(src, "struct_info", None), "dtype", None) or getattr(
+                src, "dtype", None
+            )
+            if src_dtype is not None and _relax_dtype_is_floating_point(src_dtype):
+                x_sanitized = bb.emit(
+                    relax.op.where(
+                        relax.op.logical_not(relax.op.isfinite(src)),
+                        relax.const(0.0, src_dtype),
+                        src,
+                    )
+                )
+                dst_str = str(to_type)
+                if dst_str.startswith("uint"):
+                    signed = False
+                    bits = int(dst_str[4:])
+                elif dst_str.startswith("int"):
+                    signed = True
+                    bits = int(dst_str[3:])
+                else:
+                    return relax.op.astype(x_sanitized, to_type)
+
+                if bits == 64:
+                    return relax.op.astype(x_sanitized, to_type)
+
+                temp_dtype = "int64" if bits >= 32 else "int32"
+                t = relax.op.astype(x_sanitized, temp_dtype)
+                if bits == 32:
+                    two_pow = relax.const(1 << bits, temp_dtype)
+                    uw = relax.op.floor_mod(t, two_pow)
+                else:
+                    mask_val = (1 << bits) - 1
+                    mask = relax.const(mask_val, temp_dtype)
+                    uw = relax.op.bitwise_and(t, mask)
+                if signed:
+                    half = 1 << (bits - 1)
+                    half_c = relax.const(half, temp_dtype)
+                    if bits == 32:
+                        two_pow = relax.const(1 << bits, temp_dtype)
+                    else:
+                        two_pow = relax.op.add(mask, relax.const(1, temp_dtype))
+                    wrapped = relax.op.where(
+                        relax.op.greater_equal(uw, half_c),
+                        relax.op.subtract(uw, two_pow),
+                        uw,
+                    )
+                else:
+                    wrapped = uw
+                return relax.op.astype(wrapped, to_type)
+
         return relax.op.astype(inputs[0], to_type)
 
 
@@ -1826,7 +1905,7 @@ class CumSum(OnnxOpConverter):
     def _impl_v14(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis_input = get_constant(inputs[1], params)
-        assert not attr.get("exclusive", False), "Exclusive option not yet supported."
+        exclusive = attr.get("exclusive", 0) != 0
 
         if isinstance(axis_input, relax.Constant):
             axis_data = axis_input.data.numpy()
@@ -1854,7 +1933,7 @@ class CumSum(OnnxOpConverter):
         if attr.get("reverse", 0) != 0:
             data = bb.emit_te(topi.flip, data, axis=axis)
 
-        data = relax.op.cumsum(data, axis)
+        data = relax.op.cumsum(data, axis, exclusive=exclusive)
         data = bb.normalize(data)
 
         if attr.get("reverse", 0) != 0:
@@ -3755,8 +3834,7 @@ class LayerNormalization(OnnxOpConverter):
         gamma_shape = get_const_tuple(scale.struct_info.shape)
 
         if bias is None:
-            seq_len = data.struct_info.shape[1].value
-            bias = relax.const([0.0] * seq_len, dtype="float32")
+            bias = relax.const(_np.zeros(gamma_shape), dtype=scale.struct_info.dtype)
         else:
             beta_shape = get_const_tuple(bias.struct_info.shape)
             if gamma_shape != beta_shape:
@@ -3773,6 +3851,64 @@ class LayerNormalization(OnnxOpConverter):
         return relax.Tuple([output, placeholder, placeholder])
 
 
+class RMSNormalization(OnnxOpConverter):
+    """Converts an onnx RMSNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v23(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        scale = inputs[1]
+        axis = attr.get("axis", -1)
+        epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
+
+        # Determine normalization axes: from `axis` to the last dimension
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("RMSNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "RMSNormalization")[0]
+        axes = list(range(axis, ndim))
+
+        # If stash_type requires float32 computation and input is not float32, cast
+        input_dtype = data.struct_info.dtype
+        if stash_type == 1 and input_dtype != "float32":
+            data_compute = relax.op.astype(data, "float32")
+            scale_compute = relax.op.astype(scale, "float32")
+        else:
+            data_compute = data
+            scale_compute = scale
+
+        output = relax.op.nn.rms_norm(data_compute, scale_compute, axes, epsilon)
+
+        # Cast back to original dtype if needed
+        if stash_type == 1 and input_dtype != "float32":
+            output = relax.op.astype(output, input_dtype)
+
+        return output
+
+
+def _reduce_min_max_preserve_nan(reduce_op, data, axes, keepdims):
+    """Apply a min/max reduction with well-defined, order-independent NaN propagation.
+
+    relax.op.max/min legalize to a max/min fold implemented as select(x > y, x, y) with an
+    ordered float comparison, so NaN propagation depends on the fold position (a later non-NaN
+    element silently overwrites an earlier NaN). ONNX Runtime is also order-independent (it only
+    yields NaN when the first reduced element is NaN), which is an implementation artifact rather
+    than a defined semantics and is impractical to replicate portably. We instead adopt the
+    numpy/IEEE convention used by numpy.max/min and torch.amax/amin: for floating pint inputs,
+    detect NaN along the reduced axes and force the output to NaN whenever any reduced element is
+    NaN.
+    """
+    y = reduce_op(data, axes, keepdims)
+    dtype = data.struct_info.dtype if isinstance(data.struct_info, relax.TensorStructInfo) else None
+    if dtype is None or not _relax_dtype_is_floating_point(dtype):
+        return y
+    nan_count = relax.op.sum(relax.op.astype(relax.op.isnan(data), dtype), axes, keepdims)
+    has_nan = relax.op.greater(nan_count, relax.const(0, dtype))
+    nan_filled = relax.op.full_like(y, relax.const(float("nan"), dtype))
+    return relax.op.where(has_nan, nan_filled, y)
+
+
 class ReduceMax(OnnxOpConverter):
     """Converts an onnx ReduceMax node into an equivalent Relax expression."""
 
@@ -3781,7 +3917,7 @@ class ReduceMax(OnnxOpConverter):
         data = inputs[0]
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
-        return relax.op.max(data, axes, keepdims)
+        return _reduce_min_max_preserve_nan(relax.op.max, data, axes, keepdims)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -3798,13 +3934,13 @@ class ReduceMax(OnnxOpConverter):
 
         # If axes is empty and noop_with_empty_axes is False, reduce all dims
         if not axes and not noop_with_empty_axes:
-            return relax.op.max(data, None, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.max, data, None, keepdims)
         # If axes is empty and noop_with_empty_axes is True, return input unchanged
         elif not axes and noop_with_empty_axes:
             return data
         # Otherwise reduce over specified axes
         else:
-            return relax.op.max(data, axes, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.max, data, axes, keepdims)
 
 
 class ReduceMin(OnnxOpConverter):
@@ -3815,7 +3951,7 @@ class ReduceMin(OnnxOpConverter):
         data = inputs[0]
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
-        return relax.op.min(data, axes, keepdims)
+        return _reduce_min_max_preserve_nan(relax.op.min, data, axes, keepdims)
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
@@ -3832,13 +3968,13 @@ class ReduceMin(OnnxOpConverter):
 
         # If axes is empty and noop_with_empty_axes is False, reduce all dims
         if not axes and not noop_with_empty_axes:
-            return relax.op.min(data, None, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.min, data, None, keepdims)
         # If axes is empty and noop_with_empty_axes is True, return input unchanged
         elif not axes and noop_with_empty_axes:
             return data
         # Otherwise reduce over specified axes
         else:
-            return relax.op.min(data, axes, keepdims)
+            return _reduce_min_max_preserve_nan(relax.op.min, data, axes, keepdims)
 
 
 class ReduceSum(OnnxOpConverter):
@@ -4228,10 +4364,10 @@ class TopK(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
-        k = inputs[1]
+        k = get_constant(inputs[1], params)
         if not isinstance(k, relax.Constant):
             raise ValueError("TopK k must be a constant")
-        k = int(k.data.numpy())
+        k = int(k.data.numpy().item())
         axis = attr.get("axis", -1)
         largest = attr.get("largest", 1)
         sorted = attr.get("sorted", 1)
@@ -4480,7 +4616,12 @@ class Sign(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
-        return relax.op.sign(inputs[0])
+        x = inputs[0]
+        x_dtype = x.struct_info.dtype if isinstance(x.struct_info, relax.TensorStructInfo) else None
+        y = relax.op.sign(x)
+        if x_dtype is not None and _relax_dtype_is_floating_point(x_dtype):
+            return relax.op.where(relax.op.isnan(x), x, y)
+        return y
 
 
 class Not(OnnxOpConverter):
@@ -5115,6 +5256,7 @@ def _get_convert_map():
         # Normalization
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
+        "RMSNormalization": RMSNormalization,
         "SkipLayerNormalization": SkipLayerNormalization,
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
@@ -5217,7 +5359,7 @@ class ONNXGraphImporter:
         self._input_names: list[str] = []
         self._dtype = dtype_dict
         self.opset: int = None
-        self._name_supply = NameSupply()
+        self._name_supply = UniqueNameSupply()
         self._keep_params_in_input = keep_params_in_input
         self._sanitize: bool = sanitize
         self.bb: relax.BlockBuilder = relax.BlockBuilder()  # pylint: disable=invalid-name
@@ -5455,7 +5597,7 @@ class ONNXGraphImporter:
                 # Create struct information for the new operator.
                 if isinstance(op, relax.Expr):
                     op = self.bb.normalize(op)
-            except TVMError as err:
+            except Exception as err:  # pylint: disable=broad-exception-caught
                 print(f"Error converting operator {op_name}, with inputs: {inputs}")
                 raise err
 
