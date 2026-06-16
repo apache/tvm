@@ -1326,14 +1326,28 @@ def test_cast_wg_rejects_thread_local_view():
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
-        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        A = T.match_buffer(
+            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
+        B = T.match_buffer(
+            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
-        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float32",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
+        dst = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float16",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
         src_row = src.local(_SL_COLS)
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
@@ -1351,13 +1365,27 @@ def test_cast_cta_rejects_thread_local_view():
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
-        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        A = T.match_buffer(
+            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
+        B = T.match_buffer(
+            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
-        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]))
-        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]))
+        src = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float32",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]),
+        )
+        dst = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float16",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]),
+        )
         src_row = src.local(_SL_COLS)
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tx_var, i]
@@ -1376,14 +1404,28 @@ def test_cast_wg_rejects_partial_thread_coverage():
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (half, _SL_COLS), "float32", layout=TileLayout(S[(half, _SL_COLS)]))
-        B = T.match_buffer(B_ptr, (half, _SL_COLS), "float16", layout=TileLayout(S[(half, _SL_COLS)]))
+        A = T.match_buffer(
+            A_ptr, (half, _SL_COLS), "float32", layout=TileLayout(S[(half, _SL_COLS)])
+        )
+        B = T.match_buffer(
+            B_ptr, (half, _SL_COLS), "float16", layout=TileLayout(S[(half, _SL_COLS)])
+        )
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer((half, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]))
-        dst = T.alloc_buffer((half, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src = T.alloc_buffer(
+            (half, _SL_COLS),
+            "float32",
+            scope="local",
+            layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
+        dst = T.alloc_buffer(
+            (half, _SL_COLS),
+            "float16",
+            scope="local",
+            layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
         src_row = src.local(_SL_COLS)
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
@@ -1401,14 +1443,28 @@ def test_cast_wg_accepts_wg_level_layout():
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
-        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        A = T.match_buffer(
+            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
+        B = T.match_buffer(
+            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
-        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float32",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
+        dst = T.alloc_buffer(
+            (_SL_ROWS, _SL_COLS),
+            "float16",
+            scope="local",
+            layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
+        )
         src_row = src.local(_SL_COLS)
         for i in T.serial(_SL_COLS):
             src_row[i] = A[tid, i]
@@ -1425,13 +1481,21 @@ def test_cast_thread_accepts_local_view():
 
     @T.prim_func
     def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
-        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        A = T.match_buffer(
+            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
+        B = T.match_buffer(
+            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
+        )
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
-        src = T.alloc_buffer((_SL_COLS,), "float32", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
-        dst = T.alloc_buffer((_SL_COLS,), "float16", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
+        src = T.alloc_buffer(
+            (_SL_COLS,), "float32", scope="local", layout=TileLayout(S[(_SL_COLS,)])
+        )
+        dst = T.alloc_buffer(
+            (_SL_COLS,), "float16", scope="local", layout=TileLayout(S[(_SL_COLS,)])
+        )
         for i in T.serial(_SL_COLS):
             src[i] = A[tx_var, i]
         Tx.cast(dst, src)

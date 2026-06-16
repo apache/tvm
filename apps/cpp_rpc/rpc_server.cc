@@ -210,7 +210,7 @@ class RPCServer {
                     << ", status = " << status_second;
         } else if (finished_first == worker_pid) {
           LOG(INFO) << "Child pid=" << worker_pid << " finished"
-                    << ", status = "<< status_first;
+                    << ", status = " << status_first;
         }
       } else {
         auto pid = fork();
@@ -334,8 +334,7 @@ class RPCServer {
     RPCServerLoop(int(sock.sockfd));
     const auto e_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = e_time - s_time;
-    LOG(INFO) << "Finished serving " << addr.AsString()
-              << " after " << elapsed.count() << " sec";
+    LOG(INFO) << "Finished serving " << addr.AsString() << " after " << elapsed.count() << " sec";
     env.CleanUp();
   }
 

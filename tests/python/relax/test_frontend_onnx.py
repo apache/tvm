@@ -837,7 +837,7 @@ def test_reduce_min_max_nan_preserve(op_name, x):
     ref_out = (np.max if op_name == "ReduceMax" else np.min)(x)
 
     tvm_out = run_in_tvm(model, inputs={"x": x}, opset=18)
-    out_np = (tvm_out[0] if isinstance(tvm_out, (list, tuple)) else tvm_out).numpy()
+    out_np = (tvm_out[0] if isinstance(tvm_out, list | tuple) else tvm_out).numpy()
 
     np.testing.assert_array_equal(np.isnan(out_np), np.isnan(ref_out))
     if not np.isnan(ref_out):

@@ -71,9 +71,8 @@ bool TargetHasVLA(Target target) {
 }
 
 bool ContainsCallNode(const Stmt& stmt) {
-  return CheckContains::StmtContains(stmt, [](const PrimExpr& expr) {
-    return expr.as<CallNode>() != nullptr;
-  });
+  return CheckContains::StmtContains(
+      stmt, [](const PrimExpr& expr) { return expr.as<CallNode>() != nullptr; });
 }
 }  // namespace
 
@@ -1067,9 +1066,8 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop =
-        For(inner, make_const(lane_dtype, 0), scalable_lanes, ForKind::kVectorized, guarded_body,
-            std::nullopt, op->annotations, std::nullopt, op->span);
+    Stmt vector_loop = For(inner, make_const(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
+                           guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
     Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
                     std::nullopt, op->span);
 

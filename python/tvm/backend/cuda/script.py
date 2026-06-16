@@ -278,9 +278,7 @@ class MbarrierNamespace:
         self.init = _op_wrapper(_cuda_op.ptx_mbarrier_init)
         self.try_wait = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait)
         self.try_wait_once = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_once)
-        self.try_wait_acquire_cluster = _op_wrapper(
-            _cuda_op.ptx_mbarrier_try_wait_acquire_cluster
-        )
+        self.try_wait_acquire_cluster = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_acquire_cluster)
         self.arrive = MbarrierArriveNamespace()
 
 
