@@ -81,8 +81,8 @@ else()
   if(TVM_Z3_REQUIRED)
     message(FATAL_ERROR
       "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
-      "package with `pip install z3-static`, or point Z3_DIR/CMAKE_PREFIX_PATH "
-      "at a Z3 installation.")
+      "package with `pip install 'z3-static>=4.16.0.post1'`, or point "
+      "Z3_DIR/CMAKE_PREFIX_PATH at a Z3 installation.")
   endif()
   message(STATUS "Build without Z3 SMT solver support")
   return()
