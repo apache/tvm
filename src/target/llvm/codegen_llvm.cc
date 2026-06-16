@@ -269,10 +269,9 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
       user_symbol = user_symbol.substr(std::char_traits<char>::length(kFFISymbolPrefix));
     }
     TVM_FFI_THROW(InternalError) << "Duplicate PrimFunc global_symbol '" << user_symbol
-                                 << "' in LLVM codegen: IRModule keys '" << it->second
-                                 << "' and '" << gvar->name_hint
-                                 << "' both lower to the same exported symbol '" << symbol_name
-                                 << "'. "
+                                 << "' in LLVM codegen: IRModule keys '" << it->second << "' and '"
+                                 << gvar->name_hint << "' both lower to the same exported symbol '"
+                                 << symbol_name << "'. "
                                  << "Each exposed PrimFunc in one IRModule must have a unique "
                                     "global_symbol.";
   }
