@@ -13020,5 +13020,99 @@ def test_unidirectional_sequence_rnn_time_major():
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
 
 
+def test_real():
+    class Real(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.complex64)])
+        def func(self, x):
+            return tf.math.real(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
+                R.output(gv)
+            return gv
+
+    verify(Real, Expected)
+
+
+def test_imag():
+    class Imag(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.complex64)])
+        def func(self, x):
+            return tf.math.imag(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
+                R.output(gv)
+            return gv
+
+    verify(Imag, Expected)
+
+
+def test_complex_abs():
+    class ComplexAbs(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 4), dtype=tf.complex64)])
+        def func(self, x):
+            return tf.math.abs(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv1: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
+                lv2: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv3: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv2, axis=[-1])
+                lv4: R.Tensor((2, 4), dtype="float32") = R.multiply(lv1, lv1)
+                lv5: R.Tensor((2, 4), dtype="float32") = R.multiply(lv3, lv3)
+                lv6: R.Tensor((2, 4), dtype="float32") = R.add(lv4, lv5)
+                gv: R.Tensor((2, 4), dtype="float32") = R.sqrt(lv6)
+                R.output(gv)
+            return gv
+
+    verify(ComplexAbs, Expected)
+
+
 if __name__ == "__main__":
     pytest.main(["-s", __file__])
