@@ -13032,9 +13032,13 @@ def test_real():
         def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                # slice real part (index 0 along last axis)
                 lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[-1], begin=[0], end=[1], strides=[1]
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
                 )
                 gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
                 R.output(gv)
@@ -13055,9 +13059,13 @@ def test_imag():
         def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                # slice imaginary part (index 1 along last axis)
                 lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[-1], begin=[1], end=[2], strides=[1]
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
                 )
                 gv: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
                 R.output(gv)
@@ -13078,18 +13086,28 @@ def test_complex_abs():
         def main(x: R.Tensor((2, 4, 2), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv0: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[-1], begin=[0], end=[1], strides=[1]
+                lv: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
                 )
-                real: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv0, axis=[-1])
-                lv1: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
-                    x, axes=[-1], begin=[1], end=[2], strides=[1]
+                lv1: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv, axis=[-1])
+                lv2: R.Tensor((2, 4, 1), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(-1),),
+                    (R.prim_value(1),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
                 )
-                imag: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv1, axis=[-1])
-                lv2: R.Tensor((2, 4), dtype="float32") = R.multiply(real, real)
-                lv3: R.Tensor((2, 4), dtype="float32") = R.multiply(imag, imag)
-                lv4: R.Tensor((2, 4), dtype="float32") = R.add(lv2, lv3)
-                gv: R.Tensor((2, 4), dtype="float32") = R.sqrt(lv4)
+                lv3: R.Tensor((2, 4), dtype="float32") = R.squeeze(lv2, axis=[-1])
+                lv4: R.Tensor((2, 4), dtype="float32") = R.multiply(lv1, lv1)
+                lv5: R.Tensor((2, 4), dtype="float32") = R.multiply(lv3, lv3)
+                lv6: R.Tensor((2, 4), dtype="float32") = R.add(lv4, lv5)
+                gv: R.Tensor((2, 4), dtype="float32") = R.sqrt(lv6)
                 R.output(gv)
             return gv
 

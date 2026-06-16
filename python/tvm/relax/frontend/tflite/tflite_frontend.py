@@ -306,7 +306,6 @@ class OperatorConverter:
             "RELU": self.convert_relu,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
-            "RFFT2D": self.convert_rfft2d,
             "RESHAPE": self.convert_reshape,
             "RESIZE_BILINEAR": self.convert_resize_bilinear,
             "RESIZE_NEAREST_NEIGHBOR": self.convert_resize_nearest_neighbor,
@@ -1010,6 +1009,7 @@ class OperatorConverter:
             TensorType.UINT32: np.uint32,
             TensorType.UINT64: np.uint64,
             TensorType.BOOL: np.bool_,
+            TensorType.COMPLEX64: np.complex64,
         }[tensor_wrapper.tensor.Type()]
 
     # pylint: disable=no-else-return
@@ -1055,6 +1055,8 @@ class OperatorConverter:
             return "uint64"
         if tensor_type == TensorType.BOOL:
             return "bool"
+        if tensor_type == TensorType.COMPLEX64:
+            return "complex64"
         raise NotImplementedError(f"Tensor type {tensor_type!s} is currently not supported")
 
     def _get_shape_expr_from_tensor(self, shape_tensor, prefix):
@@ -7630,20 +7632,6 @@ class OperatorConverter:
         sum_expr = self.bb.emit(_op.add(real_sq, imag_sq))
         return _op.sqrt(sum_expr)
 
-    def convert_rfft2d(self, op):
-        """Convert TFLite RFFT2D op.
-
-        Not implemented: Relax has no native FFT operator and topi.signal.dft
-        has no C++ registered backend (tvm.get_global_func returns None).
-        Implement relax.op.signal.rfft2d first, then route here.
-        """
-        raise tvm.error.OpNotImplemented(
-            "RFFT2D is not supported in the Relax TFLite frontend. "
-            "topi.signal.dft is pure Python TE with no TVM_REGISTER_GLOBAL entry "
-            "and cannot be called via call_dps_packed. "
-            "A native relax.op.signal.rfft2d op is required."
-        )
-
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
@@ -7673,6 +7661,12 @@ class OperatorConverter:
 
         type_str = self.get_tensor_type_str(tensor.tensor.Type())
         value = self.get_tensor_value_or_prefetched(tensor, is_sparse)
+        # complex64 constants have no native Relax dtype. Reinterpret the
+        # interleaved float32 storage as float32[..., 2] to match the
+        # convention used for input tensors.
+        if type_str == "complex64":
+            value = value.view(np.float32).reshape(value.shape + (2,))
+            type_str = "float32"
         return self.exp_tab.new_const(value, dtype=type_str, source_name=tensor.tensor.Name())
 
     def get_tensor_shape(self, tensor_wrapper):
@@ -8109,11 +8103,6 @@ def _input_type(model):
         tensor_type = tensor.Type()
         input_name = get_tensor_name(subgraph, input_)
         input_dtype = _decode_type(tensor_type)
-        # Relax models complex64 tensors as float32[..., 2] where the trailing
-        # dimension stores real/imag parts.
-        if input_dtype == "complex64":
-            input_shape = input_shape + (2,)
-            input_dtype = "float32"
         shape_dict[input_name] = input_shape
         dtype_dict[input_name] = input_dtype
 
