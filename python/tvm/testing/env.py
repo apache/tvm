@@ -117,7 +117,7 @@ def _build_flag_enabled(flag: str) -> bool:
 
     A flag counts as enabled unless it is explicitly disabled, so library
     flags carrying a path (rather than a boolean) still register as present.
-    Callers gate on this via ``@pytest.mark.skipif(not has_cutlass(), ...)``.
+    Callers gate on this via ``@pytest.mark.skipif(not tvm.testing.env.has_cutlass(), ...)``.
     """
     try:
         value = tvm.support.libinfo().get(flag, "OFF")
