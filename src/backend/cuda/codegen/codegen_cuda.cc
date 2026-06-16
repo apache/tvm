@@ -160,16 +160,15 @@ void CodeGenCUDA::Init(bool output_ssa) {
 
 void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
-  int64_t calling_conv = func->GetAttr<int64_t>(tvm::attr::kCallingConv,
-                                                static_cast<int64_t>(tvm::CallingConv::kDefault))
-                             .value();
-  if (calling_conv == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch)) {
+  CallingConv calling_conv =
+      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+  if (calling_conv == CallingConv::kDeviceKernelLaunch) {
     os << "extern \"C\" __global__ ";
-  } else if (calling_conv == static_cast<int64_t>(CallingConv::kDefault)) {
+  } else if (calling_conv == CallingConv::kDefault) {
     os << "extern \"C\" __device__ ";
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported calling convention for cuda codegen: "
-                                 << calling_conv;
+                                 << static_cast<int>(calling_conv);
   }
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
@@ -2107,12 +2106,10 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
-    int64_t calling_conv = prim_func
-                               ->GetAttr<int64_t>(tvm::attr::kCallingConv,
-                                                  static_cast<int64_t>(tvm::CallingConv::kDefault))
-                               .value();
-    TVM_FFI_ICHECK(calling_conv == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch) ||
-                   calling_conv == static_cast<int64_t>(CallingConv::kDefault))
+    CallingConv calling_conv =
+        prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+                   calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
     functions.Set(gvar, prim_func);
