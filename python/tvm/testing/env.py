@@ -115,9 +115,9 @@ def _device_exists(kind: str, index: int = 0) -> bool:
 def _build_flag_enabled(flag: str) -> bool:
     """Return whether an optional build flag (e.g. ``USE_CUTLASS``) is on.
 
-    Mirrors the historical ``Feature`` check: a flag counts as enabled
-    unless it is explicitly disabled, so library flags carrying a path
-    still register as present.
+    A flag counts as enabled unless it is explicitly disabled, so library
+    flags carrying a path (rather than a boolean) still register as present.
+    Callers gate on this via ``@pytest.mark.skipif(not has_cutlass(), ...)``.
     """
     try:
         value = tvm.support.libinfo().get(flag, "OFF")
@@ -130,8 +130,8 @@ def _build_flag_enabled(flag: str) -> bool:
 def _target_enabled(kind: str) -> bool:
     """True if ``kind`` is selected by ``TVM_TEST_TARGETS`` (or the default set).
 
-    Restores the historical ``target_kind_enabled`` opt-out, so CI can exclude a
-    flaky backend (e.g. opencl) via ``TVM_TEST_TARGETS`` and have its tests skip
+    Honors the ``TVM_TEST_TARGETS`` opt-out, so CI can exclude a flaky
+    backend (e.g. opencl) via ``TVM_TEST_TARGETS`` and have its tests skip
     even when a device is physically present.
     """
     try:
@@ -343,8 +343,9 @@ def _nvcc_version() -> tuple:
 def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
     """True if a CUDA device is present and nvcc is at least ``(major, minor, release)``.
 
-    Implies :func:`has_cuda`, matching the historical ``requires_nvcc_version``
-    decorator which also required the CUDA runtime.
+    Returns False when no CUDA device is present, so it implies :func:`has_cuda`.
+    Gate a test with ``@pytest.mark.skipif(not env.has_nvcc_version(11, 4),
+    reason="need nvcc >= 11.4")`` (add ``@pytest.mark.gpu`` for GPU selection).
     """
     return has_cuda() and _nvcc_version() >= (major, minor, release)
 
@@ -389,9 +390,10 @@ def has_matrixcore() -> bool:
 def has_cudagraph() -> bool:
     """True if a CUDA device is present and the toolkit supports CUDA Graphs.
 
-    Implies :func:`has_cuda`, matching the historical ``requires_cudagraph``
-    decorator (``parent_features="cuda"``): ``nvcc.have_cudagraph()`` only
-    checks the toolkit version, so the device guard must be explicit.
+    Implies :func:`has_cuda`: ``nvcc.have_cudagraph()`` only checks the
+    toolkit version, so the device guard must be explicit.  Gate a test with
+    ``@pytest.mark.skipif(not tvm.testing.env.has_cudagraph(), reason=...)``
+    (add ``@pytest.mark.gpu`` for CI selection).
     """
     try:
         from tvm.support import nvcc  # pylint: disable=import-outside-toplevel

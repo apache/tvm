@@ -210,9 +210,11 @@ def _add_target_specific_marks(metafunc):
                 raise TypeError(msg) from err
 
     if "target" in metafunc.fixturenames:
-        # Update any explicit use of @pytest.mark.parmaetrize to
-        # parametrize over targets.  This adds the appropriate
-        # @tvm.testing.requires_* markers for each target.
+        # Update any explicit use of @pytest.mark.parametrize to
+        # parametrize over targets.  This attaches the appropriate
+        # per-target gating markers (pytest.mark.gpu for GPU-family
+        # targets, plus a pytest.mark.skipif guarded by the relevant
+        # tvm.testing.env.has_*() probe) via _target_to_requirement.
         for mark in metafunc.definition.iter_markers("parametrize"):
             update_parametrize_target_arg(mark, *mark.args, **mark.kwargs)
 
