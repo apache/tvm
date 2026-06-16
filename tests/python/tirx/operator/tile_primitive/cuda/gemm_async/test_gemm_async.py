@@ -32,6 +32,7 @@ import tvm.testing
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.cuda.operator.tile_primitive.gemm_async import sf_tmem_layout
 from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
     mma_atom_layout,
@@ -167,6 +168,8 @@ def pack_sf_fp8_uint32(sf_uint8, n_total=128):
     return packed
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "task",
     [
@@ -293,6 +296,8 @@ def test_gemm_tcgen05_cta_group_1(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     """M=64 MMA with C operand allocated as Layout F (datapath="F").
 
@@ -405,6 +410,8 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-2, rtol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "task",
     [
@@ -545,6 +552,8 @@ def test_gemm_tcgen05_cta_group_2(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_gemm_tcgen05_cta_group_2_layout_b():
     """Test cta_group=2 with Layout B (2x2 datapath, M=128 total, 64 per CTA).
 
@@ -675,6 +684,8 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
 @pytest.mark.parametrize(
     "task",
@@ -864,6 +875,8 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
 @pytest.mark.parametrize(
     "task",
@@ -1089,6 +1102,8 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
 def test_gemm_block_scaled_nvfp4_cta_group_1():
     """Test block-scaled nvfp4 GEMM with cta_group=1.
@@ -1258,6 +1273,8 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
 def test_gemm_block_scaled_nvfp4_cta_group_2():
     """Test block-scaled nvfp4 GEMM with cta_group=2.
@@ -1462,6 +1479,8 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes")
 def test_gemm_block_scaled_fp8_sf_id():
     """Test sf_id auto-derivation from layout for fp8 block-scaled MMA.
@@ -1681,6 +1700,8 @@ def test_gemm_block_scaled_fp8_sf_id():
             )
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "task",
     [
@@ -1960,6 +1981,8 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("k_lo,k_hi", [(0, 16), (0, 32), (16, 32), (16, 48), (32, 64)])
 def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     """A slice on the *contiguous* (K) axis of a swizzled gemm_async operand must
