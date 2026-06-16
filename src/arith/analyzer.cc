@@ -350,12 +350,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, ffi::Optional<PrimExpr> expr) {
              return analyzer->z3_prover.GetSMTLIB2(expr);
            })
-      .def("arith.AnalyzerSetZ3TimeoutMs", [](Analyzer analyzer, int64_t timeout_ms) {
-        analyzer->z3_prover.SetTimeoutMs(static_cast<unsigned>(timeout_ms));
-      })
-      .def("arith.AnalyzerSetZ3RLimit", [](Analyzer analyzer, int64_t rlimit) {
-        analyzer->z3_prover.SetRLimit(static_cast<unsigned>(rlimit));
-      })
+      .def("arith.AnalyzerSetZ3TimeoutMs",
+           [](Analyzer analyzer, int64_t timeout_ms) {
+             analyzer->z3_prover.SetTimeoutMs(static_cast<unsigned>(timeout_ms));
+           })
+      .def("arith.AnalyzerSetZ3RLimit",
+           [](Analyzer analyzer, int64_t rlimit) {
+             analyzer->z3_prover.SetRLimit(static_cast<unsigned>(rlimit));
+           })
       .def("arith.AnalyzerGetZ3Stats",
            [](Analyzer analyzer) { return analyzer->z3_prover.GetStats(); })
       .def("arith.AnalyzerGetEnabledExtensions",
