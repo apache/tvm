@@ -125,8 +125,11 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    TVM_FFI_ICHECK(calling_conv.has_value())
+        << "CodeGenSPIRV: expected kCallingConv attribute to be set.";
+    TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
+        << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
+        << static_cast<int>(calling_conv.value());
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";

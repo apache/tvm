@@ -690,8 +690,11 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
         << "CodeGenOpenCL: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv = prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    TVM_FFI_ICHECK(calling_conv.has_value())
+        << "CodeGenOpenCL: expected kCallingConv attribute to be set.";
+    TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
+        << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
+        << static_cast<int>(calling_conv.value());
     functions.Set(gvar, prim_func);
   }
 

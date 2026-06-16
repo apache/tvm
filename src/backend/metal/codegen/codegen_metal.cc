@@ -475,8 +475,11 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    TVM_FFI_ICHECK(calling_conv.has_value())
+        << "CodeGenMetal: expected kCallingConv attribute to be set.";
+    TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
+        << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
+        << static_cast<int>(calling_conv.value());
 
     cg.AddFunction(kv.first, f);
 
