@@ -56,49 +56,19 @@ class run_time_check:
         return self.check
 
 
-def _adreno_requires(predicate, reason):
-    """Tag a GPU test with the ``gpu`` marker plus an eager runtime skip.
-
-    The predicate is evaluated when the decorator is applied (at collection
-    time), so the skip condition is resolved eagerly.
-    """
-
-    def decorator(func):
-        func = pytest.mark.skipif(not predicate(), reason=reason)(func)
-        return pytest.mark.gpu(func)
-
-    return decorator
-
+# Eager skips for Adreno GPU tests, resolved at import time. Pair each with
+# ``@pytest.mark.gpu`` at the test site so CI's ``-m gpu`` filter selects it.
 
 # OpenCL or Vulkan
-requires_adreno_opencl_vulkan = _adreno_requires(
-    run_time_check("any").check,
-    "need adreno opencl or vulkan",
-)
-
-# Any Vulkan
-requires_adreno_vulkan = _adreno_requires(
-    lambda: tvm.runtime.enabled("vulkan") and run_time_check("vulkan").check(),
-    "need adreno vulkan",
-)
-
-# Any OpenCL
-requires_adreno_opencl = _adreno_requires(
-    lambda: tvm.runtime.enabled("opencl") and run_time_check("opencl").check(),
-    "need adreno opencl",
-)
-
-# Real Adreno GPU OpenCL Target
-requires_adreno_opencl_real = _adreno_requires(
-    lambda: tvm.runtime.enabled("opencl") and run_time_check("real").check(),
-    "need real adreno opencl",
+skip_unless_adreno_opencl_vulkan = pytest.mark.skipif(
+    not run_time_check("any").check(),
+    reason="need adreno opencl or vulkan",
 )
 
 # CLML Codegen
-requires_adreno_clml = _adreno_requires(
-    lambda: tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True)
-    is not None,
-    "need adreno openclml",
+skip_unless_adreno_clml = pytest.mark.skipif(
+    tvm.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is None,
+    reason="need adreno openclml",
 )
 
 
