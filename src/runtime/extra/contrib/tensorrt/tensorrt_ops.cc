@@ -422,9 +422,9 @@ class DenseOpConverter : public TensorRTOpConverter {
                               ->addConstant(VectorToTrtDims(params->inputs.at(1).weight_shape),
                                             params->inputs.at(1).weight)
                               ->getOutput(0);
-    auto* matmul_layer = params->network->addMatrixMultiply(
-        *input_tensor, nvinfer1::MatrixOperation::kNONE, *weight_tensor,
-        nvinfer1::MatrixOperation::kTRANSPOSE);
+    auto* matmul_layer =
+        params->network->addMatrixMultiply(*input_tensor, nvinfer1::MatrixOperation::kNONE,
+                                           *weight_tensor, nvinfer1::MatrixOperation::kTRANSPOSE);
     TVM_FFI_ICHECK(matmul_layer != nullptr);
     params->outputs.push_back(matmul_layer->getOutput(0));
   }

@@ -201,9 +201,8 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     delete runtime;
     TVM_FFI_THROW(InternalError) << "Failed to deserialize the TensorRT engine.";
   }
-  TVM_FFI_ICHECK_EQ(
-      engine->getNbIOTensors(),
-      static_cast<int32_t>(network_input_names_.size() + network_output_names_.size()));
+  TVM_FFI_ICHECK_EQ(engine->getNbIOTensors(), static_cast<int32_t>(network_input_names_.size() +
+                                                                   network_output_names_.size()));
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
 
