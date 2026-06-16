@@ -694,7 +694,6 @@ def ptx_mbarrier_arrive_cluster_count(bar, cta_id, count):
     return call_intrin("", "tirx.ptx_mbarrier_arrive", bar, cta_id, True, count)
 
 
-
 def ptx_mbarrier_arrive_expect_tx(bar, byte_count, cta_id=None, pred=None):
     """TVM intrinsic to call
         mbarrier.arrive_expect_tx.shared::cta.b64
