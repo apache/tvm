@@ -114,7 +114,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
         f = tvm.tirx.build(rvv_with_vscale, target)
 
 
-@tvm.testing.requires_llvm_minimum_version(14)
+@pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
     @T.prim_func(s_tir=True)
     def fixed16_negative(

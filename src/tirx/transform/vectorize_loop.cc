@@ -69,6 +69,12 @@ bool TargetHasVLA(Target target) {
   has_vla |= TargetHasRVV(target);
   return has_vla;
 }
+
+bool ContainsCallNode(const Stmt& stmt) {
+  return CheckContains::StmtContains(stmt, [](const PrimExpr& expr) {
+    return expr.as<CallNode>() != nullptr;
+  });
+}
 }  // namespace
 
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
@@ -1007,7 +1013,10 @@ class LoopVectorizer : public StmtMutator {
       auto* extent_as_int = op->extent.as<IntImmNode>();
 
       TVM_FFI_ICHECK(is_zero(op->min));
-      if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_)) {
+      // General calls still have vectorization paths that query a compile-time
+      // lane count, so keep them on the existing fixed-width path for now.
+      if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_) &&
+          !ContainsCallNode(op->body)) {
         return VectorizeFixedLoopForRVV(op, extent_as_int->value);
       }
 
