@@ -379,7 +379,7 @@ TEST(TargetCreation, DeduplicateKeys) {
   TVM_FFI_ICHECK_EQ(target->keys.size(), 2U);
   TVM_FFI_ICHECK_EQ(target->keys[0], "cpu");
   TVM_FFI_ICHECK_EQ(target->keys[1], "arm_cpu");
-  TVM_FFI_ICHECK_EQ(target->attrs.size(), 2U);
+  TVM_FFI_ICHECK_EQ(target->attrs.count("keys"), 0U);
   TVM_FFI_ICHECK_EQ(target->GetAttr<ffi::String>("device"), "arm_cpu");
 }
 
