@@ -472,7 +472,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
       constraints.begin(), constraints.end(),
       [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
 
-  PrimExpr sorted_condition = tirx::const_true();
+  PrimExpr sorted_condition = IntImm::Bool(true);
   for (const PrimExpr& constraint : constraints) {
     sorted_condition = sorted_condition && constraint;
   }
@@ -505,7 +505,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
   bool all_shapes_defined = true;
 
   // The expression that must be true in order
-  PrimExpr all_dimensions_equal = IntImm(DataType::Bool(), 1);
+  PrimExpr all_dimensions_equal = IntImm::Bool(true);
 
   for (const auto& arg : args) {
     if (auto opt_var = match_state(arg.get())) {
@@ -524,7 +524,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
       if (!opt_var_shape.defined()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
-        return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
+        return {PrimExpr(IntImm::Bool(false)), true};
       }
       auto var_shape = opt_var_shape.value();
 
@@ -541,7 +541,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
           // The shapes have different dimensionality.  No need to
           // perform potentially-expensive simplifications, because
           // the dimensions do not match.
-          return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
+          return {PrimExpr(IntImm::Bool(false)), true};
         }
 
       } else {

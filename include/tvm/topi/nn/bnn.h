@@ -71,7 +71,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
           start_idx.push_back(i == static_cast<size_t>(axis) ? indices[i] * 32
                                                              : static_cast<PrimExpr>(indices[i]));
         }
-        auto packed = make_const(DataType::UInt(32), 0);
+        PrimExpr packed = IntImm(DataType::UInt(32), 0);
         for (size_t j = 0; j < 32; ++j) {
           ffi::Array<PrimExpr> idx;
           for (size_t i = 0; i < n; ++i) {

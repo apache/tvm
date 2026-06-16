@@ -319,7 +319,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(s_tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
+  annotations.Set(s_tir::attr::script_parsing_detect_access, IntImm::Int32(3));
   return annotations;
 }
 
@@ -517,7 +517,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         TVM_FFI_ICHECK(scopes[i - 1].axes_remap.count(axis->var));
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name_hint, index_type);
-        Range dom = Range::FromMinExtent(prev_binding, make_const(index_type, 1));
+        Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
         IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
@@ -545,7 +545,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
     seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                     /*predicate=*/const_true(),
+                                     /*predicate=*/IntImm::Bool(true),
                                      /*block=*/
                                      SBlock(/*iter_vars=*/leaf.block_iters,
                                             /*reads=*/{},
@@ -567,7 +567,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       Stmt body = GenerateBodyStmt(leaf.store_indices, {buffers[i]}, leaf.axes_remap, expr_body,
                                    info, analyzer);
       seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
-                                       /*predicate=*/IntImm(DataType::Bool(), 1),
+                                       /*predicate=*/IntImm::Bool(true),
                                        /*block=*/
                                        SBlock(/*iter_vars=*/leaf.block_iters,
                                               /*reads=*/{},
@@ -600,7 +600,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
       // wrap nested block
       body = SBlockRealize(/*iter_values=*/cur.bindings,
-                           /*predicate=*/IntImm(DataType::Bool(), 1),
+                           /*predicate=*/IntImm::Bool(true),
                            /*block=*/
                            SBlock(/*iter_vars=*/block_iters,
                                   /*reads=*/{},
@@ -660,7 +660,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 
   // Step 4. Generate opaque block as body.
   return SBlockRealize(/*iter_values=*/{},
-                       /*predicate=*/IntImm(DataType::Bool(), 1),
+                       /*predicate=*/IntImm::Bool(true),
                        /*block=*/
                        SBlock(/*iter_vars=*/{},
                               /*reads=*/{},

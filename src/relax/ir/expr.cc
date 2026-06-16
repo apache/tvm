@@ -342,7 +342,7 @@ Constant::Constant(runtime::Tensor data, ffi::Optional<StructInfo> struct_info_a
   ffi::Array<PrimExpr> values;
   auto shape_tuple = n->data.Shape();
   for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
-    values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+    values.push_back(IntImm::Int64(shape_tuple[dim]));
   }
   if (struct_info_annotation.defined()) {
     n->struct_info_ = struct_info_annotation.value();
@@ -371,7 +371,7 @@ PrimValue::PrimValue(PrimExpr value, Span span) {
 }
 
 PrimValue PrimValue::Int64(int64_t value, Span span) {
-  return PrimValue(IntImm(DataType::Int(64), value), span);
+  return PrimValue(IntImm::Int64(value), span);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

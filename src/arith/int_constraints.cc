@@ -86,7 +86,7 @@ IntGroupBounds::IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower,
 
 IntGroupBounds IntGroupBounds::FromRange(const Range& r) {
   Analyzer analyzer;
-  PrimExpr coef = tirx::make_const(r->min.dtype(), 1);
+  PrimExpr coef = tirx::MakeConst(r->min.dtype(), 1);
   ffi::Array<PrimExpr> equal;
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;

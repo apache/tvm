@@ -147,7 +147,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         arith::Analyzer ana;
-        PrimExpr mem_span = make_const(DataType::Int(32), 1);
+        PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
             mem_span = mem_span + (iter->extent - 1) * iter->stride;

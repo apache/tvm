@@ -57,7 +57,7 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
     TVM_FFI_ICHECK(round_mode == RoundingMode::kHalfToEven)
         << "Currently we only support HalfToEven rounding mode.";
     PrimExpr rounding_bias = ((src_uint_value >> (-mantissa_delta)) & 1) +
-                             make_const(src_uint, (int64_t(1) << (-mantissa_delta - 1)) - 1);
+                             MakeConst(src_uint, (int64_t(1) << (-mantissa_delta - 1)) - 1);
     src_uint_value = src_uint_value + rounding_bias;
   }
   if (exponent_delta == 0) {
@@ -69,9 +69,9 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
       ret = cast(tgt_uint, ret >> (-mantissa_delta));
     }
     if (bias_delta > 0) {
-      ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
+      ret = ret + (MakeConst(tgt_uint, bias_delta) << tgt_fp.mantissa);
     } else if (bias_delta < 0) {
-      ret = ret - (make_const(tgt_uint, -bias_delta) << tgt_fp.mantissa);
+      ret = ret - (MakeConst(tgt_uint, -bias_delta) << tgt_fp.mantissa);
     }
     return reinterpret(tgt_dtype, ret);
   } else {
@@ -79,7 +79,7 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
     PrimExpr ret_mantissa =
         (mantissa_delta >= 0 ? (cast(tgt_uint, src_uint_value) << mantissa_delta)
                              : (cast(tgt_uint, src_uint_value >> (-mantissa_delta)))) &
-        make_const(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
+        MakeConst(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
     PrimExpr exponent_before_delta = ((src_uint_value << 1) >> (src_fp.mantissa + 1));
     PrimExpr ret_sign = cast(tgt_uint, (src_uint_value >> (src_fp.mantissa + src_fp.exponent)))
                         << (tgt_fp.mantissa + tgt_fp.exponent);
@@ -92,7 +92,8 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
       PrimExpr round_to_zero = exponent_before_delta < (-bias_delta);
       PrimExpr ret_exponent = cast(tgt_uint, exponent_before_delta - (-bias_delta))
                               << tgt_fp.mantissa;
-      return reinterpret(tgt_dtype, if_then_else(round_to_zero, make_const(tgt_uint, 0),
+      // MakeConst can handle both vector and scalar types.
+      return reinterpret(tgt_dtype, if_then_else(round_to_zero, MakeConst(tgt_uint, 0),
                                                  ret_mantissa | ret_exponent | ret_sign));
     }
   }

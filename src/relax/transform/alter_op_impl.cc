@@ -45,7 +45,7 @@ static constexpr const char* kOperatorName = "operator_name";
 
 /*! \brief Construct ranges from shape dimensions */
 static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& shape) {
-  return shape.Map([](const PrimExpr& dim) { return Range(tirx::make_zero(dim.dtype()), dim); });
+  return shape.Map([](const PrimExpr& dim) { return Range(IntImm(dim.dtype(), 0), dim); });
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {

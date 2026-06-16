@@ -331,8 +331,7 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
       tvm::ffi::Array<StructInfo> fields = {
           TensorStructInfo(ffi::GetRef<ShapeExpr>(data_shape), data_sinfo->dtype, vdev),
           TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
-          TensorStructInfo(ShapeExpr({batch, IntImm(DataType::Int(64), 1)}), DataType::Int(32),
-                           vdev)};
+          TensorStructInfo(ShapeExpr({batch, IntImm::Int64(1)}), DataType::Int(32), vdev)};
       return TupleStructInfo(fields);
     }
 
@@ -346,8 +345,7 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
     auto num_anchors = data_shape->values[1];
     tvm::ffi::Array<StructInfo> fields = {
         TensorStructInfo(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
-        TensorStructInfo(ShapeExpr({batch, IntImm(DataType::Int(64), 1)}), DataType::Int(32),
-                         vdev)};
+        TensorStructInfo(ShapeExpr({batch, IntImm::Int64(1)}), DataType::Int(32), vdev)};
     return TupleStructInfo(fields);
   }
 

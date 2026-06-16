@@ -82,22 +82,22 @@ TOPI_DECLARE_UNARY_OP(isinf);
 inline Tensor fast_tanh_float(const Tensor& in, std::string name, std::string tag) {
   // Clamp the inputs to the range [-9, 9] since anything outside
   // this range is +/-1.0f in single-precision.
-  auto x = maximum(make_const(in->dtype, -9.0), minimum(make_const(in->dtype, 9.0), in));
+  auto x = maximum(MakeConst(in->dtype, -9.0), minimum(MakeConst(in->dtype, 9.0), in));
 
   // The monomial coefficients of the numerator polynomial (odd).
-  auto alpha_1 = make_const(in->dtype, 4.89352455891786e-03);
-  auto alpha_3 = make_const(in->dtype, 6.37261928875436e-04);
-  auto alpha_5 = make_const(in->dtype, 1.48572235717979e-05);
-  auto alpha_7 = make_const(in->dtype, 5.12229709037114e-08);
-  auto alpha_9 = make_const(in->dtype, -8.60467152213735e-11);
-  auto alpha_11 = make_const(in->dtype, 2.00018790482477e-13);
-  auto alpha_13 = make_const(in->dtype, -2.76076847742355e-16);
+  auto alpha_1 = MakeConst(in->dtype, 4.89352455891786e-03);
+  auto alpha_3 = MakeConst(in->dtype, 6.37261928875436e-04);
+  auto alpha_5 = MakeConst(in->dtype, 1.48572235717979e-05);
+  auto alpha_7 = MakeConst(in->dtype, 5.12229709037114e-08);
+  auto alpha_9 = MakeConst(in->dtype, -8.60467152213735e-11);
+  auto alpha_11 = MakeConst(in->dtype, 2.00018790482477e-13);
+  auto alpha_13 = MakeConst(in->dtype, -2.76076847742355e-16);
 
   // The monomial coefficients of the denominator polynomial (even).
-  auto beta_0 = make_const(in->dtype, 4.89352518554385e-03);
-  auto beta_2 = make_const(in->dtype, 2.26843463243900e-03);
-  auto beta_4 = make_const(in->dtype, 1.18534705686654e-04);
-  auto beta_6 = make_const(in->dtype, 1.19825839466702e-06);
+  auto beta_0 = MakeConst(in->dtype, 4.89352518554385e-03);
+  auto beta_2 = MakeConst(in->dtype, 2.26843463243900e-03);
+  auto beta_4 = MakeConst(in->dtype, 1.18534705686654e-04);
+  auto beta_6 = MakeConst(in->dtype, 1.19825839466702e-06);
 
   return compute(
       x->shape,
@@ -209,9 +209,9 @@ inline Tensor sign(const Tensor& x, std::string name = "T_sign", std::string tag
   return compute(
       x->shape,
       [&](const ffi::Array<Var>& i) {
-        PrimExpr zero = make_zero(x->dtype);
-        PrimExpr one = make_const(x->dtype, 1);
-        PrimExpr minus_one = make_const(x->dtype, -1);
+        PrimExpr zero = MakeConst(x->dtype, 0);
+        PrimExpr one = MakeConst(x->dtype, 1);
+        PrimExpr minus_one = MakeConst(x->dtype, -1);
         auto s1 = tvm::tirx::Select((x(i) < zero), minus_one, zero);
         auto s2 = tvm::tirx::Select((x(i) > zero), one, s1);
         return s2;
@@ -232,7 +232,7 @@ inline Tensor rsqrt(const Tensor& x, std::string name = "tensor", std::string ta
   return compute(
       x->shape,
       [&](const ffi::Array<Var>& i) {
-        PrimExpr one = make_const(x->dtype, 1);
+        PrimExpr one = MakeConst(x->dtype, 1);
         return one / tvm::sqrt(x(i));
       },
       name, tag);
@@ -392,19 +392,19 @@ inline Tensor full_like(const Tensor& x, const PrimExpr fill_value,
  * y = exp(f) = 1 + 2 * P(x**2)/(Q(x**2) - P(x**2))
  */
 inline Tensor fast_exp_float32(const Tensor& _x, std::string name, std::string tag) {
-  auto x_hi = make_const(DataType::Float(32), 88.3762626647950f);
-  auto x_lo = make_const(DataType::Float(32), -88.3762626647949f);
-  auto log2e = make_const(DataType::Float(32), 1.44269504088896341f);
-  auto ln2 = make_const(DataType::Float(32), 0.6931471805599453f);
-  PrimExpr p[6] = {make_const(DataType::Float(32), 1.9875691500E-4f),
-                   make_const(DataType::Float(32), 1.3981999507E-3f),
-                   make_const(DataType::Float(32), 8.3334519073E-3f),
-                   make_const(DataType::Float(32), 4.1665795894E-2f),
-                   make_const(DataType::Float(32), 1.6666665459E-1f),
-                   make_const(DataType::Float(32), 5.0000001201E-1f)};
-  auto one = make_const(DataType::Float(32), 1.0f);
-  auto one_half = make_const(DataType::Float(32), 0.5f);
-  auto b = make_const(DataType::Float(32), 127.0f);
+  auto x_hi = FloatImm(DataType::Float(32), 88.3762626647950f);
+  auto x_lo = FloatImm(DataType::Float(32), -88.3762626647949f);
+  auto log2e = FloatImm(DataType::Float(32), 1.44269504088896341f);
+  auto ln2 = FloatImm(DataType::Float(32), 0.6931471805599453f);
+  PrimExpr p[6] = {FloatImm(DataType::Float(32), 1.9875691500E-4f),
+                   FloatImm(DataType::Float(32), 1.3981999507E-3f),
+                   FloatImm(DataType::Float(32), 8.3334519073E-3f),
+                   FloatImm(DataType::Float(32), 4.1665795894E-2f),
+                   FloatImm(DataType::Float(32), 1.6666665459E-1f),
+                   FloatImm(DataType::Float(32), 5.0000001201E-1f)};
+  auto one = FloatImm(DataType::Float(32), 1.0f);
+  auto one_half = FloatImm(DataType::Float(32), 0.5f);
+  auto b = FloatImm(DataType::Float(32), 127.0f);
 
   return compute(
       _x->shape,

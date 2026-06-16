@@ -315,7 +315,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         PrimExpr dim = new_buffer->shape[i];
         new_iter_values.push_back(var);
         new_iter_vars.push_back(
-            IterVar(Range::FromMinExtent(make_zero(dim.dtype()), dim), virtual_var, kDataPar));
+            IterVar(Range::FromMinExtent(IntImm(dim.dtype(), 0), dim), virtual_var, kDataPar));
         loop_var_to_virtual_var.Set(var, virtual_var);
       }
 
@@ -494,7 +494,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
     auto read_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt = SBlockRealize(iter_values, const_true(),
+    stmt = SBlockRealize(iter_values, IntImm::Bool(true),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
@@ -1141,7 +1141,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
       if (auto* ptr = index.as<IntImmNode>()) {
         TVM_FFI_ICHECK(index_dtype.has_value());
-        return tirx::make_const(*index_dtype, ptr->value);
+        return tirx::MakeConst(*index_dtype, ptr->value);
       } else {
         return SubstituteWithDataTypeLegalization(index,
                                                   [&](const Var& var) { return var_map.Get(var); });
@@ -1190,12 +1190,12 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   ffi::Optional<IndexMap> opt_inverse = std::nullopt;
-  PrimExpr padding_predicate = const_false();
+  PrimExpr padding_predicate = IntImm::Bool(false);
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;
       for (const auto& dim : old_buffer->shape) {
-        region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
+        region.push_back(Range::FromMinExtent(IntImm(dim.dtype(), 0), dim));
       }
       return index_map.NonSurjectiveInverse(region, analyzer);
     }();
@@ -1427,7 +1427,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     }
     auto dtype = new_block_var.dtype();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(make_zero(dtype), cast(dtype, new_block_iter_range[i])),
+        /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
         /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
   }
 
@@ -1438,7 +1438,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   {
     ffi::Array<Range> initial_ranges;
     for (const PrimExpr& extent : block_iter_range_array) {
-      initial_ranges.push_back(Range::FromMinExtent(make_const(extent.dtype(), 0), extent));
+      initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.dtype(), 0), extent));
     }
     IndexMap inverse_index_map{nullptr};
     try {
@@ -1508,8 +1508,8 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
       if (new_target_buffer->shape.size() == new_source_buffer->shape.size()) {
         new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
       } else {
-        new_target_buffer.CopyOnWrite()->axis_separators = ffi::Array<IntImm>(
-            new_source_buffer->axis_separators.size(), IntImm(DataType::Int(32), 0));
+        new_target_buffer.CopyOnWrite()->axis_separators =
+            ffi::Array<IntImm>(new_source_buffer->axis_separators.size(), IntImm::Int32(0));
         LOG(WARNING) << "Buffer view " << new_target_buffer
                      << " has different dimensionality than backing buffer " << new_source_buffer
                      << ".  The `axis_separators` for " << new_target_buffer << "."

@@ -47,7 +47,7 @@ class LoopCanonicalizer : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
     const auto* loop_var = op->loop_var.get();
-    PrimExpr step = op->step.value_or(make_const(loop_var->dtype, 1));
+    PrimExpr step = op->step.value_or(MakeConst(loop_var->dtype, 1));
 
     // report warning for negative step, since it would be a forever loop
     if (!analyzer_->CanProveGreaterEqual(step, 1)) {
@@ -59,7 +59,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     new_iter_info_[loop_var] = std::make_pair(step, op->min);
     auto n = CopyOnWrite(op);
     n->body = VisitStmt(op->body);
-    n->min = make_zero(loop_var->dtype);
+    n->min = IntImm(loop_var->dtype, 0);
     n->extent = analyzer_->Simplify(ceildiv(op->extent, step));
     n->step = std::nullopt;
     new_iter_info_.erase(loop_var);

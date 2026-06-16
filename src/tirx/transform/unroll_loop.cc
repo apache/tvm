@@ -225,7 +225,7 @@ class LoopUnroller : public StmtExprMutator {
     ffi::Map<Var, PrimExpr> vmap;
     ffi::Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
+      vmap.Set(op->loop_var, op->min + MakeConst(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
       unrolled.push_back(step);
     }

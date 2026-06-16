@@ -234,7 +234,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         TVM_FFI_CHECK(width, InternalError)
             << "All splits except the last one must have a static shape";
         split_index += width->value;
-        sections.push_back(IntImm(DataType::Int(64), split_index));
+        sections.push_back(IntImm::Int64(split_index));
       }
 
       int lhs_dim = GetTensorSInfo(lhs)->ndim;

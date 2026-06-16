@@ -144,10 +144,9 @@ Type GetTypeFromRuntimeDataType(const DataType& dtype) {
 
 // LargeUIntImm
 PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high, Span span) {
-  return tirx::Call(
-      t, tirx::builtin::large_uint_imm(),
-      {make_const(DataType::UInt(32), low, span), make_const(DataType::UInt(32), high, span)}, {},
-      span);
+  return tirx::Call(t, tirx::builtin::large_uint_imm(),
+                    {IntImm(DataType::UInt(32), low, span), IntImm(DataType::UInt(32), high, span)},
+                    {}, span);
 }
 
 // Q-multiplication
@@ -313,7 +312,7 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     }
   } else if (dtype.is_uint()) {
     if (dtype.bits() == 64) {
-      return make_const(dtype, std::numeric_limits<uint64_t>::max(), span);
+      return MakeConst(dtype, std::numeric_limits<uint64_t>::max(), span);
     } else if (dtype.bits() < 64) {
       uint64_t val = 1;
       val = (val << static_cast<uint64_t>(dtype.bits())) - 1;
@@ -457,9 +456,9 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
   // const fold IntImm as they are used in index computations
   if (t.is_scalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
-      return make_const(t, op->value, op->span);
+      return MakeConst(t, op->value, op->span);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
-      return make_const(t, op->value, op->span);
+      return MakeConst(t, op->value, op->span);
     }
     TVM_FFI_ICHECK(!value.dtype().is_handle()) << "Can't cast a handle to other types.";
     return tirx::Cast(t, value, span);
@@ -469,9 +468,9 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
       // manually unroll cast
       if (value.dtype() != vtype) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
-          value = make_const(vtype, op->value, op->span);
+          value = MakeConst(vtype, op->value, op->span);
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
-          value = make_const(vtype, op->value, op->span);
+          value = MakeConst(vtype, op->value, op->span);
         } else {
           value = tirx::Cast(vtype, value, span);
         }
@@ -538,7 +537,7 @@ PrimExpr neg(PrimExpr a, Span span) {
   const FloatImmNode* fa = a.as<FloatImmNode>();
   if (pa) return IntImm(a.dtype(), -pa->value, span);
   if (fa) return FloatImm(a.dtype(), -fa->value, span);
-  return make_zero(a.dtype(), span) - a;
+  return MakeConst(a.dtype(), 0, span) - a;
 }
 
 PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
@@ -906,7 +905,8 @@ PrimExpr abs(PrimExpr x, Span span) {
     if (px) {
       return IntImm(x.dtype(), std::abs(px->value), px->span);
     }
-    return tirx::Select(x >= make_zero(x.dtype()), x, -x, span);
+    // MakeConst can handle both vector and scalar types.
+    return tirx::Select(x >= MakeConst(x.dtype(), 0), x, -x, span);
   } else if (x.dtype().is_float() || x.dtype().is_bfloat()) {
     using tirx::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
@@ -930,12 +930,12 @@ TVM_TIR_REGISTER_PURE_UNARY_OP("fabs").set_attr<TVectorizable>("TVectorizable", 
 PrimExpr isnan(PrimExpr x, Span span) {
   DataType t = DataType::Bool(x.dtype().lanes());
   if (x.dtype().is_int() || x.dtype().is_uint()) {
-    return make_const(t, false);
+    return MakeConst(t, false);
   } else if (x.dtype().is_float()) {
     using tirx::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
-      return make_const(t, std::isnan(fx->value), fx->span);
+      return MakeConst(t, std::isnan(fx->value), fx->span);
     }
     if (x.dtype().bits() == 16) {
       static const Op& isnan_op = Op::Get("tirx.isnan");
@@ -955,7 +955,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
 PrimExpr isinf(PrimExpr x, Span span) {
   DataType t = DataType::Bool(x.dtype().lanes());
   if (x.dtype().is_int() || x.dtype().is_uint()) {
-    return make_const(t, false, span);
+    return MakeConst(t, false, span);
   } else if (x.dtype().is_float()) {
     PrimExpr infX = infinity(x.dtype(), span);
     return abs(x, span) == infX && !isnan(x, span);
@@ -971,27 +971,27 @@ PrimExpr isfinite(PrimExpr x, Span span) { return !isinf(x, span) && !isnan(x, s
 PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tirx::Add(x, y, span);
-  PrimExpr identity_element = make_zero(source.dtype(), span);
+  PrimExpr identity_element = MakeConst(source.dtype(), 0, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::all");
   Var x("x", source.dtype(), span), y("y", source.dtype());
   PrimExpr result = tirx::And(x, y, span);
-  PrimExpr identity_element = make_const(source.dtype(), true, span);
+  PrimExpr identity_element = MakeConst(source.dtype(), true, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::any");
   Var x("x", source.dtype(), span), y("y", source.dtype(), span);
   PrimExpr result = tirx::Or(x, y, span);
-  PrimExpr identity_element = make_const(source.dtype(), false, span);
+  PrimExpr identity_element = MakeConst(source.dtype(), false, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -999,7 +999,7 @@ PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tirx::Max(x, y, span);
   PrimExpr identity_element = min_value(source.dtype(), span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -1007,7 +1007,7 @@ PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   PrimExpr result = tirx::Min(x, y, span);
   PrimExpr identity_element = max_value(source.dtype(), span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init, span);
+  return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
 }
 
 PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
@@ -1019,10 +1019,9 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
     // For non-bool types, we lower prod through Mul.
     Var x("x", source.dtype(), span), y("y", source.dtype(), span);
     PrimExpr result = tirx::Mul(x, y, span);
-    PrimExpr identity_element = make_const(source.dtype(), 1, span);
+    PrimExpr identity_element = MakeConst(source.dtype(), 1, span);
     tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
-    return tirx::Reduce(combiner, {source}, rdom, make_const(DataType::Bool(), true), 0, init,
-                        span);
+    return tirx::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
   }
 }
 
@@ -1186,9 +1185,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("node._const",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     if (auto opt = args[0].try_cast<int64_t>()) {
-                      *ret = tirx::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
+                      *ret = tirx::MakeConst(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
                     } else if (auto opt = args[0].try_cast<double>()) {
-                      *ret = tirx::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
+                      *ret = tirx::MakeConst(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
                     } else {
                       TVM_FFI_THROW(InternalError)
                           << "First argument to tvm.tirx.const must be int, float, or bool, "
@@ -1238,7 +1237,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
              return if_then_else(cond, true_value, false_value, span);
            })
-      .def("tirx.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); })
       .DEF_MAKE_BINARY_OP(_OpAdd, add)
       .DEF_MAKE_BINARY_OP(_OpSub, sub)
       .DEF_MAKE_BINARY_OP(_OpMul, mul)
@@ -1271,24 +1269,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
-  auto plus_4 = make_const(DataType::Float(bits), 4.f);
-  auto minus_4 = make_const(DataType::Float(bits), -4.f);
+  auto plus_4 = FloatImm(DataType::Float(bits), 4.f);
+  auto minus_4 = FloatImm(DataType::Float(bits), -4.f);
 
   // The monomial coefficients of the numerator polynomial (odd).
-  auto alpha_1 = make_const(DataType::Float(bits), -1.60960333262415e-02f);
-  auto alpha_3 = make_const(DataType::Float(bits), -2.95459980854025e-03f);
-  auto alpha_5 = make_const(DataType::Float(bits), -7.34990630326855e-04f);
-  auto alpha_7 = make_const(DataType::Float(bits), -5.69250639462346e-05f);
-  auto alpha_9 = make_const(DataType::Float(bits), -2.10102402082508e-06f);
-  auto alpha_11 = make_const(DataType::Float(bits), 2.77068142495902e-08f);
-  auto alpha_13 = make_const(DataType::Float(bits), -2.72614225801306e-10f);
+  auto alpha_1 = FloatImm(DataType::Float(bits), -1.60960333262415e-02f);
+  auto alpha_3 = FloatImm(DataType::Float(bits), -2.95459980854025e-03f);
+  auto alpha_5 = FloatImm(DataType::Float(bits), -7.34990630326855e-04f);
+  auto alpha_7 = FloatImm(DataType::Float(bits), -5.69250639462346e-05f);
+  auto alpha_9 = FloatImm(DataType::Float(bits), -2.10102402082508e-06f);
+  auto alpha_11 = FloatImm(DataType::Float(bits), 2.77068142495902e-08f);
+  auto alpha_13 = FloatImm(DataType::Float(bits), -2.72614225801306e-10f);
 
   // The monomial coefficients of the denominator polynomial (even).
-  auto beta_0 = make_const(DataType::Float(bits), -1.42647390514189e-02f);
-  auto beta_2 = make_const(DataType::Float(bits), -7.37332916720468e-03f);
-  auto beta_4 = make_const(DataType::Float(bits), -1.68282697438203e-03f);
-  auto beta_6 = make_const(DataType::Float(bits), -2.13374055278905e-04f);
-  auto beta_8 = make_const(DataType::Float(bits), -1.45660718464996e-05f);
+  auto beta_0 = FloatImm(DataType::Float(bits), -1.42647390514189e-02f);
+  auto beta_2 = FloatImm(DataType::Float(bits), -7.37332916720468e-03f);
+  auto beta_4 = FloatImm(DataType::Float(bits), -1.68282697438203e-03f);
+  auto beta_6 = FloatImm(DataType::Float(bits), -2.13374055278905e-04f);
+  auto beta_8 = FloatImm(DataType::Float(bits), -1.45660718464996e-05f);
 
   // clamp x
   auto x = tvm::max(tvm::min(arg, plus_4), minus_4);
@@ -1347,9 +1345,9 @@ PrimExpr PrintOpPacked(Var data, DataType dtype, bool is_string, bool is_scalar,
   ffi::Array<PrimExpr> args;
   args.push_back(data);
   args.push_back(tirx::StringImm(ffi::DLDataTypeToString(dtype)));
-  args.push_back(make_const(DataType::Bool(), is_string));
-  args.push_back(make_const(DataType::Bool(), is_scalar));
-  args.push_back(make_const(DataType::UInt(32), dim_num));
+  args.push_back(IntImm::Bool(is_string));
+  args.push_back(IntImm::Bool(is_scalar));
+  args.push_back(IntImm(DataType::UInt(32), dim_num));
   for (const auto& dim : shape) {
     args.push_back(dim);
   }

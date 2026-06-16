@@ -51,7 +51,7 @@ inline NDIntSet NDIntSetFromRegion(const tirx::Region& region) {
  * \return The constructed set.
  */
 inline NDIntSet NDIntSetFromShape(const ffi::Array<PrimExpr>& shape) {
-  PrimExpr zero = IntImm(DataType::Int(32), 0);
+  PrimExpr zero = IntImm::Int32(0);
   NDIntSet result;
   result.reserve(shape.size());
   for (const PrimExpr& extent : shape) {

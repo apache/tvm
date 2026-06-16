@@ -305,7 +305,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // In the second stage we use the first 16 lanes of the first warp to reduce
     // the remaining elements, and this reduction can also be optimized by
     // shuffle_down warp-level primitives.
-    PrimExpr zero_index = make_const(reduce_index->dtype, 0);
+    PrimExpr zero_index = IntImm(reduce_index->dtype, 0);
     if (IsWarpReduction(types, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
       DataType mask_dtype = DataType::UInt(32);
@@ -336,7 +336,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         staging_shared_bufs.reserve(size);
         for (size_t i = 0; i < size; ++i) {
           Buffer staging_shared_buf = decl_buffer(
-              /*shape=*/{make_const(reduce_index->dtype, n_warps * group_extent)},
+              /*shape=*/{MakeConst(reduce_index->dtype, n_warps * group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
@@ -370,7 +370,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
             values, types, combiner, reduce_index, n_warps, group_index, mask,
-            /*predicate=*/reduce_index < make_const(reduce_index->dtype, n_warps), &seq);
+            /*predicate=*/reduce_index < MakeConst(reduce_index->dtype, n_warps), &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
         // 5. Create shared memory buffer(s) of `group_extent` elements, storing
@@ -380,7 +380,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           new_alloc_bufs.push_back(Downcast<BufferLoad>(reduce_results[i])->buffer);
           Buffer broadcast_shared_buf = decl_buffer(
-              /*shape=*/{make_const(reduce_index->dtype, group_extent)},
+              /*shape=*/{MakeConst(reduce_index->dtype, group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
               BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
@@ -428,9 +428,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
         TVM_FFI_ICHECK(!load_remap_.count(buffers[idx]->data.get()));
-        PrimExpr pred = const_true(types[idx].lanes());
+        PrimExpr pred = MakeConst(DataType::Bool(types[idx].lanes()), true);
         BufferLoad load(shared_bufs[idx],
-                        {BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent)});
+                        {BufIndex(IntImm(reduce_index.dtype(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load->dtype, types[idx]);
         load_remap_[buffers[idx]->data.get()] = load;
         alloc_remap_[buffers[idx]->data.get()] = shared_bufs[idx];
@@ -692,7 +692,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     int& total_extent = *out_total_extent;
     total_extent = 1;
     if (tvec.size() == 0) {
-      return make_zero(DataType::Int(32));
+      return IntImm::Int32(0);
     }
 
     PrimExpr ret;
@@ -728,9 +728,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (mask_buffer.defined()) {
       mask = BufferLoad(mask_buffer.value(), indices);
     } else {
-      mask = IntImm(DataType::Int(32), 0);
+      mask = IntImm::Int32(0);
     }
-    PrimExpr width = IntImm(DataType::Int(32), warp_size_);
+    PrimExpr width = IntImm::Int32(warp_size_);
     ffi::Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
     return Call(val.dtype(), op, args);
   }

@@ -55,10 +55,10 @@ void AppendFloorDivConstraints(const FloorDivNode* div, int64_t value, CompareKi
   if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
 
   DataType dtype = div->a.dtype();
-  PrimExpr divisor = make_const(dtype, divisor_value);
-  PrimExpr k = make_const(dtype, value);
+  PrimExpr divisor = MakeConst(dtype, divisor_value);
+  PrimExpr k = MakeConst(dtype, value);
   PrimExpr lo = k * divisor;
-  PrimExpr hi = (k + make_const(dtype, 1)) * divisor;
+  PrimExpr hi = (k + MakeConst(dtype, 1)) * divisor;
 
   switch (kind) {
     case CompareKind::kEQ:
@@ -160,7 +160,7 @@ void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tirx::PrimFunc& func) {
 
 ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
     const ffi::Array<PrimExpr>& indices, bool non_trivial_only) {
-  PrimExpr pred = const_true();
+  PrimExpr pred = IntImm::Bool(true);
   for (PrimExpr val : iter_predicates_) {
     pred = pred && val;
   }
@@ -260,7 +260,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
+      Range dom = Range::FromMinExtent(IntImm(op->value.dtype(), 0), op->value);
       analyzer_->Bind(iv->var, dom);
       iter_vars_.Set(iv->var, dom);
     }

@@ -94,7 +94,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::unordered_map<DFPattern, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
-  PrimExpr symbolic_expr_condition_{IntImm(DataType::Bool(), 1)};
+  PrimExpr symbolic_expr_condition_{IntImm::Bool(true)};
   arith::Analyzer analyzer_;
   bool memoize_ = true;
 };
