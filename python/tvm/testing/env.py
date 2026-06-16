@@ -344,7 +344,7 @@ def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
     """True if a CUDA device is present and nvcc is at least ``(major, minor, release)``.
 
     Returns False when no CUDA device is present, so it implies :func:`has_cuda`.
-    Gate a test with ``@pytest.mark.skipif(not env.has_nvcc_version(11, 4),
+    Gate a test with ``@pytest.mark.skipif(not tvm.testing.env.has_nvcc_version(11, 4),
     reason="need nvcc >= 11.4")`` (add ``@pytest.mark.gpu`` for GPU selection).
     """
     return has_cuda() and _nvcc_version() >= (major, minor, release)
