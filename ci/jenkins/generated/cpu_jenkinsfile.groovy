@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-06-09T19:52:01.232631
+// Generated at 2026-06-16T13:42:33.935741
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -339,30 +339,11 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
-def check_pr(pr_number) {
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
-    // never skip CI on build sourced from a branch
-    return false
-  }
-  withCredentials([string(
-    credentialsId: 'tvm-bot-jenkins-reader',
-    variable: 'GITHUB_TOKEN',
-    )]) {
-    sh (
-      script: "python3 ${jenkins_scripts_root}/check_pr.py --pr ${pr_number}",
-      label: 'Check PR title and body',
-    )
-  }
-
-}
-
 def prepare(node_type) {
   stage('Prepare') {
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
-
-        check_pr(env.CHANGE_ID)
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
