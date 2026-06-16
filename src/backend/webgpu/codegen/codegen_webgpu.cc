@@ -760,10 +760,12 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>())
         << "CodeGenWebGPU: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<int64_t>(tvm::attr::kCallingConv);
-    TVM_FFI_ICHECK(calling_conv.has_value() &&
-                   calling_conv.value() == static_cast<int64_t>(CallingConv::kDeviceKernelLaunch))
-        << "CodeGenWebGPU: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(calling_conv.has_value())
+        << "CodeGenWebGPU: expected kCallingConv attribute to be set.";
+    TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
+        << "CodeGenWebGPU: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
+        << static_cast<int>(calling_conv.value());
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";

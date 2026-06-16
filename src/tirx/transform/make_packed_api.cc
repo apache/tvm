@@ -178,8 +178,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
 ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
-  if (auto opt = func->GetAttr<int64_t>(tvm::attr::kCallingConv)) {
-    if (CallingConv(opt.value()) != CallingConv::kDefault) {
+  if (auto opt = func->GetAttr<CallingConv>(tvm::attr::kCallingConv)) {
+    if (opt.value() != CallingConv::kDefault) {
       return std::nullopt;
     }
   }
@@ -244,11 +244,10 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // reset global symbol to attach prefix
-  func = WithAttrs(
-      std::move(func),
-      {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
-       {tvm::attr::kTarget, target_host},
-       {tvm::attr::kGlobalSymbol, ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
+  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, CallingConv::kCPackedFunc},
+                                     {tvm::attr::kTarget, target_host},
+                                     {tvm::attr::kGlobalSymbol,
+                                      ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
