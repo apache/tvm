@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.cuda.operator.tile_primitive.layout_utils import (
     cast_layout_supported_for_local as _cast_layout_supported_for_local,
 )
@@ -54,6 +55,8 @@ from tvm.tirx.layout import S, TileLayout, laneid, tid_in_wg, tx, warpid
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["zero", "sqrt"])
 @pytest.mark.parametrize(
     "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
@@ -145,6 +148,8 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
             tvm.testing.assert_allclose(B_ref, B.numpy(), atol=1e-2, rtol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("exec_scope", ["warp", "warpgroup"])
 def test_unary_op_shared_subcta_scope(exec_scope):
     dtype = "float16"
@@ -209,6 +214,8 @@ def test_unary_op_shared_subcta_scope(exec_scope):
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sqrt", "exp"])
 @pytest.mark.parametrize("bias_type", ["const", "region"])
 @pytest.mark.parametrize(
@@ -432,6 +439,8 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["reciprocal", "exp", "exp2"])
 @pytest.mark.parametrize(
     "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
@@ -554,6 +563,8 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
         ),
     ],
 )
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["sqrt", "exp"])
 @pytest.mark.parametrize("bias_type", ["const", "region"])
 @pytest.mark.parametrize(
@@ -682,6 +693,8 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("shape", [(128, 8), (128, 4, 16), (128, 5, 5)])
 @pytest.mark.parametrize("op_type", ["fill"])
 @pytest.mark.parametrize("exec_scope", ["thread", "cta"])
@@ -740,6 +753,8 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
         tvm.testing.assert_allclose(A.numpy(), np.full(shape, value.value), atol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["zero", "sqrt", "reciprocal", "exp", "silu"])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_unary_op_local_thread_wise(op_type, dtype):
@@ -791,6 +806,8 @@ def test_unary_op_local_thread_wise(op_type, dtype):
         tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-2, rtol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("shape", [(8,), (16, 16), (5, 5)])
 @pytest.mark.parametrize("A_dtype", ["float16", "float32"])
 @pytest.mark.parametrize("B_dtype", ["float16", "float32"])
@@ -831,6 +848,8 @@ def test_cast_thread_local(shape, A_dtype, B_dtype):
         tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
 def test_cast_warpgroup_local_view(A_dtype, B_dtype):
     """T.cast in warpgroup scope with offset (tid_in_wg + layout offset). Covers offset/tid_in_wg/warpgroup scope."""  # noqa: E501
@@ -884,6 +903,8 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
         tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
 def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype):
     """Regression: GEMM-epilogue cast pattern must emit the packed vec2 cuda intrinsic.
@@ -944,6 +965,8 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
         tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
 def test_cast_cta_local_view(A_dtype, B_dtype):
     """T.cast with view+layout in CTA scope (128 threads, register->register)."""
@@ -988,6 +1011,8 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
         tvm.testing.assert_allclose(B.numpy(), B_ref, atol=1e-2)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("A_dtype,B_dtype", [("float32", "float16"), ("float32", "bfloat16")])
 @pytest.mark.parametrize("slice_start,slice_end", [(0, 4), (2, 6), (4, 8)])
 def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
@@ -1087,6 +1112,8 @@ def test_cast_layout_partition_and_validation():
             check(part)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("slice_start,slice_end", [(0, 2), (2, 4)])
 def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     """Test cast with mixed axes and subregion."""
@@ -1095,7 +1122,7 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     LOCAL_LEN = 4
     full_shape = (8, N_WARPS, 4, LOCAL_LEN)
     g_layout = TileLayout(S[full_shape])
-    cast_layout = TileLayout(S[full_shape : (4 @ laneid, 2 @ warpid, 1 @ laneid, 1)])
+    cast_layout = TileLayout(S[full_shape : (4 @ laneid, 1 @ warpid, 1 @ laneid, 1)])
 
     A_ref = np.zeros(full_shape, dtype="float32")
     for j in range(full_shape[0]):
@@ -1207,8 +1234,12 @@ def test_cast_validate_extent_mismatch_rejected():
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
+        # The mismatched dst also fails the scope-level check (thread axes don't
+        # span the full CTA), which fires first — either rejection is fine.
         with pytest.raises(
-            Exception, match="tile_local_valid|layout signature mismatch|thread part mismatch"
+            Exception,
+            match="tile_local_valid|layout signature mismatch|thread part mismatch"
+            "|do not tile a complete|not the full",
         ):
             tvm.compile(mod, target=target, tir_pipeline="tirx")
 
@@ -1275,6 +1306,139 @@ def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
     assert re.search(
         rf"{re.escape(intrinsic)}|tvm_builtin_cast_{src_dtype}x2_{dst_dtype}x2", src
     ), f"expected packed vec2 cast {intrinsic}; got:\n{src[:2000]}"
+
+
+# -----------------------------------------------------------------------------
+# Scope-level operand check: a warp/wg/cta reg op needs a scope-level layout
+# (thread axes spanning all the scope's threads), not a thread-local .local().
+# -----------------------------------------------------------------------------
+_SL_ROWS, _SL_COLS = 128, 8
+
+
+def _sl_compile(fn):
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": fn}), target=target, tir_pipeline="tirx")
+
+
+def test_cast_wg_rejects_thread_local_view():
+    """Tx.wg.cast on a .local() (thread-axis-stripped) view is rejected."""
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        T.device_entry()
+        _bx = T.cta_id([1])
+        _wg = T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([_SL_ROWS])
+        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        Tx.wg.cast(dst.local(), src.local())
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="thread-local view"):
+        _sl_compile(kernel)
+
+
+def test_cast_cta_rejects_thread_local_view():
+    """Tx.cta.cast on a .local() view is rejected (cta -> tx)."""
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        T.device_entry()
+        _bx = T.cta_id([1])
+        tx_var = T.thread_id([_SL_ROWS])
+        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]))
+        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]))
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tx_var, i]
+        Tx.cta.cast(dst.local(), src.local())
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tx_var, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="thread-local view"):
+        _sl_compile(kernel)
+
+
+def test_cast_wg_rejects_partial_thread_coverage():
+    """A tid_in_wg layout covering only 64 of the 128 wg threads is rejected."""
+    half = 64
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (half, _SL_COLS), "float32", layout=TileLayout(S[(half, _SL_COLS)]))
+        B = T.match_buffer(B_ptr, (half, _SL_COLS), "float16", layout=TileLayout(S[(half, _SL_COLS)]))
+        T.device_entry()
+        _bx = T.cta_id([1])
+        _wg = T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([_SL_ROWS])
+        src = T.alloc_buffer((half, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        dst = T.alloc_buffer((half, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        Tx.wg.cast(dst, src)
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    with pytest.raises(Exception, match="not the full 128"):
+        _sl_compile(kernel)
+
+
+def test_cast_wg_accepts_wg_level_layout():
+    """Tx.wg.cast on a wg-level (tid_in_wg-distributed) layout compiles."""
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        T.device_entry()
+        _bx = T.cta_id([1])
+        _wg = T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([_SL_ROWS])
+        src = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float32", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        dst = T.alloc_buffer((_SL_ROWS, _SL_COLS), "float16", scope="local", layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]))
+        src_row = src.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            src_row[i] = A[tid, i]
+        Tx.wg.cast(dst, src)
+        dst_row = dst.local(_SL_COLS)
+        for i in T.serial(_SL_COLS):
+            B[tid, i] = dst_row[i]
+
+    _sl_compile(kernel)
+
+
+def test_cast_thread_accepts_local_view():
+    """thread scope is exempt: a thread-axis-free local tile still compiles."""
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        B = T.match_buffer(B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)]))
+        T.device_entry()
+        _bx = T.cta_id([1])
+        tx_var = T.thread_id([_SL_ROWS])
+        src = T.alloc_buffer((_SL_COLS,), "float32", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
+        dst = T.alloc_buffer((_SL_COLS,), "float16", scope="local", layout=TileLayout(S[(_SL_COLS,)]))
+        for i in T.serial(_SL_COLS):
+            src[i] = A[tx_var, i]
+        Tx.cast(dst, src)
+        for i in T.serial(_SL_COLS):
+            B[tx_var, i] = dst[i]
+
+    _sl_compile(kernel)
 
 
 if __name__ == "__main__":

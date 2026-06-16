@@ -369,20 +369,24 @@ def _emit_16xnb_path(
     tmem_st, tmem_extent = get_st_extent(tmem_region)
     local_st, local_extent = get_st_extent(local_region)
 
-    # Local slice must be the full (frag_rows, K_cols) view.
+    # Rows must span the full frag. The COLUMN extent may be a sub-multiple of
+    # the atom's full width ``width_elems`` — i.e. a per-chunk column slice of a
+    # wider frag (e.g. an epilogue that loads one big (128, MMA_N) frag in
+    # EPI_TILE-wide chunks). The atom layout maps consecutive columns to
+    # consecutive registers within each slab, so a column slice occupies a
+    # contiguous register window; we emit ``num_eff`` (the slice's atom rep) at
+    # the slab base + the column's register offset. When the slice IS the full
+    # atom (the common case), num_eff == num and reg offset == 0 (no change).
     assert analyzer.can_prove_equal(local_st[0], 0)
     assert analyzer.can_prove_equal(local_extent[0], frag_rows)
-    assert analyzer.can_prove_equal(local_extent[1], width_elems)
-
-    # TMEM slice must start at row 0 and span ``frag_rows`` rows. For Layout
-    # F the buffer is already (64, W) so frag_rows=64 covers the full slice;
-    # for Layout D + frag_rows=64 the slice reads the *first* half-slab and
-    # the rest of the buffer's 128 rows is invisible to this atom. For
-    # Layout D + frag_rows=128 the slice covers all 128 physical lanes via
-    # two PTX issues (row=0 + row=16).
     assert analyzer.can_prove_equal(tmem_st[0], 0)
     assert analyzer.can_prove_equal(tmem_extent[0], frag_rows)
-    assert analyzer.can_prove_equal(tmem_extent[1], width_elems)
+    # local and tmem column slices must match and divide the atom's full width.
+    assert analyzer.can_prove_equal(local_extent[1], tmem_extent[1])
+    slice_w = int(local_extent[1])
+    assert width_elems % slice_w == 0, f"slice width {slice_w} must divide atom width {width_elems}"
+    num_eff = num * slice_w // width_elems
+    regs_eff = regs_per_thread_per_slab * slice_w // width_elems
     del tmem_rows  # only used for the structural check above
 
     col_off = tmem_st[1]
@@ -410,13 +414,18 @@ def _emit_16xnb_path(
         # for the register-pointer arguments of the PTX builtin.
         local_storage = local_buf.view(per_thread_elems, layout=TileLayout(S[per_thread_elems]))
         local_32b = local_storage.view("uint32")
-        local_reg_base = local_col_off_elems // elem_per_32b
+        # Register offset of the column slice within each slab. The old
+        # ``local_col_off // elem_per_32b`` is only correct when the slice IS the
+        # full atom; in general consecutive columns advance registers at the rate
+        # (regs_per_thread_per_slab / width_elems). For a full-atom load the
+        # offset is 0 either way, so existing callers are unaffected.
+        local_reg_base = local_col_off_elems * regs_per_thread_per_slab // width_elems
         for slab in range(n_slabs):
             reg_base = slab * regs_per_thread_per_slab
             op(
                 tmem_buf.allocated_addr[0],
-                *[local_32b[local_reg_base + reg_base + i] for i in range(regs_per_thread_per_slab)],  # noqa: E501
-                shape=shape, num=num, row=slab * 16, col=col_off_32b,
+                *[local_32b[local_reg_base + reg_base + i] for i in range(regs_eff)],
+                shape=shape, num=num_eff, row=slab * 16, col=col_off_32b,
             )
     # fmt: on
     return impl

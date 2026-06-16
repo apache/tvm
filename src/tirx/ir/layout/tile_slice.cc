@@ -144,7 +144,11 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
 ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
                                             const Region& region) const {
   arith::Analyzer analyzer;
-  auto [grouped_layout, seps] = Group(ffi::GetRef<TileLayout>(this), shape);
+  // Canonicalize the whole layout first so scope fusion (e.g. wid_in_wg+laneid
+  // -> tid_in_wg) runs globally; otherwise grouping can split sibling thread
+  // axes and SlicePerGroup's per-group fusion leaves an ill-formed mix.
+  TileLayout canon = this->Canonicalize().as<TileLayout>().value();
+  auto [grouped_layout, seps] = Group(canon, shape);
   std::vector<Iter> new_shard;
   ffi::Map<Axis, PrimExpr> new_offset;
   for (size_t i = 0; i < seps.size() - 1; ++i) {

@@ -53,6 +53,8 @@ class PTXNamespace:
         self.stmatrix = _op_wrapper(_cuda_op.ptx_stmatrix)
         self.setmaxnreg: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_setmaxnreg)
         self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_elect_sync)
+        self.clc_try_cancel = _op_wrapper(_cuda_op.ptx_clc_try_cancel)
+        self.clc_query_cancel = _op_wrapper(_cuda_op.ptx_clc_query_cancel)
         self.fetch_register: Callable[..., Any] = _op_wrapper(_cuda_op.ptx_fetch_register)
         self.ld = _op_wrapper(_cuda_op.ptx_ld)
         self.ld_acquire = _op_wrapper(_cuda_op.ptx_ld_acquire)
@@ -276,6 +278,9 @@ class MbarrierNamespace:
         self.init = _op_wrapper(_cuda_op.ptx_mbarrier_init)
         self.try_wait = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait)
         self.try_wait_once = _op_wrapper(_cuda_op.ptx_mbarrier_try_wait_once)
+        self.try_wait_acquire_cluster = _op_wrapper(
+            _cuda_op.ptx_mbarrier_try_wait_acquire_cluster
+        )
         self.arrive = MbarrierArriveNamespace()
 
 
@@ -284,6 +289,7 @@ class MbarrierArriveNamespace:
 
     def __init__(self):
         self.expect_tx = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_expect_tx)
+        self.cluster_count = _op_wrapper(_cuda_op.ptx_mbarrier_arrive_cluster_count)
 
     def __call__(self, *args, **kwds):
         return _op_wrapper(_cuda_op.ptx_mbarrier_arrive)(*args, **kwds)

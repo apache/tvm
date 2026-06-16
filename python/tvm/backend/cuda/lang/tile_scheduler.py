@@ -20,6 +20,7 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.prim_func.
 """
 
+from tvm.backend.cuda.lang.pipeline import Pipeline, PipelineState
 from tvm.script import tirx as T
 
 
@@ -753,13 +754,20 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
     """
 
     def __init__(
-        self, prefix: str, num_batches: int, num_heads: int, num_m_blocks: int, l2_swizzle: int
+        self,
+        prefix: str,
+        num_batches: int,
+        num_heads: int,
+        num_m_blocks: int,
+        l2_swizzle: int,
+        num_ctas: int | None = None,
     ):
         super().__init__(prefix)
         self._num_batches = num_batches
         self._num_heads = num_heads
         self._num_m_blocks = num_m_blocks
         self._l2_swizzle = l2_swizzle
+        self._num_ctas = num_ctas
         self._total_tasks = num_batches * num_heads * num_m_blocks
 
         # Derived constants for L2 swizzle
@@ -807,10 +815,131 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
 
     @T.inline
     def next_tile(self):
-        """Advance to next tile by striding by num_ctas."""
-        self.linear_idx = self._total_tasks
+        """Advance to the next tile.
+
+        Single-tile mode (``num_ctas=None``, the default): each CTA owns one
+        task; terminate. Persistent mode (``num_ctas=N``): stride by N, like
+        :class:`FlashAttentionLinearScheduler`, while keeping the LPT + L2
+        swizzle index mapping.
+        """
+        if self._num_ctas is None:
+            self.linear_idx = self._total_tasks
+        else:
+            self.linear_idx = self.linear_idx + self._num_ctas
+            self.update_current_m_n_idx(self.linear_idx)
     # fmt: on
 
     def valid(self):
         """Check if there are more tiles to process."""
         return self.linear_idx < self._total_tasks
+
+
+class _CLCWorker(ClusterPersistentScheduler2D):
+    """Per-role CLC handle: IS-A ClusterPersistentScheduler2D (so m_idx / n_idx work as
+    usual) plus the role-local barrier phase and handshake. A coord-free role (e.g. an
+    MMA warp consuming whatever a loader staged) arms the loop with reset() not init().
+    """
+
+    def __init__(self, clc, prefix):
+        super().__init__(
+            prefix,
+            num_m_tiles=clc._num_m_tiles,
+            num_n_tiles=clc._num_n_tiles,
+            num_clusters=clc._num_m_tiles * clc._num_n_tiles,
+            l2_group_size=clc._l2_group_size,
+        )
+        self._clc = clc
+        self._sa = PipelineState(1, 0)
+        self._done = T.local_scalar("int32")
+        self._nxt = T.local_scalar("uint32")
+
+    @T.inline
+    def reset(self):
+        self._done = 0
+
+    @T.inline
+    def init(self, cluster_id):
+        # Explicit base call: TVMScript's parser has no zero-arg super().
+        ClusterPersistentScheduler2D.init(self, cluster_id)
+        self._done = 0
+
+    def valid(self):
+        return self._done == 0
+
+    @T.inline
+    def consume(self):
+        # Single-elected-thread scope: wait for the handle, decode, release the slot.
+        self._clc.sched_arr.full.wait(0, self._sa.phase)
+        self._sa.advance()
+        self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
+        self._clc.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+
+    @T.inline
+    def consume_wg(self, wg_id, warp_id, lane_id):
+        # Warpgroup scope: all threads decode; one elected lane releases the slot.
+        self._clc.sched_arr.full.wait(0, self._sa.phase)
+        self._sa.advance()
+        self._nxt = T.ptx.clc_query_cancel(T.address_of(self._clc.clc_handle[0]))
+        T.cuda.warpgroup_sync(wg_id + 1)
+        if (warp_id == 0) & (lane_id == 0):
+            self._clc.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+
+    @T.inline
+    def advance_coords(self):
+        if self._nxt != 0xFFFFFFFF:
+            self.update_current_m_n_idx(self._nxt // self._clc._cta_group)
+
+    @T.inline
+    def mark_done_if_drained(self):
+        if self._nxt == 0xFFFFFFFF:
+            self._done = 1
+
+
+@T.meta_class
+class ClusterLaunchControlScheduler:
+    """Blackwell Cluster Launch Control (CLC) tile scheduler.
+
+    A scheduler warp runs ``run_scheduler`` (issues ``try_cancel`` to steal the next
+    cluster); worker roles each take a ``worker()`` handle and pull the stolen tile
+    through the shared smem handshake. Owns the CLC smem: the 16B response handle, the
+    arrival barrier (handle ready), and the finished barrier (slot consumed;
+    ``finish_arrivals`` arrivals per round). Tile-coord mapping is delegated to
+    ``ClusterPersistentScheduler2D`` (group-major L2 ordering).
+    """
+
+    def __init__(self, pool, num_m_tiles, num_n_tiles, l2_group_size, cta_group, finish_arrivals):
+        self._num_m_tiles = num_m_tiles
+        self._num_n_tiles = num_n_tiles
+        self._l2_group_size = l2_group_size
+        self._cta_group = cta_group
+        self.sched_arr = Pipeline(pool, 1, full="tma", empty="mbar", init_empty=1)
+        self.sched_fin = Pipeline(pool, 1, full="mbar", empty="mbar", init_empty=finish_arrivals)
+        self.clc_handle = pool.alloc((4,), "uint32", align=16)
+        self._s_done = T.local_scalar("int32")
+        self._s_nxt = T.local_scalar("uint32")
+
+    def worker(self, prefix):
+        return _CLCWorker(self, prefix)
+
+    @T.inline
+    def run_scheduler(self, cbx):
+        # cta0 drives try_cancel; both CTAs expect_bytes + consume the handle so the
+        # finished-barrier count is met and the slot can be reissued.
+        if T.ptx.elect_sync():
+            sa = PipelineState(1, 0)
+            sf = PipelineState(1, 1)
+            self._s_done = 0
+            while self._s_done == 0:
+                if cbx == 0:
+                    self.sched_fin.empty.wait(0, sf.phase)
+                    sf.advance()
+                    T.ptx.clc_try_cancel(
+                        T.address_of(self.clc_handle[0]), T.address_of(self.sched_arr.full.buf[0])
+                    )
+                self.sched_arr.full.arrive(0, 16)  # expect_bytes for the 16B handle
+                self.sched_arr.full.wait(0, sa.phase)
+                sa.advance()
+                self._s_nxt = T.ptx.clc_query_cancel(T.address_of(self.clc_handle[0]))
+                self.sched_fin.empty.arrive(0, cta_id=0, pred=True)
+                if self._s_nxt == 0xFFFFFFFF:
+                    self._s_done = 1

@@ -43,6 +43,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 
 # Helpers exposed by the dispatcher module for direct algorithm tests.
 from tvm.tirx.cuda.operator.tile_primitive.permute_layout.warp_xor_swizzle import (
@@ -167,6 +168,8 @@ def _compile_and_run(prim_func, np_inputs):
     return [t.numpy() for t in tensors], mod.mod.imports[0].inspect_source()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @needs_cuda
 @pytest.mark.parametrize(
     "name, pipe, blk, dtype",
@@ -231,6 +234,8 @@ def test_sf_blockwise_transpose(name, pipe, blk, dtype):
         np.testing.assert_array_equal(B_flat, ref, err_msg=f"{name} stage {s}")
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @needs_cuda
 def test_identity_passes_through_as_copy():
     """L_src == L_dst should still compile and produce a correct (identity) copy."""
@@ -255,6 +260,8 @@ def test_identity_passes_through_as_copy():
     np.testing.assert_array_equal(B_out, A_np)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @needs_cuda
 @pytest.mark.parametrize("dtype", ["uint32", "int32", "float32"])
 @pytest.mark.parametrize(

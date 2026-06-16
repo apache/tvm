@@ -18,10 +18,12 @@
 import re
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def generate_random_data(shape, dtype):
@@ -181,6 +183,8 @@ def verify_cuda_code_string(func, expected_var_name, expected_string_literal):
     )
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_print():
     DEV = tvm.cuda()
     target = tvm.target.Target("cuda")

@@ -43,6 +43,7 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import (
     S,
     TCol,
@@ -152,6 +153,8 @@ def _expected_reg_value_16b(
 # --------------------------------------------------------------------------
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 2, 4, 8, 16, 32])  # subset; full reps below
 @pytest.mark.parametrize("dtype", ["float32"])
@@ -162,6 +165,8 @@ def test_tcgen05_ld_16xnb_load_fp32(shape, rep, dtype):
     _run_load_test(shape, rep, dtype)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "shape, rep",
     [
@@ -175,6 +180,8 @@ def test_tcgen05_ld_16xnb_load_fp32_large_rep(shape, rep):
     _run_load_test(shape, rep, "float32")
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 2, 4, 8, 16, 32])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
@@ -201,6 +208,8 @@ def test_tcgen05_16xnb_roundtrip_16b(shape, rep, dtype):
 # We only need to spot-check that the dispatch fires correctly and the per-
 # thread reg ↔ TMEM mapping round-trips bit-exactly — the M=64 sweep above
 # already covers the (lane, reg) decomposition, so a sparse rep set suffices.
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
 @pytest.mark.parametrize("rep", [1, 2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
@@ -214,6 +223,8 @@ def test_tcgen05_16xnb_roundtrip_16b_M128(shape, rep, dtype):
 # with the scatter-encoded TileLayout that ``tmem_datapath_layout("F", ...)``
 # produces. ``.16x*b`` M=64 PTX has the matching scatter built in, so the
 # round-trip is bit-exact in the same way as Layout D + M=64.
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape", ["16x64b", "16x128b", "16x256b"])
 @pytest.mark.parametrize("rep", [1, 2, 4])
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
@@ -639,6 +650,8 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 # --------------------------------------------------------------------------
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("shape", list(_SHAPE_REPS))
 @pytest.mark.parametrize("rep", [1, 4, 16])
 @pytest.mark.parametrize("dtype", ["float32"])
@@ -851,6 +864,137 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     assert shape in src, (
         f"expected .{shape}.x? in generated PTX, but `{shape}` not found in CUDA source"
     )
+
+
+# --------------------------------------------------------------------------
+# Test 3: column-slice loads of a wider frag
+#
+# An epilogue may allocate one wide ``(128, K)`` frag and load it from TMEM in
+# EPI_TILE-wide column chunks (``frag[:, c:c+w]``) so all loads are in flight
+# before a single ``wait.ld``. The ``.16x*b`` dispatch must emit each slice as
+# its own atom (``num_eff`` derived from the slice width) at the correct
+# per-slab register offset. We verify this is *bit-exact identical* to one
+# full-width load of the same frag — which the sweeps above already validate
+# against the layout-derived expectation. M=128 here exercises the 2-slab path
+# (the slice's two slabs live ``regs_per_thread_per_slab`` apart, not adjacent).
+# --------------------------------------------------------------------------
+
+
+def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
+    dtype = "float32"
+    K_cols_fp32 = _COL_FACTOR_FP32[shape] * full_rep
+    assert K_cols_fp32 % n_chunks == 0
+    chunk_elem = K_cols_fp32 // n_chunks  # fp32: elem == fp32 col
+    frag_rows = 128  # M=128 => 2 slabs
+    per_thread_elems = _REGS_FACTOR[shape] * full_rep * 2  # *2 for the second slab
+
+    tmem_col_width_32b = max(32, _next_pow2(K_cols_fp32))
+    stage_width_elem = tmem_col_width_32b
+    CHUNK_FP32 = 128
+    n_stage = tmem_col_width_32b // CHUNK_FP32 if tmem_col_width_32b > CHUNK_FP32 else 1
+    stage_w = tmem_col_width_32b if n_stage == 1 else CHUNK_FP32
+    VEC_LEN = 4  # 128-bit / fp32
+
+    atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_fp32), dtype)
+    stage_view = TileLayout(S[(128, stage_w) : (1 @ axis_tid_in_wg, 1)])
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, Bf_ptr: T.handle, Bs_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (128, stage_width_elem), dtype)
+        Bf = T.match_buffer(Bf_ptr, (128, per_thread_elems), dtype)  # full-load dump
+        Bs = T.match_buffer(Bs_ptr, (128, per_thread_elems), dtype)  # sliced-load dump
+        A_flat = A.view(-1)
+
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        T.cta_id([2])
+        wg_id = T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tid_in_wg = T.thread_id([128])
+
+        tmem_addr = T.alloc_shared([1], "uint32")
+        if wg_id == 0:
+            if warp_id == 0:
+                T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=tmem_col_width_32b, cta_group=1)
+            T.tvm_storage_sync("shared")
+            tmem = T.decl_buffer(
+                (128, stage_width_elem),
+                dtype,
+                scope="tmem",
+                allocated_addr=tmem_addr[0],
+                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            )
+            # Stage A -> TMEM via the standard .32x32b path.
+            stage_reg = T.alloc_local((stage_w,), dtype)
+            stage_local = stage_reg.view(128, stage_w, layout=stage_view)
+            for ci in range(n_stage):
+                coff = ci * stage_w
+                for i in range(stage_w // VEC_LEN):
+                    g = T.meta_var(tid_in_wg * stage_width_elem + coff + i * VEC_LEN)
+                    Tx.copy(stage_reg[i * VEC_LEN : i * VEC_LEN + VEC_LEN], A_flat[g : g + VEC_LEN])
+                T.cuda.cta_sync()
+                Tx.wg.copy_async(tmem[:, coff : coff + stage_w], stage_local[:, :])
+            T.ptx.tcgen05.wait.st()
+            T.cuda.cta_sync()
+
+            # (a) one full-width load
+            ff = T.alloc_local((per_thread_elems,), dtype)
+            ffl = ff.view(frag_rows, K_cols_fp32, layout=atom_view)
+            Tx.wg.copy_async(ffl[:, :], tmem[0:frag_rows, 0:K_cols_fp32])
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            for i in range(per_thread_elems):
+                Bf[tid_in_wg, i] = ff[i]
+
+            # (b) the same frag loaded in n_chunks column slices
+            sf = T.alloc_local((per_thread_elems,), dtype)
+            sfl = sf.view(frag_rows, K_cols_fp32, layout=atom_view)
+            for ck in range(n_chunks):
+                lo = T.meta_var(ck * chunk_elem)
+                Tx.wg.copy_async(
+                    sfl[:, lo : lo + chunk_elem], tmem[0:frag_rows, lo : lo + chunk_elem]
+                )
+            T.ptx.tcgen05.wait.ld()
+            T.cuda.cta_sync()
+            for i in range(per_thread_elems):
+                Bs[tid_in_wg, i] = sf[i]
+
+            if warp_id == 0:
+                T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+                T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=tmem_col_width_32b, cta_group=1)
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.IRModule({"main": kernel})
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        A_np = tvm.testing.generate_random_array(dtype, (128, stage_width_elem))
+        Bf_np = np.zeros((128, per_thread_elems), dtype=dtype)
+        Bs_np = np.zeros((128, per_thread_elems), dtype=dtype)
+        DEV = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, DEV)
+        Bf = tvm.runtime.tensor(Bf_np, DEV)
+        Bs = tvm.runtime.tensor(Bs_np, DEV)
+        mod(A, Bf, Bs)
+        # Sliced load must reproduce the full-width load bit-for-bit.
+        np.testing.assert_array_equal(Bs.numpy().view(np.uint32), Bf.numpy().view(np.uint32))
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.parametrize(
+    "full_rep, n_chunks",
+    [
+        (32, 8),  # 16x256b.x32 (256 fp32 cols) loaded in 8 chunks of 32 cols (nvfp4 EPI_TILE=32)
+        (32, 16),  # ...in 16 chunks of 16 cols (nvfp4 EPI_TILE=16)
+        (32, 4),  # ...in 4 chunks of 64 cols
+        (16, 8),  # 16x256b.x16 (128 fp32 cols) in 8 chunks of 16 cols
+        (16, 2),  # ...in 2 chunks of 64 cols
+    ],
+)
+def test_tcgen05_ld_16x256b_sliced_matches_full_M128(full_rep, n_chunks):
+    """Per-chunk column-slice load of a wide M=128 frag == full-width load."""
+    _run_sliced_vs_full_load("16x256b", full_rep, n_chunks)
 
 
 if __name__ == "__main__":
