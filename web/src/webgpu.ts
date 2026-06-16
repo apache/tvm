@@ -175,11 +175,13 @@ function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
     device.popErrorScope(),
     device.popErrorScope(),
   ]).then((errors) => {
-    const captured = errors.filter((error) => error !== null);
+    const captured = errors.filter((error): error is GPUError => error !== null);
     if (captured.length > 0) {
       device.destroy();
       captured.forEach((error) => console.error(error));
     }
+  }).catch((err) => {
+    console.error("Failed to pop error scopes:", err);
   });
 
   return buffer;
