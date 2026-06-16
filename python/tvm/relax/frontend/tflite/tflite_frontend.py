@@ -207,6 +207,7 @@ class OperatorConverter:
             "BROADCAST_ARGS": self.convert_broadcast_args,
             "CALL": self.convert_call,
             "CALL_ONCE": self.convert_call_once,
+            "COMPLEX_ABS": self.convert_complex_abs,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
@@ -252,6 +253,7 @@ class OperatorConverter:
             "HASHTABLE_LOOKUP": self.convert_hashtable_lookup,
             "HASHTABLE_SIZE": self.convert_hashtable_size,
             "IF": self.convert_if,
+            "IMAG": self.convert_imag,
             "L2_NORMALIZATION": self.convert_l2_normalization,
             "L2_POOL_2D": functools.partial(self.convert_pool2d, pool_type="l2"),
             "LEAKY_RELU": self.convert_leaky_relu,
@@ -295,6 +297,7 @@ class OperatorConverter:
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
             "READ_VARIABLE": self.convert_read_variable,
+            "REAL": self.convert_real,
             "REDUCE_ALL": functools.partial(self._convert_reduce_bool, relax_op=_op.min),
             "REDUCE_ANY": functools.partial(self._convert_reduce_bool, relax_op=_op.max),
             "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
@@ -1006,6 +1009,7 @@ class OperatorConverter:
             TensorType.UINT32: np.uint32,
             TensorType.UINT64: np.uint64,
             TensorType.BOOL: np.bool_,
+            TensorType.COMPLEX64: np.complex64,
         }[tensor_wrapper.tensor.Type()]
 
     # pylint: disable=no-else-return
@@ -1051,6 +1055,8 @@ class OperatorConverter:
             return "uint64"
         if tensor_type == TensorType.BOOL:
             return "bool"
+        if tensor_type == TensorType.COMPLEX64:
+            return "complex64"
         raise NotImplementedError(f"Tensor type {tensor_type!s} is currently not supported")
 
     def _get_shape_expr_from_tensor(self, shape_tensor, prefix):
@@ -7580,6 +7586,52 @@ class OperatorConverter:
         rounded = relax.op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
         return relax.op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
 
+    def convert_real(self, op):
+        """Convert TFLite REAL op.
+
+        TFLite complex64 tensors are represented as float32[..., 2] in Relax,
+        where index 0 = real part, index 1 = imaginary part along the last axis
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = self.get_expr(input_tensors[0].tensor_idx)
+        # slice last axis at index 0, and squeeze to remove the last axis
+        real = _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[-1])
+        return _op.squeeze(real, axis=[-1])
+
+    def convert_imag(self, op):
+        """Convert TFLite IMAG op.
+
+        See convert_real for representation of complex64 tensors in Relax.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = self.get_expr(input_tensors[0].tensor_idx)
+        # slice last axis at index 1, and squeeze to remove the last axis
+        imag = _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[-1])
+        return _op.squeeze(imag, axis=[-1])
+
+    def convert_complex_abs(self, op):
+        """Convert TFLite COMPLEX_ABS op: sqrt(real^2 + imag^2)
+
+        See convert_real for the float32[..., 2] complex representation convention.
+        """
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = self.get_expr(input_tensors[0].tensor_idx)
+        real = self.bb.emit(
+            _op.strided_slice(input_tensor, begin=[0], end=[1], strides=[1], axes=[-1])
+        )
+        real = self.bb.emit(_op.squeeze(real, axis=[-1]))
+        imag = self.bb.emit(
+            _op.strided_slice(input_tensor, begin=[1], end=[2], strides=[1], axes=[-1])
+        )
+        imag = self.bb.emit(_op.squeeze(imag, axis=[-1]))
+        real_sq = self.bb.emit(_op.multiply(real, real))
+        imag_sq = self.bb.emit(_op.multiply(imag, imag))
+        sum_expr = self.bb.emit(_op.add(real_sq, imag_sq))
+        return _op.sqrt(sum_expr)
+
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
@@ -7609,6 +7661,12 @@ class OperatorConverter:
 
         type_str = self.get_tensor_type_str(tensor.tensor.Type())
         value = self.get_tensor_value_or_prefetched(tensor, is_sparse)
+        # complex64 constants have no native Relax dtype. Reinterpret the
+        # interleaved float32 storage as float32[..., 2] to match the
+        # convention used for input tensors.
+        if type_str == "complex64":
+            value = value.view(np.float32).reshape(value.shape + (2,))
+            type_str = "float32"
         return self.exp_tab.new_const(value, dtype=type_str, source_name=tensor.tensor.Name())
 
     def get_tensor_shape(self, tensor_wrapper):
@@ -8044,8 +8102,9 @@ def _input_type(model):
         input_shape = tuple(tensor.ShapeAsNumpy())
         tensor_type = tensor.Type()
         input_name = get_tensor_name(subgraph, input_)
+        input_dtype = _decode_type(tensor_type)
         shape_dict[input_name] = input_shape
-        dtype_dict[input_name] = _decode_type(tensor_type)
+        dtype_dict[input_name] = input_dtype
 
     return shape_dict, dtype_dict
 
@@ -8183,6 +8242,10 @@ def from_tflite(
                 dtype = (
                     _dtype_dict[model_input_name] if model_input_name in _dtype_dict else "float32"
                 )
+                if dtype == "complex64":
+                    dtype = "float32"
+                    if shape is not None:
+                        shape = tuple(shape) + (2,)
                 input_var = relax.Var(
                     name_hint=model_input_name,
                     struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype),
