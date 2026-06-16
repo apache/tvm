@@ -494,10 +494,10 @@ class DeviceKernelMutator : public StmtExprMutator {
         write_ptr->body = ReturnRemover::Apply(write_ptr->body);
       }
 
-      func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv,
-                                          static_cast<int>(tvm::CallingConv::kDeviceKernelLaunch)},
-                                         {tvm::tirx::attr::kKernelLaunchParams, info.launch_params},
-                                         {tvm::attr::kGlobalSymbol, info.global_symbol}});
+      func = WithAttrs(std::move(func),
+                       {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
+                        {tvm::tirx::attr::kKernelLaunchParams, info.launch_params},
+                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
 
     } else if (is_call_extern && !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
