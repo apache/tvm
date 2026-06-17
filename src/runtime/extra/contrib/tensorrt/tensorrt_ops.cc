@@ -180,8 +180,9 @@ class ActivationOpConverter : public TensorRTOpConverter {
         params->network->addActivation(*params->inputs.at(0).tensor, it->second);
 #if TRT_VERSION_GE(5, 1, 5)
     if (op_name == "clip") {
-      float a_min = static_cast<float>(params->node.GetAttr<double>("a_min"));
-      float a_max = static_cast<float>(params->node.GetAttr<double>("a_max"));
+      // Relax clip min/max are PrimValue args (serialized as arg_min/arg_max), not Relay attrs.
+      float a_min = static_cast<float>(params->node.GetAttr<double>("arg_min"));
+      float a_max = static_cast<float>(params->node.GetAttr<double>("arg_max"));
       act_layer->setAlpha(a_min);
       act_layer->setBeta(a_max);
     } else if (op_name == "nn.leaky_relu") {
@@ -545,19 +546,28 @@ class LayerNormOpConverter : public TensorRTOpConverter {
     const bool scale = static_cast<int>(params->node.GetAttr<int64_t>("scale"));
     const bool center = static_cast<int>(params->node.GetAttr<int64_t>("center"));
     const int input_rank = input->getDimensions().nbDims;
-    const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
-    const int axis = ConvertAxis(params, original_axis, input_rank);
-
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    // Relax layer_norm normalizes over an `axes` list (Relay used a single `axis`).
+    auto axes_attr = params->node.GetAttr<ffi::Array<int64_t>>("axes");
+    uint32_t reduce_axes = 0;
     std::vector<int> weight_shape(input_rank, 1);
-    weight_shape[axis] = gamma_input.count;
+    int64_t normalized_count = 1;
+    for (size_t i = 0; i < axes_attr.size(); ++i) {
+      const int axis = ConvertAxis(params, static_cast<int>(axes_attr[i]), input_rank);
+      reduce_axes |= 1 << axis;
+      weight_shape[axis] = input_dims[axis];
+      normalized_count *= input_dims[axis];
+    }
+    TVM_FFI_ICHECK_EQ(normalized_count, gamma_input.count)
+        << "TensorRT layer_norm expects gamma/beta to cover exactly the normalized axes";
     auto gamma =
         params->network->addConstant(VectorToTrtDims(weight_shape), gamma_input)->getOutput(0);
     auto beta =
         params->network->addConstant(VectorToTrtDims(weight_shape), beta_input)->getOutput(0);
 
     // Compute mean
-    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG, 1 << axis,
-                                                 /*keepdims=*/true);
+    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG,
+                                                 reduce_axes, /*keepdims=*/true);
     TVM_FFI_ICHECK(mean_layer != nullptr);
     auto mean = mean_layer->getOutput(0);
     // Compute variance
@@ -568,8 +578,9 @@ class LayerNormOpConverter : public TensorRTOpConverter {
         params->network->addElementWise(*diff_layer->getOutput(0), *diff_layer->getOutput(0),
                                         nvinfer1::ElementWiseOperation::kPROD);
     TVM_FFI_ICHECK(square_layer != nullptr);
-    auto var_layer = params->network->addReduce(
-        *square_layer->getOutput(0), nvinfer1::ReduceOperation::kAVG, 1 << axis, /*keepdims=*/true);
+    auto var_layer = params->network->addReduce(*square_layer->getOutput(0),
+                                                nvinfer1::ReduceOperation::kAVG, reduce_axes,
+                                                /*keepdims=*/true);
     TVM_FFI_ICHECK(var_layer != nullptr);
     auto var = var_layer->getOutput(0);
     // sqrt(var + epsilon)
@@ -775,10 +786,15 @@ class ExpandDimsOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
-    const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
-    const int num_newaxis = static_cast<int>(params->node.GetAttr<int64_t>("num_newaxis"));
-    const int axis = ConvertAxis(params, original_axis, input_dims.size() + 1);
-    for (int i = 0; i < num_newaxis; ++i) {
+    // Relax expand_dims carries an `axis` list (not Relay's `axis` + `num_newaxis`).
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("axis");
+    const int output_ndim = static_cast<int>(input_dims.size() + axes.size());
+    std::vector<int> new_axes;
+    for (size_t i = 0; i < axes.size(); ++i) {
+      new_axes.push_back(ConvertAxis(params, static_cast<int>(axes[i]), output_ndim));
+    }
+    std::sort(new_axes.begin(), new_axes.end());
+    for (int axis : new_axes) {
       input_dims.insert(input_dims.begin() + axis, 1);
     }
     params->outputs.push_back(Reshape(params, params->inputs.at(0).tensor, input_dims));
@@ -875,39 +891,20 @@ class SplitOpConverter : public TensorRTOpConverter {
     auto input_dims = TrtDimsToVector(input->getDimensions());
     const int original_axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
     const int axis = ConvertAxis(params, original_axis, input_dims.size());
-    auto indices_or_sections = params->node.GetAttr<ffi::Array<int64_t>>("indices_or_sections");
-    auto mode = std::string(params->node.GetAttr<ffi::String>("mode"));
-
-    std::vector<int> split_starts;
-    std::vector<int> split_sizes;
-    if (mode == "sections") {
-      int sections = static_cast<int>(indices_or_sections[0]);
-      int size = input_dims[axis] / sections;
-      for (int i = 0; i < sections; i++) {
-        split_starts.push_back(i * size);
-        split_sizes.push_back(size);
-      }
-    } else {
-      int last_index = 0;
-      for (size_t i = 0; i < indices_or_sections.size(); ++i) {
-        int index = static_cast<int>(indices_or_sections[i]);
-        split_starts.push_back(last_index);
-        split_sizes.push_back(index - last_index);
-        last_index = index;
-      }
-      split_starts.push_back(last_index);
-      split_sizes.push_back(input_dims[axis] - last_index);
-    }
+    // No Relay "mode": derive each output's extent along `axis` from the per-output shapes.
+    auto output_shapes = params->node.GetAttr<ffi::Array<ffi::Array<int64_t>>>("shape");
 
     std::vector<int> start(input_dims.size(), 0);
     std::vector<int> size(input_dims.begin(), input_dims.end());
     std::vector<int> strides(input_dims.size(), 1);
-    for (size_t i = 0; i < split_sizes.size(); ++i) {
-      start[axis] = split_starts[i];
-      size[axis] = split_sizes[i];
+    int offset = 0;
+    for (size_t i = 0; i < output_shapes.size(); ++i) {
+      start[axis] = offset;
+      size[axis] = static_cast<int>(output_shapes[i][axis]);
       auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
                                                    VectorToTrtDims(size), VectorToTrtDims(strides));
       params->outputs.push_back(slice_layer->getOutput(0));
+      offset += size[axis];
     }
   }
 };
@@ -1106,17 +1103,14 @@ class LayoutTransformOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
-    auto src = params->node.GetAttr<ffi::String>("src_layout");
-    auto dst = params->node.GetAttr<ffi::String>("dst_layout");
+    // The codegen emits a pure-permutation IndexMap as "arg_axes"; a missing key => unsupported
+    // map.
+    TVM_FFI_ICHECK(params->node.HasAttr("arg_axes"))
+        << "TensorRT layout_transform supports only pure-permutation index maps";
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("arg_axes");
     std::vector<int> order;
-    if (src == "NCHW" && dst == "NHWC") {
-      order = {0, 2, 3, 1};
-    } else if (src == "NHWC" && dst == "NCHW") {
-      order = {0, 3, 1, 2};
-    } else if (src == "NDHWC" && dst == "NCDHW") {
-      order = {0, 4, 1, 2, 3};
-    } else if (src == "NCDHW" && dst == "NDHWC") {
-      order = {0, 2, 3, 4, 1};
+    for (size_t i = 0; i < axes.size(); ++i) {
+      order.push_back(static_cast<int>(axes[i]));
     }
     params->outputs.push_back(Transpose(params, input, order));
   }
@@ -1131,7 +1125,10 @@ class ReshapeOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input->getDimensions());
-    auto newshape = params->node.GetAttr<ffi::Array<int64_t>>("newshape");
+    // Relax reshape's shape is a Shape arg (serialized as arg_shape); a missing key => non-static.
+    TVM_FFI_ICHECK(params->node.HasAttr("arg_shape"))
+        << "TensorRT reshape supports only a fully static target shape";
+    auto newshape = params->node.GetAttr<ffi::Array<int64_t>>("arg_shape");
     std::vector<int> new_shape;
     int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
     if (static_cast<int>(newshape[0]) == -1) start_index = 0;
@@ -1179,17 +1176,14 @@ class ReduceOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported reduce type " << op_name;
 
     auto input = params->inputs.at(0).tensor;
-    TVM_FFI_ICHECK_EQ(static_cast<int>(params->node.GetAttr<int64_t>("exclude")), false);
+    // No Relay "exclude"; axis is materialized to a concrete list by the codegen (None -> all
+    // axes).
     bool keepdims = static_cast<int>(params->node.GetAttr<int64_t>("keepdims"));
+    const int input_rank = input->getDimensions().nbDims;
     auto axes = params->node.GetAttr<ffi::Array<int64_t>>("axis");
-    // TODO(trevmorr): Support reduce to scalar.
-    TVM_FFI_ICHECK_GT(axes.size(), 0);
     uint32_t reduce_axes = 0;
-
     for (size_t i = 0; i < axes.size(); ++i) {
-      const int axis =
-          ConvertAxis(params, static_cast<int>(axes[i]), input->getDimensions().nbDims);
-      reduce_axes |= 1 << axis;
+      reduce_axes |= 1 << ConvertAxis(params, static_cast<int>(axes[i]), input_rank);
     }
     auto reduce_layer = params->network->addReduce(*input, it->second, reduce_axes, keepdims);
     params->outputs.push_back(reduce_layer->getOutput(0));
@@ -1206,20 +1200,35 @@ class StridedSliceOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input->getDimensions());
-    auto attr_start = params->node.GetAttr<ffi::Array<int64_t>>("start");
-    auto attr_size = params->node.GetAttr<ffi::Array<int64_t>>("size");
-    auto attr_strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
-    std::vector<int> start, size, strides;
-    std::transform(attr_start.begin(), attr_start.end(), std::back_inserter(start),
-                   [](int64_t v) { return static_cast<int>(v); });
-    std::transform(attr_size.begin(), attr_size.end(), std::back_inserter(size),
-                   [](int64_t v) { return static_cast<int>(v); });
-    std::transform(attr_strides.begin(), attr_strides.end(), std::back_inserter(strides),
-                   [](int64_t v) { return static_cast<int>(v); });
-    if (TRT_HAS_IMPLICIT_BATCH(params)) {
-      start.erase(start.begin());
-      size.erase(size.begin());
-      strides.erase(strides.begin());
+    const int rank = static_cast<int>(input_dims.size());
+    // axes/begin/end/strides are tuple args (serialized by the codegen); only listed axes are
+    // sliced.
+    auto axes = params->node.GetAttr<ffi::Array<int64_t>>("arg_axes");
+    auto begin = params->node.GetAttr<ffi::Array<int64_t>>("arg_begin");
+    auto end = params->node.GetAttr<ffi::Array<int64_t>>("arg_end");
+    std::vector<int64_t> stride_values;
+    if (params->node.HasAttr("arg_strides")) {
+      auto attr_strides = params->node.GetAttr<ffi::Array<int64_t>>("arg_strides");
+      stride_values.assign(attr_strides.begin(), attr_strides.end());
+    }
+
+    std::vector<int> start(rank, 0);
+    std::vector<int> size(input_dims.begin(), input_dims.end());
+    std::vector<int> strides(rank, 1);
+    for (size_t i = 0; i < axes.size(); ++i) {
+      const int axis = ConvertAxis(params, static_cast<int>(axes[i]), rank);
+      const int dim = input_dims[axis];
+      const int stride = stride_values.empty() ? 1 : static_cast<int>(stride_values[i]);
+      TVM_FFI_ICHECK_GT(stride, 0) << "TensorRT strided_slice supports only positive strides";
+      int b = static_cast<int>(begin[i]);
+      int e = static_cast<int>(end[i]);
+      if (b < 0) b += dim;
+      if (e < 0) e += dim;
+      b = std::max(0, std::min(b, dim));
+      e = std::max(0, std::min(e, dim));
+      start[axis] = b;
+      strides[axis] = stride;
+      size[axis] = e > b ? (e - b + stride - 1) / stride : 0;
     }
     auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
                                                  VectorToTrtDims(size), VectorToTrtDims(strides));
@@ -1267,14 +1276,10 @@ class BatchMatmulOpConverter : public TensorRTOpConverter {
   ~BatchMatmulOpConverter() = default;
 
   void Convert(TensorRTOpConverterParams* params) const {
-    auto transa = static_cast<int>(params->node.GetAttr<int64_t>("transpose_a"));
-    auto transb = static_cast<int>(params->node.GetAttr<int64_t>("transpose_b"));
-    nvinfer1::MatrixOperation trt_transa =
-        transa ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
-    nvinfer1::MatrixOperation trt_transb =
-        transb ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
+    // Relax matmul has no transpose flags; multiply both operands as-is.
     nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
-        *params->inputs.at(0).tensor, trt_transa, *params->inputs.at(1).tensor, trt_transb);
+        *params->inputs.at(0).tensor, nvinfer1::MatrixOperation::kNONE,
+        *params->inputs.at(1).tensor, nvinfer1::MatrixOperation::kNONE);
     TVM_FFI_ICHECK(matmul_layer != nullptr);
     params->outputs.push_back(matmul_layer->getOutput(0));
   }
