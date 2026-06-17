@@ -596,5 +596,38 @@ def test_tensorrt_split_indices():
     _offload_and_compare(SplitIdx, {}, patterns, data)
 
 
+def test_partition_for_tensorrt():
+    # End-to-end test of the partition_for_tensorrt entry point: it should offload the
+    # conv2d -> relu subgraph to TensorRT with a single call.
+    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
+    @tvm.script.ir_module
+    class Model:
+        @R.function
+        def main(
+            data: R.Tensor((1, 8, 16, 16), "float32"), weight: R.Tensor((16, 8, 3, 3), "float32")
+        ):
+            with R.dataflow():
+                conv = relax.op.nn.conv2d(data, weight, padding=1)
+                out = relax.op.nn.relu(conv)
+                R.output(out)
+            return out
+
+    data = np.random.randn(1, 8, 16, 16).astype("float32")
+    weight = np.random.randn(16, 8, 3, 3).astype("float32")
+    ref = build_and_run(Model, [data, weight], "llvm", legalize=True)
+
+    mod = relax.transform.BindParams("main", {"weight": weight})(Model)
+    mod = partition_for_tensorrt(mod)
+    assert any(
+        isinstance(fn, relax.Function) and fn.attrs is not None and "Codegen" in fn.attrs
+        for fn in mod.functions.values()
+    ), "expected partition_for_tensorrt to offload a subgraph to TensorRT"
+
+    mod = relax.transform.RunCodegen()(mod)
+    out = build_and_run(mod, [data], "cuda")
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
