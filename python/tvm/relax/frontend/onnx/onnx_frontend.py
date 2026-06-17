@@ -4994,15 +4994,29 @@ class GridSample(OnnxOpConverter):
 
         align_corners = bool(attr.get("align_corners", 0))
 
-        # ONNX grid shape: [N, H_out, W_out, 2]
-        # TVM grid shape:  [N, 2, H_out, W_out]
-        grid = relax.op.permute_dims(grid, [0, 3, 1, 2])
+        if hasattr(data.struct_info, "ndim"):
+            ndim = data.struct_info.ndim
+        else:
+            ndim = len(data.struct_info.shape)
+
+        if ndim == 4:
+            # ONNX grid shape: [N, H_out, W_out, 2]
+            # TVM grid shape:  [N, 2, H_out, W_out]
+            grid = relax.op.permute_dims(grid, [0, 3, 1, 2])
+            layout = "NCHW"
+        elif ndim == 5:
+            # ONNX grid shape: [N, D_out, H_out, W_out, 3]
+            # TVM grid shape:  [N, 3, D_out, H_out, W_out]
+            grid = relax.op.permute_dims(grid, [0, 4, 1, 2, 3])
+            layout = "NCDHW"
+        else:
+            raise NotImplementedError(f"GridSample only supports 4D or 5D input, got {ndim}D.")
 
         return relax.op.image.grid_sample(
             data,
             grid,
             method=method,
-            layout="NCHW",
+            layout=layout,
             padding_mode=padding_mode,
             align_corners=align_corners,
         )

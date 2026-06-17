@@ -5427,7 +5427,6 @@ def test_affine_grid():
 @pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
 @pytest.mark.parametrize("align_corners", [0, 1])
 def test_grid_sample(mode, padding_mode, align_corners):
-    # Only testing 2D (NCHW) as that's what TVM currently supports
     x_shape = [1, 3, 4, 4]
     grid_shape = [1, 2, 2, 2]
     out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
@@ -5464,6 +5463,77 @@ def test_grid_sample(mode, padding_mode, align_corners):
         inputs={"grid": grid_data, "X": x_data},
         opset=16,
     )
+
+
+@pytest.mark.parametrize("mode", ["bilinear", "nearest"])
+@pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
+@pytest.mark.parametrize("align_corners", [0, 1])
+def test_grid_sample_5d(mode, padding_mode, align_corners):
+    x_shape = [1, 1, 4, 4, 4]
+    grid_shape = [1, 4, 4, 4, 3]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2], grid_shape[3]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode=mode,
+        padding_mode=padding_mode,
+        align_corners=align_corners,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_5d_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    rng = np.random.default_rng(0)
+    grid_data = rng.uniform(-1.25, 1.25, grid_shape).astype("float32")
+    x_data = rng.uniform(-1, 1, x_shape).astype("float32")
+
+    model = helper.make_model(graph, producer_name="grid_sample_5d_test")
+    check_correctness(
+        model,
+        inputs={"grid": grid_data, "X": x_data},
+        opset=16,
+        rtol=1e-5,
+        atol=1e-5,
+    )
+
+
+def test_grid_sample_unsupported_rank():
+    x_shape = [1, 3, 4]
+    grid_shape = [1, 4, 2]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="bilinear",
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_unsupported_rank_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, x_shape),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_unsupported_rank_test")
+    with pytest.raises(NotImplementedError, match="GridSample only supports 4D or 5D input"):
+        from_onnx(model, opset=16, keep_params_in_input=True)
 
 
 def test_grid_sample_linear_mode_translation():
