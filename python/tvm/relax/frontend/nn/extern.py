@@ -24,7 +24,9 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from tvm import tirx
+import tvm_ffi
+
+from tvm import libinfo, tirx
 from tvm.runtime import Module, load_static_library
 from tvm.support import cc as _cc
 
@@ -306,15 +308,16 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         includes : List[pathlib.Path]
             The list of include paths.
         """
-        tvm_home = SourceModule.tvm_home()
         results = [
-            tvm_home / "include",
-            tvm_home / "3rdparty/tvm-ffi/include",
-            tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
+            Path(libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_dlpack_include_path()),
         ]
         if tvm_pkg:
+            tvm_home = SourceModule.tvm_home()
             for relative in tvm_pkg:
                 results.append(tvm_home / "3rdparty" / relative)
+        results = list(dict.fromkeys(results))
         for path in results:
             assert path.exists(), f"Not found: {path!s}"
             assert path.is_dir(), f"Not a directory: {path!s}"
