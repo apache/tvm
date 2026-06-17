@@ -494,7 +494,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       uint64_t elem_bits = dtype.bits() * dtype.lanes();
       TVM_FFI_ICHECK_EQ(se->bits_offset % elem_bits, 0U);
       if (se->bits_offset != 0) {
-        offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
+        offset = MakeConst(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
       return Call(op->dtype, op->op, {op->args[0], se->alloc_var, offset, extent, op->args[4]},
                   op->attrs, op->span);
@@ -633,7 +633,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits();
     TVM_FFI_ICHECK_EQ(e->bits_offset % elem_bits, 0U);
-    return make_const(index.dtype(), e->bits_offset / elem_bits) + index;
+    return MakeConst(index.dtype(), e->bits_offset / elem_bits) + index;
   }
   // Prepare the new allocations
   void PrepareNewAlloc() {
@@ -732,7 +732,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                              << " bits, which is greater than the maximum of"
                                 " int32. The size is cast to int64."
                              << "\n";
-                sz = make_const(DataType::Int(64), imm->value);
+                sz = IntImm::Int64(imm->value);
               }
             }
             // transform to bits
@@ -749,7 +749,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
-            combo_size = combo_size + make_const(DataType::Int(32), 1);
+            combo_size = combo_size + IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
           Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(),
@@ -788,8 +788,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    PrimExpr alloc_size = make_const(e->allocs[0]->buffer->shape[0].dtype(),
-                                     (total_bits + type_bits - 1) / type_bits);
+    PrimExpr alloc_size =
+        MakeConst(e->allocs[0]->buffer->shape[0].dtype(), (total_bits + type_bits - 1) / type_bits);
     Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name_hint, 0,
                0, BufferType::kDefault);
     bool any_volatile = e->is_volatile;
@@ -1531,7 +1531,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
-      PrimExpr new_index = ramp_index->base / make_const(ramp_index->base.dtype(), lanes);
+      PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.dtype(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
@@ -1541,7 +1541,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     } else if (last_dim_index.dtype().lanes() == 1 && info.factor() > 1) {
       arith::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
-      PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
+      PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.dtype(), info.factor());
       shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
     }
@@ -1612,7 +1612,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
       ffi::Array<PrimExpr> shape = buf->shape;
       PrimExpr last_dim = shape[shape.size() - 1];
-      shape.Set(shape.size() - 1, last_dim / make_const(last_dim.dtype(), info.factor()));
+      shape.Set(shape.size() - 1, last_dim / MakeConst(last_dim.dtype(), info.factor()));
 
       auto writer = buf.CopyOnWrite();
       writer->data = info.new_buffer_var;
@@ -1647,8 +1647,8 @@ class VectorTypeRewriter : public StmtExprMutator {
 
       PrimExpr e_dtype = tirx::TypeAnnotation(info.new_element_dtype);
       int factor = info.factor();
-      extent = extent / make_const(extent.dtype(), factor);
-      index = index / make_const(index.dtype(), factor);
+      extent = extent / MakeConst(extent.dtype(), factor);
+      index = index / MakeConst(index.dtype(), factor);
       ffi::Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
       // tvm_access_ptr produces a pointer; its Call.dtype must be handle
       // (the lowering rule in src/target/intrin_rule.cc ICHECKs this).

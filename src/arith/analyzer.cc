@@ -70,7 +70,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
 void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
   int64_t offset = 0;
-  PrimExpr symbol_scale = tirx::make_const(value.dtype(), 0);
+  PrimExpr symbol_scale = tirx::MakeConst(value.dtype(), 0);
 
   auto fcollect_sum = [&](PrimExpr val, int sign) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -87,7 +87,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
 
   // split out the symbol and non-symbolic part
   int64_t cscale = 1;
-  PrimExpr symbol = tirx::make_const(value.dtype(), 1);
+  PrimExpr symbol = tirx::MakeConst(value.dtype(), 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;

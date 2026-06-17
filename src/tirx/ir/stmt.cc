@@ -156,7 +156,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
         << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
     const IntImmNode* a = e.as<IntImmNode>();
     if (a && e.dtype().bits() < loop_var.dtype().bits()) {
-      return make_const(loop_var.dtype(), a->value);
+      return MakeConst(loop_var.dtype(), a->value);
     } else {
       return e;
     }
@@ -478,7 +478,7 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     if (tvm::tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, tvm::tirx::make_const(r->min->dtype, 1), r->extent));
+      indices.push_back(tirx::Ramp(r->min, tvm::tirx::MakeConst(r->min->dtype, 1), r->extent));
     } else {
       TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
                                 << ffi::GetRef<BufferRegion>(this);
@@ -512,7 +512,7 @@ BufferRegion BufferRegion::FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices
       region.push_back(
           Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
     } else {
-      region.push_back(Range::FromMinExtent(index, make_const(index.dtype(), 1)));
+      region.push_back(Range::FromMinExtent(index, MakeConst(index.dtype(), 1)));
     }
   }
   return BufferRegion(buffer, region);

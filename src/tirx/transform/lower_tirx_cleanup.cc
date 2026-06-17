@@ -140,7 +140,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
           tile_layout && tile_layout->HasThreadAxis()) {
         // Logical alloc_buffer with thread axes: physical shape = memory-axis span
         arith::Analyzer ana;
-        PrimExpr mem_span = make_const(DataType::Int(32), 1);
+        PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
             mem_span = mem_span + (iter->extent - 1) * iter->stride;

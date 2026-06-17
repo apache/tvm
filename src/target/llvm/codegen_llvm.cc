@@ -1873,7 +1873,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
   int lanes = op->dtype.lanes();
   for (int i = 0; i < lanes; ++i) {
     vec = builder_->CreateInsertElement(
-        vec, MakeValue(op->base + op->stride * make_const(op->stride.dtype(), i)), ConstInt32(i));
+        vec, MakeValue(op->base + op->stride * MakeConst(op->stride.dtype(), i)), ConstInt32(i));
   }
   return vec;
 }
@@ -1959,7 +1959,7 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   } else {
     TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
   }
-  PrimExpr step = op->step.value_or(make_const(op->extent->dtype, 1));
+  PrimExpr step = op->step.value_or(MakeConst(op->extent->dtype, 1));
   PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   llvm::Value* begin_value = MakeValue(op->min);
   llvm::Value* end_value = MakeValue(end);
@@ -2327,7 +2327,7 @@ static void CodegenLLVMRegisterReflection() {
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
           bool value = it->getValue();
-          ret.Set(name, IntImm(DataType::Bool(), value));
+          ret.Set(name, IntImm::Bool(value));
         }
         return ret;
 #else
@@ -2337,7 +2337,7 @@ static void CodegenLLVMRegisterReflection() {
         for (auto it = features.begin(); it != features.end(); ++it) {
           std::string name = it->getKey().str();
           bool value = it->getValue();
-          ret.Set(name, IntImm(DataType::Bool(), value));
+          ret.Set(name, IntImm::Bool(value));
         }
         return ret;
       }

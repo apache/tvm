@@ -47,7 +47,7 @@ namespace tvm {
  *     return prefix + "IntImm"
  *   });
  *
- *   Expr x = make_const(1);
+ *   Expr x = MakeConst(1);
  *   Expr y = x + x;
  *   // dispatch to IntImm, outputs "MyIntImm"
  *   LOG(INFO) << tostr(x, "My");

@@ -245,7 +245,7 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
 
 ffi::Array<tvm::tirx::Var> CtaIdInPair() {
   ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::Var("")};
-  tvm::tirx::ScopeIdDef def(scope_ids, ffi::Array<PrimExpr>{IntImm(DataType::Int(32), 2)},
+  tvm::tirx::ScopeIdDef def(scope_ids, ffi::Array<PrimExpr>{IntImm::Int32(2)},
                             tvm::tirx::ScopeBinding::kClusterCtaPair);
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
@@ -551,7 +551,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
       // extent is a single PrimExpr
       DataType dtype = prim_expr.value().dtype();
       n->vars.push_back(Var("v", dtype));
-      n->doms.push_back(Range(tvm::tirx::make_const(dtype, 0), prim_expr.value()));
+      n->doms.push_back(Range(tvm::IntImm(dtype, 0), prim_expr.value()));
     } else if (auto tuple = extent.as<ffi::Tuple<PrimExpr, PrimExpr>>()) {
       // extent is a tuple of two PrimExpr (start, extent)
       DataType dtype = tuple.value().get<0>().dtype();
@@ -621,7 +621,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
-        Range(tvm::tirx::make_zero(extent.dtype()), extent);
+        Range(tvm::IntImm(extent.dtype(), 0), extent);
   } else if (!arith::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
     TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
                                  << iter_var->dom->extent << " vs " << extent;
@@ -657,8 +657,8 @@ AttrFrame DeviceEntry() {
   // enclosing PrimFuncFrame: ``IRBuilderFrameNode::ExitWithScope`` runs
   // callbacks before popping itself, so the AttrFrame is closed and its
   // emitted ``AttrStmt`` lands in the PrimFunc's body sequence.
-  AttrFrame frame = Attr(IntImm(DataType::Int(32), 0), ffi::String(tvm::tirx::attr::kDeviceEntry),
-                         IntImm(DataType::Bool(), 1));
+  AttrFrame frame =
+      Attr(IntImm::Int32(0), ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
   IRBuilder builder = IRBuilder::Current();
   ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
   TVM_FFI_ICHECK(pf_frame.defined())

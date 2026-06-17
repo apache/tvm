@@ -515,6 +515,33 @@ class IntImm : public PrimExpr {
    */
   TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 
+  /*!
+   * \brief Construct a scalar boolean constant.
+   * \param value The boolean value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Bool(bool value, Span span = Span()) {
+    return IntImm(DataType::Bool(), value, span);
+  }
+
+  /*!
+   * \brief Construct a scalar int32 constant.
+   * \param value The integer value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Int32(int64_t value, Span span = Span()) {
+    return IntImm(DataType::Int(32), value, span);
+  }
+
+  /*!
+   * \brief Construct a scalar int64 constant.
+   * \param value The integer value.
+   * \param span The location of this object in the source code.
+   */
+  static IntImm Int64(int64_t value, Span span = Span()) {
+    return IntImm(DataType::Int(64), value, span);
+  }
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
@@ -636,7 +663,7 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
 TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
-  return IntImm(DataType::Bool(), value, Span());
+  return IntImm::Bool(value);
 }
 
 TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
