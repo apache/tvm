@@ -106,7 +106,7 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
     return mod
 
 
-@pytest.mark.skipif(not env.has_rpc(), reason="need rpc")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_RPC"), reason="need rpc")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_adreno_opencl(), reason="need adreno opencl")
 @pytest.mark.parametrize("backend", ["opencl"])

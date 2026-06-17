@@ -238,6 +238,27 @@ class TestAutomaticMarks:
         self.check_marks(request, target)
 
 
+def test_target_to_requirement_cuda_libs():
+    """cuda+cudnn / cuda+cublas select their own probe; cudnn wins when both are present."""
+    ttr = tvm.testing.plugin._target_to_requirement
+
+    def skip_reasons(target):
+        return [d.mark.kwargs["reason"] for d in ttr(target) if d.mark.name == "skipif"]
+
+    assert skip_reasons({"kind": "cuda", "libs": ["cudnn"]}) == ["need cudnn"]
+    assert skip_reasons({"kind": "cuda", "libs": ["cublas"]}) == ["need cublas"]
+    # cudnn is checked before cublas, so it wins when both are present.
+    assert skip_reasons({"kind": "cuda", "libs": ["cudnn", "cublas"]}) == ["need cudnn"]
+    assert skip_reasons("cuda") == ["need cuda"]
+    # every cuda variant is GPU-family and carries the `gpu` selection marker.
+    assert any(d.mark.name == "gpu" for d in ttr({"kind": "cuda", "libs": ["cudnn"]}))
+
+
+def test_target_to_requirement_unknown_kind_has_no_marks():
+    """A target kind with no requirement entry produces no marks (no gpu, no skip)."""
+    assert tvm.testing.plugin._target_to_requirement("c") == []
+
+
 @pytest.mark.skipif(
     bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0"))),
     reason="Cannot test cache behavior while caching is disabled",

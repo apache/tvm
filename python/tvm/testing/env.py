@@ -39,7 +39,7 @@ Three kinds of probe live here:
 
 * **runtime device** probes (``has_cuda``, ``has_gpu`` …) ask whether a
   usable device of a given kind is present;
-* **build-support** probes (``has_cutlass``, ``has_cudnn`` …) ask whether
+* **build-support** probes (``has_cudnn`` …, ``build_flag_enabled`` …) ask whether
   an optional library was compiled into the runtime;
 * **version / capability** probes (``has_cuda_compute``,
   ``has_tensorcore`` …) ask about a finer capability of a present device
@@ -53,12 +53,9 @@ import platform
 import tvm
 
 __all__ = [
-    "has_aarch64_sme",
-    "has_aarch64_sve",
+    "build_flag_enabled",
     "has_adreno_opencl",
     "has_aprofile_aem_fvp",
-    "has_arm_dot",
-    "has_arm_fp16",
     # cpu features
     "has_cpu_feature",
     "has_cublas",
@@ -69,7 +66,6 @@ __all__ = [
     "has_cudagraph",
     # build support
     "has_cudnn",
-    "has_cutlass",
     "has_gpu",
     # toolchain / environment
     "has_hexagon",
@@ -79,20 +75,15 @@ __all__ = [
     "has_llvm_min_version",
     "has_matrixcore",
     "has_metal",
-    "has_mrvl",
     "has_multi_gpu",
     "has_nccl",
-    "has_nnapi",
     "has_nvcc_version",
     "has_nvptx",
     "has_nvshmem",
     "has_opencl",
-    "has_openclml",
     "has_rocm",
-    "has_rpc",
     "has_tensorcore",
     "has_vulkan",
-    "has_x86_amx",
     "has_x86_avx512",
     "has_x86_vnni",
     "is_aarch64",
@@ -112,12 +103,12 @@ def _device_exists(kind: str, index: int = 0) -> bool:
 
 
 @functools.cache
-def _build_flag_enabled(flag: str) -> bool:
+def build_flag_enabled(flag: str) -> bool:
     """Return whether an optional build flag (e.g. ``USE_CUTLASS``) is on.
 
     A flag counts as enabled unless it is explicitly disabled, so library
     flags carrying a path (rather than a boolean) still register as present.
-    Callers gate on this via ``@pytest.mark.skipif(not tvm.testing.env.has_cutlass(), ...)``.
+    Callers gate via ``@pytest.mark.skipif(not env.build_flag_enabled("USE_X"), ...)``.
     """
     try:
         value = tvm.support.libinfo().get(flag, "OFF")
@@ -239,47 +230,22 @@ def has_multi_gpu(count: int = 2) -> bool:
 
 def has_cudnn() -> bool:
     """True if cuDNN was built in and a CUDA device is present."""
-    return has_cuda() and _build_flag_enabled("USE_CUDNN")
+    return has_cuda() and build_flag_enabled("USE_CUDNN")
 
 
 def has_cublas() -> bool:
     """True if cuBLAS was built in and a CUDA device is present."""
-    return has_cuda() and _build_flag_enabled("USE_CUBLAS")
+    return has_cuda() and build_flag_enabled("USE_CUBLAS")
 
 
 def has_nccl() -> bool:
     """True if NCCL was built in and a CUDA device is present."""
-    return has_cuda() and _build_flag_enabled("USE_NCCL")
+    return has_cuda() and build_flag_enabled("USE_NCCL")
 
 
 def has_hipblas() -> bool:
     """True if hipBLAS was built in and a ROCm device is present."""
-    return has_rocm() and _build_flag_enabled("USE_HIPBLAS")
-
-
-def has_cutlass() -> bool:
-    """True if CUTLASS support was built into the runtime."""
-    return _build_flag_enabled("USE_CUTLASS")
-
-
-def has_rpc() -> bool:
-    """True if RPC support was built into the runtime."""
-    return _build_flag_enabled("USE_RPC")
-
-
-def has_nnapi() -> bool:
-    """True if NNAPI codegen support was built into the runtime."""
-    return _build_flag_enabled("USE_NNAPI_CODEGEN")
-
-
-def has_openclml() -> bool:
-    """True if OpenCLML (CLML) support was built into the runtime."""
-    return _build_flag_enabled("USE_CLML")
-
-
-def has_mrvl() -> bool:
-    """True if the Marvell (MRVL) backend was built into the runtime."""
-    return _build_flag_enabled("USE_MRVL")
+    return has_rocm() and build_flag_enabled("USE_HIPBLAS")
 
 
 @functools.cache
@@ -414,7 +380,7 @@ def has_hexagon_toolchain() -> bool:
             _ci_env_check,
         )
 
-        return _build_flag_enabled("USE_HEXAGON") and _ci_env_check._compile_time_check() is True
+        return build_flag_enabled("USE_HEXAGON") and _ci_env_check._compile_time_check() is True
     except Exception:  # pylint: disable=broad-except
         return False
 
@@ -435,7 +401,7 @@ def has_hexagon() -> bool:
 @functools.cache
 def has_adreno_opencl() -> bool:
     """True if remote Adreno OpenCL testing is configured (RPC_TARGET set)."""
-    return _build_flag_enabled("USE_OPENCL") and os.environ.get("RPC_TARGET") is not None
+    return build_flag_enabled("USE_OPENCL") and os.environ.get("RPC_TARGET") is not None
 
 
 @functools.cache
@@ -472,26 +438,6 @@ def has_cpu_feature(features) -> bool:
     return _has_cpu_feature(features)
 
 
-def has_arm_dot() -> bool:
-    """True if the host CPU supports the ARM dot-product instructions."""
-    return has_cpu_feature("dotprod")
-
-
-def has_arm_fp16() -> bool:
-    """True if the host CPU supports ARM Neon FP16 instructions."""
-    return has_cpu_feature("fullfp16")
-
-
-def has_aarch64_sve() -> bool:
-    """True if the host CPU supports AArch64 SVE."""
-    return has_cpu_feature("sve")
-
-
-def has_aarch64_sme() -> bool:
-    """True if the host CPU supports AArch64 SME."""
-    return has_cpu_feature("sme")
-
-
 def has_x86_vnni() -> bool:
     """True if the host CPU supports x86 VNNI (AVX512-VNNI or AVX-VNNI)."""
     return has_cpu_feature("avx512vnni") or has_cpu_feature("avxvnni")
@@ -500,11 +446,6 @@ def has_x86_vnni() -> bool:
 def has_x86_avx512() -> bool:
     """True if the host CPU supports the x86 AVX512 extensions."""
     return has_cpu_feature(["avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512f"])
-
-
-def has_x86_amx() -> bool:
-    """True if the host CPU supports the x86 AMX (int8) extensions."""
-    return has_cpu_feature("amx-int8")
 
 
 # --- host architecture probes ----------------------------------------------

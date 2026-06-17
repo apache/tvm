@@ -279,44 +279,39 @@ def _sort_tests(items):
     items.sort(key=sort_key)
 
 
-def _gpu_mark_and_skip(has_fn, reason):
-    """A GPU-family target: the ``gpu`` selection marker plus an env skip."""
-    return [pytest.mark.gpu, pytest.mark.skipif(not has_fn(), reason=reason)]
-
-
-def _skip_only(has_fn, reason):
-    """A non-GPU target: an env skip with no selection marker."""
-    return [pytest.mark.skipif(not has_fn(), reason=reason)]
+# GPU-family target kinds carry the ``gpu`` selection marker; CPU-family kinds
+# (llvm, hexagon) only skip. The skip condition is the matching tvm.testing.env
+# probe, resolved by name, so there is no per-kind ladder of has_* calls.
+_GPU_TARGET_KINDS = frozenset(
+    {"cuda", "cudnn", "cublas", "rocm", "vulkan", "nvptx", "metal", "opencl"}
+)
+_CPU_TARGET_KINDS = frozenset({"llvm", "hexagon"})
 
 
 def _target_to_requirement(target):
     if isinstance(target, str | dict):
         target = tvm.target.Target(target)
 
-    # GPU-family kinds get the `gpu` selection marker; CPU-family kinds only skip.
+    # A cuda target carrying an accelerator library gates on that library's probe
+    # (cudnn before cublas) instead of plain cuda.
     kind = target.kind.name
-    if kind == "cuda" and "cudnn" in target.attrs.get("libs", []):
-        return _gpu_mark_and_skip(env.has_cudnn, "need cudnn")
-    if kind == "cuda" and "cublas" in target.attrs.get("libs", []):
-        return _gpu_mark_and_skip(env.has_cublas, "need cublas")
     if kind == "cuda":
-        return _gpu_mark_and_skip(env.has_cuda, "need cuda")
-    if kind == "rocm":
-        return _gpu_mark_and_skip(env.has_rocm, "need rocm")
-    if kind == "vulkan":
-        return _gpu_mark_and_skip(env.has_vulkan, "need vulkan")
-    if kind == "nvptx":
-        return _gpu_mark_and_skip(env.has_nvptx, "need nvptx")
-    if kind == "metal":
-        return _gpu_mark_and_skip(env.has_metal, "need metal")
-    if kind == "opencl":
-        return _gpu_mark_and_skip(env.has_opencl, "need opencl")
-    if kind == "llvm":
-        return _skip_only(env.has_llvm, "need llvm")
-    if kind == "hexagon":
-        return _skip_only(env.has_hexagon, "need hexagon")
+        libs = target.attrs.get("libs", [])
+        if "cudnn" in libs:
+            kind = "cudnn"
+        elif "cublas" in libs:
+            kind = "cublas"
 
-    return []
+    if kind in _GPU_TARGET_KINDS:
+        is_gpu = True
+    elif kind in _CPU_TARGET_KINDS:
+        is_gpu = False
+    else:
+        return []
+
+    marks = [pytest.mark.gpu] if is_gpu else []
+    marks.append(pytest.mark.skipif(not getattr(env, f"has_{kind}")(), reason=f"need {kind}"))
+    return marks
 
 
 # pytest-xdist isn't required but is used in CI, so guard on its presence

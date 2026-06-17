@@ -85,7 +85,7 @@ class Conv2dx2:
 
 
 pytestmark = [
-    pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass"),
+    pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass"),
 ]
 
 
