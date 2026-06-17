@@ -5168,7 +5168,22 @@ class OperatorConverter:
         batch_axis = options.BatchDim()
         seq_axis = options.SeqDim()
 
-        return relax.op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
+        if batch_axis != 0:
+            raise tvm.error.OpNotImplemented(
+                "TFLite REVERSE_SEQUENCE with non-zero batch_dim is not supported yet."
+            )
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
+
+        return relax.op.call_dps_packed(
+            "topi.reverse_sequence",
+            (in_expr, length_expr, seq_axis),
+            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+        )
 
     def convert_bitcast(self, op):
         """Convert TFLite BITCAST"""
@@ -5614,10 +5629,10 @@ class OperatorConverter:
         else:
             splitted = relax.op.split(in_expr, indices_or_sections=num_unpacks, axis=unpack_axis)
             squeezed = relax.Tuple(
-                relax.Tuple(
-                    [_op.squeeze(split_item, axis=squeeze_axis) for split_item in splitted]
-                ),
-                len(splitted),
+                [
+                    _op.squeeze(relax.TupleGetItem(splitted, i), axis=squeeze_axis)
+                    for i in range(num_unpacks)
+                ]
             )
 
         return squeezed
