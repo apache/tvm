@@ -132,7 +132,6 @@ runs:
           CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }}"
         CIBW_ENVIRONMENT_LINUX: >-
           CMAKE_PREFIX_PATH="/opt/llvm"
-          LIBRARY_PATH="/opt/llvm/lib"
           CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so"
         CIBW_ENVIRONMENT_WINDOWS: >-
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
