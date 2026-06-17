@@ -739,7 +739,7 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)         \
   inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                   \
-    static const Op& op = Op::Get("tirx." #OpName);                          \
+    static const Op op = Op::Get("tirx." #OpName);                           \
     CheckInputDType(#OpName, x.dtype());                                     \
     if (x.dtype().is_bfloat16()) {                                           \
       DataType bf16_dtype = x.dtype();                                       \
@@ -786,7 +786,7 @@ TVM_DECLARE_INTRIN_UNARY(clz);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
-    static const Op& op = Op::Get("tirx." #OpName);                    \
+    static const Op op = Op::Get("tirx." #OpName);                     \
     return tirx::Call(x.dtype(), op, {x, y}, {}, span);                \
   }
 
