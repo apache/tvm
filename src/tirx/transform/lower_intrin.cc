@@ -122,7 +122,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
-      return op->a >> make_const(dtype, shift);
+      return op->a >> MakeConst(dtype, shift);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -135,8 +135,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
           int64_t c_value = *opt_c_value;
           // now we can safely lower to truncdiv
-          return truncdiv(op->a + make_const(dtype, b_value * c_value), op->b) -
-                 make_const(dtype, c_value);
+          return truncdiv(op->a + MakeConst(dtype, b_value * c_value), op->b) -
+                 MakeConst(dtype, c_value);
         }
       }
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -147,9 +147,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // So we need to correct these cases.
       if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
         // equivalent to rdiv + (rmod >= 0 ? 0: -1);
-        return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
+        return rdiv + (rmod >> MakeConst(dtype, dtype.bits() - 1));
       } else {
-        return tirx::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
+        return tirx::Select(rmod >= 0, rdiv, rdiv - MakeConst(dtype, 1));
       }
 
     } else {
@@ -166,7 +166,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         PrimExpr let_rdiv =
             tirx::Let(rdiv, truncdiv(op->a, op->b),
                       tirx::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
-                                   rdiv - make_const(dtype, 1)));
+                                   rdiv - MakeConst(dtype, 1)));
         return Let(rmod, truncmod(op->a, op->b), let_rdiv);
       }
     }
@@ -184,7 +184,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
       int64_t mask = (static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
-      return op->a & make_const(dtype, mask);
+      return op->a & MakeConst(dtype, mask);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
@@ -197,7 +197,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
           int64_t c_value = *opt_c_value;
           // floormod(a, b) == floormod(a + b*c, b)  == truncmod(a + b*c, b)
-          return truncmod(op->a + make_const(dtype, c_value * b_value), op->b);
+          return truncmod(op->a + MakeConst(dtype, c_value * b_value), op->b);
         }
       }
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
@@ -209,7 +209,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // (rmod >> shift) & b
         // -> (rmod >= 0 ? 0: -1) & b
         // -> rmod >= 0 ? 0 : b
-        return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
+        return rmod + (op->b & (rmod >> MakeConst(dtype, dtype.bits() - 1)));
       } else {
         return tirx::Select(rmod >= 0, rmod, rmod + op->b);
       }

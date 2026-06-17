@@ -54,10 +54,10 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = make_zero(var_.dtype());
+      ret->base = IntImm(var_.dtype(), 0);
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = make_zero(var_.dtype());
+      ret->coeff = IntImm(var_.dtype(), 0);
     }
     return true;
   }
@@ -102,7 +102,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     LinearEqEntry ret;
     if (op == var_.get()) {
       auto dtype = op->dtype;
-      ret.coeff = make_const(DataType::Int(dtype.bits(), dtype.lanes()), 1);
+      ret.coeff = MakeConst(DataType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
     }
@@ -195,13 +195,13 @@ bool DetectClipBound(const PrimExpr& cond,
   PrimExpr canonical;
   if (const LTNode* op = cond.as<LTNode>()) {
     if (!op->a.dtype().is_int()) return false;
-    canonical = op->b - op->a - make_const(op->a.dtype(), 1);
+    canonical = op->b - op->a - MakeConst(op->a.dtype(), 1);
   } else if (const LENode* op = cond.as<LENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->b - op->a;
   } else if (const GTNode* op = cond.as<GTNode>()) {
     if (!op->a.dtype().is_int()) return false;
-    canonical = op->a - op->b - make_const(op->a.dtype(), 1);
+    canonical = op->a - op->b - MakeConst(op->a.dtype(), 1);
   } else if (const GENode* op = cond.as<GENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;

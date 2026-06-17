@@ -449,7 +449,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
       int base_ramp_lanes = static_cast<int>(Downcast<IntImm>(base_ramp->lanes)->value);
       if (analyzer_->CanProve(base_ramp->stride ==
-                              stride * make_const(stride.dtype(), base_ramp_lanes))) {
+                              stride * MakeConst(stride.dtype(), base_ramp_lanes))) {
         return Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
       }
     }
@@ -987,7 +987,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
         const RampNode* a_ramp = a.as<RampNode>();
         if (a.dtype().is_scalar() && b_ramp) {
           return Ramp(fcompute(a, b_ramp->base),
-                      fcompute(make_zero(b_ramp->stride.dtype()), b_ramp->stride), b_ramp->lanes);
+                      fcompute(IntImm(b_ramp->stride.dtype(), 0), b_ramp->stride), b_ramp->lanes);
         }
         if (b.dtype().is_scalar() && a_ramp) {
           return Ramp(fcompute(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
@@ -1047,8 +1047,8 @@ class LoopVectorizer : public StmtMutator {
     // selects the runtime vector length with vsetvli.
     static constexpr int kDefaultVScaleFactor = 4;
     DataType index_dtype = op->loop_var->dtype;
-    PrimExpr zero = make_const(index_dtype, 0);
-    PrimExpr fixed_extent = make_const(index_dtype, extent);
+    PrimExpr zero = IntImm(index_dtype, 0);
+    PrimExpr fixed_extent = IntImm(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
     DataType lane_dtype = scalable_lanes.dtype();
     PrimExpr scalable_lanes_index = scalable_lanes;
@@ -1066,7 +1066,7 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop = For(inner, make_const(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
+    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
                            guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
     Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
                     std::nullopt, op->span);

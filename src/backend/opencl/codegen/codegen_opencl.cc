@@ -457,7 +457,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ", ";
     this->PrintExpr(op->args[3], os);
     os << ", ";
-    this->PrintExpr(make_const(DataType::Int(32), 0), os);
+    this->PrintExpr(IntImm::Int32(0), os);
     os << "), ";
     os << "as_";
     this->PrintType(channel_type, os);
@@ -490,7 +490,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     ss << ", ";
     this->PrintExpr(op->args[3], ss);
     ss << ", ";
-    this->PrintExpr(make_const(DataType::Int(32), 0), ss);
+    this->PrintExpr(IntImm::Int32(0), ss);
     ss << "))))";
 
     std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(data_lanes));

@@ -179,7 +179,7 @@ class ScopeIdDefRemover : public StmtExprMutator {
     // Drop the def stmt by replacing with a no-op Evaluate(0). It will be
     // flattened away by SeqStmt::Flatten elsewhere or stay as a benign
     // no-op for downstream passes.
-    return Evaluate(IntImm(DataType::Int(32), 0));
+    return Evaluate(IntImm::Int32(0));
   }
 };
 
@@ -595,8 +595,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // dispatched impls too.
   void PrepareLaunchParams(const AttrStmtNode* entry_node, Stmt body,
                            std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target = AttrStmt(IntImm(DataType::Int(32), 0), tvm::tirx::attr::kDeviceEntry,
-                                  IntImm(DataType::Bool(), 1), body);
+    Stmt gather_target =
+        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
@@ -627,8 +627,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                             std::vector<std::pair<Var, const StmtNode*>>* implicit_scope_id_evals) {
     // Gather from a temporary stmt synthesized as the device-entry marker
     // so direct ScopeIdDefStmt children are attributed back to entry_node.
-    Stmt gather_target = AttrStmt(IntImm(DataType::Int(32), 0), tvm::tirx::attr::kDeviceEntry,
-                                  IntImm(DataType::Bool(), 1), body);
+    Stmt gather_target =
+        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     // Remap the synthetic source pointer back to the real entry_node so the
     // injector matches against the actual node present in the post-processed
@@ -1413,7 +1413,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (pred.dtype().is_bool()) {
       return pred;
     }
-    return pred != make_zero(pred.dtype());
+    return pred != IntImm(pred.dtype(), 0);
   }
 
   ffi::Map<Var, Range> var_range_map_;

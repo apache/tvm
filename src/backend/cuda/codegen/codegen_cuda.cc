@@ -201,12 +201,12 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
   }
 
  public:
-  PrimExpr threadIdx_x_ext = IntImm(DataType::Int(32), 1);
-  PrimExpr threadIdx_y_ext = IntImm(DataType::Int(32), 1);
-  PrimExpr threadIdx_z_ext = IntImm(DataType::Int(32), 1);
-  PrimExpr clusterCtaIdx_x_ext = IntImm(DataType::Int(32), 1);
-  PrimExpr clusterCtaIdx_y_ext = IntImm(DataType::Int(32), 1);
-  PrimExpr clusterCtaIdx_z_ext = IntImm(DataType::Int(32), 1);
+  PrimExpr threadIdx_x_ext = IntImm::Int32(1);
+  PrimExpr threadIdx_y_ext = IntImm::Int32(1);
+  PrimExpr threadIdx_z_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_x_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_y_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {

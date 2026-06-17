@@ -388,9 +388,9 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       static const Op& ptx_fetch_register_op = Op::Get("tirx.ptx.fetch_register");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(tirx::Call(
-            DataType::Int(32), ptx_fetch_register_op,
-            {IntImm(DataType::Int(32), 32), StringImm("clusterid." + std::string(1, 'x' + i))}));
+        ret.push_back(
+            tirx::Call(DataType::Int(32), ptx_fetch_register_op,
+                       {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))}));
       }
       return ret;
     }
@@ -440,8 +440,7 @@ PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
   PrimExpr warp_id = FloorDiv(GetLinearThreadIndex(params), 32);
   PrimExpr mask = IntImm(DataType::UInt(32), 0xffffffff);
   return Call(warp_id.dtype(), builtin::tvm_warp_shuffle(),
-              {mask, warp_id, IntImm(DataType::Int(32), 0), IntImm(DataType::Int(32), 32),
-               IntImm(DataType::Int(32), 32)});
+              {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)});
 }
 
 }  // namespace tirx

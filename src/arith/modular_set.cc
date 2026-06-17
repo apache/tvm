@@ -303,7 +303,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     Entry b = VisitExpr(op->args[1]);
     if (b.is_const()) {
       int shift;
-      if (is_const_power_of_two_integer(IntImm(DataType::Int(32), b.base + 1), &shift)) {
+      if (is_const_power_of_two_integer(IntImm::Int32(b.base + 1), &shift)) {
         return ModByConst(op->args[0], static_cast<int64_t>(1) << shift, true);
       }
     }

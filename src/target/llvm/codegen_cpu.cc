@@ -1191,9 +1191,9 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
         CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->loop_var,
                         op->body);
       } else {
-        PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
+        PrimExpr step = (op->extent + num_task - MakeConst(t, 1)) / num_task;
         PrimExpr begin = min(task_id * step, op->extent);
-        end = min((task_id + make_const(t, 1)) * step, end);
+        end = min((task_id + MakeConst(t, 1)) * step, end);
         CreateSerialFor(MakeValue(begin), MakeValue(end),
                         llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->loop_var, op->body);
       }

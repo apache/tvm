@@ -46,7 +46,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RangeNode::RegisterReflection();
 }
 
-PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
+PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
