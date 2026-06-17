@@ -376,7 +376,7 @@ class ConstantFolder : public ExprMutator {
           int64_t num_elems = ndarray->shape[0];
           ffi::Array<PrimExpr> shape_values;
           for (int64_t i = 0; i < num_elems; i++) {
-            shape_values.push_back(IntImm(DataType::Int(64), data[i]));
+            shape_values.push_back(IntImm::Int64(data[i]));
           }
           return ShapeExpr(shape_values);
         }

@@ -100,13 +100,12 @@ class LazyInputMutator : public ExprMutator {
     if (plan_) {
       Var var = ffi::GetRef<Var>(op);
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
-        auto untyped =
-            builder_->Emit(relax::Call(plan_->fget_param,
-                                       {
-                                           PrimValue(IntImm(DataType::Int(64), it->second)),
-                                           StringImm(var->name_hint()),
-                                       }),
-                           var->name_hint() + "_untyped");
+        auto untyped = builder_->Emit(relax::Call(plan_->fget_param,
+                                                  {
+                                                      PrimValue(IntImm::Int64(it->second)),
+                                                      StringImm(var->name_hint()),
+                                                  }),
+                                      var->name_hint() + "_untyped");
         return builder_->EmitMatchCast(untyped, GetStructInfo(var), var->name_hint());
       }
     }
@@ -173,8 +172,7 @@ class LazyOutputMutator : public ExprMutator {
     BindingBlock end_of_func = [&]() {
       ffi::Array<Binding> propagated_params;
       for (const auto& [output_index, expr] : inline_outputs) {
-        Call fset_output_call(fset_output,
-                              {PrimValue(IntImm(DataType::Int(64), output_index)), expr});
+        Call fset_output_call(fset_output, {PrimValue(IntImm::Int64(output_index)), expr});
         Var void_output("_void", TupleStructInfo(ffi::Array<StructInfo>{}));
         propagated_params.push_back(VarBinding(void_output, fset_output_call));
       }
@@ -215,8 +213,7 @@ class LazyOutputMutator : public ExprMutator {
     if (plan_.has_value()) {
       if (auto it = plan_->output_lookup.find(var); it != plan_->output_lookup.end()) {
         for (auto output_index : it->second) {
-          callback(
-              Call(plan_->fset_output, {PrimValue(IntImm(DataType::Int(64), output_index)), var}));
+          callback(Call(plan_->fset_output, {PrimValue(IntImm::Int64(output_index)), var}));
         }
       }
     }

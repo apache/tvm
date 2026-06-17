@@ -625,7 +625,7 @@ class ReverseComputeInliner : public BaseInliner {
         producer_block_(producer_block),
         consumer_block_(consumer_block_realize->block.get()) {
     // Initialize the predicates to ensure consumer block iters are in-bound
-    consumer_iter_in_bound_ = const_true();
+    consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
       consumer_iter_in_bound_ =
           consumer_iter_in_bound_ &&
@@ -726,7 +726,7 @@ class ReverseComputeInliner : public BaseInliner {
     if (producer_block->annotations.count(s_tir::attr::auto_copy) != 0) {
       auto bind = [&](const ForNode* loop) {
         analyzer_->Bind(loop->loop_var,
-                        Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
+                        Range::FromMinExtent(IntImm(loop->extent->dtype, 0), loop->extent));
       };
       const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
       while (producer_inner_loop->body.as<ForNode>()) {
@@ -1288,7 +1288,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   };
 
   // Identity element for reduction (assumed to be 0 for addition-based reductions)
-  PrimExpr identity_elem = tirx::make_zero(epilogue_output_buffer_->dtype);
+  PrimExpr identity_elem = MakeConst(epilogue_output_buffer_->dtype, 0);
 
   // Substitute reduction buffer load with identity element
   InitSubstituter init_subst(inlined_buffer_, identity_elem);

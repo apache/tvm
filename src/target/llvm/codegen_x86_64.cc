@@ -69,7 +69,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
                                    {op->value})),
               MakeValue(tirx::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
-              /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
+              /*rounding-mode=*/MakeValue(IntImm::Int32(4)),
           });
     }
   }

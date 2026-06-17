@@ -368,7 +368,7 @@ class AliasAnalyzer {
 
 // given a shape, return the number of elements corresponding to it (product of elements)
 PrimExpr NumElements(const ShapeExpr& shape) {
-  PrimExpr ret = IntImm(DataType::Int(64), 1);
+  PrimExpr ret = IntImm::Int64(1);
   for (auto dim : shape->values) {
     ret *= dim;
   }
@@ -1063,7 +1063,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
       }
       elem_aliases.push_back(dim_aliases);
     }
-    new_tuple_map.Set(IntImm(DataType::Int(32), kv.first), elem_aliases);
+    new_tuple_map.Set(IntImm::Int32(kv.first), elem_aliases);
   }
   return {new_alias_sets, new_tuple_map};
 }

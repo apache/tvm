@@ -377,7 +377,7 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tirx::make_const(ref_.Eval().dtype(), value_); }
+  PrimExpr Eval() const { return tirx::MakeConst(ref_.Eval().dtype(), value_); }
 
  private:
   typename TA::Nested ref_;

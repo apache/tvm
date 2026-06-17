@@ -237,7 +237,7 @@ CompareResult RewriteSimplifier::Impl::TryComparisonOfProductAndSum(const PrimEx
                    (B * A) + (A + B) * C,
                }
                    .Match(diff)) {
-      return std::tuple{A.Eval(), B.Eval(), C.Eval(), IntImm(DataType::Int(32), -1)};
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), IntImm::Int32(-1)};
     } else {
       return std::nullopt;
     }
@@ -543,7 +543,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
         // applied.
         negation = NormalizeBooleanOperators(Not(subconstraint));
       } else {
-        negation = subconstraint == make_zero(subconstraint.dtype());
+        negation = subconstraint == IntImm(subconstraint.dtype(), 0);
       }
       literal_constraints_.push_back(Not(negation));
     }
@@ -839,7 +839,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if (truncdiv(c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      return make_const(op->dtype, truncdiv(c1val, c2val));
+      return MakeConst(op->dtype, truncdiv(c1val, c2val));
     }
 
     // while it is always true for trunc div
@@ -1019,7 +1019,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     // canonicalization: x % c == x % (-c) for truncated division
     // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(
-        truncmod(x, c1), truncmod(x, PConst<PrimExpr>(make_const(op->dtype, -c1.Eval()->value))),
+        truncmod(x, c1), truncmod(x, PConst<PrimExpr>(MakeConst(op->dtype, -c1.Eval()->value))),
         c1.Eval()->value < 0);
 
     // try modular analysis
@@ -1089,7 +1089,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         floordiv(y + x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      PrimExpr yval = y.EvalOr(IntImm(DataType::Int(32), 0));
+      PrimExpr yval = y.EvalOr(IntImm::Int32(0));
       if (c2val == 0) return ret;
 
       // try eliminate residue part
@@ -1098,8 +1098,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       PrimExpr y_div = CanProveEqual(floordiv(yval, c2val), 0) ? 0 : floordiv(yval, c2val);
       auto bound = analyzer_->const_int_bound(residue);
       if (bound.defined() && bound->max_value == bound->min_value) {
-        return x.Eval() * floordiv(c1val, c2.Eval()) +
-               (y_div + IntImm(DataType::Int(32), bound->max_value));
+        return x.Eval() * floordiv(c1val, c2.Eval()) + (y_div + IntImm::Int32(bound->max_value));
       }
 
       // try simplify divisor
@@ -1687,10 +1686,10 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
   ExprDeepEqual expr_equal;
   for (const auto& constraint : literal_constraints_) {
     if (expr_equal(constraint, expr)) {
-      return make_const(expr->dtype, true);
+      return MakeConst(expr->dtype, true);
     }
     if (expr_equal(constraint, negation)) {
-      return make_const(expr->dtype, false);
+      return MakeConst(expr->dtype, false);
     }
   }
   return std::nullopt;
@@ -1716,7 +1715,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
-  PConst<PrimExpr> ctrue(make_const(ret->dtype, true));
+  PConst<PrimExpr> ctrue(MakeConst(ret->dtype, true));
 
   // vector rule
   if (ret->dtype.is_scalable_or_fixed_length_vector()) {
@@ -1726,10 +1725,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   if (IsIndexType(ret->a.dtype())) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kEQ) {
-      return make_const(ret->dtype, true);
+      return MakeConst(ret->dtype, true);
     } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
                result == CompareResult::kLT) {
-      return make_const(ret->dtype, false);
+      return MakeConst(ret->dtype, false);
     }
     TVM_TRY_REWRITE(c1 == x, x == c1);
 
@@ -1763,9 +1762,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kNE || result == CompareResult::kGT ||
         result == CompareResult::kLT) {
-      return make_const(op->dtype, true);
+      return MakeConst(op->dtype, true);
     } else if (result == CompareResult::kEQ) {
-      return make_const(op->dtype, false);
+      return MakeConst(op->dtype, false);
     } else if (result == CompareResult::kGE) {
       // Known: a >= b
       //
@@ -1807,9 +1806,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kLE || result == CompareResult::kLT ||
         result == CompareResult::kEQ) {
-      return make_const(op->dtype, true);
+      return MakeConst(op->dtype, true);
     } else if (result == CompareResult::kGT) {
-      return make_const(op->dtype, false);
+      return MakeConst(op->dtype, false);
     } else if (result == CompareResult::kNE) {
       // Known: a != b
       //
@@ -1866,11 +1865,11 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   if (IsIndexType(ret->a.dtype())) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kLT) {
-      return make_const(ret->dtype, true);
+      return MakeConst(ret->dtype, true);
     }
     if (result == CompareResult::kEQ || result == CompareResult::kGT ||
         result == CompareResult::kGE) {
-      return make_const(ret->dtype, false);
+      return MakeConst(ret->dtype, false);
     }
 
     // clang-format off
@@ -1988,9 +1987,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       } else if (diff == 1) {
         return lhs <= rhs;
       } else if (diff < 0 && rhs_offset != 0) {
-        return lhs + make_const(lhs.dtype(), -diff) < rhs;
+        return lhs + MakeConst(lhs.dtype(), -diff) < rhs;
       } else if (diff > 0 && lhs_offset != 0) {
-        return lhs < rhs + make_const(rhs.dtype(), diff);
+        return lhs < rhs + MakeConst(rhs.dtype(), diff);
       }
 
       return std::nullopt;
@@ -2105,7 +2104,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
-  auto cfalse = PConst<PrimExpr>(make_const(op->dtype, false));
+  auto cfalse = PConst<PrimExpr>(MakeConst(op->dtype, false));
   TVM_TRY_REWRITE(x == y && x != y, cfalse);
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
@@ -2253,7 +2252,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
-  auto ctrue = PConst<PrimExpr>(make_const(op->dtype, true));
+  auto ctrue = PConst<PrimExpr>(MakeConst(op->dtype, true));
 
   TVM_TRY_REWRITE(x == y || x != y, ctrue);
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
@@ -2342,7 +2341,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(clz_op)) {
     if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
       int bits = arg_int->dtype.bits();
-      if (arg_int->value == 0) return make_const(op->dtype, bits);
+      if (arg_int->value == 0) return MakeConst(op->dtype, bits);
       for (int i = bits - 1; i >= 0; --i) {
         if ((int64_t(1) << i) & arg_int->value) {
           return IntImm(op->dtype, bits - i - 1);

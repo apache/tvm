@@ -135,16 +135,17 @@ TVM_REGISTER_OP("tirx.tanh")
         return TVMExternCall(call, tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::make_const(x.dtype(), 1);
-      PrimExpr two = tirx::make_const(x.dtype(), 2);
-      PrimExpr neg_two = tirx::make_const(x.dtype(), -2);
+      PrimExpr one = tirx::MakeConst(x.dtype(), 1);
+      PrimExpr two = tirx::MakeConst(x.dtype(), 2);
+      PrimExpr neg_two = tirx::MakeConst(x.dtype(), -2);
 
       PrimExpr exp_neg2x = exp(neg_two * x);
       PrimExpr exp_pos2x = exp(two * x);
 
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-      PrimExpr tanh_x = tirx::Select(x >= tirx::make_zero(x.dtype()), tanh_pos, tanh_neg);
+      // MakeConst can handle both vector and scalar types.
+      PrimExpr tanh_x = tirx::Select(x >= tirx::MakeConst(x.dtype(), 0), tanh_pos, tanh_neg);
       return tanh_x;
     });
 
@@ -194,8 +195,8 @@ TVM_REGISTER_OP("tirx.sigmoid")
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
-      PrimExpr MinBound = tirx::make_const(x.dtype(), -8);
-      PrimExpr MaxBound = tirx::make_const(x.dtype(), 8);
+      PrimExpr MinBound = tirx::MakeConst(x.dtype(), -8);
+      PrimExpr MaxBound = tirx::MakeConst(x.dtype(), 8);
       const PrimExpr v1 = tirx::Max(x, MinBound);
       const PrimExpr v2 = tirx::Min(v1, MaxBound);
 
@@ -208,7 +209,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
         return TVMExternCall(new_call.get(), tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::make_const(x.dtype(), 1);
+      PrimExpr one = tirx::MakeConst(x.dtype(), 1);
       return one / (one + exp(-x));
     });
 

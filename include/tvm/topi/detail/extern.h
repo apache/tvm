@@ -108,13 +108,12 @@ inline PrimExpr pack_buffer(Buffer buf) {
   } else {
     strides = 0;
   }
-  ffi::Array<PrimExpr> pack_args{
-      buf->data,
-      shape,
-      strides,
-      make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
-      make_const(buf->dtype, 0),
-      buf->elem_offset};
+  ffi::Array<PrimExpr> pack_args{buf->data,
+                                 shape,
+                                 strides,
+                                 IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
+                                 MakeConst(buf->dtype, 0),
+                                 buf->elem_offset};
   return tvm::tirx::Call(DataType::Handle(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
 }
 

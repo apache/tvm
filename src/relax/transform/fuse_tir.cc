@@ -155,7 +155,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
   arith::AnalyzerObj* analyzer_;
   ffi::Map<tirx::Var, PrimExpr>* var_remap_;
-  PrimExpr must_prove_ = const_true();
+  PrimExpr must_prove_ = IntImm::Bool(true);
 };
 
 /*!
@@ -1021,7 +1021,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, IntImm(DataType::Bool(), 1), Downcast<tirx::SBlock>(body));
+    body = tirx::SBlockRealize({}, IntImm::Bool(true), Downcast<tirx::SBlock>(body));
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                         DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions

@@ -95,7 +95,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
         if (not_zero.size() > 0) {
           auto all_not_zero = all(not_zero);
           return tvm::if_then_else(all_not_zero, x(index_tuple),
-                                   make_const(x->dtype, dilation_value));
+                                   MakeConst(x->dtype, dilation_value));
         }
         return x(index_tuple);
       },

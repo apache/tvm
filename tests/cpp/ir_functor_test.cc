@@ -58,9 +58,9 @@ TEST(IRF, CountVar) {
 TEST(IRF, PreOrderVisit) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Stmt init = IfThenElse(const_true(), Evaluate(IntImm(DataType::Int(32), 0)),
-                         Evaluate(IntImm(DataType::Int(32), 0)));
-  Stmt body = Evaluate(IntImm(DataType::Int(32), 1));
+  Stmt init =
+      IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(0)), Evaluate(IntImm::Int32(0)));
+  Stmt body = Evaluate(IntImm::Int32(1));
   SBlock block(/*iter_vars=*/{}, /*reads=*/{},
                /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
                /*init=*/init);
@@ -176,7 +176,7 @@ TEST(IRF, StmtVisitor) {
     // construct block and block_realize
     SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
                           {match_buffer_region});
-    Stmt block_realize = SBlockRealize({}, const_true(), block);
+    Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
 
     v.count = 0;
     v(block_realize);
@@ -309,7 +309,7 @@ TEST(IRF, StmtMutator) {
     // construct block and block_realize
     SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
                           {match_buffer_region});
-    Stmt block_realize = SBlockRealize({}, const_true(), block);
+    Stmt block_realize = SBlockRealize({}, IntImm::Bool(true), block);
     body = v(std::move(block_realize));
     // the body should be changed
     SBlock new_block = body.as<SBlockRealizeNode>()->block;
@@ -351,7 +351,7 @@ TEST(IRF, Substitute) {
     Var y = x.copy_with_suffix("subst");
     Var m("m", DataType::Int(32));
     Buffer buffer = fmakebuffer();
-    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm(DataType::Int(32), 0)});
+    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer), store});
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
       if (var.same_as(x)) return y;
@@ -370,7 +370,7 @@ TEST(IRF, Substitute) {
   {
     // test identity substitution on expression
     Buffer buffer = fmakebuffer();
-    PrimExpr expr = BufferLoad(buffer, {IntImm(DataType::Int(32), 0)});
+    PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed

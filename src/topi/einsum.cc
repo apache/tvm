@@ -109,7 +109,7 @@ PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) 
     if (extent1_imm->value == extent2_imm->value) {
       return extent1;
     } else if (extent1_imm->value == 1 || extent2_imm->value == 1) {
-      return IntImm(DataType::Int(32), std::max(extent1_imm->value, extent2_imm->value));
+      return IntImm::Int32(std::max(extent1_imm->value, extent2_imm->value));
     }
     TVM_FFI_THROW(InternalError) << "Cannot broadcast extents " << extent1 << " and " << extent2;
     throw;
@@ -127,7 +127,7 @@ PrimExpr GetIndexForBroadcastedDim(const Var& index, const PrimExpr& extent,
   // Check if current dimension is being broadcasted to `broadcasted_extent` (symbolic shape is
   // handled)
   if (is_one(extent) && !is_one(broadcasted_extent)) {
-    return make_zero(index.dtype());
+    return IntImm(index.dtype(), 0);
   }
   return index;
 }
@@ -219,7 +219,7 @@ class EinsumBuilder {
     PrepareOutputIndicesMapping(indices, &label_to_index, &ellipsis_indices);
     PrepareReductionIndicesMapping(indices, &label_to_index, &ellipsis_indices, &reduce_axes);
 
-    auto zero = make_zero(inputs[0]->dtype);
+    auto zero = MakeConst(inputs[0]->dtype, 0);
 
     PrimExpr result = zero;
     for (int i = 0, n = static_cast<int>(inputs.size()); i < n; ++i) {

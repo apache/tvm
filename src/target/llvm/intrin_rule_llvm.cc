@@ -122,12 +122,11 @@ using tirx::FLegalize;
 
 TVM_REGISTER_OP("tirx.exp10")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
-      using tirx::make_zero;
+      using tirx::MakeConst;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
-      PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
+      PrimExpr ln10 = MakeConst(x.dtype(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
       return ret;
     });
@@ -159,12 +158,12 @@ TVM_REGISTER_OP("tirx.acos")
 
 TVM_REGISTER_OP("tirx.atanh")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
+      using tirx::MakeConst;
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
       const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1.0);
-      return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
+      PrimExpr one = MakeConst(x.dtype(), 1.0);
+      return (log(one + x) - log(one - x)) * MakeConst(x.dtype(), 0.5);
     });
 
 TVM_REGISTER_OP("tirx.clz")

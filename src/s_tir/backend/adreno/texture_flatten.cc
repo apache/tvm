@@ -58,7 +58,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
   inline PrimExpr SimplifyOffset(const ffi::Array<PrimExpr>& shape,
                                  const ffi::Array<PrimExpr>& index) const {
-    PrimExpr base = make_const(DataType::Int(32), 0);
+    PrimExpr base = IntImm::Int32(0);
     TVM_FFI_ICHECK_EQ(shape.size(), index.size());
     if (index.size() > 0) {
       PrimExpr offset = index[0];

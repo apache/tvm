@@ -465,14 +465,14 @@ class AutoPadder {
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
       PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
-          return IntImm(DataType::Int(32), 0);
+          return IntImm::Int32(0);
         } else {
           return v;
         }
       });
       PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
-          return IntImm(DataType::Int(32), 1);
+          return IntImm::Int32(1);
         } else {
           return v;
         }
@@ -487,8 +487,7 @@ class AutoPadder {
       } else {
         int64_t extent =
             warp_thread_extent_.Get(op->thread_binding.value()->thread_tag).value_or(1);
-        var_range_.Set(op->loop_var,
-                       Range::FromMinExtent(op->min, IntImm(DataType::Int(64), extent)));
+        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
         vector_var = op->loop_var;

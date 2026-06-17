@@ -63,8 +63,8 @@ DataType DetermineDatatype(const arith::IntSet& range) {
   if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
     return DataType::Int(32);
   } else {
-    TVM_FFI_ICHECK(ana->CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
-                                 range.max() <= make_const(DataType::Int(64), INT64_MAX)));
+    TVM_FFI_ICHECK(ana->CanProve(range.min() >= IntImm::Int64(INT64_MIN) &&
+                                 range.max() <= IntImm::Int64(INT64_MAX)));
     return DataType::Int(64);
   }
 }
@@ -297,14 +297,14 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
       Var var("v" + std::to_string(access_indices.size()), block_var.dtype());
-      Range range = Range::FromMinExtent(make_zero(block_var.dtype()),
+      Range range = Range::FromMinExtent(IntImm(block_var.dtype(), 0),
                                          info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
 
       access_indices.push_back(var);
-      access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
+      access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
       block_var_map.Set(block_var, var);
     }
 
@@ -324,7 +324,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     blocks.push_back(block);
     // Create the block realize node
     Stmt body = SBlockRealize(/*values=*/iter_values,
-                              /*predicate=*/const_true(),
+                              /*predicate=*/IntImm::Bool(true),
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {

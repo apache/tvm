@@ -276,9 +276,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    Buffer new_buf(op->buffer->data, op->buffer->dtype,
-                   {make_const(DataType::Int(32), alloc_size / width_)}, {}, PrimExpr(),
-                   op->buffer->data->name_hint, 0, 0, BufferType::kDefault);
+    Buffer new_buf(op->buffer->data, op->buffer->dtype, {IntImm::Int32(alloc_size / width_)}, {},
+                   PrimExpr(), op->buffer->data->name_hint, 0, 0, BufferType::kDefault);
     Stmt rewritten_body = this->VisitStmt(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }
@@ -406,10 +405,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
       TVM_FFI_ICHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
+      local_index = Ramp(local_index, MakeConst(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
-    PrimExpr m = make_const(index.dtype(), warp_coeff_);
+    PrimExpr m = MakeConst(index.dtype(), warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -418,9 +417,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return std::make_pair(x, z);
     } else {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
-      PrimExpr y = index / make_const(index.dtype(), warp_coeff_ * width_);
+      PrimExpr y = index / MakeConst(index.dtype(), warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * width_)), m);
+      PrimExpr z = indexdiv(indexmod(index, MakeConst(index.dtype(), warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
   }

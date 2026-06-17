@@ -91,7 +91,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     auto it = pool_sizes_.find(op->buffer->data);
     if (it != pool_sizes_.end()) {
       auto* n = alloc_buf.CopyOnWrite();
-      n->shape = {IntImm(DataType::Int(64), it->second)};
+      n->shape = {IntImm::Int64(it->second)};
     }
     if (alloc_buf.same_as(op->buffer)) {
       return stmt;

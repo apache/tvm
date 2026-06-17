@@ -158,8 +158,8 @@ class LoopHeightError : public ScheduleError {
 };
 
 PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
-  if (is_one(pred)) return const_true();
-  PrimExpr new_pred = const_true();
+  if (is_one(pred)) return IntImm::Bool(true);
+  PrimExpr new_pred = IntImm::Bool(true);
   auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
   arith::PVar<PrimExpr> lhs, rhs, rest;
   for (;;) {
@@ -318,7 +318,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{x[0] + y[0]};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, 0)};
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, 0)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/1,
@@ -326,7 +326,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{x[0] * y[0]};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, 1)};
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, 1)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/1,
@@ -350,8 +350,8 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{x[0] + y[0], x[1] + y[1]};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, 0),
-                                              make_const(values[1]->dtype, 0)};
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, 0),
+                                              MakeConst(values[1]->dtype, 0)};
                 }),
             CreateReducerGetter(
                 /*n_buffers=*/2,
@@ -361,7 +361,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, -1),
                                               min_value(values[1]->dtype)};
                 }),
             CreateReducerGetter(
@@ -374,7 +374,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, -1),
                                               min_value(values[1]->dtype)};
                 }),
             CreateReducerGetter(
@@ -385,7 +385,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, -1),
                                               max_value(values[1]->dtype)};
                 }),
             CreateReducerGetter(
@@ -397,7 +397,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                  return ffi::Array<PrimExpr>{MakeConst(values[0]->dtype, -1),
                                               max_value(values[1]->dtype)};
                 })} {}
 
@@ -693,7 +693,7 @@ class BaseBlockCreator {
     CreateReadWriteRegions();
 
     ffi::String new_block_name = old_block_realize_->block->name_hint;
-    PrimExpr predicate = const_true();
+    PrimExpr predicate = IntImm::Bool(true);
     if (is_rf_block_) {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
@@ -930,9 +930,9 @@ class RFactorBlockCreator : public BaseBlockCreator {
     write_regions_.reserve(old_block->writes.size());
     for (const BufferRegion& write_region : old_block->writes) {
       ffi::Array<Range> region = write_region->region;
-      region.insert(region.begin() + factor_axis_,
-                    Range::FromMinExtent(additional_iter_->var,
-                                         make_const(additional_iter_->var.dtype(), 1)));
+      region.insert(
+          region.begin() + factor_axis_,
+          Range::FromMinExtent(additional_iter_->var, MakeConst(additional_iter_->var.dtype(), 1)));
       ffi::Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
       TVM_FFI_ICHECK(rf_buffer.defined());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
@@ -1025,7 +1025,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       ffi::Array<Range> region;
       region.reserve(buf_load->indices.size());
       for (const PrimExpr& index : buf_load->indices) {
-        region.push_back(Range::FromMinExtent(index, make_const(index.dtype(), 1)));
+        region.push_back(Range::FromMinExtent(index, MakeConst(index.dtype(), 1)));
       }
       buf_regions.push_back(BufferRegion(buf_load->buffer, std::move(region)));
     }

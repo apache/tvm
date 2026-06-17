@@ -102,7 +102,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
       data->op->name + "_sum", kCommReduce);
 
   DataType reduce_dtype = is_float16 ? DataType::Float(32) : data->dtype;
-  PrimExpr reduce_extent = make_const(reduce_dtype, 1);
+  PrimExpr reduce_extent = MakeConst(reduce_dtype, 1);
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
@@ -138,7 +138,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     }
     auto mean = temp_mean(non_reduce_indices);
     auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
-    auto layer_norm = (data(indices) - mean) * rsqrt(var + make_const(var->dtype, epsilon));
+    auto layer_norm = (data(indices) - mean) * rsqrt(var + MakeConst(var->dtype, epsilon));
     if (is_float16) {
       layer_norm = Cast(DataType::Float(16), layer_norm);
     }

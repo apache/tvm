@@ -152,9 +152,9 @@ TEST(NestedMsg, MapAndDecompose) {
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
   relax::Expr t1 = bb->Normalize(Tuple({t0, x, z, t0}));
 
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   auto output = MapToNestedMsg<IntImm>(t1, [&](Expr value) {
     if (value.same_as(x)) return c0;
@@ -226,9 +226,9 @@ TEST(NestedMsg, NestedMsgToExpr) {
   auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
   auto sf1 = TupleStructInfo({sf0, sf0});
 
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   relax::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
@@ -257,9 +257,9 @@ TEST(NestedMsg, NestedMsgToExpr) {
 }
 
 TEST(NestedMsg, CombineNestedMsg) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   NestedMsg<IntImm> lhs = {c0, {c0, c1}, std::nullopt, {c0, {c1, c2}}};
   NestedMsg<IntImm> rhs = {c1, {c2, std::nullopt}, std::nullopt, {c1, {c2, c2}}};
@@ -275,17 +275,17 @@ TEST(NestedMsg, CombineNestedMsg) {
 }
 
 TEST(NestedMsg, MapNestedMsg) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
-  auto c3 = IntImm(DataType::Int(32), 3);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
+  auto c3 = IntImm::Int32(3);
 
   NestedMsg<IntImm> msg = {c0, {c0, c1}, std::nullopt, {c0, {c2, c1}}};
   NestedMsg<IntImm> expected = {c3, {c3, std::nullopt}, std::nullopt, {c3, {c2, std::nullopt}}};
 
   auto output = MapNestedMsg(msg, [](IntImm x) {
     if (x->value == 0) {
-      return NestedMsg<IntImm>(IntImm(DataType::Int(32), 3));
+      return NestedMsg<IntImm>(IntImm::Int32(3));
     } else if (x->value == 1) {
       return NestedMsg<IntImm>();
     } else {
@@ -298,9 +298,9 @@ TEST(NestedMsg, MapNestedMsg) {
 }
 
 TEST(NestedMsg, TransformTupleLeaf) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
   using NInt = NestedMsg<IntImm>;
 
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};

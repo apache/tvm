@@ -139,36 +139,35 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              return {sch};
            })
-      .def("s_tir.meta_schedule.cuda.conv2d_nchw_winograd_inverse",
-           [](Schedule sch, SBlockRV inverse) -> ffi::Array<Schedule> {
-             GetWinogradProducerAndInlineConst(sch, inverse);
-             // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
-             int64_t tile_size =
-                 Downcast<IntImm>(sch->Get(inverse)->writes[0]->buffer->shape[2])->value;
-             LoopRV outer{ffi::UnsafeInit()};
-             {
-               SBlockRV output = sch->GetConsumers(inverse)[0];
-               ffi::Array<LoopRV> nchw = sch->GetLoops(output);
-               TVM_FFI_ICHECK_EQ(nchw.size(), 4);
-               ffi::Array<LoopRV> hs =
-                   sch->Split(nchw[2], {std::nullopt, IntImm(DataType::Int(32), tile_size)});
-               ffi::Array<LoopRV> ws =
-                   sch->Split(nchw[3], {std::nullopt, IntImm(DataType::Int(32), tile_size)});
-               sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
-               outer = ws[0];
-             }
-             {
-               sch->ComputeAt(inverse, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
-               sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
-               ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
-               TVM_FFI_ICHECK_EQ(loops.size(), 10);
-               sch->Unroll(loops[6]);
-               sch->Unroll(loops[7]);
-               sch->Unroll(loops[8]);
-               sch->Unroll(loops[9]);
-             }
-             return {sch};
-           });
+      .def(
+          "s_tir.meta_schedule.cuda.conv2d_nchw_winograd_inverse",
+          [](Schedule sch, SBlockRV inverse) -> ffi::Array<Schedule> {
+            GetWinogradProducerAndInlineConst(sch, inverse);
+            // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
+            int64_t tile_size =
+                Downcast<IntImm>(sch->Get(inverse)->writes[0]->buffer->shape[2])->value;
+            LoopRV outer{ffi::UnsafeInit()};
+            {
+              SBlockRV output = sch->GetConsumers(inverse)[0];
+              ffi::Array<LoopRV> nchw = sch->GetLoops(output);
+              TVM_FFI_ICHECK_EQ(nchw.size(), 4);
+              ffi::Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, IntImm::Int32(tile_size)});
+              ffi::Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, IntImm::Int32(tile_size)});
+              sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
+              outer = ws[0];
+            }
+            {
+              sch->ComputeAt(inverse, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
+              sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
+              ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
+              TVM_FFI_ICHECK_EQ(loops.size(), 10);
+              sch->Unroll(loops[6]);
+              sch->Unroll(loops[7]);
+              sch->Unroll(loops[8]);
+              sch->Unroll(loops[9]);
+            }
+            return {sch};
+          });
 }
 
 }  // namespace meta_schedule

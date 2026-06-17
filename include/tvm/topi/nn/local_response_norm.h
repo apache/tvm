@@ -79,9 +79,9 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
         },
         "tensor", "sqr_sum");
   }
-  PrimExpr alpha_imm = tvm::te::make_const(data->dtype, alpha);
-  PrimExpr beta_imm = tvm::te::make_const(data->dtype, beta);
-  PrimExpr bias_imm = tvm::te::make_const(data->dtype, bias);
+  PrimExpr alpha_imm = tvm::te::MakeConst(data->dtype, alpha);
+  PrimExpr beta_imm = tvm::te::MakeConst(data->dtype, beta);
+  PrimExpr bias_imm = tvm::te::MakeConst(data->dtype, bias);
   auto sqrt_sum_up = tvm::te::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {

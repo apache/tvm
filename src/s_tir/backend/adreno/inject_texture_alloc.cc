@@ -78,10 +78,10 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm(DataType::Int(64), 3));
+      args.push_back(IntImm::Int64(3));
       args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
-      args.push_back(IntImm(DataType::Int(64), channel_size));
+      args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->buffer->data,
                   Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args));
     }

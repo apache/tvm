@@ -133,8 +133,8 @@ TVM_REGISTER_OP("tirx.tvm_access_ptr")
       PrimExpr offset = call->args[2];
       TVM_FFI_ICHECK(call->dtype.is_handle());
       if (dtype.lanes() != 1) {
-        offset = offset * make_const(offset.dtype(), dtype.lanes());
-        offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
+        offset = offset * MakeConst(offset.dtype(), dtype.lanes());
+        offset = Ramp(offset, MakeConst(offset.dtype(), 1), dtype.lanes());
       }
       Buffer dummy_buf(buffer_var, dtype.element_of(), {offset + 1}, {}, 0, buffer_var->name_hint,
                        0, 0, kDefault);
@@ -159,21 +159,21 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
 }
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
-  using tirx::make_const;
-  using tirx::make_zero;
+  using tirx::MakeConst;
   const tirx::CallNode* call = e.as<tirx::CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
-  PrimExpr one = make_const(x.dtype(), 1);
-  PrimExpr two = make_const(x.dtype(), 2);
-  PrimExpr neg_two = make_const(x.dtype(), -2);
+  PrimExpr one = MakeConst(x.dtype(), 1);
+  PrimExpr two = MakeConst(x.dtype(), 2);
+  PrimExpr neg_two = MakeConst(x.dtype(), -2);
 
   PrimExpr exp_neg2x = exp(neg_two * x);
   PrimExpr exp_pos2x = exp(two * x);
 
   PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-  return tirx::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+  // MakeConst can handle both vector and scalar types.
+  return tirx::Select(x >= MakeConst(x.dtype(), 0), tanh_pos, tanh_neg);
 }
 
 }  // namespace intrin
@@ -186,7 +186,7 @@ TVM_REGISTER_OP("tirx.rsqrt")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = make_const(call->args[0].dtype(), 1);
+      auto one = MakeConst(call->args[0].dtype(), 1);
       return one / sqrt(call->args[0]);
     });
 
@@ -194,7 +194,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = make_const(call->args[0].dtype(), 1);
+      auto one = MakeConst(call->args[0].dtype(), 1);
       return one / (one + exp(-call->args[0]));
     });
 
@@ -236,7 +236,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
   DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
 
   // 1) Cast and Multiply the integer multiplier
-  PrimExpr one = make_const(hp_dtype, 1);
+  PrimExpr one = MakeConst(hp_dtype, 1);
   x = cast(hp_dtype, x);
   y = cast(hp_dtype, y);
   x = tirx::Select(is_left_shift_required, x << left_shift, x);
@@ -258,7 +258,7 @@ static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left
 
 TVM_REGISTER_OP("tirx.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tirx::make_const;
+      using tirx::MakeConst;
 
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
@@ -291,7 +291,7 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
         } else {
           // power of 2 is less than 0, round and then apply right shift.
           DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
-          PrimExpr one = make_const(lp_dtype, 1);
+          PrimExpr one = MakeConst(lp_dtype, 1);
           exp = -exp;
           PrimExpr rounding_factor = one << (exp - 1);
           PrimExpr rounded_t = x + rounding_factor;
@@ -301,8 +301,8 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
         // Only int32 types are supported (any number of lanes is allowed)
         TVM_FFI_ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
-        // Calculating integer shifts
-        PrimExpr zero = make_const(s.dtype(), 0);
+        // Calculating integer shifts. MakeConst can handle both vector and scalar types.
+        PrimExpr zero = MakeConst(s.dtype(), 0);
         PrimExpr left_shift = tirx::Select(s > zero, s, zero);
         PrimExpr right_shift = tirx::Select(s > zero, zero, -s);
         PrimExpr is_left_shift_required = (left_shift != zero);

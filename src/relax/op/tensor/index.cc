@@ -387,7 +387,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
 
       strides_tuple = opt_strides_tuple.value();
     } else {
-      strides_tuple = ffi::Array<PrimExpr>(axes_tuple.size(), IntImm(DataType::Int(64), 1));
+      strides_tuple = ffi::Array<PrimExpr>(axes_tuple.size(), IntImm::Int64(1));
     }
 
     TVM_FFI_ICHECK_EQ(axes_tuple.size(), strides_tuple.size())
@@ -475,7 +475,7 @@ InferLayoutOutput InferLayoutStridedSlice(
   }
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs,
-                           {{IntImm(DataType::Int(32), 1), relax::Tuple(new_axes)}});
+                           {{IntImm::Int32(1), relax::Tuple(new_axes)}});
 }
 
 TVM_REGISTER_OP("relax.strided_slice")

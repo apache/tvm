@@ -799,7 +799,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   TVM_FFI_ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
 
-  PrimExpr constraint = IntImm(DataType::Bool(), 1);
+  PrimExpr constraint = IntImm::Bool(true);
   if (params.defined()) {
     auto non_negative_expressions =
         CollectNonNegativeExpressions(TupleStructInfo(params.value().Map(GetStructInfo)));

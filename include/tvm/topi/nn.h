@@ -57,7 +57,7 @@ inline tvm::te::Tensor relu(const tvm::te::Tensor& t, T threshold = static_cast<
   return tvm::te::compute(
       t->shape,
       [&](const tvm::ffi::Array<tvm::tirx::Var>& i) {
-        auto threshold_const = tvm::tirx::make_const(t->dtype, threshold);
+        auto threshold_const = tvm::tirx::MakeConst(t->dtype, threshold);
         return tvm::max(t(i), threshold_const);
       },
       name, tag);
@@ -80,7 +80,7 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
       t->shape,
       [&](const tvm::ffi::Array<tvm::tirx::Var>& i) {
         auto value = t(i);
-        auto calpha = tvm::tirx::make_const(value.dtype(), alpha);
+        auto calpha = tvm::tirx::MakeConst(value.dtype(), alpha);
         return tvm::tirx::Select(value > 0, value, value * calpha);
       },
       name, tag);
@@ -194,7 +194,7 @@ inline tvm::te::Tensor pad(
   }
 
   if (!pad_value.defined()) {
-    pad_value = tvm::tirx::make_const(t->dtype, 0);
+    pad_value = tvm::tirx::MakeConst(t->dtype, 0);
   }
 
   auto l = [&](tvm::ffi::Array<tvm::tirx::Var> ovars) {
@@ -232,12 +232,12 @@ inline tvm::te::Tensor pad(
       if (pad_mode == "constant") {
         return tvm::if_then_else(
             foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
-                  const_true(1), sel),
+                  IntImm::Bool(true), sel),
             t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
             foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
-                  const_true(1), sel),
+                  IntImm::Bool(true), sel),
             t(indices), t(pad_idx));
       }
     }
@@ -507,7 +507,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
 
   // pad the input with paddings provided
   if (!pad_value.defined()) {
-    pad_value = tvm::tirx::make_const(data->dtype, 0);
+    pad_value = tvm::tirx::MakeConst(data->dtype, 0);
   }
   padded_t = pad(data, pad_before_int32, pad_after_int32, pad_value);
 
@@ -534,7 +534,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
         << padded_input << ")"
         << " must be divisible by its block size (" << block_size << ")";
 
-    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
     r_shape.push_back(div(padded_shape[i], bs));
     r_shape.push_back(bs);
     block_shape_prod *= bs;
@@ -549,7 +549,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   }
   o_shape.push_back(tvm::PrimExpr(batch) * block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
     o_shape.push_back(div(padded_shape[i], bs));
   }
   // append remaining shape
@@ -595,7 +595,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   int batch = static_cast<int>(GetConstInt(in_shape[0]));
 
   for (size_t i = 0; i < num_block_dims; i++) {
-    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i]);
+    PrimExpr bs = IntImm::Int64(block_shape[i]);
     r_shape.push_back(bs);
     block_shape_prod *= bs;
   }
@@ -614,7 +614,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   ffi::Array<PrimExpr> r_p_shape;
   r_p_shape.push_back(batch / block_shape_prod);
   for (size_t i = 1; i <= num_block_dims; i++) {
-    PrimExpr bs = IntImm(DataType::Int(64), block_shape[i - 1]);
+    PrimExpr bs = IntImm::Int64(block_shape[i - 1]);
     r_p_shape.push_back(in_shape[i] * bs);
   }
   for (size_t i = num_block_dims + 1; i < num_input_dims; i++) {
@@ -677,7 +677,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
           auto c = targets();
           return tvm::tirx::Select(c != ignore_index, -predictions(c) * weights(c),
-                                   tvm::tirx::make_const(predictions->dtype, 0));
+                                   tvm::tirx::MakeConst(predictions->dtype, 0));
         },
         name, tag);
     if (reduction == "mean") {
@@ -686,7 +686,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
             auto c = targets();
             return tvm::tirx::Select(c != ignore_index, weights(c),
-                                     tvm::tirx::make_const(predictions->dtype, 0));
+                                     tvm::tirx::MakeConst(predictions->dtype, 0));
           },
           name, tag);
       return topi::divide(T, W);
@@ -705,7 +705,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
           pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
         }
         return tvm::tirx::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
-                                 tvm::tirx::make_const(predictions->dtype, 0));
+                                 tvm::tirx::MakeConst(predictions->dtype, 0));
       },
       name, tag);
   TVM_FFI_ICHECK(T->shape.size() != 0);
@@ -715,7 +715,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
         [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
           auto c = targets(target_indices);
           return tvm::tirx::Select(c != ignore_index, weights(c),
-                                   tvm::tirx::make_const(predictions->dtype, 0));
+                                   tvm::tirx::MakeConst(predictions->dtype, 0));
         },
         name, tag);
     return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),

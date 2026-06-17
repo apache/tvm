@@ -82,9 +82,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
  private:
   int64_t NewRegister() { return registers_num_++; }
 
-  static IntImm ConstInt64(int64_t value) { return IntImm(DataType::Int(64), value); }
+  static IntImm ConstInt64(int64_t value) { return IntImm::Int64(value); }
 
-  static IntImm ConstInt32(int64_t value) { return IntImm(DataType::Int(32), value); }
+  static IntImm ConstInt32(int64_t value) { return IntImm::Int32(value); }
 
   PrimExpr RegListGet(int64_t slot) const {
     // use 128 bits to represent any
@@ -231,8 +231,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     Call call = ffi::GetRef<Call>(call_node);
 
     if (call_node->op == null_value_op_) {
-      return tirx::Call(DataType::Handle(), tirx::builtin::reinterpret(),
-                        {IntImm(DataType::Int(64), 0)});
+      return tirx::Call(DataType::Handle(), tirx::builtin::reinterpret(), {IntImm::Int64(0)});
     }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {

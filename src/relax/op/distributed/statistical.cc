@@ -68,7 +68,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
-      out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
+      out_shape.push_back(IntImm::Int64(/*value=*/1));
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);

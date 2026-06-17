@@ -168,11 +168,11 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckConcatOutputShape(
       return structural_equal(a[axis], first_concat_dim);
     });
     if (all_same) {
-      return first_concat_dim * IntImm(DataType::Int(64), shape_values.size());
+      return first_concat_dim * IntImm::Int64(shape_values.size());
     }
 
     // General case, add up the dimensions along the specified axis.
-    PrimExpr concat_sum = IntImm(DataType::Int(64), 0);
+    PrimExpr concat_sum = IntImm::Int64(0);
     for (ffi::Array<PrimExpr> shape_value : shape_values) {
       concat_sum += shape_value[axis];
     }
@@ -439,7 +439,7 @@ StructInfo InferStructInfoExpandDims(const Call& call, const BlockBuilder& ctx) 
   std::vector<PrimExpr> output_shape;
   output_shape.resize(output_ndim, PrimExpr());
   for (int i = 0; i < n_new_dim; ++i) {
-    output_shape[axes[i]] = IntImm(DataType::Int(64), 1);
+    output_shape[axes[i]] = IntImm::Int64(1);
   }
 
   int i_data_shape = 0;
@@ -507,7 +507,7 @@ TVM_REGISTER_OP("relax.expand_dims")
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
-  PrimExpr shape_prod = IntImm(DataType::Int(64), 1);
+  PrimExpr shape_prod = IntImm::Int64(1);
   for (PrimExpr value : shape_values) {
     shape_prod *= value;
   }
@@ -623,7 +623,7 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     // initialise broadcast result with 1's
     ffi::Array<PrimExpr> out_shape;
     for (int i = 0; i < max_index_ndim; ++i) {
-      out_shape.push_back(IntImm(DataType::Int(64), 1));
+      out_shape.push_back(IntImm::Int64(1));
     }
 
     for (const auto& ishape : index_shapes) {
@@ -973,7 +973,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 
   // Set any -1 dimensions to complete the number of appropriate elements.
   // Start by computing the shape product of all positive indices.
-  PrimExpr new_shape_prod = IntImm(DataType::Int(64), 1);
+  PrimExpr new_shape_prod = IntImm::Int64(1);
   for (int i = 0; i < static_cast<int>(array_ref.size()); ++i) {
     PrimExpr new_dim = array_ref[i];
     const auto* int_dim = new_dim.as<IntImmNode>();
@@ -1076,7 +1076,7 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
         << "Split op expects the input number of sections to be a "
            "positive integer. However, the given number of sections is "
         << n_section->value;
-    indices_or_sections_obj = IntImm(DataType::Int(64), n_section->value);
+    indices_or_sections_obj = IntImm::Int64(n_section->value);
   } else {
     TVM_FFI_THROW(InternalError)
         << "Split op expects the input indices_or_sections to be either an Array of "
@@ -1478,7 +1478,7 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckStackOutputShape(
   for (int i = 0; i < axis; ++i) {
     output_shape.push_back(shape_values[0][i]);
   }
-  output_shape.push_back(IntImm(DataType::Int(64), shape_values.size()));  // Stack dimension
+  output_shape.push_back(IntImm::Int64(shape_values.size()));  // Stack dimension
   for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
     output_shape.push_back(shape_values[0][i]);
   }
@@ -1920,11 +1920,10 @@ StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
     if (i < l_delta) {
       out_shape.push_back(data_shape->values[i - ndim_delta]);
     } else if (i < ndim_delta) {
-      out_shape.push_back(IntImm(DataType::Int(64), attrs->repeats[i - l_delta]));
+      out_shape.push_back(IntImm::Int64(attrs->repeats[i - l_delta]));
     } else {
-      out_shape.push_back(
-          analyzer->Simplify(data_shape->values[i - ndim_delta] *
-                             IntImm(DataType::Int(64), attrs->repeats[i - l_delta])));
+      out_shape.push_back(analyzer->Simplify(data_shape->values[i - ndim_delta] *
+                                             IntImm::Int64(attrs->repeats[i - l_delta])));
     }
   }
 
