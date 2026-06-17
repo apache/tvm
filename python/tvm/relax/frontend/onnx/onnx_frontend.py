@@ -3524,7 +3524,7 @@ class BatchNormalization(OnnxOpConverter):
             axis=1,
             epsilon=epsilon,
             momentum=momentum,
-            training=training_mode,
+            training=bool(training_mode),
         )
 
 

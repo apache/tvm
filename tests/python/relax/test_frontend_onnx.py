@@ -4187,6 +4187,38 @@ def test_batch_norm():
     check_correctness(model, opset=15)
 
 
+def test_batch_norm_defaults_to_inference_mode():
+    batch_norm_node = helper.make_node(
+        "BatchNormalization", ["x", "s", "bias", "mean", "var"], ["y"], epsilon=1e-2
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "batch_norm_inference_attr_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4, 5]),
+            helper.make_tensor_value_info("s", TensorProto.FLOAT, [3]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [3]),
+            helper.make_tensor_value_info("mean", TensorProto.FLOAT, [3]),
+            helper.make_tensor_value_info("var", TensorProto.FLOAT, [3]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4, 5])],
+    )
+    model = helper.make_model(graph, producer_name="batch_norm_inference_attr_test")
+    model.opset_import[0].version = 15
+
+    tvm_model = from_onnx(model, opset=15, keep_params_in_input=True)
+    batch_norm_attrs = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_attrs.append(expr.attrs)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_attrs) == 1
+    assert batch_norm_attrs[0].training is False
+
+
 @pytest.mark.parametrize("pool_name", ["MaxPool", "AveragePool", "LpPool"])
 @pytest.mark.parametrize(
     "shape, auto_pad, kernel_shape, strides, pads",
