@@ -4082,6 +4082,285 @@ def _run_no_input_module(mod):
     return _run_module(mod)
 
 
+def _complex64_to_pair(value):
+    value = np.asarray(value, dtype=np.complex64)
+    return np.stack([value.real, value.imag], axis=-1).astype("float32")
+
+
+def _build_tflite_rfft2d_model(*, input_shape, fft_length, output_shape):
+    """Build a minimal TFLite RFFT2D model."""
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_builtin_operator("RFFT2D")
+    op_code = _build_operator_code(builder, builtin_op)
+    tensors = [
+        _build_tensor(builder, 0, input_shape, tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, output_shape, tensor_type=_tfl_tensor_type.COMPLEX64),
+    ]
+    op = _build_operator(builder, 0, [0, 1], [2])
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[2])
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array(fft_length, dtype=np.int32).tobytes()),
+        _build_buffer(builder),
+    ]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_rfft2d_static_pair_output():
+    """TFLite RFFT2D emits a call_tir kernel with float32 real/imag pair output."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[2, 4],
+            fft_length=[2, 4],
+            output_shape=[2, 3],
+        )
+    )
+
+    mod_script = mod.script()
+    assert "tflite_rfft2d" in mod_script
+    assert "R.call_tir" in mod_script
+    assert 'R.Tensor((2, 3, 2), dtype="float32")' in mod_script
+
+    data = np.array([[1.0, -2.0, 3.0, 4.0], [5.0, 6.0, -7.0, 8.0]], dtype="float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    # atol accommodates the float32 reference kernel: numpy's rfft2 internally uses
+    # float64, while the reference TIR kernel accumulates in float32 (see
+    # _build_tflite_rfft2d_primfunc docstring).
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_rfft2d_static_pair_output_with_batch():
+    """RFFT2D computes over the last two axes and preserves leading batch dimensions."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[2, 2, 4],
+            fft_length=[2, 4],
+            output_shape=[2, 2, 3],
+        )
+    )
+
+    data = np.array(
+        [
+            [[1.0, -2.0, 3.0, 4.0], [5.0, 6.0, -7.0, 8.0]],
+            [[-1.0, 2.0, 0.5, -4.0], [3.5, -6.0, 7.0, 1.0]],
+        ],
+        dtype="float32",
+    )
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_rfft2d_odd_width_pair_output():
+    """RFFT2D handles odd width: output has width//2 + 1 bins (TFLite convention)."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[3, 5],
+            fft_length=[3, 5],
+            output_shape=[3, 3],  # 5 // 2 + 1 = 3
+        )
+    )
+
+    data = np.array(
+        [[1.0, -2.0, 3.0, 4.0, -5.0], [0.5, 6.0, -7.0, 8.0, 2.5], [-1.5, 4.0, 0.0, -3.0, 1.0]],
+        dtype="float32",
+    )
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    # atol accommodates the float32 reference kernel (see
+    # _build_tflite_rfft2d_primfunc docstring).
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_rfft2d_int64_fft_length():
+    """RFFT2D accepts INT64 fft_length constant (TFLite schema allows either int32 or int64)."""
+    builder = flatbuffers.Builder(1024)
+    rfft_op_code = _build_operator_code(builder, _get_builtin_operator("RFFT2D"))
+    tensors = [
+        _build_tensor(builder, 0, [2, 4], tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT64),
+        _build_tensor(builder, 2, [2, 3], tensor_type=_tfl_tensor_type.COMPLEX64),
+    ]
+    op = _build_operator(builder, 0, [0, 1], [2])
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[2])
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, np.array([2, 4], dtype=np.int64).tobytes()),
+        _build_buffer(builder),
+    ]
+    buf = _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[rfft_op_code], buffers=buffers
+    )
+    mod = _load_model_from_buffer(buf)
+
+    data = np.array([[1.0, -2.0, 3.0, 4.0], [5.0, 6.0, -7.0, 8.0]], dtype="float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_rfft2d_4d_input_pair_output():
+    """RFFT2D accepts 4D input and preserves leading batch dimensions."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[2, 3, 4, 5],  # batch=6, H=4, W=5
+            fft_length=[4, 5],
+            output_shape=[2, 3, 4, 3],  # 5 // 2 + 1 = 3
+        )
+    )
+
+    rng = np.random.RandomState(0)
+    data = (rng.randn(2, 3, 4, 5) * 0.5).astype("float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    # 4D test accumulates 20 inner terms per output; use a slightly larger atol
+    # than the 2D case (which accumulates 4-8 terms).
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-4
+    )
+
+
+def test_rfft2d_minimal_1x1_pair_output():
+    """RFFT2D on a [1, 1] input: the only output is the DC component (sum of inputs)."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[1, 1],
+            fft_length=[1, 1],
+            output_shape=[1, 1],
+        )
+    )
+
+    data = np.array([[3.5]], dtype="float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_rfft2d_fft_path_8x8():
+    """RFFT2D on a square 8x8 input exercises the Cooley-Tukey FFT dispatch path."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[8, 8],
+            fft_length=[8, 8],
+            output_shape=[8, 5],
+        )
+    )
+
+    np.random.seed(0xCAFE)
+    data = np.random.randn(8, 8).astype("float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    # The FFT path uses float32 twiddles (cos/sin) and float32 butterfly
+    # accumulation, so the error vs. numpy's float64 reference is in the
+    # 1e-4 range on these random inputs.
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-4, atol=1e-4
+    )
+
+
+def test_rfft2d_fft_path_4x4():
+    """RFFT2D on a 4x4 input: smallest case where both row and column FFTs do real work."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[4, 4],
+            fft_length=[4, 4],
+            output_shape=[4, 3],
+        )
+    )
+
+    np.random.seed(0xFEED)
+    data = np.random.randn(4, 4).astype("float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-4, atol=1e-4
+    )
+
+
+def test_rfft2d_fft_path_2x2x4x8():
+    """RFFT2D on a 4D input with power-of-2 height/width exercises the FFT path with batch."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[2, 2, 4, 8],
+            fft_length=[4, 8],
+            output_shape=[2, 2, 4, 5],
+        )
+    )
+
+    np.random.seed(0xBEEF)
+    data = np.random.randn(2, 2, 4, 8).astype("float32")
+    expected = np.fft.rfft2(data, axes=(-2, -1)).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-4, atol=1e-4
+    )
+
+
+def test_rfft2d_fft_path_16x16():
+    """RFFT2D on a 16x16 input: a larger FFT to check that the unrolled kernel scales."""
+    mod = _load_model_from_buffer(
+        _build_tflite_rfft2d_model(
+            input_shape=[16, 16],
+            fft_length=[16, 16],
+            output_shape=[16, 9],
+        )
+    )
+
+    np.random.seed(0xDEAD)
+    data = np.random.randn(16, 16).astype("float32")
+    expected = np.fft.rfft2(data).astype(np.complex64)
+    np.testing.assert_allclose(
+        _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-4, atol=1e-4
+    )
+
+
+def test_rfft2d_mismatched_fft_length_unsupported():
+    """RFFT2D padding/truncation cases are guarded until explicitly implemented."""
+    buf = _build_tflite_rfft2d_model(
+        input_shape=[2, 4],
+        fft_length=[4, 4],
+        output_shape=[4, 3],
+    )
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="fft_length"):
+        from_tflite(tflite_model)
+
+
+def test_rfft2d_dynamic_fft_length_unsupported():
+    """RFFT2D requires fft_length to be a constant tensor."""
+    builder = flatbuffers.Builder(1024)
+    rfft_op_code = _build_operator_code(builder, _get_builtin_operator("RFFT2D"))
+    tensors = [
+        _build_tensor(builder, 0, [2, 4], tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 2, [2, 3], tensor_type=_tfl_tensor_type.COMPLEX64),
+    ]
+    op = _build_operator(builder, 0, [0, 1], [2])
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0, 1], outputs=[2])
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[rfft_op_code],
+        buffers=[_build_buffer(builder), _build_buffer(builder), _build_buffer(builder)],
+    )
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    with pytest.raises(tvm.error.OpNotImplemented, match="requires a constant fft_length"):
+        from_tflite(tflite_model)
+
+
 def _build_tflite_call_model(
     call_subgraph_index=1,
     callee_inputs=None,
