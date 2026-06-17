@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F401
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -29,9 +30,10 @@ except ImportError:
     float4_e2m1fn = None
 
 
-np_dtype, dtype_str = tvm.testing.parameters((float4_e2m1fn, "float4_e2m1fn"))
+nv_fp4_dtypes = [(float4_e2m1fn, "float4_e2m1fn")]
 
 
+@pytest.mark.parametrize("np_dtype,dtype_str", nv_fp4_dtypes)
 def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
     if np_dtype is None:
         """Skip test if ml_dtypes is not installed"""
@@ -42,6 +44,7 @@ def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
     np.testing.assert_equal(x_nd.numpy(), x)
 
 
+@pytest.mark.parametrize("np_dtype,dtype_str", nv_fp4_dtypes)
 def test_nv_fp4_buffer(np_dtype, dtype_str):
     m = te.size_var("m")
     n = te.size_var("n")

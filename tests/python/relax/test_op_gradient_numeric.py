@@ -207,19 +207,20 @@ def relax_check_gradients(
 ##################### Unary #####################
 
 
-unary_op_func, can_be_neg = tvm.testing.parameters(
-    (relax.op.abs, True),
-    (relax.op.cos, True),
-    (relax.op.exp, True),
-    (relax.op.log, False),
-    (relax.op.negative, True),
-    (relax.op.sigmoid, True),
-    (relax.op.sin, True),
-    (relax.op.sqrt, False),
-    (relax.op.tanh, True),
+@pytest.mark.parametrize(
+    "unary_op_func,can_be_neg",
+    [
+        (relax.op.abs, True),
+        (relax.op.cos, True),
+        (relax.op.exp, True),
+        (relax.op.log, False),
+        (relax.op.negative, True),
+        (relax.op.sigmoid, True),
+        (relax.op.sin, True),
+        (relax.op.sqrt, False),
+        (relax.op.tanh, True),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_unary(target, dev, unary_op_func, can_be_neg):
     (low, high) = (-1, 1) if can_be_neg else (0.1, 1)
@@ -230,15 +231,16 @@ def test_unary(target, dev, unary_op_func, can_be_neg):
 ##################### Binary #####################
 
 
-(binary_arith_op_func,) = tvm.testing.parameters(
-    (relax.op.add,),
-    (relax.op.subtract,),
-    (relax.op.multiply,),
-    (relax.op.divide,),
-    (relax.op.power,),
+@pytest.mark.parametrize(
+    "binary_arith_op_func",
+    [
+        relax.op.add,
+        relax.op.subtract,
+        relax.op.multiply,
+        relax.op.divide,
+        relax.op.power,
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_binary_arith(target, dev, binary_arith_op_func):
     data1_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
@@ -246,12 +248,7 @@ def test_binary_arith(target, dev, binary_arith_op_func):
     relax_check_gradients(binary_arith_op_func, [data1_numpy, data2_numpy], target, dev)
 
 
-(binary_minmax_op_func,) = tvm.testing.parameters(
-    (relax.op.maximum,),
-    (relax.op.minimum,),
-)
-
-
+@pytest.mark.parametrize("binary_minmax_op_func", [relax.op.maximum, relax.op.minimum])
 @tvm.testing.parametrize_targets("llvm")
 def test_binary_minmax(target, dev, binary_minmax_op_func):
     # Checking numerical gradient of min and max requires data1_numpy[i] != data2_numpy[i]
@@ -264,16 +261,17 @@ def test_binary_minmax(target, dev, binary_minmax_op_func):
     relax_check_gradients(binary_minmax_op_func, [data1_numpy, data2_numpy], target, dev)
 
 
-(binary_cmp_op_func,) = tvm.testing.parameters(
-    (relax.op.equal,),
-    (relax.op.greater,),
-    (relax.op.greater_equal,),
-    (relax.op.less,),
-    (relax.op.less_equal,),
-    (relax.op.not_equal,),
+@pytest.mark.parametrize(
+    "binary_cmp_op_func",
+    [
+        relax.op.equal,
+        relax.op.greater,
+        relax.op.greater_equal,
+        relax.op.less,
+        relax.op.less_equal,
+        relax.op.not_equal,
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_binary_cmp(target, dev, binary_cmp_op_func):
     data1_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
@@ -286,12 +284,7 @@ def test_binary_cmp(target, dev, binary_cmp_op_func):
 ##################### Create #####################
 
 
-(like_op_func,) = tvm.testing.parameters(
-    (relax.op.zeros_like,),
-    (relax.op.ones_like,),
-)
-
-
+@pytest.mark.parametrize("like_op_func", [relax.op.zeros_like, relax.op.ones_like])
 @tvm.testing.parametrize_targets("llvm")
 def test_ones_zeros_like(target, dev, like_op_func):
     data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
@@ -307,12 +300,7 @@ def test_full_like(target, dev):
     )
 
 
-(create_op_func,) = tvm.testing.parameters(
-    (relax.op.zeros,),
-    (relax.op.ones,),
-)
-
-
+@pytest.mark.parametrize("create_op_func", [relax.op.zeros, relax.op.ones])
 @tvm.testing.parametrize_targets("llvm")
 def test_ones_zeros(target, dev, create_op_func):
     relax_check_gradients(
@@ -688,16 +676,17 @@ def test_cross_entropy_with_logits_batch(target, dev):
     )
 
 
-(nll_reduction, nll_weighted, nll_ignore_index) = tvm.testing.parameters(
-    ("mean", True, -1),
-    ("sum", True, -1),
-    ("none", True, -1),
-    ("mean", True, 1),
-    ("mean", True, 1),
-    ("mean", False, 1),
+@pytest.mark.parametrize(
+    "nll_reduction,nll_weighted,nll_ignore_index",
+    [
+        ("mean", True, -1),
+        ("sum", True, -1),
+        ("none", True, -1),
+        ("mean", True, 1),
+        ("mean", True, 1),
+        ("mean", False, 1),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4)).astype(np.float32)
@@ -721,13 +710,14 @@ def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
     )
 
 
-(nll_reduction1, nll_weighted1, nll_ignore_index1) = tvm.testing.parameters(
-    ("mean", True, -1),
-    ("sum", True, -1),
-    ("none", True, -1),
+@pytest.mark.parametrize(
+    "nll_reduction1,nll_weighted1,nll_ignore_index1",
+    [
+        ("mean", True, -1),
+        ("sum", True, -1),
+        ("none", True, -1),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignore_index1):
     data1_numpy = np.random.uniform(0, 16, (3,)).astype(np.float32)
@@ -749,40 +739,41 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
     )
 
 
-(c2d_shape1, c2d_shape2, c2d_kwargs) = tvm.testing.parameters(
-    (
-        (3, 2, 10, 10),
-        (3, 2, 3, 3),
-        {},
-    ),
-    (
-        (3, 2, 10, 10),
-        (3, 2, 1, 2),
-        {},
-    ),
-    (
-        (3, 2, 10, 10),
-        (3, 2, 3, 3),
-        {"strides": (2, 2), "padding": (3, 2), "dilation": (1, 1)},
-    ),
-    (
-        (3, 2, 10, 10),
-        (3, 2, 3, 3),
-        {"strides": (2, 1), "padding": (2, 2), "dilation": (1, 1)},
-    ),
-    (
-        (3, 6, 10, 10),
-        (4, 3, 3, 3),
-        {"groups": 2},
-    ),
-    (
-        (3, 2, 10, 10),
-        (4, 1, 3, 3),
-        {"groups": 2, "strides": (2, 2), "padding": (2, 2), "dilation": (1, 1)},
-    ),
+@pytest.mark.parametrize(
+    "c2d_shape1,c2d_shape2,c2d_kwargs",
+    [
+        (
+            (3, 2, 10, 10),
+            (3, 2, 3, 3),
+            {},
+        ),
+        (
+            (3, 2, 10, 10),
+            (3, 2, 1, 2),
+            {},
+        ),
+        (
+            (3, 2, 10, 10),
+            (3, 2, 3, 3),
+            {"strides": (2, 2), "padding": (3, 2), "dilation": (1, 1)},
+        ),
+        (
+            (3, 2, 10, 10),
+            (3, 2, 3, 3),
+            {"strides": (2, 1), "padding": (2, 2), "dilation": (1, 1)},
+        ),
+        (
+            (3, 6, 10, 10),
+            (4, 3, 3, 3),
+            {"groups": 2},
+        ),
+        (
+            (3, 2, 10, 10),
+            (4, 1, 3, 3),
+            {"groups": 2, "strides": (2, 2), "padding": (2, 2), "dilation": (1, 1)},
+        ),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
     import pytest
@@ -799,7 +790,7 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
     )
 
 
-(pool_size, pool_kwargs) = tvm.testing.parameters(
+pool_params = [
     (
         (3, 3),
         {},
@@ -818,9 +809,10 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
             "count_include_pad": True,
         },
     ),
-)
+]
 
 
+@pytest.mark.parametrize("pool_size,pool_kwargs", pool_params)
 @tvm.testing.parametrize_targets("llvm")
 def test_max_pool2d(target, dev, pool_size, pool_kwargs):
     data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
@@ -834,6 +826,7 @@ def test_max_pool2d(target, dev, pool_size, pool_kwargs):
     )
 
 
+@pytest.mark.parametrize("pool_size,pool_kwargs", pool_params)
 @tvm.testing.parametrize_targets("llvm")
 def test_avg_pool2d(target, dev, pool_size, pool_kwargs):
     data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
