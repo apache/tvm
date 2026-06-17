@@ -254,9 +254,9 @@ macro(find_llvm use_llvm)
     # compiler-appropriate form so the probe works under MSVC as well.
     if(NOT CMAKE_CXX_STANDARD)
       if(MSVC)
-        set(CMAKE_REQUIRED_FLAGS "/std:c++20")
+        set(CMAKE_REQUIRED_FLAGS "/std:c++17")
       else()
-        set(CMAKE_REQUIRED_FLAGS "-std=c++20")
+        set(CMAKE_REQUIRED_FLAGS "-std=c++17")
       endif()
     endif()
     check_cxx_source_compiles("
