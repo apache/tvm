@@ -684,14 +684,6 @@ target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(TVM_TEST_LIBRARY_NAME tvm_compiler)
-if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
-  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
-  # but it's not available until CMake 3.13. Switch to 'target_link_options'
-  # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm_compiler PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
