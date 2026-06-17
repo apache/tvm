@@ -285,9 +285,10 @@ def test_where_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.where(cond1, x1, y0))
 
 
-(argmax_argmin_op,) = tvm.testing.parameters((relax.op.argmax,), (relax.op.argmin,))
+argmax_argmin_ops = [relax.op.argmax, relax.op.argmin]
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -360,6 +361,7 @@ def test_argmax_argmin_infer_struct_info(argmax_argmin_op: Callable):
     _check_inference(bb, argmax_argmin_op(x0, axis=-1), relax.TensorStructInfo((2, 3, 4), "int64"))
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info_shape_symbolic(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     a = tirx.Var("a", "int64")
@@ -382,6 +384,7 @@ def test_argmax_argmin_infer_struct_info_shape_symbolic(argmax_argmin_op: Callab
     )
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info_shape_var(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     s0 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
@@ -409,6 +412,7 @@ def test_argmax_argmin_infer_struct_info_shape_var(argmax_argmin_op: Callable):
     )
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info_more_input_dtype(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float16"))
@@ -418,6 +422,7 @@ def test_argmax_argmin_infer_struct_info_more_input_dtype(argmax_argmin_op: Call
     _check_inference(bb, argmax_argmin_op(x1), relax.TensorStructInfo((), "int64"))
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info_axis_out_of_range(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "int64"))
@@ -433,6 +438,7 @@ def test_argmax_argmin_infer_struct_info_axis_out_of_range(argmax_argmin_op: Cal
         bb.normalize(argmax_argmin_op(x1, axis=-5))
 
 
+@pytest.mark.parametrize("argmax_argmin_op", argmax_argmin_ops)
 def test_argmax_argmin_infer_struct_info_wrong_input_type(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))

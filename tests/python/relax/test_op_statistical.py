@@ -208,12 +208,13 @@ def test_statistical_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.variance(x1))
 
 
-(scan_op,) = tvm.testing.parameters(
-    (relax.op.cumprod,),
-    (relax.op.cumsum,),
-)
+scan_ops = [
+    relax.op.cumprod,
+    relax.op.cumsum,
+]
 
 
+@pytest.mark.parametrize("scan_op", scan_ops)
 def test_scan_op_infer_struct_info(scan_op: Callable):
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -238,6 +239,7 @@ def test_scan_op_infer_struct_info(scan_op: Callable):
     )
 
 
+@pytest.mark.parametrize("scan_op", scan_ops)
 def test_scan_op_infer_struct_info_shape_symbolic(scan_op: Callable):
     bb = relax.BlockBuilder()
     a = tirx.Var("a", "int64")
@@ -249,6 +251,7 @@ def test_scan_op_infer_struct_info_shape_symbolic(scan_op: Callable):
     _check_inference(bb, scan_op(x), relax.TensorStructInfo((a * b * c,), "float32"))
 
 
+@pytest.mark.parametrize("scan_op", scan_ops)
 def test_scan_op_infer_struct_info_more_input_dtype(scan_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 4), "float16"))
@@ -258,6 +261,7 @@ def test_scan_op_infer_struct_info_more_input_dtype(scan_op: Callable):
     _check_inference(bb, scan_op(x1, axis=1), relax.TensorStructInfo((2, 3, 4), "int8"))
 
 
+@pytest.mark.parametrize("scan_op", scan_ops)
 def test_scan_op_wrong_input_number(scan_op: Callable):
     x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
     y = relax.Var("y", R.Tensor((2, 3, 4), "float32"))
@@ -266,6 +270,7 @@ def test_scan_op_wrong_input_number(scan_op: Callable):
         scan_op(x, y)
 
 
+@pytest.mark.parametrize("scan_op", scan_ops)
 def test_scan_opinfer_struct_info_wrong_input_type(scan_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))

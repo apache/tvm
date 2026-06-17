@@ -68,7 +68,7 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
 
 
-unary_arith_op, require_float_dtype = tvm.testing.parameters(
+unary_arith_ops = [
     (relax.op.abs, False),
     (relax.op.acos, True),
     (relax.op.acosh, True),
@@ -93,9 +93,10 @@ unary_arith_op, require_float_dtype = tvm.testing.parameters(
     (relax.op.sqrt, True),
     (relax.op.tan, True),
     (relax.op.tanh, True),
-)
+]
 
 
+@pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
 def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -114,6 +115,7 @@ def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
     _check_inference(bb, unary_arith_op(x4), relax.TensorStructInfo(dtype=""))
 
 
+@pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
 def test_unary_arith_infer_struct_info_shape_symbolic(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     m = tirx.Var("m", "int64")
@@ -125,6 +127,7 @@ def test_unary_arith_infer_struct_info_shape_symbolic(unary_arith_op: Callable):
     _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo((4, n), "float32"))
 
 
+@pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
 def test_unary_arith_infer_struct_info_shape_var(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     s0 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
@@ -136,6 +139,7 @@ def test_unary_arith_infer_struct_info_shape_var(unary_arith_op: Callable):
     _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo(s1, "float32"))
 
 
+@pytest.mark.parametrize("unary_arith_op,require_float_dtype", unary_arith_ops)
 def test_unary_arith_infer_struct_info_more_input_dtype(
     unary_arith_op: Callable, require_float_dtype: bool
 ):
@@ -152,6 +156,7 @@ def test_unary_arith_infer_struct_info_more_input_dtype(
     _check_inference(bb, unary_arith_op(x2), relax.TensorStructInfo((2, 3), "int64"))
 
 
+@pytest.mark.parametrize("unary_arith_op,require_float_dtype", unary_arith_ops)
 def test_unary_arith_infer_struct_info_invalid_input_dtype(
     unary_arith_op: Callable, require_float_dtype: bool
 ):
@@ -168,6 +173,7 @@ def test_unary_arith_infer_struct_info_invalid_input_dtype(
         bb.normalize(unary_arith_op(x1))
 
 
+@pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
 def test_unary_arith_wrong_input_number(unary_arith_op: Callable):
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
 
@@ -177,6 +183,7 @@ def test_unary_arith_wrong_input_number(unary_arith_op: Callable):
         unary_arith_op(x, x, x)
 
 
+@pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
 def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))

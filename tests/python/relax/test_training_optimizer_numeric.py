@@ -19,6 +19,7 @@
 from collections.abc import Callable
 
 import numpy as np
+import pytest
 import tvm_ffi
 
 import tvm
@@ -79,12 +80,13 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
     _assert_run_result_same(tvm_func, np_func, [param_arr, grad_arr, state_arr])
 
 
-lr, weight_decay = tvm.testing.parameters(
-    (0.01, 0),
-    (0.01, 0.02),
+@pytest.mark.parametrize(
+    "lr,weight_decay",
+    [
+        (0.01, 0),
+        (0.01, 0.02),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_sgd(target, dev, lr, weight_decay):
     def np_func(param_tuple, grad_tuple, state_tuple):
@@ -100,13 +102,14 @@ def test_sgd(target, dev, lr, weight_decay):
     _test_optimizer(target, dev, np_func, SGD, lr, weight_decay)
 
 
-lr, momentum, dampening, weight_decay, nesterov = tvm.testing.parameters(
-    (0.01, 0.9, 0, 0, False),
-    (0.01, 0.9, 0.85, 0.02, False),
-    (0.01, 0.9, 0.85, 0.02, True),
+@pytest.mark.parametrize(
+    "lr,momentum,dampening,weight_decay,nesterov",
+    [
+        (0.01, 0.9, 0, 0, False),
+        (0.01, 0.9, 0.85, 0.02, False),
+        (0.01, 0.9, 0.85, 0.02, True),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nesterov):
     def np_func(param_tuple, grad_tuple, state_tuple):
@@ -134,12 +137,13 @@ def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nester
     )
 
 
-lr, betas, eps, weight_decay = tvm.testing.parameters(
-    (0.01, (0.9, 0.999), 1e-08, 0),
-    (0.01, (0.8, 0.85), 1e-07, 0.1),
+@pytest.mark.parametrize(
+    "lr,betas,eps,weight_decay",
+    [
+        (0.01, (0.9, 0.999), 1e-08, 0),
+        (0.01, (0.8, 0.85), 1e-07, 0.1),
+    ],
 )
-
-
 @tvm.testing.parametrize_targets("llvm")
 def test_adam(target, dev, lr, betas, eps, weight_decay):
     def np_func(param_tuple, grad_tuple, state_tuple):

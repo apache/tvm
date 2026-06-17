@@ -66,7 +66,7 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
 
 
-(binary_arith_op, tir_arith_op) = tvm.testing.parameters(
+binary_arith_ops = [
     (relax.op.add, tirx.Add),
     (relax.op.divide, tirx.Div),
     (relax.op.floor_divide, tirx.FloorDiv),
@@ -78,9 +78,10 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
     (relax.op.minimum, tirx.Min),
     (relax.op.mod, tirx.Mod),
     (relax.op.floor_mod, tirx.FloorMod),
-)
+]
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     vdevice0 = VDevice("llvm")
@@ -125,6 +126,7 @@ def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
     )
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_infer_struct_info_binary_arith_prim_value_with_tensor(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
 
@@ -134,6 +136,7 @@ def test_infer_struct_info_binary_arith_prim_value_with_tensor(binary_arith_op: 
     _check_inference(bb, binary_arith_op(x, y), relax.TensorStructInfo((2, 3), "float32"))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_infer_struct_info_binary_arith_prim_value_with_prim_value(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
 
@@ -143,6 +146,7 @@ def test_infer_struct_info_binary_arith_prim_value_with_prim_value(binary_arith_
     _check_inference(bb, binary_arith_op(x, y), relax.PrimStructInfo("float32"))
 
 
+@pytest.mark.parametrize("binary_arith_op,tir_arith_op", binary_arith_ops)
 @pytest.mark.xfail(reason="Not yet implemented")
 def test_infer_struct_info_binary_arith_known_prim_value_with_prim_value(
     binary_arith_op: Callable, tir_arith_op
@@ -159,16 +163,17 @@ def test_infer_struct_info_binary_arith_known_prim_value_with_prim_value(
     _check_inference(bb, binary_arith_op(y, x), relax.PrimStructInfo(value=tir_y + tir_x))
 
 
-(binary_cmp_op, tir_cmp_op) = tvm.testing.parameters(
+binary_cmp_ops = [
     (relax.op.equal, tirx.EQ),
     (relax.op.greater, tirx.GT),
     (relax.op.greater_equal, tirx.GE),
     (relax.op.less, tirx.LT),
     (relax.op.less_equal, tirx.LE),
     (relax.op.not_equal, tirx.NE),
-)
+]
 
 
+@pytest.mark.parametrize("binary_cmp_op", [row[0] for row in binary_cmp_ops])
 def test_binary_cmp_infer_struct_info(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -185,6 +190,7 @@ def test_binary_cmp_infer_struct_info(binary_cmp_op: Callable):
     _check_inference(bb, binary_cmp_op(x, y2), relax.TensorStructInfo((2, 3), "bool", vdev0))
 
 
+@pytest.mark.parametrize("binary_cmp_op", [row[0] for row in binary_cmp_ops])
 def test_infer_struct_info_binary_cmp_prim_value_to_tensor(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -193,6 +199,7 @@ def test_infer_struct_info_binary_cmp_prim_value_to_tensor(binary_cmp_op: Callab
     _check_inference(bb, binary_cmp_op(y, x), relax.TensorStructInfo((2, 3), "bool"))
 
 
+@pytest.mark.parametrize("binary_cmp_op", [row[0] for row in binary_cmp_ops])
 def test_infer_struct_info_binary_cmp_prim_value_to_prim_value(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Prim("float32"))
@@ -201,6 +208,7 @@ def test_infer_struct_info_binary_cmp_prim_value_to_prim_value(binary_cmp_op: Ca
     _check_inference(bb, binary_cmp_op(y, x), relax.PrimStructInfo("bool"))
 
 
+@pytest.mark.parametrize("binary_cmp_op,tir_cmp_op", binary_cmp_ops)
 @pytest.mark.xfail(reason="Not yet implemented")
 def test_infer_struct_info_binary_cmp_known_prim_value_to_prim_value(
     binary_cmp_op: Callable, tir_cmp_op
@@ -217,6 +225,7 @@ def test_infer_struct_info_binary_cmp_known_prim_value_to_prim_value(
     _check_inference(bb, binary_cmp_op(y, x), relax.PrimStructInfo(value=tir_cmp_op(tir_y, tir_x)))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_infer_struct_info_shape_symbolic(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     m = tirx.Var("m", "int64")
@@ -245,6 +254,7 @@ def test_binary_infer_struct_info_shape_symbolic(binary_arith_op: Callable):
     _check_inference(bb, binary_arith_op(x4, y4), relax.TensorStructInfo(dtype="float32", ndim=-1))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_infer_struct_info_shape_var(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     s0 = relax.Var("s0", relax.ShapeStructInfo(ndim=2))
@@ -266,6 +276,7 @@ def test_binary_infer_struct_info_shape_var(binary_arith_op: Callable):
     _check_inference(bb, binary_arith_op(x, y4), relax.TensorStructInfo(dtype="float32"))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_arith_infer_struct_info_more_input_dtype(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
@@ -280,6 +291,7 @@ def test_binary_arith_infer_struct_info_more_input_dtype(binary_arith_op: Callab
     _check_inference(bb, binary_arith_op(x2, y2), relax.TensorStructInfo((2, 3), "int64"))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_infer_struct_info_shape_unequal_const_int(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -288,6 +300,7 @@ def test_binary_infer_struct_info_shape_unequal_const_int(binary_arith_op: Calla
         bb.normalize(binary_arith_op(x0, y0))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -296,6 +309,7 @@ def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable
         bb.normalize(binary_arith_op(x, y))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_arith_infer_struct_info_vdevice_mismatch(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32", VDevice("llvm")))
@@ -304,6 +318,7 @@ def test_binary_arith_infer_struct_info_vdevice_mismatch(binary_arith_op: Callab
         bb.normalize(binary_arith_op(x, y))
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_wrong_input_number(binary_arith_op: Callable):
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
 
@@ -315,6 +330,7 @@ def test_binary_wrong_input_number(binary_arith_op: Callable):
         binary_arith_op(x, x, x, x)
 
 
+@pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])
 def test_binary_infer_struct_info_wrong_input_type(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
