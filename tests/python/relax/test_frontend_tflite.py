@@ -443,6 +443,103 @@ def test_bitcast_int16_to_int32_collapses_shape():
     verify(BitcastI16ToI32, Expected)
 
 
+def test_bitwise_xor():
+    """BITWISE_XOR lowers to relax.op.bitwise_xor."""
+
+    class BitwiseXor(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3), dtype=tf.int32),
+                tf.TensorSpec(shape=(2, 3), dtype=tf.int32),
+            ]
+        )
+        def func(self, x, y):
+            return tf.bitwise.bitwise_xor(x, y)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int32"),
+            y: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="int32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int32") = R.bitwise_xor(x, y)
+                R.output(gv)
+            return gv
+
+    verify(BitwiseXor, Expected)
+
+
+def test_right_shift():
+    """RIGHT_SHIFT lowers to relax.op.right_shift."""
+
+    class RightShift(tf.Module):
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(2, 3), dtype=tf.int32),
+                tf.TensorSpec(shape=(2, 3), dtype=tf.int32),
+            ]
+        )
+        def func(self, x, y):
+            return tf.bitwise.right_shift(x, y)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int32"),
+            y: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="int32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int32") = R.right_shift(x, y)
+                R.output(gv)
+            return gv
+
+    verify(RightShift, Expected)
+
+
+def test_sign():
+    """SIGN lowers to relax.op.sign."""
+
+    class Sign(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.sign(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.sign(x)
+                R.output(gv)
+            return gv
+
+    verify(Sign, Expected)
+
+
+def test_unique():
+    """UNIQUE returns values and inverse indices."""
+
+    class Unique(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(6,), dtype=tf.int32)])
+        def func(self, x):
+            return tf.raw_ops.Unique(x=x, out_idx=tf.int64)
+
+    mod = _get_mod_from_cfunc(Unique().func.get_concrete_function())
+    values, inverse_indices = _run_module(
+        mod, np.array([3, 1, 3, 2, 1, 2], dtype=np.int32)
+    )
+    np.testing.assert_array_equal(values, np.array([3, 1, 2], dtype=np.int32))
+    np.testing.assert_array_equal(
+        inverse_indices, np.array([0, 1, 0, 2, 1, 2], dtype=np.int64)
+    )
+
+
 def test_expand_dims():
     class ExpandDims(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -531,6 +628,74 @@ def test_shape_dynamic_dim():
             return tf.shape(x, out_type=tf.int32)
 
     verify(ShapeDynamic)
+
+
+def _build_rank_model():
+    """Build a minimal TFLite RANK model."""
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_builtin_operator("RANK")
+    op_code = _build_operator_code(builder, builtin_op)
+    options = _build_empty_builtin_options(builder, "RankOptions")
+
+    tensors = [
+        _build_tensor(builder, 0, [2, 3, 4]),
+        _build_tensor(builder, 1, [], tensor_type=_tfl_tensor_type.INT32),
+    ]
+    op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_get_builtin_options_type("RankOptions"),
+        builtin_options=options,
+    )
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[1])
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+
+def test_rank():
+    """RANK emits a static rank constant."""
+    mod = _load_model_from_buffer(_build_rank_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), dtype="float32")) -> R.Tensor((), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.const(3, "int32")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_bucketize():
+    """BUCKETIZE lowers to relax.op.bucketize."""
+
+    class Bucketize(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+        def func(self, x):
+            return tf.raw_ops.Bucketize(input=x, boundaries=[0.0, 1.0, 3.0])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int32") = R.bucketize(
+                    x, R.const([0.0, 1.0, 3.0], "float32"), out_int32=True, right=False
+                )
+                R.output(gv)
+            return gv
+
+    verify(Bucketize, Expected)
 
 
 @pytest.mark.parametrize(
@@ -2085,6 +2250,66 @@ def test_unsorted_segment_min():
     verify(Model, Expected)
 
 
+def test_unsorted_segment_sum():
+    """UNSORTED_SEGMENT_SUM lowers to scatter_nd with add reduction."""
+
+    class Model(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4, 2), dtype=tf.float32)])
+        def func(self, data):
+            return tf.raw_ops.UnsortedSegmentSum(
+                data=data,
+                segment_ids=tf.constant([0, 2, 1, 2], dtype=tf.int32),
+                num_segments=tf.constant(3, dtype=tf.int32),
+            )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((4, 2), dtype="float32")) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 2), dtype="float32") = R.zeros(R.shape([3, 2]), dtype="float32")
+                lv1: R.Tensor((4, 1), dtype="int32") = R.expand_dims(
+                    R.const([0, 2, 1, 2], "int32"), axis=[1]
+                )
+                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(lv, lv1, data, reduction="add")
+                R.output(gv)
+            return gv
+
+    verify(Model, Expected)
+
+
+def test_unsorted_segment_max():
+    """UNSORTED_SEGMENT_MAX lowers to scatter_nd with max reduction."""
+
+    class Model(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(4, 2), dtype=tf.float32)])
+        def func(self, data):
+            return tf.raw_ops.UnsortedSegmentMax(
+                data=data,
+                segment_ids=tf.constant([0, 2, 1, 2], dtype=tf.int32),
+                num_segments=tf.constant(3, dtype=tf.int32),
+            )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(data: R.Tensor((4, 2), dtype="float32")) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 2), dtype="float32") = R.full(
+                    R.shape([3, 2]), R.const(np.finfo(np.float32).min, "float32"), dtype="float32"
+                )
+                lv1: R.Tensor((4, 1), dtype="int32") = R.expand_dims(
+                    R.const([0, 2, 1, 2], "int32"), axis=[1]
+                )
+                gv: R.Tensor((3, 2), dtype="float32") = R.scatter_nd(lv, lv1, data, reduction="max")
+                R.output(gv)
+            return gv
+
+    verify(Model, Expected)
+
+
 def test_unsorted_segment_prod():
     """UNSORTED_SEGMENT_PROD lowers to scatter_nd with mul reduction."""
 
@@ -3452,6 +3677,42 @@ def test_hard_swish():
     verify(HardSwish, Expected)
 
 
+def _build_relu_0_to_1_model():
+    """Build a minimal TFLite RELU_0_TO_1 model."""
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_builtin_operator("RELU_0_TO_1")
+    op_code = _build_operator_code(builder, builtin_op)
+    tensors = [
+        _build_tensor(builder, 0, [2, 2]),
+        _build_tensor(builder, 1, [2, 2]),
+    ]
+    op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[1])
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+
+def test_relu_0_to_1():
+    """RELU_0_TO_1 lowers to clip(0, 1)."""
+    mod = _load_model_from_buffer(_build_relu_0_to_1_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.clip(x, min=0, max=1)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_relu_n1_to_1():
     class ReLU_N1_to_1(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -3469,6 +3730,67 @@ def test_relu_n1_to_1():
             return gv
 
     verify(ReLU_N1_to_1, Expected)
+
+
+def _build_fake_quant_model(*, narrow_range, num_bits=8, min_value=-1.0, max_value=1.0):
+    """Build a minimal TFLite FAKE_QUANT model."""
+    fake_quant_options = _get_tflite_schema_module("FakeQuantOptions")
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_builtin_operator("FAKE_QUANT")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    fake_quant_options.FakeQuantOptionsStart(builder)
+    fake_quant_options.FakeQuantOptionsAddMin(builder, min_value)
+    fake_quant_options.FakeQuantOptionsAddMax(builder, max_value)
+    fake_quant_options.FakeQuantOptionsAddNumBits(builder, num_bits)
+    fake_quant_options.FakeQuantOptionsAddNarrowRange(builder, narrow_range)
+    options = fake_quant_options.FakeQuantOptionsEnd(builder)
+
+    tensors = [
+        _build_tensor(builder, 0, [4]),
+        _build_tensor(builder, 1, [4]),
+    ]
+    op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_get_builtin_options_type("FakeQuantOptions"),
+        builtin_options=options,
+    )
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[1])
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+
+def _fake_quant_reference(data, *, narrow_range, num_bits=8, min_value=-1.0, max_value=1.0):
+    quant_min = 1 if narrow_range else 0
+    quant_max = (1 << num_bits) - 1
+    scale = (max_value - min_value) / (quant_max - quant_min)
+    zero_point_from_min = quant_min - min_value / scale
+    if zero_point_from_min <= quant_min:
+        nudged_zero_point = quant_min
+    elif zero_point_from_min >= quant_max:
+        nudged_zero_point = quant_max
+    else:
+        nudged_zero_point = round(zero_point_from_min)
+    nudged_min = (quant_min - nudged_zero_point) * scale
+    nudged_max = (quant_max - nudged_zero_point) * scale
+    clamped = np.clip(data, nudged_min, nudged_max)
+    return np.floor((clamped - nudged_min) / scale + 0.5) * scale + nudged_min
+
+
+def test_fake_quant_narrow_range_vector():
+    """FAKE_QUANT supports narrow_range on vector inputs."""
+    mod = _load_model_from_buffer(_build_fake_quant_model(narrow_range=True))
+    data = np.array([-2.0, -0.5, 0.5, 2.0], dtype=np.float32)
+    output = _run_module(mod, data)
+    expected = _fake_quant_reference(data, narrow_range=True).astype(np.float32)
+    np.testing.assert_allclose(output, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_prelu_basic():
