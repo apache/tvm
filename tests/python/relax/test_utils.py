@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+import re
+
 import pytest
 
 import tvm
@@ -141,7 +143,7 @@ def test_assert_structural_equal_in_seqexpr():
 
     with pytest.raises(
         ValueError,
-        match=r"body.*blocks.*bindings.*value.*op",
+        match=re.escape("<root>.body.blocks[0].bindings[0].value.op"),
     ):
         assert_structural_equal(func_1, func_2)
 
@@ -249,13 +251,25 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
 
         return recursive_lambda(n)
 
-    mismatch_path = (
-        r"body.*blocks.*bindings.*value"
-        r".*body.*blocks.*bindings.*value"
-        r".*true_branch.*body.*value.*value"
-    )
+    # The path to the first mismatch, which should appear within the
+    # error message.
+    mismatch_path = [
+        "<root>",
+        "body",
+        "blocks[0]",
+        "bindings[0]",
+        "value",
+        "body",
+        "blocks[0]",
+        "bindings[0]",
+        "value",
+        "true_branch",
+        "body",
+        "value",
+        "value",
+    ]
 
-    with pytest.raises(ValueError, match=mismatch_path):
+    with pytest.raises(ValueError, match=re.escape(".".join(mismatch_path))):
         tvm.ir.assert_structural_equal(func_a, func_b)
 
 
