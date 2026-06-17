@@ -28,8 +28,8 @@ with plain pytest markers and ``skipif``::
     def test_my_cuda_kernel():
         ...
 
-Every probe is memoized with :func:`functools.cache`, so the
-underlying device query / ``nvcc`` subprocess runs at most once per
+Each probe's expensive query (device lookup, ``nvcc`` subprocess, libinfo)
+is memoized with :func:`functools.cache`, so it runs at most once per
 process even though ``skipif`` evaluates the predicate at import time for
 every decorated test.  Probes never raise: when support is absent they
 return ``False`` (or a zero version tuple) rather than propagating an
@@ -42,20 +42,18 @@ Three kinds of probe live here:
 * **build-support** probes (``has_cudnn`` …, ``build_flag_enabled`` …) ask whether
   an optional library was compiled into the runtime;
 * **version / capability** probes (``has_cuda_compute``,
-  ``has_tensorcore`` …) ask about a finer capability of a present device
+  ``has_nvcc_version`` …) ask about a finer capability of a present device
   or toolchain.
 """
 
 import functools
 import os
-import platform
 
 import tvm
 
 __all__ = [
     "build_flag_enabled",
     "has_adreno_opencl",
-    "has_aprofile_aem_fvp",
     # cpu features
     "has_cpu_feature",
     "has_cublas",
@@ -82,13 +80,9 @@ __all__ = [
     "has_nvshmem",
     "has_opencl",
     "has_rocm",
-    "has_tensorcore",
     "has_vulkan",
     "has_x86_avx512",
     "has_x86_vnni",
-    "is_aarch64",
-    # host architecture
-    "is_x86",
 ]
 
 
@@ -331,17 +325,6 @@ def has_llvm_min_version(major: int) -> bool:
 
 
 @functools.cache
-def has_tensorcore() -> bool:
-    """True if a CUDA device with Tensor Core support (compute >= 7) exists."""
-    try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
-
-        return has_cuda() and bool(nvcc.have_tensorcore(tvm.cuda().compute_version))
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
-@functools.cache
 def has_matrixcore() -> bool:
     """True if a ROCm device with Matrix Core support (compute >= 8) exists."""
     try:
@@ -404,17 +387,6 @@ def has_adreno_opencl() -> bool:
     return build_flag_enabled("USE_OPENCL") and os.environ.get("RPC_TARGET") is not None
 
 
-@functools.cache
-def has_aprofile_aem_fvp() -> bool:
-    """True if the AProfile AEM FVP simulator is on PATH."""
-    try:
-        import shutil  # pylint: disable=import-outside-toplevel
-
-        return shutil.which("FVP_Base_RevC-2xAEMvA") is not None
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
 # --- cpu feature probes ----------------------------------------------------
 
 
@@ -446,16 +418,3 @@ def has_x86_vnni() -> bool:
 def has_x86_avx512() -> bool:
     """True if the host CPU supports the x86 AVX512 extensions."""
     return has_cpu_feature(["avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512f"])
-
-
-# --- host architecture probes ----------------------------------------------
-
-
-def is_x86() -> bool:
-    """True if running on an x86_64 host."""
-    return platform.machine() == "x86_64"
-
-
-def is_aarch64() -> bool:
-    """True if running on an aarch64 host."""
-    return platform.machine() == "aarch64"

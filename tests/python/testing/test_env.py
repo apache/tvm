@@ -40,20 +40,16 @@ _BOOL_PROBES = [
     env.has_hipblas,
     env.has_nvshmem,
     # version / capability
-    env.has_tensorcore,
     env.has_matrixcore,
     env.has_cudagraph,
     # toolchain / environment
     env.has_hexagon,
     env.has_hexagon_toolchain,
     env.has_adreno_opencl,
-    env.has_aprofile_aem_fvp,
     # cpu features
     env.has_x86_vnni,
     env.has_x86_avx512,
     # host architecture
-    env.is_x86,
-    env.is_aarch64,
 ]
 
 
