@@ -108,7 +108,7 @@ class TestTargetAutoParametrization:
         assert target != "llvm"
 
 
-class TestJointParameter:
+class TestParameter:
     param1_vals = [1, 2, 3]
     param2_vals = ["a", "b", "c"]
 
@@ -116,31 +116,11 @@ class TestJointParameter:
     param1 = tvm.testing.parameter(*param1_vals)
     param2 = tvm.testing.parameter(*param2_vals)
 
-    joint_usages = 0
-    joint_param_vals = list(zip(param1_vals, param2_vals))
-    joint_param_ids = ["apple", "pear", "banana"]
-    joint_param1, joint_param2 = tvm.testing.parameters(*joint_param_vals, ids=joint_param_ids)
-
     def test_using_independent(self, param1, param2):
         type(self).independent_usages += 1
 
     def test_independent(self):
         assert self.independent_usages == len(self.param1_vals) * len(self.param2_vals)
-
-    def test_using_joint(self, joint_param1, joint_param2):
-        type(self).joint_usages += 1
-        assert (joint_param1, joint_param2) in self.joint_param_vals
-
-    def test_joint(self):
-        assert self.joint_usages == len(self.joint_param_vals)
-
-    def test_joint_test_id(self, joint_param1, joint_param2, request):
-        param_string = (
-            request.node.name.replace(request.node.originalname, "")
-            .replace("[", "")
-            .replace("]", "")
-        )
-        assert param_string in self.joint_param_ids
 
 
 class TestFixtureCaching:

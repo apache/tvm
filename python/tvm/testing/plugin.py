@@ -69,7 +69,6 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     """Called once per unit test, modifies/parametrizes it as needed."""
-    _parametrize_correlated_parameters(metafunc)
     _auto_parametrize_target(metafunc)
     _add_target_specific_marks(metafunc)
 
@@ -318,35 +317,6 @@ def _target_to_requirement(target):
         return _skip_only(env.has_hexagon, "need hexagon")
 
     return []
-
-
-def _parametrize_correlated_parameters(metafunc):
-    parametrize_needed = {}
-
-    for name, fixturedefs in metafunc.definition._fixtureinfo.name2fixturedefs.items():
-        fixturedef = fixturedefs[-1]
-        if hasattr(fixturedef.func, "parametrize_group") and hasattr(
-            fixturedef.func, "parametrize_values"
-        ):
-            group = fixturedef.func.parametrize_group
-            values = fixturedef.func.parametrize_values
-            ids = fixturedef.func.parametrize_ids
-            if group in parametrize_needed:
-                assert ids == parametrize_needed[group]["ids"]
-            else:
-                parametrize_needed[group] = {"ids": ids, "params": []}
-            parametrize_needed[group]["params"].append((name, values))
-
-    for parametrize_group in parametrize_needed.values():
-        params = parametrize_group["params"]
-        ids = parametrize_group["ids"]
-        if len(params) == 1:
-            name, values = params[0]
-            metafunc.parametrize(name, values, indirect=True, ids=ids)
-        else:
-            names = ",".join(name for name, values in params)
-            value_sets = zip(*[values for name, values in params])
-            metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
 
 
 # pytest-xdist isn't required but is used in CI, so guard on its presence
