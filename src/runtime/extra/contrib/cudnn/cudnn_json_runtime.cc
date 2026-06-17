@@ -162,7 +162,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
                            conv_dtype, false, &best_algo);
 
     int algo = best_algo.cast<int>();
-    std::function<void()> op_exec = [=, this]() {
+    std::function<void()> op_exec = [=]() {
       int device_id;
       TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
       cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
@@ -223,7 +223,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     auto runner = tvm::contrib::CuDNNSDPARunner::Create();
     runner->Init(batch, seq_len, num_heads, num_kv_heads, head_size, head_size_v, scale, dtype,
                  layout);
-    return [=, this]() {
+    return [=]() {
       auto qkv = GetInput(node, 0);
       auto workspace = const_cast<DLTensor*>(GetInput(node, 1));
       auto out = const_cast<DLTensor*>(data_entry_[EntryID(outputs_[0])]);

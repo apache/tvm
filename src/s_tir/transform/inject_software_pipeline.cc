@@ -708,7 +708,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
       }
 
-      auto wait_count = [=, this, &ana_normalized]() {
+      auto wait_count = [=, &ana_normalized]() {
         auto sum = PrimExpr(0);
         for (auto producer_head : producer_head_per_commit) {
           if (producer_head && ana_normalized->CanProve(producer_head.value() >= 0)) {

@@ -155,7 +155,7 @@ class CodeGenRunner : ExprMutator {
     if (opt_codegen) {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
-      PostOrderVisit(func->body, [=, this, &count](Expr e) {
+      PostOrderVisit(func->body, [=, &count](Expr e) {
         if (e->IsInstance<ConstantNode>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
