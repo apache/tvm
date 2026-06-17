@@ -546,6 +546,27 @@ add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
 
+# GCC's manylinux toolchain keeps newer libstdc++ helpers in this archive so
+# DSOs can use newer C++ modes while retaining an older libstdc++.so baseline.
+set(TVM_GNU_LIBSTDCXX_NONSHARED "")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  execute_process(
+    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++_nonshared.a
+    OUTPUT_VARIABLE TVM_GNU_LIBSTDCXX_NONSHARED
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if(NOT EXISTS "${TVM_GNU_LIBSTDCXX_NONSHARED}")
+    set(TVM_GNU_LIBSTDCXX_NONSHARED "")
+  endif()
+endif()
+
+function(tvm_link_gnu_libstdcxx_nonshared target)
+  if(TVM_GNU_LIBSTDCXX_NONSHARED)
+    target_link_libraries(${target} PRIVATE
+      "-Wl,--whole-archive" "${TVM_GNU_LIBSTDCXX_NONSHARED}" "-Wl,--no-whole-archive")
+  endif()
+endfunction()
+
 include(GNUInstallDirs)
 
 # Runtime library: built from runtime sources only. Loaded with RTLD_GLOBAL on
@@ -595,6 +616,14 @@ target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
 target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+foreach(target IN LISTS TVM_RUNTIME_BACKEND_LIBS)
+  tvm_link_gnu_libstdcxx_nonshared(${target})
+endforeach()
+if(NOT BUILD_STATIC_RUNTIME)
+  tvm_link_gnu_libstdcxx_nonshared(tvm_runtime)
+endif()
+tvm_link_gnu_libstdcxx_nonshared(tvm_compiler)
 
 # Work around a GNU ld (binutils) relaxation bug that miscompiles
 # R_X86_64_GOTPCRELX relocations inside very large statically-linked archives.
