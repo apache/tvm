@@ -157,6 +157,8 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   config_ = builder_->createBuilderConfig();
   // TensorRT 10 replaced IBuilderConfig::setMaxWorkspaceSize with a tunable memory pool.
   config_->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, max_workspace_size_);
+  // Disable TF32 (on by default on Ampere+) so FP32 layers match TVM's full-precision reference.
+  config_->clearFlag(nvinfer1::BuilderFlag::kTF32);
   if (use_fp16_) {
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
   }

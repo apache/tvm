@@ -122,14 +122,20 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
     otherwise collapse repeated ops.
     """
     ref = build_and_run(mod, [data_np, *params_np.values()], "llvm", legalize=True)
-    offloaded = tvm.transform.Sequential(
+    partitioned = tvm.transform.Sequential(
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
             relax.transform.MergeCompositeFunctions(),
-            relax.transform.RunCodegen(),
         ]
     )(mod)
+    # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
+    # comparison would trivially succeed via the TVM fallback without exercising the converter.
+    assert any(
+        isinstance(fn, relax.Function) and fn.attrs is not None and "Codegen" in fn.attrs
+        for fn in partitioned.functions.values()
+    ), "expected the op under test to be offloaded to TensorRT, but nothing was partitioned"
+    offloaded = relax.transform.RunCodegen()(partitioned)
     out = build_and_run(offloaded, [data_np], "cuda")
     tvm.testing.assert_allclose(out, ref, rtol=rtol, atol=atol)
 
@@ -314,6 +320,280 @@ def test_tensorrt_int8_calibration(monkeypatch):
     # INT8 is lossy, so use a generous tolerance; the key assertion is that calibration completed
     # without a CUDA error.
     tvm.testing.assert_allclose(out, ref, rtol=0.2, atol=0.1 * float(np.abs(ref).max()))
+
+
+def test_tensorrt_matmul():
+    # Regression test: Relax matmul has no transpose_a/transpose_b attrs (Relay's batch_matmul did).
+    @tvm.script.ir_module
+    class Matmul:
+        @R.function
+        def main(data: R.Tensor((4, 8), "float32"), weight: R.Tensor((8, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.matmul(data, weight)
+                R.output(out)
+            return out
+
+    data = np.random.randn(4, 8).astype("float32")
+    weight = np.random.randn(8, 16).astype("float32")
+    patterns = [("tensorrt.nn.batch_matmul", is_op("relax.matmul")(wildcard(), wildcard()))]
+    _offload_and_compare(Matmul, {"weight": weight}, patterns, data)
+
+
+def test_tensorrt_sum():
+    # Regression test: Relax reduce ops (StatisticalAttrs) have no "exclude" attr.
+    @tvm.script.ir_module
+    class Sum:
+        @R.function
+        def main(data: R.Tensor((2, 3, 4), "float32")):
+            with R.dataflow():
+                out = relax.op.sum(data, axis=[1], keepdims=True)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 3, 4).astype("float32")
+    patterns = [("tensorrt.sum", is_op("relax.sum")(wildcard()))]
+    _offload_and_compare(Sum, {}, patterns, data)
+
+
+def test_tensorrt_expand_dims():
+    # Regression test: Relax expand_dims carries an `axis` list, not Relay's axis + num_newaxis.
+    @tvm.script.ir_module
+    class ExpandDims:
+        @R.function
+        def main(data: R.Tensor((2, 4), "float32")):
+            with R.dataflow():
+                out = relax.op.expand_dims(data, axis=[1, 3])
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 4).astype("float32")
+    patterns = [("tensorrt.expand_dims", is_op("relax.expand_dims")(wildcard()))]
+    _offload_and_compare(ExpandDims, {}, patterns, data)
+
+
+def test_tensorrt_layer_norm():
+    # Regression test: Relax layer_norm normalizes over an `axes` list (Relay used `axis`).
+    @tvm.script.ir_module
+    class LayerNorm:
+        @R.function
+        def main(
+            data: R.Tensor((2, 4, 8), "float32"),
+            gamma: R.Tensor((8,), "float32"),
+            beta: R.Tensor((8,), "float32"),
+        ):
+            with R.dataflow():
+                out = relax.op.nn.layer_norm(data, gamma, beta, axes=[-1])
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 4, 8).astype("float32")
+    gamma = np.random.randn(8).astype("float32")
+    beta = np.random.randn(8).astype("float32")
+    patterns = [
+        ("tensorrt.nn.layer_norm", is_op("relax.nn.layer_norm")(wildcard(), wildcard(), wildcard()))
+    ]
+    _offload_and_compare(LayerNorm, {"gamma": gamma, "beta": beta}, patterns, data)
+
+
+def test_tensorrt_clip():
+    # Regression test: Relax clip passes min/max as PrimValue arguments (Relay used a_min/a_max
+    # attributes); the codegen serializes them under the op's argument names.
+    @tvm.script.ir_module
+    class Clip:
+        @R.function
+        def main(data: R.Tensor((2, 8, 16, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.clip(data, 0.0, 6.0)
+                R.output(out)
+            return out
+
+    data = (np.random.randn(2, 8, 16, 16) * 4).astype("float32")
+    patterns = [("tensorrt.clip", is_op("relax.clip")(wildcard(), wildcard(), wildcard()))]
+    _offload_and_compare(Clip, {}, patterns, data)
+
+
+def test_tensorrt_reshape():
+    # Regression test: Relax reshape takes the target shape as a Shape argument (Relay used a
+    # "newshape" attribute); the codegen serializes it under the op's argument name.
+    @tvm.script.ir_module
+    class Reshape:
+        @R.function
+        def main(data: R.Tensor((2, 8, 4, 4), "float32")):
+            with R.dataflow():
+                out = relax.op.reshape(data, (2, 8, 16))
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 8, 4, 4).astype("float32")
+    patterns = [("tensorrt.reshape", is_op("relax.reshape")(wildcard(), wildcard()))]
+    _offload_and_compare(Reshape, {}, patterns, data)
+
+
+def test_tensorrt_strided_slice():
+    # Regression test: Relax strided_slice passes axes/begin/end/strides as tuple arguments (Relay
+    # used start/size/strides attributes); the codegen serializes them positionally.
+    @tvm.script.ir_module
+    class StridedSlice:
+        @R.function
+        def main(data: R.Tensor((4, 8, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.strided_slice(
+                    data, axes=[1, 2], begin=[2, 0], end=[6, 8], strides=[2, 1]
+                )
+                R.output(out)
+            return out
+
+    data = np.random.randn(4, 8, 16).astype("float32")
+    patterns = [
+        (
+            "tensorrt.strided_slice",
+            is_op("relax.strided_slice")(
+                wildcard(), wildcard(), wildcard(), wildcard(), wildcard()
+            ),
+        )
+    ]
+    _offload_and_compare(StridedSlice, {}, patterns, data)
+
+
+def test_tensorrt_split():
+    # Regression test: Relax split has no Relay-style "mode"; it is multi-output. The converter
+    # derives per-output extents from the codegen-recorded output shapes.
+    @tvm.script.ir_module
+    class Split:
+        @R.function
+        def main(data: R.Tensor((4, 8, 16), "float32")):
+            with R.dataflow():
+                parts = relax.op.split(data, 2, axis=1)
+                out = relax.op.add(parts[0], parts[1])
+                R.output(out)
+            return out
+
+    data = np.random.randn(4, 8, 16).astype("float32")
+    # Offload the add too so both split outputs are consumed inside TensorRT (and nothing is left
+    # for the VM to legalize).
+    patterns = [
+        ("tensorrt.split", is_op("relax.split")(wildcard())),
+        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
+    ]
+    _offload_and_compare(Split, {}, patterns, data)
+
+
+def test_tensorrt_layout_transform():
+    # Regression test: Relax layout_transform uses an IndexMap (Relay used src_layout/dst_layout
+    # strings); the codegen translates a pure-permutation index map into a transpose. Built with the
+    # BlockBuilder because the index_map lambda cannot be expressed in TVMScript.
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", relax.TensorStructInfo((1, 4, 8, 8), "float32"))
+    with bb.function("main", [data]):
+        with bb.dataflow():
+            out = bb.emit(
+                relax.op.layout_transform(data, index_map=lambda n, c, h, w: (n, h, w, c))
+            )
+            gv = bb.emit_output(out)
+        bb.emit_func_output(gv)
+    LayoutTransform = bb.finalize()
+
+    data_np = np.random.randn(1, 4, 8, 8).astype("float32")
+    patterns = [("tensorrt.layout_transform", is_op("relax.layout_transform")(wildcard()))]
+    _offload_and_compare(LayoutTransform, {}, patterns, data_np)
+
+
+def test_tensorrt_sum_all_axes():
+    # Edge case: Relax sum with no axis (StatisticalAttrs.axis = None) reduces over all axes.
+    @tvm.script.ir_module
+    class SumAll:
+        @R.function
+        def main(data: R.Tensor((2, 3, 4), "float32")):
+            with R.dataflow():
+                out = relax.op.sum(data, keepdims=True)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 3, 4).astype("float32")
+    patterns = [("tensorrt.sum", is_op("relax.sum")(wildcard()))]
+    _offload_and_compare(SumAll, {}, patterns, data)
+
+
+def test_tensorrt_layer_norm_multi_axis():
+    # Edge case: layer_norm normalizing over more than one axis.
+    @tvm.script.ir_module
+    class LayerNorm2:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4, 5), "float32"),
+            gamma: R.Tensor((4, 5), "float32"),
+            beta: R.Tensor((4, 5), "float32"),
+        ):
+            with R.dataflow():
+                out = relax.op.nn.layer_norm(data, gamma, beta, axes=[-2, -1])
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 3, 4, 5).astype("float32")
+    gamma = np.random.randn(4, 5).astype("float32")
+    beta = np.random.randn(4, 5).astype("float32")
+    patterns = [
+        ("tensorrt.nn.layer_norm", is_op("relax.nn.layer_norm")(wildcard(), wildcard(), wildcard()))
+    ]
+    _offload_and_compare(LayerNorm2, {"gamma": gamma, "beta": beta}, patterns, data)
+
+
+def test_tensorrt_matmul_batched():
+    # Edge case: batched (3-D) matmul exercises TensorRT's leading-dim broadcasting.
+    @tvm.script.ir_module
+    class BatchMatmul:
+        @R.function
+        def main(data: R.Tensor((2, 4, 8), "float32"), weight: R.Tensor((2, 8, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.matmul(data, weight)
+                R.output(out)
+            return out
+
+    data = np.random.randn(2, 4, 8).astype("float32")
+    weight = np.random.randn(2, 8, 16).astype("float32")
+    patterns = [("tensorrt.nn.batch_matmul", is_op("relax.matmul")(wildcard(), wildcard()))]
+    _offload_and_compare(BatchMatmul, {"weight": weight}, patterns, data)
+
+
+def test_tensorrt_strided_slice_no_strides():
+    # Edge case: strided_slice without an explicit strides argument (defaults to 1).
+    @tvm.script.ir_module
+    class StridedSliceNoStride:
+        @R.function
+        def main(data: R.Tensor((4, 8, 16), "float32")):
+            with R.dataflow():
+                out = relax.op.strided_slice(data, axes=[1], begin=[2], end=[6])
+                R.output(out)
+            return out
+
+    data = np.random.randn(4, 8, 16).astype("float32")
+    patterns = [
+        (
+            "tensorrt.strided_slice",
+            is_op("relax.strided_slice")(wildcard(), wildcard(), wildcard(), wildcard()),
+        )
+    ]
+    _offload_and_compare(StridedSliceNoStride, {}, patterns, data)
+
+
+def test_tensorrt_split_indices():
+    # Edge case: split by an explicit index list (the other indices_or_sections form).
+    @tvm.script.ir_module
+    class SplitIdx:
+        @R.function
+        def main(data: R.Tensor((4, 8, 16), "float32")):
+            with R.dataflow():
+                parts = relax.op.split(data, [4], axis=1)
+                out = relax.op.add(parts[0], parts[1])
+                R.output(out)
+            return out
+
+    data = np.random.randn(4, 8, 16).astype("float32")
+    patterns = [
+        ("tensorrt.split", is_op("relax.split")(wildcard())),
+        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
+    ]
+    _offload_and_compare(SplitIdx, {}, patterns, data)
 
 
 if __name__ == "__main__":

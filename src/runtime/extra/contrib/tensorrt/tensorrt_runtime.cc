@@ -337,7 +337,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   void BuildEngineFromJson(int batch_size) {
     const bool use_fp16 = support::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
-    TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_fp16,
+    TensorRTBuilder builder(&GetTensorRTLogger(), data_entry_, max_workspace_size_, use_fp16,
                             calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
@@ -386,7 +386,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     LoadBinaryFromFile(path, &serialized_engine);
     // Deserialize engine. TensorRT 10 dropped the trailing IPluginFactory* argument and the runtime
     // must outlive the engine, so it is owned by the cached TensorRTEngineAndContext.
-    nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(logger_);
+    nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(GetTensorRTLogger());
     TensorRTEngineAndContext engine_and_context;
     engine_and_context.runtime = runtime;
     engine_and_context.engine =
@@ -521,9 +521,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * the runtime device to these buffers first. These will be allocated for the highest batch size
    * used by all engines. */
   std::unordered_map<std::string, Tensor> device_buffers_;
-
-  /*! \brief TensorRT logger. */
-  TensorRTLogger logger_;
 
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {

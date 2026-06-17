@@ -71,6 +71,16 @@ class TensorRTLogger : public nvinfer1::ILogger {
   Severity reportable_severity{Severity::kWARNING};
 };
 
+/*!
+ * \brief Process-wide TensorRT logger. TensorRT keeps a global pointer to the first logger it is
+ * given, so a per-runtime logger would dangle once its runtime is destroyed; this one is
+ * intentionally leaked to outlive all TensorRT state.
+ */
+inline TensorRTLogger& GetTensorRTLogger() {
+  static TensorRTLogger* logger = new TensorRTLogger();
+  return *logger;
+}
+
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
