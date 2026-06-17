@@ -531,13 +531,9 @@ def test_unique():
             return tf.raw_ops.Unique(x=x, out_idx=tf.int64)
 
     mod = _get_mod_from_cfunc(Unique().func.get_concrete_function())
-    values, inverse_indices = _run_module(
-        mod, np.array([3, 1, 3, 2, 1, 2], dtype=np.int32)
-    )
+    values, inverse_indices = _run_module(mod, np.array([3, 1, 3, 2, 1, 2], dtype=np.int32))
     np.testing.assert_array_equal(values, np.array([3, 1, 2], dtype=np.int32))
-    np.testing.assert_array_equal(
-        inverse_indices, np.array([0, 1, 0, 2, 1, 2], dtype=np.int64)
-    )
+    np.testing.assert_array_equal(inverse_indices, np.array([0, 1, 0, 2, 1, 2], dtype=np.int64))
 
 
 def test_expand_dims():
