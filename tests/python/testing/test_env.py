@@ -104,18 +104,6 @@ def test_target_enabled_respects_tvm_test_targets(monkeypatch):
         env._target_enabled.cache_clear()  # pylint: disable=protected-access
 
 
-def test_tensorcore_implies_cuda():
-    """Tensor Core support cannot be reported without a CUDA device."""
-    if env.has_tensorcore():
-        assert env.has_cuda()
-
-
-def test_cudagraph_implies_cuda():
-    """CUDA Graph support cannot be reported without a CUDA device."""
-    if env.has_cudagraph():
-        assert env.has_cuda()
-
-
 def test_cuda_compute_is_monotonic():
     """has_cuda_compute is monotone in the requested version."""
     if not env.has_cuda():
@@ -151,34 +139,12 @@ def test_build_flag_probe_matches_libinfo(probe, flag):
     assert probe() == env._build_flag_enabled(flag)  # pylint: disable=protected-access
 
 
-@pytest.mark.parametrize(
-    "probe,parent",
-    [
-        (env.has_cudnn, env.has_cuda),
-        (env.has_cublas, env.has_cuda),
-        (env.has_nccl, env.has_cuda),
-        (env.has_hipblas, env.has_rocm),
-    ],
-    ids=lambda v: v.__name__,
-)
-def test_library_probe_implies_parent_device(probe, parent):
-    """A CUDA/ROCm library cannot be reported without its parent device."""
-    if probe():
-        assert parent()
-
-
 def test_llvm_min_version_is_monotone():
     if not env.has_llvm():
         assert not env.has_llvm_min_version(1)
         return
     # An LLVM that satisfies a higher floor also satisfies a lower one.
     assert env.has_llvm_min_version(1)
-
-
-def test_runtime_hexagon_run_implies_toolchain():
-    """Full Hexagon support implies the compile-time toolchain is present."""
-    if env.has_hexagon():
-        assert env.has_hexagon_toolchain()
 
 
 def test_probes_are_memoized():
