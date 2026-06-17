@@ -130,9 +130,13 @@ runs:
         CIBW_ENVIRONMENT_MACOS: >-
           CMAKE_PREFIX_PATH="/opt/llvm"
           CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }}"
+        # Statically link libstdc++/libgcc on Linux: the C++20 gcc-toolset (>=12) emits
+        # libstdc++ symbols newer than the manylinux_2_28 runtime baseline (e.g.
+        # _M_replace_cold @ GLIBCXX_3.4.30), so the wheel would otherwise fail to load.
         CIBW_ENVIRONMENT_LINUX: >-
           CMAKE_PREFIX_PATH="/opt/llvm"
           LIBRARY_PATH="/opt/llvm/lib"
+          LDFLAGS="-static-libstdc++ -static-libgcc"
           CMAKE_ARGS="-DUSE_LLVM='/opt/llvm/bin/llvm-config --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=/opt/llvm ${{ inputs.cmake_defines }} -DTVM_PACKAGE_EXTRA_LIBS=/project/build-wheel-cuda/lib/libtvm_runtime_cuda.so"
         CIBW_ENVIRONMENT_WINDOWS: >-
           CMAKE_PREFIX_PATH="C:/opt/llvm/Library"
