@@ -142,23 +142,24 @@ def test_fp8_packing(dtype):
     tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
 
 
-native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
-    ("float8_e4m3fn", "float32", "float8_e4m3fn"),
-    ("float8_e4m3fn", "float16", "float8_e4m3fn"),
-    ("float8_e4m3fnx2", "float32x2", "float8_e4m3fn"),
-    ("float8_e4m3fnx2", "float16x2", "float8_e4m3fn"),
-    ("float8_e4m3fnx4", "float32x4", "float8_e4m3fn"),
-    # Supported via half4 vector type extension in codegen
-    ("float8_e4m3fnx4", "float16x4", "float8_e4m3fn"),
-    ("float8_e5m2", "float32", "float8_e5m2"),
-    ("float8_e5m2", "float16", "float8_e5m2"),
-    ("float8_e5m2x2", "float32x2", "float8_e5m2"),
-    ("float8_e5m2x2", "float16x2", "float8_e5m2"),
-    ("float8_e5m2x4", "float32x4", "float8_e5m2"),
-    ("float8_e5m2x4", "float16x4", "float8_e5m2"),
+@pytest.mark.parametrize(
+    "native_dtype,promoted_dtype,numpytype",
+    [
+        ("float8_e4m3fn", "float32", "float8_e4m3fn"),
+        ("float8_e4m3fn", "float16", "float8_e4m3fn"),
+        ("float8_e4m3fnx2", "float32x2", "float8_e4m3fn"),
+        ("float8_e4m3fnx2", "float16x2", "float8_e4m3fn"),
+        ("float8_e4m3fnx4", "float32x4", "float8_e4m3fn"),
+        # Supported via half4 vector type extension in codegen
+        ("float8_e4m3fnx4", "float16x4", "float8_e4m3fn"),
+        ("float8_e5m2", "float32", "float8_e5m2"),
+        ("float8_e5m2", "float16", "float8_e5m2"),
+        ("float8_e5m2x2", "float32x2", "float8_e5m2"),
+        ("float8_e5m2x2", "float16x2", "float8_e5m2"),
+        ("float8_e5m2x4", "float32x4", "float8_e5m2"),
+        ("float8_e5m2x4", "float16x4", "float8_e5m2"),
+    ],
 )
-
-
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):

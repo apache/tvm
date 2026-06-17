@@ -23,8 +23,11 @@ from tvm.target.codegen import llvm_get_vector_width, target_has_features
 
 LLVM_VERSION = codegen.llvm_version_major()
 
+
 # fmt: off
-min_llvm_version, tvm_target, vec_width = tvm.testing.parameters(
+@pytest.mark.parametrize(
+    "min_llvm_version,tvm_target,vec_width",
+    [
     # generic, no vector -> (default 128)
     (-1, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "generic-rv64", "mattr": ["+i", "+m"]}, 128),
     (-1, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv32-linux-gnu", "mcpu": "generic-rv32", "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m"]}, 128),
@@ -39,9 +42,8 @@ min_llvm_version, tvm_target, vec_width = tvm.testing.parameters(
     (17, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "sifive-x280"}, 512),
     (18, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "sifive-p670"}, 128),
     (19, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "spacemit-x60"}, 256),
+    ],
 )
-
-
 def test_riscv_rvv_features(min_llvm_version, tvm_target, vec_width):
     """Test RVV features support for different targets.
 

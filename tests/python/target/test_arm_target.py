@@ -28,63 +28,6 @@ from tvm.script import tirx as T
 from tvm.target import codegen
 from tvm.testing import env
 
-llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
-    # Testing mcpu type
-    (8, {"kind": "c", "mcpu": "cortex-m4"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m7"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m33"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m55"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m3"}, "int8", "int8", False),
-    (
-        7,
-        {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]},
-        "int8",
-        "int8",
-        False,
-    ),
-    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi"}, "int8", "int8", False),
-    (
-        7,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
-        "int8",
-        "int8",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
-        "int8",
-        "int8",
-        True,
-    ),
-    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (8, {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}, "int8", "int8", True),
-    # Testing dtype
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int16",
-        "int8",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int8",
-        "int16",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int16",
-        "int16",
-        False,
-    ),
-)
-
 
 @pytest.fixture(scope="session")
 def sve_device_vector_length():

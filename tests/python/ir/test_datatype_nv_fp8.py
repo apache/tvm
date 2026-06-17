@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E501, F401
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -69,7 +70,7 @@ def fp8_unary(dtype: str):
     return func
 
 
-np_dtype, dtype_str = tvm.testing.parameters(
+nv_fp8_dtypes = [
     (float8_e3m4, "float8_e3m4"),
     (float8_e4m3, "float8_e4m3"),
     (float8_e4m3b11fnuz, "float8_e4m3b11fnuz"),
@@ -78,9 +79,10 @@ np_dtype, dtype_str = tvm.testing.parameters(
     (float8_e5m2, "float8_e5m2"),
     (float8_e5m2fnuz, "float8_e5m2fnuz"),
     (float8_e8m0fnu, "float8_e8m0fnu"),
-)
+]
 
 
+@pytest.mark.parametrize("np_dtype,dtype_str", nv_fp8_dtypes)
 def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
     if np_dtype is None:
         """Skip test if ml_dtypes is not installed"""
@@ -91,6 +93,7 @@ def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
     np.testing.assert_equal(x_nd.numpy(), x)
 
 
+@pytest.mark.parametrize("np_dtype,dtype_str", nv_fp8_dtypes)
 def test_fp8_unary_op(np_dtype, dtype_str):
     func = fp8_unary(dtype_str)
     if not tvm.testing.device_enabled("llvm"):
@@ -119,6 +122,7 @@ def test_fp8_unary_op(np_dtype, dtype_str):
     np.testing.assert_equal(args[6].numpy(), expected_a_roundtrip)
 
 
+@pytest.mark.parametrize("np_dtype,dtype_str", nv_fp8_dtypes)
 def test_nv_fp8_buffer(np_dtype, dtype_str):
     m = te.size_var("m")
     n = te.size_var("n")
