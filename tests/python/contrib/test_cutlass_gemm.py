@@ -73,7 +73,7 @@ def verify_group_gemm(
     tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=rtol, atol=atol)
 
 
-@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_group_gemm_sm90():
@@ -118,7 +118,7 @@ def test_group_gemm_sm90():
     )
 
 
-@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_group_gemm_sm100():
@@ -302,7 +302,7 @@ def blockwise_bmm(
     return o_np
 
 
-@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_gemm():
@@ -336,7 +336,7 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     tvm.testing.assert_allclose(o_tvm, o_np, rtol=1e-4, atol=0.5)
 
 
-@pytest.mark.skipif(not env.has_cutlass(), reason="need cutlass")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_bmm():

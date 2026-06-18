@@ -116,7 +116,7 @@ def get_network(name, dtype, input_shape=(1, 3, 224, 224)):
         "float32",
     ],
 )
-@pytest.mark.skipif(not env.has_nnapi(), reason="need nnapi")
+@pytest.mark.skipif(not env.build_flag_enabled("USE_NNAPI_CODEGEN"), reason="need nnapi")
 def test_network(name, dtype):
     remote_obj, tracker = remote()
     print(f"Network evaluating {name} with dtype {dtype}")
