@@ -5508,6 +5508,68 @@ def test_grid_sample_5d(mode, padding_mode, align_corners):
     )
 
 
+def test_grid_sample_5d_cubic_unsupported():
+    x_shape = [1, 1, 4, 4, 4]
+    grid_shape = [1, 2, 3, 5, 3]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2], grid_shape[3]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="cubic",
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_5d_cubic_unsupported_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_5d_cubic_unsupported_test")
+    with pytest.raises(
+        NotImplementedError,
+        match="5D .*GridSample with mode='cubic' is not supported",
+    ):
+        from_onnx(model, opset=16, keep_params_in_input=True)
+
+
+def test_grid_sample_4d_non_square_output_shape():
+    x_shape = [1, 3, 4, 4]
+    grid_shape = [1, 3, 5, 2]
+    out_shape = [x_shape[0], x_shape[1], grid_shape[1], grid_shape[2]]
+
+    node = helper.make_node(
+        "GridSample",
+        inputs=["X", "grid"],
+        outputs=["Y"],
+        mode="bilinear",
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "grid_sample_4d_non_square_output_shape_test",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, grid_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="grid_sample_4d_non_square_output_shape_test")
+    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    inferred_shape = tuple(dim.value for dim in tvm_model["main"].ret_struct_info.shape.values)
+    assert inferred_shape == tuple(out_shape)
+
+
 def test_grid_sample_unsupported_rank():
     x_shape = [1, 3, 4]
     grid_shape = [1, 4, 2]

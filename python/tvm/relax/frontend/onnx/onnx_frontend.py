@@ -4999,6 +4999,12 @@ class GridSample(OnnxOpConverter):
         else:
             ndim = len(data.struct_info.shape)
 
+        if ndim == 5 and method == "bicubic":
+            raise NotImplementedError(
+                "5D (volumetric) GridSample with mode='cubic' is not supported "
+                "(TOPI 3D grid_sample supports only bilinear and nearest)."
+            )
+
         if ndim == 4:
             # ONNX grid shape: [N, H_out, W_out, 2]
             # TVM grid shape:  [N, 2, H_out, W_out]

@@ -336,9 +336,9 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
     out_tgt_shape.Set(3, grid_shape->values[3]);  // H_out
     out_tgt_shape.Set(4, grid_shape->values[4]);  // W_out
   } else {
-    // grid is [N, H_out, W_out, 2], output is [N, C, H_out, W_out]
-    out_tgt_shape.Set(2, grid_shape->values[1]);  // H_out
-    out_tgt_shape.Set(3, grid_shape->values[2]);  // W_out
+    // grid (TVM layout) is [N, 2, H_out, W_out], output is [N, C, H_out, W_out]
+    out_tgt_shape.Set(2, grid_shape->values[2]);  // H_out
+    out_tgt_shape.Set(3, grid_shape->values[3]);  // W_out
   }
 
   ffi::Array<PrimExpr> out_shape = data2tgt.BackwardShape(out_tgt_shape);
