@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, E731, F841
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -1551,9 +1553,11 @@ def test_scatter_elements_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_scatter_elements_gpu(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_scatter_elements_gpu():
     """scatter_elements lowered for GPU must build"""
+    target = "cuda"
 
     @I.ir_module(s_tir=True)
     class Mod:
@@ -1861,9 +1865,11 @@ def test_scatter_nd():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_scatter_nd_gpu(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_scatter_nd_gpu():
     """scatter_nd lowered for GPU must build"""
+    target = "cuda"
 
     @I.ir_module(s_tir=True)
     class Mod:

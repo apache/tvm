@@ -53,8 +53,10 @@ def _make_dataset():
     return [[np.ones((1, 10)).astype(np.float32), np.array([[0, 0, 1, 0, 0]], np.float32)]] * N
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_execute(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_execute():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
     pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
 
@@ -77,8 +79,10 @@ def test_execute(target, dev):
     trainer.update(dataset[0][0], dataset[0][1])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_execute_numeric(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_execute_numeric():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
     pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
 
@@ -106,8 +110,10 @@ def test_execute_numeric(target, dev):
     tvm.testing.assert_allclose(result.numpy(), result_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_load_export_params(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_load_export_params():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
     pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
 
@@ -141,8 +147,10 @@ def test_load_export_params(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_setting_error(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_setting_error():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
     pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
 

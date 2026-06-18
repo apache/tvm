@@ -77,8 +77,17 @@ def generate_param_sets():
 dims = tvm.testing.parameter(*generate_param_sets())
 
 
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_sum(dims, target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_sum(dims, target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
     f = tvm.compile(mod, target=target)
@@ -131,8 +140,17 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     tvm.compile(mod, target=target)
 
 
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_max(dims, target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_max(dims, target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     d1, d2, d3 = dims
     mod = _reduce_max_module(d1, d2, d3)
     f = tvm.compile(mod, target=target)

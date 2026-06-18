@@ -57,79 +57,68 @@ Unit-Test File Contents
 
 .. _pytest-marks: https://docs.pytest.org/en/stable/how-to/mark.html
 
-The recommended method to run a test on multiple targets is by
-parametrizing the test.  This can be done explicitly for a fixed list
-of targets by decorating with
-``@tvm.testing.parametrize_targets('target_1', 'target_2', ...)``, and
-accepting ``target`` or ``dev`` as function arguments.  The function
-will be run once for each target listed, and the success/failure of
-each target is reported separately.  If a target cannot be run because
-it is disabled in the `config.cmake`, or because no appropriate
-hardware is present, then that target will be reported as skipped.
+The recommended way to run a test on multiple targets is to parametrize
+over ``target`` with ``@pytest.mark.parametrize``.  Tag each GPU target
+with ``pytest.mark.gpu`` so the CI routes it to a GPU node, skip a target
+that cannot run on the current machine with
+:py:func:`tvm.testing.device_enabled`, and obtain its device with
+``tvm.device(target)``.  The function is run once per target, the
+success/failure of each is reported separately, and a target whose device
+is disabled in ``config.cmake`` or absent from the machine is reported as
+skipped.
 
 .. code-block:: python
 
-    # Explicit listing of targets to use.
-    @tvm.testing.parametrize_targets('llvm', 'cuda')
-    def test_function(target, dev):
+    @pytest.mark.parametrize(
+        "target",
+        ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)],
+    )
+    def test_function(target):
+        if not tvm.testing.device_enabled(target):
+            pytest.skip(f"{target} not enabled")
+        dev = tvm.device(target)
         # Test code goes here
 
-For tests that should run correctly on all targets, the decorator can
-be omitted.  Any test that accepts a ``target`` or ``dev`` argument
-will automatically be parametrized over all targets specified in
-``TVM_TEST_TARGETS``.  The parametrization provides the same
-pass/fail/skipped report for each target, while allowing the test
-suite to be easily extended to cover additional targets.
+For a test that only applies to a single target, omit the parametrization
+and gate the test with ``@pytest.mark.skipif`` (plus ``@pytest.mark.gpu``
+for a GPU target):
 
 .. code-block:: python
 
-    # Implicitly parametrized to run on all targets
-    # in environment variable TVM_TEST_TARGETS
-    def test_function(target, dev):
+    @pytest.mark.gpu
+    @pytest.mark.skipif(
+        not tvm.testing.device_enabled("cuda"), reason="cuda not enabled"
+    )
+    def test_function():
+        target = "cuda"
+        dev = tvm.device(target)
         # Test code goes here
 
-The ``@tvm.testing.parametrize_targets`` can also be used as a bare
-decorator to explicitly draw attention to the parametrization, but has
-no additional effect.
+To exclude a target, leave it out of the parametrize list.  To mark a
+target as expected to fail, wrap it with
+``pytest.param("target", marks=pytest.mark.xfail(reason=...))``.
+
+Additional parameters can be combined with the target parametrization by
+stacking ``@pytest.mark.parametrize`` decorators, or by listing tuples of
+arguments.  Tag the GPU rows with ``pytest.mark.gpu`` and skip in the body
+as above:
 
 .. code-block:: python
 
-    # Explicitly parametrized to run on all targets
-    # in environment variable TVM_TEST_TARGETS
-    @tvm.testing.parametrize_targets
-    def test_function(target, dev):
-        # Test code goes here
-
-
-Specific targets can be excluded or marked as expected to fail using
-the ``@tvm.testing.exclude_targets`` or
-``@tvm.testing.known_failing_targets`` decorators.  For more
-information on their intended use cases, please see their docstrings.
-
-In some cases it may be necessary to parametrize across multiple
-parameters.  For instance, there may be target-specific
-implementations that should be tested, where some targets have more
-than one implementation.  These can be done by explicitly
-parametrizing over tuples of arguments, such as shown below.  In these
-cases, only the explicitly listed targets will run, and each target is
-automatically gated on whether it can run on the current machine (a GPU
-target gets ``@pytest.mark.gpu`` plus a skip when no device is present).
-
-.. code-block:: python
-
-   @pytest.mark.parametrize('target,impl', [
-        ('llvm', cpu_implementation),
-        ('cuda', gpu_implementation_small_batch),
-        ('cuda', gpu_implementation_large_batch),
+   @pytest.mark.parametrize("target,impl", [
+        ("llvm", cpu_implementation),
+        pytest.param("cuda", gpu_implementation_small_batch, marks=pytest.mark.gpu),
+        pytest.param("cuda", gpu_implementation_large_batch, marks=pytest.mark.gpu),
     ])
-    def test_function(target, dev, impl):
+    def test_function(target, impl):
+        if not tvm.testing.device_enabled(target):
+            pytest.skip(f"{target} not enabled")
+        dev = tvm.device(target)
         # Test code goes here
 
 
-The parametrization functionality is implemented
-on top of pytest marks.  Each test function can
-be decorated with `pytest marks <pytest-marks>`_
-to include metadata.  The most frequently applied
+Tests gate on hardware and carry metadata using
+`pytest marks <pytest-marks>`_.  The most frequently applied
 marks are as follows.
 
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
@@ -156,12 +145,6 @@ marks are as follows.
   module, when called at import time) if an optional Python package is
   not installed.  Use this instead of a ``skipif`` for package
   dependencies.
-
-When using ``tvm.testing.parametrize_targets()``, each parametrized run
-is gated automatically on whether its target can run on the current
-machine.  As a result, if a target is disabled in ``config.cmake`` or
-does not have appropriate hardware to run, it will be explicitly listed
-as skipped, and GPU targets are tagged with ``@pytest.mark.gpu`` for you.
 
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,

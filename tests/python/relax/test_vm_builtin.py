@@ -54,8 +54,9 @@ def test_multinomial_from_uniform():
     tvm.testing.assert_allclose(res.numpy(), np.array([[4], [0], [4]]).astype(np.int64))
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_alloc_tensor_raises_out_of_memory(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_alloc_tensor_raises_out_of_memory():
     """Out-of-memory exceptions may be raised from VM
 
     This is a regression test.  In previous implementations, the Relax
@@ -63,6 +64,8 @@ def test_alloc_tensor_raises_out_of_memory(target, dev):
     "vm.builtin.alloc_storage" was unable to allocate the requested
     buffer.
     """
+    target = "cuda"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:

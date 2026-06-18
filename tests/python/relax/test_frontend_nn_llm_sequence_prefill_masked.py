@@ -186,9 +186,15 @@ def _run_case(
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_zero(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_zero(target):
     """All samples are fully padded: kernel must not crash and must stay bounded."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -203,9 +209,15 @@ def test_valid_len_zero(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_full(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_full(target):
     """All samples are fully valid: must match a plain unmasked attention."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -220,9 +232,15 @@ def test_valid_len_full(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_mixed(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_mixed(target):
     """Typical encoder batch with different valid lengths per sample."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -237,9 +255,15 @@ def test_valid_len_mixed(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_valid_len_mixed_gqa(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_valid_len_mixed_gqa(target):
     """Grouped-query attention: ``group_size = h_q / h_kv > 1``."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -254,9 +278,15 @@ def test_valid_len_mixed_gqa(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_zero(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_zero(target):
     """Causal left-pad: all samples are fully padded."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -272,9 +302,15 @@ def test_causal_padded_left_valid_len_zero(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_full(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_full(target):
     """Causal left-pad: all samples are fully valid — degenerates to plain causal attention."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -290,9 +326,15 @@ def test_causal_padded_left_valid_len_full(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_mixed(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_mixed(target):
     """Causal left-pad: typical decoder-embedding batch with mixed lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -308,9 +350,15 @@ def test_causal_padded_left_valid_len_mixed(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_valid_len_mixed_gqa(target):
     """Causal left-pad: grouped-query attention with mixed lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,
@@ -326,9 +374,15 @@ def test_causal_padded_left_valid_len_mixed_gqa(target, dev):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_causal_padded_left_qo_len_differs_from_kv_len(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [pytest.param("cuda", marks=pytest.mark.gpu), pytest.param("metal", marks=pytest.mark.gpu)],
+)
+def test_causal_padded_left_qo_len_differs_from_kv_len(target):
     """Causal left-pad: Q and K/V may have different padded lengths."""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
     _run_case(
         target=target,
         dev=dev,

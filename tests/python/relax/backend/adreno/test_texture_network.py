@@ -41,8 +41,11 @@ from tvm.script.ir_builder import relax as relax_builder
 TARGETS = [tvm.target.Target("qcom/adreno-opencl-texture")]
 
 
-@tvm.testing.parametrize_targets(*TARGETS)
-def test_network_resnet(target):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+def test_network_resnet():
+    target = TARGETS[0]
+
     @I.ir_module
     class Resnet:
         @R.function

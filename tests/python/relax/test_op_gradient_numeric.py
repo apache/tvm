@@ -221,8 +221,10 @@ def relax_check_gradients(
         (relax.op.tanh, True),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_unary(target, dev, unary_op_func, can_be_neg):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_unary(unary_op_func, can_be_neg):
+    target = "llvm"
+    dev = tvm.device(target)
     (low, high) = (-1, 1) if can_be_neg else (0.1, 1)
     data_numpy = np.random.uniform(low, high, (3, 3)).astype(np.float32)
     relax_check_gradients(unary_op_func, [data_numpy], target, dev)
@@ -241,16 +243,20 @@ def test_unary(target, dev, unary_op_func, can_be_neg):
         relax.op.power,
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_binary_arith(target, dev, binary_arith_op_func):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_binary_arith(binary_arith_op_func):
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
     data2_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
     relax_check_gradients(binary_arith_op_func, [data1_numpy, data2_numpy], target, dev)
 
 
 @pytest.mark.parametrize("binary_minmax_op_func", [relax.op.maximum, relax.op.minimum])
-@tvm.testing.parametrize_targets("llvm")
-def test_binary_minmax(target, dev, binary_minmax_op_func):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_binary_minmax(binary_minmax_op_func):
+    target = "llvm"
+    dev = tvm.device(target)
     # Checking numerical gradient of min and max requires data1_numpy[i] != data2_numpy[i]
     # for all possible i.
     # If data1_numpy[i] == data2_numpy[i], the operator is not differentiable w.r.t. place i
@@ -272,8 +278,10 @@ def test_binary_minmax(target, dev, binary_minmax_op_func):
         relax.op.not_equal,
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_binary_cmp(target, dev, binary_cmp_op_func):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_binary_cmp(binary_cmp_op_func):
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
     data2_numpy = np.random.uniform(1, 2, (3, 3)).astype(np.float32)
     relax_check_gradients(
@@ -285,14 +293,18 @@ def test_binary_cmp(target, dev, binary_cmp_op_func):
 
 
 @pytest.mark.parametrize("like_op_func", [relax.op.zeros_like, relax.op.ones_like])
-@tvm.testing.parametrize_targets("llvm")
-def test_ones_zeros_like(target, dev, like_op_func):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_ones_zeros_like(like_op_func):
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
     relax_check_gradients(like_op_func, [data_numpy], target, dev, ignore_grads=[0])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_full_like(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_full_like():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
     fill_value = np.random.uniform(-1, 1, ()).astype(np.float32)
     relax_check_gradients(
@@ -301,15 +313,19 @@ def test_full_like(target, dev):
 
 
 @pytest.mark.parametrize("create_op_func", [relax.op.zeros, relax.op.ones])
-@tvm.testing.parametrize_targets("llvm")
-def test_ones_zeros(target, dev, create_op_func):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_ones_zeros(create_op_func):
+    target = "llvm"
+    dev = tvm.device(target)
     relax_check_gradients(
         create_op_func, [], target, dev, ignore_grads=[0], shape=(3, 3), dtype="float32"
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_triu(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_triu():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.triu, [data_numpy], target, dev, k=0)
 
@@ -317,56 +333,74 @@ def test_triu(target, dev):
 ##################### Statistical #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_sum(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_sum():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.sum, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_sum_with_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_sum_with_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(relax.op.sum, [data1_numpy], target, dev, axis=[1, 3])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_sum_keepdims(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_sum_keepdims():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.sum, [data1_numpy], target, dev, keepdims=True, axis=1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_mean(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_mean():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.mean, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_mean_with_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_mean_with_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(relax.op.mean, [data1_numpy], target, dev, axis=[1, 3])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_mean_keepdims(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_mean_keepdims():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.mean, [data1_numpy], target, dev, keepdims=True, axis=1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_variance(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_variance():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.variance, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_variance_with_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_variance_with_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(relax.op.variance, [data1_numpy], target, dev, axis=[1, 3])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_variance_keepdims(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_variance_keepdims():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.variance, [data1_numpy], target, dev, keepdims=True, axis=1)
 
@@ -374,30 +408,38 @@ def test_variance_keepdims(target, dev):
 ##################### Manipulate #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_reshape(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_reshape():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, (2, 3, 5)).astype(np.float32)
     relax_check_gradients(
         relax.op.reshape, [data_numpy], target, dev, ignore_grads=[1], shape=(5, 6)
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_reshape_infer_dim(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_reshape_infer_dim():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, (2, 3, 5)).astype(np.float32)
     relax_check_gradients(
         relax.op.reshape, [data_numpy], target, dev, ignore_grads=[1], shape=(5, 2, 1, -1)
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_permute_dims(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_permute_dims():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(relax.op.permute_dims, [data_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_permute_dims_with_axes(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_permute_dims_with_axes():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(
         relax.op.permute_dims,
@@ -408,8 +450,10 @@ def test_permute_dims_with_axes(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_concat(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_concat():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy1 = np.random.uniform(1, 16, (3, 3)).astype(np.float32)
     data_numpy2 = np.random.uniform(1, 16, (3, 4)).astype(np.float32)
     data_numpy3 = np.random.uniform(1, 16, (3, 5)).astype(np.float32)
@@ -423,8 +467,10 @@ def test_concat(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_split_indices(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_split_indices():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 12)).astype(np.float32)
     relax_check_gradients(
         relax.op.split,
@@ -436,8 +482,10 @@ def test_split_indices(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_split_section(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_split_section():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 12)).astype(np.float32)
     relax_check_gradients(
         relax.op.split,
@@ -449,8 +497,10 @@ def test_split_section(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_reshape(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_reshape():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 4)).astype(np.float32)
 
     relax_check_gradients(
@@ -463,8 +513,10 @@ def test_reshape(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_cumsum(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_cumsum():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy1 = np.random.uniform(1, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(
         relax.op.cumsum,
@@ -475,8 +527,10 @@ def test_cumsum(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_cumsum_no_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_cumsum_no_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy1 = np.random.uniform(1, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(
         relax.op.cumsum,
@@ -486,20 +540,26 @@ def test_cumsum_no_axis(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_expand_dims(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_expand_dims():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 12)).astype(np.float32)
     relax_check_gradients(relax.op.expand_dims, [data_numpy], target, dev, axis=1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_expand_dims_list(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_expand_dims_list():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 12)).astype(np.float32)
     relax_check_gradients(relax.op.expand_dims, [data_numpy], target, dev, axis=(0, 2, 3))
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_broadcast_to(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_broadcast_to():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(1, 16, (3, 4)).astype(np.float32)
     relax_check_gradients(
         relax.op.broadcast_to,
@@ -514,8 +574,10 @@ def test_broadcast_to(target, dev):
 ##################### Index #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, size=(2, 3, 4)).astype(np.float32)
     indices = np.array([0, 1])
     relax_check_gradients(
@@ -528,8 +590,10 @@ def test_take(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_no_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_no_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, size=(5,)).astype(np.float32)
     indices = np.array([1, 3])
     relax_check_gradients(
@@ -544,8 +608,10 @@ def test_take_no_axis(target, dev):
 ##################### Search #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_where(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_where():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 1, size=(3, 3)) > 0.5
     data2_numpy = np.random.uniform(0, 16, size=(3, 3)).astype(np.float32)
     data3_numpy = np.random.uniform(0, 16, size=(3, 3)).astype(np.float32)
@@ -562,36 +628,46 @@ def test_where(target, dev):
 ##################### Linear Algebra #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul_2_2(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul_2_2():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3)).astype(np.float32)
     data2_numpy = np.random.uniform(0, 16, (3, 4)).astype(np.float32)
     relax_check_gradients(relax.op.matmul, [data1_numpy, data2_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul_1_1(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul_1_1():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (4,)).astype(np.float32)
     data2_numpy = np.random.uniform(0, 16, (4,)).astype(np.float32)
     relax_check_gradients(relax.op.matmul, [data1_numpy, data2_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul_1_4(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul_1_4():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (4,)).astype(np.float32)
     data2_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     relax_check_gradients(relax.op.matmul, [data1_numpy, data2_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul_4_1(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul_4_1():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4, 5)).astype(np.float32)
     data2_numpy = np.random.uniform(0, 16, (5,)).astype(np.float32)
     relax_check_gradients(relax.op.matmul, [data1_numpy, data2_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul_5_4(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul_5_4():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 1, 4, 5)).astype(np.float32)
     data2_numpy = np.random.uniform(0, 16, (3, 2, 5, 4)).astype(np.float32)
     relax_check_gradients(
@@ -605,8 +681,10 @@ def test_matmul_5_4(target, dev):
 ##################### Datatype #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_astype(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_astype():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 16, size=(3, 3)).astype(np.float64)
     relax_check_gradients(relax.op.astype, [data_numpy], target, dev, dtype="float32")
 
@@ -614,46 +692,60 @@ def test_astype(target, dev):
 ##################### Neural network #####################
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_relu(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_relu():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0.2, 1, (3, 3)).astype(np.float32)
     sign = np.random.randint(0, 2, (3, 3)).astype(np.float32) * 2 - 1
     data1_numpy *= sign
     relax_check_gradients(relax.op.nn.relu, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_silu(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_silu():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.silu, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_softmax(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_softmax():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.softmax, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_softmax_with_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_softmax_with_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.softmax, [data1_numpy], target, dev, axis=1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_log_softmax(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_log_softmax():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.log_softmax, [data1_numpy], target, dev)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_log_softmax_with_axis(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_log_softmax_with_axis():
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.log_softmax, [data1_numpy], target, dev, axis=1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_cross_entropy_with_logits(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_cross_entropy_with_logits():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy1 = np.random.uniform(1, 16, (3,)).astype(np.float32)
     data_numpy2 = np.random.uniform(1, 16, (3,)).astype(np.float32)
     relax_check_gradients(
@@ -664,8 +756,10 @@ def test_cross_entropy_with_logits(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_cross_entropy_with_logits_batch(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_cross_entropy_with_logits_batch():
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy1 = np.random.uniform(1, 16, (2, 3)).astype(np.float32)
     data_numpy2 = np.random.uniform(1, 16, (2, 3)).astype(np.float32)
     relax_check_gradients(
@@ -687,8 +781,10 @@ def test_cross_entropy_with_logits_batch(target, dev):
         ("mean", False, 1),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_nll_loss(nll_reduction, nll_weighted, nll_ignore_index):
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4)).astype(np.float32)
     data2_numpy = np.random.randint(0, 3, (2, 4)).astype(np.int64)
     # force a position in targets it not ignore_index, to avoid zero total weight
@@ -718,8 +814,10 @@ def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
         ("none", True, -1),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignore_index1):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_nll_loss_no_batch(nll_reduction1, nll_weighted1, nll_ignore_index1):
+    target = "llvm"
+    dev = tvm.device(target)
     data1_numpy = np.random.uniform(0, 16, (3,)).astype(np.float32)
     data2_numpy = np.random.randint(0, 3, ()).astype(np.int64)
     # weight > 0
@@ -774,8 +872,10 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
         ),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_conv2d(c2d_shape1, c2d_shape2, c2d_kwargs):
+    target = "llvm"
+    dev = tvm.device(target)
     import pytest
 
     # Use smaller range to reduce numerical errors in gradient check
@@ -813,8 +913,10 @@ pool_params = [
 
 
 @pytest.mark.parametrize("pool_size,pool_kwargs", pool_params)
-@tvm.testing.parametrize_targets("llvm")
-def test_max_pool2d(target, dev, pool_size, pool_kwargs):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_max_pool2d(pool_size, pool_kwargs):
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.max_pool2d,
@@ -827,8 +929,10 @@ def test_max_pool2d(target, dev, pool_size, pool_kwargs):
 
 
 @pytest.mark.parametrize("pool_size,pool_kwargs", pool_params)
-@tvm.testing.parametrize_targets("llvm")
-def test_avg_pool2d(target, dev, pool_size, pool_kwargs):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_avg_pool2d(pool_size, pool_kwargs):
+    target = "llvm"
+    dev = tvm.device(target)
     data_numpy = np.random.uniform(0, 3, size=(3, 2, 10, 10)).astype(np.float32)
     relax_check_gradients(
         relax.op.nn.avg_pool2d,

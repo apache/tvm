@@ -131,15 +131,18 @@ We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``
 See :doc:`testing` for details on running tests, target parametrization,
 and the target-specific marks used by CI.
 
-If you want your test to run over a variety of targets, use the :py:func:`tvm.testing.parametrize_targets` decorator. For example:
+If you want your test to run over a variety of targets, parametrize over ``target`` with ``@pytest.mark.parametrize``, tag GPU targets with ``@pytest.mark.gpu`` so the CI routes them to GPU nodes, and skip a target that is unavailable on the current machine with :py:func:`tvm.testing.device_enabled`. For example:
 
 .. code:: python
 
-  @tvm.testing.parametrize_targets
-  def test_mytest(target, dev):
-    ...
+  @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
+  def test_mytest(target):
+      if not tvm.testing.device_enabled(target):
+          pytest.skip(f"{target} not enabled")
+      dev = tvm.device(target)
+      ...
 
-will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, gate the test on the corresponding capability probe instead of using a per-target decorator. Mark GPU tests with ``@pytest.mark.gpu`` so the CI can select them, and skip when the required feature is unavailable with ``@pytest.mark.skipif``. For example, CUDA tests use:
+will run ``test_mytest`` with ``target="llvm"`` and ``target="cuda"``, skipping any target whose device is not present. If you only want to test against a single target, drop the parametrization and hardcode the target. Mark GPU tests with ``@pytest.mark.gpu`` so the CI can select them, and skip when the required feature is unavailable with ``@pytest.mark.skipif``. For example, CUDA tests use:
 
 .. code:: python
 

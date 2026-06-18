@@ -28,11 +28,20 @@ from tvm.testing import env
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-@tvm.testing.parametrize_targets(
-    "cuda", "metal", {"kind": "vulkan", "supports_int64": True}, "opencl"
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
+        pytest.param("opencl", marks=pytest.mark.gpu),
+    ],
 )
 @pytest.mark.parametrize("dtype", ["int32", "uint32", "int64", "uint64"])
-def test_int_intrin(target, dev, dtype):
+def test_int_intrin(target, dtype):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
     test_funcs = [
         (T.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
     ]

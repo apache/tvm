@@ -65,7 +65,6 @@ def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: li
     _assert_allclose_nested(result, expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
 def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
     x = relax.Var("x", R.Tensor((3, 3), "float32"))
     y = relax.Var("y", R.Tensor((3,), "float32"))
@@ -87,8 +86,11 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
         (0.01, 0.02),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_sgd(target, dev, lr, weight_decay):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_sgd(lr, weight_decay):
+    target = "llvm"
+    dev = tvm.device(target)
+
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         param_tuple_new, state_tuple_new = [], []
@@ -110,8 +112,11 @@ def test_sgd(target, dev, lr, weight_decay):
         (0.01, 0.9, 0.85, 0.02, True),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nesterov):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
+    target = "llvm"
+    dev = tvm.device(target)
+
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         param_tuple_new, state_tuple_new = [], []
@@ -144,8 +149,11 @@ def test_momentum_sgd(target, dev, lr, momentum, dampening, weight_decay, nester
         (0.01, (0.8, 0.85), 1e-07, 0.1),
     ],
 )
-@tvm.testing.parametrize_targets("llvm")
-def test_adam(target, dev, lr, betas, eps, weight_decay):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_adam(lr, betas, eps, weight_decay):
+    target = "llvm"
+    dev = tvm.device(target)
+
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
         num_steps_new = num_steps + 1

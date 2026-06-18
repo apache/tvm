@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E731, F401, RUF012
+# ruff: noqa: F401, RUF012
 
 import os
 import sys
@@ -30,82 +30,6 @@ import tvm.testing
 # these tests are distributed/parallelized using pytest-xdist or
 # similar, all tests in this file should run sequentially on the same
 # node.  (See https://stackoverflow.com/a/59504228)
-
-
-class TestTargetAutoParametrization:
-    targets_used = []
-    devices_used = []
-    enabled_targets = [target for target, dev in tvm.testing.enabled_targets()]
-    enabled_devices = [dev for target, dev in tvm.testing.enabled_targets()]
-
-    def test_target_parametrization(self, target):
-        assert target in self.enabled_targets
-        self.targets_used.append(target)
-
-    def test_device_parametrization(self, dev):
-        assert dev in self.enabled_devices
-        self.devices_used.append(dev)
-
-    def test_all_targets_used(self):
-        sort_key = lambda t: str(t)
-        assert sorted(self.targets_used, key=sort_key) == sorted(self.enabled_targets, key=sort_key)
-
-    def test_all_devices_used(self):
-        sort_key = lambda dev: (dev.dlpack_device_type(), dev.index)
-        assert sorted(self.devices_used, key=sort_key) == sorted(self.enabled_devices, key=sort_key)
-
-    targets_with_explicit_list = []
-
-    @tvm.testing.parametrize_targets("llvm")
-    def test_explicit_list(self, target):
-        assert target == "llvm"
-        self.targets_with_explicit_list.append(target)
-
-    def test_no_repeats_in_explicit_list(self):
-        if tvm.testing.device_enabled("llvm"):
-            assert self.targets_with_explicit_list == ["llvm"]
-        else:
-            assert self.targets_with_explicit_list == []
-
-    targets_with_exclusion = []
-
-    @tvm.testing.exclude_targets("llvm")
-    def test_exclude_target(self, target):
-        target_kind = target["kind"] if isinstance(target, dict) else target
-        assert "llvm" not in target_kind
-        self.targets_with_exclusion.append(target)
-
-    def test_all_nonexcluded_targets_ran(self):
-        def _get_kind(t):
-            return t["kind"] if isinstance(t, dict) else t
-
-        sort_key = lambda t: str(t)
-        assert sorted(self.targets_with_exclusion, key=sort_key) == sorted(
-            [target for target in self.enabled_targets if not _get_kind(target).startswith("llvm")],
-            key=sort_key,
-        )
-
-    run_targets_with_known_failure = []
-
-    @tvm.testing.known_failing_targets("llvm")
-    def test_known_failing_target(self, target):
-        # This test runs for all targets, but intentionally fails for
-        # llvm.  The behavior is working correctly if this test shows
-        # up as an expected failure, xfail.
-        self.run_targets_with_known_failure.append(target)
-        target_kind = target["kind"] if isinstance(target, dict) else target
-        assert "llvm" not in target_kind
-
-    def test_all_targets_ran(self):
-        sort_key = lambda t: str(t)
-        assert sorted(self.run_targets_with_known_failure, key=sort_key) == sorted(
-            self.enabled_targets, key=sort_key
-        )
-
-    @tvm.testing.known_failing_targets("llvm")
-    @tvm.testing.parametrize_targets("llvm")
-    def test_known_failing_explicit_list(self, target):
-        assert target != "llvm"
 
 
 class TestParameter:
@@ -206,57 +130,6 @@ class TestBrokenFixture:
 
     def test_num_uses_cached(self):
         assert self.num_uses_broken_cached_fixture == 0
-
-
-class TestAutomaticMarks:
-    @staticmethod
-    def check_marks(request, target):
-        decorators = tvm.testing.plugin._target_to_requirement(target)
-        required_marks = [decorator.mark for decorator in decorators]
-        applied_marks = list(request.node.iter_markers())
-
-        for required_mark in required_marks:
-            assert required_mark in applied_marks
-
-    def test_automatic_fixture(self, request, target):
-        self.check_marks(request, target)
-
-    @tvm.testing.parametrize_targets
-    def test_bare_parametrize(self, request, target):
-        self.check_marks(request, target)
-
-    @tvm.testing.parametrize_targets("llvm", "cuda", "vulkan")
-    def test_explicit_parametrize(self, request, target):
-        self.check_marks(request, target)
-
-    @pytest.mark.parametrize("target", ["llvm", "cuda", "vulkan"])
-    def test_pytest_mark(self, request, target):
-        self.check_marks(request, target)
-
-    @pytest.mark.parametrize("target,other_param", [("llvm", 0), ("cuda", 1), ("vulkan", 2)])
-    def test_pytest_mark_covariant(self, request, target, other_param):
-        self.check_marks(request, target)
-
-
-def test_target_to_requirement_cuda_libs():
-    """cuda+cudnn / cuda+cublas select their own probe; cudnn wins when both are present."""
-    ttr = tvm.testing.plugin._target_to_requirement
-
-    def skip_reasons(target):
-        return [d.mark.kwargs["reason"] for d in ttr(target) if d.mark.name == "skipif"]
-
-    assert skip_reasons({"kind": "cuda", "libs": ["cudnn"]}) == ["need cudnn"]
-    assert skip_reasons({"kind": "cuda", "libs": ["cublas"]}) == ["need cublas"]
-    # cudnn is checked before cublas, so it wins when both are present.
-    assert skip_reasons({"kind": "cuda", "libs": ["cudnn", "cublas"]}) == ["need cudnn"]
-    assert skip_reasons("cuda") == ["need cuda"]
-    # every cuda variant is GPU-family and carries the `gpu` selection marker.
-    assert any(d.mark.name == "gpu" for d in ttr({"kind": "cuda", "libs": ["cudnn"]}))
-
-
-def test_target_to_requirement_unknown_kind_has_no_marks():
-    """A target kind with no requirement entry produces no marks (no gpu, no skip)."""
-    assert tvm.testing.plugin._target_to_requirement("c") == []
 
 
 @pytest.mark.skipif(

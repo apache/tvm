@@ -328,8 +328,18 @@ def test_cuda_inf_nan():
     check_inf_nan(dev, 1, float("nan"), "float64")
 
 
-@tvm.testing.parametrize_targets("cuda", "rocm")
-def test_crossthread_reduction1(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("rocm", marks=pytest.mark.gpu),
+    ],
+)
+def test_crossthread_reduction1(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
+
     def sched(nthd):
         @I.ir_module(s_tir=True)
         class Module:
@@ -372,8 +382,18 @@ def test_crossthread_reduction1(target, dev):
     verify(64)
 
 
-@tvm.testing.parametrize_targets("cuda", "rocm")
-def test_crossthread_reduction2(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("rocm", marks=pytest.mark.gpu),
+    ],
+)
+def test_crossthread_reduction2(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
+
     def sched(nthdx, nthdy):
         @I.ir_module(s_tir=True)
         class Module:
