@@ -68,15 +68,22 @@ This folder contains a simple recipe to make RPC server in c++.
 ```
 Command line usage
  server       - Start the server
---host        - The hostname of the server, Default=0.0.0.0
---port        - The port of the RPC, Default=9090
---port-end    - The end search port of the RPC, Default=9199
+--host        - The listen address of the RPC server, Default=0.0.0.0
+--port        - The port of the RPC server, Default=9090
+--port-end    - The end search port of the RPC server, Default=9099
 --tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=""
 --key         - The key used to identify the device type in tracker. Default=""
 --custom-addr - Custom IP Address to Report to RPC Tracker. Default=""
 --silent      - Whether to run in silent mode. Default=False
-  Example
-  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 --tracker=127.0.0.1:9190 --key=rasp
+ tracker      - Start the tracker
+--host        - The listen address of the RPC tracker, Default=0.0.0.0
+--port        - The port of the RPC tracker, Default=9190
+--port-end    - The end search port of the RPC tracker, Default=9199
+--silent      - Whether to run in silent mode. Default=False
+  Examples
+  ./tvm_rpc server --host=0.0.0.0 --port=9090 --port-end=9099 --tracker=127.0.0.1:9190 --key=rasp
+
+  ./tvm_rpc tracker --host=0.0.0.0 --port=9190 --port-end=9199
 ```
 
 ## Note

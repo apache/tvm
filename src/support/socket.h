@@ -52,6 +52,7 @@
 #include <tvm/support/io.h>
 
 #include <cstring>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -165,10 +166,8 @@ struct SockAddr {
                      ? reinterpret_cast<const sockaddr_in6*>(&addr)->sin6_port
                      : reinterpret_cast<const sockaddr_in*>(&addr)->sin_port);
   }
-  /*! \brief return the ip address family */
-  int ss_family() const { return addr.ss_family; }
-  /*! \return a string representation of the address */
-  std::string AsString() const {
+  /*! \brief return ip of the address */
+  std::string ipaddr() const {
     std::string buf;
     buf.resize(256);
 
@@ -192,7 +191,15 @@ struct SockAddr {
 #endif
     TVM_FFI_ICHECK(s != nullptr) << "cannot decode address";
     std::ostringstream os;
-    os << s << ":" << port();
+    os << s;
+    return os.str();
+  }
+  /*! \brief return the ip address family */
+  int ss_family() const { return addr.ss_family; }
+  /*! \return a string representation of the address */
+  std::string AsString() const {
+    std::ostringstream os;
+    os << ipaddr() << ":" << port();
     return os.str();
   }
 };
@@ -557,6 +564,21 @@ class TCPSocket : public Socket, public Stream {
   size_t Read(void* data, size_t size) final { return RecvAll(data, size); }
 
   size_t Write(const void* data, size_t size) final { return SendAll(data, size); }
+
+  /*!
+   * \brief Get the address of the remote.
+   * \return SockAddr holding the address
+   */
+  std::optional<SockAddr> GetRemoteAddr() {
+    sockaddr_storage addr_storage{};
+    socklen_t addr_len = sizeof(addr_storage);
+    if (getpeername(sockfd, reinterpret_cast<sockaddr*>(&addr_storage), &addr_len) == 0) {
+      SockAddr remote_addr;
+      remote_addr.addr = addr_storage;
+      return remote_addr;
+    }
+    return std::nullopt;
+  }
 };
 
 /*! \brief helper data structure to perform poll */

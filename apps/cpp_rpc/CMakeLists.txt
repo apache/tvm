@@ -4,6 +4,7 @@ set(TVM_RPC_SOURCES
   main.cc
   rpc_env.cc
   rpc_server.cc
+  rpc_tracker.cc
 )
 
 set(TVM_RPC_LINKER_LIBS "")

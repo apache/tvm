@@ -37,6 +37,7 @@
 #include "../../src/support/socket.h"
 #include "../../src/support/utils.h"
 #include "rpc_server.h"
+#include "rpc_tracker.h"
 
 #if defined(_WIN32)
 #include "win32_process.h"
@@ -49,25 +50,33 @@ using namespace tvm::support;
 static const string kUsage =
     "Command line usage\n"
     " server       - Start the server\n"
-    "--host        - The hostname of the server, Default=0.0.0.0\n"
-    "--port        - The port of the RPC, Default=9090\n"
-    "--port-end    - The end search port of the RPC, Default=9099\n"
-    "--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n"
-    "--key         - The key used to identify the device type in tracker. Default=\"\"\n"
-    "--custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
-    "--work-dir    - Custom work directory. Default=\"\"\n"
-    "--silent      - Whether to run in silent mode. Default=False\n"
+    "  --host        - The listen address of the RPC server, Default=0.0.0.0 (any)\n"
+    "  --port        - The port of the RPC server, Default=9090\n"
+    "  --port-end    - The end search port of the RPC server, Default=9099\n"
+    "  --tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 "
+    "Default=\"\"\n"
+    "  --key         - The key used to identify the device type in tracker. Default=\"\"\n"
+    "  --custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
+    "  --work-dir    - Custom work directory. Default=\"\"\n"
+    "  --silent      - Whether to run in silent mode. Default=False\n"
+    " tracker      - Start the tracker\n"
+    "  --host        - The listen adddress of the RPC tracker, Default=0.0.0.0 (any)\n"
+    "  --port        - The port of the RPC tracker, Default=9190\n"
+    "  --port-end    - The end search port of the RPC tracker, Default=9199\n"
+    "  --silent      - Whether to run in silent mode. Default=False\n"
     "\n"
-    "  Example\n"
-    "  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 "
-    " --tracker=127.0.0.1:9190 --key=rasp"
+    "  Examples\n"
+    "  ./tvm_rpc server --host=0.0.0.0 --port=9090 --port-end=9099 --tracker=127.0.0.1:9190 "
+    "--key=rasp\n"
+    "\n"
+    "  ./tvm_rpc tracker --host=0.0.0.0 --port=9190 --port-end=9199\n"
     "\n";
 
 /*!
  * \brief RpcServerArgs.
- * \arg host The hostname of the server, Default=0.0.0.0
- * \arg port The port of the RPC, Default=9090
- * \arg port_end The end search port of the RPC, Default=9099
+ * \arg host The listen address of the RPC server, Default=0.0.0.0
+ * \arg port The port of the RPC server, Default=9090
+ * \arg port_end The end search port of the RPC server, Default=9099
  * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \arg key The key used to identify the device type in tracker. Default=""
  * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
@@ -89,10 +98,27 @@ struct RpcServerArgs {
 };
 
 /*!
- * \brief PrintArgs print the contents of RpcServerArgs
+ * \brief RpcTrackerArgs.
+ * \arg host The listen address of the RPC tracker, Default=0.0.0.0
+ * \arg port The port of the RPC tracker, Default=9190
+ * \arg port_end The end search port of the RPC tracker, Default=9199
+ * \arg silent Whether run in silent mode. Default=False
+ */
+struct RpcTrackerArgs {
+  string host = "0.0.0.0";
+  int port = 9190;
+  int port_end = 9199;
+  bool silent = false;
+#if defined(WIN32)
+  std::string mmap_path;
+#endif
+};
+
+/*!
+ * \brief PrintRPCServerArgs print the contents of RpcServerArgs
  * \param args RpcServerArgs structure
  */
-void PrintArgs(const RpcServerArgs& args) {
+void PrintRPCServerArgs(const RpcServerArgs& args) {
   LOG(INFO) << "host        = " << args.host;
   LOG(INFO) << "port        = " << args.port;
   LOG(INFO) << "port_end    = " << args.port_end;
@@ -100,6 +126,17 @@ void PrintArgs(const RpcServerArgs& args) {
   LOG(INFO) << "key         = " << args.key;
   LOG(INFO) << "custom_addr = " << args.custom_addr;
   LOG(INFO) << "work_dir    = " << args.work_dir;
+  LOG(INFO) << "silent      = " << ((args.silent) ? ("True") : ("False"));
+}
+
+/*!
+ * \brief PrintRPCTrackerArgs print the contents of RpcTrackerArgs
+ * \param args RpcTrackerArgs structure
+ */
+void PrintRPCTrackerArgs(const RpcTrackerArgs& args) {
+  LOG(INFO) << "host        = " << args.host;
+  LOG(INFO) << "port        = " << args.port;
+  LOG(INFO) << "port_end    = " << args.port_end;
   LOG(INFO) << "silent      = " << ((args.silent) ? ("True") : ("False"));
 }
 
@@ -245,6 +282,49 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
   }
 }
 
+void ParseCmdArgs(int argc, char* argv[], struct RpcTrackerArgs& args) {
+  const string silent = GetCmdOption(argc, argv, "--silent", true);
+  if (!silent.empty()) {
+    args.silent = true;
+  }
+
+  const string host = GetCmdOption(argc, argv, "--host=");
+  if (!host.empty()) {
+    if (!ValidateIP(host)) {
+      LOG(WARNING) << "Wrong host address format.";
+      LOG(INFO) << kUsage;
+      exit(1);
+    }
+    args.host = host;
+  }
+
+  const string port = GetCmdOption(argc, argv, "--port=");
+  if (!port.empty()) {
+    if (!IsNumber(port) || stoi(port) > 65535) {
+      LOG(WARNING) << "Wrong port number.";
+      LOG(INFO) << kUsage;
+      exit(1);
+    }
+    args.port = stoi(port);
+  }
+
+  const string port_end = GetCmdOption(argc, argv, "--port-end=");
+  if (!port_end.empty()) {
+    if (!IsNumber(port_end) || stoi(port_end) > 65535) {
+      LOG(WARNING) << "Wrong port-end number.";
+      LOG(INFO) << kUsage;
+      exit(1);
+    }
+    args.port_end = stoi(port_end);
+  }
+#if defined(WIN32)
+  const string mmap_path = GetCmdOption(argc, argv, "--child_proc=");
+  if (!mmap_path.empty()) {
+    args.mmap_path = mmap_path;
+  }
+#endif
+}
+
 /*!
  * \brief RpcServer Starts the RPC server.
  * \param argc arg counter
@@ -256,9 +336,9 @@ int RpcServer(int argc, char* argv[]) {
 
   /* parse the command line args */
   ParseCmdArgs(argc, argv, args);
-  PrintArgs(args);
+  PrintRPCServerArgs(args);
 
-  LOG(INFO) << "Starting CPP Server, Press Ctrl+C to stop.";
+  LOG(INFO) << "Starting RPC Server, Press Ctrl+C to stop.";
 #if defined(__linux__) || defined(__ANDROID__)
   // Ctrl+C handler
   HandleCtrlC();
@@ -284,6 +364,44 @@ int RpcServer(int argc, char* argv[]) {
 }
 
 /*!
+ * \brief RpcTracker Starts the RPC tracker.
+ * \param argc arg counter
+ * \param argv arg values
+ * \return result of operation.
+ */
+int RpcTracker(int argc, char* argv[]) {
+  RpcTrackerArgs args;
+
+  /* parse the command line args */
+  ParseCmdArgs(argc, argv, args);
+  PrintRPCTrackerArgs(args);
+
+  LOG(INFO) << "Starting CPP Tracker, Press Ctrl+C to stop.";
+#if defined(__linux__) || defined(__ANDROID__)
+  // Ctrl+C handler
+  HandleCtrlC();
+#endif
+
+#if defined(WIN32)
+  if (!args.mmap_path.empty()) {
+    int ret = 0;
+
+    try {
+      ChildProcSocketHandler(args.mmap_path);
+    } catch (const std::exception&) {
+      ret = -1;
+    }
+
+    return ret;
+  }
+#endif
+
+  RPCTrackerCreate(args.host, args.port, args.port_end, args.silent);
+
+  return 0;
+}
+
+/*!
  * \brief main The main function.
  * \param argc arg counter
  * \param argv arg values
@@ -303,6 +421,11 @@ int main(int argc, char* argv[]) {
 
   if (0 == strcmp(argv[1], "server")) {
     return RpcServer(argc, argv);
+  } else if (0 == strcmp(argv[1], "tracker")) {
+    return RpcTracker(argc, argv);
+  } else {
+    LOG(FATAL) << "Unsupported working mode: " << argv[1];
+    exit(0);
   }
 
   LOG(INFO) << kUsage;
