@@ -305,14 +305,19 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
   }
 
   const auto* attrs = call->attrs.as<GridSampleAttrs>();
-  auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,
-                                                    /*tgt_layout=*/"NCHW",
-                                                    /*tensor_name=*/"data");
+
+  // grid_sample supports both 2D (NCHW) and 3D (NCDHW) sampling. The frontend
+  // sets attrs->layout to "NCDHW" for the volumetric case; everything else is
+  // treated as the 2D NCHW path so existing behavior is preserved.
+  const bool is_ncdhw = (attrs->layout == "NCDHW");
+
+  auto [data_layout, data2tgt] =
+      CheckTensorLayout(call, ctx, attrs->layout,
+                        /*tgt_layout=*/is_ncdhw ? "NCDHW" : "NCHW",
+                        /*tensor_name=*/"data");
 
   DataType out_dtype = data_sinfo->dtype;
 
-  // Output shape: [N, C, grid_H, grid_W]
-  // grid shape for NCHW layout input is [N, H_out, W_out, 2]
   ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
       call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
   const auto* grid_shape = grid_sinfo->shape.as<ShapeExprNode>();
@@ -321,13 +326,21 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
     return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
   }
 
-  ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
-  // grid is [N, H_out, W_out, 2], output is [N, C, H_out, W_out]
-  ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
-  out_NCHW_shape.Set(2, grid_shape->values[1]);  // H_out
-  out_NCHW_shape.Set(3, grid_shape->values[2]);  // W_out
+  ffi::Array<PrimExpr> data_tgt_shape = data2tgt.ForwardShape(data_shape.value()->values);
+  ffi::Array<PrimExpr> out_tgt_shape(data_tgt_shape);
+  if (is_ncdhw) {
+    // grid (TVM layout) is [N, 3, D_out, H_out, W_out], output is
+    // [N, C, D_out, H_out, W_out]; the spatial extents are grid->values[2:].
+    out_tgt_shape.Set(2, grid_shape->values[2]);  // D_out
+    out_tgt_shape.Set(3, grid_shape->values[3]);  // H_out
+    out_tgt_shape.Set(4, grid_shape->values[4]);  // W_out
+  } else {
+    // grid (TVM layout) is [N, 2, H_out, W_out], output is [N, C, H_out, W_out]
+    out_tgt_shape.Set(2, grid_shape->values[2]);  // H_out
+    out_tgt_shape.Set(3, grid_shape->values[3]);  // W_out
+  }
 
-  ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  ffi::Array<PrimExpr> out_shape = data2tgt.BackwardShape(out_tgt_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
 }
 
