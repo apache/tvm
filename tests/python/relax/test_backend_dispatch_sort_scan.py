@@ -410,9 +410,18 @@ def test_dispatch_topk_gpu():
     assert_structural_equal(mod, expected_mod)
 
 
-@tvm.testing.parametrize_targets("cuda", {"kind": "vulkan", "supports_int64": True})
-def test_dispatch_cumsum_gpu(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
+    ],
+)
+def test_dispatch_cumsum_gpu(target):
     """Test cumsum kernel dispatch and numerical correctness"""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
 
     @I.ir_module
     class Module:

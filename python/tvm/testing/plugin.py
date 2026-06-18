@@ -35,8 +35,7 @@ directory as the test scripts.
 import _pytest
 import pytest
 
-import tvm
-from tvm.testing import env, utils
+from tvm.testing import utils
 
 try:
     from xdist.scheduler.loadscope import LoadScopeScheduling
@@ -69,9 +68,6 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     """Called once per unit test, modifies/parametrizes it as needed."""
-    _auto_parametrize_target(metafunc)
-    _add_target_specific_marks(metafunc)
-
     # Process gtest arguments
     option_value = metafunc.config.option.gtest_args
     if "gtest_args" in metafunc.fixturenames and option_value is not None:
@@ -86,136 +82,12 @@ def pytest_collection_modifyitems(config, items):
     _sort_tests(items)
 
 
-@pytest.fixture
-def dev(target):
-    """Give access to the device to tests that need it."""
-    if isinstance(target, dict):
-        return tvm.device(target["kind"])
-    return tvm.device(target)
-
-
 def pytest_sessionfinish(session, exitstatus):
     # Don't exit with an error if we select a subset of tests that doesn't
     # include anything
     if session.config.option.markexpr != "":
         if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
             session.exitstatus = pytest.ExitCode.OK
-
-
-def _auto_parametrize_target(metafunc):
-    """Automatically applies parametrize_targets
-
-    Used if a test function uses the "target" fixture, but isn't
-    already marked with @tvm.testing.parametrize_targets.  Intended
-    for use in the pytest_generate_tests() handler of a conftest.py
-    file.
-
-    """
-
-    if "target" in metafunc.fixturenames:
-        # Check if any explicit parametrizations exist, and apply one
-        # if they do not.  If the function is marked with either
-        # excluded or known failing targets, use these to determine
-        # the targets to be used.
-        parametrized_args = [
-            arg.strip()
-            for mark in metafunc.definition.iter_markers("parametrize")
-            for arg in mark.args[0].split(",")
-        ]
-        if "target" not in parametrized_args:
-            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
-
-            # Add a parametrize marker instead of calling
-            # metafunc.parametrize so that the parametrize rewriting
-            # can still occur.
-            mark = pytest.mark.parametrize(
-                "target",
-                [
-                    t["target"]
-                    for t in utils._get_targets()
-                    if t["target_kind"] not in excluded_targets
-                ],
-                scope="session",
-            )
-            metafunc.definition.add_marker(mark)
-
-
-def _add_target_specific_marks(metafunc):
-    """Add any target-specific marks to parametrizations over target"""
-
-    def update_parametrize_target_arg(
-        mark,
-        argnames,
-        argvalues,
-        *args,
-        **kwargs,
-    ):
-        args = [arg.strip() for arg in argnames.split(",") if arg.strip()]
-        if "target" in args:
-            target_i = args.index("target")
-
-            new_argvalues = []
-            for argvalue in argvalues:
-                if isinstance(argvalue, _pytest.mark.structures.ParameterSet):
-                    # The parametrized value is already a
-                    # pytest.param, so track any marks already
-                    # defined.
-                    param_set = argvalue.values
-                    target = param_set[target_i]
-                    additional_marks = argvalue.marks
-                elif len(args) == 1:
-                    # Single value parametrization, argvalue is a list of values.
-                    target = argvalue
-                    param_set = (target,)
-                    additional_marks = []
-                else:
-                    # Multiple correlated parameters, argvalue is a list of tuple of values.
-                    param_set = argvalue
-                    target = param_set[target_i]
-                    additional_marks = []
-
-                if mark in metafunc.definition.own_markers:
-                    xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
-                    if isinstance(target, str):
-                        target_kind = target.split()[0]
-                    elif isinstance(target, dict):
-                        target_kind = target["kind"]
-                    else:
-                        target_kind = target.kind.name
-                    if target_kind in xfail_targets:
-                        additional_marks.append(
-                            pytest.mark.xfail(
-                                reason=f'Known failing test for target "{target_kind}"'
-                            )
-                        )
-
-                new_argvalues.append(
-                    pytest.param(
-                        *param_set, marks=_target_to_requirement(target) + additional_marks
-                    )
-                )
-
-            try:
-                argvalues[:] = new_argvalues
-            except TypeError as err:
-                pyfunc = metafunc.definition.function
-                filename = pyfunc.__code__.co_filename
-                line_number = pyfunc.__code__.co_firstlineno
-                msg = (
-                    f"Unit test {metafunc.function.__name__} ({filename}:{line_number}) "
-                    "is parametrized using a tuple of parameters instead of a list "
-                    "of parameters."
-                )
-                raise TypeError(msg) from err
-
-    if "target" in metafunc.fixturenames:
-        # Update any explicit use of @pytest.mark.parametrize to
-        # parametrize over targets.  This attaches the appropriate
-        # per-target gating markers (pytest.mark.gpu for GPU-family
-        # targets, plus a pytest.mark.skipif guarded by the relevant
-        # tvm.testing.env.has_*() probe) via _target_to_requirement.
-        for mark in metafunc.definition.iter_markers("parametrize"):
-            update_parametrize_target_arg(mark, *mark.args, **mark.kwargs)
 
 
 def _count_num_fixture_uses(items):
@@ -277,41 +149,6 @@ def _sort_tests(items):
         return filename, lineno, test_name
 
     items.sort(key=sort_key)
-
-
-# GPU-family target kinds carry the ``gpu`` selection marker; CPU-family kinds
-# (llvm, hexagon) only skip. The skip condition is the matching tvm.testing.env
-# probe, resolved by name, so there is no per-kind ladder of has_* calls.
-_GPU_TARGET_KINDS = frozenset(
-    {"cuda", "cudnn", "cublas", "rocm", "vulkan", "nvptx", "metal", "opencl"}
-)
-_CPU_TARGET_KINDS = frozenset({"llvm", "hexagon"})
-
-
-def _target_to_requirement(target):
-    if isinstance(target, str | dict):
-        target = tvm.target.Target(target)
-
-    # A cuda target carrying an accelerator library gates on that library's probe
-    # (cudnn before cublas) instead of plain cuda.
-    kind = target.kind.name
-    if kind == "cuda":
-        libs = target.attrs.get("libs", [])
-        if "cudnn" in libs:
-            kind = "cudnn"
-        elif "cublas" in libs:
-            kind = "cublas"
-
-    if kind in _GPU_TARGET_KINDS:
-        is_gpu = True
-    elif kind in _CPU_TARGET_KINDS:
-        is_gpu = False
-    else:
-        return []
-
-    marks = [pytest.mark.gpu] if is_gpu else []
-    marks.append(pytest.mark.skipif(not getattr(env, f"has_{kind}")(), reason=f"need {kind}"))
-    return marks
 
 
 # pytest-xdist isn't required but is used in CI, so guard on its presence

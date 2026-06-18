@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -26,14 +27,16 @@ from tvm.script import tirx as T
 axis = tvm.testing.parameter(0, 1)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_scalar_tensor_as_index(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_scalar_tensor_as_index(axis):
     """The index of R.take may be a scalar tensor
 
     Using a scalar tensor as the index reduces the dimension of the
     output.
 
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -53,13 +56,15 @@ def test_take_scalar_tensor_as_index(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_1d_tensor_as_index(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_1d_tensor_as_index(axis):
     """The index of R.take may be a non-scalar tensor
 
     In general, `R.take` outputs a tensor of dimension
     `data.ndim + indices.ndim - 1`.
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -79,9 +84,11 @@ def test_take_1d_tensor_as_index(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_2d_tensor_as_index(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_2d_tensor_as_index(axis):
     """The index of R.take may be a 2-d tensor"""
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -101,14 +108,16 @@ def test_take_2d_tensor_as_index(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_constant_prim_value_as_index(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_constant_prim_value_as_index(axis):
     """The index of R.take may be a R.prim_value
 
     The `R.prim_value` produces output equivalent to a scalar
     tensor.
 
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -128,14 +137,16 @@ def test_take_constant_prim_value_as_index(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_dynamic_prim_value_as_index(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_dynamic_prim_value_as_index(axis):
     """The index of R.take may be a dynamic R.prim_value
 
     The `R.prim_value` produces output equivalent to a scalar
     tensor.
 
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -156,11 +167,13 @@ def test_take_dynamic_prim_value_as_index(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_nan_mode_OOB_indices(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_nan_mode_OOB_indices(axis):
     """Test R.take with mode="nan" and out-of-bounds indices.
     This test checks that out-of-bounds indices produce NaN values in the output tensor.
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -189,11 +202,13 @@ def test_take_nan_mode_OOB_indices(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_wrap_mode_OOB_indices(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_wrap_mode_OOB_indices(axis):
     """Test R.take with mode="wrap" and out-of-bounds indices.
     This test checks that out-of-bounds indices wrap around to the valid range.
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -213,11 +228,13 @@ def test_take_wrap_mode_OOB_indices(target, dev, axis):
     tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_take_clip_mode_OOB_indices(target, dev, axis):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_take_clip_mode_OOB_indices(axis):
     """Test R.take with mode="clip" and out-of-bounds indices.
     This test checks that out-of-bounds indices are clipped to the valid range.
     """
+    target = "llvm"
+    dev = tvm.device(target)
 
     @I.ir_module
     class Module:

@@ -17,6 +17,7 @@
 # ruff: noqa: E501, F401
 
 import numpy as np
+import pytest
 import torch
 from torch import nn
 from torch.export import export
@@ -66,8 +67,12 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_index_tensor(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_index_tensor():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class IndexModel0(nn.Module):
         def __init__(self):
             super().__init__()
@@ -168,8 +173,12 @@ def test_index_tensor(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_full(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_full():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class FullModel(nn.Module):
         def __init__(self):
             super().__init__()
@@ -182,8 +191,12 @@ def test_full(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_full_like(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_full_like():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class FullLike(nn.Module):
         def __init__(self):
             super().__init__()
@@ -197,8 +210,12 @@ def test_full_like(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_ones(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_ones():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class FullModel(nn.Module):
         def __init__(self):
             super().__init__()
@@ -211,8 +228,12 @@ def test_ones(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_sort(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_sort():
+    target = "cuda"
+    dev = tvm.device(target)
+
     raw_data = np.array([[4, 1, 13], [-30, 1, 3], [4, 0, 10]]).astype("float32")
 
     # Test values
@@ -236,8 +257,12 @@ def test_sort(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_tensor_clamp(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_tensor_clamp():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class ClampBothTensor(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -317,8 +342,12 @@ def test_tensor_clamp(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_tensor_expand_as(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_tensor_expand_as():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class ExpandAs0(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -364,8 +393,12 @@ def test_tensor_expand_as(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_copy_(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_copy_():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class CopyTester(nn.Module):
         def __init__(self, size):
             super().__init__()
@@ -382,12 +415,16 @@ def test_copy_(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_upsample_with_size(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_upsample_with_size():
     """
     The Upsample module can be used with the size arugment or the scale
     factor argument but not both. This tests the former.
     """
+    target = "cuda"
+    dev = tvm.device(target)
+
     batch_size = 1
     channels = 3
     height, width = 8, 8
@@ -399,8 +436,12 @@ def test_upsample_with_size(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_detach_no_change(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_detach_no_change():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # In TVM, detach() is just identity
     class DetachTester(nn.Module):
         def forward(self, x):
@@ -412,12 +453,16 @@ def test_detach_no_change(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_upsample_with_scale_factor(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_upsample_with_scale_factor():
     """
     The Upsample module can be used with the size arugment or the scale
     factor argument but not both. This tests the latter.
     """
+    target = "cuda"
+    dev = tvm.device(target)
+
     batch_size = 2
     channels = 3
     height, width = 32, 32
@@ -430,8 +475,12 @@ def test_upsample_with_scale_factor(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_linalg_vector_norm(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_linalg_vector_norm():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class VectorNorm0(torch.nn.Module):
         def forward(self, x):
             return torch.linalg.vector_norm(x, ord=1, dim=-1)
@@ -461,8 +510,12 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm_prog(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_batch_norm_prog():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Default args, in a pytorch program (to ensure output is in proper type and format)
     raw_data = np.random.randn(2, 3, 2, 2).astype(np.float32)
 
@@ -480,8 +533,12 @@ def test_batch_norm_prog(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_split_size(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_split_size():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Test split using the split_size argument such that it is not a divisor
     # of the dimension to split (the last tensor will be smaller)
     batch = 2
@@ -504,8 +561,12 @@ def test_split_size(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_split_sections_list(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_split_sections_list():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Test split using a list of section sizes
     batch = 3
     channels = 2
@@ -528,8 +589,12 @@ def test_split_sections_list(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm0(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_batch_norm0():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Eval, no momentum, no affine, no running stats
     raw_data = np.random.randn(8, 3, 4, 4).astype(np.float32)
     torch_module = nn.BatchNorm2d(
@@ -538,8 +603,12 @@ def test_batch_norm0(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm1(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_batch_norm1():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Eval, with momentum, no affine, with running stats
     raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
     torch_module = nn.BatchNorm2d(
@@ -548,8 +617,12 @@ def test_batch_norm1(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm2(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_batch_norm2():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Eval, with momentum, affine, no running stats
     raw_data = np.random.randn(3, 4, 2, 2).astype(np.float32)
     torch_module = nn.BatchNorm2d(
@@ -558,8 +631,12 @@ def test_batch_norm2(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm3(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_batch_norm3():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Eval, no momentum, affine, with running stats
     raw_data = np.random.randn(1, 2, 2, 2).astype(np.float32)
     torch_module = nn.BatchNorm2d(
@@ -568,8 +645,12 @@ def test_batch_norm3(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_chunk_even(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_chunk_even():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Chunks is a divisor of the dimension size
     batch = 6
     channels = 2
@@ -592,8 +673,12 @@ def test_chunk_even(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_chunk_uneven(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_chunk_uneven():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # Chunks is not a divisor of the dimension size
     batch = 2
     channels = 5
@@ -616,8 +701,12 @@ def test_chunk_uneven(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_chunk_too_many(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_chunk_too_many():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # If user asks for more chunks than the size of the dim, pytorch simply splits in sections of size 1
     batch = 1
     channels = 3
@@ -640,8 +729,12 @@ def test_chunk_too_many(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_arange(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_arange():
+    target = "cuda"
+    dev = tvm.device(target)
+
     # arange.default
     raw_data = np.array([0, 0, 0, 0, 0])
 
@@ -673,8 +766,12 @@ def test_arange(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_index_select(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_index_select():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class IndexSelectModel(nn.Module):
         def forward(self, x):
             indices = torch.tensor([0, 2])
@@ -685,8 +782,12 @@ def test_index_select(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_stack(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_stack():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class StackModel(nn.Module):
         def forward(self, x):
             val1 = x[1, 4]
@@ -700,8 +801,12 @@ def test_stack(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_sum(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_sum():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class SumModel(nn.Module):
         def forward(self, x):
             new_vec = x[1, 4]
@@ -712,8 +817,12 @@ def test_sum(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_mul(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_mul():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class MulModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -727,8 +836,12 @@ def test_mul(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_concat(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_concat():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class ConcatFour(nn.Module):
         def __init__(self, dim=0):
             super().__init__()
@@ -745,8 +858,12 @@ def test_concat(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_leakyrelu_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_leakyrelu_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class LeakyReLUModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -760,8 +877,12 @@ def test_leakyrelu_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_log_softmax_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_log_softmax_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class LogSoftmaxModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -775,8 +896,12 @@ def test_log_softmax_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_softmax_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_softmax_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class SoftmaxModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -790,8 +915,12 @@ def test_softmax_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_adaptive_avg_pool2d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_adaptive_avg_pool2d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class AdaptiveAvgPool2dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -805,8 +934,12 @@ def test_adaptive_avg_pool2d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_avg_pool2d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_avg_pool2d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class AvgPool2dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -820,8 +953,12 @@ def test_avg_pool2d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_conv1d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_conv1d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class Conv1dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -835,8 +972,12 @@ def test_conv1d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_conv2d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_conv2d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class Conv2dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -850,8 +991,12 @@ def test_conv2d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_conv3d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_conv3d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class Conv3dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -865,8 +1010,12 @@ def test_conv3d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_group_norm_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_group_norm_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class GroupNormModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -880,8 +1029,12 @@ def test_group_norm_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_layer_norm_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_layer_norm_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class LayerNormModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -895,8 +1048,12 @@ def test_layer_norm_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_linear_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_linear_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class LinearModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -910,8 +1067,12 @@ def test_linear_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_max_pool2d_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_max_pool2d_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class MaxPool2dModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -925,8 +1086,12 @@ def test_max_pool2d_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_embedding_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_embedding_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class EmbeddingModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -940,8 +1105,12 @@ def test_embedding_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_flatten_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_flatten_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class FlattenModule(nn.Module):
         def __init__(self):
             super().__init__()
@@ -955,8 +1124,12 @@ def test_flatten_module(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_numel(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_numel():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class NumelModule(nn.Module):
         def forward(self, x):
             return torch.tensor(x.numel())
@@ -966,8 +1139,12 @@ def test_numel(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_size(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_size():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class SizeModule(nn.Module):
         def forward(self, x):
             return torch.tensor(x.size(0))
@@ -977,8 +1154,12 @@ def test_size(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_tensor(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_tensor():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class TensorModule(nn.Module):
         def forward(self, x):
             return torch.tensor([1, 2, 3])
@@ -988,8 +1169,12 @@ def test_tensor(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_type(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_type():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class TypeModule(nn.Module):
         def forward(self, x):
             return x.type(torch.float16)
@@ -999,8 +1184,12 @@ def test_type(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_float(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_float():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class FloatModule(nn.Module):
         def forward(self, x):
             return x.float()
@@ -1010,8 +1199,12 @@ def test_float(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_half(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_half():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class HalfModule(nn.Module):
         def forward(self, x):
             return x.half()
@@ -1021,8 +1214,12 @@ def test_half(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_getattr(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_getattr():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class GetAttrModule(nn.Module):
         def forward(self, x):
             # Use getattr to call the ndimension method.
@@ -1033,8 +1230,12 @@ def test_getattr(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_sym_size_int(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_sym_size_int():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class SymSizeIntModule(nn.Module):
         def forward(self, x):
             return torch.tensor(x.shape[1])
@@ -1044,8 +1245,12 @@ def test_sym_size_int(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_interpolate(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_interpolate():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class InterpolateModule(nn.Module):
         def forward(self, x):
             # Upsample to a fixed size.
@@ -1056,8 +1261,12 @@ def test_interpolate(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_cross_entropy_module(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_cross_entropy_module():
+    target = "cuda"
+    dev = tvm.device(target)
+
     class CrossEntropyModule(nn.Module):
         def __init__(self):
             super().__init__()
