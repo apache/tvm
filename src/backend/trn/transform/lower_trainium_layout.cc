@@ -58,7 +58,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   static std::pair<Stmt, ffi::Map<Var, Buffer>> Lower(
       const Stmt& stmt, const ffi::Map<tirx::Var, Buffer> buffer_map) {
     arith::Analyzer ana;
-    TrainiumLayoutApplier storage_lower(ana.get());
+    TrainiumLayoutApplier storage_lower(ana);
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
@@ -83,7 +83,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit TrainiumLayoutApplier(arith::AnalyzerObj* analyzer)
+  explicit TrainiumLayoutApplier(const arith::Analyzer& analyzer)
       : arith::IRMutatorWithAnalyzer(analyzer) {}
 
   ffi::Any VisitAny(const ffi::Any& any) {

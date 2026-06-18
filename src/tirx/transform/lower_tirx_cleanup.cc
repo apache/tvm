@@ -47,7 +47,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   static std::pair<Stmt, ffi::Map<Var, Buffer>> Flatten(
       const Stmt& stmt, const ffi::Map<tirx::Var, Buffer> buffer_map, const Target& target) {
     arith::Analyzer ana;
-    LayoutApplier storage_lower(ana.get(), target);
+    LayoutApplier storage_lower(ana, target);
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
@@ -72,7 +72,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit LayoutApplier(arith::AnalyzerObj* analyzer, const Target& target)
+  explicit LayoutApplier(const arith::Analyzer& analyzer, const Target& target)
       : arith::IRMutatorWithAnalyzer(analyzer), target_(target) {}
 
   ffi::Any VisitAny(const ffi::Any& any) {

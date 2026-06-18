@@ -75,7 +75,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 // Mark the statement of each stage.
 class NoOpRemover : public arith::IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false) {
+  static Stmt Apply(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false) {
     NoOpRemover visitor(analyzer, ignore_profiler_call);
     return visitor(std::move(stmt));
   }
@@ -85,7 +85,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  NoOpRemover(arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false)
+  NoOpRemover(const arith::Analyzer& analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
   Stmt VisitStmt_(const BindNode* op) final {
@@ -266,7 +266,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   bool ignore_profiler_call_{false};
 };
 
-Stmt RemoveNoOp(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call) {
+Stmt RemoveNoOp(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call) {
   return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
@@ -286,7 +286,7 @@ Pass RemoveNoOp() {
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemover::Apply(std::move(write_ptr->body), analyzer.get(), ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body), analyzer, ignore_profiler_call);
     }
     return f;
   };

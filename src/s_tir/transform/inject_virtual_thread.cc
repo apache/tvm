@@ -541,7 +541,7 @@ Pass InjectVirtualThread() {
 
     arith::Analyzer analyzer;
 
-    n->body = VirtualThreadInjector(analyzer.get())(std::move(n->body));
+    n->body = VirtualThreadInjector(analyzer)(std::move(n->body));
     n->body = ConvertSSA(std::move(n->body));
     return f;
   };

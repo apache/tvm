@@ -765,7 +765,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
                                                    pad_value, analyzer.get())
                     : TransformLayoutPlanner::NoPaddingRequired();
 
-    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, analyzer.get());
+    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, analyzer);
     SBlock result = Downcast<SBlock>(rewriter(scope_stmt));
     if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ProloguePlan>(&plan)) {
       auto write_ptr = result.CopyOnWrite();
@@ -782,7 +782,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   TransformLayoutRewriter(const Buffer& old_buffer, const Buffer& new_buffer,
                           const IndexMap& index_map,
                           const TransformLayoutPlanner::TransformPlan& plan,
-                          arith::AnalyzerObj* analyzer)
+                          const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer),
         old_buffer_(old_buffer),
         new_buffer_(new_buffer),
@@ -1456,7 +1456,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   SBlock new_block =
       Downcast<SBlock>(Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map));
   new_block.CopyOnWrite()->iter_vars = new_block_iters;
-  new_block = Downcast<SBlock>(BlockBufferAccessSimplifier::Simplify(new_block, analyzer.get()));
+  new_block = Downcast<SBlock>(BlockBufferAccessSimplifier::Simplify(new_block, analyzer));
 
   // Step 5.3: Create outer loops for each new block iter.
 

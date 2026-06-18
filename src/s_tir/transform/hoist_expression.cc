@@ -450,7 +450,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
     arith::Analyzer analyzer;
-    ExpressionHoister hoister(std::move(loop_info), config, analyzer.get());
+    ExpressionHoister hoister(std::move(loop_info), config, analyzer);
     stmt = hoister(std::move(stmt));
     stmt = ConvertSSA(std::move(stmt));
     return stmt;
@@ -462,7 +462,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt_;
 
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
-                             HoistExpressionConfig config, arith::AnalyzerObj* analyzer)
+                             HoistExpressionConfig config, const arith::Analyzer& analyzer)
       : Parent(analyzer), config_(config) {
     for (auto& info : loop_info) {
       // Mark let bindings to use if they are enabled on their own.
