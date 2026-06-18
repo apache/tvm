@@ -47,6 +47,7 @@ namespace arith {
  */
 class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
  public:
+  explicit IRMutatorWithAnalyzer(const Analyzer& analyzer) : analyzer_(analyzer.get()) {}
   explicit IRMutatorWithAnalyzer(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   using StmtExprMutator::VisitExpr_;
