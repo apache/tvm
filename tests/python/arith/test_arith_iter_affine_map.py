@@ -201,6 +201,21 @@ def test_split():
     )
 
 
+def test_split_simplified_modulo():
+    # regression for #19825: simplifying the modulo must not break the fused split
+    i = tvm.tirx.Var("i", "int32")
+    j = tvm.tirx.Var("j", "int32")
+    dom = var_dom([(i, 64), (j, 192)])
+    analyzer = tvm.arith.Analyzer()
+
+    for flat in [i * 192 + j, j + i * 192]:
+        lane = analyzer.simplify(floormod(flat, 128))
+        quotient = floordiv(flat, 128)
+        res = tvm.arith.detect_iter_map([lane, quotient], dom, check_level="bijective")
+        assert len(res.errors) == 0, res.errors
+        assert len(res.indices) == 2
+
+
 def test_compound():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
