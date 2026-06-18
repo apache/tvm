@@ -98,7 +98,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
-  static PrimFunc Apply(PrimFunc func, AnalyzerObj* analyzer,
+  static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
     auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
@@ -110,7 +110,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
  private:
-  explicit StmtSimplifier(AnalyzerObj* analyzer, StmtSimplifyConfig config)
+  explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
       : IRMutatorWithAnalyzer(analyzer), config_(config) {}
 
   using Parent = IRMutatorWithAnalyzer;
@@ -250,7 +250,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
 namespace tirx {
 
-PrimFunc StmtSimplify(PrimFunc func, arith::AnalyzerObj* analyzer) {
+PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
   return arith::StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
@@ -261,7 +261,7 @@ Pass StmtSimplify() {
     arith::Analyzer analyzer;
     auto cfg = ctx->GetConfig<arith::StmtSimplifyConfig>("tirx.StmtSimplify");
 
-    return arith::StmtSimplifier::Apply(f, analyzer.get(), cfg);
+    return arith::StmtSimplifier::Apply(f, analyzer, cfg);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.StmtSimplify", {});
 }

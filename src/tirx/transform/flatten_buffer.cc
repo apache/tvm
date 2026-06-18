@@ -45,7 +45,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
-    auto pass = BufferFlattener(ana.get());
+    auto pass = BufferFlattener(ana);
     pass.MarkBufferMapShapes(func);
     auto body = pass.VisitStmt(func->body);
 
@@ -78,7 +78,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit BufferFlattener(arith::AnalyzerObj* ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit BufferFlattener(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)

@@ -47,7 +47,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
   using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
-  IntrinInjecter(arith::AnalyzerObj* analyzer, const Target& tgt, bool enable_fast_math)
+  IntrinInjecter(const arith::Analyzer& analyzer, const Target& tgt, bool enable_fast_math)
       : IRMutatorWithAnalyzer(analyzer) {
     std::string target = tgt->kind->name;
     ffi::String mtriple = tgt->GetAttr<ffi::String>("mtriple").value_or("");
@@ -368,8 +368,7 @@ Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
   bool enable_fast_math =
       transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
-  return IntrinInjecter(analyzer.get(), Target(ffi::String(target)),
-                        enable_fast_math)(std::move(stmt));
+  return IntrinInjecter(analyzer, Target(ffi::String(target)), enable_fast_math)(std::move(stmt));
 }
 
 namespace transform {
@@ -381,7 +380,7 @@ Pass LowerIntrin() {
     TVM_FFI_ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
-    n->body = IntrinInjecter(analyzer.get(), target.value(), enable_fast_math)(std::move(n->body));
+    n->body = IntrinInjecter(analyzer, target.value(), enable_fast_math)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerIntrin", {});
