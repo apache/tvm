@@ -51,7 +51,7 @@ def sve_device_vector_length():
     return int(out)
 
 
-@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_div(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -72,7 +72,7 @@ def test_scalable_div(sve_device_vector_length):
     tvm.testing.assert_allclose(A_nd.numpy()[0], ref)
 
 
-@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_buffer_load_store(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -97,7 +97,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_loop_bound(sve_device_vector_length):
     np.random.seed(0)
 
@@ -125,7 +125,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@pytest.mark.skipif(not env.has_aarch64_sve(), reason="need aarch64 sve")
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_broadcast(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     num_elements = sve_device_vector_length // 32
