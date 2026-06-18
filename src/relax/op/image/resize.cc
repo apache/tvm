@@ -311,10 +311,9 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
   // treated as the 2D NCHW path so existing behavior is preserved.
   const bool is_ncdhw = (attrs->layout == "NCDHW");
 
-  auto [data_layout, data2tgt] =
-      CheckTensorLayout(call, ctx, attrs->layout,
-                        /*tgt_layout=*/is_ncdhw ? "NCDHW" : "NCHW",
-                        /*tensor_name=*/"data");
+  auto [data_layout, data2tgt] = CheckTensorLayout(call, ctx, attrs->layout,
+                                                   /*tgt_layout=*/is_ncdhw ? "NCDHW" : "NCHW",
+                                                   /*tensor_name=*/"data");
 
   DataType out_dtype = data_sinfo->dtype;
 
