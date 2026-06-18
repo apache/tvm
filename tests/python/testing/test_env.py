@@ -38,11 +38,6 @@ _BOOL_PROBES = [
     env.has_cublas,
     env.has_nccl,
     env.has_hipblas,
-    env.has_cutlass,
-    env.has_rpc,
-    env.has_nnapi,
-    env.has_openclml,
-    env.has_mrvl,
     env.has_nvshmem,
     # version / capability
     env.has_tensorcore,
@@ -54,13 +49,8 @@ _BOOL_PROBES = [
     env.has_adreno_opencl,
     env.has_aprofile_aem_fvp,
     # cpu features
-    env.has_arm_dot,
-    env.has_arm_fp16,
-    env.has_aarch64_sve,
-    env.has_aarch64_sme,
     env.has_x86_vnni,
     env.has_x86_avx512,
-    env.has_x86_amx,
     # host architecture
     env.is_x86,
     env.is_aarch64,
@@ -121,22 +111,6 @@ def test_has_multi_gpu_is_bool():
     assert isinstance(env.has_multi_gpu(1), bool)
     # Requiring a single device is at least as permissive as requiring two.
     assert env.has_multi_gpu(1) or not env.has_multi_gpu(2)
-
-
-@pytest.mark.parametrize(
-    "probe,flag",
-    [
-        (env.has_cutlass, "USE_CUTLASS"),
-        (env.has_rpc, "USE_RPC"),
-        (env.has_nnapi, "USE_NNAPI_CODEGEN"),
-        (env.has_openclml, "USE_CLML"),
-        (env.has_mrvl, "USE_MRVL"),
-    ],
-    ids=lambda v: getattr(v, "__name__", v),
-)
-def test_build_flag_probe_matches_libinfo(probe, flag):
-    """Pure build-flag probes agree with the build-info flag they wrap."""
-    assert probe() == env._build_flag_enabled(flag)  # pylint: disable=protected-access
 
 
 def test_llvm_min_version_is_monotone():
