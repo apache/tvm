@@ -4066,6 +4066,32 @@ def _get_builtin_operator(builtin_name):
     return getattr(_tfl_builtin_operator, builtin_name)
 
 
+def _build_tflite_operator_marker_model(builtin_name):
+    """Build a minimal model containing a TFLite marker builtin."""
+    builder = flatbuffers.Builder(1024)
+    builtin_op = _get_builtin_operator(builtin_name)
+    op_code = _build_operator_code(builder, builtin_op)
+    tensors = [
+        _build_tensor(builder, 0, [1], tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 0, [1], tensor_type=_tfl_tensor_type.FLOAT32),
+    ]
+    op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(builder, tensors=tensors, operators=[op], inputs=[0], outputs=[1])
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder)],
+    )
+
+
+@pytest.mark.parametrize("builtin_name", ["DELEGATE", "PLACEHOLDER_FOR_GREATER_OP_CODES"])
+def test_operator_marker_unsupported(builtin_name):
+    """TFLite marker builtins report explicit unsupported diagnostics."""
+    with pytest.raises(tvm.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"):
+        _load_model_from_buffer(_build_tflite_operator_marker_model(builtin_name))
+
+
 def _run_module(mod, *inputs):
     tgt = tvm.target.Target("c")
     ex = tvm.compile(mod, tgt)
