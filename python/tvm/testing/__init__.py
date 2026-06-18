@@ -21,9 +21,7 @@
 
 from ._ffi_api import (
     echo,
-    nop,
     object_use_count,
-    run_check_signal,
     test_raise_error,
 )
 from .runner import local_run, rpc_run
