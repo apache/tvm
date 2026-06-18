@@ -203,8 +203,10 @@ class OperatorConverter:
             "BIDIRECTIONAL_SEQUENCE_LSTM": self.convert_bidirectional_sequence_lstm,
             "BIDIRECTIONAL_SEQUENCE_RNN": self.convert_bidirectional_sequence_rnn,
             "BITCAST": self.convert_bitcast,
-            "BROADCAST_TO": self.convert_broadcast_to,
+            "BITWISE_XOR": functools.partial(self._convert_elemwise, relax_op=_op.bitwise_xor),
             "BROADCAST_ARGS": self.convert_broadcast_args,
+            "BROADCAST_TO": self.convert_broadcast_to,
+            "BUCKETIZE": self.convert_bucketize,
             "CALL": self.convert_call,
             "CALL_ONCE": self.convert_call_once,
             "COMPLEX_ABS": self.convert_complex_abs,
@@ -293,6 +295,7 @@ class OperatorConverter:
             "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
+            "RANK": self.convert_rank,
             "QUANTIZE": self.convert_quantize,
             "RANDOM_STANDARD_NORMAL": self.convert_random_standard_normal,
             "RANDOM_UNIFORM": self.convert_random_uniform,
@@ -304,12 +307,14 @@ class OperatorConverter:
             "REDUCE_MIN": functools.partial(self._convert_reduce, relax_op=_op.min),
             "REDUCE_PROD": functools.partial(self._convert_reduce, relax_op=_op.prod),
             "RELU": self.convert_relu,
+            "RELU_0_TO_1": self.convert_relu_0_to_1,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
             "RESHAPE": self.convert_reshape,
             "RESIZE_BILINEAR": self.convert_resize_bilinear,
             "RESIZE_NEAREST_NEIGHBOR": self.convert_resize_nearest_neighbor,
             "RFFT2D": self.convert_rfft2d,
+            "RIGHT_SHIFT": functools.partial(self._convert_elemwise, relax_op=_op.right_shift),
             "ROUND": functools.partial(self._convert_unary_elemwise, relax_op=_op.round),
             "RSQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.rsqrt),
             "REVERSE_SEQUENCE": self.convert_reverse_sequence,
@@ -321,6 +326,7 @@ class OperatorConverter:
                 self._convert_segment_op, op_name="SEGMENT_SUM", reduction="add"
             ),
             "SHAPE": self.convert_shape,
+            "SIGN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sign),
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
             "SLICE": self.convert_slice,
             "SOFTMAX": self.convert_softmax,
@@ -409,11 +415,18 @@ class OperatorConverter:
             "TRANSPOSE": self.convert_transpose,
             "UNPACK": self.convert_unpack,
             "UNIDIRECTIONAL_SEQUENCE_RNN": self.convert_unidirectional_sequence_rnn,
+            "UNIQUE": self.convert_unique,
+            "UNSORTED_SEGMENT_MAX": functools.partial(
+                self._convert_segment_op, op_name="UNSORTED_SEGMENT_MAX", reduction="max"
+            ),
             "UNSORTED_SEGMENT_MIN": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_MIN", reduction="min"
             ),
             "UNSORTED_SEGMENT_PROD": functools.partial(
                 self._convert_segment_op, op_name="UNSORTED_SEGMENT_PROD", reduction="mul"
+            ),
+            "UNSORTED_SEGMENT_SUM": functools.partial(
+                self._convert_segment_op, op_name="UNSORTED_SEGMENT_SUM", reduction="add"
             ),
             "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "VAR_HANDLE": self.convert_var_handle,
@@ -1563,6 +1576,18 @@ class OperatorConverter:
 
         return out
 
+    def convert_rank(self, op):
+        """Convert TFLite RANK."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_dtype = self.get_tensor_type_str(output_tensors[0].tensor.Type())
+
+        rank = len(self.get_tensor_shape(input_tensors[0]))
+        return relax.const(rank, dtype=output_dtype)
+
     def convert_shape(self, op):
         """Convert TFLite Shape"""
 
@@ -1585,6 +1610,29 @@ class OperatorConverter:
 
         return out
 
+    def convert_bucketize(self, op):
+        """Convert TFLite BUCKETIZE."""
+        from tflite.BucketizeOptions import BucketizeOptions
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.BucketizeOptions
+        op_options = op.BuiltinOptions()
+        bucketize_options = BucketizeOptions()
+        bucketize_options.Init(op_options.Bytes, op_options.Pos)
+
+        boundaries = self.bb.normalize(
+            relax.const(bucketize_options.BoundariesAsNumpy(), dtype="float32")
+        )
+        out_tensor = self.get_output_tensors(op)[0]
+        out_int32 = out_tensor.tensor.Type() == TensorType.INT32
+        return relax.op.bucketize(
+            self.get_tensor_expr(input_tensors[0]), boundaries, out_int32=out_int32, right=False
+        )
+
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
 
@@ -1603,6 +1651,26 @@ class OperatorConverter:
             out = self.quantize(out, output_tensor)
         else:
             out = relax.op.nn.relu(in_expr)
+
+        return out
+
+    def convert_relu_0_to_1(self, op):
+        """Convert TFLite RELU_0_TO_1."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_f32 = self.dequantize(in_expr, input_tensor)
+            out = relax.op.clip(in_f32, 0, 1)
+            out = self.quantize(out, output_tensor)
+        else:
+            out = relax.op.clip(in_expr, 0, 1)
 
         return out
 
@@ -4898,12 +4966,57 @@ class OperatorConverter:
         data = relax.op.zeros(shape, updates_dtype)
         return relax.op.scatter_nd(data, indices, updates, "update")
 
+    def convert_unique(self, op):
+        """Convert TFLite UNIQUE."""
+        from tflite.TensorType import TensorType
+        from tflite.UniqueOptions import UniqueOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "UNIQUE should have 1 input tensor"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 2, "UNIQUE should have 2 output tensors"
+
+        unique_options = UniqueOptions()
+        op_options = op.BuiltinOptions()
+        unique_options.Init(op_options.Bytes, op_options.Pos)
+
+        unique = self.bb.normalize(
+            relax.op.unique(
+                self.get_tensor_expr(input_tensors[0]),
+                sorted=False,
+                return_index=False,
+                return_inverse=True,
+                return_counts=False,
+                axis=None,
+            )
+        )
+        values = self.bb.emit(relax.TupleGetItem(unique, 0))
+        inverse_indices = self.bb.emit(relax.TupleGetItem(unique, 1))
+
+        idx_out_type = unique_options.IdxOutType()
+        if idx_out_type == TensorType.INT32:
+            inverse_indices = self.bb.emit(relax.op.astype(inverse_indices, "int32"))
+
+        return relax.Tuple([values, inverse_indices])
+
     def _get_segment_scatter_base(self, output_shape, output_dtype, reduction):
         """Create the identity base tensor for scatter-based segment reductions."""
         if reduction == "add":
             return relax.op.zeros(output_shape, output_dtype)
         if reduction == "mul":
             return relax.op.full(output_shape, relax.const(1, output_dtype), output_dtype)
+        if reduction == "max":
+            np_dtype = np.dtype(output_dtype)
+            if np.issubdtype(np_dtype, np.floating):
+                identity = np.finfo(np_dtype).min
+            elif np.issubdtype(np_dtype, np.integer):
+                identity = np.iinfo(np_dtype).min
+            else:
+                raise tvm.error.OpNotImplemented(
+                    f"UNSORTED_SEGMENT_MAX does not support output dtype {output_dtype}."
+                )
+            return relax.op.full(output_shape, relax.const(identity, output_dtype), output_dtype)
         if reduction == "min":
             np_dtype = np.dtype(output_dtype)
             if np.issubdtype(np_dtype, np.floating):
@@ -7689,13 +7802,13 @@ class OperatorConverter:
         nudged_min = (quant_min - nudged_zero_point) * scale
         nudged_max = (quant_max - nudged_zero_point) * scale
 
-        nudged_min_expr = relax.op.const(nudged_min)
+        nudged_min_expr = relax.const(nudged_min, "float32")
         clamped = relax.op.clip(in_expr, nudged_min, nudged_max)
         clamped_shifted = relax.op.subtract(clamped, nudged_min_expr)
 
-        half = relax.op.const(0.5)
-        one = relax.op.const(1.0)
-        scale_expr = relax.op.const(scale)
+        half = relax.const(0.5, "float32")
+        one = relax.const(1.0, "float32")
+        scale_expr = relax.const(scale, "float32")
         inv_scale = relax.op.divide(one, scale_expr)
         rounded = relax.op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
         return relax.op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
