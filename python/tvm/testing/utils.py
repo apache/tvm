@@ -55,12 +55,12 @@ There is one ``has_*`` (or ``is_*``) probe per capability -- for example
 and :py:func:`tvm.testing.env.has_vulkan`.  For optional Python packages,
 prefer ``pytest.importorskip("pkg_name")`` instead of a ``skipif``.
 
-To run a test against a variety of targets, use
-:py:func:`tvm.testing.parametrize_targets`; it parametrizes the test over
-the enabled targets and applies the appropriate ``gpu`` tag and skip
-conditions per target automatically.  The set of enabled targets is
-controlled by the ``TVM_TEST_TARGETS`` environment variable, so the CI
-can run different targets on different testing nodes.
+To run a test against a variety of targets, parametrize over ``target`` with
+``@pytest.mark.parametrize("target", [...])`` -- tag GPU targets with
+``pytest.mark.gpu`` so the CI routes them to GPU nodes, and skip an unavailable
+target with ``pytest.mark.skipif(not tvm.testing.device_enabled(target))``.  The
+set of enabled targets is controlled by the ``TVM_TEST_TARGETS`` environment
+variable, so the CI can run different targets on different testing nodes.
 
 """
 
@@ -459,8 +459,8 @@ DEFAULT_TEST_TARGETS = [
 def device_enabled(target):
     """Check if a target should be used when testing.
 
-    It is recommended that you use :py:func:`tvm.testing.parametrize_targets`
-    instead of manually checking if a target is enabled.
+    Gate a device-specific test on this with
+    ``@pytest.mark.skipif(not tvm.testing.device_enabled(target))``.
 
     This allows the user to control which devices they are testing against. In
     tests, this should be used to check if a device should be used when said
@@ -501,8 +501,8 @@ def device_enabled(target):
 def enabled_targets():
     """Get all enabled targets with associated devices.
 
-    In most cases, you should use :py:func:`tvm.testing.parametrize_targets` instead of
-    this function.
+    In most cases, parametrize over the specific targets you need with
+    ``@pytest.mark.parametrize`` instead of iterating this function.
 
     In this context, enabled means that TVM was built with support for
     this target, the target name appears in the TVM_TEST_TARGETS
@@ -586,133 +586,6 @@ def skip_if_32bit(reason):
 
 def skip_if_no_reference_system(func):
     return skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
-
-
-def parametrize_targets(*args):
-    """Parametrize a test over a specific set of targets.
-
-    Use this decorator when you want your test to be run over a
-    specific set of targets and devices.  It is intended for use where
-    a test is applicable only to a specific target, and is
-    inapplicable to any others (e.g. verifying target-specific
-    assembly code matches known assembly code).  In most
-    circumstances, :py:func:`tvm.testing.exclude_targets` or
-    :py:func:`tvm.testing.known_failing_targets` should be used
-    instead.
-
-    If used as a decorator without arguments, the test will be
-    parametrized over all targets in
-    :py:func:`tvm.testing.enabled_targets`.  This behavior is
-    automatically enabled for any target that accepts arguments of
-    ``target`` or ``dev``, so the explicit use of the bare decorator
-    is no longer needed, and is maintained for backwards
-    compatibility.
-
-    Parameters
-    ----------
-    f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
-        where `xxxxxxxxx` is any name.
-    targets : list[str], optional
-        Set of targets to run against. If not supplied,
-        :py:func:`tvm.testing.enabled_targets` will be used.
-
-    Example
-    -------
-    >>> @tvm.testing.parametrize_targets("llvm", "cuda")
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-    """
-
-    # Backwards compatibility, when used as a decorator with no
-    # arguments implicitly parametrizes over "target".  The
-    # parametrization is now handled by _auto_parametrize_target, so
-    # this use case can just return the decorated function.
-    if len(args) == 1 and callable(args[0]):
-        return args[0]
-
-    return pytest.mark.parametrize("target", list(args), scope="session")
-
-
-def exclude_targets(*args):
-    """Exclude a test from running on a particular target.
-
-    Use this decorator when you want your test to be run over a
-    variety of targets and devices (including cpu and gpu devices),
-    but want to exclude some particular target or targets.  For
-    example, a test may wish to be run against all targets in
-    tvm.testing.enabled_targets(), except for a particular target that
-    does not support the capabilities.
-
-    Applies pytest.mark.skipif to the targets given.
-
-    Parameters
-    ----------
-    f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
-        where `xxxxxxxxx` is any name.
-    targets : list[str]
-        Set of targets to exclude.
-
-    Example
-    -------
-    >>> @tvm.testing.exclude_targets("cuda")
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
-    Or
-
-    >>> @tvm.testing.exclude_targets("llvm", "cuda")
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
-    """
-
-    def wraps(func):
-        func.tvm_excluded_targets = args
-        return func
-
-    return wraps
-
-
-def known_failing_targets(*args):
-    """Skip a test that is known to fail on a particular target.
-
-    Use this decorator when you want your test to be run over a
-    variety of targets and devices (including cpu and gpu devices),
-    but know that it fails for some targets.  For example, a newly
-    implemented runtime may not support all features being tested, and
-    should be excluded.
-
-    Applies pytest.mark.xfail to the targets given.
-
-    Parameters
-    ----------
-    f : function
-        Function to parametrize. Must be of the form `def test_xxxxxxxxx(target, dev)`:,
-        where `xxxxxxxxx` is any name.
-    targets : list[str]
-        Set of targets to skip.
-
-    Example
-    -------
-    >>> @tvm.testing.known_failing_targets("cuda")
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
-    Or
-
-    >>> @tvm.testing.known_failing_targets("llvm", "cuda")
-    >>> def test_mytest(target, dev):
-    >>>     ...  # do something
-
-    """
-
-    def wraps(func):
-        func.tvm_known_failing_targets = args
-        return func
-
-    return wraps
 
 
 def parameter(*values, ids=None, by_dict=None):

@@ -223,8 +223,17 @@ def test_opencl_type_casting():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
-@tvm.testing.parametrize_targets("opencl", {"kind": "opencl", "device": "adreno"})
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("opencl", marks=pytest.mark.gpu),
+        pytest.param({"kind": "opencl", "device": "adreno"}, marks=pytest.mark.gpu),
+    ],
+)
 def test_opencl_ceil_log2(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
     def _check(target, n, dtype):
         target_obj = tvm.target.Target(target)
         is_adreno = "adreno" in target_obj.attrs.get("device", "")

@@ -28,37 +28,43 @@ from tvm.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
-@tvm.testing.parametrize_targets(
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv32-linux-gnu",
-        "mcpu": "generic-rv32",
-        "mattr": ["+i", "+m"],
-    },
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv32-linux-gnu",
-        "mcpu": "generic-rv32",
-        "mattr": ["+i", "+m", "+v"],
-    },
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv64-linux-gnu",
-        "mcpu": "generic-rv64",
-        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m"],
-    },
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv64-linux-gnu",
-        "mcpu": "generic-rv64",
-        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
-    },
+@pytest.mark.parametrize(
+    "target",
+    [
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv32-linux-gnu",
+            "mcpu": "generic-rv32",
+            "mattr": ["+i", "+m"],
+        },
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv32-linux-gnu",
+            "mcpu": "generic-rv32",
+            "mattr": ["+i", "+m", "+v"],
+        },
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m"],
+        },
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+        },
+    ],
 )
 def test_rvv(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
     def check_rvv_presence(N, extent):
         @T.prim_func(s_tir=True)
         def load_vec(A: T.Buffer((N,), "int8")):
@@ -78,23 +84,29 @@ def test_rvv(target):
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
-@tvm.testing.parametrize_targets(
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv32-linux-gnu",
-        "mcpu": "generic-rv32",
-        "mattr": ["+i", "+m", "+v"],
-    },
-    {
-        "kind": "llvm",
-        "device": "riscv_cpu",
-        "mtriple": "riscv64-linux-gnu",
-        "mcpu": "generic-rv64",
-        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
-    },
+@pytest.mark.parametrize(
+    "target",
+    [
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv32-linux-gnu",
+            "mcpu": "generic-rv32",
+            "mattr": ["+i", "+m", "+v"],
+        },
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+        },
+    ],
 )
 def test_rvv_vscale_llvm_dbginfo(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
     # fmt: off
     @T.prim_func(s_tir=True)
     def rvv_with_vscale(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):

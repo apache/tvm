@@ -276,8 +276,14 @@ def test_ldexp():
 dtype = tvm.testing.parameter("int32", "int64")
 
 
-@tvm.testing.parametrize_targets("llvm", {"kind": "vulkan", "from_device": 0})
-def test_clz(target, dev, dtype):
+@pytest.mark.parametrize(
+    "target",
+    ["llvm", pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu)],
+)
+def test_clz(target, dtype):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
     target = tvm.target.Target(target)
     if (
         target.kind.name == "vulkan"

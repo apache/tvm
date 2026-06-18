@@ -26,8 +26,12 @@ from tvm.script import tirx as T
 
 
 @pytest.mark.gpu
-@tvm.testing.exclude_targets("nvptx")
-def test_cmp_load_store(target, dev):
+@pytest.mark.parametrize("target", ["llvm", "cuda", "rocm", "vulkan", "metal", "opencl"])
+def test_cmp_load_store(target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    dev = tvm.device(target)
+
     @I.ir_module(s_tir=True)
     class GPUModule:
         @T.prim_func(s_tir=True)
