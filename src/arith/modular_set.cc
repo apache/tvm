@@ -310,6 +310,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
+  void CopyFrom(const Impl& other) { var_map_ = other.var_map_; }
+
  private:
   /*! \brief pointer to parent. */
   AnalyzerObj* parent_{nullptr};
@@ -406,6 +408,10 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
 ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
 
 ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+
+void ModularSetAnalyzer::CopyFrom(const ModularSetAnalyzer& other) {
+  impl_->CopyFrom(*other.impl_);
+}
 
 }  // namespace arith
 }  // namespace tvm

@@ -2466,6 +2466,8 @@ RewriteSimplifier::RewriteSimplifier(AnalyzerObj* parent) : impl_(new Impl(paren
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
 
+void RewriteSimplifier::CopyFrom(const RewriteSimplifier& other) { impl_->CopyFrom(*other.impl_); }
+
 // Pattern A (RM): auto-default repr from reflection.
 
 }  // namespace arith
