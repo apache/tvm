@@ -360,22 +360,22 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
   auto is_op = [&](const Op& compat, const char* canonical_name) {
     return op->op.same_as(compat) || (op_node != nullptr && op_node->name == canonical_name);
   };
-  static const Op& nki_matmul_op = Op::Get("tirx.nki_matmul");
-  static const Op& nki_load_op = Op::Get("tirx.nki_load");
-  static const Op& nki_store_op = Op::Get("tirx.nki_store");
-  static const Op& nki_tensor_copy_op = Op::Get("tirx.nki_tensor_copy");
-  static const Op& nki_activation_op = Op::Get("tirx.nki_activation");
-  static const Op& nki_reciprocal_op = Op::Get("tirx.nki_reciprocal");
-  static const Op& nki_tensortensor_op = Op::Get("tirx.nki_tensortensor");
-  static const Op& nki_tensorscalar_op = Op::Get("tirx.nki_tensorscalar");
-  static const Op& nki_memset_op = Op::Get("tirx.nki_memset");
-  static const Op& nki_tensorreduce_op = Op::Get("tirx.nki_tensorreduce");
-  static const Op& nki_activation_reduce_op = Op::Get("tirx.nki_activation_reduce");
-  static const Op& nki_tensorscalar_reduce_op = Op::Get("tirx.nki_tensorscalar_reduce");
-  static const Op& nki_identity_op = Op::Get("tirx.nki_identity");
-  static const Op& nki_scalar_tensor_tensor_op = Op::Get("tirx.nki_scalar_tensor_tensor");
-  static const Op& nki_scalar_tensor_scalar_op = Op::Get("tirx.nki_scalar_tensor_scalar");
-  static const Op& nki_affine_select_op = Op::Get("tirx.nki_affine_select");
+  static const Op& nki_matmul_op = Op::Get("tirx.nki.matmul");
+  static const Op& nki_load_op = Op::Get("tirx.nki.load");
+  static const Op& nki_store_op = Op::Get("tirx.nki.store");
+  static const Op& nki_tensor_copy_op = Op::Get("tirx.nki.tensor_copy");
+  static const Op& nki_activation_op = Op::Get("tirx.nki.activation");
+  static const Op& nki_reciprocal_op = Op::Get("tirx.nki.reciprocal");
+  static const Op& nki_tensortensor_op = Op::Get("tirx.nki.tensortensor");
+  static const Op& nki_tensorscalar_op = Op::Get("tirx.nki.tensorscalar");
+  static const Op& nki_memset_op = Op::Get("tirx.nki.memset");
+  static const Op& nki_tensorreduce_op = Op::Get("tirx.nki.tensorreduce");
+  static const Op& nki_activation_reduce_op = Op::Get("tirx.nki.activation_reduce");
+  static const Op& nki_tensorscalar_reduce_op = Op::Get("tirx.nki.tensorscalar_reduce");
+  static const Op& nki_identity_op = Op::Get("tirx.nki.identity");
+  static const Op& nki_scalar_tensor_tensor_op = Op::Get("tirx.nki.scalar_tensor_tensor");
+  static const Op& nki_scalar_tensor_scalar_op = Op::Get("tirx.nki.scalar_tensor_scalar");
+  static const Op& nki_affine_select_op = Op::Get("tirx.nki.affine_select");
 
   if (is_op(nki_matmul_op, "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);

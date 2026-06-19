@@ -813,7 +813,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         """Build: { AllocBuffer(desc); encode(desc, smem); krp }"""
         encode_call = tvm.tirx.call_intrin(
             "",
-            "tirx.ptx_tcgen05_encode_matrix_descriptor",
+            "tirx.ptx.tcgen05_encode_matrix_descriptor",
             tvm.tirx.address_of(desc_buf[0]),
             smem_buf.ptr_to(base),
             ldo,
