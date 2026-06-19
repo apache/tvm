@@ -658,6 +658,11 @@ class IntSetAnalyzer::Impl {
   void Bind(const Var& var, const PrimExpr& expr, bool override_info);
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
+  void CopyFrom(const Impl& other) {
+    dom_map_ = other.dom_map_;
+    dom_constraints_ = other.dom_constraints_;
+  }
+
  private:
   // Utility function to split a boolean condition into the domain
   // bounds implied by that condition.
@@ -680,6 +685,8 @@ class IntSetAnalyzer::Impl {
 IntSetAnalyzer::IntSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
 
 IntSetAnalyzer::~IntSetAnalyzer() { delete impl_; }
+
+void IntSetAnalyzer::CopyFrom(const IntSetAnalyzer& other) { impl_->CopyFrom(*other.impl_); }
 
 IntSet IntSetAnalyzer::operator()(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map) {
   return impl_->Eval(expr, dom_map);

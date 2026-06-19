@@ -204,5 +204,84 @@ def test_analyzer_object_state_persists_across_ffi_calls():
     tvm.ir.assert_structural_equal(analyzer.simplify(tile), tvm.tirx.const(8, "int32"))
 
 
+def test_analyzer_object_clone_is_independent():
+    analyzer = tvm.arith.Analyzer()
+    x = tirx.Var("x", "int64")
+    y = tirx.Var("y", "int64")
+    z = tirx.Var("z", "int64")
+
+    analyzer.bind(x, tvm.ir.Range(0, 8))
+
+    clone = analyzer.clone()
+    assert clone is not analyzer
+    assert clone.can_prove(x < 8)
+
+    clone.bind(y, tvm.ir.Range(0, 4))
+    assert clone.can_prove(y < 4)
+    assert not analyzer.can_prove(y < 4)
+
+    analyzer.bind(z, tvm.ir.Range(0, 4))
+    assert analyzer.can_prove(z < 4)
+    assert not clone.can_prove(z < 4)
+
+    assert analyzer.can_prove(x < 8)
+    assert clone.can_prove(x < 8)
+
+
+def test_analyzer_object_clone_copies_every_sub_analyzer():
+    analyzer = tvm.arith.Analyzer()
+    x = tirx.Var("x", "int64")
+    w = tirx.Var("w", "int64")
+    v = tirx.Var("v", "int64")
+
+    analyzer.bind(x, tvm.ir.Range(0, 8))
+    analyzer.update(x, tvm.arith.ModularSet(4, 0))
+    analyzer.bind(w, tirx.const(4, "int64"))
+    analyzer.update(v, tvm.arith.IntervalSet(2, 9))
+    analyzer.enabled_extensions = Extension.ComparisonOfProductAndSum
+
+    clone = analyzer.clone()
+
+    assert clone.can_prove(x < 8)
+    assert clone.modular_set(x).coeff == 4
+    tvm.ir.assert_structural_equal(clone.simplify(w + 1), tirx.const(5, "int64"))
+    assert clone.int_set(v).max_value.value == 9
+    assert clone.enabled_extensions == Extension.ComparisonOfProductAndSum
+    assert clone.try_compare(x, tirx.const(0, "int64")) == CompareResult.GE
+
+    t = tirx.Var("t", "int64")
+    clone.update(x, tvm.arith.ModularSet(8, 0), override=True)
+    clone.update(v, tvm.arith.IntervalSet(0, 3), override=True)
+    clone.bind(w, tirx.const(8, "int64"), allow_override=True)
+    clone.bind(t, tvm.ir.Range(0, 4))
+    clone.enabled_extensions = Extension.NoExtensions
+
+    assert analyzer.modular_set(x).coeff == 4
+    assert clone.modular_set(x).coeff == 8
+    assert analyzer.int_set(v).max_value.value == 9
+    assert clone.int_set(v).max_value.value == 3
+    tvm.ir.assert_structural_equal(analyzer.simplify(w + 1), tirx.const(5, "int64"))
+    tvm.ir.assert_structural_equal(clone.simplify(w + 1), tirx.const(9, "int64"))
+    assert analyzer.enabled_extensions == Extension.ComparisonOfProductAndSum
+    assert clone.enabled_extensions == Extension.NoExtensions
+    assert clone.try_compare(t, tirx.const(0, "int64")) == CompareResult.GE
+    assert analyzer.try_compare(t, tirx.const(0, "int64")) == CompareResult.UNKNOWN
+
+
+def test_analyzer_object_clone_resets_rewrite_stats():
+    analyzer = tvm.arith.Analyzer()
+    x = tirx.Var("x", "int64")
+    y = tirx.Var("y", "int64")
+    analyzer.bind(x, tvm.ir.Range(0, 8))
+    analyzer.bind(y, tvm.ir.Range(0, 8))
+    analyzer.simplify((x + y) * 2 - x - y)
+    source_attempts = analyzer.rewrite_simplify_stats.rewrites_attempted
+    assert source_attempts > 0
+
+    clone = analyzer.clone()
+    assert clone.rewrite_simplify_stats.rewrites_attempted == 0
+    assert analyzer.rewrite_simplify_stats.rewrites_attempted == source_attempts
+
+
 if __name__ == "__main__":
     tvm.testing.main()
