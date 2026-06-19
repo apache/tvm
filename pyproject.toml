@@ -153,13 +153,13 @@ BUILD_TESTING = "OFF"
 [tool.setuptools_scm]
 # Version comes from the most recent Git tag (vMAJOR.MINOR.devN or vMAJOR.MINOR.PATCH).
 # guess-next-dev reproduces the previous version.py behaviour for vMAJOR.MINOR.devN
-# tags (e.g. v0.25.dev0 + N commits -> 0.25.devN). local_scheme = "no-local-version"
+# tags (e.g. v0.26.dev0 + N commits -> 0.26.devN). local_scheme = "no-local-version"
 # drops the +g<hash> local segment: PyPI rejects local versions on upload, and
 # this matches the public version the old version.py stamped.
 version_file = "python/tvm/_version.py"
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"
-fallback_version = "0.25.dev0"
+fallback_version = "0.26.dev0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
