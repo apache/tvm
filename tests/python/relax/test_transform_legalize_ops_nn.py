@@ -4116,5 +4116,43 @@ def test_batch_flatten_undefined_shape():
     tvm.ir.assert_structural_equal(mod, BatchFlattenUndefinedShape)
 
 
+def test_dropout():
+    # fmt: off
+    @tvm.script.ir_module
+    class Dropout:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")):
+            gv: R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")) = R.nn.dropout(x, rate=0.5)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(private=True, s_tir=True)
+        def dropout(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_full_like: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.sblock("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(x[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = x[v_i0, v_i1]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.sblock("T_full_like"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads()
+                    T.writes(T_full_like[v_ax0, v_ax1])
+                    T_full_like[v_ax0, v_ax1] = T.float32(1.0)
+
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
+            cls = Expected
+            gv = R.call_tir(cls.dropout, (x,), out_sinfo=[R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")])
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Dropout)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
