@@ -180,6 +180,7 @@ class ConstIntBoundAnalyzer {
   friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ConstIntBoundAnalyzer();
+  void CopyFrom(const ConstIntBoundAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -259,6 +260,7 @@ class ModularSetAnalyzer {
   friend class ConstraintContext;
   explicit ModularSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ModularSetAnalyzer();
+  void CopyFrom(const ModularSetAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -413,6 +415,7 @@ class RewriteSimplifier {
   friend class CanonicalSimplifier;
   explicit RewriteSimplifier(AnalyzerObj* parent);
   TVM_DLL ~RewriteSimplifier();
+  void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -444,6 +447,7 @@ class CanonicalSimplifier {
   friend class ConstraintContext;
   explicit CanonicalSimplifier(AnalyzerObj* parent);
   TVM_DLL ~CanonicalSimplifier();
+  void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -529,6 +533,7 @@ class TransitiveComparisonAnalyzer {
   friend class ConstraintContext;
   TransitiveComparisonAnalyzer();
   TVM_DLL ~TransitiveComparisonAnalyzer();
+  void CopyFrom(const TransitiveComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   std::unique_ptr<Impl> impl_;
@@ -583,6 +588,7 @@ class IntSetAnalyzer {
   friend class AnalyzerObj;
   explicit IntSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~IntSetAnalyzer();
+  void CopyFrom(const IntSetAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -746,6 +752,26 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+  /*!
+   * \brief Deep-copy this analyzer into a new, independent Analyzer.
+   *
+   * The returned analyzer carries the same accumulated facts (variable
+   * bounds, modular sets, rewrite/canonical bindings, integer-set domains,
+   * literal constraints and transitive comparisons) as this one, but owns
+   * its own state: binding or simplifying on either analyzer afterwards does
+   * not affect the other. This is the deep copy that handle-copying an
+   * Analyzer does not provide.
+   *
+   * \note Do not call this while a `With<ConstraintContext>` scope is active
+   *       on this analyzer. The clone would inherit the scoped constraints
+   *       but not the recovery functions that pop them on scope exit, so the
+   *       constraints would leak as if they were global facts. Clone at a
+   *       point where no constraint scope is in effect.
+   *
+   * \return A new Analyzer holding an independent copy of the facts.
+   */
+  Analyzer Clone() const;
 
   /*!
    * \brief Analyzer methods update facts, constraints, caches, and stats.

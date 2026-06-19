@@ -135,6 +135,13 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
   void SetMaximumRewriteSteps(int64_t maximum) { maximum_rewrite_steps_ = maximum; }
 
+  void CopyFrom(const Impl& other) {
+    var_map_ = other.var_map_;
+    literal_constraints_ = other.literal_constraints_;
+    enabled_extensions_ = other.enabled_extensions_;
+    maximum_rewrite_steps_ = other.maximum_rewrite_steps_;
+  }
+
  protected:
   int64_t maximum_rewrite_steps_{0};
   RewriteSimplifierStatsNode stats_;

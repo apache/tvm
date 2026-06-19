@@ -255,11 +255,23 @@ PrimExpr AnalyzerObj::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
+Analyzer AnalyzerObj::Clone() const {
+  Analyzer cloned;
+  cloned->const_int_bound.CopyFrom(this->const_int_bound);
+  cloned->modular_set.CopyFrom(this->modular_set);
+  cloned->rewrite_simplify.CopyFrom(this->rewrite_simplify);
+  cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
+  cloned->int_set.CopyFrom(this->int_set);
+  cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  return cloned;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<AnalyzerObj>();
   refl::GlobalDef()
       .def("arith.Analyzer", []() { return Analyzer(); })
+      .def("arith.AnalyzerClone", [](Analyzer analyzer) { return analyzer->Clone(); })
       .def("arith.AnalyzerConstIntBound",
            [](Analyzer analyzer, const PrimExpr& expr) { return analyzer->const_int_bound(expr); })
       .def("arith.AnalyzerConstIntBoundUpdate",

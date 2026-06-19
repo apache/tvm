@@ -75,6 +75,27 @@ TEST(AnalyzerObjectRef, ConstHandleRefCanMutateAnalyzerState) {
   TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
 }
 
+TEST(AnalyzerObjectRef, CloneIsIndependent) {
+  tvm::arith::Analyzer analyzer;
+  auto x = tvm::te::var("x");
+  auto y = tvm::te::var("y");
+
+  analyzer->Bind(x, tvm::Range::FromMinExtent(0, 8));
+  analyzer->modular_set.Update(x, tvm::arith::ModularSet(4, 0));
+
+  tvm::arith::Analyzer clone = analyzer->Clone();
+  TVM_FFI_ICHECK(clone->CanProve(x < 8));
+  TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 4);
+
+  clone->Bind(y, tvm::Range::FromMinExtent(0, 4));
+  clone->modular_set.Update(x, tvm::arith::ModularSet(8, 0), true);
+  TVM_FFI_ICHECK(clone->CanProve(y < 4));
+  TVM_FFI_ICHECK(!analyzer->CanProve(y < 4));
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
+  TVM_FFI_ICHECK(analyzer->modular_set(x)->coeff == 4);
+  TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 8);
+}
+
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
   auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm::Int32(10), 4);

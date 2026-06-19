@@ -193,6 +193,24 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerSimplify(self, expr, steps)
 
+    def clone(self) -> "Analyzer":
+        """Return a deep copy of this analyzer with independent state.
+
+        The returned analyzer carries the same accumulated facts (variable
+        bounds, modular sets, bindings, integer-set domains, literal
+        constraints and transitive comparisons) as this one, but owns its own
+        state: binding or simplifying on either analyzer afterwards does not
+        affect the other. Unlike copying the handle, this is a true deep copy.
+
+        Do not call this while a constraint scope is active on this analyzer.
+
+        Returns
+        -------
+        result : Analyzer
+            A new analyzer holding an independent copy of the facts.
+        """
+        return _ffi_api.AnalyzerClone(self)
+
     def rewrite_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
         """Simplify expression via rewriting rules.
 

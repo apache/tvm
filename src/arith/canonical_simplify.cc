@@ -1454,5 +1454,9 @@ CanonicalSimplifier::CanonicalSimplifier(AnalyzerObj* parent) : impl_(new Impl(p
 
 CanonicalSimplifier::~CanonicalSimplifier() { delete impl_; }
 
+void CanonicalSimplifier::CopyFrom(const CanonicalSimplifier& other) {
+  impl_->CopyFrom(*other.impl_);
+}
+
 }  // namespace arith
 }  // namespace tvm
