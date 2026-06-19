@@ -1530,7 +1530,12 @@ class Relu(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
-        return relax.op.nn.relu(inputs[0])
+        x = inputs[0]
+        x_dtype = x.struct_info.dtype if isinstance(x.struct_info, relax.TensorStructInfo) else None
+        y = relax.op.nn.relu(x)
+        if x_dtype is not None and _relax_dtype_is_floating_point(x_dtype):
+            return relax.op.where(relax.op.isnan(x), x, y)
+        return y
 
 
 class Elu(OnnxOpConverter):
