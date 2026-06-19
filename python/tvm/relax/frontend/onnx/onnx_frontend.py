@@ -1831,10 +1831,13 @@ class ConvTranspose(OnnxOpConverter):
         strides = attr.get("strides", [1] * spatial_dims)
         dilations = attr.get("dilations", [1] * spatial_dims)
         output_padding = attr.get("output_padding", [0] * spatial_dims)
+        groups = attr.get("group", 1)
+        weight_shape = inputs[1].struct_info.shape
+        out_channels = weight_shape.values[1] * groups
         if "kernel_shape" in attr:
             kernel_shape = list(attr["kernel_shape"])
         else:
-            kernel_shape = [int(s) for s in inputs[1].struct_info.shape.values[2:]]
+            kernel_shape = [int(s) for s in weight_shape.values[2:]]
 
         # Resolve `auto_pad` per ONNX ConvTranspose spec. Unlike Conv, the spec
         # derives `pads` from `output_shape`/`strides` when auto_pad is SAME_*,
@@ -1883,13 +1886,42 @@ class ConvTranspose(OnnxOpConverter):
             padding=attr.get("pads", 0),
             output_padding=output_padding,
             dilation=dilations,
-            groups=attr.get("group", 1),
+            groups=groups,
             data_layout=data_layout,
             kernel_layout=kernel_layout,
         )
 
         if inputs[2] is not None:
-            bias = relax.op.reshape(inputs[2], [1, -1] + [1] * (ndim - 2))
+            bias_shape = inputs[2].struct_info.shape
+            if hasattr(inputs[2].struct_info, "ndim"):
+                bias_ndim = inputs[2].struct_info.ndim
+            else:
+                bias_ndim = len(bias_shape)
+            if bias_ndim != 1:
+                raise ValueError(f"ConvTranspose bias must be a 1D tensor, but got ndim={bias_ndim}")
+
+            def _as_static_int(dim):
+                try:
+                    return int(dim)
+                except (TypeError, ValueError, TVMError):
+                    return None
+
+            if isinstance(bias_shape, relax.ShapeExpr):
+                bias_channels = bias_shape.values[0]
+                static_bias_channels = _as_static_int(bias_channels)
+                static_out_channels = _as_static_int(out_channels)
+                if (
+                    static_bias_channels is not None
+                    and static_out_channels is not None
+                    and static_bias_channels != static_out_channels
+                ):
+                    raise ValueError(
+                        "ConvTranspose bias length must equal output channels "
+                        f"(weight.shape[1] * group = {static_out_channels}), "
+                        f"but got {static_bias_channels}."
+                    )
+
+            bias = relax.op.reshape(inputs[2], [1, out_channels] + [1] * (ndim - 2))
             conv_out = relax.op.add(conv_out, bias)
 
         return conv_out
