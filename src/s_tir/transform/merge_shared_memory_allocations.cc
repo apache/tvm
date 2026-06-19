@@ -487,7 +487,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    static const Op& ptx_cp_async_op = Op::Get("tirx.ptx_cp_async");
+    static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();

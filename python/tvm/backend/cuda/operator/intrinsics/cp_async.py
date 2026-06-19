@@ -383,6 +383,9 @@ def codegen_ptx_cp_async(*args):
     return result[0] if isinstance(result, tuple) else result
 
 
+CODEGEN_REGISTRY["tirx.ptx.cp_async_raw"] = CODEGEN_REGISTRY["tirx.ptx.cp_async"]
+
+
 # =============================================================================
 # cp.async.bulk.tensor (TMA) — one device_intrinsic per arity variant of each
 # PTX form. Per-dim coord operands materialise via the ``c_signature`` callable.
