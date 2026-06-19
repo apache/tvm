@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/contrib/example_npu/example_npu_runtime.cc
+ * \file src/runtime/extra/contrib/example_npu/example_npu_runtime.cc
  * \brief Example NPU runtime demonstrating architectural concepts
  *
  * This runtime demonstrates key NPU architectural patterns:

@@ -203,7 +203,8 @@ set(USE_CUBLAS OFF)
 set(USE_SORT ON)
 
 # Whether to build with TensorRT codegen or runtime
-# Examples are available here: docs/deploy/tensorrt.rst.
+# An end-to-end example is available here:
+# docs/how_to/tutorials/bring_your_own_codegen.py.
 #
 # USE_TENSORRT_CODEGEN - Support for compiling a graph where supported operators are
 #                        offloaded to TensorRT. OFF/ON
