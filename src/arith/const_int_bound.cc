@@ -498,6 +498,11 @@ class ConstIntBoundAnalyzer::Impl
     return frecover;
   }
 
+  void CopyFrom(const Impl& other) {
+    var_map_ = other.var_map_;
+    additional_info_ = other.additional_info_;
+  }
+
  private:
   friend class ConstIntBoundAnalyzer;
   // parent analyzer
@@ -858,6 +863,10 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
 ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
 
 ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
+
+void ConstIntBoundAnalyzer::CopyFrom(const ConstIntBoundAnalyzer& other) {
+  impl_->CopyFrom(*other.impl_);
+}
 
 }  // namespace arith
 }  // namespace tvm

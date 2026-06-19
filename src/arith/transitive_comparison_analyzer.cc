@@ -82,6 +82,13 @@ class TransitiveComparisonAnalyzer::Impl {
    */
   std::function<void()> EnterConstraint(const PrimExpr& expr);
 
+  void CopyFrom(const Impl& other) {
+    expr_to_key = other.expr_to_key;
+    prev_bindings_ = other.prev_bindings_;
+    knowns_ = other.knowns_;
+    scoped_knowns_ = other.scoped_knowns_;
+  }
+
  private:
   /* \brief Internal representation of a PrimExpr
    *
@@ -527,6 +534,10 @@ bool TransitiveComparisonAnalyzer::Impl::Comparison::Implies(
 
 TransitiveComparisonAnalyzer::TransitiveComparisonAnalyzer() : impl_(std::make_unique<Impl>()) {}
 TransitiveComparisonAnalyzer::~TransitiveComparisonAnalyzer() {}
+
+void TransitiveComparisonAnalyzer::CopyFrom(const TransitiveComparisonAnalyzer& other) {
+  impl_->CopyFrom(*other.impl_);
+}
 
 CompareResult TransitiveComparisonAnalyzer::TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
                                                        bool propagate_inequalities) {
