@@ -354,10 +354,14 @@ TVM_REGISTER_OP("relax.image.grid_sample")
 
 /* relax.image.affine_grid */
 
-Expr affine_grid(Expr data, Expr size) {
+Expr affine_grid(Expr data, Expr size, bool align_corners) {
+  ffi::ObjectPtr<AffineGridAttrs> attrs = ffi::make_object<AffineGridAttrs>();
+  attrs->align_corners = align_corners;
   static const Op& op = Op::Get("relax.image.affine_grid");
-  return Call(op, {std::move(data), std::move(size)}, Attrs(), {});
+  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() { AffineGridAttrs::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -438,6 +442,7 @@ TVM_REGISTER_OP("relax.image.affine_grid")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input affine matrix tensor.")
     .add_argument("size", "Shape", "The target output shape (H, W).")
+    .set_attrs_type<AffineGridAttrs>()
     .set_attr<FInferType>("FInferType", InferTypeAffineGrid)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);

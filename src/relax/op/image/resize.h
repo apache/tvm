@@ -49,7 +49,7 @@ Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
                  ffi::String padding_mode, bool align_corners);
 
 /*! \brief Image affine_grid operator. */
-Expr affine_grid(Expr data, Expr size);
+Expr affine_grid(Expr data, Expr size, bool align_corners);
 
 }  // namespace relax
 }  // namespace tvm

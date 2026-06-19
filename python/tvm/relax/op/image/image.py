@@ -237,6 +237,7 @@ def grid_sample(
 def affine_grid(
     data: Expr,
     size: Expr | SizeLike,
+    align_corners: bool = True,
 ) -> Expr:
     """Generate a 2D sampling grid using an affine transformation matrix.
 
@@ -253,20 +254,18 @@ def affine_grid(
         The target output spatial shape (H, W). If a single integer or PrimExpr
         is provided, it is interpreted as a square output shape (size, size).
 
+    align_corners : bool
+        If True, normalized grid coordinates map to corner pixels; if False, to
+        pixel centers (the PyTorch / ONNX default).
+
     Returns
     -------
     result : relax.Expr
         The output grid tensor with shape [batch, 2, H, W].
-
-    Note
-    ----
-    Only `align_corners=True` is supported by this operator, matching the
-    behavior of the underlying TOPI implementation. When using this operator
-    via PyTorch or ONNX frontends, `align_corners=False` will be rejected.
     """
     if isinstance(size, int | PrimExpr):
         size = (size, size)
     if isinstance(size, tuple | list):
         size = ShapeExpr(size)
 
-    return cast(Expr, _ffi_api.affine_grid(data, size))
+    return cast(Expr, _ffi_api.affine_grid(data, size, align_corners))

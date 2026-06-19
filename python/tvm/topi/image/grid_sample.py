@@ -20,7 +20,7 @@
 from tvm import te, tirx
 
 
-def affine_grid(data, target_shape):
+def affine_grid(data, target_shape, align_corners=True):
     """affine_grid operator that generates 2D sampling grid.
 
     This operation is described in https://arxiv.org/pdf/1506.02025.pdf. It generates a uniform
@@ -35,6 +35,10 @@ def affine_grid(data, target_shape):
     target_shape: list/tuple of two int
         Specifies the output shape (H, W).
 
+    align_corners : bool
+        If True, normalized coordinates map to corner pixels; if False, to pixel centers
+        (the PyTorch / ONNX default).
+
     Returns
     -------
     Output : tvm.Tensor
@@ -42,18 +46,28 @@ def affine_grid(data, target_shape):
     """
     assert target_shape is not None
     assert len(target_shape) == 2
-    assert target_shape[0] > 1 and target_shape[1] > 1, (
-        "target height/width should be greater than 1"
-    )
+    if align_corners:
+        assert target_shape[0] > 1 and target_shape[1] > 1, (
+            "target height/width should be greater than 1 when align_corners is True"
+        )
 
     dtype = data.dtype
-    y_step = tirx.const((2.0 - 1e-7) / (target_shape[0] - 1), dtype=dtype)
-    x_step = tirx.const((2.0 - 1e-7) / (target_shape[1] - 1), dtype=dtype)
-    start = tirx.const(-1.0, dtype=dtype)
+    height, width = target_shape[0], target_shape[1]
+    if align_corners:
+        y_step = tirx.const((2.0 - 1e-7) / (height - 1), dtype=dtype)
+        x_step = tirx.const((2.0 - 1e-7) / (width - 1), dtype=dtype)
+        y_start = tirx.const(-1.0, dtype=dtype)
+        x_start = tirx.const(-1.0, dtype=dtype)
+    else:
+        # Pixel centers: coordinate i maps to (2 * i + 1) / size - 1.
+        y_step = tirx.const(2.0 / height, dtype=dtype)
+        x_step = tirx.const(2.0 / width, dtype=dtype)
+        y_start = tirx.const(-1.0 + 1.0 / height, dtype=dtype)
+        x_start = tirx.const(-1.0 + 1.0 / width, dtype=dtype)
 
     def _compute(n, dim, i, j):
-        y = start + i * y_step
-        x = start + j * x_step
+        y = y_start + i * y_step
+        x = x_start + j * x_step
         return data[n, dim, 0] * x + data[n, dim, 1] * y + data[n, dim, 2]
 
     oshape = (data.shape[0], len(target_shape), *target_shape)
