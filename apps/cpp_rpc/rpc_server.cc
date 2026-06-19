@@ -34,6 +34,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
@@ -49,25 +50,6 @@ using namespace std::chrono;
 
 namespace tvm {
 namespace runtime {
-
-/*!
- * \brief wait the child process end.
- * \param status status value
- */
-#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
-static pid_t waitPidEintr(int* status) {
-  pid_t pid = 0;
-  while ((pid = waitpid(-1, status, 0)) == -1) {
-    if (errno == EINTR) {
-      continue;
-    } else {
-      perror("waitpid");
-      abort();
-    }
-  }
-  return pid;
-}
-#endif
 
 #ifdef __ANDROID__
 static std::string getNextString(std::stringstream* iss) {
@@ -88,7 +70,7 @@ static std::string getNextString(std::stringstream* iss) {
 /*!
  * \brief RPCServer RPC Server class.
  *
- * \param host The hostname of the server, Default=0.0.0.0
+ * \param host The listen address of the server, Default=0.0.0.0 (any)
  *
  * \param port_search_start The low end of the search range for an
  *     available port for the RPC, Default=9090
@@ -137,7 +119,7 @@ class RPCServer {
   void Start() {
     listen_sock_.Create();
     my_port_ = listen_sock_.TryBindHost(host_, port_search_start_, port_search_end_);
-    LOG(INFO) << "bind to " << host_ << ":" << my_port_;
+    LOG(INFO) << "Bind to " << host_ << ":" << my_port_;
     listen_sock_.Listen(1);
     std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
     proc.get();
@@ -176,13 +158,6 @@ class RPCServer {
 #if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
       // step 3: serving
       if (timeout != 0) {
-        const pid_t timer_pid = fork();
-        if (timer_pid == 0) {
-          // Timer process
-          sleep(timeout);
-          _exit(0);
-        }
-
         const pid_t worker_pid = fork();
         if (worker_pid == 0) {
           // Worker process
@@ -190,27 +165,36 @@ class RPCServer {
           _exit(0);
         }
 
-        int status_first = 0;
-        const pid_t finished_first = waitPidEintr(&status_first);
-        if (finished_first == timer_pid) {
-          kill(worker_pid, SIGTERM);
-        } else if (finished_first == worker_pid) {
-          kill(timer_pid, SIGTERM);
-        } else {
-          LOG(INFO) << "Child pid=" << finished_first << " unexpected, but still continue.";
+        int status = 0;
+        bool timed_out = false;
+        auto start_timer = std::chrono::steady_clock::now();
+        while (true) {
+          // Check worker pid (non-blocking)
+          int ret = waitpid(worker_pid, &status, WNOHANG);
+          if (ret == worker_pid) {
+            break;
+          } else if (ret == -1) {
+            if (errno == EINTR) continue;
+            break;
+          }
+          // Check worker timeout
+          if (std::chrono::steady_clock::now() - start_timer >= std::chrono::seconds(timeout)) {
+            timed_out = true;
+            kill(worker_pid, SIGTERM);
+            waitpid(worker_pid, &status, 0);
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
-        int status_second = 0;
-        waitPidEintr(&status_second);
-
         // Logging.
-        if (finished_first == timer_pid) {
+        if (timed_out) {
           LOG(INFO) << "Child pid=" << worker_pid << " killed"
                     << " (timeout = " << timeout << " sec)"
-                    << ", status = " << status_second;
-        } else if (finished_first == worker_pid) {
+                    << ", status = " << status;
+        } else {
           LOG(INFO) << "Child pid=" << worker_pid << " finished"
-                    << ", status = " << status_first;
+                    << ", status = " << status;
         }
       } else {
         auto pid = fork();
@@ -384,9 +368,9 @@ void ServerLoopFromChild(SOCKET socket) {
 
 /*!
  * \brief RPCServerCreate Creates the RPC Server.
- * \param host The hostname of the server, Default=0.0.0.0
- * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9099
+ * \param host The listen address of the server, Default=0.0.0.0 (any)
+ * \param port The port of the RPC server, Default=9090
+ * \param port_end The end search port of the RPC server, Default=9099
  * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190
  * Default="" \param key The key used to identify the device type in tracker. Default="" \param
  * custom_addr Custom IP Address to Report to RPC Tracker. Default="" \param silent Whether run in
