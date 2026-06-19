@@ -32,7 +32,6 @@ uv pip install --upgrade \
     Pillow==12.1.1 \
     "psutil~=7.0" \
     "pytest~=8.3" \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
     "pytest-profiling~=1.8" \
     "pytest-xdist~=3.6" \
     pytest-rerunfailures==16.1 \
@@ -42,4 +41,5 @@ uv pip install --upgrade \
     junitparser==4.0.2 \
     "six~=1.17" \
     "tornado~=6.4" \
-    "ml_dtypes~=0.5"
+    "ml_dtypes~=0.5" \
+    z3-static==4.16.0.post1
