@@ -20,30 +20,19 @@
  * \file rpc_env.cc
  * \brief Server environment of the RPC.
  */
+#include "rpc_env.h"
+
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 
-#include <cerrno>
-#ifndef _WIN32
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#else
-#include <Windows.h>
-#include <direct.h>
-namespace {
-int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
-}  // namespace
-#endif
-#include <cstring>
+#include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "../../src/support/utils.h"
-#include "rpc_env.h"
 
 namespace {
 std::string GenerateUntarCommand(const std::string& tar_file, const std::string& output_dir) {
@@ -69,37 +58,44 @@ namespace tvm {
 namespace runtime {
 
 RPCEnv::RPCEnv(const std::string& wd) {
-  if (wd != "") {
+  std::error_code ec;
+  if (!wd.empty()) {
     base_ = wd + "/.cache";
-    mkdir(wd.c_str(), 0777);
-    mkdir(base_.c_str(), 0777);
+    std::filesystem::create_directories(base_, ec);
+    if (ec) {
+      LOG(WARNING) << "Failed to create directory " << base_ << " : " << ec.message();
+    }
   } else {
 #if defined(ANDROID) || defined(__ANDROID__)
-    char cwd[PATH_MAX];
-    auto cmdline = fopen("/proc/self/cmdline", "r");
-    fread(cwd, 1, sizeof(cwd), cmdline);
-    fclose(cmdline);
-    std::string android_base_ = "/data/data/" + std::string(cwd) + "/cache";
-    struct stat statbuf;
+    std::string pkg_name;
+    if (std::ifstream cmdline("/proc/self/cmdline"); cmdline) {
+      std::getline(cmdline, pkg_name, '\0');
+    }
+    std::string android_base_ = "/data/data/" + pkg_name + "/cache";
     // Check if application data directory exist. If not exist, usually means we run tvm_rpc from
     // adb shell terminal.
-    if (stat(android_base_.data(), &statbuf) == -1 || !S_ISDIR(statbuf.st_mode)) {
+    if (!std::filesystem::is_directory(android_base_)) {
       // Tmp directory is always writable for 'shell' user.
       android_base_ = "/data/local/tmp";
     }
     base_ = android_base_ + "/rpc";
-
 #elif !defined(_WIN32)
-    char cwd[PATH_MAX];
-    if (getcwd(cwd, sizeof(cwd))) {
-      base_ = std::string(cwd) + "/rpc";
-    } else {
+    base_ = std::filesystem::current_path(ec).string() + "/rpc";
+    if (ec) {
       base_ = "./rpc";
     }
 #else
     base_ = "./rpc";
 #endif
-    mkdir(base_.c_str(), 0777);
+    std::filesystem::create_directories(base_, ec);
+    if (ec) {
+      LOG(WARNING) << "Failed to create directory " << base_ << " : " << ec.message();
+    }
+  }
+  std::filesystem::permissions(base_, std::filesystem::perms::all,
+                               std::filesystem::perm_options::replace, ec);
+  if (ec) {
+    LOG(WARNING) << "Failed to grant permissions to " << base_ << " : " << ec.message();
   }
 
   ffi::Function::SetGlobal(
@@ -157,11 +153,10 @@ std::string RPCEnv::GetPath(const std::string& file_name) const {
  * \brief Remove The RPC Environment cleanup function
  */
 void RPCEnv::CleanUp() const {
-  CleanDir(base_);
-  if (!CheckPath(base_)) return;
-  const int ret = rmdir(base_.c_str());
-  if (ret != 0) {
-    LOG(WARNING) << "Remove directory " << base_ << " failed";
+  std::error_code ec;
+  std::filesystem::remove_all(base_, ec);
+  if (ec) {
+    LOG(WARNING) << "Cleanup " << base_ << " failed: " << ec.message();
   }
 }
 
@@ -171,55 +166,16 @@ void RPCEnv::CleanUp() const {
  * \return vector Files in directory.
  */
 std::vector<std::string> ListDir(const std::string& dirname) {
+  std::error_code ec;
   std::vector<std::string> vec;
-#ifndef _WIN32
-  DIR* dp = opendir(dirname.c_str());
-  if (dp == nullptr) {
-    int errsv = errno;
-    if (errsv == ENOENT) {
-      return vec;
-    }
-    TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
+  auto iter = std::filesystem::directory_iterator(dirname, ec);
+  if (ec) {
+    if (ec == std::errc::no_such_file_or_directory) return vec;
+    TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << ec.message();
   }
-  dirent* d;
-  while ((d = readdir(dp)) != nullptr) {
-    std::string filename = d->d_name;
-    if (filename != "." && filename != "..") {
-      std::string f = dirname;
-      if (f[f.length() - 1] != '/') {
-        f += '/';
-      }
-      f += d->d_name;
-      vec.push_back(f);
-    }
+  for (const auto& entry : iter) {
+    vec.push_back(entry.path().generic_string());
   }
-  closedir(dp);
-#elif defined(_WIN32)
-  WIN32_FIND_DATAA fd;
-  const std::string pattern = dirname + "/*";
-  HANDLE handle = FindFirstFileA(pattern.c_str(), &fd);
-  if (handle == INVALID_HANDLE_VALUE) {
-    const int errsv = GetLastError();
-    if (errsv == ERROR_FILE_NOT_FOUND || errsv == ERROR_PATH_NOT_FOUND) {
-      return vec;
-    }
-    TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
-  }
-  do {
-    std::string filename = fd.cFileName;
-    if (filename != "." && filename != "..") {
-      std::string f = dirname;
-      if (f[f.length() - 1] != '/') {
-        f += '/';
-      }
-      f += filename;
-      vec.push_back(f);
-    }
-  } while (FindNextFileA(handle, &fd));
-  FindClose(handle);
-#else
-  TVM_FFI_THROW(InternalError) << "Operating system not supported";
-#endif
   return vec;
 }
 
@@ -299,7 +255,16 @@ std::string BuildSharedLibrary(std::string file) {
     CreateShared(file_name, {file});
   } else if (support::EndsWith(file, ".tar")) {
     const std::string tmp_dir = "./rpc/tmp/";
-    mkdir(tmp_dir.c_str(), 0777);
+    std::error_code ec;
+    std::filesystem::create_directories(tmp_dir, ec);
+    if (ec) {
+      LOG(WARNING) << "Failed to create directory " << tmp_dir << " : " << ec.message();
+    }
+    std::filesystem::permissions(tmp_dir, std::filesystem::perms::all,
+                                 std::filesystem::perm_options::replace, ec);
+    if (ec) {
+      LOG(WARNING) << "Failed to grant permissions to " << tmp_dir << " : " << ec.message();
+    }
 
     const std::string cmd = GenerateUntarCommand(file, tmp_dir);
 
@@ -309,44 +274,14 @@ std::string BuildSharedLibrary(std::string file) {
       TVM_FFI_THROW(InternalError) << err_msg;
     }
     CreateShared(file_name, ListDir(tmp_dir));
-    CleanDir(tmp_dir);
-    (void)rmdir(tmp_dir.c_str());
+    std::filesystem::remove_all(tmp_dir, ec);
+    if (ec) {
+      LOG(WARNING) << "Remove " << tmp_dir << " failed: " << ec.message();
+    }
   } else {
     file_name = file;
   }
   return file_name;
-}
-
-/*!
- * \brief CheckPath Checks file or directory if exists
- * \param dirname The name of the directory
- * \return True if path exists.
- */
-bool CheckPath(const std::string& pathname) {
-#if defined(_WIN32)
-  DWORD attribs = GetFileAttributesA(pathname.c_str());
-  return (attribs != INVALID_FILE_ATTRIBUTES);
-#else
-  struct stat info;
-  return (stat(pathname.c_str(), &info) == 0);
-#endif
-}
-
-/*!
- * \brief CleanDir Removes the files from the directory
- * \param dirname The name of the directory
- */
-void CleanDir(const std::string& dirname) {
-  if (!CheckPath(dirname)) return;
-  auto files = ListDir(dirname);
-  for (const auto& filename : files) {
-    std::string file_path = dirname + "/";
-    file_path += filename;
-    const int ret = std::remove(filename.c_str());
-    if (ret != 0) {
-      LOG(WARNING) << "Remove file " << filename << " failed";
-    }
-  }
 }
 
 }  // namespace runtime

@@ -32,19 +32,6 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief CheckPath Checks if file or directory exists
- * \param dirname The name of the directory
- * \return True if path exists.
- */
-bool CheckPath(const std::string& pathname);
-
-/*!
- * \brief CleanDir Removes the files from the directory
- * \param dirname The name of the directory
- */
-void CleanDir(const std::string& dirname);
-
-/*!
  * \brief ListDir Get the list of files in a directory
  * \param dirname The root directory name
  * \return vector Files in directory.
