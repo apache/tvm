@@ -958,18 +958,18 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
   static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
-  static const Op& ptx_mma_op = Op::Get("tirx.ptx_mma");
-  static const Op& ptx_mma_sp_op = Op::Get("tirx.ptx_mma_sp");
+  static const Op& ptx_mma_op = Op::Get("tirx.ptx.mma");
+  static const Op& ptx_mma_sp_op = Op::Get("tirx.ptx.mma_sp");
   static const Op& mma_store_op = Op::Get("tirx.mma_store");
   static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-  static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_mma_legacy");
-  static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_ldmatrix_legacy");
+  static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx.mma_legacy");
+  static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
   static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
   static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-  static const Op& ptx_cp_async_bulk_op = Op::Get("tirx.ptx_cp_async_bulk");
-  static const Op& ptx_cp_async_mbarrier_arrive_op = Op::Get("tirx.ptx_cp_async_mbarrier_arrive");
+  static const Op& ptx_cp_async_bulk_op = Op::Get("tirx.ptx.cp_async_bulk");
+  static const Op& ptx_cp_async_mbarrier_arrive_op = Op::Get("tirx.ptx.cp_async_mbarrier_arrive");
   static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
-  static const Op& cuda_func_call_op = Op::Get("tirx.cuda_func_call");
+  static const Op& cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     codegen_tags_.insert("mma");
@@ -1571,7 +1571,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->VisitStmt(op->body);
-    static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx_cp_async_commit_group");
+    static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     auto commit_group = Call(DataType::Void(), ptx_cp_async_commit_group_op, {});
     this->PrintIndent();
     this->VisitExpr(commit_group, this->stream);
@@ -1583,7 +1583,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
-    static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx_cp_async_wait_group");
+    static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
     auto wait_group = Call(DataType::Void(), ptx_cp_async_wait_group_op, {wait_cnt});
     this->PrintIndent();
     this->VisitExpr(wait_group, this->stream);

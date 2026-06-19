@@ -28,11 +28,26 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
+def test_cp_async_raw_dtype_round_trips():
+    # The raw cp.async form emitted by InjectPTXAsyncCopy carries the element
+    # dtype in Call.dtype and must survive a TVMScript print -> parse round-trip
+    # (it prints dtype-first via tirx.ptx.cp_async_raw). Guards the regression
+    # where the element dtype was dropped after the flat op was phased out.
+    @T.prim_func
+    def f(A: T.Buffer((128,), "float16"), B: T.Buffer((128,), "float16")):
+        T.func_attr({"global_symbol": "f"})
+        for i in T.serial(8):
+            T.ptx.cp_async("float16", B.data, i * 16, A.data, i * 16, 16)
+
+    reparsed = tvm.script.from_source(f.script())
+    tvm.ir.assert_structural_equal(f, reparsed)
+
+
 def count_cp_async(stmt):
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx_cp_async":
+        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx.cp_async_raw":
             num_alloc[0] += 1
 
     tvm.tirx.stmt_functor.post_order_visit(stmt, verify)

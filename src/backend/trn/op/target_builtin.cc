@@ -35,12 +35,6 @@ namespace tvm {
 namespace tirx {
 namespace builtin {
 
-#define TIRX_DEFINE_BUILTIN_FUNC(OpName)                                           \
-  OpRegEntry::RegisterOrGet("tirx." #OpName)                                       \
-      .set_name()                                                                  \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), 1) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
-
 namespace {
 void RegisterNKIIntrinsicAliases();
 }
@@ -51,69 +45,19 @@ static bool registered = false;
 if (registered) return;
 registered = true;
 
-TIRX_DEFINE_BUILTIN_FUNC(nki_load).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_store).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_tensor_copy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_matmul)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_activation)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_reciprocal)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_tensortensor)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_tensorscalar)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_memset)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_tensorreduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_activation_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_tensorscalar_reduce)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_identity)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_scalar_tensor_tensor)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_scalar_tensor_scalar)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIRX_DEFINE_BUILTIN_FUNC(nki_affine_select)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
 RegisterNKIIntrinsicAliases();
   // clang-format on
 }
 
 namespace {
 
-void RegisterNKIIntrinsic(const char* flat_name) {
-  std::string flat(flat_name);
+void RegisterNKIIntrinsic(const char* name) {
   std::string prefix = "nki_";
-  std::string suffix = flat;
+  std::string suffix(name);
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
 
-  std::string flat_op_name = "tirx." + flat;
   std::string canonical_op_name = "tirx.nki." + suffix;
   ffi::String namespace_attr("nki");
   ffi::String printer_name("nki." + suffix);
@@ -130,7 +74,6 @@ void RegisterNKIIntrinsic(const char* flat_name) {
         .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
   };
 
-  register_one(flat_op_name);
   register_one(canonical_op_name);
 }
 
@@ -160,8 +103,6 @@ void RegisterNKIIntrinsicAliases() {
 }
 
 }  // namespace
-
-#undef TIRX_DEFINE_BUILTIN_FUNC
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterTRNTargetBuiltins(); }
 

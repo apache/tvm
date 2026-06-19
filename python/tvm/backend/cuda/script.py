@@ -136,7 +136,7 @@ class CpAsyncNamespace:
     def __call__(self, *args, **kwds):
         # Accept the legacy 6-arg form ``(elem_dtype, dst, dst_off, src,
         # src_off, cp_size)`` that the printer round-trips for the raw
-        # ``tirx.ptx_cp_async`` Call emitted by
+        # ``tirx.ptx.cp_async`` Call emitted by
         # ``tvm.backend.cuda.transform.InjectPTXAsyncCopy``. The pass-emitted
         # Call has 5 args (no ``tvm_access_ptr`` fold) and a
         # per-element-dtype Call.dtype, so build it directly.
@@ -146,7 +146,7 @@ class CpAsyncNamespace:
             elem_dtype, dst, dst_off, src, src_off, cp_size = args
             return tvm.tirx.Call(
                 tvm.DataType(elem_dtype),
-                tvm.ir.Op.get("tirx.ptx_cp_async"),
+                tvm.ir.Op.get("tirx.ptx.cp_async_raw"),
                 [dst, dst_off, src, src_off, cp_size],
             )
         return _dtype_forward(_cuda_op.ptx_cp_async)(*args, **kwds)
@@ -201,7 +201,7 @@ class CpAsyncBulkTensorNamespace:
         cache_policy, has_cache_policy = _cuda_op._resolve_cache_policy(cache_hint, cache_policy)
         return _tir_op.call_intrin(
             "",
-            "tirx.ptx_cp_async_bulk_tensor_global_to_cluster",
+            "tirx.ptx.cp_async_bulk_tensor_global_to_cluster",
             dim,
             dst_ptr,
             bar_addr,
@@ -230,7 +230,7 @@ class CpAsyncBulkTensorNamespace:
         cache_policy, has_cache_policy = _cuda_op._resolve_cache_policy(cache_hint, cache_policy)
         return _tir_op.call_intrin(
             "",
-            "tirx.ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster",
+            "tirx.ptx.cp_async_bulk_tensor_tile_gather4_global_to_cluster",
             dim,
             dst_ptr,
             bar_addr,

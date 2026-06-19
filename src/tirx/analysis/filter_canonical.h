@@ -27,7 +27,7 @@
  *
  *   pred := atom (AND atom)*        // pure n-ary conjunction (no OR/NOT)
  *   atom := scopeid_var <op> const  // op in {==, <, <=, >, >=}
- *         | Call("tirx.ptx_elect_sync")
+ *         | Call("tirx.ptx.elect_sync")
  *
  * Consumers:
  *   1. tile_primitive_dispatch routes a bare `if cond:` to atom-based
@@ -62,7 +62,7 @@ namespace tirx {
  */
 enum class FilterAtomKind {
   kRange,      // scopeid_var in [lo, hi); covers ==, <, <=, >, >=
-  kElectSync,  // Call("tirx.ptx_elect_sync")
+  kElectSync,  // Call("tirx.ptx.elect_sync")
 };
 
 /*!
@@ -77,7 +77,7 @@ enum class FilterAtomKind {
  *   - `elect_sync_call` is unset.
  *
  * For `kElectSync`:
- *   - `elect_sync_call`: the original `Call("tirx.ptx_elect_sync")` PrimExpr,
+ *   - `elect_sync_call`: the original `Call("tirx.ptx.elect_sync")` PrimExpr,
  *     preserved verbatim so downstream consumers (e.g. selector construction
  *     in tile_primitive_dispatch) can reuse it without re-synthesizing.
  *   - `scopeid_var`, `lo`, `hi` are unset.
@@ -123,7 +123,7 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  * Grammar (see file header):
  *   pred := atom (AND atom)*
  *   atom := scopeid_var <op> const  (op in {==, <, <=, >, >=})
- *         | Call("tirx.ptx_elect_sync")
+ *         | Call("tirx.ptx.elect_sync")
  *
  * Returns:
  *   - `std::nullopt` if `cond` does not match the grammar. The caller should
