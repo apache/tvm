@@ -29,7 +29,7 @@ from ..block_builder import BlockBuilder
 from ..expr import Function, TupleGetItem, Var, const
 from ..expr import Tuple as RxTuple
 from ..op import add, divide, multiply, sqrt, subtract
-from ..type import TensorStructInfo, TupleStructInfo
+from ..type import TensorType, TupleType
 
 
 # TODO(chaofan, yixin): Migrate key logics to C++
@@ -144,10 +144,10 @@ class Optimizer:
         for x in params:
             if not isinstance(x, Var):
                 raise ValueError(f"Parameter {x} is not a Var")
-            if not isinstance(x.ty, TensorStructInfo):
+            if not isinstance(x.ty, TensorType):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters, but parameter {x.name_hint} has "
-                    f"struct info {x.ty}"
+                    f"type {x.ty}"
                 )
             data_type = tvm.DataType(x.ty.dtype)
             if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
@@ -317,9 +317,9 @@ class SGD(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
-        state_var = Var("optim_states", TupleStructInfo([TensorStructInfo((), "int64")]))
+        param_var = Var("params", TupleType([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleType([p.ty for p in plist]))
+        state_var = Var("optim_states", TupleType([TensorType((), "int64")]))
 
         # constants
         lr = const(self.lr, dtype)
@@ -464,11 +464,11 @@ class MomentumSGD(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
+        param_var = Var("params", TupleType([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleType([p.ty for p in plist]))
         state_var = Var(
             "optim_states",
-            TupleStructInfo([TensorStructInfo((), "int64"), *(p.ty for p in plist)]),
+            TupleType([TensorType((), "int64"), *(p.ty for p in plist)]),
         )
 
         # constants
@@ -644,15 +644,15 @@ class Adam(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
+        param_var = Var("params", TupleType([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleType([p.ty for p in plist]))
         state_var = Var(
             "optim_states",
-            TupleStructInfo(
+            TupleType(
                 [
-                    TensorStructInfo((), "int64"),
-                    TensorStructInfo((), dtype),
-                    TensorStructInfo((), dtype),
+                    TensorType((), "int64"),
+                    TensorType((), dtype),
+                    TensorType((), dtype),
                     *(p.ty for p in plist),
                     *(p.ty for p in plist),
                 ]

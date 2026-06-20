@@ -591,8 +591,8 @@ def test_unmatched_calls_may_include_lambda_functions(annotate_codegen):
 
 
 def test_compare_with_merge_composite_path():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():

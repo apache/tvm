@@ -66,18 +66,16 @@ class LazyInputMutator : public ExprMutator {
     }
 
     Var fget_param("fget_param",
-                   FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
-                                  ObjectStructInfo()));
+                   FuncType({PrimType(DataType::Int(64)), ObjectType()}, ObjectType()));
 
     ffi::Array<Var> new_params(func->params.begin(), func->params.begin() + num_input_params);
     new_params.push_back(fget_param);
 
-    auto array_externally_visible_vars =
-        DefinableTIRVarsInType(TupleStructInfo(new_params.Map(GetType)));
+    auto array_externally_visible_vars = DefinableTIRVarsInType(TupleType(new_params.Map(GetType)));
     std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                           array_externally_visible_vars.end());
-    StructInfo new_ret_struct_info = EraseToWellDefined(
-        func->ret_struct_info, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+    Type new_ret_ty =
+        EraseToWellDefined(func->ret_ty, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
             return var;
           } else {
@@ -87,7 +85,7 @@ class LazyInputMutator : public ExprMutator {
 
     auto node = ffi::GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
-    node.CopyOnWrite()->ret_struct_info = new_ret_struct_info;
+    node.CopyOnWrite()->ret_ty = new_ret_ty;
     node = WithAttr(node, attr::kNumInput, num_input_params + 1);
 
     plan_ = FunctionPlan{std::move(param_lookup), fget_param};
@@ -147,10 +145,8 @@ class LazyOutputMutator : public ExprMutator {
       define_lookup(0, func_body->body);
     }
 
-    Var fset_output(
-        "fset_output",
-        FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
-                       TupleStructInfo(ffi::Array<StructInfo>{}), /* purity = */ false));
+    Var fset_output("fset_output", FuncType({PrimType(DataType::Int(64)), ObjectType()},
+                                            TupleType(ffi::Array<Type>{}), /* purity = */ false));
     plan_ = FunctionPlan{std::move(output_lookup), fset_output};
 
     std::optional<int64_t> num_input_params = GetNumInputParams(func);
@@ -163,7 +159,7 @@ class LazyOutputMutator : public ExprMutator {
       ffi::Array<Binding> propagated_params;
       for (auto param : func->params) {
         GenerateSetOutputCalls(param, [&](const auto& fset_output_call) {
-          Var void_output("_void", TupleStructInfo(ffi::Array<StructInfo>{}));
+          Var void_output("_void", TupleType(ffi::Array<Type>{}));
           propagated_params.push_back(VarBinding(void_output, fset_output_call));
         });
       }
@@ -173,7 +169,7 @@ class LazyOutputMutator : public ExprMutator {
       ffi::Array<Binding> propagated_params;
       for (const auto& [output_index, expr] : inline_outputs) {
         Call fset_output_call(fset_output, {PrimValue(IntImm::Int64(output_index)), expr});
-        Var void_output("_void", TupleStructInfo(ffi::Array<StructInfo>{}));
+        Var void_output("_void", TupleType(ffi::Array<Type>{}));
         propagated_params.push_back(VarBinding(void_output, fset_output_call));
       }
       return BindingBlock(propagated_params);

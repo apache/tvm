@@ -41,9 +41,8 @@ ffi::Array<distributed::DTensorType> GetInputDTensorType(const Call& call,
   return input_tensor_ty;
 }
 
-StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                             const StructInfo& orig_output_ty,
-                             distributed::FBuildAxisGraph f_build_graph) {
+Type InferShardingSpec(const Call& call, const BlockBuilder& ctx, const Type& orig_output_ty,
+                       distributed::FBuildAxisGraph f_build_graph) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   for (int i = 1; i < static_cast<int>(input_dtensor_tys.size()); i++) {
     TVM_FFI_ICHECK(ffi::StructuralEqual()(input_dtensor_tys[0]->device_mesh,
@@ -68,17 +67,17 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
     }
   }
   axis_group_graph.PropagateShardingSpec();
-  ffi::Array<TensorStructInfo> orig_output_tensor_tys;
-  if (const auto* tensor_ty = orig_output_ty.as<TensorStructInfoNode>()) {
-    orig_output_tensor_tys.push_back(ffi::GetRef<TensorStructInfo>(tensor_ty));
+  ffi::Array<TensorType> orig_output_tensor_tys;
+  if (const auto* tensor_ty = orig_output_ty.as<TensorTypeNode>()) {
+    orig_output_tensor_tys.push_back(ffi::GetRef<TensorType>(tensor_ty));
   } else {
-    const auto* tuple_ty = orig_output_ty.as<TupleStructInfoNode>();
+    const auto* tuple_ty = orig_output_ty.as<TupleTypeNode>();
     TVM_FFI_ICHECK(tuple_ty);
     for (const auto& ty : tuple_ty->fields) {
-      orig_output_tensor_tys.push_back(Downcast<TensorStructInfo>(ty));
+      orig_output_tensor_tys.push_back(Downcast<TensorType>(ty));
     }
   }
-  ffi::Array<StructInfo> new_output_dtensor_tys;
+  ffi::Array<Type> new_output_dtensor_tys;
   for (int idx = 0; idx < static_cast<int>(orig_output_tensor_tys.size()); idx++) {
     ffi::Array<distributed::PlacementSpec> output_placement_specs(
         std::vector<distributed::PlacementSpec>(device_mesh->shape.size(),
@@ -97,7 +96,7 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
   }
 
   return new_output_dtensor_tys.size() == 1 ? new_output_dtensor_tys[0]
-                                            : TupleStructInfo(new_output_dtensor_tys);
+                                            : TupleType(new_output_dtensor_tys);
 }
 
 }  // namespace distributed

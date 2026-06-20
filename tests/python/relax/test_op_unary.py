@@ -63,7 +63,7 @@ def test_op_correctness():
     assert relax.op.logical_not(x).op == Op.get("relax.logical_not")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
@@ -97,7 +97,7 @@ unary_arith_ops = [
 
 
 @pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
-def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
+def test_unary_arith_infer_ty(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -107,42 +107,40 @@ def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
 
-    _check_inference(bb, unary_arith_op(x0), relax.TensorStructInfo((2, 3), "float32"))
-    _check_inference(bb, unary_arith_op(x5), relax.TensorStructInfo((2, 3), "float32", vdev0))
-    _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo(dtype="float32", ndim=3))
-    _check_inference(bb, unary_arith_op(x2), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, unary_arith_op(x3), relax.TensorStructInfo((2, 3), dtype=""))
-    _check_inference(bb, unary_arith_op(x4), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, unary_arith_op(x0), relax.TensorType((2, 3), "float32"))
+    _check_inference(bb, unary_arith_op(x5), relax.TensorType((2, 3), "float32", vdev0))
+    _check_inference(bb, unary_arith_op(x1), relax.TensorType(dtype="float32", ndim=3))
+    _check_inference(bb, unary_arith_op(x2), relax.TensorType(dtype="float32"))
+    _check_inference(bb, unary_arith_op(x3), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, unary_arith_op(x4), relax.TensorType(dtype=""))
 
 
 @pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
-def test_unary_arith_infer_struct_info_shape_symbolic(unary_arith_op: Callable):
+def test_unary_arith_infer_ty_shape_symbolic(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
-    _check_inference(bb, unary_arith_op(x0), relax.TensorStructInfo((m, n), "float32"))
-    _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(bb, unary_arith_op(x0), relax.TensorType((m, n), "float32"))
+    _check_inference(bb, unary_arith_op(x1), relax.TensorType((4, n), "float32"))
 
 
 @pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
-def test_unary_arith_infer_struct_info_shape_var(unary_arith_op: Callable):
+def test_unary_arith_infer_ty_shape_var(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
-    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
-    s1 = relax.Var("s", relax.ShapeStructInfo())
-    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
-    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+    s0 = relax.Var("s", relax.ShapeType(ndim=2))
+    s1 = relax.Var("s", relax.ShapeType())
+    x0 = relax.Var("x", relax.TensorType(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorType(s1, "float32"))
 
-    _check_inference(bb, unary_arith_op(x0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, unary_arith_op(x0), relax.TensorType(s0, "float32"))
+    _check_inference(bb, unary_arith_op(x1), relax.TensorType(s1, "float32"))
 
 
 @pytest.mark.parametrize("unary_arith_op,require_float_dtype", unary_arith_ops)
-def test_unary_arith_infer_struct_info_more_input_dtype(
-    unary_arith_op: Callable, require_float_dtype: bool
-):
+def test_unary_arith_infer_ty_more_input_dtype(unary_arith_op: Callable, require_float_dtype: bool):
     if require_float_dtype:
         return
 
@@ -151,13 +149,13 @@ def test_unary_arith_infer_struct_info_more_input_dtype(
     x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    _check_inference(bb, unary_arith_op(x0), relax.TensorStructInfo((2, 3), "float64"))
-    _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo((2, 3), "int8"))
-    _check_inference(bb, unary_arith_op(x2), relax.TensorStructInfo((2, 3), "int64"))
+    _check_inference(bb, unary_arith_op(x0), relax.TensorType((2, 3), "float64"))
+    _check_inference(bb, unary_arith_op(x1), relax.TensorType((2, 3), "int8"))
+    _check_inference(bb, unary_arith_op(x2), relax.TensorType((2, 3), "int64"))
 
 
 @pytest.mark.parametrize("unary_arith_op,require_float_dtype", unary_arith_ops)
-def test_unary_arith_infer_struct_info_invalid_input_dtype(
+def test_unary_arith_infer_ty_invalid_input_dtype(
     unary_arith_op: Callable, require_float_dtype: bool
 ):
     if not require_float_dtype:
@@ -184,10 +182,10 @@ def test_unary_arith_wrong_input_number(unary_arith_op: Callable):
 
 
 @pytest.mark.parametrize("unary_arith_op", [row[0] for row in unary_arith_ops])
-def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable):
+def test_unary_arith_infer_ty_wrong_input_type(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
-    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+    x0 = relax.Var("x", relax.ShapeType((2, 3)))
+    x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3), "float32")))
 
     with pytest.raises(TypeError):
         bb.normalize(unary_arith_op(x0))
@@ -195,7 +193,7 @@ def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable
         bb.normalize(unary_arith_op(x1))
 
 
-def test_clip_infer_struct_info():
+def test_clip_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
@@ -205,12 +203,12 @@ def test_clip_infer_struct_info():
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
 
-    _check_inference(bb, relax.op.clip(x0, 0, 6), relax.TensorStructInfo((2, 3), "float32"))
-    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorStructInfo((2, 3), "float32", vdev0))
-    _check_inference(bb, relax.op.clip(x1, 0, 6), relax.TensorStructInfo(dtype="float32", ndim=3))
-    _check_inference(bb, relax.op.clip(x2, 0, 6), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, relax.op.clip(x3, 0, 6), relax.TensorStructInfo((2, 3), dtype=""))
-    _check_inference(bb, relax.op.clip(x4, 0, 6), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.clip(x0, 0, 6), relax.TensorType((2, 3), "float32"))
+    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorType((2, 3), "float32", vdev0))
+    _check_inference(bb, relax.op.clip(x1, 0, 6), relax.TensorType(dtype="float32", ndim=3))
+    _check_inference(bb, relax.op.clip(x2, 0, 6), relax.TensorType(dtype="float32"))
+    _check_inference(bb, relax.op.clip(x3, 0, 6), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, relax.op.clip(x4, 0, 6), relax.TensorType(dtype=""))
 
     # Symbolic
     m = tirx.Var("m", "int64")
@@ -218,8 +216,8 @@ def test_clip_infer_struct_info():
     x5 = relax.Var("x", R.Tensor((m, n), "float32"))
     x6 = relax.Var("x", R.Tensor((4, n), "float32"))
 
-    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorStructInfo((m, n), "float32"))
-    _check_inference(bb, relax.op.clip(x6, 0, 6), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorType((m, n), "float32"))
+    _check_inference(bb, relax.op.clip(x6, 0, 6), relax.TensorType((4, n), "float32"))
 
 
 if __name__ == "__main__":

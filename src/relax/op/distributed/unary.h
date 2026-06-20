@@ -34,12 +34,11 @@ namespace relax {
 namespace distributed {
 
 template <bool require_float_dtype, typename FType>
-StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
-                                    FType f_compute_out_dtype) {
+Type InferDistTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
   distributed::DTensorType input_dtensor_ty = input_dtensor_tys[0];
-  TensorStructInfo input_tensor_ty = input_dtensor_ty->tensor_ty;
+  TensorType input_tensor_ty = input_dtensor_ty->tensor_ty;
 
   if (require_float_dtype && !input_tensor_ty->IsUnknownDtype() &&
       !input_tensor_ty->dtype.is_float()) {
@@ -48,29 +47,27 @@ StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_tensor_ty->dtype;
   }
-  auto output_ty = ffi::make_object<TensorStructInfoNode>(*input_tensor_ty.get());
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_tensor_ty.get());
   output_ty->dtype = f_compute_out_dtype(input_tensor_ty);
-  TensorStructInfo out_tensor_ty(output_ty);
+  TensorType out_tensor_ty(output_ty);
   return distributed::DTensorType(out_tensor_ty, input_dtensor_ty->device_mesh,
                                   input_dtensor_ty->placement);
 }
 
 template <bool require_float_dtype>
-StructInfo InferDistStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) {
-  return InferDistStructInfoUnary<require_float_dtype>(
-      call, ctx, [](const TensorStructInfo& input_ty) { return input_ty->dtype; });
+Type InferDistTypeUnaryArith(const Call& call, const BlockBuilder& ctx) {
+  return InferDistTypeUnary<require_float_dtype>(
+      call, ctx, [](const TensorType& input_ty) { return input_ty->dtype; });
 }
 
-StructInfo InferDistStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx);
 
 #define RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(OpName, RequireFloatDtype) \
   TVM_REGISTER_OP("relax." #OpName)                                                  \
-      .set_attr<FInferStructInfo>("dist.FInferStructInfo",                           \
-                                  InferDistStructInfoUnaryArith<RequireFloatDtype>)
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<RequireFloatDtype>)
 
 #define RELAX_REGISTER_UNARY_CHECK_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                               \
-      .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoUnaryCheck)
+  TVM_REGISTER_OP("relax." #OpName).set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck)
 
 }  // namespace distributed
 }  // namespace relax

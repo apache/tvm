@@ -61,12 +61,12 @@ enum OpPatternKind {
 using FCallPacked = ffi::String;
 
 /*!
- * \brief Infer output struct info given the call
+ * \brief Infer output type given the call
  *
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  */
-using FInferStructInfo = ffi::TypedFunction<StructInfo(const Call& call, const BlockBuilder& ctx)>;
+using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief The function type of a normalization function.

@@ -143,9 +143,9 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void MaybeFillReduceAxes(const CallNode* call_node) {
     const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
     if (attrs == nullptr || attrs->axis.has_value()) return;
-    const auto* tensor_sinfo = GetType(call_node->args[0]).as<TensorStructInfoNode>();
-    if (tensor_sinfo == nullptr || !tensor_sinfo->shape.defined()) return;
-    const auto* shape = tensor_sinfo->shape.value().as<ShapeExprNode>();
+    const auto* tensor_ty = GetType(call_node->args[0]).as<TensorTypeNode>();
+    if (tensor_ty == nullptr || !tensor_ty->shape.defined()) return;
+    const auto* shape = tensor_ty->shape.value().as<ShapeExprNode>();
     if (shape == nullptr) return;
     ffi::Array<int64_t> all_axes;
     for (size_t i = 0; i < shape->values.size(); ++i) all_axes.push_back(static_cast<int64_t>(i));

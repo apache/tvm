@@ -404,43 +404,43 @@ def test_thread_binding_dtype():
     assert loop_j.thread_binding.var.dtype == "int32"
 
 
-def test_inferred_sinfo_with_prim_args():
-    """A PrimFunc may have inferred StructInfo"""
+def test_inferred_ty_with_prim_args():
+    """A PrimFunc may have inferred Type"""
 
     @T.prim_func(s_tir=True)
     def func(M: T.int32, N: T.int32) -> T.int32:
         T.ret(M * N)
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.PrimStructInfo("int32"),
-            tvm.relax.PrimStructInfo("int32"),
+            tvm.relax.PrimType("int32"),
+            tvm.relax.PrimType("int32"),
         ],
-        tvm.relax.PrimStructInfo("int32"),
+        tvm.relax.PrimType("int32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_buffer_args():
+def test_inferred_ty_with_buffer_args():
     """PrimFunc buffer arguments are inferred as R.Tensor"""
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
         T.ret(T.float32(42.0))
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16, 16], "float32"),
-            tvm.relax.TensorStructInfo([256], "int32"),
+            tvm.relax.TensorType([16, 16], "float32"),
+            tvm.relax.TensorType([256], "int32"),
         ],
-        tvm.relax.PrimStructInfo("float32"),
+        tvm.relax.PrimType("float32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_internal_allocation():
+def test_inferred_ty_with_internal_allocation():
     """A pure function may still write to internal allocations.
 
     Whether a function writes to internal allocations is not a visible
@@ -456,17 +456,17 @@ def test_inferred_sinfo_with_internal_allocation():
 
         T.ret(Sum[()])
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16, 16], "float32"),
+            tvm.relax.TensorType([16, 16], "float32"),
         ],
-        tvm.relax.PrimStructInfo("float32"),
+        tvm.relax.PrimType("float32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_output_buffer():
+def test_inferred_ty_with_output_buffer():
     """A pure function may not write to an argument buffer
 
     If an argument buffer is written to, the function must be impure.
@@ -477,19 +477,19 @@ def test_inferred_sinfo_with_output_buffer():
         for i in range(16):
             B[i] = A[i]
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16], "float32"),
-            tvm.relax.TensorStructInfo([16], "float32"),
+            tvm.relax.TensorType([16], "float32"),
+            tvm.relax.TensorType([16], "float32"),
         ],
-        tvm.relax.TupleStructInfo([]),
+        tvm.relax.TupleType([]),
         purity=False,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_dynamic_buffer():
-    """The inferred StructInfo may contain dynamic shapes"""
+def test_inferred_ty_with_dynamic_buffer():
+    """The inferred Type may contain dynamic shapes"""
 
     @T.prim_func(s_tir=True)
     def func(a_handle: T.handle, b_handle: T.handle):
@@ -502,12 +502,12 @@ def test_inferred_sinfo_with_dynamic_buffer():
 
     M = tvm.tirx.Var("M", "int64")
     N = tvm.tirx.Var("N", "int64")
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([M, N], "float32"),
-            tvm.relax.TensorStructInfo([M * N], "float32"),
+            tvm.relax.TensorType([M, N], "float32"),
+            tvm.relax.TensorType([M * N], "float32"),
         ],
-        tvm.relax.TupleStructInfo([]),
+        tvm.relax.TupleType([]),
         purity=False,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)

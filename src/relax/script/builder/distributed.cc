@@ -34,15 +34,15 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir should have defined ShapeExpr as shape. "
-           "However, one given structure info is "
+           "However, one given type information is "
         << ty;
   }
 
-  StructInfo out_ty{nullptr};
+  Type out_ty{nullptr};
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
-    out_ty = TupleStructInfo({out_ty_list.begin(), out_ty_list.end()});
+    out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
   static const Op& op = Op::Get("relax.call_tir");

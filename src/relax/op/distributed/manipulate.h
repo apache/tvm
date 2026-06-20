@@ -19,7 +19,7 @@
 
 /*!
  * \file manipulate.h
- * \brief The functions to infer struct info for distributed manipulate operator
+ * \brief The functions to infer type for distributed manipulate operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_MANIPULATE_H_
@@ -30,9 +30,9 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx);
 
-StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace distributed
 }  // namespace relax

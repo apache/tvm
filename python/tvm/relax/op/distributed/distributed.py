@@ -85,9 +85,9 @@ def call_tir_local_view(
         The input arguments.
 
     out_ty : Union[DTensorType, List[DTensorType]]
-        The structure info of the call_tir output.
+        The type information of the call_tir output.
         It should be a single or a list of DTensorType. Each one denotes the
-        structure info of a returned tensor.
+        type information of a returned tensor.
 
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used

@@ -311,8 +311,8 @@ class CompositeInliner : public ExprMutator {
   Function Run(Function func) {
     inlined_functions_ = ffi::Map<Function, Function>();
     auto new_body = VisitExpr(ToNonDataflow(func->body));
-    auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
-                             func->attrs, func->span);
+    auto new_func =
+        Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->span);
     return new_func;
   }
 

@@ -30,9 +30,9 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
 
@@ -73,21 +73,21 @@ StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& 
   for (int i = 0; i < data_ty->ndim; ++i) {
     new_shape.push_back(data_shape->values[axes[i]]);
   }
-  TensorStructInfo output_tensor_ty(ShapeExpr(new_shape), data_ty->dtype);
+  TensorType output_tensor_ty(ShapeExpr(new_shape), data_ty->dtype);
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphPermuteDims);
 }
 
 TVM_REGISTER_OP("relax.permute_dims")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoPermuteDims);
+    .set_attr<FInferType>("dist.FInferType", InferDistTypePermuteDims);
 
-StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Reshape op should take 2 arguments";
   }
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
-  const auto* new_shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* new_shape_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
   if (!data_ty.defined()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input data to be Tensor. However, the given one is "
@@ -101,7 +101,7 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
   if (data_ty->shape.defined()) {
-    const auto* old_shape_ty = GetTypeAs<ShapeStructInfoNode>(data_ty->shape.value());
+    const auto* old_shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
     TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
     old_shape_values = old_shape_ty->values;
   }
@@ -118,18 +118,17 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
     }
   }
   Expr target_shape = call->args[1];
-  TensorStructInfo output_tensor_ty;
+  TensorType output_tensor_ty;
   // If shape values are defined, use them
   if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.defined()) {
-    output_tensor_ty = TensorStructInfo(ShapeExpr(new_shape_ty->values.value()), data_ty->dtype);
+    output_tensor_ty = TensorType(ShapeExpr(new_shape_ty->values.value()), data_ty->dtype);
   } else {
-    output_tensor_ty = TensorStructInfo(target_shape, data_ty->dtype);
+    output_tensor_ty = TensorType(target_shape, data_ty->dtype);
   }
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphReshape);
 }
 
-TVM_REGISTER_OP("relax.reshape")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoReshape);
+TVM_REGISTER_OP("relax.reshape").set_attr<FInferType>("dist.FInferType", InferDistTypeReshape);
 
 }  // namespace distributed
 }  // namespace relax

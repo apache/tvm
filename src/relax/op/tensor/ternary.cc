@@ -30,11 +30,11 @@
 namespace tvm {
 namespace relax {
 
-StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo t1 = input_sinfo[0];
-  TensorStructInfo t2 = input_sinfo[1];
-  TensorStructInfo t3 = input_sinfo[2];
+Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType t1 = input_ty[0];
+  TensorType t2 = input_ty[1];
+  TensorType t3 = input_ty[2];
 
   int ndim = kUnknownNDim;
   if (!t1->IsUnknownNdim()) {
@@ -69,12 +69,12 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
 
   VDevice vdev = VDevice();
   for (int i = 0; i < 3; ++i) {
-    if (input_sinfo[i]->vdevice.defined()) {
+    if (input_ty[i]->vdevice.defined()) {
       if (!vdev.defined()) {
-        vdev = input_sinfo[i]->vdevice.value();
-      } else if (input_sinfo[i]->vdevice.value()->target.defined()) {
+        vdev = input_ty[i]->vdevice.value();
+      } else if (input_ty[i]->vdevice.value()->target.defined()) {
         // mismatch
-        if (input_sinfo[i]->vdevice.value() != vdev) {
+        if (input_ty[i]->vdevice.value() != vdev) {
           vdev = VDevice();
           break;
         }
@@ -100,19 +100,19 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
       }
     }
     if (vdev.defined()) {
-      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdev);
+      return TensorType(ShapeExpr(output_shape), output_dtype, vdev);
     }
-    return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+    return TensorType(ShapeExpr(output_shape), output_dtype);
   } else if (t1->shape.defined() && t1->shape.same_as(t2->shape) && t1->shape.same_as(t3->shape)) {
     if (vdev.defined()) {
-      return TensorStructInfo(t1->shape.value(), output_dtype, vdev);
+      return TensorType(t1->shape.value(), output_dtype, vdev);
     }
-    return TensorStructInfo(t1->shape.value(), output_dtype);
+    return TensorType(t1->shape.value(), output_dtype);
   }
   if (vdev.defined()) {
-    return TensorStructInfo(output_dtype, ndim, vdev);
+    return TensorType(output_dtype, ndim, vdev);
   }
-  return TensorStructInfo(output_dtype, ndim);
+  return TensorType(output_dtype, ndim);
 }
 
 InferLayoutOutput InferLayoutEwiseFMA(
@@ -135,7 +135,7 @@ TVM_REGISTER_OP("relax.ewise_fma")
     .add_argument("x1", "Tensor", "The left hand operand of the multiplication")
     .add_argument("x2", "Tensor", "The right hand operand of the multiplication")
     .add_argument("x3", "Tensor", "The operand of the addition")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEwiseFMA)
+    .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);

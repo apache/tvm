@@ -299,7 +299,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     // Step 5: Emit the preproc call
     ffi::Array<Expr> call_tir_args = Downcast<Tuple>(call->args[1])->fields;
     ffi::Array<Expr> preproc_args;
-    ffi::Array<StructInfo> preproc_sinfo_list;
+    ffi::Array<Type> preproc_ty_list;
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tirx::Buffer rewritten_buffer = info.post_rewrite_buffer;
@@ -308,16 +308,16 @@ class SplitLayoutRewritePreproc : public ExprMutator {
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }
-      preproc_sinfo_list.push_back(
-          TensorStructInfo(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));
+      preproc_ty_list.push_back(
+          TensorType(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));
     }
-    StructInfo preproc_sinfo = preproc_sinfo_list.size() > 1              //
-                                   ? TupleStructInfo(preproc_sinfo_list)  //
-                                   : preproc_sinfo_list[0];
+    Type preproc_ty = preproc_ty_list.size() > 1        //
+                          ? TupleType(preproc_ty_list)  //
+                          : preproc_ty_list[0];
 
     // Step 6: Call the preproc function
     Expr preproc_call =
-        builder_->Emit(Call(call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_sinfo}));
+        builder_->Emit(Call(call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
       call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
     } else {
@@ -326,7 +326,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
       }
     }
     Expr main_call =
-        builder_->Emit(Call(call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->sinfo_args));
+        builder_->Emit(Call(call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
 
     return main_call;
   }

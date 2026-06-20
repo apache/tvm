@@ -367,7 +367,7 @@ def test_cache():
                     key_cache,
                     value_cache,
                     slot_mapping,
-                    sinfo_args=[key_cache.ty, value_cache.ty],
+                    ty_args=[key_cache.ty, value_cache.ty],
                 )
                 out = (kv[0], kv[1])
                 R.output(out)

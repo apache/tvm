@@ -126,8 +126,8 @@ def test_emit_te(register_te_grads):
 
         return tvm.te.compute(src1.shape, mul, name="f_mul")
 
-    a = relax.Var("a", relax.TensorStructInfo([5, 5], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([5, 5], "float32"))
+    a = relax.Var("a", relax.TensorType([5, 5], "float32"))
+    b = relax.Var("b", relax.TensorType([5, 5], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):
@@ -231,7 +231,7 @@ def test_emit_te_kwargs(register_te_grads):
     def f_mul2(src):
         return tvm.te.compute(src.shape, lambda *idx: src[idx] * T.float32(2), name="f_mul2")
 
-    a = relax.Var("a", relax.TensorStructInfo([5, 5], "float32"))
+    a = relax.Var("a", relax.TensorType([5, 5], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a]):
@@ -363,8 +363,8 @@ def test_tir_var(register_te_grads):
         return tvm.te.compute(src1.shape, mul, name="f_mul")
 
     n = tirx.Var("n", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([n, n], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([n, n], "float32"))
+    a = relax.Var("a", relax.TensorType([n, n], "float32"))
+    b = relax.Var("b", relax.TensorType([n, n], "float32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):

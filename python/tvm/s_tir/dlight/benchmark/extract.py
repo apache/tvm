@@ -66,18 +66,18 @@ if __name__ == "__main__":
 
 
 def extract_shape(
-    arg: tuple | list | relax.Tuple | relax.ShapeStructInfo,
-) -> list[relax.ShapeStructInfo]:
+    arg: tuple | list | relax.Tuple | relax.ShapeType,
+) -> list[relax.ShapeType]:
     """Extract shape information from a relax argument.
 
     Parameters
     ----------
-    arg : Union[Tuple, List, relax.Tuple, relax.ShapeStructInfo]
+    arg : Union[Tuple, List, relax.Tuple, relax.ShapeType]
         The relax argument to be extracted.
 
     Returns
     -------
-    result : List[relax.ShapeStructInfo]
+    result : List[relax.ShapeType]
         The extracted shape information.
     """
     if isinstance(arg, tuple | list | tvm.relax.Tuple):
@@ -85,7 +85,7 @@ def extract_shape(
         for sub_arg in arg:
             results.extend(extract_shape(sub_arg))
         return results
-    return [arg.struct_info]
+    return [arg.ty]
 
 
 def extract_dynamic_var(
@@ -122,16 +122,16 @@ def extract_dynamic_var(
             for arg_list, _ in func_dict[gv][functor]:
                 flattened_arg_list = []
                 for arg in arg_list:
-                    if isinstance(arg, relax.TupleStructInfo):
+                    if isinstance(arg, relax.TupleType):
                         flattened_arg_list.extend(arg.fields)
                     else:
                         flattened_arg_list.append(arg)
                 for arg in flattened_arg_list:
-                    if isinstance(arg, relax.TensorStructInfo):
+                    if isinstance(arg, relax.TensorType):
                         for val in arg.shape.values:
                             if isinstance(val, tvm.tirx.Var):
                                 dym_var_dict[gv][str(val)] = val.dtype
-                    elif isinstance(arg, relax.ShapeStructInfo):
+                    elif isinstance(arg, relax.ShapeType):
                         for val in arg.values:
                             if isinstance(val, tvm.tirx.Var):
                                 dym_var_dict[gv][str(val)] = val.dtype
@@ -141,15 +141,15 @@ def extract_dynamic_var(
 
 
 def update_records(
-    records: dict[list[relax.ShapeStructInfo], int], new_args: list[relax.ShapeStructInfo]
+    records: dict[list[relax.ShapeType], int], new_args: list[relax.ShapeType]
 ) -> None:
     """Update the count of a function input argument config.
 
     Parameters
     ----------
-    records : Dict[List[relax.ShapeStructInfo], int]
+    records : Dict[List[relax.ShapeType], int]
         The dictionary to count how many times a function input argument config appears.
-    new_args : List[relax.ShapeStructInfo]
+    new_args : List[relax.ShapeType]
         The new input argument config.
     """
     for i, (args, count) in enumerate(records):

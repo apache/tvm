@@ -314,13 +314,13 @@ class ASTPostPrinterMutator(PyExprMutator):
         new_var = self.visit_var_def(binding.var)
         new_value = self.visit_expr(binding.value)
 
-        temp = self.with_type(new_var, binding.struct_info)
+        temp = self.with_type(new_var, binding.ty)
         if not temp.same_as(new_var):
             new_var = temp
             self.set_var_remap(binding.var.vid, new_var)
 
         self.log.add("MatchCast")
-        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.struct_info))
+        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.ty))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
@@ -844,7 +844,7 @@ def test_function_parameter_mutation():
         def visit_var_def_(self, var):
             if var.name_hint in self.shape_replacements:
                 new_shape = self.shape_replacements[var.name_hint]
-                new_ty = relax.TensorStructInfo(new_shape, dtype=var.ty.dtype)
+                new_ty = relax.TensorType(new_shape, dtype=var.ty.dtype)
                 return relax.Var(f"{var.name_hint}_with_new_shape", new_ty)
             else:
                 return var

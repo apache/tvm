@@ -43,7 +43,7 @@ class IOEffect(Effect):
 
     def create(self, name_hint: str) -> list[rx.Var]:
         assert self.effect is None
-        effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
+        effect = rx.Var(f"{name_hint}.io", ty=rx.ObjectType())
         return [effect]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -812,7 +812,7 @@ class KVCache(Effect):
                     rx.op.zeros(init_shape, self.dtype),
                     init_shape,
                     rx.PrimValue(0),
-                    sinfo_args=rx.ObjectStructInfo(),
+                    ty_args=rx.ObjectType(),
                 ),
                 name_hint=name_hint,
             )
@@ -832,7 +832,7 @@ class KVCache(Effect):
         ret : List[relax.Var]
             The relax.Var for KVCache.
         """
-        cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
+        cache = rx.Var(name_hint, ty=rx.ObjectType())
         return [cache]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -884,7 +884,7 @@ class KVCache(Effect):
                     "vm.builtin.attention_kv_cache_view",
                     self.cache,
                     shape,
-                    sinfo_args=rx.TensorStructInfo(shape, self.dtype),
+                    ty_args=rx.TensorType(shape, self.dtype),
                 )
             )
         )
@@ -908,7 +908,7 @@ class KVCache(Effect):
                 self.cache,
                 new_element._expr,
                 inplace_indices=[0],
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             )
         )
 

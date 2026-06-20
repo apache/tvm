@@ -1386,7 +1386,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         graph_module : torch.fx.GraphModule
             The branch subgraph (e.g. true_graph_0 / false_graph_0).
         operands : list[relax.Expr]
-            The operands passed to the cond; used to derive parameter struct_info.
+            The operands passed to the cond; used to derive parameter ty.
         name_hint : str
             A hint for the function name (e.g. "cond_true_branch_0").
 
@@ -1417,7 +1417,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             placeholders = [n for n in nodes if n.op == "placeholder"]
             params = []
             for ph, operand in zip(placeholders, operands):
-                if hasattr(operand, "ty") and isinstance(operand.ty, relax.TensorStructInfo):
+                if hasattr(operand, "ty") and isinstance(operand.ty, relax.TensorType):
                     orig_si = operand.ty
                     # Create fresh SizeVars to avoid sharing with the caller function.
                     if orig_si.shape is not None:
@@ -1427,13 +1427,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             else s
                             for s in orig_si.shape
                         ]
-                        si = relax.TensorStructInfo(new_shape, orig_si.dtype)
+                        si = relax.TensorType(new_shape, orig_si.dtype)
                     else:
                         si = orig_si
                 elif hasattr(operand, "ty"):
                     si = operand.ty
                 else:
-                    si = relax.ObjectStructInfo()
+                    si = relax.ObjectType()
                 param = relax.Var(ph.name, si)
                 params.append(param)
                 self.env[ph] = param
@@ -1957,7 +1957,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)
 
-            relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
+            relax_var = relax.Var(name_hint, relax.TensorType(relax_shape, dtype))
             if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 user_inputs[name_hint] = relax_var
             else:

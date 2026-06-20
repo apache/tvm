@@ -22,10 +22,10 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-static bool HasDefaultExternFuncStructInfo(const relax::ExternFunc& n) {
-  const auto* sinfo = n->ty.as<relax::FuncStructInfoNode>();
-  if (sinfo == nullptr || sinfo->params.defined() || sinfo->purity ||
-      !sinfo->ret->IsInstance<relax::ObjectStructInfoNode>()) {
+static bool HasDefaultExternFuncType(const relax::ExternFunc& n) {
+  const auto* ty = n->ty.as<relax::FuncTypeNode>();
+  if (ty == nullptr || ty->params.defined() || ty->purity ||
+      !ty->ret->IsInstance<relax::ObjectTypeNode>()) {
     return false;
   }
   return true;
@@ -66,7 +66,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->func_vars = &func_vars;
       // Step 1. Print the return type
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (const auto& func_ty = relax::MatchType<relax::FuncStructInfo>(n)) {
+      if (const auto& func_ty = relax::MatchType<relax::FuncType>(n)) {
         ret_type = d->AsDoc<ExprDoc>(func_ty.value()->ret,  //
                                      n_p->Attr("ty")->Attr("ret"));
       }
@@ -78,7 +78,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           params.push_back(AssignDoc(
               /*lhs=*/DefineVar(n->params[i], *f, d),
               /*rhs=*/std::nullopt,
-              StructInfoAsAnn(n->params[i], params_p->ArrayItem(i), d, std::nullopt)));
+              TypeAsAnn(n->params[i], params_p->ArrayItem(i), d, std::nullopt)));
         }
       }
       // Step 3. Clean up func variables
@@ -138,7 +138,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](relax::ExternFunc n, AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> args;
           args.push_back(LiteralDoc::Str(n->global_symbol, n_p->Attr("global_symbol")));
-          if (!HasDefaultExternFuncStructInfo(n)) {
+          if (!HasDefaultExternFuncType(n)) {
             args.push_back(d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty")));
           }
           return Relax(d, "ExternFunc")->Call(args);

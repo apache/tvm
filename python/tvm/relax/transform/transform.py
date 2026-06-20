@@ -30,7 +30,7 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm.ir
-from tvm.relax import Expr, StructInfo, Var
+from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor
 from tvm.tirx import IndexMap, PrimFunc
@@ -1448,7 +1448,7 @@ def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.i
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def UpdateParamType(ty_func: Callable[[Var], StructInfo | None]):
+def UpdateParamType(ty_func: Callable[[Var], Type | None]):
     """Update parameter types.
 
     Internal bindings and the function return type are updated using Relax's
@@ -1457,7 +1457,7 @@ def UpdateParamType(ty_func: Callable[[Var], StructInfo | None]):
 
     Parameters
     ----------
-    ty_func: Callable[[Var], Optional[StructInfo]]
+    ty_func: Callable[[Var], Optional[Type]]
 
         A function that is called once for each function parameter,
         and returns the updated type to be used for it.  If the
@@ -1838,7 +1838,7 @@ def dataflowblock_pass(
             def __init__(self):
                 # create a new VarBinding
                 m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
-                lv0 = relax.Var("lv1", relax.TensorStructInfo([m, n], "float32"))
+                lv0 = relax.Var("lv1", relax.TensorType([m, n], "float32"))
                 val = relax.const(np.random.rand(24, 56))
                 self.new_binding = relax.VarBinding(lv0, val)
 

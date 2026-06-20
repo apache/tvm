@@ -128,7 +128,7 @@ def test_ops():
     verify(TestOps, Expected)
 
 
-@pytest.mark.xfail(reason="The lhs and rhs of an assignment should have the same struct info.")
+@pytest.mark.xfail(reason="The lhs and rhs of an assignment should have the same type.")
 def test_casting():
     @I.ir_module
     class TestCasting:
@@ -165,7 +165,7 @@ def test_match_cast():
     class Expected:
         @R.function
         def main(x: R.Tensor):
-            # can't get rid of z because its struct_info is different from x's
+            # can't get rid of z because its ty is different from x's
             m, n = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((m, n)))
             return z
@@ -221,7 +221,7 @@ def test_change_shape():
         def main(x: R.Tensor(ndim=2)):
             o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
-            # the struct_info field on q will need to be updated
+            # the ty field on q will need to be updated
             q = R.add(z, x)
             return R.add(q, z)
 
@@ -850,13 +850,13 @@ def test_canonicalize_var_to_dataflow_with_trivial_binding():
     assert_structural_equal(Expected, after)
 
 
-def test_canonicalize_with_updated_struct_info():
+def test_canonicalize_with_updated_ty():
     """CanonicalizeBindings and Normalizer may both replace a Var
 
     If the CanonicalizeBindings pass has no replacements to make for a
     variable, it must still delegate to the ExprMutator.  This is because
     a variable replacement may have occurred as part of the IRNormalizer,
-    in order to provide better struct info.
+    in order to provide better type.
     """
 
     @I.ir_module
@@ -1164,20 +1164,20 @@ def test_canonicalize_inside_branches():
     assert_structural_equal(Expected, after)
 
 
-def test_canonicalization_causes_struct_info_update():
+def test_canonicalization_causes_ty_update():
     """Regression test for failure mode causing undefined variable
 
-    The ExprMutator is only allowed to update a variable's struct info
-    if the value bound to it has new struct info.  When
+    The ExprMutator is only allowed to update a variable's type
+    if the value bound to it has new type.  When
     CanonicalizeBindings replaces a trivial binding, this may provide
-    better struct info as a result.  If this happens, the
+    better type as a result.  If this happens, the
 
     In previous implementations, ExprMutator::ReEmitBinding defined a
     remap for `binding->var->vid`, even if the derived class defined a
     replacement by overriding `VisitVarDef`.  If the derived class
     defines a new variable binding by overriding `VisitVarDef`, and
     also causes a variable replacement by overriding `VisitExpr` and
-    returning a type with different struct info, then `ExprMutator`
+    returning a type with different type, then `ExprMutator`
     must check for both `binding->var->vid` *AND* `new_var->vid`.  The
     former may be present in the unmodified graph, and the latter may
     be produced by the derived class before delegating to the base
@@ -1199,7 +1199,7 @@ def test_canonicalization_causes_struct_info_update():
 
                 # RHS contains `(A,C)`, which CanonicalizeBindings
                 # replaces with `(A,B)`.  Because this changes the
-                # RHS, a new LHS (and new struct info!) will be
+                # RHS, a new LHS (and new type!) will be
                 # generated.
                 D: R.Tuple(
                     R.Tensor(dtype="float16", ndim=2),

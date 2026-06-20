@@ -153,7 +153,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                         rx.PrimValue(sm_scale),
                         qkv._expr,
                     ],
-                    out_ty=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
+                    out_ty=rx.TensorType((b * s, num_qo_heads, d), qkv.dtype),
                 )
             )
         ).reshape(b, s, num_qo_heads, d)
@@ -186,12 +186,12 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     v._expr,
                 ],
                 out_ty=[
-                    rx.TensorStructInfo((b * s, h_qo, d_v), q.dtype),
-                    rx.TensorStructInfo((b * s, h_qo), "float32"),
+                    rx.TensorType((b * s, h_qo, d_v), q.dtype),
+                    rx.TensorType((b * s, h_qo), "float32"),
                 ],
             )
         )
-        assert isinstance(attn_results.ty, rx.TupleStructInfo)
+        assert isinstance(attn_results.ty, rx.TupleType)
         assert len(attn_results.ty.fields) == 2
         o = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 0))).reshape(b, s, h_qo, d_v)
         lse = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 1))).reshape(b, s, h_qo)
@@ -219,12 +219,12 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     q._expr,
                 ],
                 out_ty=[
-                    rx.TensorStructInfo((b * s, h_qo, v_head_dim), q.dtype),
-                    rx.TensorStructInfo((b * s, h_qo), "float32"),
+                    rx.TensorType((b * s, h_qo, v_head_dim), q.dtype),
+                    rx.TensorType((b * s, h_qo), "float32"),
                 ],
             )
         )
-        assert isinstance(attn_results.ty, rx.TupleStructInfo)
+        assert isinstance(attn_results.ty, rx.TupleType)
         assert len(attn_results.ty.fields) == 2
         o = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 0))).reshape(b, s, h_qo, v_head_dim)
         lse = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 1))).reshape(b, s, h_qo)
@@ -241,7 +241,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 self._expr,
                 rx.PrimValue(layer_id),  # type: ignore[arg-type]
                 kv._expr,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name="paged_kv_cache",
         )
@@ -271,12 +271,12 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 lse_self_attn._expr,
                 o_cross_attn._expr,
                 lse_cross_attn._expr,
-                sinfo_args=rx.TupleStructInfo(
+                ty_args=rx.TupleType(
                     [o_self_attn._expr.ty, lse_self_attn._expr.ty]
                 ),
             )
         )
-        assert isinstance(merge_results.ty, rx.TupleStructInfo)
+        assert isinstance(merge_results.ty, rx.TupleType)
         assert len(merge_results.ty.fields) == 2
         o_self_attn = Tensor(_expr=bb.emit(rx.TupleGetItem(merge_results, 0))).reshape(
             b, s, h_qo, d_v
@@ -304,7 +304,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 rx.call_pure_packed(
                     "vm.builtin.attention_kv_cache_get_query_positions",
                     self._expr,
-                    sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
+                    ty_args=rx.TensorType((total_length,), "int32"),
                 )
             )
         )
@@ -505,7 +505,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name=name,
         )
@@ -680,7 +680,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name=name,
         )

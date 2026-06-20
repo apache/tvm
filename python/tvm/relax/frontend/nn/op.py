@@ -2280,7 +2280,7 @@ def debug_func(
             rx.StringImm(name),
             rx.StringImm(_line_info),
             *converted_args,
-            sinfo_args=[rx.ObjectStructInfo()],
+            ty_args=[rx.ObjectType()],
         ),
         name_hint=io.effect.name_hint,
     )

@@ -738,26 +738,26 @@ def test_llama_attention():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26 = R.dist.call_tir(
                 cls.reshape2,
@@ -1436,26 +1436,26 @@ def test_llama_attention():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(

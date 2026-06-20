@@ -297,13 +297,13 @@ def test_fuse_with_tuple_as_param():
 
 
 def test_fuse_with_nested_tuple_as_param():
-    tuple_struct_info = R.Tuple(
+    tuple_ty = R.Tuple(
         [R.Tensor([10], "float32"), R.Tuple([R.Tensor([10], "float32"), R.Tensor([10], "float32")])]
     )
 
     def before():
         bb = relax.BlockBuilder()
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("fused_exp_add_add", [x], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))
@@ -317,7 +317,7 @@ def test_fuse_with_nested_tuple_as_param():
         mod = bb.get()
 
         func_gv = mod.get_global_var("fused_exp_add_add")
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(relax.Call(func_gv, [x]))
@@ -331,7 +331,7 @@ def test_fuse_with_nested_tuple_as_param():
             return topi.add(exp, add)
 
         bb = relax.BlockBuilder()
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))

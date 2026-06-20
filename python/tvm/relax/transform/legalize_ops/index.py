@@ -22,7 +22,7 @@ from tvm import te, tirx, topi
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import tensor_to_shape
-from ...type import PrimStructInfo, ShapeStructInfo
+from ...type import PrimType, ShapeType
 from .common import register_legalize
 
 
@@ -38,7 +38,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     def _relax_tuple_to_tir(relax_tuple):
         output = []
         for field in relax_tuple.ty.fields:
-            assert isinstance(field, PrimStructInfo)
+            assert isinstance(field, PrimType)
             assert field.value is not None
             output.append(field.value)
         return output
@@ -116,7 +116,7 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     ndim = int(output_shape.ty.shape[0])
     output_shape = bb.emit(tensor_to_shape(output_shape))
     output_shape_vars = [tirx.Var("s", "int64") for i in range(ndim)]
-    bb.match_cast(output_shape, ShapeStructInfo(output_shape_vars))
+    bb.match_cast(output_shape, ShapeType(output_shape_vars))
 
     # 3. Pass the output shape vars to TOPI
     return bb.call_te(

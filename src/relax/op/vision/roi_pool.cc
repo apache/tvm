@@ -57,34 +57,34 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_pool", roi_pool);
 }
 
-StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeROIPool(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool expects two arguments, while the given number of arguments is "
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
-  const auto* rois_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
-  if (data_sinfo == nullptr) {
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* rois_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
+  if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "ROIPool expects the input data to be a Tensor, while the given data is "
         << call->args[0]->GetTypeKey();
   }
-  if (rois_sinfo == nullptr) {
+  if (rois_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "ROIPool expects the rois to be a Tensor, while the given rois is "
         << call->args[1]->GetTypeKey();
   }
-  if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim != 4) {
+  if (!data_ty->IsUnknownNdim() && data_ty->ndim != 4) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool expects the input data to be 4-D, while the given data has ndim "
-        << data_sinfo->ndim;
+        << data_ty->ndim;
   }
-  if (!rois_sinfo->IsUnknownNdim() && rois_sinfo->ndim != 2) {
+  if (!rois_ty->IsUnknownNdim() && rois_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool expects the rois tensor to be 2-D, while the given rois has ndim "
-        << rois_sinfo->ndim;
+        << rois_ty->ndim;
   }
 
   const auto* attrs = call->attrs.as<ROIPoolAttrs>();
@@ -94,7 +94,7 @@ StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
         << "ROIPool only supports NCHW layout, but got " << attrs->layout;
   }
 
-  const auto* rois_shape = rois_sinfo->shape.as<ShapeExprNode>();
+  const auto* rois_shape = rois_ty->shape.as<ShapeExprNode>();
   if (rois_shape != nullptr) {
     const auto* last_dim = rois_shape->values[1].as<IntImmNode>();
     if (last_dim != nullptr && last_dim->value != 5) {
@@ -105,15 +105,15 @@ StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (data_sinfo->shape.as<ShapeExprNode>() == nullptr || rois_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, 4, data_sinfo->vdevice);
+  if (data_ty->shape.as<ShapeExprNode>() == nullptr || rois_shape == nullptr) {
+    return TensorType(data_ty->dtype, 4, data_ty->vdevice);
   }
 
-  ffi::Array<PrimExpr> data_shape = data_sinfo->shape.as<ShapeExprNode>()->values;
+  ffi::Array<PrimExpr> data_shape = data_ty->shape.as<ShapeExprNode>()->values;
   ffi::Array<PrimExpr> out_shape = {rois_shape->values[0], data_shape[1],
                                     IntImm::Int32(attrs->pooled_size[0]),
                                     IntImm::Int32(attrs->pooled_size[1])};
-  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.vision.roi_pool")
@@ -122,7 +122,7 @@ TVM_REGISTER_OP("relax.vision.roi_pool")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("rois", "Tensor",
                   "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoROIPool)
+    .set_attr<FInferType>("FInferType", InferTypeROIPool)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 

@@ -123,8 +123,8 @@ class DFPattern(Node):
         attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
-    def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
-        return StructInfoPattern(self, struct_info)
+    def has_ty(self, ty: "Type") -> "TypePattern":
+        return TypePattern(self, ty)
 
     def has_dtype(self, dtype: str) -> "DataTypePattern":
         """
@@ -568,23 +568,23 @@ class WildcardPattern(DFPattern):
 
 
 @register_df_node
-class StructInfoPattern(DFPattern):
-    """A pattern that matches another pattern with a certain StructInfo
+class TypePattern(DFPattern):
+    """A pattern that matches another pattern with a certain Type
 
     Parameters
     ----------
     pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
-    struct_info: tvm.relax.StructInfo
-        The struct info to match against
+    ty: tvm.relax.Type
+        The type to match against
     """
 
-    def __init__(self, pattern: "DFPattern", struct_info: "StructInfo"):
+    def __init__(self, pattern: "DFPattern", ty: "Type"):
         self.__init_handle_by_constructor__(
-            ffi.StructInfoPattern,
+            ffi.TypePattern,
             pattern,
-            struct_info,
+            ty,
         )  # type: ignore
 
 
@@ -861,7 +861,7 @@ def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     return PrimArrPattern(shape)
 
 
-# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+# Todo(relax-team): Dataflow pattern for Type, and match out_ty
 def _is_call_tir(
     func_pattern: DFPattern,
     args: list | tuple | TuplePattern = None,
@@ -877,7 +877,7 @@ def _is_call_tir(
     return is_op("relax.call_tir")(func_pattern, args, tir_vars, add_constraint=False)
 
 
-# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+# Todo(relax-team): Dataflow pattern for Type, and match out_ty
 def is_call_tir(
     func_name: str,
     args: list | tuple | TuplePattern = None,

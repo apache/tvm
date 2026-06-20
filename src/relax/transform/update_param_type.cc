@@ -40,7 +40,7 @@ namespace relax {
 namespace {
 class ParamTypeMutator : public ExprMutator {
  public:
-  explicit ParamTypeMutator(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> ty_func)
+  explicit ParamTypeMutator(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func)
       : ty_func_(ty_func) {}
 
   using ExprMutator::VisitExpr_;
@@ -65,12 +65,12 @@ class ParamTypeMutator : public ExprMutator {
     return ExprMutator::VisitExpr_(func.get());
   }
 
-  ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> ty_func_;
+  ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func_;
 };
 }  // namespace
 
 namespace transform {
-Pass UpdateParamType(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> ty_func) {
+Pass UpdateParamType(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     ParamTypeMutator mutator(ty_func);
 

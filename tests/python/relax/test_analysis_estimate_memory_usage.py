@@ -80,7 +80,7 @@ def test_basic():
             _: R.Tuple() = cls.exp(x, alloc)
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.call_packed(
-                "vm.builtin.reshape", lv, R.shape([8]), sinfo_args=[R.Tensor((8,), dtype="float32")]
+                "vm.builtin.reshape", lv, R.shape([8]), ty_args=[R.Tensor((8,), dtype="float32")]
             )
             storage1: R.Object = R.memory.alloc_storage(
                 R.shape([40]), virtual_device_index=0, storage_scope="global", dtype="float32"

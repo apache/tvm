@@ -83,16 +83,16 @@ def LUT_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> None:
     return LUT
 
 
-def generate_take_primfunc(inp, struct_info):
+def generate_take_primfunc(inp, ty):
     # Generating the take op
     N, H, W, C = inp.ty.shape
-    data = te.placeholder((N, H, W, C), dtype=struct_info.dtype, name="data")
+    data = te.placeholder((N, H, W, C), dtype=ty.dtype, name="data")
     LUT_func = te.placeholder((256,), dtype="uint8", name="LUT")
     take = te.compute(
-        struct_info.shape,
-        lambda *indices: saturate(
-            (LUT_func[data[indices].astype("uint8")]), struct_info.dtype
-        ).astype(struct_info.dtype),
+        ty.shape,
+        lambda *indices: saturate((LUT_func[data[indices].astype("uint8")]), ty.dtype).astype(
+            ty.dtype
+        ),
         name="take_op",
     )
     mod = te.create_prim_func([data, LUT_func, take])

@@ -30,7 +30,7 @@ def test_basic():
         def main(x: R.Tensor([16, 32], "float32")):
             storage = R.memory.alloc_storage(R.shape([2048]), 0, "global", "uint8")
             y = R.memory.alloc_tensor(storage, 0, R.shape([16, 32]), "float32")
-            _dummy = R.call_packed("add_tensors", [x, y], sinfo_args=(R.Tuple,))
+            _dummy = R.call_packed("add_tensors", [x, y], ty_args=(R.Tuple,))
             z = R.add(x, y)
             return z
 
@@ -41,7 +41,7 @@ def test_basic():
             storage = R.memory.alloc_storage(R.shape([2048]), 0, "global", "uint8")
             y = R.memory.alloc_tensor(storage, 0, R.shape([16, 32]), "float32")
             _ = R.memory.kill_storage(storage)
-            _dummy = R.call_packed("add_tensors", [x, y], sinfo_args=(R.Tuple,))
+            _dummy = R.call_packed("add_tensors", [x, y], ty_args=(R.Tuple,))
             z = R.add(x, y)
             _ = R.memory.kill_tensor(y)
             return z

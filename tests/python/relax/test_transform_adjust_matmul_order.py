@@ -811,11 +811,11 @@ class TestAdjustMatmulOrderAttentionBlock:
     def _build_attention_module(self, batch, seq, dim):
         """Minimal batched attention block exercising ND permute_dims + matmul."""
         bb = relax.BlockBuilder()
-        x = relax.Var("x", relax.TensorStructInfo((batch, seq, dim), "float32"))
-        wq = relax.Var("wq", relax.TensorStructInfo((dim, dim), "float32"))
-        wk = relax.Var("wk", relax.TensorStructInfo((dim, dim), "float32"))
-        wv = relax.Var("wv", relax.TensorStructInfo((dim, dim), "float32"))
-        wo = relax.Var("wo", relax.TensorStructInfo((dim, dim), "float32"))
+        x = relax.Var("x", relax.TensorType((batch, seq, dim), "float32"))
+        wq = relax.Var("wq", relax.TensorType((dim, dim), "float32"))
+        wk = relax.Var("wk", relax.TensorType((dim, dim), "float32"))
+        wv = relax.Var("wv", relax.TensorType((dim, dim), "float32"))
+        wo = relax.Var("wo", relax.TensorType((dim, dim), "float32"))
         with bb.function("main", [x, wq, wk, wv, wo]):
             with bb.dataflow():
                 q = bb.emit(relax.op.matmul(x, wq))

@@ -25,7 +25,7 @@ from ..analysis import check_well_formed
 from ..expr import Tuple
 from ..training.utils import AppendLoss
 from ..transform import DecomposeOpsForInference, DecomposeOpsForTraining, Gradient, LegalizeOps
-from ..type import TensorStructInfo
+from ..type import TensorType
 from .loss import Loss
 from .optimizer import Optimizer
 
@@ -103,7 +103,7 @@ class SetupTrainer:
     optimizer : Optimizer
         The optimizer. It will be put as the `optimizer` function of the transformed module.
 
-    loss_args : List[TensorStructInfo]
+    loss_args : List[TensorType]
         The arguments to call the loss function.
 
     legalize : bool
@@ -119,7 +119,7 @@ class SetupTrainer:
     STATE_NUM_ATTR_KEY: str = "state_num"
 
     def __init__(
-        self, loss: Loss, optimizer: Optimizer, loss_args: list[TensorStructInfo], legalize=True
+        self, loss: Loss, optimizer: Optimizer, loss_args: list[TensorType], legalize=True
     ):
         self._loss = loss
         self._optimizer = optimizer

@@ -655,7 +655,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.PyExprMutatorLookupBinding",
            [](PyExprMutator mutator, const Var& var) { return mutator->LookupBinding(var); })
       .def("relax.PyExprMutatorWithType",
-           [](PyExprMutator mutator, Var var, StructInfo ty) { return mutator->WithType(var, ty); })
+           [](PyExprMutator mutator, Var var, Type ty) { return mutator->WithType(var, ty); })
       .def("relax.PyExprMutatorSetVarRemap",
            [](PyExprMutator mutator, Id id, Var var) { return mutator->var_remap_[id] = var; })
       .def("relax.PyExprMutatorGetVarRemap",

@@ -63,7 +63,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const StructInfoPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
 
@@ -80,7 +80,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 
   /* \brief Simplify a boolean condition using the analyzer
    *
-   * Matching struct info can often produce conditions that do not
+   * Matching type can often produce conditions that do not
    * simplify cleanly.  For example, while the rewrite simplifier can
    * recognize that `m==0 && m==1` can be simplifies to `false`, it
    * cannot recognize that `m==0 && n==0 && m==1` can be simplified to

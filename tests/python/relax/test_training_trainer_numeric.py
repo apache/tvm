@@ -58,12 +58,12 @@ def test_execute():
     target = "llvm"
     dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         Adam(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -84,12 +84,12 @@ def test_execute_numeric():
     target = "llvm"
     dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -115,12 +115,12 @@ def test_load_export_params():
     target = "llvm"
     dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -152,12 +152,12 @@ def test_setting_error():
     target = "llvm"
     dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)

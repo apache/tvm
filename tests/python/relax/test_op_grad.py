@@ -52,7 +52,7 @@ def test_op_correctness():
     assert relax.op.grad.end_checkpoint(x).args[0] == x
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
@@ -95,7 +95,7 @@ def test_end_checkpoint_input_not_var():
         bb.normalize(relax.op.grad.end_checkpoint(relax.const(1, "float32")))
 
 
-def test_nll_loss_backward_infer_struct_info():
+def test_nll_loss_backward_infer_ty():
     bb = relax.BlockBuilder()
 
     g = relax.Var("g", R.Tensor((3, 10, 10)))
@@ -107,7 +107,7 @@ def test_nll_loss_backward_infer_struct_info():
     _check_inference(bb, relax.op.grad.nll_loss_backward(g, x, y, w), x.ty)
 
 
-def test_max_pool2d_backward_infer_struct_info():
+def test_max_pool2d_backward_infer_ty():
     bb = relax.BlockBuilder()
 
     g = relax.Var("g", R.Tensor((3, 3, 8, 8), "float32"))
@@ -117,7 +117,7 @@ def test_max_pool2d_backward_infer_struct_info():
     _check_inference(bb, relax.op.grad.max_pool2d_backward(g, x, (3, 3)), x.ty)
 
 
-def test_avg_pool2d_backward_infer_struct_info():
+def test_avg_pool2d_backward_infer_ty():
     bb = relax.BlockBuilder()
 
     g = relax.Var("g", R.Tensor((3, 3, 8, 8), "float32"))
@@ -127,7 +127,7 @@ def test_avg_pool2d_backward_infer_struct_info():
     _check_inference(bb, relax.op.grad.avg_pool2d_backward(g, x, (3, 3)), x.ty)
 
 
-def test_take_backward_infer_struct_info():
+def test_take_backward_infer_ty():
     bb = relax.BlockBuilder()
 
     g = relax.Var("g", R.Tensor((3, 2, 5), "float32"))

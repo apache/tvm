@@ -87,16 +87,16 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
       GlobalVar gvar(func_name);
 
-      StructInfo finfo;
+      Type finfo;
       if (func->ty.defined()) {
         finfo = GetType(func);
       } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
-        // NOTE: use a slightly different struct info than checked type
+        // NOTE: use a slightly different type than checked type
         // in PrimFunc so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
-        finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
+        // TODO(relax-team): add fine-grained PrimFunc type signature generation.
+        finfo = FuncType::OpaqueFunc(TypeFromStaticType(prim_func->ret_type));
       } else {
-        TVM_FFI_THROW(RuntimeError) << "Expect struct_info field to be populated";
+        TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
       UpdateType(gvar, finfo);
 
@@ -163,11 +163,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void BeginScope(ffi::Optional<ffi::Array<Var>> params) final {
     // The current implementation handles the collection of shape var
-    // defined in parameter struct info annotations. The implementation
+    // defined in parameter type annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
     //
-    // TODO(relax-team): Add support for relax Var in struct info annotations.
+    // TODO(relax-team): Add support for relax Var in type annotations.
 
     scope_stack_.emplace_back(ScopeFrame());
     if (params.defined()) {
@@ -193,10 +193,10 @@ class BlockBuilderImpl : public BlockBuilderNode {
     auto& shape_var_map = CurrentScopeFrame()->shape_var_map;
 
     // The current implementation handles the collection of shape var
-    // defined in parameter struct info annotations. The implementation
+    // defined in parameter type annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    ffi::Map<tirx::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetType(var));
+    ffi::Map<tirx::Var, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
     for (const auto& kv : var_map) {
       const tirx::Var& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
@@ -234,20 +234,20 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return this->Emit(expr, CurrentBindingBlockFrame()->is_dataflow, name_hint);
   }
 
-  Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint) final {
+  Var EmitMatchCast(Expr value, Type ty, ffi::String name_hint) final {
     value = this->Normalize(value);
 
-    TVM_FFI_ICHECK(TypeBaseCheck(GetType(value), struct_info) != BaseCheckResult::kFailL0)
-        << "It is impossible to match cast any value into the target struct_info. "
-           "But got value struct info: "
-        << GetType(value) << ", given struct info: " << struct_info;
+    TVM_FFI_ICHECK(TypeBaseCheck(GetType(value), ty) != BaseCheckResult::kFailL0)
+        << "It is impossible to match cast any value into the target ty. "
+           "But got value type: "
+        << GetType(value) << ", given type: " << ty;
 
     // NOTE: do match cast checking later in a pass.
     BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
-    UpdateType(var, struct_info);
+    UpdateType(var, ty);
 
-    MatchCast match_cast(var, value, struct_info);
+    MatchCast match_cast(var, value, ty);
     cur_frame->bindings.push_back(match_cast);
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
@@ -388,7 +388,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     Var var = CreateVar(is_dataflow, name_hint);
 
     // set the values
-    UpdateType(var, Downcast<StructInfo>(expr->ty));
+    UpdateType(var, Downcast<Type>(expr->ty));
 
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
@@ -469,16 +469,16 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // Collect all the variables that a parameter var can define.
   // The collector is used to making sure that we record the
   // shape vars as defined when calling BeginScope(params)
-  class StructInfoVarCollector : public TypeVisitor {
+  class TypeVarCollector : public TypeVisitor {
    public:
-    static ffi::Map<tirx::Var, PrimExpr> Collect(const StructInfo& struct_info) {
-      StructInfoVarCollector collector;
-      collector(struct_info);
+    static ffi::Map<tirx::Var, PrimExpr> Collect(const Type& ty) {
+      TypeVarCollector collector;
+      collector(ty);
       return collector.shape_var_map_;
     }
 
    private:
-    void VisitType_(const TensorStructInfoNode* op) final {
+    void VisitType_(const TensorTypeNode* op) final {
       if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
@@ -489,7 +489,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
     }
 
-    void VisitType_(const ShapeStructInfoNode* op) final {
+    void VisitType_(const ShapeTypeNode* op) final {
       for (const PrimExpr& s : op->values.value_or(ffi::Array<PrimExpr>())) {
         // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
         if (const auto* var = s.as<tirx::VarNode>()) {
@@ -498,7 +498,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
     }
 
-    void VisitType_(const PrimStructInfoNode* op) final {
+    void VisitType_(const PrimTypeNode* op) final {
       // Only collect single var defined shape. Ignore something like `R.Prim(value=m + 1)`
       if (op->value.defined()) {
         if (auto var = op->value.as<tirx::Var>()) {
@@ -518,14 +518,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return ffi::GetRef<Expr>(op); }
 
-// TODO(relax-team): Check normalize logic after struct info.
+// TODO(relax-team): Check normalize logic after type.
 
-// Normalizer on struct info:
+// Normalizer on type:
 //
 // We take benefit of the following invariants(that are checked in constructor):
-// - If an expr appears in StructInfo, then it is already normalized.
-//   As a result, we do not need to peek into StructInfo in Normalization.
-// - Constant, ShapeExpr, already have their StructInfo populated in constructing time.
+// - If an expr appears in Type, then it is already normalized.
+//   As a result, we do not need to peek into Type in Normalization.
+// - Constant, ShapeExpr, already have their Type populated in constructing time.
 class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
@@ -537,7 +537,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr normalized = this->VisitExpr(expr);
     // Invariant:
     // After Normalize: an Expr always have
-    // struct_info (with the exception of Op).
+    // ty (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
       TVM_FFI_ICHECK(normalized->ty.defined())
           << "The ty of an Expr except OpNode after "
@@ -590,10 +590,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {
-    // Parameters and free-vars must be present with struct info
+    // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(var->ty.defined())
-        << "Var " << var->name_hint() << " does not have struct info.";
+    TVM_FFI_ICHECK(var->ty.defined()) << "Var " << var->name_hint() << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 
@@ -633,11 +632,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
     if (!tuple->ty.defined()) {
-      ffi::Array<StructInfo> tuple_ty;
+      ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
       }
-      UpdateType(tuple, TupleStructInfo(tuple_ty, op->span));
+      UpdateType(tuple, TupleType(tuple_ty, op->span));
     }
     return tuple;
   }
@@ -648,7 +647,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_body.same_as(op->body)) {
       return ffi::GetRef<Function>(op);
     } else {
-      return Function(op->params, new_body, op->ret_struct_info, op->is_pure, op->attrs);
+      return Function(op->params, new_body, op->ret_ty, op->is_pure, op->attrs);
     }
   }
 
@@ -662,11 +661,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
       call = ffi::GetRef<Call>(op);
     } else {
-      call = Call(new_op, new_args, op->attrs, op->sinfo_args);
+      call = Call(new_op, new_args, op->attrs, op->ty_args);
     }
 
     if (!call->ty.defined()) {
-      auto inferred_ty = InferStructInfo(call);
+      auto inferred_ty = InferType(call);
       UpdateType(call, inferred_ty);
     }
 
@@ -761,10 +760,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
                                                      : TupleGetItem(new_tuple, op->index);
 
     if (!node->ty.defined()) {
-      auto opt = MatchType<TupleStructInfo>(node->tuple);
-      TVM_FFI_ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
-                          << "but expression " << node->tuple << " has struct info "
-                          << node->tuple->ty;
+      auto opt = MatchType<TupleType>(node->tuple);
+      TVM_FFI_ICHECK(opt) << "The type of Tuple must be TupleType, "
+                          << "but expression " << node->tuple << " has type " << node->tuple->ty;
       UpdateType(node, opt.value()->fields[node->index]);
     }
 
@@ -795,10 +793,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   MatchCast VisitMatchCast(MatchCast binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!new_value.same_as(binding->value)) {
-      binding = MatchCast(binding->var, new_value, binding->struct_info, binding->span);
+      binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
     }
     if (!binding->var->ty.defined()) {
-      UpdateType(binding->var, binding->struct_info);
+      UpdateType(binding->var, binding->ty);
     }
     return binding;
   }
@@ -827,9 +825,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
  private:
   // Helper function to infer the type of a Call.
-  StructInfo InferStructInfo(const Call& call) {
+  Type InferType(const Call& call) {
     if (auto* op_ptr = call->op.as<OpNode>()) {
-      // Case 1: the op field is a primitive op, look up FInferStructInfo attribute
+      // Case 1: the op field is a primitive op, look up FInferType attribute
       Op op = ffi::GetRef<Op>(op_ptr);
       bool is_dist_op = false;
       for (const auto& arg : call->args) {
@@ -840,28 +838,28 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
       if (is_dist_op) {
         for (const auto& arg : call->args) {
-          TVM_FFI_ICHECK(!arg->ty.as<TensorStructInfoNode>())
+          TVM_FFI_ICHECK(!arg->ty.as<TensorTypeNode>())
               << "Distributed operator must take DTensor instead of Tensor as input";
         }
         TVM_FFI_ICHECK(op_map_dist_infer_ty.count(op))
-            << " Cannot find the dist.FInferStructInfo attribute registered to op: " << op->name;
+            << " Cannot find the dist.FInferType attribute registered to op: " << op->name;
         return op_map_dist_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
       }
       TVM_FFI_ICHECK(op_map_infer_ty.count(op))
-          << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
+          << " Cannot find the FInferType attribute registered to op: " << op->name;
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
       TVM_FFI_ICHECK(call->op->ty.defined());
-      auto opt = MatchType<FuncStructInfo>(call->op);
-      TVM_FFI_ICHECK(opt) << "Call->op must contains a function struct info";
-      FuncStructInfo finfo = opt.value();
+      auto opt = MatchType<FuncType>(call->op);
+      TVM_FFI_ICHECK(opt) << "Call->op must contains a function type";
+      FuncType finfo = opt.value();
       return DeriveCallRetType(finfo, call, ffi::GetRef<BlockBuilder>(this), analyzer_);
     }
   }
 
   // erase to well defined within current scope.
-  StructInfo EraseToWellDefinedInScope(StructInfo info) {
+  Type EraseToWellDefinedInScope(Type info) {
     if (scope_stack_.empty()) {
       // If no scopes are active, then this fragment does not require
       // any normalization.
@@ -980,7 +978,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           if (const auto* var_binding = binding.as<VarBindingNode>()) {
             current.push_back(VarBinding(var_binding->var, seq->body));
           } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
-            current.push_back(MatchCast(match_cast->var, seq->body, match_cast->struct_info));
+            current.push_back(MatchCast(match_cast->var, seq->body, match_cast->ty));
           } else {
             TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
           }
@@ -1030,11 +1028,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return changed ? ret : blocks;
   }
 
-  /*! \brief Operator struct info inference map. */
-  tvm::OpAttrMap<FInferStructInfo> op_map_infer_ty =
-      Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
-  tvm::OpAttrMap<FInferStructInfo> op_map_dist_infer_ty =
-      Op::GetAttrMap<FInferStructInfo>("dist.FInferStructInfo");
+  /*! \brief Operator type inference map. */
+  tvm::OpAttrMap<FInferType> op_map_infer_ty = Op::GetAttrMap<FInferType>("FInferType");
+  tvm::OpAttrMap<FInferType> op_map_dist_infer_ty = Op::GetAttrMap<FInferType>("dist.FInferType");
   /*! \brief Operator normalization function */
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 
@@ -1073,8 +1069,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return builder->Emit(expr, name_hint);
            })
       .def("relax.BlockBuilderEmitMatchCast",
-           [](BlockBuilder builder, Expr value, StructInfo struct_info, ffi::String name_hint) {
-             return builder->EmitMatchCast(value, struct_info, name_hint);
+           [](BlockBuilder builder, Expr value, Type ty, ffi::String name_hint) {
+             return builder->EmitMatchCast(value, ty, name_hint);
            })
       .def("relax.BlockBuilderEmitOutput",
            [](BlockBuilder builder, const Expr& output, ffi::String name_hint) {

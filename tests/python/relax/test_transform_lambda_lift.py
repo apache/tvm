@@ -91,8 +91,8 @@ def test_basic():
 def test_input_module_is_unmodified():
     """The input module may not be modified
 
-    If the output requires new StructInfo, it must create a new relax
-    variable.  It must not update the struct info of an existing relax
+    If the output requires new Type, it must create a new relax
+    variable.  It must not update the type of an existing relax
     variable, as that variable may be used by another IRModule.
     """
 
@@ -136,9 +136,7 @@ def test_closure():
             (2, 3), "float32"
         ):
             in_call = Expected.main_outer_func(x)
-            res = R.invoke_pure_closure(
-                in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32"))
-            )
+            res = R.invoke_pure_closure(in_call, (y,), ty_args=(R.Tensor((2, 3), dtype="float32")))
             return res
 
         @R.function(private=True)
@@ -191,7 +189,7 @@ def test_recursive():
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
             cond: R.Tensor((), "bool") = R.call_pure_packed(
-                "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
+                "test.vm.less", i, R.const(10), ty_args=(R.Tensor((), dtype="bool"))
             )
             c: R.Tensor((), "int32") = R.const(1, dtype="int32")
             if cond:
@@ -209,7 +207,7 @@ def test_recursive():
             gv: R.Tensor((2, 3), dtype="float32") = R.invoke_pure_closure(
                 while_loop,
                 (R.const(0), x),
-                sinfo_args=(R.Tensor((2, 3), dtype="float32")),
+                ty_args=(R.Tensor((2, 3), dtype="float32")),
             )
             return gv
 
@@ -223,7 +221,7 @@ def test_recursive():
                 (2, 3), "float32"
             ):
                 cond: R.Tensor((), "bool") = R.call_pure_packed(
-                    "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
+                    "test.vm.less", i, R.const(10), ty_args=(R.Tensor((), dtype="bool"))
                 )
                 c: R.Tensor((), "int32") = R.const(1, dtype="int32")
                 if cond:

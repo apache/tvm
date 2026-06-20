@@ -36,39 +36,37 @@ namespace tvm {
 namespace relax {
 namespace inspect {
 
-TensorStructInfo GetTensorArgInfo(const Call& call) {
+TensorType GetTensorArgInfo(const Call& call) {
   TVM_FFI_CHECK_EQ(call->args.size(), 1, TypeError)
       << "Operator " << call->op << " expects one argument, "
       << "but received " << call->args.size() << " arguments: " << call->args;
 
   const auto& arg = call->args[0];
-  auto sinfo = GetType(arg);
+  auto ty = GetType(arg);
 
-  auto tensor_ty = sinfo.as<TensorStructInfo>();
+  auto tensor_ty = ty.as<TensorType>();
   TVM_FFI_CHECK(tensor_ty, TypeError) << "Operator " << call->op << " expects a tensor argument, "
-                                      << "but argument " << arg << " has struct info " << sinfo;
+                                      << "but argument " << arg << " has type " << ty;
 
   return tensor_ty.value();
 }
 
-std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Call& call) {
+std::tuple<TensorType, PrimType> GetTensorArgInfoWithIndex(const Call& call) {
   TVM_FFI_CHECK_EQ(call->args.size(), 2, TypeError)
       << "Operator " << call->op << " expects two arguments, "
       << "but received " << call->args.size() << " arguments: " << call->args;
   const auto& arg = call->args[0];
   const auto& axis = call->args[1];
 
-  auto tensor_ty = arg->ty.as<TensorStructInfoNode>();
+  auto tensor_ty = arg->ty.as<TensorTypeNode>();
   TVM_FFI_CHECK(tensor_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
-      << "but the first argument " << arg << " in expression " << call << " has struct info "
-      << arg->ty;
+      << "but the first argument " << arg << " in expression " << call << " has type " << arg->ty;
 
-  auto axis_ty = axis->ty.as<PrimStructInfoNode>();
+  auto axis_ty = axis->ty.as<PrimTypeNode>();
   TVM_FFI_CHECK(axis_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
-      << "but the second argument " << arg << " in expression " << call << " has struct info "
-      << axis->ty;
+      << "but the second argument " << arg << " in expression " << call << " has type " << axis->ty;
 
   auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
@@ -82,7 +80,7 @@ std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Cal
         << ", but " << arg << ".shape only has " << tensor_ty->ndim << " elements";
   }
 
-  return {ffi::GetRef<TensorStructInfo>(tensor_ty), ffi::GetRef<PrimStructInfo>(axis_ty)};
+  return {ffi::GetRef<TensorType>(tensor_ty), ffi::GetRef<PrimType>(axis_ty)};
 }
 
 DataType GetTensorDataType(const Call& call) { return GetTensorArgInfo(call)->dtype; }
@@ -99,17 +97,17 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataTyp
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, PrimType(field_dtype), {}, attrs);
+  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, tvm::PrimType(field_dtype), {},
+                      attrs);
 
-  FuncStructInfo sinfo({TensorStructInfo(DataType::Void(), kUnknownNDim)},
-                       PrimStructInfo(field_dtype));
-  func->ty = sinfo;
+  FuncType ty({TensorType(DataType::Void(), kUnknownNDim)}, PrimType(field_dtype));
+  func->ty = ty;
 
   return func;
 }
 
 Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) {
-  if (auto prim_ty = call->ty.as<PrimStructInfoNode>()) {
+  if (auto prim_ty = call->ty.as<PrimTypeNode>()) {
     if (prim_ty->value.defined()) {
       return PrimValue(prim_ty->value.value());
     }
@@ -124,19 +122,19 @@ Expr tensor_dtype_code(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorDtypeCode(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorDtypeCode(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(8);
 
   DataType dtype = GetTensorDataType(call);
   if (dtype.is_void()) {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   } else {
-    return PrimStructInfo(IntImm(dlpack_type, dtype.code()));
+    return PrimType(IntImm(dlpack_type, dtype.code()));
   }
 }
 
 Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
+  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -149,7 +147,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeCode)
+    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeCode)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -162,19 +160,19 @@ Expr tensor_dtype_bits(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorDtypeBits(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorDtypeBits(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(8);
 
   DataType dtype = GetTensorDataType(call);
   if (dtype.is_void()) {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   } else {
-    return PrimStructInfo(IntImm(dlpack_type, dtype.bits()));
+    return PrimType(IntImm(dlpack_type, dtype.bits()));
   }
 }
 
 Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
+  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -187,7 +185,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeBits)
+    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeBits)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -200,19 +198,19 @@ Expr tensor_dtype_lanes(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorDtypeLanes(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorDtypeLanes(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(16);
 
   DataType dtype = GetTensorDataType(call);
   if (dtype.is_void()) {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   } else {
-    return PrimStructInfo(IntImm(dlpack_type, dtype.lanes()));
+    return PrimType(IntImm(dlpack_type, dtype.lanes()));
   }
 }
 
 Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
+  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -225,7 +223,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeLanes)
+    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeLanes)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -238,19 +236,19 @@ Expr tensor_ndim(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorNDim(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorNDim(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(32);
 
-  auto sinfo = GetTensorArgInfo(call);
-  if (sinfo->IsUnknownNdim()) {
-    return PrimStructInfo(dlpack_type);
+  auto ty = GetTensorArgInfo(call);
+  if (ty->IsUnknownNdim()) {
+    return PrimType(dlpack_type);
   } else {
-    return PrimStructInfo(IntImm(dlpack_type, sinfo->ndim));
+    return PrimType(IntImm(dlpack_type, ty->ndim));
   }
 }
 
 Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
+  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -263,7 +261,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
 TVM_REGISTER_OP("relax.inspect.tensor_ndim")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorNDim)
+    .set_attr<FInferType>("FInferType", InferTypeTensorNDim)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -276,7 +274,7 @@ Expr tensor_shape_i(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
   auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
@@ -285,14 +283,14 @@ StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
   auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis && tensor_shape.defined()) {
-    return PrimStructInfo(tensor_shape.value()[int_imm_axis->value]);
+    return PrimType(tensor_shape.value()[int_imm_axis->value]);
   } else {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   }
 }
 
 Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
+  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
 
   tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
     tirx::Var dlpack_handle("dlpack_handle", DataType::Handle());
@@ -324,12 +322,11 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-    tirx::PrimFunc func({dlpack_handle, axis}, body, PrimType(field_dtype), {}, attrs);
+    tirx::PrimFunc func({dlpack_handle, axis}, body, tvm::PrimType(field_dtype), {}, attrs);
 
-    FuncStructInfo sinfo(
-        {TensorStructInfo(DataType::Void(), kUnknownNDim), PrimStructInfo(axis->dtype)},
-        PrimStructInfo(field_dtype));
-    func->ty = sinfo;
+    FuncType ty({TensorType(DataType::Void(), kUnknownNDim), PrimType(axis->dtype)},
+                PrimType(field_dtype));
+    func->ty = ty;
     return func;
   }();
 
@@ -341,7 +338,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .set_num_inputs(2)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorShape)
+    .set_attr<FInferType>("FInferType", InferTypeTensorShape)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
@@ -354,7 +351,7 @@ Expr tensor_stride_i(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
   auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
@@ -364,7 +361,7 @@ StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
 
   if (int_imm_axis && opt_tensor_shape.defined()) {
     // As of 2024-03-14, Relax does not have an explicit
-    // representation for striding in `TensorStructInfo`.  The
+    // representation for striding in `TensorType`.  The
     // `FLegalize` function for most operators is implemented in terms
     // of `topi`, and is then converted from TE to `tirx::PrimFunc`
     // using `tvm::tirx::CreatePrimFunc`.  The `te::Tensor` is
@@ -380,9 +377,9 @@ StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
     for (size_t axis = int_imm_axis->value + 1; axis < tensor_shape.size(); axis++) {
       stride = stride * tensor_shape[axis];
     }
-    return PrimStructInfo(stride);
+    return PrimType(stride);
   } else {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   }
 }
 
@@ -390,7 +387,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
     .set_num_inputs(2)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorStride)
+    .set_attr<FInferType>("FInferType", InferTypeTensorStride)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
     .set_attr<bool>("FPurity", true);
@@ -402,7 +399,7 @@ Expr tensor_byte_offset(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorByteOffset(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(64);
 
   auto tensor_ty = GetTensorArgInfo(call);
@@ -410,18 +407,18 @@ StructInfo InferStructInfoTensorByteOffset(const Call& call, const BlockBuilder&
   auto opt_tensor_shape = tensor_ty->GetShape();
   if (opt_tensor_shape.defined()) {
     // Relax implicitly requires that the byte offset is zero for any
-    // legalizable tensor.  See InferStructInfoTensorStride for full
+    // legalizable tensor.  See InferTypeTensorStride for full
     // explanation.
-    return PrimStructInfo(IntImm(dlpack_type, 0));
+    return PrimType(IntImm(dlpack_type, 0));
   } else {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   }
 }
 
 TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorByteOffset)
+    .set_attr<FInferType>("FInferType", InferTypeTensorByteOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
     .set_attr<bool>("FPurity", true);
@@ -433,7 +430,7 @@ Expr tensor_elem_offset(Expr expr) {
   return Call(op, {expr});
 }
 
-StructInfo InferStructInfoTensorElemOffset(const Call& call, const BlockBuilder&) {
+Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(64);
 
   auto tensor_ty = GetTensorArgInfo(call);
@@ -441,18 +438,18 @@ StructInfo InferStructInfoTensorElemOffset(const Call& call, const BlockBuilder&
   auto opt_tensor_shape = tensor_ty->GetShape();
   if (opt_tensor_shape.defined()) {
     // Relax implicitly requires that the element offset is zero for
-    // any legalizable tensor.  See InferStructInfoTensorStride for
+    // any legalizable tensor.  See InferTypeTensorStride for
     // full explanation.
-    return PrimStructInfo(IntImm(dlpack_type, 0));
+    return PrimType(IntImm(dlpack_type, 0));
   } else {
-    return PrimStructInfo(dlpack_type);
+    return PrimType(dlpack_type);
   }
 }
 
 TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorElemOffset)
+    .set_attr<FInferType>("FInferType", InferTypeTensorElemOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
     .set_attr<bool>("FPurity", true);

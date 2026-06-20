@@ -218,13 +218,13 @@ class DTypeDecisionCollector : public ExprVisitor {
     // require the i-th field rhs tuple to be the type of the lhs
     NType lhs_type = GetDType(binding->var);
     std::vector<NType> require_rhs;
-    const TupleStructInfoNode* sinfo = tuple_get_item_node->tuple->ty.as<TupleStructInfoNode>();
-    TVM_FFI_ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
-    for (size_t i = 0; i < sinfo->fields.size(); ++i) {
+    const TupleTypeNode* ty = tuple_get_item_node->tuple->ty.as<TupleTypeNode>();
+    TVM_FFI_ICHECK(ty != nullptr) << "TupleGetItemNode must have TupleType";
+    for (size_t i = 0; i < ty->fields.size(); ++i) {
       if (i == static_cast<size_t>(tuple_get_item_node->index)) {
         require_rhs.push_back(lhs_type);
       } else {
-        require_rhs.push_back(NTypeFrom(sinfo->fields[i], unknown_));
+        require_rhs.push_back(NTypeFrom(ty->fields[i], unknown_));
       }
     }
     RequireArgsToType({tuple_get_item_node->tuple}, {NType(require_rhs)});
@@ -238,8 +238,8 @@ class DTypeDecisionCollector : public ExprVisitor {
       this->VisitBindingBlock(*it);
     }
 
-    if (auto* sinfo = op->ty.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
+    if (auto* ty = op->ty.as<DependentTypeNode>()) {
+      this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }
 
@@ -257,8 +257,8 @@ class DTypeDecisionCollector : public ExprVisitor {
     this->VisitExpr(op->false_branch);
     this->VisitExpr(op->cond);
 
-    if (auto* sinfo = op->ty.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
+    if (auto* ty = op->ty.as<DependentTypeNode>()) {
+      this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }
 
@@ -284,14 +284,13 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return it->second;
     } else {
       if (fp16_input_names_.count(var->name_hint())) {
-        auto sinfo = GetType(var);
-        if (auto tensor_ty = sinfo.as<TensorStructInfoNode>()) {
+        auto ty = GetType(var);
+        if (auto tensor_ty = ty.as<TensorTypeNode>()) {
           VDevice vdev = VDevice();
           if (tensor_ty->vdevice.defined()) {
             vdev = tensor_ty->vdevice.value();
           }
-          TensorStructInfo fp16_ty(tensor_ty->shape.value(), DataType::Float(16), vdev,
-                                   tensor_ty->span);
+          TensorType fp16_ty(tensor_ty->shape.value(), DataType::Float(16), vdev, tensor_ty->span);
           Var fp16_var(var->vid, fp16_ty, var->span);
           var_remap_[var->vid] = fp16_var;
           return fp16_var;
@@ -310,7 +309,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   // Note that this function only accepts expr with nested tensor type
   Expr RewriteExpr(const Expr& expr, const NType& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NType, 1> to) -> Expr {
-      const auto* tensor = GetTypeAs<TensorStructInfoNode>(expr);
+      const auto* tensor = GetTypeAs<TensorTypeNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
@@ -345,8 +344,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   }
 
   bool AllFP16Castable(const ffi::Array<Expr>& args) {
-    auto is_fp16 = [](StructInfo sinfo) {
-      if (auto tensor_ty = sinfo.as<TensorStructInfoNode>();
+    auto is_fp16 = [](Type ty) {
+      if (auto tensor_ty = ty.as<TensorTypeNode>();
           tensor_ty && tensor_ty->dtype == DataType::Float(16)) {
         return true;
       }
@@ -390,11 +389,11 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     };
 
     for (const Expr& arg : args) {
-      auto sinfo = GetType(arg);
+      auto ty = GetType(arg);
       auto constant = arg.as<ConstantNode>();
       auto tuple = arg.as<TupleNode>();
 
-      if (!IsNestedTensor(arg) || is_fp16(sinfo) || (constant && is_in_fp16_range(constant)) ||
+      if (!IsNestedTensor(arg) || is_fp16(ty) || (constant && is_in_fp16_range(constant)) ||
           (tuple && AllFP16Castable(tuple->fields))) {
         continue;
       } else {

@@ -15,56 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import
-# ruff: noqa: F401
 """The type nodes of the Relax language."""
 
 import tvm_ffi
 
-from tvm.ir import FuncType, Span, TupleType, Type
+from tvm.ir import Span, Type
 
 from . import _ffi_api
-
-
-@tvm_ffi.register_object("relax.ShapeType")
-class ShapeType(Type):
-    """The type of shape in Relax.
-
-    Parameters
-    ----------
-    ndim : int
-        The number of dimensions of the shape. Use -1 for unknown ndim.
-    """
-
-    def __init__(self, ndim: int, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeType, ndim, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.ObjectType")
-class ObjectType(Type):
-    """A type that corresponds to tvm::runtime::Object, is base of all possible object
-    values in TVM."""
-
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.DynTensorType")
-class TensorType(Type):
-    """A dynamic tensor type in Relax.
-
-    This is the type assigned to tensors with a known dtype and unknown shape.
-
-    Parameters
-    ----------
-    ndim : Optional[int]
-        The ndim of the Tensor
-
-    dtype : Optional[str]
-        The content data type.
-    """
-
-    def __init__(self, ndim=-1, dtype="float32", span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TensorType, ndim, dtype, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.PackedFuncType")

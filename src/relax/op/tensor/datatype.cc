@@ -51,20 +51,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.astype", astype);
 }
 
-StructInfo InferStructInfoAstype(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
+  TensorType ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
-  ffi::ObjectPtr<TensorStructInfoNode> new_sinfo =
-      ffi::make_object<TensorStructInfoNode>(*sinfo.get());
-  new_sinfo->dtype = attrs->dtype;
-  return TensorStructInfo(new_sinfo);
+  ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
+  new_ty->dtype = attrs->dtype;
+  return TensorType(new_ty);
 }
 
 TVM_REGISTER_OP("relax.astype")
     .set_attrs_type<AstypeAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAstype)
+    .set_attr<FInferType>("FInferType", InferTypeAstype)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -84,20 +83,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
 }
 
-StructInfo InferStructInfoWrapParam(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
+  TensorType ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
-  ffi::ObjectPtr<TensorStructInfoNode> new_sinfo =
-      ffi::make_object<TensorStructInfoNode>(*sinfo.get());
-  new_sinfo->dtype = attrs->dtype;
-  return TensorStructInfo(new_sinfo);
+  ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
+  new_ty->dtype = attrs->dtype;
+  return TensorType(new_ty);
 }
 
 TVM_REGISTER_OP("relax.wrap_param")
     .set_attrs_type<WrapParamAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWrapParam)
+    .set_attr<FInferType>("FInferType", InferTypeWrapParam)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

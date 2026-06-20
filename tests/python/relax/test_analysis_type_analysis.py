@@ -31,20 +31,20 @@ from tvm.script import tirx as T
 
 def test_get_static_type_basic():
     # object
-    s0 = rx.ObjectStructInfo()
+    s0 = rx.ObjectType()
     tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s0), rx.ObjectType())
 
     # prim
-    s1 = rx.PrimStructInfo("float32")
-    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s1), tvm.ir.PrimType("float32"))
+    s1 = rx.PrimType("float32")
+    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s1), rx.PrimType("float32"))
 
 
 def test_get_static_type_shape():
     # shape
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    s2 = rx.ShapeStructInfo([1, n + 1, m])
-    s3 = rx.ShapeStructInfo(ndim=2)
+    s2 = rx.ShapeType([1, n + 1, m])
+    s3 = rx.ShapeType(ndim=2)
 
     tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s2), rx.ShapeType(ndim=3))
 
@@ -53,7 +53,7 @@ def test_get_static_type_shape():
 
 def test_get_static_type_tensor():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
+    s4 = rx.TensorType([1, n + 1, m], "int64")
 
     tvm.ir.assert_structural_equal(
         rx.analysis.get_static_type(s4), rx.TensorType(ndim=3, dtype="int64")
@@ -63,11 +63,11 @@ def test_get_static_type_tensor():
 def test_get_static_type_tuple():
     # tuple
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    s0 = rx.ObjectStructInfo()
-    s2 = rx.ShapeStructInfo([1, n + 1, m])
-    s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
-    t0 = rx.TupleStructInfo([s4, s0])
-    t1 = rx.TupleStructInfo([t0, s2])
+    s0 = rx.ObjectType()
+    s2 = rx.ShapeType([1, n + 1, m])
+    s4 = rx.TensorType([1, n + 1, m], "int64")
+    t0 = rx.TupleType([s4, s0])
+    t1 = rx.TupleType([t0, s2])
 
     tvm.ir.assert_structural_equal(
         rx.analysis.get_static_type(t1),
@@ -84,10 +84,10 @@ def test_get_static_type_func():
     # tuple
     def fn_info(c):
         n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-        x = rx.TensorStructInfo([c, n, m], "float32")
-        y = rx.TensorStructInfo([c, n, 1], "float32")
-        z = rx.TensorStructInfo([c, n], "float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType([c, n, m], "float32")
+        y = rx.TensorType([c, n, 1], "float32")
+        z = rx.TensorType([c, n], "float32")
+        return rx.FuncType([x, y], z)
 
     def fn_type():
         x = rx.TensorType(ndim=3, dtype="float32")
@@ -101,46 +101,44 @@ def test_get_static_type_func():
 
 
 def test_erase_to_well_defined_basic():
-    s0 = rx.ObjectStructInfo()
+    s0 = rx.ObjectType()
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s0), s0)
 
     # prim
-    s1 = rx.PrimStructInfo("float32")
+    s1 = rx.PrimType("float32")
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s1), s1)
 
 
 def test_erase_to_well_defined_shape():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    s2 = rx.ShapeStructInfo([1, n + 1, m])
-    s3 = rx.ShapeStructInfo(ndim=2)
+    s2 = rx.ShapeType([1, n + 1, m])
+    s3 = rx.ShapeType(ndim=2)
     # have undefined
-    tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s2), rx.ShapeStructInfo(ndim=3)
-    )
+    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2), rx.ShapeType(ndim=3))
     # all defined
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2, {n: n, m: m}), s2)
 
     # replacement
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s2, {n: 2, m: m + 1}), rx.ShapeStructInfo([1, 3, m + 1])
+        rx.analysis.erase_to_well_defined(s2, {n: 2, m: m + 1}), rx.ShapeType([1, 3, m + 1])
     )
 
     # partial defined
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s2, {n: n}), rx.ShapeStructInfo(ndim=3)
+        rx.analysis.erase_to_well_defined(s2, {n: n}), rx.ShapeType(ndim=3)
     )
 
 
 def test_erase_to_well_defined_tensor():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    rshape = rx.Var("shape", rx.ShapeStructInfo(ndim=2))
-    s0 = rx.TensorStructInfo(rshape, dtype="int32")
+    rshape = rx.Var("shape", rx.ShapeType(ndim=2))
+    s0 = rx.TensorType(rshape, dtype="int32")
 
     # undefined
     tvm.ir.assert_structural_equal(
         rx.analysis.erase_to_well_defined(s0, None, None),
-        rx.TensorStructInfo(ndim=2, dtype="int32"),
+        rx.TensorType(ndim=2, dtype="int32"),
     )
 
     # defined
@@ -150,44 +148,42 @@ def test_erase_to_well_defined_tensor():
 
     tvm.ir.assert_structural_equal(
         rx.analysis.erase_to_well_defined(s0, None, {rshape: rx.ShapeExpr([1, 2])}),
-        rx.TensorStructInfo([1, 2], dtype="int32"),
+        rx.TensorType([1, 2], dtype="int32"),
     )
 
-    s1 = rx.TensorStructInfo([m + 1, n], dtype="float32")
+    s1 = rx.TensorType([m + 1, n], dtype="float32")
 
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s1, {n: n, m: m}), s1)
 
     tvm.ir.assert_structural_equal(
         rx.analysis.erase_to_well_defined(s1, {n: 2, m: 3}),
-        rx.TensorStructInfo([4, 2], dtype="float32"),
+        rx.TensorType([4, 2], dtype="float32"),
     )
 
     tvm.ir.assert_structural_equal(
         rx.analysis.erase_to_well_defined(s1, {m: m}, {rshape: rshape}),
-        rx.TensorStructInfo(ndim=2, dtype="float32"),
+        rx.TensorType(ndim=2, dtype="float32"),
     )
 
-    s2 = rx.TensorStructInfo([1, 2], dtype="float32")
+    s2 = rx.TensorType([1, 2], dtype="float32")
 
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2), s2)
 
 
 def test_erase_to_well_defined_tuple():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    s0 = rx.ObjectStructInfo()
-    s2 = rx.ShapeStructInfo([1, m])
-    s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
-    t0 = rx.TupleStructInfo([s4, s0])
-    t1 = rx.TupleStructInfo([t0, s2])
+    s0 = rx.ObjectType()
+    s2 = rx.ShapeType([1, m])
+    s4 = rx.TensorType([1, n + 1, m], "int64")
+    t0 = rx.TupleType([s4, s0])
+    t1 = rx.TupleType([t0, s2])
 
     tvm.ir.assert_structural_equal(
         rx.analysis.erase_to_well_defined(t1, {m: m + 1}),
-        rx.TupleStructInfo(
+        rx.TupleType(
             [
-                rx.TupleStructInfo(
-                    [rx.TensorStructInfo(ndim=3, dtype="int64"), rx.ObjectStructInfo()]
-                ),
-                rx.ShapeStructInfo([1, m + 1]),
+                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
+                rx.ShapeType([1, m + 1]),
             ]
         ),
     )
@@ -196,10 +192,10 @@ def test_erase_to_well_defined_tuple():
 def test_erase_to_well_defined_func():
     def fn_info(c):
         n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-        x = rx.TensorStructInfo([c, n, m], "float32")
-        y = rx.TensorStructInfo([c, n, 1], "float32")
-        z = rx.TensorStructInfo([c, n], "float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType([c, n, m], "float32")
+        y = rx.TensorType([c, n, 1], "float32")
+        z = rx.TensorType([c, n], "float32")
+        return rx.FuncType([x, y], z)
 
     f0 = fn_info(1)
 
@@ -211,15 +207,15 @@ def test_base_check():
     bcheck = rx.analysis.type_base_check
 
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    obj0 = rx.ObjectStructInfo()
-    prim0 = rx.PrimStructInfo("int32")
-    prim1 = rx.PrimStructInfo("float32")
+    obj0 = rx.ObjectType()
+    prim0 = rx.PrimType("int32")
+    prim1 = rx.PrimType("float32")
 
-    shape0 = rx.ShapeStructInfo(ndim=-1)
-    shape1 = rx.ShapeStructInfo(ndim=2)
-    shape2 = rx.ShapeStructInfo(ndim=3)
-    shape3 = rx.ShapeStructInfo([1, 2, 3])
-    shape4 = rx.ShapeStructInfo([1, n, 3])
+    shape0 = rx.ShapeType(ndim=-1)
+    shape1 = rx.ShapeType(ndim=2)
+    shape2 = rx.ShapeType(ndim=3)
+    shape3 = rx.ShapeType([1, 2, 3])
+    shape4 = rx.ShapeType([1, n, 3])
 
     vdevice0 = ir.VDevice()
     vdevice1 = ir.VDevice("llvm")
@@ -227,23 +223,23 @@ def test_base_check():
     vdevice3 = ir.VDevice("cuda", 2)
     vdevice4 = ir.VDevice("cuda", 0, "")
 
-    tensor0 = rx.TensorStructInfo(ndim=-1, dtype="int32")
-    tensor1 = rx.TensorStructInfo(ndim=-1, dtype="float32")
-    tensor2 = rx.TensorStructInfo(ndim=2, dtype="int32")
-    tensor3 = rx.TensorStructInfo(ndim=2, dtype="float32")
-    tensor4 = rx.TensorStructInfo([n, m], "int32")
-    tensor5 = rx.TensorStructInfo([n, m, 1], "int32")
-    tensor6 = rx.TensorStructInfo([n, m, 2], "int32")
-    tensor7 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice0)
-    tensor8 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice1)
-    tensor9 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice2)
-    tensor10 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice3)
-    tensor11 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice4)
-    tensor12 = rx.TensorStructInfo([n, m, 2], "int32", vdevice0)
-    tensor13 = rx.TensorStructInfo([n, m, 2], "int32", vdevice1)
-    tensor14 = rx.TensorStructInfo([n, m, 2], "int32", vdevice2)
-    tensor15 = rx.TensorStructInfo([n, m, 2], "int32", vdevice3)
-    tensor16 = rx.TensorStructInfo([n, m, 2], "int32", vdevice4)
+    tensor0 = rx.TensorType(ndim=-1, dtype="int32")
+    tensor1 = rx.TensorType(ndim=-1, dtype="float32")
+    tensor2 = rx.TensorType(ndim=2, dtype="int32")
+    tensor3 = rx.TensorType(ndim=2, dtype="float32")
+    tensor4 = rx.TensorType([n, m], "int32")
+    tensor5 = rx.TensorType([n, m, 1], "int32")
+    tensor6 = rx.TensorType([n, m, 2], "int32")
+    tensor7 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice0)
+    tensor8 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice1)
+    tensor9 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice2)
+    tensor10 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice3)
+    tensor11 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice4)
+    tensor12 = rx.TensorType([n, m, 2], "int32", vdevice0)
+    tensor13 = rx.TensorType([n, m, 2], "int32", vdevice1)
+    tensor14 = rx.TensorType([n, m, 2], "int32", vdevice2)
+    tensor15 = rx.TensorType([n, m, 2], "int32", vdevice3)
+    tensor16 = rx.TensorType([n, m, 2], "int32", vdevice4)
 
     # obj
     assert bcheck(obj0, prim0) == BR.PASS
@@ -277,7 +273,7 @@ def test_base_check():
 
     # shape mismatch
     assert bcheck(shape3, shape4) == BR.FAIL_L2
-    assert shape4.is_base_of(rx.ShapeStructInfo([1, n, 3]))
+    assert shape4.is_base_of(rx.ShapeType([1, n, 3]))
 
     # tensor
     assert bcheck(tensor0, obj0) == BR.FAIL_L1
@@ -305,7 +301,7 @@ def test_base_check():
     assert bcheck(tensor5, tensor6) == BR.FAIL_L0
 
     # match
-    assert tensor0.is_base_of(rx.TensorStructInfo(ndim=-1, dtype="int32"))
+    assert tensor0.is_base_of(rx.TensorType(ndim=-1, dtype="int32"))
     assert tensor0.is_base_of(tensor2)
     assert tensor0.is_base_of(tensor4)
     assert tensor0.is_base_of(tensor5)
@@ -315,40 +311,40 @@ def test_base_check():
     assert tensor3.is_base_of(tensor8)
     assert tensor6.is_base_of(tensor12)
     assert tensor6.is_base_of(tensor13)
-    assert tensor4.is_base_of(rx.TensorStructInfo([n, m], dtype="int32"))
+    assert tensor4.is_base_of(rx.TensorType([n, m], dtype="int32"))
 
     # tuple
-    t0 = rx.TupleStructInfo([obj0, tensor0])
-    t1 = rx.TupleStructInfo([prim0, tensor4])
-    t2 = rx.TupleStructInfo([obj0, tensor0, obj0])
-    t3 = rx.TupleStructInfo([tensor0, obj0])
+    t0 = rx.TupleType([obj0, tensor0])
+    t1 = rx.TupleType([prim0, tensor4])
+    t2 = rx.TupleType([obj0, tensor0, obj0])
+    t3 = rx.TupleType([tensor0, obj0])
 
     assert t0.is_base_of(t1)
 
     assert bcheck(t0, t2) == BR.FAIL_L0
     assert bcheck(t0, t3) == BR.FAIL_L1
 
-    assert rx.TupleStructInfo([t0, t1]).is_base_of(rx.TupleStructInfo([t1, t1]))
-    assert bcheck(rx.TupleStructInfo([t0, t1]), rx.TupleStructInfo([t1, t0])) == BR.FAIL_L1
+    assert rx.TupleType([t0, t1]).is_base_of(rx.TupleType([t1, t1]))
+    assert bcheck(rx.TupleType([t0, t1]), rx.TupleType([t1, t0])) == BR.FAIL_L1
 
     def fn_info_shape(c):
         n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-        x = rx.TensorStructInfo([c, n, m], "float32")
-        y = rx.TensorStructInfo([c, n, 1], "float32")
-        z = rx.TensorStructInfo([c, n], "float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType([c, n, m], "float32")
+        y = rx.TensorType([c, n, 1], "float32")
+        z = rx.TensorType([c, n], "float32")
+        return rx.FuncType([x, y], z)
 
     def fn_info_erased():
-        x = rx.TensorStructInfo(ndim=3, dtype="float32")
-        y = rx.TensorStructInfo(ndim=3, dtype="float32")
-        z = rx.TensorStructInfo(ndim=2, dtype="float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType(ndim=3, dtype="float32")
+        y = rx.TensorType(ndim=3, dtype="float32")
+        z = rx.TensorType(ndim=2, dtype="float32")
+        return rx.FuncType([x, y], z)
 
     assert fn_info_shape(1).is_base_of(fn_info_shape(1))
     assert fn_info_erased().is_base_of(fn_info_shape(1))
     assert bcheck(fn_info_shape(1), fn_info_erased()) == BR.FAIL_L2
 
-    fopaque = rx.FuncStructInfo.opaque_func()
+    fopaque = rx.FuncType.opaque_func()
     assert fopaque.is_base_of(fn_info_shape(1))
 
 
@@ -356,8 +352,8 @@ def _check_derive(ctx, finfo, args_ty, ret):
     gv = rx.GlobalVar("test")
     rx.expr._update_type(gv, finfo)
     args = []
-    for i, sinfo in enumerate(args_ty):
-        arg = rx.Var(f"arg{i}", sinfo)
+    for i, ty in enumerate(args_ty):
+        arg = rx.Var(f"arg{i}", ty)
         args.append(arg)
     call = rx.Call(gv, args)
     derived_ret = rx.analysis.derive_call_ret_type(finfo, call, ctx)
@@ -365,8 +361,8 @@ def _check_derive(ctx, finfo, args_ty, ret):
 
 
 def test_derive_call_ret_type():
-    obj0 = rx.ObjectStructInfo()
-    prim0 = rx.PrimStructInfo("float32")
+    obj0 = rx.ObjectType()
+    prim0 = rx.PrimType("float32")
 
     n, m = tirx.Var("n0", "int64"), tirx.Var("m0", "int64")
     bb = rx.BlockBuilder()
@@ -375,23 +371,23 @@ def test_derive_call_ret_type():
 
         def func0(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x = rx.TensorStructInfo([n, m], "float32")
-            z = rx.TensorStructInfo([m + c, n], "float32")
-            return rx.FuncStructInfo([x], z)
+            x = rx.TensorType([n, m], "float32")
+            z = rx.TensorType([m + c, n], "float32")
+            return rx.FuncType([x], z)
 
         # Tensor => Tensor
         _check_derive(
             bb,
             func0(1),
-            [rx.TensorStructInfo([10, 11], "float32")],
-            rx.TensorStructInfo([12, 10], "float32"),
+            [rx.TensorType([10, 11], "float32")],
+            rx.TensorType([12, 10], "float32"),
         )
 
         _check_derive(
             bb,
             func0(2),
-            [rx.TensorStructInfo([n, m], "float32")],
-            rx.TensorStructInfo([m + 2, n], "float32"),
+            [rx.TensorType([n, m], "float32")],
+            rx.TensorType([m + 2, n], "float32"),
         )
 
         # passing in information that cannot deduce n, m
@@ -400,8 +396,8 @@ def test_derive_call_ret_type():
         _check_derive(
             bb,
             func0(2),
-            [rx.TensorStructInfo(ndim=2, dtype="float32")],
-            rx.TensorStructInfo(ndim=2, dtype="float32"),
+            [rx.TensorType(ndim=2, dtype="float32")],
+            rx.TensorType(ndim=2, dtype="float32"),
         )
 
         # Error: wrong number of arguments
@@ -409,8 +405,8 @@ def test_derive_call_ret_type():
             _check_derive(
                 bb,
                 func0(2),
-                [rx.TensorStructInfo(ndim=2, dtype="float32"), obj0],
-                rx.TensorStructInfo(ndim=2, dtype="float32"),
+                [rx.TensorType(ndim=2, dtype="float32"), obj0],
+                rx.TensorType(ndim=2, dtype="float32"),
             )
 
         # Error:type mismatch
@@ -422,65 +418,65 @@ def test_derive_call_ret_type():
 
         def func1(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x = rx.TensorStructInfo([n, m], "float32", vdev)
-            z = rx.TensorStructInfo([m + c, n], "float32", vdev)
-            return rx.FuncStructInfo([x], z)
+            x = rx.TensorType([n, m], "float32", vdev)
+            z = rx.TensorType([m + c, n], "float32", vdev)
+            return rx.FuncType([x], z)
 
         _check_derive(
             bb,
             func1(1),
-            [rx.TensorStructInfo([10, 11], "float32", vdev)],
-            rx.TensorStructInfo([12, 10], "float32", vdev),
+            [rx.TensorType([10, 11], "float32", vdev)],
+            rx.TensorType([12, 10], "float32", vdev),
         )
 
         # opaque derivation
-        fopaque0 = lambda: rx.FuncStructInfo.opaque_func()
-        fopaque1 = lambda: rx.FuncStructInfo.opaque_func(ret=prim0)
+        fopaque0 = lambda: rx.FuncType.opaque_func()
+        fopaque1 = lambda: rx.FuncType.opaque_func(ret=prim0)
         _check_derive(bb, fopaque0(), [obj0, prim0], obj0)
         _check_derive(bb, fopaque1(), [obj0, prim0], prim0)
 
         # recursive tuple derivation
         def func_tuple0(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x0 = rx.TensorStructInfo([n, c], "float32")
-            x1 = rx.TensorStructInfo([n + c, m], "float32")
-            z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
-            return rx.FuncStructInfo([rx.TupleStructInfo([x0, x1])], z)
+            x0 = rx.TensorType([n, c], "float32")
+            x1 = rx.TensorType([n + c, m], "float32")
+            z = rx.TupleType([rx.TensorType([m, n], "float32")])
+            return rx.FuncType([rx.TupleType([x0, x1])], z)
 
         _check_derive(
             bb,
             func_tuple0(2),
             [
-                rx.TupleStructInfo(
+                rx.TupleType(
                     [
-                        rx.TensorStructInfo([n, 2], "float32"),
-                        rx.TensorStructInfo([n + 2, 10], "float32"),
+                        rx.TensorType([n, 2], "float32"),
+                        rx.TensorType([n + 2, 10], "float32"),
                     ]
                 )
             ],
-            rx.TupleStructInfo([rx.TensorStructInfo([10, n], "float32")]),
+            rx.TupleType([rx.TensorType([10, n], "float32")]),
         )
 
         def func_tuple1(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x0 = rx.TensorStructInfo([n, m], "float32")
-            x1 = rx.TensorStructInfo([n + c, c], "float32")
-            z = rx.TupleStructInfo([rx.TensorStructInfo([m, n], "float32")])
-            return rx.FuncStructInfo([rx.TupleStructInfo([x0, x1])], z)
+            x0 = rx.TensorType([n, m], "float32")
+            x1 = rx.TensorType([n + c, c], "float32")
+            z = rx.TupleType([rx.TensorType([m, n], "float32")])
+            return rx.FuncType([rx.TupleType([x0, x1])], z)
 
         # Still OK, to pass erased tensor into n+2, n is captured by other argument.
         _check_derive(
             bb,
             func_tuple1(4),
             [
-                rx.TupleStructInfo(
+                rx.TupleType(
                     [
-                        rx.TensorStructInfo([n, 4], "float32"),
-                        rx.TensorStructInfo(ndim=2, dtype="float32"),
+                        rx.TensorType([n, 4], "float32"),
+                        rx.TensorType(ndim=2, dtype="float32"),
                     ]
                 )
             ],
-            rx.TupleStructInfo([rx.TensorStructInfo([4, n], "float32")]),
+            rx.TupleType([rx.TensorType([4, n], "float32")]),
         )
 
         # tuple length mismatch is not causes an error
@@ -488,28 +484,28 @@ def test_derive_call_ret_type():
             _check_derive(
                 bb,
                 func_tuple0(4),
-                [rx.TupleStructInfo([rx.TensorStructInfo([n, 4], "float32")])],
-                rx.TupleStructInfo([rx.TensorStructInfo([10, n], "float32")]),
+                [rx.TupleType([rx.TensorType([n, 4], "float32")])],
+                rx.TupleType([rx.TensorType([10, n], "float32")]),
             )
 
         # mixed shape types
         def func_shape_mixed(c):
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x0 = rx.ShapeStructInfo([n, m])
+            x0 = rx.ShapeType([n, m])
             f0 = func_tuple0(c)
-            z = rx.ShapeStructInfo([m + n, c])
-            return rx.FuncStructInfo([x0, f0], z)
+            z = rx.ShapeType([m + n, c])
+            return rx.FuncType([x0, f0], z)
 
         _check_derive(
             bb,
             func_shape_mixed(3),
             [
-                rx.ShapeStructInfo([10, 20]),
+                rx.ShapeType([10, 20]),
                 # have to specify purity because an impure function cannot be passed
                 # where a pure one is expected
-                rx.FuncStructInfo.opaque_func(ret=rx.ShapeStructInfo(ndim=2), purity=True),
+                rx.FuncType.opaque_func(ret=rx.ShapeType(ndim=2), purity=True),
             ],
-            rx.ShapeStructInfo([30, 3]),
+            rx.ShapeType([30, 3]),
         )
 
 
@@ -520,30 +516,30 @@ def _check_lca(lhs, rhs, target):
 
 def test_type_lca():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    obj0 = rx.ObjectStructInfo()
-    prim0 = rx.PrimStructInfo("int32")
-    prim1 = rx.PrimStructInfo("float32")
+    obj0 = rx.ObjectType()
+    prim0 = rx.PrimType("int32")
+    prim1 = rx.PrimType("float32")
 
     vdevice0 = ir.VDevice("llvm")
     vdevice1 = ir.VDevice("cuda", 0)
 
-    shape0 = rx.ShapeStructInfo(ndim=-1)
-    shape1 = rx.ShapeStructInfo(ndim=2)
-    shape2 = rx.ShapeStructInfo(ndim=3)
-    shape3 = rx.ShapeStructInfo([1, 2, 3])
-    shape4 = rx.ShapeStructInfo([1, n, 3])
+    shape0 = rx.ShapeType(ndim=-1)
+    shape1 = rx.ShapeType(ndim=2)
+    shape2 = rx.ShapeType(ndim=3)
+    shape3 = rx.ShapeType([1, 2, 3])
+    shape4 = rx.ShapeType([1, n, 3])
 
-    tensor0 = rx.TensorStructInfo(ndim=-1, dtype="int32")
-    tensor1 = rx.TensorStructInfo(ndim=-1, dtype="float32")
-    tensor2 = rx.TensorStructInfo(ndim=2, dtype="int32")
-    tensor3 = rx.TensorStructInfo(ndim=2, dtype="float32")
-    tensor4 = rx.TensorStructInfo([n, m], "int32")
-    tensor5 = rx.TensorStructInfo([n, m, 1], "int32")
-    tensor6 = rx.TensorStructInfo([n, m, 2], "int32")
-    tensor7 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice0)
-    tensor8 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice1)
-    tensor9 = rx.TensorStructInfo([n, m, 2], "int32", vdevice0)
-    tensor10 = rx.TensorStructInfo([n, m, 2], "int32", vdevice1)
+    tensor0 = rx.TensorType(ndim=-1, dtype="int32")
+    tensor1 = rx.TensorType(ndim=-1, dtype="float32")
+    tensor2 = rx.TensorType(ndim=2, dtype="int32")
+    tensor3 = rx.TensorType(ndim=2, dtype="float32")
+    tensor4 = rx.TensorType([n, m], "int32")
+    tensor5 = rx.TensorType([n, m, 1], "int32")
+    tensor6 = rx.TensorType([n, m, 2], "int32")
+    tensor7 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice0)
+    tensor8 = rx.TensorType(ndim=2, dtype="float32", vdevice=vdevice1)
+    tensor9 = rx.TensorType([n, m, 2], "int32", vdevice0)
+    tensor10 = rx.TensorType([n, m, 2], "int32", vdevice1)
 
     # obj
     _check_lca(obj0, prim0, obj0)
@@ -557,11 +553,11 @@ def test_type_lca():
 
     _check_lca(shape2, shape3, shape2)
     _check_lca(shape3, shape4, shape2)
-    _check_lca(shape4, rx.ShapeStructInfo([1, n, 3]), shape4)
+    _check_lca(shape4, rx.ShapeType([1, n, 3]), shape4)
 
     # tensor
     _check_lca(tensor0, prim0, obj0)
-    _check_lca(tensor0, tensor1, rx.TensorStructInfo(ndim=-1, dtype=None))
+    _check_lca(tensor0, tensor1, rx.TensorType(ndim=-1, dtype=None))
     _check_lca(tensor0, tensor2, tensor0)
     _check_lca(tensor0, tensor4, tensor0)
     _check_lca(tensor0, tensor4, tensor0)
@@ -573,46 +569,44 @@ def test_type_lca():
     _check_lca(tensor6, tensor10, tensor6)
 
     _check_lca(tensor2, tensor4, tensor2)
-    _check_lca(tensor5, tensor6, rx.TensorStructInfo(ndim=3, dtype="int32"))
-    _check_lca(tensor4, tensor5, rx.TensorStructInfo(ndim=-1, dtype="int32"))
-    _check_lca(tensor4, rx.TensorStructInfo([n, m], dtype="int32"), tensor4)
+    _check_lca(tensor5, tensor6, rx.TensorType(ndim=3, dtype="int32"))
+    _check_lca(tensor4, tensor5, rx.TensorType(ndim=-1, dtype="int32"))
+    _check_lca(tensor4, rx.TensorType([n, m], dtype="int32"), tensor4)
 
     # tuple
-    t0 = rx.TupleStructInfo([obj0, tensor0])
-    t1 = rx.TupleStructInfo([prim0, tensor4])
-    t2 = rx.TupleStructInfo([obj0, tensor0, obj0])
-    t3 = rx.TupleStructInfo([tensor0, obj0])
+    t0 = rx.TupleType([obj0, tensor0])
+    t1 = rx.TupleType([prim0, tensor4])
+    t2 = rx.TupleType([obj0, tensor0, obj0])
+    t3 = rx.TupleType([tensor0, obj0])
 
     _check_lca(t0, t1, t0)
     _check_lca(t0, t2, obj0)
-    _check_lca(t0, t3, rx.TupleStructInfo([obj0, obj0]))
+    _check_lca(t0, t3, rx.TupleType([obj0, obj0]))
 
-    t5 = rx.TupleStructInfo([t0, t1])
-    t6 = rx.TupleStructInfo([t1, t2])
+    t5 = rx.TupleType([t0, t1])
+    t6 = rx.TupleType([t1, t2])
 
-    _check_lca(t5, t6, rx.TupleStructInfo([t0, obj0]))
+    _check_lca(t5, t6, rx.TupleType([t0, obj0]))
 
-    t7 = rx.TupleStructInfo([])
-    _check_lca(t7, rx.TupleStructInfo([]), t7)
+    t7 = rx.TupleType([])
+    _check_lca(t7, rx.TupleType([]), t7)
 
     def fn_info_shape(c):
         n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-        x = rx.TensorStructInfo([c, n, m], "float32")
-        y = rx.TensorStructInfo([c, n, 1], "float32")
-        z = rx.TensorStructInfo([c, n], "float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType([c, n, m], "float32")
+        y = rx.TensorType([c, n, 1], "float32")
+        z = rx.TensorType([c, n], "float32")
+        return rx.FuncType([x, y], z)
 
     def fn_info_erased():
-        x = rx.TensorStructInfo(ndim=3, dtype="float32")
-        y = rx.TensorStructInfo(ndim=3, dtype="float32")
-        z = rx.TensorStructInfo(ndim=2, dtype="float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType(ndim=3, dtype="float32")
+        y = rx.TensorType(ndim=3, dtype="float32")
+        z = rx.TensorType(ndim=2, dtype="float32")
+        return rx.FuncType([x, y], z)
 
-    fopaque0 = lambda: rx.FuncStructInfo.opaque_func()
-    fopaque1 = lambda: rx.FuncStructInfo.opaque_func(ret=prim0)
-    fopaque2 = lambda: rx.FuncStructInfo.opaque_func(
-        ret=rx.TensorStructInfo(ndim=2, dtype="float32")
-    )
+    fopaque0 = lambda: rx.FuncType.opaque_func()
+    fopaque1 = lambda: rx.FuncType.opaque_func(ret=prim0)
+    fopaque2 = lambda: rx.FuncType.opaque_func(ret=rx.TensorType(ndim=2, dtype="float32"))
 
     _check_lca(fn_info_shape(1), fn_info_shape(2), fn_info_erased())
     _check_lca(fn_info_shape(2), fn_info_shape(2), fn_info_shape(2))
@@ -639,7 +633,7 @@ def _generate_prim_test_cases():
     ]
 
     for dtype in dtypes:
-        # LCA of a PrimStructInfo with itself yields itself
+        # LCA of a PrimType with itself yields itself
         yield (R.Prim(dtype), R.Prim(dtype), R.Prim(dtype))
 
         # The LCA of two values, each statically known to be the same
@@ -696,17 +690,17 @@ def _generate_prim_test_cases():
 
 @pytest.mark.parametrize("test_case", list(_generate_prim_test_cases()))
 def test_prim_type_lca(test_case):
-    def _normalize_sinfo(sinfo):
-        if isinstance(sinfo, tvm.relax.StructInfo):
-            return sinfo
-        elif isinstance(sinfo, tvm.script.parser.relax.entry.StructInfoProxy):
-            return sinfo.as_struct_info()
-        elif callable(sinfo):
-            return sinfo()
+    def _normalize_ty(ty):
+        if isinstance(ty, tvm.relax.Type):
+            return ty
+        elif isinstance(ty, tvm.script.parser.relax.entry.TypeProxy):
+            return ty.as_ty()
+        elif callable(ty):
+            return ty()
         else:
-            raise TypeError(f"Cannot normalize {type(sinfo)} to StructInfo")
+            raise TypeError(f"Cannot normalize {type(ty)} to Type")
 
-    lhs, rhs, expected = map(_normalize_sinfo, test_case)
+    lhs, rhs, expected = map(_normalize_ty, test_case)
 
     lca = rx.analysis.type_lca(lhs, rhs)
     assert tvm_ffi.structural_equal(lca, expected), (
@@ -716,14 +710,14 @@ def test_prim_type_lca(test_case):
 
 def _generate_tir_var_test_cases():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    shape0 = rx.ShapeStructInfo([1, n, 3])
-    shape1 = rx.ShapeStructInfo([1, 2 * n, n, m])
-    shape2 = rx.ShapeStructInfo([1, 2 * n, m])
-    tensor0 = rx.TensorStructInfo([1, n, 3], "int32")
-    tensor1 = rx.TensorStructInfo([1, 2 * n, n, m], "int32")
-    tensor2 = rx.TensorStructInfo([1, 2 * n, m], "int32")
-    func = rx.FuncStructInfo(
-        [rx.TensorStructInfo([1, 2 * n, n, m], "int32")], rx.TensorStructInfo([1, n, 3], "int32")
+    shape0 = rx.ShapeType([1, n, 3])
+    shape1 = rx.ShapeType([1, 2 * n, n, m])
+    shape2 = rx.ShapeType([1, 2 * n, m])
+    tensor0 = rx.TensorType([1, n, 3], "int32")
+    tensor1 = rx.TensorType([1, 2 * n, n, m], "int32")
+    tensor2 = rx.TensorType([1, 2 * n, m], "int32")
+    func = rx.FuncType(
+        [rx.TensorType([1, 2 * n, n, m], "int32")], rx.TensorType([1, n, 3], "int32")
     )
 
     yield shape0, [n], [n]
@@ -739,13 +733,13 @@ tir_var_test_case = tvm.testing.parameter(*_generate_tir_var_test_cases())
 
 
 def test_tir_vars_in_type(tir_var_test_case):
-    sinfo, _vars_definable, vars_used = tir_var_test_case
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_type(sinfo), vars_used)
+    ty, _vars_definable, vars_used = tir_var_test_case
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_type(ty), vars_used)
 
 
 def test_definable_tir_vars_in_type(tir_var_test_case):
-    sinfo, vars_definable, _vars_used = tir_var_test_case
-    tvm.ir.assert_structural_equal(rx.analysis.definable_tir_vars_in_type(sinfo), vars_definable)
+    ty, vars_definable, _vars_used = tir_var_test_case
+    tvm.ir.assert_structural_equal(rx.analysis.definable_tir_vars_in_type(ty), vars_definable)
 
 
 def test_collect_symbolic_var_from_tensor_shape():
@@ -757,10 +751,10 @@ def test_collect_symbolic_var_from_tensor_shape():
         tirx.Var("p", "int64"),
     )
     bb = rx.BlockBuilder()
-    x = rx.Var("x", rx.TensorStructInfo([m, m + n], "float32"))
+    x = rx.Var("x", rx.TensorType([m, m + n], "float32"))
     with bb.function("main", [x]):
-        v0 = bb.match_cast(x, rx.TensorStructInfo([m, k], "float32"))
-        v1 = bb.emit(rx.call_dps_packed("test", x, rx.TensorStructInfo([p, q], "float32")))
+        v0 = bb.match_cast(x, rx.TensorType([m, k], "float32"))
+        v1 = bb.emit(rx.call_dps_packed("test", x, rx.TensorType([p, q], "float32")))
         bb.emit_func_output(rx.const(1))
     func = bb.get()["main"]
 
@@ -779,16 +773,16 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
     tir_m = tirx.Var("m", "int64")
 
     bb = rx.BlockBuilder()
-    arg = rx.Var("arg", rx.TensorStructInfo([tir_n * tir_m]))
+    arg = rx.Var("arg", rx.TensorType([tir_n * tir_m]))
 
     if param_type == "shape_expr":
         extra_params = [
-            rx.Var("shape_expr", rx.ShapeStructInfo([tir_n, tir_m])),
+            rx.Var("shape_expr", rx.ShapeType([tir_n, tir_m])),
         ]
     elif param_type == "prim_value":
         extra_params = [
-            rx.Var("n", rx.PrimStructInfo(value=tir_n)),
-            rx.Var("m", rx.PrimStructInfo(value=tir_m)),
+            rx.Var("n", rx.PrimType(value=tir_n)),
+            rx.Var("m", rx.PrimType(value=tir_m)),
         ]
     else:
         raise ValueError(f"Unknown param_type: {param_type}")

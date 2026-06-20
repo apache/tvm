@@ -717,13 +717,13 @@ def test_call_py_func_with_base_py_module():
     import numpy as np
     import torch
 
-    from tvm.relax import TensorStructInfo, Var
+    from tvm.relax import TensorType, Var
     from tvm.relax.expr import StringImm
     from tvm.relax.op import call_py_func
 
     # Test 1: Operator creation and basic properties
-    x = Var("x", TensorStructInfo((5,), "float32"))
-    y = Var("y", TensorStructInfo((5,), "float32"))
+    x = Var("x", TensorType((5,), "float32"))
+    y = Var("y", TensorType((5,), "float32"))
 
     call_expr = call_py_func(StringImm("test_func"), (x, y), out_ty=R.Tensor((5,), "float32"))
 
@@ -735,7 +735,7 @@ def test_call_py_func_with_base_py_module():
     try:
         call_py_func(
             "invalid",
-            (Var("x", TensorStructInfo((5,), "float32")),),
+            (Var("x", TensorType((5,), "float32")),),
             out_ty=R.Tensor((5,), "float32"),
         )
         assert False, "Should raise type error"

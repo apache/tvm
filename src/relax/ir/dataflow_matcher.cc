@@ -428,15 +428,15 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const StructInfoPatternNode* op, const Expr& expr0) {
+bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
   if (!VisitDFPattern(op->pattern, expr0)) {
     return false;
   }
 
   auto expr = UnwrapBindings(expr0, var2val_);
-  auto expr_struct_info = GetType(expr);
+  auto expr_ty = GetType(expr);
 
-  PrimExpr new_constraint = TypeBaseCheckPrecondition(op->struct_info, expr_struct_info);
+  PrimExpr new_constraint = TypeBaseCheckPrecondition(op->ty, expr_ty);
   if (auto* as_int = new_constraint.as<IntImmNode>()) {
     return as_int->value;
   }
@@ -490,7 +490,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
   // no need to jump, as var.shape == value.shape
-  if (const auto* tinfo = GetTypeAs<TensorStructInfoNode>(expr)) {
+  if (const auto* tinfo = GetTypeAs<TensorTypeNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
       return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
@@ -511,10 +511,10 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
     if (auto opt_var = match_state(arg.get())) {
       auto var = opt_var.value();
       auto opt_var_shape = [&]() -> ffi::Optional<ffi::Array<PrimExpr>> {
-        auto sinfo = GetType(var);
-        if (auto tensor = sinfo.as<TensorStructInfoNode>()) {
+        auto ty = GetType(var);
+        if (auto tensor = ty.as<TensorTypeNode>()) {
           return tensor->GetShape();
-        } else if (auto shape_expr = sinfo.as<ShapeStructInfoNode>()) {
+        } else if (auto shape_expr = ty.as<ShapeTypeNode>()) {
           return shape_expr->values;
         } else {
           return std::nullopt;
@@ -572,7 +572,7 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   // no need to jump, as var.dtype == value.dtype
   auto expr_ty = expr.as<ExprNode>()->ty;
-  if (const TensorStructInfoNode* tensor_ty = expr_ty.as<TensorStructInfoNode>()) {
+  if (const TensorTypeNode* tensor_ty = expr_ty.as<TensorTypeNode>()) {
     return (ffi::StructuralEqual()(op->dtype, tensor_ty->dtype)) &&
            VisitDFPattern(op->pattern, expr);
   }

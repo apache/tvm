@@ -37,7 +37,7 @@ from tvm.relax.expr import (
     VarBinding,
 )
 from tvm.relax.transform import PatternCheckContext
-from tvm.relax.type import PrimStructInfo, TensorStructInfo
+from tvm.relax.type import PrimType, TensorType
 from tvm.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor
@@ -355,14 +355,14 @@ class CodegenCoreML(PyExprVisitor):
     def visit_function_(self, op) -> None:
         for var in op.params:
             name = var.name_hint
-            sinfo = var.ty
-            if isinstance(sinfo, TensorStructInfo):
-                shape = [int(v) for v in list(sinfo.shape)]
-            elif isinstance(sinfo, PrimStructInfo):
+            ty = var.ty
+            if isinstance(ty, TensorType):
+                shape = [int(v) for v in list(ty.shape)]
+            elif isinstance(ty, PrimType):
                 shape = []
             else:
-                raise Exception("Currently not supported: ", type(sinfo))
-            dtype = sinfo.dtype
+                raise Exception("Currently not supported: ", type(ty))
+            dtype = ty.dtype
             self.model_inputs_.append((name, shape, dtype))
 
         self.visit_expr(op.body)

@@ -100,15 +100,15 @@ class FunctionFrameNode : public SeqExprFrameNode {
   /*! \brief The function params. */
   ffi::Array<tvm::relax::Var> params;
   /*!
-   * \brief The function return struct info.
+   * \brief The function return type.
    * \note Usually the function return type can be deduced by the function body.
    *       But we can use this field to specify a more "accurate" return type.
-   *       i.e. If the `ret_struct_info` is None, try to use the deduced type from body
-   *       If the `ret_struct_info` is not None, we can still take body.struct_info
-   *       if we ret_struct_info is base of body.struct_info. If not, we will
-   *       take the specified `ret_struct_info`.
+   *       i.e. If the `ret_ty` is None, try to use the deduced type from body
+   *       If the `ret_ty` is not None, we can still take body.ty
+   *       if we ret_ty is base of body.ty. If not, we will
+   *       take the specified `ret_ty`.
    */
-  ffi::Optional<tvm::relax::StructInfo> ret_struct_info;
+  ffi::Optional<tvm::Type> ret_ty;
   /*! \brief Whether the function is annotated as pure */
   ffi::Optional<bool> is_pure;
   /*! \brief Whether the function is annotated as private */
@@ -123,7 +123,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
     refl::ObjectDef<FunctionFrameNode>()
         .def_ro("name", &FunctionFrameNode::name)
         .def_ro("params", &FunctionFrameNode::params)
-        .def_ro("ret_struct_info", &FunctionFrameNode::ret_struct_info)
+        .def_ro("ret_ty", &FunctionFrameNode::ret_ty)
         .def_ro("is_pure", &FunctionFrameNode::is_pure)
         .def_ro("attrs", &FunctionFrameNode::attrs);
     // `binding_blocks` and `output` are inherited from SeqExprFrameNode.

@@ -118,7 +118,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    return Call(builtin_call_tir_dyn_, args, Attrs(), {void_sinfo_});
+    return Call(builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
   }
 
   Expr Reshape(const Call& call_node) {
@@ -126,11 +126,11 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     TVM_FFI_ICHECK(call_node->ty.defined());
     auto arg = call_node->args[1];
 
-    TVM_FFI_CHECK(arg->ty->IsInstance<ShapeStructInfoNode>(), TypeError)
+    TVM_FFI_CHECK(arg->ty->IsInstance<ShapeTypeNode>(), TypeError)
         << "VMBuiltinLower expects the shape arg of R.reshape "
         << "to be a ShapeExpr or VarNode bound to a ShapeExpr.  "
-        << "However, in expression " << call_node << ", the shape argument " << arg
-        << " has struct info " << arg->ty;
+        << "However, in expression " << call_node << ", the shape argument " << arg << " has type "
+        << arg->ty;
 
     return Call(builtin_reshape_, call_node->args, Attrs(), {GetType(call_node)});
   }
@@ -159,7 +159,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     auto combined_tuple = Tuple(tuple_fields);
 
     // Direct call to vm.builtin.call_py_func
-    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->sinfo_args,
+    return Call(builtin_call_py_func_, {combined_tuple}, call_node->attrs, call_node->ty_args,
                 call_node->span);
   }
 
@@ -195,7 +195,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
 
-    return Call(builtin_make_closure_, args, Attrs(), {object_sinfo_});
+    return Call(builtin_make_closure_, args, Attrs(), {object_ty_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -213,12 +213,12 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
     return Call(call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)}, Attrs(),
-                {object_sinfo_});
+                {object_ty_});
   }
 
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
-  const StructInfo object_sinfo_ = ObjectStructInfo();
-  const StructInfo void_sinfo_ = TupleStructInfo(ffi::Array<StructInfo>({}));
+  const Type object_ty_ = ObjectType();
+  const Type void_ty_ = TupleType(ffi::Array<Type>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");

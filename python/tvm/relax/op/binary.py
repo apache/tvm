@@ -43,9 +43,9 @@ def add(x1: Expr, x2: Expr) -> Expr:
     .. code:: python
 
       bb = relax.BlockBuilder()
-      a = relax.Var("a", relax.TensorStructInfo(shape=(2, 3), dtype="float32"))
-      b = relax.Var("b", relax.TensorStructInfo(shape=(2, 1), dtype="float32"))
-      c = bb.normalize(relax.op.add(a, b))  # c has TensorStructInfo(shape=(2, 3), dtype="float32")
+      a = relax.Var("a", relax.TensorType(shape=(2, 3), dtype="float32"))
+      b = relax.Var("b", relax.TensorType(shape=(2, 1), dtype="float32"))
+      c = bb.normalize(relax.op.add(a, b))  # c has TensorType(shape=(2, 3), dtype="float32")
     """
     return _ffi_api.add(x1, x2)  # type: ignore
 

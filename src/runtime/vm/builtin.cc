@@ -43,7 +43,7 @@ namespace vm {
 using tvm::runtime::Tensor;
 
 //-------------------------------------------------
-//  Shape/StructInfo handling.
+//  Shape/Type handling.
 //-------------------------------------------------
 /*!
  * \brief Builtin function to allocate shape heap.

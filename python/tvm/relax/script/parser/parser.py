@@ -24,7 +24,7 @@ import tvm_ffi
 
 from tvm import relax, tirx
 from tvm.ir import GlobalVar
-from tvm.relax import Expr, StructInfo
+from tvm.relax import Expr, Type
 from tvm.relax.script import builder as R
 from tvm.relax.script.builder.frame import BindingBlockFrame
 from tvm.relax.utils import convert_to_expr
@@ -34,9 +34,9 @@ from tvm.script.parser._core import Parser, dispatch, doc
 
 from .entry import (
     MatchCastPair,
-    StructInfoProxy,
-    _normalize_struct_info,
-    _normalize_struct_info_proxy,
+    TypeProxy,
+    _normalize_ty,
+    _normalize_ty_proxy,
 )
 
 
@@ -45,7 +45,7 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    anno_ty: StructInfo | None = None,
+    anno_ty: Type | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -102,20 +102,20 @@ def bind_assign_value(
     return var
 
 
-def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
+def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
     try:
         annotation = self.eval_expr(node)
-        return _normalize_struct_info_proxy(annotation)
+        return _normalize_ty_proxy(annotation)
     except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
         raise
 
 
-def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
+def eval_ty(self: Parser, node: doc.expr, eval_str: bool = False) -> Type:
     var_table = self.var_table.get() if eval_str else None
     try:
-        struct_info = self.eval_expr(node)
-        return _normalize_struct_info(struct_info, var_table)
+        ty = self.eval_expr(node)
+        return _normalize_ty(ty, var_table)
     except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
         raise
@@ -182,7 +182,7 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_ty_proxy = eval_struct_info_proxy(self, arg.annotation)
+        param_ty_proxy = eval_ty_proxy(self, arg.annotation)
 
         for var_name in param_ty_proxy.get_symbolic_vars():
             if var_name not in symbolic_vars:
@@ -206,17 +206,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     if not func_val and is_recursive(node):
         collect_symbolic_var_from_params(self, node)
         if node.returns is None:
-            ret_ty = relax.TupleStructInfo([])
+            ret_ty = relax.TupleType([])
         else:
-            ret_ty = eval_struct_info(self, node.returns, eval_str=True)
+            ret_ty = eval_ty(self, node.returns, eval_str=True)
         params_ty = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+            param_ty = eval_ty(self, arg.annotation, eval_str=True)
             params_ty.append(param_ty)
         # created a var for the local function, the same var could be used for recursive call
-        local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_ty, ret_ty))
+        local_func_var = relax.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
@@ -231,8 +231,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 collect_symbolic_var_from_params(self, node)
 
                 if node.returns is not None:
-                    ann_ty = eval_struct_info(self, node.returns, eval_str=True)
-                    R.func_ret_struct_info(ann_ty)
+                    ann_ty = eval_ty(self, node.returns, eval_str=True)
+                    R.func_ret_ty(ann_ty)
 
                 self.visit(node.args)
 
@@ -270,16 +270,16 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         collect_symbolic_var_from_params(self, node)
 
         if node.returns is None:
-            # Use ObjectStructInfo as unknown return type
-            # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
-            ret_ty = relax.ObjectStructInfo()
+            # Use ObjectType as unknown return type
+            # NOTE: Cannot use VoidType here because the return type can be refined later.
+            ret_ty = relax.ObjectType()
         else:
-            ret_ty = eval_struct_info(self, node.returns, eval_str=True)
+            ret_ty = eval_ty(self, node.returns, eval_str=True)
         params = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+            param_ty = eval_ty(self, arg.annotation, eval_str=True)
             params.append(relax.Var(arg.arg, param_ty))
 
     is_pure = find_decorator_annotation(node, "pure")
@@ -315,7 +315,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     if isinstance(value, relax.Expr):
         var = R.emit(value)
         IRBuilder.name("_", var)
-        is_void_value = isinstance(var.ty, relax.TupleStructInfo) and len(var.ty.fields) == 0
+        is_void_value = isinstance(var.ty, relax.TupleType) and len(var.ty.fields) == 0
 
         if not is_void_value:
             self.report_error(
@@ -334,15 +334,15 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+        param_ty = eval_ty(self, arg.annotation, eval_str=True)
         param = R.arg(arg.arg, param_ty)
 
         self.var_table.add(arg.arg, param)
 
 
 @dispatch.register(token="relax", type_name="tvm_annotation")
-def visit_tvm_annotation(self: Parser, node: doc.expr) -> StructInfo:
-    return eval_struct_info(self, node, eval_str=False)
+def visit_tvm_annotation(self: Parser, node: doc.expr) -> Type:
+    return eval_ty(self, node, eval_str=False)
 
 
 @dispatch.register(token="relax", type_name="With")

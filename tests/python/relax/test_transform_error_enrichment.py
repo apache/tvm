@@ -32,15 +32,13 @@ from tvm.ir import IRModule
 def _bad_matmul_module():
     """Build (programmatically, no TVMScript parse) a module whose `main` binds a
     matmul of incompatible shapes [3, 4] x [5, 6]. The function carries a
-    placeholder return struct info so it constructs; Normalize re-infers and the
+    placeholder return type so it constructs; Normalize re-infers and the
     matmul validator fires during the pass."""
-    x = relax.Var("x", relax.TensorStructInfo([3, 4], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([5, 6], "float32"))
+    x = relax.Var("x", relax.TensorType([3, 4], "float32"))
+    y = relax.Var("y", relax.TensorType([5, 6], "float32"))
     lv = relax.Var("lv")
     body = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(lv, relax.op.matmul(x, y))])], lv)
-    func = relax.Function(
-        [x, y], body, ret_struct_info=relax.TensorStructInfo([3, 6], "float32"), is_pure=True
-    )
+    func = relax.Function([x, y], body, ret_ty=relax.TensorType([3, 6], "float32"), is_pure=True)
     func = func.with_attr("global_symbol", "main")
     return IRModule({relax.GlobalVar("main"): func})
 

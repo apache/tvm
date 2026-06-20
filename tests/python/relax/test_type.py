@@ -40,15 +40,15 @@ def _check_json_roundtrip(x):
     return xret
 
 
-def test_object_struct_info():
-    s0 = rx.ObjectStructInfo()
-    s1 = rx.ObjectStructInfo()
+def test_object_ty():
+    s0 = rx.ObjectType()
+    s1 = rx.ObjectType()
 
     # can turn into str
     str(s0)
     _check_equal(s0, s1)
 
-    assert isinstance(s0, rx.ObjectStructInfo)
+    assert isinstance(s0, rx.ObjectType)
     _check_json_roundtrip(s0)
 
 
@@ -61,15 +61,15 @@ def test_shape_type():
 def test_dyn_tensor_type():
     t0 = rx.TensorType()
     assert t0.ndim == -1
-    t1 = rx.TensorType(3, "int32")
+    t1 = rx.TensorType(ndim=3, dtype="int32")
     assert t1.ndim == 3
     assert t1.dtype == "int32"
 
 
-def test_prim_struct_info():
-    s0 = rx.PrimStructInfo("float32")
-    s1 = rx.PrimStructInfo("float32")
-    s2 = rx.PrimStructInfo("int32")
+def test_prim_ty():
+    s0 = rx.PrimType("float32")
+    s1 = rx.PrimType("float32")
+    s2 = rx.PrimType("int32")
 
     _check_equal(s0, s1)
 
@@ -79,7 +79,7 @@ def test_prim_struct_info():
     assert s0 == s1
     assert s0 != s2
 
-    assert isinstance(s0, rx.PrimStructInfo)
+    assert isinstance(s0, rx.PrimType)
     _check_json_roundtrip(s0)
     _check_json_roundtrip(s1)
 
@@ -88,30 +88,30 @@ def test_prim_struct_info():
 
     # wrong API constructors
     with pytest.raises((RuntimeError, TypeError)):
-        rx.PrimStructInfo([1])
+        rx.PrimType([1])
 
 
-def test_prim_struct_info_with_expr():
+def test_prim_ty_with_expr():
     n = tirx.Var("n", "int64")
-    sinfo = rx.PrimStructInfo(value=n + 1)
+    ty = rx.PrimType(value=n + 1)
 
-    _check_equal(sinfo, rx.PrimStructInfo(value=n + 1))
-    assert not tvm_ffi.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
+    _check_equal(ty, rx.PrimType(value=n + 1))
+    assert not tvm_ffi.structural_equal(ty, rx.PrimType(dtype=n.dtype))
 
     # can turn into str
-    str(sinfo)
+    str(ty)
 
-    assert isinstance(sinfo, rx.PrimStructInfo)
-    _check_json_roundtrip(sinfo)
+    assert isinstance(ty, rx.PrimType)
+    _check_json_roundtrip(ty)
 
-    assert sinfo.dtype == "int64"
+    assert ty.dtype == "int64"
 
 
-def test_shape_struct_info():
+def test_shape_ty():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    s0 = rx.ShapeStructInfo([1, n + 1, m])
-    s1 = rx.ShapeStructInfo([1, n + 1, m])
+    s0 = rx.ShapeType([1, n + 1, m])
+    s1 = rx.ShapeType([1, n + 1, m])
 
     _check_equal(s0, s1)
 
@@ -121,11 +121,11 @@ def test_shape_struct_info():
 
     assert s0.values[2] == m
 
-    assert isinstance(s0, rx.ShapeStructInfo)
+    assert isinstance(s0, rx.ShapeType)
     _check_json_roundtrip(s0)
     _check_json_roundtrip(s1)
 
-    s2 = rx.ShapeStructInfo(ndim=2)
+    s2 = rx.ShapeType(ndim=2)
 
     assert s2.ndim == 2
     assert s2.values is None
@@ -137,22 +137,22 @@ def test_shape_struct_info():
 
     # wrong argument type
     with pytest.raises((RuntimeError, TypeError)):
-        rx.ShapeStructInfo(1)
+        rx.ShapeType(1)
 
     # cannot pass both ndim and values
     with pytest.raises(ValueError):
-        rx.ShapeStructInfo([1, 2], ndim=3)
+        rx.ShapeType([1, 2], ndim=3)
 
     # cannot pass both ndim and values even if they are consistent
     with pytest.raises(ValueError):
-        rx.ShapeStructInfo([1, 2], ndim=2)
+        rx.ShapeType([1, 2], ndim=2)
 
 
-def test_tensor_struct_info():
+def test_tensor_ty():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    s0 = rx.TensorStructInfo([1, n + 1, m], "float32")
-    s1 = rx.TensorStructInfo(rx.ShapeExpr([1, n + 1, m]), "float32")
+    s0 = rx.TensorType([1, n + 1, m], "float32")
+    s1 = rx.TensorType(rx.ShapeExpr([1, n + 1, m]), "float32")
 
     _check_equal(s0, s1)
 
@@ -160,11 +160,11 @@ def test_tensor_struct_info():
     assert s0.ndim == 3
     assert s1.ndim == 3
 
-    assert isinstance(s0, rx.TensorStructInfo)
+    assert isinstance(s0, rx.TensorType)
     _check_json_roundtrip(s0)
     _check_json_roundtrip(s1)
 
-    s2 = rx.TensorStructInfo(ndim=2, dtype="int32")
+    s2 = rx.TensorType(ndim=2, dtype="int32")
 
     assert s2.ndim == 2
     assert s2.dtype == "int32"
@@ -173,9 +173,9 @@ def test_tensor_struct_info():
     assert s0 != s2
 
     # take in opaque var
-    rshape = rx.Var("shape", rx.ShapeStructInfo(ndim=2))
+    rshape = rx.Var("shape", rx.ShapeType(ndim=2))
 
-    s3 = rx.TensorStructInfo(rshape, dtype="int32")
+    s3 = rx.TensorType(rshape, dtype="int32")
     assert s3.dtype == "int32"
     assert s3.shape == rshape
     assert s3.ndim == 2
@@ -186,28 +186,28 @@ def test_tensor_struct_info():
 
     # cannot pass both ndim and values
     with pytest.raises(ValueError):
-        rx.TensorStructInfo([1, 2], ndim=3)
+        rx.TensorType([1, 2], ndim=3)
 
     # cannot pass both ndim and values even if they are consistent
     with pytest.raises(ValueError):
-        rx.TensorStructInfo([1, 2], ndim=2)
+        rx.TensorType([1, 2], ndim=2)
 
 
-def test_tuple_struct_info():
+def test_tuple_ty():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    s0 = rx.TensorStructInfo([1, 2, m + n], "float32")
-    s1 = rx.ObjectStructInfo()
+    s0 = rx.TensorType([1, 2, m + n], "float32")
+    s1 = rx.ObjectType()
 
-    t0 = rx.TupleStructInfo([s0, s1])
-    t1 = rx.TupleStructInfo([s0, rx.ObjectStructInfo()])
-    t2 = rx.TupleStructInfo([s0, s0])
+    t0 = rx.TupleType([s0, s1])
+    t1 = rx.TupleType([s0, rx.ObjectType()])
+    t2 = rx.TupleType([s0, s0])
 
     _check_equal(t0, t1)
 
     assert t0 == t1
 
-    assert isinstance(t0, rx.TupleStructInfo)
+    assert isinstance(t0, rx.TupleType)
     t0 = _check_json_roundtrip(t0)
     t1 = _check_json_roundtrip(t1)
     t2 = _check_json_roundtrip(t2)
@@ -217,21 +217,21 @@ def test_tuple_struct_info():
 
     # wrong argument type
     with pytest.raises(TypeError):
-        rx.TupleStructInfo(1)
+        rx.TupleType(1)
 
 
-def test_func_struct_info():
+def test_func_ty():
     def fn_info(c):
         n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-        x = rx.TensorStructInfo([c, n, m], "float32")
-        y = rx.TensorStructInfo([c, n, 1], "float32")
-        z = rx.TensorStructInfo([c, n, m], "float32")
-        return rx.FuncStructInfo([x, y], z)
+        x = rx.TensorType([c, n, m], "float32")
+        y = rx.TensorType([c, n, 1], "float32")
+        z = rx.TensorType([c, n, m], "float32")
+        return rx.FuncType([x, y], z)
 
     f0 = fn_info(1)
     f1 = fn_info(1)
     f2 = fn_info(2)
-    f3 = rx.FuncStructInfo.opaque_func()
+    f3 = rx.FuncType.opaque_func()
 
     _check_equal(f0, f1)
 
@@ -239,13 +239,13 @@ def test_func_struct_info():
     assert f0 != f2
 
     assert len(f0.params) == 2
-    assert isinstance(f0.ret, rx.TensorStructInfo)
+    assert isinstance(f0.ret, rx.TensorType)
     assert f2.derive_func is None
     assert f3.params is None
     assert f3.derive_func is None
-    _check_equal(f3.ret, rx.ObjectStructInfo())
+    _check_equal(f3.ret, rx.ObjectType())
 
-    assert isinstance(f0, rx.FuncStructInfo)
+    assert isinstance(f0, rx.FuncType)
     f0 = _check_json_roundtrip(f0)
     f1 = _check_json_roundtrip(f1)
     f2 = _check_json_roundtrip(f2)

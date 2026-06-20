@@ -202,7 +202,7 @@ def test_basic(consume_params):
                     "vm.builtin.tuple_reset_item",
                     params,
                     R.prim_value(T.int32(0)),
-                    sinfo_args=(R.Tuple,),
+                    ty_args=(R.Tuple,),
                 )
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
@@ -214,7 +214,7 @@ def test_basic(consume_params):
                     "vm.builtin.tuple_reset_item",
                     params,
                     R.prim_value(T.int32(1)),
-                    sinfo_args=(R.Tuple,),
+                    ty_args=(R.Tuple,),
                 )
                 gv: R.Tuple(
                     R.Tensor((16, 16, 3, 3), dtype="float32"),

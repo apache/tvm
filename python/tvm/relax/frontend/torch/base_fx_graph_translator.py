@@ -115,7 +115,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch  # type: ignore
 
         if isinstance(tensor, relax.Expr):
-            if not isinstance(tensor.ty, relax.TensorStructInfo):
+            if not isinstance(tensor.ty, relax.TensorType):
                 raise TypeError("The input Expr of shape_of should be a Tensor")
             return tensor.ty.shape
         elif isinstance(tensor, torch.Tensor):
@@ -524,8 +524,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
                     lhs_si = getattr(lhs, "ty", None)
                     rhs_si = getattr(rhs, "ty", None)
-                    if isinstance(lhs_si, relax.TensorStructInfo) and isinstance(
-                        rhs_si, relax.TensorStructInfo
+                    if isinstance(lhs_si, relax.TensorType) and isinstance(
+                        rhs_si, relax.TensorType
                     ):
                         target_dtype = self._promote_common_dtype(lhs_si.dtype, rhs_si.dtype)
                         if target_dtype is not None:
@@ -535,10 +535,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                                 rhs = self.block_builder.emit(relax.op.astype(rhs, target_dtype))
                     return lhs, rhs
                 elif isinstance(lhs, relax.Expr):
-                    assert isinstance(lhs.ty, relax.TensorStructInfo)
+                    assert isinstance(lhs.ty, relax.TensorType)
                     return lhs, relax.const(rhs, lhs.ty.dtype)
                 elif isinstance(rhs, relax.Expr):
-                    assert isinstance(rhs.ty, relax.TensorStructInfo)
+                    assert isinstance(rhs.ty, relax.TensorType)
                     return relax.const(lhs, rhs.ty.dtype), rhs
                 else:
                     assert False
@@ -565,7 +565,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # a constant non-negative integer exponent into repeated multiplication instead.
         if (
             isinstance(lhs, relax.Expr)
-            and isinstance(lhs.ty, relax.TensorStructInfo)
+            and isinstance(lhs.ty, relax.TensorType)
             and "int" in lhs.ty.dtype
             and isinstance(rhs, int)
             and not isinstance(rhs, bool)
@@ -2688,10 +2688,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
         elif isinstance(x, relax.Var):
-            if isinstance(x.ty, relax.TupleStructInfo):
+            if isinstance(x.ty, relax.TupleType):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
-            assert isinstance(x.ty, relax.TensorStructInfo)
+            assert isinstance(x.ty, relax.TensorType)
             if isinstance(node.args[1], int):
                 return x
             if not isinstance(node.args[1], list | tuple):

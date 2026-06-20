@@ -45,28 +45,28 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
             # if call.args[0].name_hint in self.scope_info:
             for idx, arg in enumerate(call.args[1]):
                 arg_ty = arg.ty
-                assert isinstance(arg_ty, relax.TensorStructInfo), (
-                    f"Expected TensorStructInfo but git {type(arg_ty)}"
+                assert isinstance(arg_ty, relax.TensorType), (
+                    f"Expected TensorType but git {type(arg_ty)}"
                 )
                 call_mem_scope = "global" if not arg_ty.vdevice else arg_ty.vdevice.memory_scope
                 assert call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx], (
                     f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
                 )
-            if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
+            if isinstance(call.ty_args[0], relax.TensorType):
                 call_mem_scope = (
                     "global"
-                    if not call.sinfo_args[0].vdevice
-                    else call.sinfo_args[0].vdevice.memory_scope
+                    if not call.ty_args[0].vdevice
+                    else call.ty_args[0].vdevice.memory_scope
                 )
                 assert call_mem_scope == self.scope_info[call.args[0].name_hint][1][0], (
                     f"Scope mismatched for return scope: {call.args[0].name_hint}"
                 )
             else:
-                assert isinstance(call.sinfo_args[0], relax.TupleStructInfo), (
-                    f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
+                assert isinstance(call.ty_args[0], relax.TupleType), (
+                    f"Expected TupleType but git {type(call.ty_args[0])}"
                 )
-                for idx, sinfo in enumerate(call.sinfo_args[0].fields):
-                    call_mem_scope = "global" if not sinfo.vdevice else sinfo.vdevice.memory_scope
+                for idx, ty in enumerate(call.ty_args[0].fields):
+                    call_mem_scope = "global" if not ty.vdevice else ty.vdevice.memory_scope
                     assert call_mem_scope == self.scope_info[call.args[0].name_hint][1][idx], (
                         f"Scope mismatched for return scope for {idx} in {call.args[0].name_hint}"
                     )

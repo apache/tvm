@@ -54,9 +54,8 @@ ffi::Array<distributed::DTensorType> GetInputDTensorType(const Call& call, const
  * \param f_build_graph The function to build axis graph
  * \return The inferred output type
  */
-StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                             const StructInfo& orig_output_ty,
-                             distributed::FBuildAxisGraph f_build_graph);
+Type InferShardingSpec(const Call& call, const BlockBuilder& ctx, const Type& orig_output_ty,
+                       distributed::FBuildAxisGraph f_build_graph);
 
 }  // namespace distributed
 }  // namespace relax

@@ -18,7 +18,7 @@
 
 import tvm.testing
 from tvm.ir import Range
-from tvm.relax import TensorStructInfo
+from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
@@ -44,8 +44,8 @@ def test_constant():
 
 
 def test_dtensor_type():
-    tensor_ty1 = TensorStructInfo((32, 32), "float32")
-    tensor_ty2 = TensorStructInfo((32, 32), "void")
+    tensor_ty1 = TensorType((32, 32), "float32")
+    tensor_ty2 = TensorType((32, 32), "void")
     obj0 = DTensorType(tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj0.__str__()

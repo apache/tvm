@@ -19,7 +19,7 @@
 
 /*!
  * \file statistical.h
- * \brief The functions to infer struct info for distributed statistical operator
+ * \brief The functions to infer type for distributed statistical operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_STATISTICAL_H_
@@ -31,11 +31,11 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx);
 
 #define RELAX_REGISTER_STATISTICAL_DIST_INFER_STRUCT_INFO(OpName) \
   TVM_REGISTER_OP("relax." #OpName)                               \
-      .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoStatistical)
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical)
 
 }  // namespace distributed
 }  // namespace relax

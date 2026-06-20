@@ -38,7 +38,7 @@ ffi::Optional<Function> ExpandParams(Function func) {
 
   bool has_tuple_param =
       std::any_of(func->params.begin(), func->params.end(),
-                  [](const Var& param) -> bool { return param->ty.as<TupleStructInfoNode>(); });
+                  [](const Var& param) -> bool { return param->ty.as<TupleTypeNode>(); });
 
   if (!has_tuple_param) return std::nullopt;
 
@@ -46,13 +46,13 @@ ffi::Optional<Function> ExpandParams(Function func) {
   ffi::Array<Binding> bindings;
 
   std::function<void(const Var&)> expand_param = [&](const Var& param) {
-    if (auto sinfo = param->ty.as<TupleStructInfoNode>()) {
+    if (auto ty = param->ty.as<TupleTypeNode>()) {
       ffi::Array<Expr> internal_tuple;
-      for (size_t i = 0; i < sinfo->fields.size(); i++) {
+      for (size_t i = 0; i < ty->fields.size(); i++) {
         auto name = static_cast<const std::stringstream&>(std::stringstream()
                                                           << param->name_hint() << "_" << i)
                         .str();
-        Var new_param(name, sinfo->fields[i]);
+        Var new_param(name, ty->fields[i]);
         internal_tuple.push_back(new_param);
         expand_param(new_param);
       }
@@ -66,8 +66,8 @@ ffi::Optional<Function> ExpandParams(Function func) {
     expand_param(param);
   }
 
-  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetType(var); }),
-                        func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
+  FuncType new_ty(params.Map([](const auto& var) { return GetType(var); }), func->ret_ty,
+                  Downcast<FuncType>(func->ty)->purity);
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
@@ -91,8 +91,8 @@ class TupleExpander : public ExprMutator {
         ffi::Array<Expr> new_args;
 
         std::function<void(const Expr&)> expand_arg = [&](const Expr& arg) {
-          if (auto sinfo = arg->ty.as<TupleStructInfoNode>()) {
-            for (size_t i = 0; i < sinfo->fields.size(); i++) {
+          if (auto ty = arg->ty.as<TupleTypeNode>()) {
+            for (size_t i = 0; i < ty->fields.size(); i++) {
               expand_arg(TupleGetItem(arg, i));
             }
           } else {

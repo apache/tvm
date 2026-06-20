@@ -22,7 +22,7 @@ import enum
 import tvm_ffi
 
 from tvm.ir import Span
-from tvm.relax.type import StructInfo, TensorStructInfo
+from tvm.relax.type import TensorType, Type
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -112,12 +112,12 @@ class Placement(Object):
 
 
 @tvm_ffi.register_object("relax.DTensorType")
-class DTensorType(StructInfo):
+class DTensorType(Type):
     """Type of a Distributed Tensor value.
 
     Parameters
     ----------
-    tensor_ty: TensorStructInfo
+    tensor_ty: TensorType
         The tensor type carried by the distributed tensor.
     device_mesh: DeviceMesh
         The device mesh of the tensor.
@@ -126,13 +126,13 @@ class DTensorType(StructInfo):
 
     """
 
-    tensor_ty: TensorStructInfo
+    tensor_ty: TensorType
     device_mesh: DeviceMesh
     placement: Placement
 
     def __init__(
         self,
-        tensor_ty: TensorStructInfo,
+        tensor_ty: TensorType,
         device_mesh: DeviceMesh,
         placement: Placement,
         span: Span = None,

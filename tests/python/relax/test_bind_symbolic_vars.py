@@ -166,7 +166,7 @@ def test_replacements_may_produce_new_symbolic_vars():
 
 
 def test_bind_symbolic_vars_in_tensor_shape():
-    """The bound variable should be replaced when appearing in struct info"""
+    """The bound variable should be replaced when appearing in type"""
 
     @R.function(private=True)
     def before(A: R.Tensor(["M", "N"])):

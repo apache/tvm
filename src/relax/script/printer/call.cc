@@ -82,7 +82,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
     return std::nullopt;
   }
   TVM_FFI_ICHECK(n->args.size() == 2 || n->args.size() == 3);
-  TVM_FFI_ICHECK(n->sinfo_args.size() == 1);
+  TVM_FFI_ICHECK(n->ty_args.size() == 1);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
@@ -90,12 +90,12 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   // Step 2. Print n->args[1], the input arguments
   args.push_back(d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayItem(1)));
-  // Step 3. Print n->sinfo_args, the output type
-  relax::StructInfo out_ty = n->sinfo_args[0];
-  AccessPath out_ty_p = n_p->Attr("sinfo_args")->ArrayItem(0);
+  // Step 3. Print n->ty_args, the output type
+  tvm::Type out_ty = n->ty_args[0];
+  AccessPath out_ty_p = n_p->Attr("ty_args")->ArrayItem(0);
   bool is_dtensor = false;
   kwargs_keys.push_back("out_ty");
-  if (const auto* o = out_ty.as<relax::TupleStructInfoNode>()) {
+  if (const auto* o = out_ty.as<relax::TupleTypeNode>()) {
     ffi::Array<ExprDoc> fields;
     AccessPath fields_p = out_ty_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
@@ -321,14 +321,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           // Step 4. Print type_args
-          if (n->sinfo_args.size() > 0) {
-            AccessPath sinfo_args_p = n_p->Attr("sinfo_args");
-            ffi::Array<ExprDoc> sinfo_args;
-            for (int i = 0, l = n->sinfo_args.size(); i < l; ++i) {
-              sinfo_args.push_back(d->AsDoc<ExprDoc>(n->sinfo_args[i], sinfo_args_p->ArrayItem(i)));
+          if (n->ty_args.size() > 0) {
+            AccessPath ty_args_p = n_p->Attr("ty_args");
+            ffi::Array<ExprDoc> ty_args;
+            for (int i = 0, l = n->ty_args.size(); i < l; ++i) {
+              ty_args.push_back(d->AsDoc<ExprDoc>(n->ty_args[i], ty_args_p->ArrayItem(i)));
             }
-            kwargs_keys.push_back("sinfo_args");
-            kwargs_values.push_back(TupleDoc(sinfo_args));
+            kwargs_keys.push_back("ty_args");
+            kwargs_values.push_back(TupleDoc(ty_args));
           }
           return prefix->Call(args, kwargs_keys, kwargs_values);
         });

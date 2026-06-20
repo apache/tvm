@@ -23,15 +23,15 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx) {
-  return InferDistStructInfoBroadcast(call, ctx, InferBinaryArithOpOutDtype);
+Type InferDistTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
+  return InferDistTypeBroadcast(call, ctx, InferBinaryArithOpOutDtype);
 }
 
-StructInfo InferDistStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
-  return InferDistStructInfoBroadcast(
+Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
+  return InferDistTypeBroadcast(
       call, ctx,
-      [](const Call& call, const BlockBuilder& ctx, const TensorStructInfo& x1_ty,
-         const TensorStructInfo& x2_ty) { return DataType::Bool(); });
+      [](const Call& call, const BlockBuilder& ctx, const TensorType& x1_ty,
+         const TensorType& x2_ty) { return DataType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/

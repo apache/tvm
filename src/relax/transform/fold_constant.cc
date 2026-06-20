@@ -45,21 +45,21 @@ class ConstantFolder : public ExprMutator {
   explicit ConstantFolder(IRModule ctx_module) : ExprMutator(ctx_module) {}
 
   /*!
-   * \brief Pattern match the shape inside the given struct info to a
+   * \brief Pattern match the shape inside the given type to a
    * constant shape and get runtime shape tuple from it.
-   * \param struct_info The given struct info whose shape inside is to be casted.
+   * \param ty The given type whose shape inside is to be casted.
    * \return The runtime shape tuple, or nullopt if it is not a constant shape.
-   * \note Only TensorStructInfo is supported. Returns std::nullopt
-   * if the input struct info is not TensorStructInfo.
+   * \note Only TensorType is supported. Returns std::nullopt
+   * if the input type is not TensorType.
    */
-  static ffi::Optional<ffi::Shape> MatchConstShape(const StructInfo& struct_info) {
-    const auto* tensor_ty = struct_info.as<TensorStructInfoNode>();
+  static ffi::Optional<ffi::Shape> MatchConstShape(const Type& ty) {
+    const auto* tensor_ty = ty.as<TensorTypeNode>();
     if (tensor_ty == nullptr) {
       return std::nullopt;
     }
 
     const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
-    TVM_FFI_ICHECK(shape != nullptr) << "struct info given by call_tir should have ShapeExpr shape";
+    TVM_FFI_ICHECK(shape != nullptr) << "type given by call_tir should have ShapeExpr shape";
 
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
@@ -139,7 +139,7 @@ class ConstantFolder : public ExprMutator {
    * of the program.
    */
   static bool ExprContainsTensor(const Expr& expr) {
-    if (GetType(expr).as<TensorStructInfoNode>()) {
+    if (GetType(expr).as<TensorTypeNode>()) {
       return true;
     }
     if (const auto* tuple = expr.as<TupleNode>()) {
@@ -161,7 +161,7 @@ class ConstantFolder : public ExprMutator {
     const auto* call = expr.as<CallNode>();
     if (!call) return true;
 
-    const auto* tensor_ty = call->ty.as<TensorStructInfoNode>();
+    const auto* tensor_ty = call->ty.as<TensorTypeNode>();
     if (!tensor_ty) return true;
 
     auto opt_shape = tensor_ty->GetShape();
@@ -229,7 +229,7 @@ class ConstantFolder : public ExprMutator {
   // Returns std::nullopt on failure.
   ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::PrimFunc tir_func,
                                                 ffi::Array<runtime::Tensor> arr_args,
-                                                const TupleStructInfoNode* tuple_ty) {
+                                                const TupleTypeNode* tuple_ty) {
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
     if (!func) return std::nullopt;
 
@@ -241,7 +241,7 @@ class ConstantFolder : public ExprMutator {
     for (size_t i = 0; i < num_outputs; ++i) {
       ffi::Optional<ffi::Shape> shape = MatchConstShape(tuple_ty->fields[i]);
       if (!shape) return std::nullopt;
-      auto tensor_ty = Downcast<TensorStructInfo>(tuple_ty->fields[i]);
+      auto tensor_ty = Downcast<TensorType>(tuple_ty->fields[i]);
       if (tensor_ty->IsUnknownDtype()) return std::nullopt;
       ret_tensors.push_back(runtime::Tensor::Empty(shape.value(), tensor_ty->dtype, cpu_dev));
     }
@@ -275,19 +275,19 @@ class ConstantFolder : public ExprMutator {
     TVM_FFI_ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     ffi::Optional<ffi::Array<runtime::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
-    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
+    TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir should have exactly one ty arg";
 
     if (!func || !arr_args) return {};
 
-    // Handle tuple output: sinfo_args[0] is a TupleStructInfo.
-    if (const auto* tuple_ty = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+    // Handle tuple output: ty_args[0] is a TupleType.
+    if (const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>()) {
       return ConstEvaluateCallTIRTuple(func.value(), arr_args.value(), tuple_ty);
     }
 
     // Handle single tensor output.
-    ffi::Optional<ffi::Shape> shape = MatchConstShape(call->sinfo_args[0]);
+    ffi::Optional<ffi::Shape> shape = MatchConstShape(call->ty_args[0]);
     if (shape) {
-      TensorStructInfo ret_ty = Downcast<TensorStructInfo>(call->ty);
+      TensorType ret_ty = Downcast<TensorType>(call->ty);
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_ty->dtype)
           .value_or({});
     }
@@ -341,7 +341,7 @@ class ConstantFolder : public ExprMutator {
       new_args.push_back(arg);
     }
     post_call =
-        Call(post_call->op, new_args, post_call->attrs, post_call->sinfo_args, post_call->span);
+        Call(post_call->op, new_args, post_call->attrs, post_call->ty_args, post_call->span);
 
     // If we are in a dataflow block, we can fold ops.
     if (builder_->CurrentBlockIsDataFlow()) {

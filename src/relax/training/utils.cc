@@ -147,7 +147,7 @@ class AppendLossMutator : private ExprMutator {
 
   /*!
    * \brief Check the number of elements in loss_func_params is no less than num_backbone_outputs,
-   * and the elements in backbone_return_arr_ and loss_func_params have matched struct_info. Also
+   * and the elements in backbone_return_arr_ and loss_func_params have matched ty. Also
    * sets up var_remap_ from loss parameter Vars to backbone returned Vars.
    */
   void CheckAndRemapLossParams(const ffi::Array<Var>& loss_func_params) {
@@ -158,14 +158,14 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       Var loss_param = loss_func_params[i];
       Var backbone_ret = backbone_return_arr_[i];
-      auto loss_param_sinfo = GetType(loss_param);
-      auto backbone_ret_sinfo = GetType(backbone_ret);
+      auto loss_param_ty = GetType(loss_param);
+      auto backbone_ret_ty = GetType(backbone_ret);
 
-      TVM_FFI_ICHECK(checker(backbone_ret_sinfo, loss_param_sinfo))
-          << "The struct info of the " << i
-          << "-th return value of backbone function is: " << backbone_ret_sinfo
-          << " while the corresponding struct info of parameter of loss function is "
-          << loss_param_sinfo << ", which is different.";
+      TVM_FFI_ICHECK(checker(backbone_ret_ty, loss_param_ty))
+          << "The type of the " << i
+          << "-th return value of backbone function is: " << backbone_ret_ty
+          << " while the corresponding type of parameter of loss function is " << loss_param_ty
+          << ", which is different.";
 
       this->var_remap_[loss_param->vid] = backbone_ret;
     }

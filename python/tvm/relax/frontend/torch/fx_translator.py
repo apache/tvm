@@ -164,10 +164,10 @@ class TorchFXImporter(BaseFXGraphImporter):
                 if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
                     return lhs, rhs
                 elif isinstance(lhs, relax.Expr):
-                    assert isinstance(lhs.ty, relax.TensorStructInfo)
+                    assert isinstance(lhs.ty, relax.TensorType)
                     return lhs, relax.const(rhs, lhs.ty.dtype)
                 elif isinstance(rhs, relax.Expr):
-                    assert isinstance(rhs.ty, relax.TensorStructInfo)
+                    assert isinstance(rhs.ty, relax.TensorType)
                     return relax.const(lhs, rhs.ty.dtype), rhs
                 else:
                     assert False
@@ -770,9 +770,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         inputs = list()
         for idx, (shape, dtype) in enumerate(input_info):
             inputs.append(
-                relax.Var(
-                    f"inp_{idx}", relax.TensorStructInfo(shape, self._convert_data_type(dtype))
-                )
+                relax.Var(f"inp_{idx}", relax.TensorType(shape, self._convert_data_type(dtype)))
             )
         return inputs
 
@@ -1082,7 +1080,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             for name, param in sorted(model.named_parameters(), key=lambda x: x[0]):
                 shape = param.data.shape
                 dtype = self._convert_data_type(str(param.data.dtype))
-                inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
+                inputs.append(relax.Var(name, relax.TensorType(shape, dtype)))
                 self.params[param] = inputs[-1]
                 params.append(tvm.runtime.tensor(param.data.cpu().numpy()))
         else:

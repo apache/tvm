@@ -22,16 +22,16 @@ from typing import Any, TypeVar
 import tvm
 from tvm.relax import (
     Expr,
-    FuncStructInfo,
     Function,
-    ObjectStructInfo,
-    PrimStructInfo,
+    FuncType,
+    ObjectType,
+    PrimType,
     SeqExpr,
     ShapeExpr,
-    ShapeStructInfo,
-    StructInfo,
-    TensorStructInfo,
-    TupleStructInfo,
+    ShapeType,
+    TensorType,
+    TupleType,
+    Type,
 )
 from tvm.relax.expr import Var
 from tvm.relax.script import builder as R
@@ -145,22 +145,22 @@ def macro(*args, hygienic: bool = True) -> _Callable:
 ############################# Struct Info ##############################
 
 
-class StructInfoProxy(ObjectConvertible):
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> StructInfo:
+class TypeProxy(ObjectConvertible):
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> Type:
         raise NotImplementedError()
 
     def get_symbolic_vars(self) -> set[str]:
         return {}
 
     def asobject(self):
-        return self.as_struct_info(None)
+        return self.as_ty(None)
 
 
 ############################### R.Object ################################
 
 
-class ObjectProxy(StructInfoProxy):
-    """The proxy fo ObjectStructInfo.
+class ObjectProxy(TypeProxy):
+    """The proxy fo ObjectType.
 
     Parameters
     ----------
@@ -177,8 +177,8 @@ class ObjectProxy(StructInfoProxy):
     def get_symbolic_vars(self) -> set[str]:
         return set()
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
-        return ObjectStructInfo()
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ShapeType:
+        return ObjectType()
 
 
 def Object() -> ObjectProxy:
@@ -196,7 +196,7 @@ def _eval_shape(expr: str | PrimExpr, dict_globals: dict[str, Any] | None) -> Pr
         return expr
 
 
-class TensorProxy(StructInfoProxy):
+class TensorProxy(TypeProxy):
     shape: list[str | PrimExpr] | None
     dtype: str
     vdevice: str | None
@@ -215,10 +215,10 @@ class TensorProxy(StructInfoProxy):
                     "When the shape is an Expr, it must be a ShapeExpr or a Var with ShapeExpr "
                     f"value. But got: {shape} with type: {type(shape)}"
                 )
-            if isinstance(shape, Var) and not isinstance(shape.ty, ShapeStructInfo):
+            if isinstance(shape, Var) and not isinstance(shape.ty, ShapeType):
                 raise ValueError(
-                    "When the shape is a Var, it must have shape struct_info. But got "
-                    f"{shape} with struct_info: {shape.ty}"
+                    "When the shape is a Var, it must have shape ty. But got "
+                    f"{shape} with ty: {shape.ty}"
                 )
         self.shape = shape
         self.dtype = dtype
@@ -231,7 +231,7 @@ class TensorProxy(StructInfoProxy):
         else:
             return {s for s in self.shape if isinstance(s, str) and s.isidentifier()}
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TensorStructInfo:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> TensorType:
         vdev = self.vdevice
         if isinstance(self.vdevice, str):
             if ":" in self.vdevice:
@@ -241,9 +241,9 @@ class TensorProxy(StructInfoProxy):
                 vdev = lookup_vdevice(self.vdevice, 0)
 
         if self.shape is None:
-            return TensorStructInfo(None, self.dtype, vdev, self.ndim)
+            return TensorType(None, self.dtype, vdev, self.ndim)
         elif isinstance(self.shape, ShapeExpr | Var):
-            return TensorStructInfo(self.shape, self.dtype, vdev, self.ndim)
+            return TensorType(self.shape, self.dtype, vdev, self.ndim)
         else:
             if dict_globals is None and any([isinstance(s, str) for s in self.shape]):
                 raise ValueError(
@@ -251,7 +251,7 @@ class TensorProxy(StructInfoProxy):
                     "and return annotations for TVMScript."
                 )
             shape = [_eval_shape(s, dict_globals) for s in self.shape]
-            return TensorStructInfo(shape, self.dtype, vdev, self.ndim)
+            return TensorType(shape, self.dtype, vdev, self.ndim)
 
 
 def Tensor(
@@ -275,9 +275,9 @@ def Tensor(
 ############################## R.Callable ##############################
 
 
-class CallableProxy(StructInfoProxy):
-    params: list[StructInfoProxy]
-    ret: StructInfoProxy
+class CallableProxy(TypeProxy):
+    params: list[TypeProxy]
+    ret: TypeProxy
     purity: bool
     derive_func: str | tvm.ir.EnvFunc | None
 
@@ -290,28 +290,28 @@ class CallableProxy(StructInfoProxy):
 
     Parameters
     ----------
-    params : List[StructInfoProxy]
-        The argument StructInfoProxy
+    params : List[TypeProxy]
+        The argument TypeProxy
 
-    ret : StructInfoProxy
-        The return StructInfoProxy.
+    ret : TypeProxy
+        The return TypeProxy.
 
     purity : bool
         Whether the callable is pure.
 
     derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
-        The derivation function to determine the output StructInfo,
+        The derivation function to determine the output Type,
         based on the arguments provided to the function.  The
         specified function should be accessible using
         `tvm.get_global_func`, and should have a signature
-        `Callable[[relax.Call, relax.BlockBuilder], relax.StructInfo]`.
+        `Callable[[relax.Call, relax.BlockBuilder], relax.Type]`.
 
     """
 
     def __init__(
         self,
-        params: StructInfoProxy | list[StructInfoProxy] | None = None,
-        ret: StructInfoProxy | None = None,
+        params: TypeProxy | list[TypeProxy] | None = None,
+        ret: TypeProxy | None = None,
         purity: bool | None = None,
         derive_func: str | tvm.ir.EnvFunc | None = None,
     ) -> None:
@@ -339,28 +339,26 @@ class CallableProxy(StructInfoProxy):
         else:
             return set().union(*[p.get_symbolic_vars() for p in self.params])
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> FuncStructInfo:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> FuncType:
         if self.ret is None:
             ret = None
         else:
-            ret = self.ret.as_struct_info(dict_globals)
+            ret = self.ret.as_ty(dict_globals)
 
         if self.params is None:
             params = None
         else:
-            params = [param.as_struct_info(dict_globals) for param in self.params]
+            params = [param.as_ty(dict_globals) for param in self.params]
 
         if params is None:
-            return FuncStructInfo.opaque_func(
-                ret=ret, derive_func=self.derive_func, purity=self.purity
-            )
+            return FuncType.opaque_func(ret=ret, derive_func=self.derive_func, purity=self.purity)
         else:
-            return FuncStructInfo(params, ret, purity=self.purity)
+            return FuncType(params, ret, purity=self.purity)
 
 
 def Callable(
-    params: StructInfoProxy | list[StructInfoProxy] | None = None,
-    ret: StructInfoProxy | None = None,
+    params: TypeProxy | list[TypeProxy] | None = None,
+    ret: TypeProxy | None = None,
     purity: bool | None = None,
     derive_func: str | tvm.ir.EnvFunc | None = None,
 ) -> CallableProxy:
@@ -370,19 +368,19 @@ def Callable(
 ############################### R.Tuple ################################
 
 
-class TupleProxy(StructInfoProxy):
-    fields: list[StructInfoProxy]
+class TupleProxy(TypeProxy):
+    fields: list[TypeProxy]
     """The type of tuple values.
 
     Parameters
     ----------
-    fields : List[StructInfoProxy]
+    fields : List[TypeProxy]
         The fields in the tuple
     """
 
     def __init__(
         self,
-        *fields: list[StructInfoProxy],
+        *fields: list[TypeProxy],
     ) -> None:
         if len(fields) == 1 and isinstance(fields[0], tuple | list):
             fields = fields[0]
@@ -392,19 +390,19 @@ class TupleProxy(StructInfoProxy):
     def get_symbolic_vars(self) -> set[str]:
         return set().union(*[f.get_symbolic_vars() for f in self.fields])
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TupleStructInfo:
-        fields = [field.as_struct_info(dict_globals) for field in self.fields]
-        return TupleStructInfo(fields)
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> TupleType:
+        fields = [field.as_ty(dict_globals) for field in self.fields]
+        return TupleType(fields)
 
 
-def Tuple(*fields: list[StructInfoProxy]) -> TupleProxy:
+def Tuple(*fields: list[TypeProxy]) -> TupleProxy:
     return TupleProxy(*fields)
 
 
 ############################### R.Shape ################################
 
 
-class ShapeProxy(StructInfoProxy):
+class ShapeProxy(TypeProxy):
     values: list[PrimExpr] | None
     ndim: int
     """The type of shape values.
@@ -432,9 +430,9 @@ class ShapeProxy(StructInfoProxy):
         else:
             return {v for v in self.values if isinstance(v, str) and v.isidentifier()}
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ShapeType:
         values = [_eval_shape(v, dict_globals) for v in self.values] if self.values else None
-        return ShapeStructInfo(values, self.ndim)
+        return ShapeType(values, self.ndim)
 
 
 def Shape(values: list[PrimExpr] | None = None, ndim: int = -1) -> ShapeProxy:
@@ -444,7 +442,7 @@ def Shape(values: list[PrimExpr] | None = None, ndim: int = -1) -> ShapeProxy:
 ################################ R.Prim ################################
 
 
-class PrimProxy(StructInfoProxy):
+class PrimProxy(TypeProxy):
     dtype: str | None
     value: int | float | str | PrimExpr | None
 
@@ -478,12 +476,12 @@ class PrimProxy(StructInfoProxy):
         else:
             return set()
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ShapeType:
         if self.value is None:
-            return PrimStructInfo(dtype=self.dtype)
+            return PrimType(dtype=self.dtype)
         else:
             value = _eval_shape(self.value, dict_globals)
-            return PrimStructInfo(dtype=self.dtype, value=value)
+            return PrimType(dtype=self.dtype, value=value)
 
 
 def Prim(
@@ -496,37 +494,37 @@ def Prim(
 ############################ R.match_cast #############################
 class MatchCastPair:
     value: Expr
-    ty: StructInfo
+    ty: Type
 
-    def __init__(self, value: Expr, struct_info: StructInfo) -> None:
+    def __init__(self, value: Expr, ty: Type) -> None:
         self.value = value
-        self.ty = struct_info
+        self.ty = ty
 
 
-def match_cast(value: Expr, struct_info: StructInfo):
-    struct_info = _normalize_struct_info(struct_info)
+def match_cast(value: Expr, ty: Type):
+    ty = _normalize_ty(ty)
 
     if value is None:
         raise ValueError("value of match_cast cannot be None")
-    if struct_info is None:
-        raise ValueError("struct_info of match_cast cannot be None")
-    return MatchCastPair(value, struct_info)
+    if ty is None:
+        raise ValueError("ty of match_cast cannot be None")
+    return MatchCastPair(value, ty)
 
 
-def _normalize_struct_info_proxy(annotation) -> StructInfoProxy:
+def _normalize_ty_proxy(annotation) -> TypeProxy:
     if annotation is None:
         return TupleProxy([])
     elif callable(annotation):
         return annotation()
-    elif isinstance(annotation, StructInfoProxy):
+    elif isinstance(annotation, TypeProxy):
         return annotation
     else:
-        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
+        raise TypeError(f"Expected TypeProxy but got {type(annotation)}.")
 
 
-def _normalize_struct_info(struct_info, dict_globals: dict[str, Any] | None = None) -> StructInfo:
-    if isinstance(struct_info, StructInfo):
-        return struct_info
+def _normalize_ty(ty, dict_globals: dict[str, Any] | None = None) -> Type:
+    if isinstance(ty, Type):
+        return ty
     else:
-        proxy = _normalize_struct_info_proxy(struct_info)
-        return proxy.as_struct_info(dict_globals)
+        proxy = _normalize_ty_proxy(ty)
+        return proxy.as_ty(dict_globals)

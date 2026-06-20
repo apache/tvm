@@ -60,28 +60,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.take", take);
 }
 
-StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
-  TensorStructInfo data_ty = GetInputTensorStructInfo(call, 0, ctx);
+  TensorType data_ty = GetInputTensorType(call, 0, ctx);
 
-  // StructInfo inference when the index is a PrimValue is equivalent
+  // Type inference when the index is a PrimValue is equivalent
   // to that of a scalar (0-d) tensor.
-  TensorStructInfo indices_ty = [&]() {
+  TensorType indices_ty = [&]() {
     auto arg = call->args[1];
-    auto sinfo = GetType(arg);
-    if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
+    auto ty = GetType(arg);
+    if (auto tensor_ty = ty.as<TensorType>()) {
       return tensor_ty.value();
-    } else if (auto prim_ty = sinfo.as<PrimStructInfoNode>()) {
-      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), prim_ty->dtype);
+    } else if (auto prim_ty = ty.as<PrimTypeNode>()) {
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>{}), prim_ty->dtype);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "Operator " << call->op << " requires the indices argument to be "
           << "either a tensor or a scalar value.  "
-          << "However, argument " << arg << " has struct info " << sinfo;
+          << "However, argument " << arg << " has type " << ty;
       // Unreachable, but [[noreturn]] attribute on virtual function
       // `ReportFatal` is insufficient to silence -Wreturn-type, as
       // child class might not be [[noreturn]].
-      return TensorStructInfo();
+      return TensorType();
     }
   }();
 
@@ -102,7 +102,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
         << data_ty->ndim;
   }
   if (data_ty->IsUnknownNdim() || indices_ty->IsUnknownNdim()) {
-    return TensorStructInfo(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
+    return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
 
   int axis = 0;
@@ -112,7 +112,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
-    return TensorStructInfo(data_ty->dtype, indices_ty->ndim + data_ty->ndim - 1, data_ty->vdevice);
+    return TensorType(data_ty->dtype, indices_ty->ndim + data_ty->ndim - 1, data_ty->vdevice);
   }
 
   ffi::Array<PrimExpr> output_shape;
@@ -123,7 +123,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
       output_shape.push_back(data_shape->values[i]);
     }
   }
-  return TensorStructInfo(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
+  return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.take")
@@ -131,7 +131,7 @@ TVM_REGISTER_OP("relax.take")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The source tensor.")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTake)
+    .set_attr<FInferType>("FInferType", InferTypeTake)
     .set_attr<bool>("FPurity", true);
 
 /* relax.strided_slice */
@@ -139,8 +139,8 @@ TVM_REGISTER_OP("relax.take")
 Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> strides,
                    bool assume_inbound) {
   // Initial validation of the arguments.  A more complete validation
-  // will be done when inferring the StructInfo, but that requires the
-  // StructInfo of all arguments to be populated.
+  // will be done when inferring the Type, but that requires the
+  // Type of all arguments to be populated.
 
   std::optional<std::tuple<const char*, size_t, Expr>> known_length;
   auto check_tuple = [&known_length](const char* name, Expr expr) {
@@ -187,35 +187,35 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
- * function, as a function argument, etc.  The StructInfo of the tuple
+ * function, as a function argument, etc.  The Type of the tuple
  * tracks the known values of any `PrimValue` elements, but it can be
  * tedious to extract.  This utility extracts the `PrimExpr` contents
  * of a `relax::Tuple`.
  *
- * If the StructInfo cannot contain a tuple of the type specified,
+ * If the Type cannot contain a tuple of the type specified,
  * this function will throw an exception.  (e.g. Attempting to extract
- * a tuple from a `TensorStructInfo`.)
+ * a tuple from a `TensorType`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
  *     extracting an `ffi::Array<int64_t>`
  *
- * \param sinfo The StructInfo to inspect
+ * \param ty The Type to inspect
  *
  * \returns An array of the `PrimType`, if it can be extracted.
  *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
-ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructInfo> sinfo) {
-  if (!sinfo) return std::nullopt;
+ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> ty) {
+  if (!ty) return std::nullopt;
 
-  // An ObjectStructInfo may contain a tuple of the desired type, but
+  // An ObjectType may contain a tuple of the desired type, but
   // it isn't yet known whether it does.  Return early, as we cannot
   // provide a known `ffi::Array<PrimType>` to the caller.
-  if (sinfo.as<ObjectStructInfoNode>()) return std::nullopt;
+  if (ty.as<ObjectTypeNode>()) return std::nullopt;
 
-  auto tuple = sinfo.as<TupleStructInfoNode>();
-  TVM_FFI_CHECK(tuple, TypeError) << "The struct info " << sinfo
+  auto tuple = ty.as<TupleTypeNode>();
+  TVM_FFI_CHECK(tuple, TypeError) << "The type " << ty
                                   << " cannot contain a tuple whose elements are "
                                   << PrimType::ContainerType::_type_key;
 
@@ -223,13 +223,12 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructI
   for (size_t i = 0; i < tuple->fields.size(); i++) {
     auto field = tuple->fields[i];
 
-    if (field.as<ObjectStructInfoNode>()) return std::nullopt;
+    if (field.as<ObjectTypeNode>()) return std::nullopt;
 
-    auto prim_ty = field.as<PrimStructInfoNode>();
+    auto prim_ty = field.as<PrimTypeNode>();
     TVM_FFI_CHECK(prim_ty, TypeError)
-        << "The struct info " << sinfo << " cannot contain a tuple whose elements are "
-        << PrimType::ContainerType::_type_key << ", because element " << i << " has struct info "
-        << field;
+        << "The type " << ty << " cannot contain a tuple whose elements are "
+        << PrimType::ContainerType::_type_key << ", because element " << i << " has type " << field;
 
     if (!prim_ty->value.defined()) return std::nullopt;
 
@@ -245,14 +244,14 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructI
  *
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
- * function, as a function argument, etc.  The StructInfo of the tuple
+ * function, as a function argument, etc.  The Type of the tuple
  * tracks the known values of any `PrimValue` elements, but it can be
  * tedious to extract.  This utility extracts the `PrimExpr` contents
  * of a `relax::Tuple`.
  *
- * If the StructInfo cannot contain a tuple of the type specified,
+ * If the Type cannot contain a tuple of the type specified,
  * this function will throw an exception.  (e.g. Attempting to extract
- * a tuple from a `TensorStructInfo`.)
+ * a tuple from a `TensorType`.)
  *
  * \tparam PrimType The subtype of PrimExpr to extract.  For example,
  *     extracting an `ffi::Array<int64_t>`
@@ -272,7 +271,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> e
   }
 }
 
-StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
   size_t n_args = call->args.size();
   TVM_FFI_ICHECK(4 <= n_args && n_args <= 5)
       << "Operator " << call->op << " accepts either three arguments (data, axes, begin, end) "
@@ -294,7 +293,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   auto axes_ty = GetType(call->args[1]);
   auto begin_ty = GetType(call->args[2]);
   auto end_ty = GetType(call->args[3]);
-  auto strides_ty = [&]() -> ffi::Optional<StructInfo> {
+  auto strides_ty = [&]() -> ffi::Optional<Type> {
     if (n_args > 4) {
       return GetType(call->args[4]);
     } else {
@@ -302,34 +301,34 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     }
   }();
 
-  TVM_FFI_ICHECK(IsBaseOf(relax::TensorStructInfo(DataType::Void(), kUnknownNDim), GetType(data)))
+  TVM_FFI_ICHECK(IsBaseOf(relax::TensorType(DataType::Void(), kUnknownNDim), GetType(data)))
       << "Operator " << call->op << " requires the first argument to be a tensor.  "
-      << "However, in expression " << call << ", the first argument " << data << " has struct info "
+      << "However, in expression " << call << ", the first argument " << data << " has type "
       << GetType(data);
 
   // TODO(Lunderberg): Implement this check using `IsBaseOf`.  Doing
-  // so will require a way to represent a `relax::TupleStructInfo` of
-  // unknown length, where each element has the same `StructInfo`.
-  auto is_base_of_tuple_of_int64 = [&](const StructInfo& sinfo) -> bool {
-    if (sinfo.as<ObjectStructInfoNode>()) {
+  // so will require a way to represent a `relax::TupleType` of
+  // unknown length, where each element has the same `Type`.
+  auto is_base_of_tuple_of_int64 = [&](const Type& ty) -> bool {
+    if (ty.as<ObjectTypeNode>()) {
       return true;
     }
 
-    const auto* tuple = sinfo.as<TupleStructInfoNode>();
+    const auto* tuple = ty.as<TupleTypeNode>();
     if (!tuple) return false;
 
-    return std::all_of(tuple->fields.begin(), tuple->fields.end(), [](const StructInfo& field) {
-      return IsBaseOf(relax::PrimStructInfo(DataType::Int(64)), field);
+    return std::all_of(tuple->fields.begin(), tuple->fields.end(), [](const Type& field) {
+      return IsBaseOf(relax::PrimType(DataType::Int(64)), field);
     });
   };
   auto check_tuple = [&](const char* name, Expr expr) {
-    auto sinfo = GetType(expr);
+    auto ty = GetType(expr);
 
-    TVM_FFI_ICHECK(is_base_of_tuple_of_int64(sinfo))
+    TVM_FFI_ICHECK(is_base_of_tuple_of_int64(ty))
         << "Operator " << call->op << " requires the " << name
         << " argument to be a tuple of int64 PrimValues.  "
         << "However, in expression " << call << ", the " << name << " argument " << expr
-        << " has struct info " << sinfo;
+        << " has type " << ty;
   };
   check_tuple("axes", call->args[1]);
   check_tuple("begin", call->args[2]);
@@ -338,7 +337,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     check_tuple("strides", call->args[4]);
   }
 
-  const auto* data_ty = data->ty.as<TensorStructInfoNode>();
+  const auto* data_ty = data->ty.as<TensorTypeNode>();
 
   DataType dtype = DataType::Void();
   ffi::Optional<VDevice> vdevice = std::nullopt;
@@ -432,9 +431,9 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }();
 
   if (shape.defined()) {
-    return TensorStructInfo(shape.value(), dtype, vdevice);
+    return TensorType(shape.value(), dtype, vdevice);
   } else {
-    return TensorStructInfo(dtype, ndim, vdevice);
+    return TensorType(dtype, ndim, vdevice);
   }
 }
 
@@ -446,7 +445,7 @@ InferLayoutOutput InferLayoutStridedSlice(
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
-  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "
@@ -479,7 +478,7 @@ TVM_REGISTER_OP("relax.strided_slice")
     .set_attrs_type<StridedSliceAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The source tensor to be sliced.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStridedSlice)
+    .set_attr<FInferType>("FInferType", InferTypeStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -498,18 +497,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
 }
 
-StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
-  const auto* begin_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
-  const auto* end_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
-  const auto* strides_ty = GetTypeAs<TensorStructInfoNode>(call->args[3]);
+Type InferTypeDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* begin_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
+  const auto* end_ty = GetTypeAs<TensorTypeNode>(call->args[2]);
+  const auto* strides_ty = GetTypeAs<TensorTypeNode>(call->args[3]);
 
   TVM_FFI_ICHECK(data_ty);
   if (data_ty->IsUnknownNdim()) {
     LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/strides "
                     "tensors are well-formed. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
-    return TensorStructInfo(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
+    return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
   if (data_ty->IsUnknownDtype()) {
     LOG(WARNING) << "When data type is unknown, dynamic strided slice assumes to have a valid "
@@ -518,12 +517,12 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   }
 
   int n_axis = data_ty->ndim;
-  auto diag_def = [&](const TensorStructInfoNode* sinfo, ffi::String name) {
-    TVM_FFI_ICHECK(sinfo) << "Dynamic strided slice requires the input " << name
-                          << " to be have the struct info. Please try normalizing the inputs.";
-    TVM_FFI_ICHECK_EQ(sinfo->ndim, 1)
+  auto diag_def = [&](const TensorTypeNode* ty, ffi::String name) {
+    TVM_FFI_ICHECK(ty) << "Dynamic strided slice requires the input " << name
+                       << " to be have the type. Please try normalizing the inputs.";
+    TVM_FFI_ICHECK_EQ(ty->ndim, 1)
         << "Dynamic strided slice requires " << name << " to be 1d tensor (list of values).";
-    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape) << "Dynamic strided slice requires the input " << name
                           << " to have well-defined shape.";
     // NOTE(tvm-team): This strong restriction seems necessary for now until we have a generic
@@ -534,13 +533,13 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
     TVM_FFI_ICHECK_EQ(num_elem->value, n_axis)
         << "Dynamic strided slice requires the number of indices in " << name
         << " to equal the number of axes.";
-    if (sinfo->IsUnknownDtype()) {
+    if (ty->IsUnknownDtype()) {
       LOG(WARNING) << "Dynamic strided slice assumes " << name
                    << " to be int64 when it is not specified.";
     } else {
-      TVM_FFI_ICHECK(sinfo->dtype == DataType::Int(64))
+      TVM_FFI_ICHECK(ty->dtype == DataType::Int(64))
           << "Dynamic strided_slice expects the input " << name
-          << "values to be all int64. However, " << name << " has dtype " << sinfo->dtype << ".";
+          << "values to be all int64. However, " << name << " has dtype " << ty->dtype << ".";
     }
   };
   diag_def(begin_ty, "begin");
@@ -550,7 +549,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   // The output shape will depend on the runtime value in begin/end/strides tensors.
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimValue lands.
-  return TensorStructInfo(data_ty->dtype, n_axis, data_ty->vdevice);
+  return TensorType(data_ty->dtype, n_axis, data_ty->vdevice);
 }
 
 InferLayoutOutput InferLayoutDynStridedSlice(
@@ -558,7 +557,7 @@ InferLayoutOutput InferLayoutDynStridedSlice(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "
@@ -577,7 +576,7 @@ TVM_REGISTER_OP("relax.dynamic_strided_slice")
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDynStridedSlice)
+    .set_attr<FInferType>("FInferType", InferTypeDynStridedSlice)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true)

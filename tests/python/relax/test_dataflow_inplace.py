@@ -260,7 +260,7 @@ def test_mystery_calls():
                 n = R.const(2, dtype="int32")
                 t = (m, n)
                 a = R.call_pure_packed(
-                    "chaos", t, sinfo_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
+                    "chaos", t, ty_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
                 )
                 b = a[0]
                 c = a[1]
@@ -911,24 +911,24 @@ class TestViewOpSharedStorageAndNoInplace:
     @classmethod
     def _build_module(cls, op):
         if op == "relax.expand_dims":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.squeeze":
-            x_sinfo = relax.TensorStructInfo((1, 4, 1), "float32")
+            x_ty = relax.TensorType((1, 4, 1), "float32")
         elif op == "relax.reshape":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.permute_dims":
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         elif op == "relax.memory.view":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.memory.ensure_zero_offset":
-            x_sinfo = relax.TensorStructInfo((4, 1), "float32")
+            x_ty = relax.TensorType((4, 1), "float32")
         elif op in ("relax.flatten", "relax.nn.batch_flatten"):
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         else:
             raise ValueError(op)
 
         bb = relax.BlockBuilder()
-        x = relax.Var("x", x_sinfo)
+        x = relax.Var("x", x_ty)
         concat_axis = cls._concat_axis_for_view_op(op)
         with bb.function("main", [x]):
             with bb.dataflow():

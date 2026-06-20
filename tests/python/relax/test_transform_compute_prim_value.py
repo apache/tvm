@@ -56,9 +56,9 @@ def test_prim_value_in_branch_condition():
         def main(A: R.Tensor(["N"])):
             N = T.int64()
             if R.prim_value(N % 16 == 0):
-                out = R.call_packed("fast_vectorized_impl", A, sinfo_args=[A.ty])
+                out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])
             else:
-                out = R.call_packed("slow_non_vectorized_impl", A, sinfo_args=[A.ty])
+                out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
     @I.ir_module
@@ -68,9 +68,9 @@ def test_prim_value_in_branch_condition():
             N = T.int64()
             condition: R.Prim("bool") = Expected.compute_symbolic_expr(R.prim_value(N))
             if condition:
-                out = R.call_packed("fast_vectorized_impl", A, sinfo_args=[A.ty])
+                out = R.call_packed("fast_vectorized_impl", A, ty_args=[A.ty])
             else:
-                out = R.call_packed("slow_non_vectorized_impl", A, sinfo_args=[A.ty])
+                out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
         @T.prim_func(private=True, s_tir=True)

@@ -118,13 +118,13 @@ class CollectLastUsage : public ExprVisitor {
         // In the future, this may be handled more easily at the
         // CodeGenVM level.
         bool stored_in_vm_register =
-            !(visitor.constant_tensors_.count(var) || var->ty.as<FuncStructInfoNode>() ||
-              var->ty.as<ShapeStructInfoNode>() || var->ty.as<PrimStructInfoNode>());
+            !(visitor.constant_tensors_.count(var) || var->ty.as<FuncTypeNode>() ||
+              var->ty.as<ShapeTypeNode>() || var->ty.as<PrimTypeNode>());
 
         if (!is_output && !already_killed) {
           if (visitor.storage_objects_.count(var)) {
             output[last_usage_point].storage.push_back(var);
-          } else if (var->ty.as<TensorStructInfoNode>() && stored_in_vm_register) {
+          } else if (var->ty.as<TensorTypeNode>() && stored_in_vm_register) {
             output[last_usage_point].tensors.push_back(var);
           } else if (stored_in_vm_register) {
             output[last_usage_point].objects.push_back(var);
@@ -196,8 +196,8 @@ class CollectLastUsage : public ExprVisitor {
   std::unordered_map<const VarNode*, const VarNode*> last_usage_of_;
 
   // Storage objects, eligible for R.vm.kill_object.  This cannot be
-  // determined solely from the StructInfo, because the
-  // `R.*.alloc_storage` operators return ObjectStructInfo
+  // determined solely from the Type, because the
+  // `R.*.alloc_storage` operators return ObjectType
   std::unordered_set<const VarNode*> storage_objects_;
 
   // Constants, which do not have a VM register, and may *not* have

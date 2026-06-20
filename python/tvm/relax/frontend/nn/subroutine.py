@@ -41,7 +41,7 @@ def _camel_to_snake(name):
 
 
 def _normalize_expr(block_builder, arg, as_relax_expr=False):
-    """Ensure that an argument is a relax.Expr with struct info"""
+    """Ensure that an argument is a relax.Expr with type"""
     if isinstance(arg, tuple):
         arg = relax.Tuple([_normalize_expr(block_builder, element) for element in arg])
 
@@ -54,15 +54,15 @@ def _normalize_expr(block_builder, arg, as_relax_expr=False):
     return arg
 
 
-def _get_struct_info(arg):
+def _get_ty(arg):
     if isinstance(arg, relax.Expr):
         return arg.ty
     elif isinstance(arg, nn.Tensor):
         return arg._expr.ty
     elif isinstance(arg, tuple | list | tvm_ffi.Array):
-        return relax.TupleStructInfo([_get_struct_info(field) for field in arg])
+        return relax.TupleType([_get_ty(field) for field in arg])
     else:
-        raise TypeError(f"Cannot find struct info for {arg} of type {type(arg)}")
+        raise TypeError(f"Cannot find type for {arg} of type {type(arg)}")
 
 
 class SubroutineMixin:
@@ -141,7 +141,7 @@ class SubroutineMixin:
             param._expr if isinstance(param, nn.Tensor) else param for param in self.parameters()
         ]
 
-        arg_ty = _get_struct_info([*func_args.values(), *model_params])
+        arg_ty = _get_ty([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
         lookup_key = (
             old_forward,
@@ -154,7 +154,7 @@ class SubroutineMixin:
                 return cached_result
 
         func_name = _camel_to_snake(cls.__name__)
-        func_params = [relax.Var(name, sinfo) for name, sinfo in zip(func_args, arg_ty.fields)]
+        func_params = [relax.Var(name, ty) for name, ty in zip(func_args, arg_ty.fields)]
         old_forward_args = [
             nn.Tensor(_expr=param) if isinstance(old_arg, nn.Tensor) else param
             for param, old_arg in zip(func_params, func_args.values())
@@ -175,7 +175,7 @@ class SubroutineMixin:
             gvar = block_builder.emit_func_output(out)
 
         # The relax.Var instances in model_params, along with any
-        # tirx.Var instances in the struct info, appear in both the
+        # tirx.Var instances in the type, appear in both the
         # calling scope and as parameters for the subroutine.  To
         # maintain SSA, replace all relax and TIR variables in the
         # subroutine.

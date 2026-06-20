@@ -26,8 +26,8 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::ObjectStructInfo>(  //
-        "", [](relax::ObjectStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::ObjectType>(  //
+        "", [](relax::ObjectType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Object");
         });
 
@@ -62,25 +62,24 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PrimStructInfo>(
-        "", [](relax::PrimStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
-          ffi::Array<ExprDoc, void> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc, void> kwargs_values;
+    .set_dispatch<relax::PrimType>("", [](relax::PrimType n, AccessPath n_p, IRDocsifier d) -> Doc {
+      ffi::Array<ExprDoc, void> args;
+      ffi::Array<ffi::String> kwargs_keys;
+      ffi::Array<ExprDoc, void> kwargs_values;
 
-          if (n->value.defined()) {
-            kwargs_keys.push_back("value");
-            kwargs_values.push_back(PrintShapeVar(n->value.value(), n_p->Attr("value"), d));
-          } else {
-            args.push_back(LiteralDoc::DataType(n->dtype, n_p->Attr("dtype")));
-          }
+      if (n->value.defined()) {
+        kwargs_keys.push_back("value");
+        kwargs_values.push_back(PrintShapeVar(n->value.value(), n_p->Attr("value"), d));
+      } else {
+        args.push_back(LiteralDoc::DataType(n->dtype, n_p->Attr("dtype")));
+      }
 
-          return Relax(d, "Prim")->Call(args, kwargs_keys, kwargs_values);
-        });
+      return Relax(d, "Prim")->Call(args, kwargs_keys, kwargs_values);
+    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::ShapeStructInfo>(
-        "", [](relax::ShapeStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::ShapeType>(
+        "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->values.defined()) {
             ffi::Array<PrimExpr> shape = n->values.value();
             AccessPath shape_p = n_p->Attr("values");
@@ -95,8 +94,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::TensorStructInfo>(  //
-        "", [](relax::TensorStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::TensorType>(  //
+        "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
@@ -138,8 +137,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::TupleStructInfo>(  //
-        "", [](relax::TupleStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::TupleType>(  //
+        "", [](relax::TupleType n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->fields.empty()) {
             return Relax(d, "Tuple");
           }
@@ -152,8 +151,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::FuncStructInfo>(  //
-        "", [](relax::FuncStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::FuncType>(  //
+        "", [](relax::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
           auto ret_doc = d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"));
           auto purity_doc = LiteralDoc::Boolean(n->purity, n_p->Attr("purity"));
 
@@ -161,7 +160,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ffi::Array<ffi::String> keys;
             ffi::Array<ExprDoc, void> values;
 
-            if (!n->ret->IsInstance<relax::ObjectStructInfoNode>()) {
+            if (!n->ret->IsInstance<relax::ObjectTypeNode>()) {
               keys.push_back("ret");
               values.push_back(ret_doc);
             }
@@ -178,7 +177,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           // TODO(@junrushao): track symbolic shape relation
           ffi::Array<ExprDoc> params_doc;
-          ffi::Array<relax::StructInfo> params = n->params.value();
+          ffi::Array<tvm::Type> params = n->params.value();
           AccessPath params_p = n_p->Attr("params");
           for (int i = 0, n_params = params.size(); i < n_params; ++i) {
             params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayItem(i)));
@@ -186,12 +185,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "Callable")->Call({TupleDoc(params_doc), ret_doc, purity_doc});
         });
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectStructInfoNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimStructInfoNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeStructInfoNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorStructInfoNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleStructInfoNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleTypeNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncTypeNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

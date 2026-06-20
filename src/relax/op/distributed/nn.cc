@@ -25,10 +25,10 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
-  TensorStructInfo input_tensor_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType input_tensor_ty = input_dtensor_tys[0]->tensor_ty;
 
   if (input_tensor_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
@@ -44,8 +44,7 @@ StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx)
   return InferShardingSpec(call, ctx, input_tensor_ty, distributed::BuildAxisGraphReduce);
 }
 
-TVM_REGISTER_OP("relax.nn.softmax")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoSoftmax);
+TVM_REGISTER_OP("relax.nn.softmax").set_attr<FInferType>("dist.FInferType", InferDistTypeSoftmax);
 
 /* relax.nn.relu */
 RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(nn.relu, /*require_float_dtype=*/false);

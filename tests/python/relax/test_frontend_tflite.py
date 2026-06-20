@@ -2622,9 +2622,9 @@ def _convert_detection_postprocess_with_options(
     build_module=True,
 ):
     input_num_classes = num_classes if input_num_classes is None else input_num_classes
-    loc = relax.Var("loc", relax.TensorStructInfo((batch_size, num_anchors, 4), "float32"))
+    loc = relax.Var("loc", relax.TensorType((batch_size, num_anchors, 4), "float32"))
     cls = relax.Var(
-        "cls", relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32")
+        "cls", relax.TensorType((batch_size, num_anchors, input_num_classes), "float32")
     )
     inputs = [
         _make_detection_postprocess_tensor_wrapper(0, (batch_size, num_anchors, 4), "loc"),
@@ -3073,13 +3073,13 @@ def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected
     expected_batch = build_kwargs["batch_size"]
     expected_max_detections = build_kwargs["max_detections"]
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo((expected_batch, expected_max_detections, 4), "float32"),
-                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
-                relax.TensorStructInfo((expected_batch, expected_max_detections), "float32"),
-                relax.TensorStructInfo((expected_batch,), "float32"),
+                relax.TensorType((expected_batch, expected_max_detections, 4), "float32"),
+                relax.TensorType((expected_batch, expected_max_detections), "float32"),
+                relax.TensorType((expected_batch, expected_max_detections), "float32"),
+                relax.TensorType((expected_batch,), "float32"),
             ]
         ),
     )
@@ -3088,7 +3088,7 @@ def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected
     legalized_ir = legalized.script()
     assert "R.vision.all_class_non_max_suppression(" not in legalized_ir
     assert "R.call_tir(" in legalized_ir
-    tvm.ir.assert_structural_equal(legalized["main"].ret_struct_info, mod["main"].ret_struct_info)
+    tvm.ir.assert_structural_equal(legalized["main"].ret_ty, mod["main"].ret_ty)
 
 
 @pytest.mark.parametrize("build_kwargs", _DETECTION_POSTPROCESS_SHAPE_CASES)
@@ -3101,16 +3101,16 @@ def test_detection_postprocess_shape_variations(build_kwargs):
 
     tvm.ir.assert_structural_equal(
         mod["main"].params[1].ty,
-        relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32"),
+        relax.TensorType((batch_size, num_anchors, input_num_classes), "float32"),
     )
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo((batch_size, max_detections, 4), "float32"),
-                relax.TensorStructInfo((batch_size, max_detections), "float32"),
-                relax.TensorStructInfo((batch_size, max_detections), "float32"),
-                relax.TensorStructInfo((batch_size,), "float32"),
+                relax.TensorType((batch_size, max_detections, 4), "float32"),
+                relax.TensorType((batch_size, max_detections), "float32"),
+                relax.TensorType((batch_size, max_detections), "float32"),
+                relax.TensorType((batch_size,), "float32"),
             ]
         ),
     )
@@ -3121,7 +3121,7 @@ def _make_resize_expected(
 ):
     """Build an Expected IRModule programmatically to avoid TVMScript variable scope limitations."""
     bb = relax.BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
+    x = relax.Var("x", relax.TensorType(input_shape, "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             gv = bb.emit_output(
@@ -3273,7 +3273,7 @@ def _make_reduce_expected(relax_op, input_shape, axes, keepdims, dtype):
     if axes is None:
         axes = list(range(len(input_shape)))
     bb = relax.BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo(input_shape, dtype))
+    x = relax.Var("x", relax.TensorType(input_shape, dtype))
     with bb.function("main", [x]):
         with bb.dataflow():
             gv = bb.emit_output(relax_op(x, axis=axes, keepdims=keepdims))
@@ -3321,7 +3321,7 @@ def _make_reduce_bool_expected(relax_op, input_shape, axes, keepdims):
     if axes is None:
         axes = list(range(len(input_shape)))
     bb = relax.BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo(input_shape, "bool"))
+    x = relax.Var("x", relax.TensorType(input_shape, "bool"))
     with bb.function("main", [x]):
         with bb.dataflow():
             cast_in = bb.emit(relax.op.astype(x, "int8"))
@@ -3584,8 +3584,8 @@ def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shap
     assert "space_to_batch_nd" in ir
     assert len(mod["main"].params) == 1
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo(expected_out_shape, "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType(expected_out_shape, "float32"),
     )
 
     if "CI_ENV_NIGHTLY" in os.environ:
@@ -3618,8 +3618,8 @@ def test_batch_to_space_nd(input_shape, block_shape, crops, expected_out_shape):
     assert "batch_to_space_nd" in ir
     assert len(mod["main"].params) == 1
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo(expected_out_shape, "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType(expected_out_shape, "float32"),
     )
 
     if "CI_ENV_NIGHTLY" in os.environ:
@@ -12344,7 +12344,7 @@ def test_svdf_none_activation():
     assert tuple(int(d) for d in in_shape) == (batch, input_size)
     state_shape = fn.params[1].ty.shape
     assert tuple(int(d) for d in state_shape) == (batch, num_filters * memory_size)
-    out_shape = fn.ret_struct_info.shape
+    out_shape = fn.ret_ty.shape
     assert tuple(int(d) for d in out_shape) == (batch, num_units)
 
 
@@ -12799,7 +12799,7 @@ def test_unidirectional_sequence_lstm_time_major():
 
     fn = mod["main"]
     assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
-    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units)
+    assert tuple(int(d) for d in fn.ret_ty.shape) == (time, batch, num_units)
 
 
 def test_unidirectional_sequence_lstm_rejects_projection():
@@ -13071,7 +13071,7 @@ def test_bidirectional_sequence_rnn_time_major():
 
     fn = mod["main"]
     assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
-    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
+    assert tuple(int(d) for d in fn.ret_ty.shape) == (time, batch, num_units * 2)
 
 
 def test_bidirectional_sequence_rnn_rejects_aux_input():
@@ -13369,7 +13369,7 @@ def test_bidirectional_sequence_lstm_time_major():
 
     fn = mod["main"]
     assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
-    assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
+    assert tuple(int(d) for d in fn.ret_ty.shape) == (time, batch, num_units * 2)
 
 
 def test_bidirectional_sequence_lstm_rejects_aux_input():
@@ -13580,7 +13580,7 @@ def test_unidirectional_sequence_rnn_relu_activation():
     assert len(fn.params) == 1, "only the sequence input should be a graph input"
     in_shape = fn.params[0].ty.shape
     assert tuple(int(d) for d in in_shape) == (batch, time, input_size)
-    out_shape = fn.ret_struct_info.shape
+    out_shape = fn.ret_ty.shape
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
 
 
@@ -13613,7 +13613,7 @@ def test_unidirectional_sequence_rnn_time_major():
     in_shape = fn.params[0].ty.shape
     assert tuple(int(d) for d in in_shape) == (time, batch, input_size)
     # Output is always batch-major [batch, time, num_units].
-    out_shape = fn.ret_struct_info.shape
+    out_shape = fn.ret_ty.shape
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
 
 

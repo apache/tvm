@@ -34,10 +34,10 @@
 namespace tvm {
 namespace relax {
 
-TensorStructInfo MatchTensorStructInfo(Expr data) {
-  auto _sinfo = MatchType<TensorStructInfo>(data);
-  TVM_FFI_ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetType(data);
-  return _sinfo.value();
+TensorType MatchTensorType(Expr data) {
+  auto _ty = MatchType<TensorType>(data);
+  TVM_FFI_ICHECK(_ty.defined()) << "Expect data to be a tensor, but get " << GetType(data);
+  return _ty.value();
 }
 
 Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<int64_t> axes) {
@@ -58,23 +58,23 @@ Tuple DecomposeBatchNorm(const Call& call) {
   TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
-  TensorStructInfo sinfo = MatchTensorStructInfo(data);
+  TensorType ty = MatchTensorType(data);
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
 
-  Expr moving_mean = ExpandToMatchInput(call->args[3], sinfo->ndim, {attrs->axis});
-  Expr moving_var = ExpandToMatchInput(call->args[4], sinfo->ndim, {attrs->axis});
+  Expr moving_mean = ExpandToMatchInput(call->args[3], ty->ndim, {attrs->axis});
+  Expr moving_var = ExpandToMatchInput(call->args[4], ty->ndim, {attrs->axis});
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, sinfo->dtype);
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype);
   Expr sqrt_var = sqrt(add(moving_var, epsilon));
   Expr out = divide(subtract(data, moving_mean), sqrt_var);
 
   if (attrs->scale) {
-    out = multiply(out, ExpandToMatchInput(gamma, sinfo->ndim, {attrs->axis}));
+    out = multiply(out, ExpandToMatchInput(gamma, ty->ndim, {attrs->axis}));
   }
   if (attrs->center) {
-    out = add(out, ExpandToMatchInput(beta, sinfo->ndim, {attrs->axis}));
+    out = add(out, ExpandToMatchInput(beta, ty->ndim, {attrs->axis}));
   }
 
   return Tuple({out, call->args[3], call->args[4]});
@@ -91,10 +91,10 @@ Expr MutateBatchNormForTraining(Call call) {
   Expr moving_mean = call->args[3];
   Expr moving_var = call->args[4];
 
-  TensorStructInfo sinfo = MatchTensorStructInfo(data);
+  TensorType ty = MatchTensorType(data);
 
   ffi::Array<int64_t> reduce_axes;
-  for (int i = 0; i < sinfo->ndim; ++i) {
+  for (int i = 0; i < ty->ndim; ++i) {
     if (i != attrs->axis) {
       reduce_axes.push_back(i);
     }
@@ -103,8 +103,8 @@ Expr MutateBatchNormForTraining(Call call) {
   Expr data_mean = mean(data, reduce_axes, false);
   Expr data_var = variance(data, reduce_axes, false);
 
-  Expr momentum = MakeConstantScalar(attrs->momentum, sinfo->dtype);
-  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, sinfo->dtype);
+  Expr momentum = MakeConstantScalar(attrs->momentum, ty->dtype);
+  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, ty->dtype);
 
   Expr new_moving_mean = add(multiply(one_minus_mom, moving_mean), multiply(momentum, data_mean));
   Expr new_moving_var = add(multiply(one_minus_mom, moving_var), multiply(momentum, data_var));
@@ -120,7 +120,7 @@ Expr DecomposeLayerNorm(const Call& call) {
   TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
-  TensorStructInfo sinfo = MatchTensorStructInfo(data);
+  TensorType ty = MatchTensorType(data);
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
 
@@ -128,7 +128,7 @@ Expr DecomposeLayerNorm(const Call& call) {
   Expr data_var = variance(data, attrs->axes, true);
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, sinfo->dtype);
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype);
   Expr sqrt_var = sqrt(add(data_var, epsilon));
   Expr out = divide(subtract(data, data_mean), sqrt_var);
 
@@ -145,25 +145,25 @@ Expr DecomposeLayerNorm(const Call& call) {
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   TVM_FFI_ICHECK(call_node->ty.defined());
   Expr expr = call_node->args[0];
-  const ShapeStructInfoNode* sinfo = GetTypeAs<ShapeStructInfoNode>(call_node);
-  TVM_FFI_ICHECK(sinfo);
+  const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
+  TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
   Var call =
       builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                         {ffi::GetRef<ShapeStructInfo>(sinfo)}));
+                         {ffi::GetRef<ShapeType>(ty)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
-  for (int i = 0; i < sinfo->ndim; i++) {
+  for (int i = 0; i < ty->ndim; i++) {
     shape_var.push_back(tirx::Var("x", DataType::Int(64)));
   }
   // bind symbolic variables to the shape tuple
-  relax::Var var("y", ShapeStructInfo(shape_var));
-  builder->EmitNormalized(MatchCast(var, call, ShapeStructInfo(shape_var)));
+  relax::Var var("y", ShapeType(shape_var));
+  builder->EmitNormalized(MatchCast(var, call, ShapeType(shape_var)));
   return ShapeExpr(shape_var);
 }
 

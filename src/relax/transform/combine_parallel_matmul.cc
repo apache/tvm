@@ -53,7 +53,7 @@ std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
   return indices_map;
 }
 
-inline TensorStructInfo GetTensorSInfo(Expr e) { return Downcast<TensorStructInfo>(GetType(e)); }
+inline TensorType GetTensorType(Expr e) { return Downcast<TensorType>(GetType(e)); }
 
 struct BranchInfo {
   int num_branches;
@@ -134,7 +134,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
   return [=](ffi::Map<DFPattern, Var> matchings, ffi::Map<Var, Expr> bindings) {
     std::vector<ffi::Array<PrimExpr>> rhs_shapes;
     for (const auto& rhs_pat : patterns.rhs) {
-      auto rhs_shape_opt = GetTensorSInfo(matchings[rhs_pat])->GetShape();
+      auto rhs_shape_opt = GetTensorType(matchings[rhs_pat])->GetShape();
       if (!rhs_shape_opt) {
         return ffi::Map<Var, Expr>{};
       }
@@ -161,7 +161,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         if (branch_info.bias_dim.has_value()) {
           bias = matchings[patterns.bias[index]];
         }
-        PrimExpr split_size = GetTensorSInfo(rhs)->GetShape().value()[rhs_dim - 1];
+        PrimExpr split_size = GetTensorType(rhs)->GetShape().value()[rhs_dim - 1];
         DFPattern pattern_to_replace = patterns_to_replace[index];
         splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace});
       }
@@ -202,11 +202,11 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
-      auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
+      auto out_dtype = GetTensorType(matchings[patterns.matmul[indices[0]]])->dtype;
       auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
 
       if (branch_info.bias_dim) {
-        auto bias_dim = GetTensorSInfo(bias[0])->ndim;
+        auto bias_dim = GetTensorType(bias[0])->ndim;
         auto concat_bias = concat(Tuple(bias), bias_dim - 1);
         matmul_combined = add(matmul_combined, concat_bias);
       }
@@ -235,7 +235,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         sections.push_back(IntImm::Int64(split_index));
       }
 
-      int lhs_dim = GetTensorSInfo(lhs)->ndim;
+      int lhs_dim = GetTensorType(lhs)->ndim;
       int split_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
       auto chunks = split(matmul_combined, sections, split_axis);
 
@@ -292,7 +292,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
       std::optional<std::string> activation = std::nullopt;
 
       if (match.value().count(bias_pat)) {
-        bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+        bias_dim = GetTensorType(match.value()[bias_pat])->ndim;
       }
 
       for (size_t i = 0; i < activations.size(); ++i) {

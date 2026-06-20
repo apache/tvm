@@ -132,7 +132,7 @@ def test_binding_block_remove_all_unused():
                     "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
                 )
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -144,7 +144,7 @@ def test_binding_block_remove_all_unused():
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
@@ -186,7 +186,7 @@ def test_binding_block_keep_impure_without_dataflow():
     @R.function(private=True, pure=False)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        y = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+        y = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
         return y
 
     expected = before
@@ -215,7 +215,7 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
     def before(x: R.Tensor((32, 32), "int32")):
         y = x * R.const(2)
         z = R.call_packed(
-            "function_maybe_with_side_effects", y, sinfo_args=(R.Tensor((32, 32), "int32"))
+            "function_maybe_with_side_effects", y, ty_args=(R.Tensor((32, 32), "int32"))
         )
         return R.tuple()
 
@@ -236,7 +236,7 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
             def internal_unused_func(A: R.Tensor((32, 32), "float32")) -> R.Tensor:
                 return A
 
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -246,7 +246,7 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             lv0 = x
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
@@ -260,7 +260,7 @@ def test_binding_block_fake_unused_remove_all_unused():
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return lv0
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -273,7 +273,7 @@ def test_binding_block_fake_unused_remove_all_unused():
                 lv0 = x
                 R.output(lv0)
             # This might bring side effect so cannot be removed.
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return lv0
 
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
@@ -284,7 +284,7 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
     class IdentityUnused:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
-            z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", x, ty_args=(R.Tensor((32, 32), "float32")))
             return x
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -301,7 +301,7 @@ def test_edge_binding_block_fake_unused_remove_all_unused2():
             k = T.int64()
             with R.dataflow():
                 lv: R.Shape(ndim=3) = R.call_pure_packed(
-                    "vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=3),)
+                    "vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=3),)
                 )
                 lv1: R.Shape([m, n, k]) = R.match_cast(lv, R.Shape([m, n, k]))
                 gv: R.Tensor((m, n, k), dtype="int32") = R.full(
@@ -364,14 +364,14 @@ def test_retain_impure_calls_unused_in_binding_block():
     @R.function(pure=False)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_packed("my_impure_call", x, ty_args=R.Tensor((32, 32), dtype="float32"))
         unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
         return lv0
 
     @R.function(pure=False)
     def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_packed("my_impure_call", x, ty_args=R.Tensor((32, 32), dtype="float32"))
         return lv0
 
     after = remove_all_unused(before.body)
@@ -508,12 +508,12 @@ def test_free_vars():
     inner = rx.Function(
         [z],
         rx.op.add(x, rx.op.add(y, z)),
-        ret_struct_info=R.Tensor(ndim=-1),
+        ret_ty=R.Tensor(ndim=-1),
     )
     outer = rx.Function(
         [x, y],
         rx.Call(inner, [y]),
-        ret_struct_info=R.Tensor(ndim=-1),
+        ret_ty=R.Tensor(ndim=-1),
     )
     assert len(free_vars(outer)) == 0
     assert var_name_set(free_vars(inner)) == {"x", "y"}

@@ -26,9 +26,9 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorStructInfo x1_ty, x2_ty;
+  TensorType x1_ty, x2_ty;
   x1_ty = input_dtensor_tys[0]->tensor_ty;
   x2_ty = input_dtensor_tys[1]->tensor_ty;
 
@@ -94,11 +94,10 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
     output_shape.push_back(x2_shape->values[x2_ndim - 1]);
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
-  TensorStructInfo output_tensor_ty(ShapeExpr(output_shape), out_dtype);
+  TensorType output_tensor_ty(ShapeExpr(output_shape), out_dtype);
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphMatmul);
 }
-TVM_REGISTER_OP("relax.matmul")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoMatmul);
+TVM_REGISTER_OP("relax.matmul").set_attr<FInferType>("dist.FInferType", InferDistTypeMatmul);
 
 }  // namespace distributed
 }  // namespace relax

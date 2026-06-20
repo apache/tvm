@@ -106,10 +106,10 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
             is_a_larger = len(a_shape) > len(b_shape)
             offset = len(a_shape) - len(b_shape) if is_a_larger else len(b_shape) - len(a_shape)
 
-            a_relax = relax.Var("a", relax.TensorStructInfo(a.shape))
+            a_relax = relax.Var("a", relax.TensorType(a.shape))
             bT_shape = list(b.shape)
             bT_shape[-1], bT_shape[-2] = bT_shape[-2], bT_shape[-1]
-            bT_relax = relax.Var("b", relax.TensorStructInfo(bT_shape))
+            bT_relax = relax.Var("b", relax.TensorType(bT_shape))
             output_shape = self.builder_.normalize(relax.op.matmul(a_relax, bT_relax)).ty.shape
 
             def matmul_compute(*idx_spatial):
@@ -163,7 +163,7 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                 "Composite" in function.attrs
                 and function.attrs["Composite"] == "transpose_matmul_fuse"
             ):
-                out_dtype = function.ret_struct_info.dtype
+                out_dtype = function.ret_ty.dtype
                 return self.builder_.call_te(
                     te_transposed_matmul,
                     call.args[1],

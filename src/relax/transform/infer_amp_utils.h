@@ -57,8 +57,8 @@ struct NTypeEqual {
   }
 };
 
-// Construct a NType from an StructInfo
-NType NTypeFrom(const StructInfo& sinfo, DataType dtype = DataType::Void());
+// Construct a NType from an Type
+NType NTypeFrom(const Type& ty, DataType dtype = DataType::Void());
 
 // Construct a NType from an Expr
 NType NTypeFrom(const Expr& expr, DataType dtype = DataType::Void());

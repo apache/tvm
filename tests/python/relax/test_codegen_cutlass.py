@@ -1384,7 +1384,7 @@ def test_fp16A_int4B_gemm():
                     lv1,
                     80,
                     True,
-                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                    ty_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
@@ -1415,7 +1415,7 @@ def test_fp16A_int4B_gemm():
                     lv1,
                     80,
                     True,
-                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                    ty_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
@@ -1448,7 +1448,7 @@ def test_fp16A_int4B_gemm():
                     lv1,
                     80,
                     True,
-                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                    ty_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
@@ -1603,7 +1603,7 @@ def test_fp16A_int8B_gemm():
                     lv1,
                     R.prim_value(80),
                     R.prim_value(0),
-                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                    ty_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
@@ -1880,7 +1880,7 @@ def test_fp16A_int8B_gemm_batched():
                     lv1,
                     R.prim_value(80),
                     R.prim_value(0),
-                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                    ty_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
@@ -2033,7 +2033,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     lv1,
                     R.prim_value(80),
                     R.prim_value(0),
-                    sinfo_args=(R.Tensor((128, 128), dtype="int8"),),
+                    ty_args=(R.Tensor((128, 128), dtype="int8"),),
                 )
                 lv3: R.Tensor((2, 128), dtype="float16") = lv[1]
                 lv4: R.Tensor((128, 128), dtype="int8") = R.builtin.stop_lift_params(lv2)

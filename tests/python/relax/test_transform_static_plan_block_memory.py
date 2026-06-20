@@ -160,7 +160,7 @@ def test_basic():
             storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("uint8"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             _: R.Tuple = cls.exp(x, alloc)
-            lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", alloc, R.shape([8]), sinfo_args=(R.Tensor((8,), dtype="float32"),))
+            lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", alloc, R.shape([8]), ty_args=(R.Tensor((8,), dtype="float32"),))
             _ = R.vm.kill_object(alloc)
             storage1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc1: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([8]), R.dtype("float32"))
@@ -647,12 +647,12 @@ def test_call_packed_external_func():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _ = R.call_packed("extern_func", x, alloc, sinfo_args=[R.Tuple()])
+            _ = R.call_packed("extern_func", x, alloc, ty_args=[R.Tuple()])
             y: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _1 = R.call_packed("extern_func", y, alloc1, sinfo_args=[R.Tuple()])
+            _1 = R.call_packed("extern_func", y, alloc1, ty_args=[R.Tuple()])
             z: R.Tensor((2, 3), dtype="float32") = alloc1
             return z
 
@@ -666,12 +666,12 @@ def test_call_packed_external_func():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, R.prim_value(0), R.shape([2, 3]), R.dtype("float32")
             )
-            _: R.Tuple = R.call_packed("extern_func", x, alloc, sinfo_args=(R.Tuple(),))
+            _: R.Tuple = R.call_packed("extern_func", x, alloc, ty_args=(R.Tuple(),))
             y: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), R.dtype("float32"), R.prim_value(0)
             )
-            _1: R.Tuple = R.call_packed("extern_func", y, alloc1, sinfo_args=(R.Tuple(),))
+            _1: R.Tuple = R.call_packed("extern_func", y, alloc1, ty_args=(R.Tuple(),))
             z: R.Tensor((2, 3), dtype="float32") = alloc1
             return z
 
@@ -1618,7 +1618,7 @@ def test_add():
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
-                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
+                ty_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
             )
             return lv1_1
 
@@ -1669,7 +1669,7 @@ def test_add():
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
-                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
+                ty_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
             )
             return lv1_1
 

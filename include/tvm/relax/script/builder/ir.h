@@ -42,10 +42,10 @@ TVM_DLL FunctionFrame Function(bool is_pure, bool is_private);
 /*!
  * \brief Add a parameter to the last function frame.
  * \param name The name of the parameter.
- * \param struct_info The struct_info of the parameter.
+ * \param ty The ty of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const ffi::String& name, const tvm::relax::StructInfo& struct_info);
+TVM_DLL tvm::relax::Var Arg(const ffi::String& name, const tvm::Type& ty);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -63,8 +63,7 @@ TVM_DLL void FuncAttrs(ffi::Map<ffi::String, Any> attrs);
  * \brief Specify the return type of the last function frame.
  * \param ret_ty The return type.
  */
-TVM_DLL void FuncRetType(const tvm::relax::StructInfo& ret_ty);
-TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_ty);
+TVM_DLL void FuncRetType(const tvm::Type& ret_ty);
 
 /*!
  * \brief Specify the return value of the last function frame.
@@ -97,21 +96,19 @@ TVM_DLL void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars);
 /*!
  * \brief Emit a binding to the last binding block frame.
  * \param value The right side value of the bindings to be emitted.
- * \param annotate_struct_info The optional struct info annotation for the emitted value.
+ * \param annotate_ty The optional type annotation for the emitted value.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var Emit(
-    const tvm::relax::Expr& value,
-    const ffi::Optional<tvm::relax::StructInfo>& annotate_struct_info = std::nullopt);
+TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value,
+                             const ffi::Optional<tvm::Type>& annotate_ty = std::nullopt);
 
 /*!
  * \brief Emit a match_cast binding to the last binding block frame.
  * \param value The value of the MatchCast to be emitted.
- * \param struct_info The struct info of the MatchCast to be emitted.
+ * \param ty The type of the MatchCast to be emitted.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
-                                      const tvm::relax::StructInfo& struct_info);
+TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty);
 
 /*!
  * \brief Emit a binding to the last binding block frame.

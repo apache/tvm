@@ -93,8 +93,8 @@ def test_simple():
             return (params_new, optim_states_new)
     # fmt: on
 
-    sinfo = relax.TensorStructInfo((2, 2), "float64")
-    setup_trainer = SetupTrainer(MSELoss(reduction="sum"), SGD(0.1), [sinfo, sinfo], legalize=False)
+    ty = relax.TensorType((2, 2), "float64")
+    setup_trainer = SetupTrainer(MSELoss(reduction="sum"), SGD(0.1), [ty, ty], legalize=False)
     train_mod = setup_trainer(Backbone)
     assert_structural_equal(train_mod.without_attr("optim_state"), Expected)
 
@@ -172,9 +172,9 @@ def test_states():
 
     # fmt: on
 
-    sinfo = relax.TensorStructInfo((2, 2), "float64")
+    ty = relax.TensorType((2, 2), "float64")
     setup_trainer = SetupTrainer(
-        MSELoss(reduction="sum"), MomentumSGD(0.1, 0.1), [sinfo, sinfo], legalize=False
+        MSELoss(reduction="sum"), MomentumSGD(0.1, 0.1), [ty, ty], legalize=False
     )
     train_mod = setup_trainer(Backbone)
     assert_structural_equal(train_mod.without_attr("optim_state"), Expected)
@@ -196,18 +196,18 @@ def test_invalid_mod():
                 R.output(gv, out)
             return gv, out
 
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.001),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     with pytest.raises((RuntimeError, ValueError)):
         SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),
-            [pred_sinfo, pred_sinfo],
+            [pred_ty, pred_ty],
         )(NoAttr)
 
     @I.ir_module

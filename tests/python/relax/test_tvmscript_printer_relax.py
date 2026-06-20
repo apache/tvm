@@ -99,14 +99,12 @@ class Module:
     )
 
 
-def test_extern_func_with_struct_info():
+def test_extern_func_with_ty():
     obj = IRModule(
         {
             "my_ext": relax.ExternFunc(
                 "my_ext",
-                relax.FuncStructInfo(
-                    [], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True
-                ),
+                relax.FuncType([], relax.TensorType(dtype="float32", ndim=2), purity=True),
             ),
         }
     )
@@ -123,14 +121,12 @@ class Module:
     )
 
 
-def test_extern_func_with_struct_info_roundtrip():
+def test_extern_func_with_ty_roundtrip():
     mod = IRModule(
         {
             "my_ext": relax.ExternFunc(
                 "my_ext",
-                relax.FuncStructInfo(
-                    [], relax.TensorStructInfo(dtype="float32", ndim=2), purity=True
-                ),
+                relax.FuncType([], relax.TensorType(dtype="float32", ndim=2), purity=True),
             ),
         }
     )
@@ -172,31 +168,31 @@ class Module:
     )
 
 
-def test_object_struct_info():
-    obj = relax.ObjectStructInfo()
+def test_object_ty():
+    obj = relax.ObjectType()
     _assert_print(
         obj,
         "R.Object",
     )
 
 
-def test_prim_struct_info():
-    obj = relax.PrimStructInfo("float32")
+def test_prim_ty():
+    obj = relax.PrimType("float32")
     _assert_print(obj, 'R.Prim("float32")')
 
 
-def test_shape_struct_info_0():
-    obj = relax.ShapeStructInfo(ndim=-1)
+def test_shape_ty_0():
+    obj = relax.ShapeType(ndim=-1)
     _assert_print(obj, "R.Shape(ndim=-1)")
 
 
-def test_shape_struct_info_1():
-    obj = relax.ShapeStructInfo([1, 2, 3])
+def test_shape_ty_1():
+    obj = relax.ShapeType([1, 2, 3])
     _assert_print(obj, "R.Shape([1, 2, 3])")
 
 
-def test_shape_struct_info_2():
-    obj = relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3])
+def test_shape_ty_2():
+    obj = relax.ShapeType([1, tirx.Var("a", "int64"), 3])
     _assert_print(
         obj,
         """
@@ -205,8 +201,8 @@ R.Shape([1, a, 3])""",
     )
 
 
-def test_tensor_struct_info():
-    obj = relax.TensorStructInfo(
+def test_tensor_ty():
+    obj = relax.TensorType(
         shape=relax.ShapeExpr([1, tirx.Var("a", "int64"), 3]),
         dtype="float32",
     )
@@ -219,17 +215,17 @@ R.Tensor((1, a, 3), dtype="float32")
     )
 
 
-def test_tuple_struct_info_empty():
-    obj = relax.TupleStructInfo([])
+def test_tuple_ty_empty():
+    obj = relax.TupleType([])
     _assert_print(obj, "R.Tuple")
 
 
-def test_tuple_struct_info():
-    obj = relax.TupleStructInfo(
+def test_tuple_ty():
+    obj = relax.TupleType(
         [
-            relax.PrimStructInfo("float32"),
-            relax.ObjectStructInfo(),
-            relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3]),
+            relax.PrimType("float32"),
+            relax.ObjectType(),
+            relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
         ]
     )
     _assert_print(
@@ -241,15 +237,15 @@ R.Tuple(R.Prim("float32"), R.Object, R.Shape([1, a, 3]))
     )
 
 
-def test_func_struct_info():
-    obj = relax.FuncStructInfo(
+def test_func_ty():
+    obj = relax.FuncType(
         params=[
-            relax.PrimStructInfo("float32"),
-            relax.ObjectStructInfo(),
-            relax.ShapeStructInfo([1, tirx.Var("a", "int64"), 3]),
-            relax.PrimStructInfo(value=tirx.Var("b", "int64")),
+            relax.PrimType("float32"),
+            relax.ObjectType(),
+            relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
+            relax.PrimType(value=tirx.Var("b", "int64")),
         ],
-        ret=relax.TensorStructInfo(
+        ret=relax.TensorType(
             shape=relax.ShapeExpr([1, 2, 3]),
             dtype="float32",
         ),
@@ -275,7 +271,7 @@ def test_object_type():
 
 def test_dyn_tensor_type():
     obj = relax.TensorType()
-    _assert_print(obj, 'R.Tensor(ndim=-1, dtype="float32")')
+    _assert_print(obj, 'R.Tensor(dtype="float32")')
 
 
 def test_packed_func_type():
@@ -293,18 +289,18 @@ def test_tuple_type():
 
 def test_func_type():
     obj = relax.FuncType(
-        arg_types=[
+        params=[
             relax.ObjectType(),
             relax.ShapeType(ndim=3),
         ],
-        ret_type=relax.TensorType(
+        ret=relax.TensorType(
             ndim=3,
             dtype="float32",
         ),
     )
     _assert_print(
         obj._relax_script(),  # pylint: disable=protected-access
-        'R.Callable((R.Object, R.Shape(ndim=3)), R.Tensor(ndim=3, dtype="float32"))',
+        'R.Callable((R.Object, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
     )
 
 
@@ -324,7 +320,7 @@ def test_data_type_imm():
 
 
 def test_var():
-    obj = relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32"))
+    obj = relax.Var("a", relax.TensorType([1, tirx.Var("x", "int64"), 3], "float32"))
     _assert_print(
         obj,
         """
@@ -335,7 +331,7 @@ a""",
 
 
 def test_dataflow_var():
-    obj = relax.DataflowVar("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32"))
+    obj = relax.DataflowVar("a", relax.TensorType([1, tirx.Var("x", "int64"), 3], "float32"))
     _assert_print(
         obj,
         """
@@ -348,9 +344,9 @@ a""",
 def test_tuple():
     obj = relax.Tuple(
         [
-            relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32")),
-            relax.Var("b", relax.TensorStructInfo([1, tirx.Var("y", "int64"), 3], "float32")),
-            relax.Var("c", relax.TensorStructInfo([1, tirx.Var("z", "int64"), 3], "float32")),
+            relax.Var("a", relax.TensorType([1, tirx.Var("x", "int64"), 3], "float32")),
+            relax.Var("b", relax.TensorType([1, tirx.Var("y", "int64"), 3], "float32")),
+            relax.Var("c", relax.TensorType([1, tirx.Var("z", "int64"), 3], "float32")),
         ]
     )
     _assert_print(
@@ -371,9 +367,9 @@ def test_tuple_get_item():
     obj = relax.TupleGetItem(
         relax.Tuple(
             [
-                relax.Var("a", relax.TensorStructInfo([1, tirx.Var("x", "int64"), 3], "float32")),
-                relax.Var("b", relax.TensorStructInfo([1, tirx.Var("y", "int64"), 3], "float32")),
-                relax.Var("c", relax.TensorStructInfo([1, tirx.Var("z", "int64"), 3], "float32")),
+                relax.Var("a", relax.TensorType([1, tirx.Var("x", "int64"), 3], "float32")),
+                relax.Var("b", relax.TensorType([1, tirx.Var("y", "int64"), 3], "float32")),
+                relax.Var("c", relax.TensorType([1, tirx.Var("z", "int64"), 3], "float32")),
             ]
         ),
         0,
@@ -399,7 +395,7 @@ def test_shape_expr():
 
 def test_call():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
     o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_ty=a.ty, tir_vars=[x])
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_ty=a.ty)
     _assert_print(
@@ -468,9 +464,9 @@ R.call_tir_inplace(tir_func, (x, y), out_ty=[R.Tensor((32, 32), dtype="int32"), 
 
 def test_seq_expr():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    b = relax.DataflowVar("b", relax.TensorStructInfo([1, x, 3], "float32"))
-    c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
+    b = relax.DataflowVar("b", relax.TensorType([1, x, 3], "float32"))
+    c = relax.Var("c", relax.TensorType([1, x, 3], "float32"))
 
     obj = relax.SeqExpr(
         blocks=[
@@ -499,9 +495,9 @@ c
 
 def test_binding_block():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([1, x, 3], "float32"))
-    c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
+    b = relax.Var("b", relax.TensorType([1, x, 3], "float32"))
+    c = relax.Var("c", relax.TensorType([1, x, 3], "float32"))
     obj = relax.BindingBlock(
         bindings=[
             relax.VarBinding(b, relax.op.sin(a)),
@@ -521,9 +517,9 @@ c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
 
 def test_dataflow_block():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    b = relax.DataflowVar("b", relax.TensorStructInfo([1, x, 3], "float32"))
-    c = relax.Var("c", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
+    b = relax.DataflowVar("b", relax.TensorType([1, x, 3], "float32"))
+    c = relax.Var("c", relax.TensorType([1, x, 3], "float32"))
     obj = relax.DataflowBlock(
         bindings=[
             relax.VarBinding(b, relax.op.sin(a)),
@@ -545,12 +541,12 @@ with R.dataflow():
 
 def test_match_cast():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3]))
-    b = relax.Var("b", relax.TensorStructInfo([1, 5, 3]))
+    a = relax.Var("a", relax.TensorType([1, x, 3]))
+    b = relax.Var("b", relax.TensorType([1, 5, 3]))
     obj = relax.MatchCast(
         var=b,
         value=a,
-        struct_info=b.ty,
+        ty=b.ty,
     )
     _assert_print(
         obj,
@@ -564,8 +560,8 @@ b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dt
 
 def test_var_binding():
     x = tirx.Var("x", "int64")
-    a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    b = relax.Var("b", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
+    b = relax.Var("b", relax.TensorType([1, x, 3], "float32"))
     obj = relax.VarBinding(b, relax.op.sin(a))
     _assert_print(
         obj,
@@ -578,9 +574,9 @@ b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 
 
 def test_if():
-    a = relax.Var("a", relax.TensorStructInfo([], "bool"))
-    b = relax.Var("b", relax.TensorStructInfo([1, 2, 3], "float32"))
-    c = relax.Var("c", relax.TensorStructInfo([1, 2, 3], "float32"))
+    a = relax.Var("a", relax.TensorType([], "bool"))
+    b = relax.Var("b", relax.TensorType([1, 2, 3], "float32"))
+    c = relax.Var("c", relax.TensorType([1, 2, 3], "float32"))
     obj = relax.If(
         a,
         relax.SeqExpr([], b),
@@ -602,8 +598,8 @@ else:
 
 def test_builtin_keywords():
     x = tirx.Var("x", "int64")
-    a = relax.Var("R", relax.TensorStructInfo([1, x, 3], "float32"))
-    b = relax.Var("T", relax.TensorStructInfo([1, x, 3], "float32"))
+    a = relax.Var("R", relax.TensorType([1, x, 3], "float32"))
+    b = relax.Var("T", relax.TensorType([1, x, 3], "float32"))
     obj = relax.VarBinding(b, relax.op.sin(a))
     _assert_print(
         obj,
@@ -873,16 +869,16 @@ def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype
     )
 
 
-def test_hide_inferable_struct_info():
+def test_hide_inferable_ty():
     """Redundant type annotations can be omitted
 
-    When `show_all_struct_info=False`, TVMScript type annotations that
-    provide redundant struct info can be omitted.
+    When `show_all_ty=False`, TVMScript type annotations that
+    provide redundant type can be omitted.
     """
 
     @R.function
     def func(A: R.Tensor([10, 20], "float32"), B: R.Tensor(ndim=2, dtype="float32")):
-        # R.match_cast has the struct info as an argument, so it can
+        # R.match_cast has the type as an argument, so it can
         # be omitted from the variable annotation.
         B2 = R.match_cast(B, R.Tensor([10, 20], "float32"))
 
@@ -893,8 +889,8 @@ def test_hide_inferable_struct_info():
         # info as the RHS.
         D = C
 
-        # Here, the struct info cannot be omitted.  `R.add(D,B)` has
-        # struct info `R.Tensor(ndim=2)`, but the variable has a shape
+        # Here, the type cannot be omitted.  `R.add(D,B)` has
+        # type `R.Tensor(ndim=2)`, but the variable has a shape
         # `R.Tensor([10,20])`.  This is compatible, so it is not an
         # error to have this annotation, but it is not inferrable from
         # the RHS.  Therefore, it must still be printed.
@@ -908,7 +904,7 @@ def test_hide_inferable_struct_info():
         return E
 
     _assert_print(
-        func.script(show_all_struct_info=False),
+        func.script(show_all_ty=False),
         """
 # from tvm.script import relax as R
 

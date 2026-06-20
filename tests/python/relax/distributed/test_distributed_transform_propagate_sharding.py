@@ -527,23 +527,23 @@ def test_decoder_layer():
             )
             lv20: R.Object = kv_cache[0]
             lv21: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv20, lv18, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv20, lv18, ty_args=(R.Object,)
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv22, lv19, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv22, lv19, ty_args=(R.Object,)
             )
             lv24: R.Tensor((256, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.Tensor((256, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((256, 32, 128), dtype="float16"),),
             )
             lv25: R.Tensor((256, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.Tensor((256, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((256, 32, 128), dtype="float16"),),
             )
             lv26: R.Tensor((1, 256, 32, 128), dtype="float16") = R.reshape(
                 lv24, R.shape([1, 256, 32, 128])
@@ -728,26 +728,26 @@ def test_decoder_layer():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv24, R.shape([1, 256, 32, 128])
@@ -1293,23 +1293,23 @@ def test_decoder_layer_tir():
             )
             lv20: R.Object = kv_cache[0]
             lv21: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv20, lv18, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv20, lv18, ty_args=(R.Object,)
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv22, lv19, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv22, lv19, ty_args=(R.Object,)
             )
             lv24: R.Tensor((256, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.Tensor((256, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((256, 32, 128), dtype="float16"),),
             )
             lv25: R.Tensor((256, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.Tensor((256, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((256, 32, 128), dtype="float16"),),
             )
             lv26 = R.call_tir(
                 cls.reshape2, (lv24,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
@@ -1469,26 +1469,26 @@ def test_decoder_layer_tir():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape2"),
@@ -1737,23 +1737,23 @@ def test_decoder_layer_dynamic_shape():
             lv19: R.Tensor((n, 32, 128), dtype="float16") = R.reshape(lv15, R.shape([n, 32, 128]))
             lv20: R.Object = kv_cache[0]
             lv21: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv20, lv18, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv20, lv18, ty_args=(R.Object,)
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", lv22, lv19, sinfo_args=(R.Object,)
+                "vm.builtin.attention_kv_cache_append", lv22, lv19, ty_args=(R.Object,)
             )
             lv24: R.Tensor((m, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv21,
                 R.shape([m, 32, 128]),
-                sinfo_args=(R.Tensor((m, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((m, 32, 128), dtype="float16"),),
             )
             lv25: R.Tensor((m, 32, 128), dtype="float16") = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 lv23,
                 R.shape([m, 32, 128]),
-                sinfo_args=(R.Tensor((m, 32, 128), dtype="float16"),),
+                ty_args=(R.Tensor((m, 32, 128), dtype="float16"),),
             )
             lv26: R.Tensor((1, m, 32, 128), dtype="float16") = R.reshape(
                 lv24, R.shape([1, m, 32, 128])
@@ -1947,26 +1947,26 @@ def test_decoder_layer_dynamic_shape():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([m, 32, 128]),
-                sinfo_args=(R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([m, 32, 128]),
-                sinfo_args=(R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((m, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26: R.DTensor((1, m, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv24, R.shape([1, m, 32, 128])

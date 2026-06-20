@@ -64,8 +64,8 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
-  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(tensor);
+const TensorTypeNode* GetTensorType(Expr tensor) {
+  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(tensor);
   if (tensor_ty) {
     return tensor_ty;
   }
@@ -78,9 +78,9 @@ const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
 }
 
 void UnaryOpHelper(ffi::Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_group_graph) {
-  int n_dim = GetTensorStructInfo(tensor_list[0])->ndim;
+  int n_dim = GetTensorType(tensor_list[0])->ndim;
   for (const auto& tensor : tensor_list) {
-    TVM_FFI_ICHECK(GetTensorStructInfo(tensor)->ndim == n_dim);
+    TVM_FFI_ICHECK(GetTensorType(tensor)->ndim == n_dim);
   }
   for (int i = 0; i < n_dim; i++) {
     TVM_FFI_ICHECK(tensor_list.size() <= 2);
@@ -104,10 +104,10 @@ void BuildAxisGraphUnary(const Var& output_var, const Call& call,
 void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
   ffi::Array<Expr> tensor_list;  // vars in param and output
-  if (call->args[0]->ty.as<TensorStructInfoNode>() || call->args[0]->ty.as<DTensorTypeNode>()) {
+  if (call->args[0]->ty.as<TensorTypeNode>() || call->args[0]->ty.as<DTensorTypeNode>()) {
     tensor_list.push_back(call->args[0]);
   }
-  if (call->args[1]->ty.as<TensorStructInfoNode>() || call->args[1]->ty.as<DTensorTypeNode>()) {
+  if (call->args[1]->ty.as<TensorTypeNode>() || call->args[1]->ty.as<DTensorTypeNode>()) {
     tensor_list.push_back(call->args[1]);
   }
   tensor_list.push_back(output_var);
@@ -115,8 +115,8 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
     UnaryOpHelper(tensor_list, axis_group_graph);
     return;
   }
-  const auto* x1_ty = GetTensorStructInfo(tensor_list[0]);
-  const auto* x2_ty = GetTensorStructInfo(tensor_list[1]);
+  const auto* x1_ty = GetTensorType(tensor_list[0]);
+  const auto* x2_ty = GetTensorType(tensor_list[1]);
   int x1_ndim = x1_ty->ndim;
   int x2_ndim = x2_ty->ndim;
   const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
@@ -176,7 +176,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
     TVM_FFI_THROW(InternalError) << "Unsupported reduce op: " << call->op;
   }
 
-  int ndim = GetTensorStructInfo(input_tensor)->ndim;
+  int ndim = GetTensorType(input_tensor)->ndim;
 
   std::unordered_set<int> normalized_axes;
   for (int64_t i : axes) {
@@ -210,8 +210,8 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
   Expr x1 = call->args[0];
   Expr x2 = call->args[1];
   Var x3 = output_var;
-  const auto* x1_ty = GetTensorStructInfo(x1);
-  const auto* x2_ty = GetTensorStructInfo(x2);
+  const auto* x1_ty = GetTensorType(x1);
+  const auto* x2_ty = GetTensorType(x2);
   int x1_ndim = x1_ty->ndim;
   int x2_ndim = x2_ty->ndim;
   TVM_FFI_ICHECK(x1_ndim > 0 && x2_ndim > 0);
@@ -284,7 +284,7 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
   Expr input_tensor = call->args[0];
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
   TVM_FFI_ICHECK(attrs);
-  int ndim = GetTensorStructInfo(input_tensor)->ndim;
+  int ndim = GetTensorType(input_tensor)->ndim;
   std::vector<int> normalized_axes;
   if (attrs->axes.defined()) {
     for (int64_t i : attrs->axes.value()) {
@@ -307,9 +307,9 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  const auto* tensor_ty = GetTensorStructInfo(input_tensor);
-  const auto* new_shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
-  const auto* old_shape_ty = GetTypeAs<ShapeStructInfoNode>(tensor_ty->shape.value());
+  const auto* tensor_ty = GetTensorType(input_tensor);
+  const auto* new_shape_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
+  const auto* old_shape_ty = GetTypeAs<ShapeTypeNode>(tensor_ty->shape.value());
   TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
   ffi::Array<PrimExpr> old_shape_values = old_shape_ty->values.value();
   ffi::Array<PrimExpr> new_shape_values = new_shape_ty->values.value();
@@ -338,8 +338,8 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
 }
 
 inline int GetNumOutput(Call call) {
-  StructInfo output_ty = call->sinfo_args[0];
-  if (const auto* tuple_ty = output_ty.as<TupleStructInfoNode>()) {
+  Type output_ty = call->ty_args[0];
+  if (const auto* tuple_ty = output_ty.as<TupleTypeNode>()) {
     return tuple_ty->fields.size();
   } else {
     return 1;

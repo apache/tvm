@@ -595,7 +595,7 @@ def test_recursively_defined_lambda():
                 (2, 3), "float32"
             ):
                 cond = R.call_pure_packed(
-                    "test.vm.less", i, R.const(10), sinfo_args=R.Tensor((), dtype="bool")
+                    "test.vm.less", i, R.const(10), ty_args=R.Tensor((), dtype="bool")
                 )
                 c = R.const(1, dtype="int32")
                 if cond:
@@ -634,7 +634,7 @@ def test_recursively_defined_closure():
                 (2, 3), "float32"
             ):
                 cond = R.call_pure_packed(
-                    "test.vm.less", i, threshold, sinfo_args=R.Tensor((), dtype="bool")
+                    "test.vm.less", i, threshold, ty_args=R.Tensor((), dtype="bool")
                 )
                 c = R.const(1, dtype="int32")
                 if cond:

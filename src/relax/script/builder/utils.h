@@ -120,7 +120,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
     body = new_var;
   } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
     last_block_bindings.push_back(
-        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->struct_info));
+        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->ty));
     body = new_var;
   } else {
     TVM_FFI_CHECK(false, TypeError) << "Unsupported binding type: " << last_binding->GetTypeKey();

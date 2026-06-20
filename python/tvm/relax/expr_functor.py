@@ -54,7 +54,7 @@ from .expr import (
     Var,
     VarBinding,
 )
-from .type import StructInfo
+from .type import Type
 
 visitor = derived_object
 """
@@ -1521,7 +1521,7 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.PyExprMutatorLookupBinding(self._outer(), var)  # type: ignore
 
-    def with_type(self, var: Var, ty: StructInfo) -> Var:
+    def with_type(self, var: Var, ty: Type) -> Var:
         """Create a new var with specified shape and type if the original var's shape or type does
         not match with the specified ones.
 
@@ -1529,7 +1529,7 @@ class PyExprMutator:
         ----------
         var : Var
             The var to be updated.
-        ty : StructInfo
+        ty : Type
             The type.
 
         Returns

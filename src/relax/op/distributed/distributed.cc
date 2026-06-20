@@ -57,15 +57,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dist.annotate_sharding", annotate_sharding);
 }
 
-StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetType(call->args[0]);
 }
 
 TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAnnotateSharding)
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferStructInfoAnnotateSharding)
+    .set_attr<FInferType>("FInferType", InferTypeAnnotateSharding)
+    .set_attr<FInferType>("dist.FInferType", InferTypeAnnotateSharding)
     .set_attr<bool>("FPurity", true);
 
 /* relax.dist.redistribute */
@@ -85,7 +85,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dist.redistribute", redistribute);
 }
 
-StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
   const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
@@ -95,18 +95,18 @@ StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder&
 TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
+    .set_attr<FInferType>("dist.FInferType", InferDistTypeRedistribute)
     .set_attr<bool>("FPurity", true);
 
-StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
-  if (call->sinfo_args.size() != 1) {
-    TVM_FFI_VISIT_THROW(InternalError, call) << "sinfo_args should have exactly 1 output type.";
+Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
+  if (call->ty_args.size() != 1) {
+    TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
          "PrimFunc. "
       << "However, gets " << call->args[0];
-  return call->sinfo_args[0];
+  return call->ty_args[0];
 }
 
 TVM_REGISTER_OP("relax.dist.call_tir_local_view")
@@ -116,7 +116,7 @@ TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
+    .set_attr<FInferType>("FInferType", InferTypeCallTIRLocalView)
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
@@ -125,15 +125,15 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir_local_view should have defined ShapeExpr as shape. "
-           "However, one given structure info is "
+           "However, one given type information is "
         << ty;
   }
 
-  StructInfo out_ty{nullptr};
+  Type out_ty{nullptr};
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
-    out_ty = TupleStructInfo({out_ty_list.begin(), out_ty_list.end()});
+    out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
   static const Op& op = Op::Get("relax.dist.call_tir_local_view");
@@ -152,8 +152,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dist.call_tir_local_view", MakeCallTIRLocalView);
 }
 
-StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo input_ty = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
+  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   DataType output_dtype = input_ty->dtype;
 
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
@@ -176,15 +176,15 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
-  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
+  return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
 }
 
-StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   using namespace distributed;
   ffi::Array<DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
   DTensorType input_dtensor_ty = input_dtensor_tys[0];
-  TensorStructInfo tensor_ty = input_dtensor_ty->tensor_ty;
+  TensorType tensor_ty = input_dtensor_ty->tensor_ty;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
   arith::Analyzer analyzer = ctx->GetAnalyzer();
@@ -229,8 +229,8 @@ TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The buffer to be sliced.")
     .set_attrs_type<ScatterCollectiveAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)
+    .set_attr<FInferType>("FInferType", InferTypeRtoS)
+    .set_attr<FInferType>("dist.FInferType", InferDistTypeRtoS)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

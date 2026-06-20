@@ -714,7 +714,7 @@ def test_data_dependent_reshape():
         ) -> R.Tensor(ndim=2, dtype="float32"):
             M = T.int64()
             N = T.int64()
-            gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=2),))
+            gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=2),))
             _ = R.match_cast(gv, R.Shape([M,N]))
             _ = R.shape([M,N])
             gv_1 = R.call_tir(Expected.reshape, (y,), out_ty=R.Tensor([M,N], dtype="float32"))
@@ -1736,13 +1736,13 @@ def test_layout_transform_with_pad_axis_sep():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_func_struct_info_of_legalized_layout_transform():
+def test_func_ty_of_legalized_layout_transform():
     """PrimFunc shape information must be correct
 
     This is a regression test.  Previously, the legalization of
-    `R.layout_transform` produced a PrimFunc with `FuncStructInfo`
+    `R.layout_transform` produced a PrimFunc with `FuncType`
     different than its actual signature.  This resulted in errors
-    when later passes attempted to infer the StructInfo.
+    when later passes attempted to infer the Type.
     """
 
     @I.ir_module(s_tir=True)
@@ -1778,7 +1778,7 @@ def test_func_struct_info_of_legalized_layout_transform():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_sinfo(
+            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((4, 4), dtype="float32"),),

@@ -26,9 +26,9 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType data_ty = input_dtensor_tys[0]->tensor_ty;
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
@@ -71,7 +71,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
-  TensorStructInfo output_tensor_ty = TensorStructInfo(ShapeExpr(out_shape), data_ty->dtype);
+  TensorType output_tensor_ty = TensorType(ShapeExpr(out_shape), data_ty->dtype);
 
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphReduce);
 }

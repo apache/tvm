@@ -380,8 +380,8 @@ def test_do_not_eliminate_extern_func():
     class Before:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32")):
-            y = R.call_packed("extern_func_name", x, sinfo_args=R.Tensor([2, 3]))
-            z = R.call_packed("extern_func_name", y, sinfo_args=R.Tensor([2, 3]))
+            y = R.call_packed("extern_func_name", x, ty_args=R.Tensor([2, 3]))
+            z = R.call_packed("extern_func_name", y, ty_args=R.Tensor([2, 3]))
             return z
 
     Expected = Before

@@ -30,12 +30,12 @@ def test_op_correctness():
     assert relax.op.matmul(x, y).op == Op.get("relax.matmul")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
-def test_matmul_infer_struct_info():
+def test_matmul_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
@@ -54,31 +54,29 @@ def test_matmul_infer_struct_info():
     y5 = relax.Var("y", R.Tensor())
     y6 = relax.Var("y", R.Tensor((4, 5), "float32", vdev0))
 
-    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo((3, 5), "float32"))
-    _check_inference(bb, relax.op.matmul(x7, y6), relax.TensorStructInfo((3, 5), "float32", vdev0))
-    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo((), "float32"))
-    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorStructInfo((2, 3, 5), "float32"))
-    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorStructInfo((2, 3, 5), "float32"))
-    _check_inference(
-        bb, relax.op.matmul(x3, y3), relax.TensorStructInfo((6, 2, 3, 4, 7), "float32")
-    )
-    _check_inference(bb, relax.op.matmul(x4, y3), relax.TensorStructInfo((6, 2, 3, 4, 7), ""))
-    _check_inference(bb, relax.op.matmul(x3, y4), relax.TensorStructInfo(dtype="float32", ndim=5))
-    _check_inference(bb, relax.op.matmul(x5, y3), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, relax.op.matmul(x3, y5), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorType((3, 5), "float32"))
+    _check_inference(bb, relax.op.matmul(x7, y6), relax.TensorType((3, 5), "float32", vdev0))
+    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorType((), "float32"))
+    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorType((2, 3, 5), "float32"))
+    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorType((2, 3, 5), "float32"))
+    _check_inference(bb, relax.op.matmul(x3, y3), relax.TensorType((6, 2, 3, 4, 7), "float32"))
+    _check_inference(bb, relax.op.matmul(x4, y3), relax.TensorType((6, 2, 3, 4, 7), ""))
+    _check_inference(bb, relax.op.matmul(x3, y4), relax.TensorType(dtype="float32", ndim=5))
+    _check_inference(bb, relax.op.matmul(x5, y3), relax.TensorType(dtype="float32"))
+    _check_inference(bb, relax.op.matmul(x3, y5), relax.TensorType(dtype=""))
     _check_inference(
         bb,
         relax.op.matmul(x3, y3, out_dtype="float16"),
-        relax.TensorStructInfo((6, 2, 3, 4, 7), "float16"),
+        relax.TensorType((6, 2, 3, 4, 7), "float16"),
     )
     _check_inference(
         bb,
         relax.op.matmul(x6, y3, out_dtype="float16"),
-        relax.TensorStructInfo((6, 2, 3, 4, 7), "float16"),
+        relax.TensorType((6, 2, 3, 4, 7), "float16"),
     )
 
 
-def test_matmul_infer_struct_info_shape_symbolic():
+def test_matmul_infer_ty_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
@@ -99,43 +97,39 @@ def test_matmul_infer_struct_info_shape_symbolic():
     y3 = relax.Var("y", R.Tensor((a, 1, c, k0, n), "float32"))
     y4 = relax.Var("y", R.Tensor((a, b1, c, k0, n), "float32"))
 
-    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo((m, n), "float32"))
-    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo((), "float32"))
-    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorStructInfo((a, b, n), "float32"))
-    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorStructInfo((a, b, m), "float32"))
-    _check_inference(
-        bb, relax.op.matmul(x3, y3), relax.TensorStructInfo((a, b, c, m, n), "float32")
-    )
-    _check_inference(
-        bb, relax.op.matmul(x4, y3), relax.TensorStructInfo((a, b, c, m, n), "float32")
-    )
-    _check_inference(bb, relax.op.matmul(x3, y4), relax.TensorStructInfo(dtype="float32", ndim=5))
+    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorType((m, n), "float32"))
+    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorType((), "float32"))
+    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorType((a, b, n), "float32"))
+    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorType((a, b, m), "float32"))
+    _check_inference(bb, relax.op.matmul(x3, y3), relax.TensorType((a, b, c, m, n), "float32"))
+    _check_inference(bb, relax.op.matmul(x4, y3), relax.TensorType((a, b, c, m, n), "float32"))
+    _check_inference(bb, relax.op.matmul(x3, y4), relax.TensorType(dtype="float32", ndim=5))
 
 
-def test_matmul_infer_struct_info_shape_var():
+def test_matmul_infer_ty_shape_var():
     bb = relax.BlockBuilder()
-    s0 = relax.Var("s0", relax.ShapeStructInfo(ndim=4))
-    s1 = relax.Var("s1", relax.ShapeStructInfo(ndim=3))
-    s2 = relax.Var("s3", relax.ShapeStructInfo(ndim=1))
-    s3 = relax.Var("s4", relax.ShapeStructInfo(ndim=1))
-    s5 = relax.Var("s5", relax.ShapeStructInfo())
-    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
-    x1 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
-    x2 = relax.Var("x", relax.TensorStructInfo(s5, "float32"))
-    y0 = relax.Var("y", relax.TensorStructInfo(s1, "float32"))
-    y1 = relax.Var("y", relax.TensorStructInfo(s2, "float32"))
-    y2 = relax.Var("y", relax.TensorStructInfo(s3, "float32"))
+    s0 = relax.Var("s0", relax.ShapeType(ndim=4))
+    s1 = relax.Var("s1", relax.ShapeType(ndim=3))
+    s2 = relax.Var("s3", relax.ShapeType(ndim=1))
+    s3 = relax.Var("s4", relax.ShapeType(ndim=1))
+    s5 = relax.Var("s5", relax.ShapeType())
+    x0 = relax.Var("x", relax.TensorType(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorType(s2, "float32"))
+    x2 = relax.Var("x", relax.TensorType(s5, "float32"))
+    y0 = relax.Var("y", relax.TensorType(s1, "float32"))
+    y1 = relax.Var("y", relax.TensorType(s2, "float32"))
+    y2 = relax.Var("y", relax.TensorType(s3, "float32"))
 
-    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo(dtype="float32", ndim=4))
-    _check_inference(bb, relax.op.matmul(x1, y0), relax.TensorStructInfo(dtype="float32", ndim=2))
-    _check_inference(bb, relax.op.matmul(x2, y0), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, relax.op.matmul(x0, y1), relax.TensorStructInfo(dtype="float32", ndim=3))
-    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo(dtype="float32", ndim=0))
-    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorStructInfo(dtype="float32", ndim=0))
+    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorType(dtype="float32", ndim=4))
+    _check_inference(bb, relax.op.matmul(x1, y0), relax.TensorType(dtype="float32", ndim=2))
+    _check_inference(bb, relax.op.matmul(x2, y0), relax.TensorType(dtype="float32"))
+    _check_inference(bb, relax.op.matmul(x0, y1), relax.TensorType(dtype="float32", ndim=3))
+    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorType(dtype="float32", ndim=0))
+    _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorType(dtype="float32"))
+    _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorType(dtype="float32", ndim=0))
 
 
-def test_matmul_infer_struct_info_more_input_dtype():
+def test_matmul_infer_ty_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3, 4), "float16"))
     y0 = relax.Var("y", R.Tensor((4, 5), "float16"))
@@ -144,12 +138,12 @@ def test_matmul_infer_struct_info_more_input_dtype():
     x2 = relax.Var("x", R.Tensor((3, 4), "int64"))
     y2 = relax.Var("y", R.Tensor((4, 5), "int64"))
 
-    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo((3, 5), "float16"))
-    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo((3, 5), "int8"))
-    _check_inference(bb, relax.op.matmul(x2, y2), relax.TensorStructInfo((3, 5), "int64"))
+    _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorType((3, 5), "float16"))
+    _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorType((3, 5), "int8"))
+    _check_inference(bb, relax.op.matmul(x2, y2), relax.TensorType((3, 5), "int64"))
 
 
-def test_matmul_infer_struct_info_mixed_precision():
+def test_matmul_infer_ty_mixed_precision():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3, 4), "float16"))
     y0 = relax.Var("y", R.Tensor((4, 5), "float16"))
@@ -161,19 +155,19 @@ def test_matmul_infer_struct_info_mixed_precision():
     _check_inference(
         bb,
         relax.op.matmul(x0, y0, out_dtype="float32"),
-        relax.TensorStructInfo((3, 5), "float32"),
+        relax.TensorType((3, 5), "float32"),
     )
     _check_inference(
-        bb, relax.op.matmul(x1, y1, out_dtype="int32"), relax.TensorStructInfo((3, 5), "int32")
+        bb, relax.op.matmul(x1, y1, out_dtype="int32"), relax.TensorType((3, 5), "int32")
     )
     _check_inference(
         bb,
         relax.op.matmul(x2, y2, out_dtype="float32"),
-        relax.TensorStructInfo((3, 5), "float32"),
+        relax.TensorType((3, 5), "float32"),
     )
 
 
-def test_matmul_infer_struct_info_zero_rank_input():
+def test_matmul_infer_ty_zero_rank_input():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
     x1 = relax.Var("x", R.Tensor((), "float32"))
@@ -186,7 +180,7 @@ def test_matmul_infer_struct_info_zero_rank_input():
         bb.normalize(relax.op.matmul(x1, y0))
 
 
-def test_matmul_infer_struct_info_not_broadcastable():
+def test_matmul_infer_ty_not_broadcastable():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     y = relax.Var("y", R.Tensor((2, 8, 3, 5, 6), "float32"))
@@ -195,7 +189,7 @@ def test_matmul_infer_struct_info_not_broadcastable():
         bb.normalize(relax.op.matmul(x, y))
 
 
-def test_matmul_infer_struct_info_unequal_reduction_length():
+def test_matmul_infer_ty_unequal_reduction_length():
     bb = relax.BlockBuilder()
     k = tirx.Var("k", "int64")
     x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
@@ -227,32 +221,28 @@ def test_linear():
 
     # Need a scope to normalize non-leaf nodes
     with bb.function("func", [x1]):
+        _check_inference(bb, relax.op.linear(x1, w1, b1), relax.TensorType((2, 3, 5), "float32"))
         _check_inference(
-            bb, relax.op.linear(x1, w1, b1), relax.TensorStructInfo((2, 3, 5), "float32")
+            bb, relax.op.linear(x3, w4, b3), relax.TensorType((2, 3, 5), "float32", vdev0)
         )
-        _check_inference(
-            bb, relax.op.linear(x3, w4, b3), relax.TensorStructInfo((2, 3, 5), "float32", vdev0)
-        )
-        _check_inference(
-            bb, relax.op.linear(x1, w1, b2), relax.TensorStructInfo((2, 3, 5), "float32")
-        )
+        _check_inference(bb, relax.op.linear(x1, w1, b2), relax.TensorType((2, 3, 5), "float32"))
         with pytest.raises(ValueError):
             bb.normalize(relax.op.linear(x1, w2, b1))  # error on Add with shape (2, 3, 5) and (4,)
-        _check_inference(bb, relax.op.linear(x1, w2, b2), relax.TensorStructInfo((2, 3), "float32"))
-        _check_inference(bb, relax.op.linear(x1, w3, b1), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x1, w3, b2), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w1, b1), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w1, b2), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w2, b1), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w2, b2), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w3, b1), relax.TensorStructInfo(dtype="float32"))
-        _check_inference(bb, relax.op.linear(x2, w3, b2), relax.TensorStructInfo(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x1, w2, b2), relax.TensorType((2, 3), "float32"))
+        _check_inference(bb, relax.op.linear(x1, w3, b1), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x1, w3, b2), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w1, b1), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w1, b2), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w2, b1), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w2, b2), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w3, b1), relax.TensorType(dtype="float32"))
+        _check_inference(bb, relax.op.linear(x2, w3, b2), relax.TensorType(dtype="float32"))
 
         # Fake output
         gv = bb.emit_func_output(relax.Tuple([]))
 
 
-def test_einsum_infer_struct_info():
+def test_einsum_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x0", R.Tensor((), "float32"))
@@ -273,46 +263,42 @@ def test_einsum_infer_struct_info():
     x15 = relax.Var("x15", R.Tensor((2, 5, 3, 6, 4), "float32"))
     x16 = relax.Var("x16", R.Tensor((5, 5), "int32", vdev0))
 
-    _check_inference(bb, relax.op.einsum((x2,), "ii"), relax.TensorStructInfo((), "int32"))
-    _check_inference(bb, relax.op.einsum((x16,), "ii"), relax.TensorStructInfo((), "int32", vdev0))
-    _check_inference(bb, relax.op.einsum((x2,), "ii->i"), relax.TensorStructInfo((5,), "int32"))
-    _check_inference(bb, relax.op.einsum([x2], "...j->..."), relax.TensorStructInfo((5,), "int32"))
+    _check_inference(bb, relax.op.einsum((x2,), "ii"), relax.TensorType((), "int32"))
+    _check_inference(bb, relax.op.einsum((x16,), "ii"), relax.TensorType((), "int32", vdev0))
+    _check_inference(bb, relax.op.einsum((x2,), "ii->i"), relax.TensorType((5,), "int32"))
+    _check_inference(bb, relax.op.einsum([x2], "...j->..."), relax.TensorType((5,), "int32"))
+    _check_inference(bb, relax.op.einsum((x2, x1), "...j, j"), relax.TensorType((5,), "int32"))
+    _check_inference(bb, relax.op.einsum((x0, x5), "..., ..."), relax.TensorType((2, 3), "float32"))
     _check_inference(
-        bb, relax.op.einsum((x2, x1), "...j, j"), relax.TensorStructInfo((5,), "int32")
+        bb, relax.op.einsum((x5, x6), "ij,jk->ik"), relax.TensorType((2, 4), "float32")
     )
     _check_inference(
-        bb, relax.op.einsum((x0, x5), "..., ..."), relax.TensorStructInfo((2, 3), "float32")
+        bb, relax.op.einsum((x5, x6, x8), "ij,jk,km->im"), relax.TensorType((2, 5), "float32")
     )
     _check_inference(
-        bb, relax.op.einsum((x5, x6), "ij,jk->ik"), relax.TensorStructInfo((2, 4), "float32")
+        bb, relax.op.einsum((x9, x10), "ijk, jil->kl"), relax.TensorType((5, 2), "float32")
     )
     _check_inference(
-        bb, relax.op.einsum((x5, x6, x8), "ij,jk,km->im"), relax.TensorStructInfo((2, 5), "float32")
-    )
-    _check_inference(
-        bb, relax.op.einsum((x9, x10), "ijk, jil->kl"), relax.TensorStructInfo((5, 2), "float32")
-    )
-    _check_inference(
-        bb, relax.op.einsum((x3, x4), "ij, ij -> i"), relax.TensorStructInfo((2,), "float32")
+        bb, relax.op.einsum((x3, x4), "ij, ij -> i"), relax.TensorType((2,), "float32")
     )
     _check_inference(
         bb,
         relax.op.einsum((x3, x7), "...ij, ...jk -> ...ik"),
-        relax.TensorStructInfo((1, 2), "float32"),
+        relax.TensorType((1, 2), "float32"),
     )
     _check_inference(
         bb,
         relax.op.einsum((x12, x13), "...ij, ...ik -> ...jk"),
-        relax.TensorStructInfo((1, 1, 4, 3), "float16"),
+        relax.TensorType((1, 1, 4, 3), "float16"),
     )
     _check_inference(
         bb,
         relax.op.einsum((x11, x14, x15), "...ik, ...jk, ...hk -> i...jh"),
-        relax.TensorStructInfo((4, 2, 5, 3, 8, 6), "float32"),
+        relax.TensorType((4, 2, 5, 3, 8, 6), "float32"),
     )
 
 
-def test_einsum_infer_struct_info_shape_symbolic():
+def test_einsum_infer_ty_shape_symbolic():
     bb = relax.BlockBuilder()
     a = tirx.Var("a", "int64")
     b = tirx.Var("b", "int64")
@@ -321,15 +307,13 @@ def test_einsum_infer_struct_info_shape_symbolic():
     y = relax.Var("y", R.Tensor((b, c), "float32"))
     z = relax.Var("z", R.Tensor((a, a), "float32"))
 
-    _check_inference(bb, relax.op.einsum((z,), "ii->i"), relax.TensorStructInfo((a,), "float32"))
-    _check_inference(
-        bb, relax.op.einsum((x, y), "ij,jk->ik"), relax.TensorStructInfo((a, c), "float32")
-    )
+    _check_inference(bb, relax.op.einsum((z,), "ii->i"), relax.TensorType((a,), "float32"))
+    _check_inference(bb, relax.op.einsum((x, y), "ij,jk->ik"), relax.TensorType((a, c), "float32"))
 
 
-def test_einsum_infer_struct_info_wrong_inputs():
+def test_einsum_infer_ty_wrong_inputs():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x0", relax.ShapeStructInfo((2, 3, 4, 5)))
+    x0 = relax.Var("x0", relax.ShapeType((2, 3, 4, 5)))
     x1 = relax.Var("x1", R.Tensor((5, 5), "int32"))
 
     with pytest.raises(TypeError):

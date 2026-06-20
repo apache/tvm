@@ -66,24 +66,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.op.nn.attention_var_len", attention_var_len);
 }
 
-StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo q_sinfo = input_sinfo[0];
-  TensorStructInfo k_sinfo = input_sinfo[1];
-  TensorStructInfo v_sinfo = input_sinfo[2];
-  auto diag_dim = [&](TensorStructInfo sinfo, ffi::String name) {
-    if (sinfo->ndim != 4) {
+Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType q_ty = input_ty[0];
+  TensorType k_ty = input_ty[1];
+  TensorType v_ty = input_ty[2];
+  auto diag_dim = [&](TensorType ty, ffi::String name) {
+    if (ty->ndim != 4) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The " << name << " should have 4 dimension, namely "
           << "[batch size, sequence length, number of heads, dimension of heads].";
     }
   };
-  diag_dim(q_sinfo, "query");
-  diag_dim(k_sinfo, "key");
-  diag_dim(v_sinfo, "value");
-  const ShapeExprNode* q_shape = q_sinfo->shape.as<ShapeExprNode>();
-  const ShapeExprNode* k_shape = k_sinfo->shape.as<ShapeExprNode>();
-  const ShapeExprNode* v_shape = v_sinfo->shape.as<ShapeExprNode>();
+  diag_dim(q_ty, "query");
+  diag_dim(k_ty, "key");
+  diag_dim(v_ty, "value");
+  const ShapeExprNode* q_shape = q_ty->shape.as<ShapeExprNode>();
+  const ShapeExprNode* k_shape = k_ty->shape.as<ShapeExprNode>();
+  const ShapeExprNode* v_shape = v_ty->shape.as<ShapeExprNode>();
   PrimExpr num_batches = q_shape->values[0];
   PrimExpr num_queries = q_shape->values[1];
   PrimExpr num_heads = q_shape->values[2];
@@ -116,13 +116,13 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   diag_equal(num_keys, v_shape->values[1], "key", "value", "sequence length");
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
 
-  if (input_sinfo.size() == 4) {
-    TensorStructInfo bias_sinfo = input_sinfo[3];
-    const ShapeExprNode* bias_shape = bias_sinfo->shape.as<ShapeExprNode>();
-    if (bias_sinfo->ndim != 4) {
+  if (input_ty.size() == 4) {
+    TensorType bias_ty = input_ty[3];
+    const ShapeExprNode* bias_shape = bias_ty->shape.as<ShapeExprNode>();
+    if (bias_ty->ndim != 4) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The bias should have 4 dimensions."
-          << "However, the bias input has " << bias_sinfo->ndim << " dimensions.";
+          << "However, the bias input has " << bias_ty->ndim << " dimensions.";
     }
     auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                                        ffi::String dim) {
@@ -140,7 +140,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
-  return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype, q_sinfo->vdevice);
+  return TensorType(ShapeExpr(output_shape), q_ty->dtype, q_ty->vdevice);
 }
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
@@ -156,7 +156,7 @@ TVM_REGISTER_OP("relax.nn.attention")
     .add_argument("value", "Tensor", "The input values tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<FInferType>("FInferType", InferTypeAttention)
     .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.nn.attention_bias")
@@ -168,7 +168,7 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .add_argument("bias", "Tensor", "The input bias tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<FInferType>("FInferType", InferTypeAttention)
     .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.nn.attention_var_len")
@@ -183,7 +183,7 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .add_argument("max_seqlen_k", "Tensor", "The maximum key sequence length in the batch.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<FInferType>("FInferType", InferTypeAttention)
     .set_attr<bool>("FPurity", true);
 
 TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }

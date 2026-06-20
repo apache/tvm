@@ -57,41 +57,13 @@ class Id(Object):
         raise RuntimeError("Cannot directly construct Id")
 
 
-# NOTE: place base struct info in expr to avoid cyclic dep
-# from expr to struct info.
-@tvm_ffi.register_object("ir.StructInfo")
-class StructInfo(Type):
-    """The base class of all StructInfo.
+def _relax_type_is_base_of(self: Type, derived: Type) -> bool:
+    """Check if this Relax type is a base of another Relax type."""
 
-    StructInfo contains both the static type
-    and runtime structural information.
-    """
+    return _ffi_api.TypeIsBaseOf(self, derived)  # type: ignore
 
-    def __eq__(self, other):
-        """Compare two struct info for structural equivalence."""
-        return tvm_ffi.structural_equal(self, other)
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def same_as(self, other):
-        """Overload with structural equality."""
-        return super().__eq__(other)
-
-    def is_base_of(self, derived: "StructInfo") -> bool:
-        """Check if self is base of another derived struct info.
-
-        Parameters
-        ----------
-        derived : StructInfo
-            The derived struct info to be checked.
-
-        Returns
-        -------
-        result : bool
-            The check result.
-        """
-        return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
+Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 
 
 # will be registered afterwards in python/tvm/relax/op/init.py
@@ -155,7 +127,7 @@ class ExprWithOp(Expr, Scriptable):
     # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
 
     def __add__(self, other: Expr) -> "ExprWithOp":
-        if isinstance(self.ty, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
+        if isinstance(self.ty, tvm.relax.TupleType) and isinstance(other, tuple):
             return tuple([*self, *other])
 
         return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
@@ -246,7 +218,7 @@ class ExprWithOp(Expr, Scriptable):
                 raise IndexError from err
             raise
 
-    def _check_for_tensor_struct_info(self):
+    def _check_for_tensor_ty(self):
         """Raise an error if this is something other than a Tensor
 
         Used for early checks in `expr.dtype` and `expr.shape`
@@ -257,7 +229,7 @@ class ExprWithOp(Expr, Scriptable):
         if self.ty is None:
             return
 
-        if not isinstance(self.ty, tvm.relax.TensorStructInfo):
+        if not isinstance(self.ty, tvm.relax.TensorType):
             raise TypeError(
                 f"Runtime unpacking of DLDataType is only implemented for tensors, "
                 f"but was applied to object {self} of type {type(self)}."
@@ -266,32 +238,32 @@ class ExprWithOp(Expr, Scriptable):
     @property
     def dtype(self) -> "_DLTensorDTypeProxy":
         """Returns a proxy object for accessing DLTensor::dtype"""
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         return _DLTensorDTypeProxy(self)
 
     @property
     def ndim(self) -> "Expr":
         """Returns the runtime value of DLTensor::ndim"""
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         op = tvm.ir.Op.get("relax.inspect.tensor_ndim")
         return tvm.relax.Call(op, [self])
 
     @property
     def shape(self) -> "_DLTensorShapeProxy":
         """Returns a proxy object for accessing DLTensor::shape"""
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         return _DLTensorShapeProxy(self)
 
     @property
     def strides(self) -> "_DLTensorStrideProxy":
         """Returns a proxy object for accessing DLTensor::strides"""
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         return _DLTensorStrideProxy(self)
 
     @property
     def byte_offset(self) -> "Expr":
         """Returns a proxy object for accessing DLTensor::byte_offset"""
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         op = tvm.ir.Op.get("relax.inspect.tensor_byte_offset")
         return tvm.relax.Call(op, [self])
 
@@ -305,7 +277,7 @@ class ExprWithOp(Expr, Scriptable):
         `tirx::BufferNode::elem_offset` field when interacting with TIR
         buffers.
         """
-        self._check_for_tensor_struct_info()
+        self._check_for_tensor_ty()
         op = tvm.ir.Op.get("relax.inspect.tensor_elem_offset")
         return tvm.relax.Call(op, [self])
 
@@ -447,11 +419,11 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimStructInfo):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimType):
             raise TypeError(
                 f"The index used to access {self.tensor}.shape "
-                f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.ty}."
+                f'must have type R.Prim("int64"), '
+                f"but index {axis} had type {axis.ty}."
             )
 
         op = tvm.ir.Op.get("relax.inspect.tensor_shape_i")
@@ -515,11 +487,11 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimStructInfo):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimType):
             raise TypeError(
                 f"The index used to access {self.tensor}.strides "
-                f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.ty}."
+                f'must have type R.Prim("int64"), '
+                f"but index {axis} had type {axis.ty}."
             )
 
         op = tvm.ir.Op.get("relax.inspect.tensor_stride_i")
@@ -544,11 +516,11 @@ class Call(ExprWithOp):
     attrs: Optional[tvm.ir.Attrs]
         Attributes to the call, can be None
 
-    sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]]
-        The structure info arguments of a CallNode.
-        sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
+    ty_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]]
+        The type information arguments of a CallNode.
+        ty_args is designed to be non-empty only for intrinsic op (e.g.,
         call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-        usage of structure info inference.
+        usage of type information inference.
 
     span: Optional[Span]
         Span that points to original source code
@@ -557,7 +529,7 @@ class Call(ExprWithOp):
     op: Expr
     args: list[Expr]
     attrs: tvm.ir.Attrs
-    sinfo_args: list[StructInfo]
+    ty_args: list[Type]
     span: Span | None
 
     def __init__(
@@ -565,17 +537,17 @@ class Call(ExprWithOp):
         op: Expr | tvm.ir.Op,
         args: list[Expr] | tuple[Expr, ...],
         attrs: tvm.ir.Attrs | None = None,
-        sinfo_args: list[StructInfo] | tuple[StructInfo, ...] | None = None,
+        ty_args: list[Type] | tuple[Type, ...] | None = None,
         span: Span | None = None,
     ):
-        if not sinfo_args:
-            sinfo_args = []
+        if not ty_args:
+            ty_args = []
         self.__init_handle_by_constructor__(
             _ffi_api.Call,
             op,
             args,
             attrs,
-            sinfo_args,
+            ty_args,
             span,  # type: ignore
         )
 
@@ -633,7 +605,7 @@ class Tuple(ExprWithOp):
     def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
         if isinstance(fields, tvm.relax.Tuple):
             fields = fields.fields
-        elif isinstance(getattr(fields, "ty", None), tvm.relax.TupleStructInfo):
+        elif isinstance(getattr(fields, "ty", None), tvm.relax.TupleType):
             fields = [*fields]
 
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
@@ -726,8 +698,8 @@ class Constant(ExprWithOp):
     data: tvm.runtime.Tensor
         The data of the constant tensor.
 
-    struct_info: Optional[StructInfo]
-        The struct info of the constant tensor. If not specified, infer it from data.
+    ty: Optional[Type]
+        The type of the constant tensor. If not specified, infer it from data.
 
     span: Optional[Span]
         Span that points to original source code
@@ -743,13 +715,13 @@ class Constant(ExprWithOp):
     def __init__(
         self,
         data: tvm.runtime.Tensor,
-        struct_info: StructInfo | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Constant,
             data,
-            struct_info,
+            ty,
             span,  # type: ignore
         )
 
@@ -763,8 +735,8 @@ class Var(ExprWithOp):
     name_hint: str | Id
         The name hint of the variable.
 
-    struct_info: Optional[StructInfo]
-        The struct info annotation of the variable.
+    ty: Optional[Type]
+        The type annotation of the variable.
 
     span: Optional[Span]
         Span that points to original source code
@@ -776,21 +748,21 @@ class Var(ExprWithOp):
     def __init__(
         self,
         name_hint: str | Id,
-        struct_info: StructInfo | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
-        if struct_info is not None:
-            struct_info = tvm.runtime.convert(struct_info)
-            if not isinstance(struct_info, StructInfo):
+        if ty is not None:
+            ty = tvm.runtime.convert(ty)
+            if not isinstance(ty, Type):
                 raise TypeError(
-                    "struct_info needs to be an instance of StructInfo. "
+                    "ty needs to be an instance of Type. "
                     "If you attempt to pass in shape, "
-                    "use relax.TensorStructInfo(shape, dtype)."
+                    "use relax.TensorType(shape, dtype)."
                 )
         self.__init_handle_by_constructor__(
             _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
             name_hint,
-            struct_info,
+            ty,
             span,
         )
 
@@ -812,8 +784,8 @@ class DataflowVar(Var):
     name_hint: str | Id
         The name hint of the variable.
 
-    struct_info: Optional[StructInfo]
-        The struct info annotation of the variable.
+    ty: Optional[Type]
+        The type annotation of the variable.
 
     span: Optional[Span]
         Span that points to original source code
@@ -825,17 +797,17 @@ class DataflowVar(Var):
     def __init__(
         self,
         name_hint: str | Id,
-        struct_info: StructInfo | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
         # pylint: disable=super-init-not-called
-        if struct_info is not None:
-            struct_info = tvm.runtime.convert(struct_info)
-            if not isinstance(struct_info, StructInfo):
+        if ty is not None:
+            ty = tvm.runtime.convert(ty)
+            if not isinstance(ty, Type):
                 raise TypeError(
-                    "struct_info needs to be an instance of StructInfo. "
+                    "ty needs to be an instance of Type. "
                     "If you attempt to pass in shape, "
-                    "use relax.TensorStructInfo(shape, dtype)."
+                    "use relax.TensorType(shape, dtype)."
                 )
 
         self.__init_handle_by_constructor__(
@@ -845,7 +817,7 @@ class DataflowVar(Var):
                 else _ffi_api.DataflowVarFromId
             ),  # type: ignore
             name_hint,
-            struct_info,
+            ty,
             span,
         )
 
@@ -894,10 +866,10 @@ class Binding(Node, Scriptable):
 
 @tvm_ffi.register_object("relax.expr.MatchCast")
 class MatchCast(Binding):
-    """Runtime-match the value to the struct info.
+    """Runtime-match the value to the type.
 
     This operation does runtime check, populates the un-defined symbolic shape vars
-    and vars in struct_info in the first occurrence, and insert equality assertions in
+    and vars in ty in the first occurrence, and insert equality assertions in
     other cases.
 
     Parameters
@@ -908,22 +880,20 @@ class MatchCast(Binding):
     value: Expr
         The input value expression.
 
-    struct_info: tvm.relax.StructInfo
-        The struct info to match cast to.
+    ty: tvm.relax.Type
+        The type to match cast to.
     """
 
-    struct_info: StructInfo
+    ty: Type
     value: Expr
     span: Span | None
 
-    def __init__(
-        self, var: Var, value: Expr, struct_info: StructInfo, span: Span | None = None
-    ) -> None:
+    def __init__(self, var: Var, value: Expr, ty: Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast,
             var,
             value,
-            struct_info,
+            ty,
             span,  # type: ignore
         )
 
@@ -992,7 +962,7 @@ class Function(BaseFunc, Scriptable):
 
     params: list[Var]
     body: Expr
-    ret_struct_info: StructInfo
+    ret_ty: Type
     is_pure: bool
     attrs: tvm.ir.DictAttrs
     span: Span | None
@@ -1001,7 +971,7 @@ class Function(BaseFunc, Scriptable):
         self,
         params: list[Var],
         body: Expr,
-        ret_struct_info: StructInfo | None = None,
+        ret_ty: Type | None = None,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
         span: Span | None = None,
@@ -1012,7 +982,7 @@ class Function(BaseFunc, Scriptable):
             _ffi_api.Function,
             params,
             body,
-            ret_struct_info,
+            ret_ty,
             is_pure,
             attrs,
             span,
@@ -1021,7 +991,7 @@ class Function(BaseFunc, Scriptable):
     @staticmethod
     def create_empty(
         params: list[Var],
-        ret_struct_info: StructInfo,
+        ret_ty: Type,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
         span: Span | None = None,
@@ -1029,7 +999,7 @@ class Function(BaseFunc, Scriptable):
         """Construct a relax.Function but without body"""
         if attrs is None:
             attrs = tvm.ir.DictAttrs({})
-        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_ty, is_pure, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -1135,20 +1105,20 @@ class ExternFunc(BaseFunc, ExprWithOp):
     def __init__(
         self,
         global_symbol: String,
-        struct_info: StructInfo | None = None,
+        ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc,
             global_symbol,
-            struct_info,
+            ty,
             span,  # type: ignore
         )
 
 
-def extern(name: str, struct_info: StructInfo | None = None, span: Span | None = None):
+def extern(name: str, ty: Type | None = None, span: Span | None = None):
     """Create extern function."""
-    return ExternFunc(name, struct_info, span)
+    return ExternFunc(name, ty, span)
 
 
 def const(
@@ -1214,7 +1184,7 @@ def te_tensor(
     Parameters
     ----------
     value : Expr
-        The relax expression, which is required to have TensorStructInfo.
+        The relax expression, which is required to have TensorType.
 
     tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.PrimExpr]
         The mapping to substitute the TIR variables appeared in the
@@ -1242,7 +1212,7 @@ def get_shape_of(expr: Expr) -> Expr:
     Note
     ----
     This function requires expr to be normalized.
-    The function will report an error if expr's StructInfo is not TensorStructInfo.
+    The function will report an error if expr's Type is not TensorType.
     It will try to return symbolic function when possible. If the tensor do not
     have a compile-time symbolic shape, the function will then choose to return
     `Call(relax.op.shape_of, [expr])`.
@@ -1250,5 +1220,5 @@ def get_shape_of(expr: Expr) -> Expr:
     return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
-def _update_type(expr: Expr, ty: StructInfo | None) -> None:
+def _update_type(expr: Expr, ty: Type | None) -> None:
     _ffi_api.UpdateType(expr, ty)  # type: ignore

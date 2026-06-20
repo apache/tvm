@@ -28,59 +28,7 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ShapeTypeNode::RegisterReflection();
-  TensorTypeNode::RegisterReflection();
-  ObjectTypeNode::RegisterReflection();
-  PackedFuncTypeNode::RegisterReflection();
-}
-
-ShapeType::ShapeType(int ndim, Span span) {
-  ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
-  n->ndim = ndim;
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ShapeType",
-                        [](int ndim, Span span) { return ShapeType(ndim, span); });
-}
-
-ObjectType::ObjectType(Span span) {
-  ffi::ObjectPtr<ObjectTypeNode> n = ffi::make_object<ObjectTypeNode>();
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
-}
-
-TensorType::TensorType(int ndim, DataType dtype, Span span) {
-  ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
-  n->ndim = std::move(ndim);
-  n->dtype = std::move(dtype);
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TensorType TensorType::CreateUnknownNDim(DataType dtype, Span span) {
-  ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
-  n->ndim = -1;
-  n->dtype = std::move(dtype);
-  n->span = std::move(span);
-  return TensorType(std::move(n));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.TensorType", [](int ndim, DataType dtype, Span span) {
-    return TensorType(ndim, dtype, span);
-  });
-}
+TVM_FFI_STATIC_INIT_BLOCK() { PackedFuncTypeNode::RegisterReflection(); }
 
 PackedFuncType::PackedFuncType(Span span) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();

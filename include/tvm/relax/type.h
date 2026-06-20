@@ -48,94 +48,6 @@ class Call;
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
 static constexpr int kUnknownNDim = -1;
 
-class ShapeTypeNode : public TypeNode {
- public:
-  /*! \brief size of the shape. */
-  int ndim;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, TypeNode);
-};
-
-class ShapeType : public Type {
- public:
-  TVM_DLL ShapeType(int ndim, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeType, Type, ShapeTypeNode);
-};
-
-/*!
- * \brief Dynamic version of TensorType
- *
- * Use relax::TensorStructInfo for more detailed (possibly dynamic) shape constrains
- */
-class TensorTypeNode : public TypeNode {
- public:
-  /*!
-   * \brief The number of dimensions of the tensor, use -1 to denote tensor with unknown number of
-   * dimensions.
-   */
-  int ndim;
-  /*! \brief The content data type, use void to denote the dtype is unknown. */
-  DataType dtype;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorTypeNode>()
-        .def_ro("ndim", &TensorTypeNode::ndim)
-        .def_ro("dtype", &TensorTypeNode::dtype);
-  }
-
-  inline bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
-
-  inline bool IsUnknownDtype() const { return dtype.is_void(); }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DynTensorType", TensorTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to TensorTypeNode.
- * \sa TensorTypeNode.
- */
-class TensorType : public Type {
- public:
-  /*!
-   * \brief Constructor.
-   * \param ndim The number of dimensions of the tensor.
-   * \param dtype The runtime dtype of the tensor's elements.
-   * \param span The span.
-   */
-  TVM_DLL TensorType(int ndim, DataType dtype, Span span = Span());
-
-  /*!
-   * \brief Create a TensorType with unknown ndim.
-   */
-  TVM_DLL static TensorType CreateUnknownNDim(DataType dtype, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorType, Type, TensorTypeNode);
-};
-
-using TensorTypeNode = TensorTypeNode;
-using TensorType = TensorType;
-
-class ObjectTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ObjectTypeNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, TypeNode);
-};
-
-class ObjectType : public Type {
- public:
-  TVM_DLL ObjectType(Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectType, Type, ObjectTypeNode);
-};
-
 class PackedFuncTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
@@ -155,76 +67,67 @@ class PackedFuncType : public Type {
 /*!
  * \brief Base type of all structure information.
  *
- * StructInfo stores possible structure information deduced during compile-time.
+ * Type stores possible structure information deduced during compile-time.
  * It encapsulates both static type and runtime information such as shape.
  *
- * StructInfo of each non-primitive Expr can be deduced during compilation in a
+ * Type of each non-primitive Expr can be deduced during compilation in a
  * "best-effort" manner.
  *
- * When struct_info appears in function parameter and return signatures, it
+ * When ty appears in function parameter and return signatures, it
  * implies a runtime check that matches the structure information with the value.
  *
  * When it appears in Expr, it follows "assume-semantics", which means the
  * compiler will take the deduced information as it is and only do best effort
  * proofs and checks.
  *
- * Each struct info can be uniquely erased to a static-type.  The compiler will
+ * Each type can be uniquely erased to a static-type.  The compiler will
  * still compile the code, with less information, when we erase to the static
  * type.
  *
- * If a StructInfo contains an Expr field, then that field must already be
+ * If a Type contains an Expr field, then that field must already be
  * normalized through NormalizeArg.  This invariant is checked in constructors
  * and simplifies assumptions during type deduction.
  */
-class StructInfoNode : public TypeNode {
+class DependentTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StructInfoNode>();
+    refl::ObjectDef<DependentTypeNode>();
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to StructInfoNode.
- * \sa StructInfoNode
- */
-class StructInfo : public Type {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, Type, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.DependentType", DependentTypeNode, TypeNode);
 };
 
 /*!
  * \brief Opaque object.
  */
-class ObjectStructInfoNode : public StructInfoNode {
+class ObjectTypeNode : public DependentTypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ObjectStructInfoNode>();
+    refl::ObjectDef<ObjectTypeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectStructInfo", ObjectStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to ObjectStructInfoNode.
- * \sa ObjectStructInfoNode
+ * \brief Managed reference to ObjectTypeNode.
+ * \sa ObjectTypeNode
  */
-class ObjectStructInfo : public StructInfo {
+class ObjectType : public Type {
  public:
-  TVM_DLL ObjectStructInfo(Span span = Span());
+  TVM_DLL ObjectType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectStructInfo, StructInfo, ObjectStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectType, Type, ObjectTypeNode);
 };
 
 /*!
  * \brief Primitive value.
  */
-class PrimStructInfoNode : public StructInfoNode {
+class PrimTypeNode : public DependentTypeNode {
  public:
   /*! \brief Underlying primitive value, if known */
   ffi::Optional<PrimExpr> value;
@@ -234,32 +137,32 @@ class PrimStructInfoNode : public StructInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimStructInfoNode>()
-        .def_ro("value", &PrimStructInfoNode::value)
-        .def_ro("dtype", &PrimStructInfoNode::dtype);
+    refl::ObjectDef<PrimTypeNode>()
+        .def_ro("value", &PrimTypeNode::value)
+        .def_ro("dtype", &PrimTypeNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimStructInfo", PrimStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimType", PrimTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to PrimStructInfoNode.
- * \sa PrimStructInfoNode
+ * \brief Managed reference to PrimTypeNode.
+ * \sa PrimTypeNode
  */
-class PrimStructInfo : public StructInfo {
+class PrimType : public Type {
  public:
-  /* Construct a PrimStructInfo with a known dtype, but unknown value */
-  TVM_DLL PrimStructInfo(DataType dtype, Span span = Span());
+  /* Construct a PrimType with a known dtype, but unknown value */
+  TVM_DLL PrimType(DataType dtype, Span span = Span());
 
-  /* Construct a PrimStructInfo with a known value */
-  TVM_DLL PrimStructInfo(PrimExpr value, Span span = Span());
+  /* Construct a PrimType with a known value */
+  TVM_DLL PrimType(PrimExpr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimStructInfo, StructInfo, PrimStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimType, Type, PrimTypeNode);
 };
 
 /*!
- * \brief StructInfo of shape value.
+ * \brief Type of shape value.
  */
-class ShapeStructInfoNode : public StructInfoNode {
+class ShapeTypeNode : public DependentTypeNode {
  public:
   /*! \brief optionally stores the symbolic value patterns of the shape */
   ffi::Optional<ffi::Array<PrimExpr>> values;
@@ -269,44 +172,44 @@ class ShapeStructInfoNode : public StructInfoNode {
    */
   int ndim;
 
-  /*! \return Whether the struct info contains unknown ndim. */
+  /*! \return Whether the type contains unknown ndim. */
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ShapeStructInfoNode>()
-        .def_ro("values", &ShapeStructInfoNode::values)
-        .def_ro("ndim", &ShapeStructInfoNode::ndim);
+    refl::ObjectDef<ShapeTypeNode>()
+        .def_ro("values", &ShapeTypeNode::values)
+        .def_ro("ndim", &ShapeTypeNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeStructInfo", ShapeStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to ShapeStructInfoNode.
- * \sa ShapeStructInfoNode
+ * \brief Managed reference to ShapeTypeNode.
+ * \sa ShapeTypeNode
  */
-class ShapeStructInfo : public StructInfo {
+class ShapeType : public Type {
  public:
   /*!
    * \brief Construction with known symbolic shape patterns
    * \param values The symbolic shape values
    * \param span The span of the AST.
    */
-  TVM_DLL ShapeStructInfo(ffi::Array<PrimExpr> values, Span span = Span());
+  TVM_DLL ShapeType(ffi::Array<PrimExpr> values, Span span = Span());
   /*!
    * \brief Construction with known unknown symbolic shape patterns.
    * \param ndim Number of dimensions -- can be kUnknownNDim
    * \param span The span of the AST.
    */
-  TVM_DLL ShapeStructInfo(int ndim, Span span = Span());
+  TVM_DLL ShapeType(int ndim, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeStructInfo, StructInfo, ShapeStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeType, Type, ShapeTypeNode);
 };
 
 /*!
- * \brief StructInfo of Tensor.
+ * \brief Type of Tensor.
  */
-class TensorStructInfoNode : public StructInfoNode {
+class TensorTypeNode : public DependentTypeNode {
  public:
   /*!
    * \brief optionally store the shape expression of the tensor.
@@ -325,35 +228,35 @@ class TensorStructInfoNode : public StructInfoNode {
    */
   int ndim;
 
-  /*! \return Whether the struct info contains unknown ndim. */
+  /*! \return Whether the type contains unknown ndim. */
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
-  /*! \return Whether the struct info contains unknown dtype. */
+  /*! \return Whether the type contains unknown dtype. */
   bool IsUnknownDtype() const { return dtype.is_void(); }
 
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
-    ShapeStructInfo shape_ty = Downcast<ShapeStructInfo>(this->shape.value()->ty);
+    ShapeType shape_ty = Downcast<ShapeType>(this->shape.value()->ty);
     return shape_ty->values;
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorStructInfoNode>()
-        .def_ro("shape", &TensorStructInfoNode::shape)
-        .def_ro("dtype", &TensorStructInfoNode::dtype)
-        .def_ro("vdevice", &TensorStructInfoNode::vdevice)
-        .def_ro("ndim", &TensorStructInfoNode::ndim);
+    refl::ObjectDef<TensorTypeNode>()
+        .def_ro("shape", &TensorTypeNode::shape)
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ro("vdevice", &TensorTypeNode::vdevice)
+        .def_ro("ndim", &TensorTypeNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorStructInfo", TensorStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorType", TensorTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to TensorStructInfoNode.
- * \sa TensorStructInfoNode
+ * \brief Managed reference to TensorTypeNode.
+ * \sa TensorTypeNode
  */
-class TensorStructInfo : public StructInfo {
+class TensorType : public Type {
  public:
   /*!
    * \brief Construction with a known shape expression.
@@ -364,8 +267,8 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype,
-                           ffi::Optional<VDevice> vdevice = std::nullopt, Span span = Span());
+  TVM_DLL TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice = std::nullopt,
+                     Span span = Span());
 
   /*!
    * \brief Construction with an unknown shape expression.
@@ -374,50 +277,50 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
-                           Span span = Span());
+  TVM_DLL TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
+                     Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorStructInfo, StructInfo, TensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorType, Type, TensorTypeNode);
 };
 
 /*!
- * \brief StructInfo of Tuple.
+ * \brief Type of Tuple.
  */
-class TupleStructInfoNode : public StructInfoNode {
+class TupleTypeNode : public DependentTypeNode {
  public:
-  /*! \brief The struct info of tuple fields. */
-  ffi::Array<StructInfo> fields;
+  /*! \brief The type of tuple fields. */
+  ffi::Array<Type> fields;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
+    refl::ObjectDef<TupleTypeNode>().def_ro("fields", &TupleTypeNode::fields);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleStructInfo", TupleStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleType", TupleTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to TupleStructInfoNode.
- * \sa TupleStructInfoNode
+ * \brief Managed reference to TupleTypeNode.
+ * \sa TupleTypeNode
  */
-class TupleStructInfo : public StructInfo {
+class TupleType : public Type {
  public:
   /*!
    * \brief Constructor
-   * \param fields Struct info of tuple fields.
+   * \param fields Type of tuple fields.
    * \param span The span of the AST.
    */
-  TVM_DLL TupleStructInfo(ffi::Array<StructInfo> fields, Span span = Span());
+  TVM_DLL TupleType(ffi::Array<Type> fields, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleStructInfo, StructInfo, TupleStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
 };
 
 /*!
- * \brief custom-defined StructInfo derivation function.
+ * \brief custom-defined Type derivation function.
  * \param call The call expression to be derived.
  * \param ctx The builder context.
- * \return The derived struct info of the call.
+ * \return The derived type of the call.
  */
-using TypeDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
+using TypeDeriveFunc = TypedEnvFunc<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief Structure information about function.
@@ -425,22 +328,22 @@ using TypeDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const BlockBuil
  * This data structure contains enough information for us to do best-effort
  * structure information deduction.
  */
-class FuncStructInfoNode : public StructInfoNode {
+class FuncTypeNode : public DependentTypeNode {
  public:
   /*!
-   * \brief The parameter struct info of the function.
+   * \brief The parameter type of the function.
    * \note When params is std::nullopt means the function can take arbitrary number of arguments.
    *       We define such functions as Opaque function.
    */
-  ffi::Optional<ffi::Array<StructInfo>> params;
+  ffi::Optional<ffi::Array<Type>> params;
   /*!
-   * \brief The struct info of the function's return value.
+   * \brief The type of the function's return value.
    */
-  StructInfo ret;
+  Type ret;
   /*!
    * \brief Derivation function of opaque functions that may take any number of parameters.
    * \note When derive_func is not empty, then params should be std::nullopt,
-   *       ret should be ObjectStructInfo()
+   *       ret should be ObjectType()
    */
   ffi::Optional<TypeDeriveFunc> derive_func;
   /*!
@@ -451,74 +354,73 @@ class FuncStructInfoNode : public StructInfoNode {
   bool purity;
 
   /*!
-   * \return Whether the func struct info is opaque.
+   * \return Whether the func type is opaque.
    * \note We define a function as opaque we have no constraints on params.
    */
   bool IsOpaque() const { return !params.defined(); }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FuncStructInfoNode>()
-        .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("ret", &FuncStructInfoNode::ret)
-        .def_ro("derive_func", &FuncStructInfoNode::derive_func)
-        .def_ro("purity", &FuncStructInfoNode::purity);
+    refl::ObjectDef<FuncTypeNode>()
+        .def_ro("params", &FuncTypeNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("ret", &FuncTypeNode::ret)
+        .def_ro("derive_func", &FuncTypeNode::derive_func)
+        .def_ro("purity", &FuncTypeNode::purity);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncStructInfo", FuncStructInfoNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncType", FuncTypeNode, DependentTypeNode);
 };
 
 /*!
- * \brief Managed reference to FuncStructInfoNode.
- * \sa FuncStructInfoNode
+ * \brief Managed reference to FuncTypeNode.
+ * \sa FuncTypeNode
  */
-class FuncStructInfo : public StructInfo {
+class FuncType : public Type {
  public:
-  explicit FuncStructInfo(ffi::ObjectPtr<FuncStructInfoNode> data) : StructInfo(ffi::UnsafeInit{}) {
+  explicit FuncType(ffi::ObjectPtr<FuncTypeNode> data) : Type(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
   /*!
-   * \brief Constructor from parameter struct info and return value struct info.
-   * \param params The struct info of function parameters.
-   * \param ret The return value struct info.
+   * \brief Constructor from parameter type and return value type.
+   * \param params The type of function parameters.
+   * \param ret The return value type.
    * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
    * \note If the ret contains variables(tirx::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
-  TVM_DLL FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bool purity = true,
-                         Span span = Span());
+  TVM_DLL FuncType(ffi::Array<Type> params, Type ret, bool purity = true, Span span = Span());
 
   /*!
-   * \brief Constructing an opaque function struct info using derive_func.
+   * \brief Constructing an opaque function type using derive_func.
    *
    * \param derive_func Derivation function.
    * \param purity The purity of the function
    *   (false by default: most external functions are not pure).
    * \param span The span of the AST.
    *
-   * \return The FuncStructInfo for opaque packedfunc.
-   * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
+   * \return The FuncType for opaque packedfunc.
+   * \note Defaults to an derive func that always return ObjectType if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(TypeDeriveFunc derive_func, bool purity = false,
-                                           Span span = Span());
+  TVM_DLL static FuncType OpaqueFunc(TypeDeriveFunc derive_func, bool purity = false,
+                                     Span span = Span());
 
   /*!
-   * \brief Construct an opaque function using from return struct info.
+   * \brief Construct an opaque function using from return type.
    *
-   * \param ret The struct info of the return value.
+   * \param ret The type of the return value.
    * \param purity The purity of the function
    *   (false by default: most external functions are not pure).
    * \param span The span of the AST.
    *
-   * \return The FuncStructInfo for opaque packedfunc.
-   * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
+   * \return The FuncType for opaque packedfunc.
+   * \note Defaults to an derive func that always return ObjectType if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), bool purity = false,
-                                           Span span = Span());
+  TVM_DLL static FuncType OpaqueFunc(Type ret = ObjectType(), bool purity = false,
+                                     Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncStructInfo, StructInfo, FuncStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };
 
 /*!
@@ -558,10 +460,10 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \param expr The input expression.
  * \return underlying Relax type.
  */
-inline StructInfo GetType(const Expr& expr) {
-  auto* ptr = expr->ty.as<StructInfoNode>();
+inline Type GetType(const Expr& expr) {
+  auto* ptr = expr->ty.as<DependentTypeNode>();
   TVM_FFI_ICHECK(ptr) << "The type is not populated, check if you have normalized the expr";
-  return ffi::GetRef<StructInfo>(ptr);
+  return ffi::GetRef<Type>(ptr);
 }
 
 /*!
@@ -571,7 +473,7 @@ inline StructInfo GetType(const Expr& expr) {
  * \return Whether the expr has void type.
  */
 inline bool HasVoidType(const Expr& expr) {
-  auto* ptr = expr->ty.as<TupleStructInfoNode>();
+  auto* ptr = expr->ty.as<TupleTypeNode>();
   return ptr != nullptr && ptr->fields.size() == 0;
 }
 
@@ -582,7 +484,7 @@ inline bool HasVoidType(const Expr& expr) {
  * \note We ensure idempotence, that is we can only update the type of an Expr only
  *  if the original one is nullptr.
  */
-TVM_DLL void UpdateType(Expr expr, StructInfo ty);
+TVM_DLL void UpdateType(Expr expr, Type ty);
 
 }  // namespace relax
 }  // namespace tvm

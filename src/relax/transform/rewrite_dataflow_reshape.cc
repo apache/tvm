@@ -104,7 +104,7 @@ class DataflowReshapeRewriter : public ExprMutator {
       return ffi::GetRef<Call>(call);
     }
 
-    TensorStructInfo res_ty = Downcast<TensorStructInfo>(call->ty);
+    TensorType res_ty = Downcast<TensorType>(call->ty);
     return reshape(arg, res_ty->shape.value());
   }
 
@@ -121,8 +121,8 @@ class DataflowReshapeRewriter : public ExprMutator {
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
     TVM_FFI_ICHECK(inp->ty.defined() && call->ty.defined());
-    TensorStructInfo inp_ty = Downcast<TensorStructInfo>(inp->ty);
-    TensorStructInfo res_ty = Downcast<TensorStructInfo>(call->ty);
+    TensorType inp_ty = Downcast<TensorType>(inp->ty);
+    TensorType res_ty = Downcast<TensorType>(call->ty);
 
     if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;

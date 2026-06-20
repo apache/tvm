@@ -49,7 +49,7 @@ class NormalizeMutator : public ExprMutatorBase {
     if (body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
+      return Function(op->params, body, op->ret_ty, op->is_pure, op->attrs);
     }
   }
 
@@ -165,7 +165,7 @@ class NormalizeMutator : public ExprMutatorBase {
       builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
       builder_->EmitNormalized(
-          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
+          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->ty));
     }
   }
 

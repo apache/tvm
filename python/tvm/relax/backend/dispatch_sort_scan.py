@@ -171,7 +171,7 @@ class SortScanDispatcher(BackendDispatcher):
                     "vm.builtin.reshape",
                     call.args[0],
                     cumsum_2d_shape,
-                    sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                    ty_args=relax.TensorType(cumsum_2d_shape, out_dtype),
                 )
                 gv = self.builder_.add_func(
                     gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
@@ -180,13 +180,13 @@ class SortScanDispatcher(BackendDispatcher):
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_ty=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                    out_ty=relax.TensorType(cumsum_2d_shape, out_dtype),
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",
                     cumsum,
                     shape,
-                    sinfo_args=call.ty,
+                    ty_args=call.ty,
                 )
 
             with tgt:

@@ -30,45 +30,41 @@ def test_op_correctness():
     assert relax.op.dequantize(dx, s, zp, 1, "float32").op == Op.get("relax.dequantize")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
-def test_qdq_op_infer_struct_info():
+def test_qdq_op_infer_ty():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     dx = relax.Var("dx", R.Tensor((2, 3), "uint8"))
     s = relax.Var("s", R.Tensor([3], "float32"))
     zp = relax.Var("zp", R.Tensor([3], "int8"))
-    _check_inference(
-        bb, relax.op.quantize(x, s, zp, 1, "int8"), relax.TensorStructInfo((2, 3), "int8")
-    )
+    _check_inference(bb, relax.op.quantize(x, s, zp, 1, "int8"), relax.TensorType((2, 3), "int8"))
     _check_inference(
         bb,
         relax.op.dequantize(dx, s, zp, 1, "float32"),
-        relax.TensorStructInfo((2, 3), "float32"),
+        relax.TensorType((2, 3), "float32"),
     )
 
 
-def test_qdq_op_infer_struct_info_symbolic():
+def test_qdq_op_infer_ty_symbolic():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((n, 3), "float32"))
     dx = relax.Var("dx", R.Tensor((n, 3), "int8"))
     s = relax.Var("s", R.Tensor([3], "float32"))
     zp = relax.Var("zp", R.Tensor([3], "int8"))
-    _check_inference(
-        bb, relax.op.quantize(x, s, zp, 1, "int8"), relax.TensorStructInfo((n, 3), "int8")
-    )
+    _check_inference(bb, relax.op.quantize(x, s, zp, 1, "int8"), relax.TensorType((n, 3), "int8"))
     _check_inference(
         bb,
         relax.op.dequantize(dx, s, zp, 1, "float32"),
-        relax.TensorStructInfo((n, 3), "float32"),
+        relax.TensorType((n, 3), "float32"),
     )
 
 
-def test_qdq_float8_e4m3fn_op_infer_struct_info_symbolic():
+def test_qdq_float8_e4m3fn_op_infer_ty_symbolic():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((n, 3), "float32"))
@@ -78,16 +74,16 @@ def test_qdq_float8_e4m3fn_op_infer_struct_info_symbolic():
     _check_inference(
         bb,
         relax.op.quantize(x, s, zp, 1, "float8_e4m3fn"),
-        relax.TensorStructInfo((n, 3), "float8_e4m3fn"),
+        relax.TensorType((n, 3), "float8_e4m3fn"),
     )
     _check_inference(
         bb,
         relax.op.dequantize(dx, s, zp, 1, "float32"),
-        relax.TensorStructInfo((n, 3), "float32"),
+        relax.TensorType((n, 3), "float32"),
     )
 
 
-def test_qdq_float8_e5m2_op_infer_struct_info_symbolic():
+def test_qdq_float8_e5m2_op_infer_ty_symbolic():
     dtype = "float8_e5m2"
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
@@ -95,13 +91,11 @@ def test_qdq_float8_e5m2_op_infer_struct_info_symbolic():
     dx = relax.Var("dx", R.Tensor((n, 3), dtype))
     s = relax.Var("s", R.Tensor([3], "float32"))
     zp = relax.Var("zp", R.Tensor([3], "float16"))
-    _check_inference(
-        bb, relax.op.quantize(x, s, zp, 1, dtype), relax.TensorStructInfo((n, 3), dtype)
-    )
+    _check_inference(bb, relax.op.quantize(x, s, zp, 1, dtype), relax.TensorType((n, 3), dtype))
     _check_inference(
         bb,
         relax.op.dequantize(dx, s, zp, 1, "float32"),
-        relax.TensorStructInfo((n, 3), "float32"),
+        relax.TensorType((n, 3), "float32"),
     )
 
 

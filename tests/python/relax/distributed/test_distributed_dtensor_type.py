@@ -44,8 +44,8 @@ def _check_json_roundtrip(x):
 def test_dtensor_type():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    tensor_ty0 = rx.TensorStructInfo([1, n + 1, m], "float32")
-    tensor_ty1 = rx.TensorStructInfo([1, n + 1, m], "float32")
+    tensor_ty0 = rx.TensorType([1, n + 1, m], "float32")
+    tensor_ty1 = rx.TensorType([1, n + 1, m], "float32")
     assert tensor_ty0 == tensor_ty1
 
     device_mesh0 = rx.distributed.DeviceMesh((2, 2), Range(0, 4))

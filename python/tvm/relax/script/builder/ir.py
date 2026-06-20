@@ -198,7 +198,7 @@ from tvm.relax.op import (
     call_py_func as _call_py_func,
 )
 from tvm.relax.op.builtin import stop_lift_params
-from tvm.relax.type import StructInfo
+from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
 from tvm.runtime import ObjectConvertible
@@ -278,13 +278,13 @@ def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFr
     )
 
 
-def arg(name: py_str, struct_info: StructInfo) -> Var:
+def arg(name: py_str, ty: Type) -> Var:
     """Add a parameter to the last function frame.
     Parameters
     ----------
     name: str
         The name of the parameter.
-    struct_info: StructInfo
+    ty: Type
         The Struct Info of the parameter
 
     Returns
@@ -293,7 +293,7 @@ def arg(name: py_str, struct_info: StructInfo) -> Var:
         The created function parameter var.
     """
 
-    return _ffi_api.Arg(name, struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Arg(name, ty)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def func_name(name: py_str) -> None:
@@ -316,17 +316,17 @@ def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_type(ret_ty: StructInfo) -> None:
+def func_ret_type(ret_ty: Type) -> None:
     """Specify the return type of the last function frame.
     Parameters
     ----------
-    ret_ty: StructInfo
+    ret_ty: Type
         The function return type.
     """
     return _ffi_api.FuncRetType(ret_ty)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_struct_info(ret_ty: StructInfo) -> None:
+def func_ret_ty(ret_ty: Type) -> None:
     """Backward-compatible alias for `func_ret_type`."""
     return func_ret_type(ret_ty)
 
@@ -412,7 +412,7 @@ def output(*vars: tuple[Var]) -> None:
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: StructInfo | list[StructInfo] | None = None,
+    ty_args: Type | list[Type] | None = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -422,8 +422,8 @@ def call_packed(
         The name of extern function.
     *args : Expr
         The arguments.
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
-        The list of structure info arguments.
+    ty_args: Optional[Union[Type, List[Type]]]
+        The list of type information arguments.
     kwargs: Expr
         The keyword arguments.
 
@@ -434,22 +434,16 @@ def call_packed(
     """
     op = ExternFunc(func)
     args = py_tuple(convert_to_expr(a) for a in args)
-    if sinfo_args is None:
-        sinfo_args = []
-    if isinstance(sinfo_args, py_tuple):  # type: ignore
-        sinfo_args = list(sinfo_args)
-    elif not isinstance(sinfo_args, list):
-        sinfo_args = [sinfo_args]
+    if ty_args is None:
+        ty_args = []
+    if isinstance(ty_args, py_tuple):  # type: ignore
+        ty_args = list(ty_args)
+    elif not isinstance(ty_args, list):
+        ty_args = [ty_args]
 
-    sinfo_args = [
-        (
-            sinfo()
-            if callable(sinfo)
-            else sinfo.asobject()
-            if isinstance(sinfo, ObjectConvertible)
-            else sinfo
-        )
-        for sinfo in sinfo_args
+    ty_args = [
+        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
+        for ty in ty_args
     ]
 
     is_default = False
@@ -463,13 +457,13 @@ def call_packed(
     if kwargs or not is_default:
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
-    return Call(op, args, attrs=attrs, sinfo_args=sinfo_args)
+    return Call(op, args, attrs=attrs, ty_args=ty_args)
 
 
 def call_py_func(
     py_func_name: py_str,
     *args: Expr,
-    out_ty: StructInfo | list[StructInfo],
+    out_ty: Type | list[Type],
 ) -> Call:
     """Create a relax Call, which calls a Python function.
 
@@ -480,10 +474,10 @@ def call_py_func(
         in the IRModule's pyfuncs attribute.
     *args : Expr
         The arguments.
-    out_ty: Union[StructInfo, List[StructInfo]]
-        The structure info of the call_py_func output.
-        It should be a single or a list of TensorStructInfo. Each one denotes the
-        structure info of a returned tensor.
+    out_ty: Union[Type, List[Type]]
+        The type information of the call_py_func output.
+        It should be a single or a list of TensorType. Each one denotes the
+        type information of a returned tensor.
 
     Returns
     -------
@@ -497,14 +491,8 @@ def call_py_func(
         out_ty = [out_ty]
 
     out_ty = [
-        (
-            sinfo()
-            if callable(sinfo)
-            else sinfo.asobject()
-            if isinstance(sinfo, ObjectConvertible)
-            else sinfo
-        )
-        for sinfo in out_ty
+        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
+        for ty in out_ty
     ]
 
     # Convert string to StringImm
@@ -517,8 +505,8 @@ def call_py_func(
     return _call_py_func(func_name_imm, args, out_ty)
 
 
-def _sinfo_arg_wrapper(func):
-    """A wrapper to convert StructInfoProxies to StructInfo for builtin operators with sinfo_args"""
+def _ty_arg_wrapper(func):
+    """A wrapper to convert TypeProxies to Type for builtin operators with ty_args"""
 
     def _convert_tensor_type(args):
         if isinstance(args, list | py_tuple):  # type: ignore
@@ -539,30 +527,30 @@ def _sinfo_arg_wrapper(func):
     return wrapped  # type: ignore
 
 
-invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-name
+invoke_closure = _ty_arg_wrapper(invoke_closure)  # pylint: disable=invalid-name
 
-call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
+call_builtin_with_ctx = _ty_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
 
 
 ############################### Emits ###############################
 
 
-def emit(value: Expr, annotate_struct_info: StructInfo | None = None) -> Var:
+def emit(value: Expr, annotate_ty: Type | None = None) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
 
-    annotate_struct_info: Optional[StructInfo]
-        The optional struct info annotation for the emitted value.
+    annotate_ty: Optional[Type]
+        The optional type annotation for the emitted value.
 
     Returns
     -------
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Emit(value, annotate_ty)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
@@ -600,21 +588,21 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     return call_tir(gvar, call_args, out_ty, tir_vars)
 
 
-def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
+def emit_match_cast(value: Expr, ty: Type) -> Var:
     """Emit a match_cast binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
         The value of the MatchCast to be emitted.
-    struct_info: StructInfo
-        The struct_info of the MatchCast to be emitted.
+    ty: Type
+        The ty of the MatchCast to be emitted.
 
     Returns
     -------
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.EmitMatchCast(value, struct_info)  # type: ignore
+    return _ffi_api.EmitMatchCast(value, ty)  # type: ignore
 
 
 def emit_var_binding(value: VarBinding) -> Var:
@@ -634,7 +622,7 @@ def emit_var_binding(value: VarBinding) -> Var:
 def emit_with_type(
     op: str,
     args: Expr,
-    ty_args: StructInfo | list[StructInfo] | None = None,
+    ty_args: Type | list[Type] | None = None,
 ) -> Call:
     """Create a Relax Call with type arguments.
     Parameters
@@ -643,7 +631,7 @@ def emit_with_type(
         The relax op for which type args are to be appended
     args : Expr
         The arguments.
-    ty_args: Optional[Union[StructInfo, List[StructInfo]]]
+    ty_args: Optional[Union[Type, List[Type]]]
         The list of type arguments.
 
     Returns
@@ -652,16 +640,16 @@ def emit_with_type(
         The created Relax Call
     """
     builtin_call = tvm.ir.Op.get(op)
-    return Call(builtin_call, args, attrs=None, sinfo_args=ty_args)
+    return Call(builtin_call, args, attrs=None, ty_args=ty_args)
 
 
-def emit_with_sinfo(
+def emit_with_ty(
     op: str,
     args: Expr,
-    sinfo_args: StructInfo | list[StructInfo] | None = None,
+    ty_args: Type | list[Type] | None = None,
 ) -> Call:
     """Backward-compatible alias for `emit_with_type`."""
-    return emit_with_type(op, args, sinfo_args)
+    return emit_with_type(op, args, ty_args)
 
 
 ############################### SeqExpr ###############################
@@ -870,7 +858,7 @@ __all__ = [
     "emit_match_cast",
     "emit_te",
     "emit_var_binding",
-    "emit_with_sinfo",
+    "emit_with_ty",
     "emit_with_type",
     "equal",
     "erf",
@@ -889,7 +877,7 @@ __all__ = [
     "full_like",
     "func_attr",
     "func_name",
-    "func_ret_struct_info",
+    "func_ret_ty",
     "func_ret_type",
     "func_ret_value",
     "function",

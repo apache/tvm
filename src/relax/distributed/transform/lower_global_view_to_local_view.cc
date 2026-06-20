@@ -381,7 +381,7 @@ class LowerTIRToLocalView : public ExprMutator {
   inline ffi::Array<DTensorType> ExtractDTensorType(Var var) {
     if (const auto* dtensor_ty = GetTypeAs<DTensorTypeNode>(var)) {
       return {ffi::GetRef<DTensorType>(dtensor_ty)};
-    } else if (const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(var)) {
+    } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(var)) {
       ffi::Array<DTensorType> ret;
       for (const auto& field : tuple_ty->fields) {
         ret.push_back(Downcast<DTensorType>(field));
@@ -389,7 +389,7 @@ class LowerTIRToLocalView : public ExprMutator {
       return ret;
     } else {
       TVM_FFI_THROW(InternalError)
-          << "The output of a call_tir should be a DTensorType or TupleStructInfo";
+          << "The output of a call_tir should be a DTensorType or TupleType";
     }
   }
 

@@ -69,10 +69,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         << "Attributes for relax.to_vdevice operator should be ToVDeviceAttrs, "
         << "but were instead " << out->attrs << " with type " << out->GetTypeKey();
 
-    const auto* tir_out_sinfo = call_tir->sinfo_args[0].as<TensorStructInfoNode>();
-    if (!tir_out_sinfo) return expr;
+    const auto* tir_out_ty = call_tir->ty_args[0].as<TensorTypeNode>();
+    if (!tir_out_ty) return expr;
 
-    if (!tir_out_sinfo->vdevice.defined()) return expr;
+    if (!tir_out_ty->vdevice.defined()) return expr;
 
     const VarNode* arg_var = out->args[0].as<VarNode>();
     if (consumers.find(ffi::GetRef<Expr>(arg_var)) != consumers.end()) {
@@ -82,14 +82,13 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
 
-    if ((std::string(tir_out_sinfo->vdevice.value()->memory_scope).find("texture") !=
+    if ((std::string(tir_out_ty->vdevice.value()->memory_scope).find("texture") !=
          std::string::npos) &&
         (vdev_attrs->dst_vdevice->memory_scope == "global")) {
-      auto shape_arr = tir_out_sinfo->GetShape().value();
-      auto new_sinfo =
-          TensorStructInfo(ShapeExpr(shape_arr), tir_out_sinfo->dtype, vdev_attrs->dst_vdevice);
+      auto shape_arr = tir_out_ty->GetShape().value();
+      auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 
-      return Call(call_tir->op, call_tir->args, call_tir->attrs, {new_sinfo});
+      return Call(call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
     }
     return expr;
   };
@@ -144,8 +143,8 @@ class CollectConsumerDetails : public ExprVisitor {
     }
 
     for (auto arg : func_args->fields) {
-      auto sinfo = GetType(arg);
-      if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+      auto ty = GetType(arg);
+      if (auto tensor_ty = ty.as<TensorType>()) {
         ffi::Array<Expr> call_list;
 
         const VarNode* arg_var = arg.as<VarNode>();

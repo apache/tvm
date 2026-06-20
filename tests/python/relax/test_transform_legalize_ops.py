@@ -152,9 +152,9 @@ def test_can_not_legalize():
     register_legalize("relax.add", add_legalize)
 
     # case 2: don't know all shape
-    s = relax.Var("s", relax.ShapeStructInfo((3, 3)))
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
-    y = relax.Var("y", relax.TensorStructInfo(s, "float32"))
+    s = relax.Var("s", relax.ShapeType((3, 3)))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
+    y = relax.Var("y", relax.TensorType(s, "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -297,19 +297,17 @@ emit_legalization_through_builder = tvm.testing.parameter(
 def custom_op(emit_legalization_through_builder):
     op_name = "custom_op.matmul_bias_add"
 
-    def infer_struct_info(call: relax.Call, context):
+    def infer_ty(call: relax.Call, context):
         activations, weight, bias = call.args
 
         matmul_call = relax.op.matmul(activations, weight)
-        matmul_sinfo = tvm.ir.Op.get("relax.matmul").get_attr("FInferStructInfo")(
-            matmul_call, context
-        )
+        matmul_ty = tvm.ir.Op.get("relax.matmul").get_attr("FInferType")(matmul_call, context)
 
-        matmul_var = relax.Var("dummy_var", matmul_sinfo)
+        matmul_var = relax.Var("dummy_var", matmul_ty)
         add_call = matmul_var + bias
-        add_sinfo = tvm.ir.Op.get("relax.add").get_attr("FInferStructInfo")(add_call, context)
+        add_ty = tvm.ir.Op.get("relax.add").get_attr("FInferType")(add_call, context)
 
-        return add_sinfo
+        return add_ty
 
     def legalize(bb: relax.BlockBuilder, call: relax.Call):
         activations, weight, bias = call.args
@@ -319,7 +317,7 @@ def custom_op(emit_legalization_through_builder):
         return legalized
 
     op_attrs = {
-        "FInferStructInfo": infer_struct_info,
+        "FInferType": infer_ty,
         "FLegalize": legalize,
         "FPurity": True,
     }

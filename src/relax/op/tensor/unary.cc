@@ -31,9 +31,9 @@
 namespace tvm {
 namespace relax {
 
-StructInfo InferStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx) {
-  return InferStructInfoUnary<false>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return DataType::Bool(); });
+Type InferTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
+  return InferTypeUnary<false>(call, ctx,
+                               [](const TensorType& input_ty) { return DataType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/
@@ -73,7 +73,7 @@ TVM_REGISTER_OP("relax.clip")
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
     .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
+    .set_attr<FInferType>("FInferType", ReturnTypeFromArg<0>)
     .set_attr<bool>("FPurity", true);
 
 Expr clip(Expr x, Expr min, Expr max) {

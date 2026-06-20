@@ -279,10 +279,10 @@ class ShapeToTensorTest:
 
 
 def test_op_shape_to_tensor(exec_mode):
-    # Check struct info
-    isinstance(ShapeToTensorTest["const_shape"].body.ty, tvm.relax.TensorStructInfo)
+    # Check type
+    isinstance(ShapeToTensorTest["const_shape"].body.ty, tvm.relax.TensorType)
     assert ShapeToTensorTest["const_shape"].body.ty.ndim == 1
-    isinstance(ShapeToTensorTest["symbolic_shape"].body.ty, tvm.relax.TensorStructInfo)
+    isinstance(ShapeToTensorTest["symbolic_shape"].body.ty, tvm.relax.TensorType)
     assert ShapeToTensorTest["symbolic_shape"].body.ty.ndim == 1
 
     # Check its functionality
@@ -311,7 +311,7 @@ def test_op_call_pure_packed(exec_mode):
         @R.function
         def pure_copy(x: R.Tensor((3, 4), "float32")):
             z = R.call_pure_packed(
-                "vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
+                "vm.builtin.copy", x, ty_args=(R.Tensor((3, 4), dtype="float32"))
             )
             return z
 
@@ -331,7 +331,7 @@ def test_op_call_inplace_packed(exec_mode):
                 "vm.builtin.copy",
                 x,
                 inplace_indices=0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -354,7 +354,7 @@ def test_op_call_inplace_packed(exec_mode):
                 x,
                 y,
                 inplace_indices=0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -389,7 +389,7 @@ def test_op_call_inplace_packed(exec_mode):
                 x,
                 y,
                 inplace_indices=[0, -1],
-                sinfo_args=(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -492,7 +492,7 @@ def test_op_to_device(exec_mode):
                 x,
                 1,
                 0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 

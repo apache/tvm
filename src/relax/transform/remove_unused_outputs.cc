@@ -50,7 +50,7 @@ class PartialTupleUsageCollector : ExprVisitor {
 
       if (!is_exposed) {
         if (auto relax_func = base_func.as<FunctionNode>()) {
-          if (auto out_tuple = relax_func->ret_struct_info.as<TupleStructInfoNode>()) {
+          if (auto out_tuple = relax_func->ret_ty.as<TupleTypeNode>()) {
             num_outputs[gvar] = out_tuple->fields.size();
           }
         }
@@ -121,7 +121,7 @@ class PartialTupleUsageCollector : ExprVisitor {
   }
 
   std::vector<bool>* GetCalleeUsageMask(Expr expr) {
-    if (!expr->ty.as<TupleStructInfoNode>()) {
+    if (!expr->ty.as<TupleTypeNode>()) {
       return nullptr;
     }
 
@@ -158,17 +158,17 @@ class PartialTupleUsageCollector : ExprVisitor {
 };
 
 Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
-  auto old_func_sinfo = func->ty.as<FuncStructInfoNode>();
+  auto old_func_ty = func->ty.as<FuncTypeNode>();
 
-  auto old_ret_sinfo = func->ret_struct_info.as<TupleStructInfoNode>();
-  TVM_FFI_ICHECK(old_ret_sinfo) << "All functions returning non-tuple outputs "
-                                << "should have been pruned already by PartialTupleUsageCollector";
+  auto old_ret_ty = func->ret_ty.as<TupleTypeNode>();
+  TVM_FFI_ICHECK(old_ret_ty) << "All functions returning non-tuple outputs "
+                             << "should have been pruned already by PartialTupleUsageCollector";
 
   ffi::Array<Expr> outputs;
 
   // This helper variable will be removed by the post-proc of
   // CanonicalizeBindings and DeadCodeElimination.
-  Var previous_outputs("previous_outputs", func->ret_struct_info);
+  Var previous_outputs("previous_outputs", func->ret_ty);
 
   for (size_t i = 0; i < usage_mask.size(); i++) {
     if (usage_mask[i]) {
@@ -177,15 +177,14 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   }
 
   Expr new_output = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
-  StructInfo new_return_sinfo =
-      outputs.size() == 1 ? GetType(outputs[0]) : TupleStructInfo(outputs.Map(GetType));
+  Type new_return_ty = outputs.size() == 1 ? GetType(outputs[0]) : TupleType(outputs.Map(GetType));
 
   VarBinding binding(previous_outputs, func->body);
   BindingBlock binding_block({binding});
   SeqExpr new_body({binding_block}, new_output);
 
-  auto old_ty = Downcast<FuncStructInfo>(func->ty);
-  FuncStructInfo new_ty(old_func_sinfo->params.value(), new_return_sinfo, old_func_sinfo->purity);
+  auto old_ty = Downcast<FuncType>(func->ty);
+  FuncType new_ty(old_func_ty->params.value(), new_return_ty, old_func_ty->purity);
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->ty = new_ty;
@@ -249,14 +248,14 @@ Pass RemoveUnusedOutputs() {
                   << "Updater should be applied to " << old_gvar << ", but was applied to "
                   << call->op;
 
-              auto old_call_sinfo = call->ty.as<TupleStructInfoNode>();
-              TVM_FFI_CHECK(old_call_sinfo, InternalError)
+              auto old_call_ty = call->ty.as<TupleTypeNode>();
+              TVM_FFI_CHECK(old_call_ty, InternalError)
                   << "Updater should be applied to Call producing an output tuple, "
-                  << "but " << call << " has struct info " << call->ty;
-              TVM_FFI_ICHECK_EQ(usage_mask.size(), old_call_sinfo->fields.size())
+                  << "but " << call << " has type " << call->ty;
+              TVM_FFI_ICHECK_EQ(usage_mask.size(), old_call_ty->fields.size())
                   << "Function " << call->op << " produces " << usage_mask.size() << " outputs, "
                   << "but " << call << " was used in a context expecting "
-                  << old_call_sinfo->fields.size() << " outputs.";
+                  << old_call_ty->fields.size() << " outputs.";
 
               Call new_call(new_gvar, call->args);
 

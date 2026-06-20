@@ -268,13 +268,13 @@ def test_load_shard_in_relax():
                     "runtime.disco.ShardLoaderLoad",
                     loader,
                     R.shape([0]),
-                    sinfo_args=R.Tensor((64, 64), "float32"),
+                    ty_args=R.Tensor((64, 64), "float32"),
                 )
                 lv1: R.Tensor((16, 128), "float32") = R.call_pure_packed(
                     "runtime.disco.ShardLoaderLoad",
                     loader,
                     R.shape([1]),
-                    sinfo_args=R.Tensor((16, 128), "float32"),
+                    ty_args=R.Tensor((16, 128), "float32"),
                 )
                 lv2 = R.tuple(lv0, lv1)
                 R.output(lv2)

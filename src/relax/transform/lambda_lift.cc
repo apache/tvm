@@ -298,9 +298,9 @@ class LambdaLifter : public ExprMutator {
 
     auto gvar_lifted_func = GlobalVar(lift_func_name);
     {
-      auto func_ty = Downcast<FuncStructInfo>(func_node->ty);
+      auto func_ty = Downcast<FuncType>(func_node->ty);
       if (is_closure) {
-        func_ty = FuncStructInfo(lifted_func_params.Map(GetType), func_ty->ret, func_ty->purity);
+        func_ty = FuncType(lifted_func_params.Map(GetType), func_ty->ret, func_ty->purity);
       }
       UpdateType(gvar_lifted_func, func_ty);
     }
@@ -320,16 +320,16 @@ class LambdaLifter : public ExprMutator {
     }
 
     body = this->VisitWithNewScope(body, lifted_func_params);
-    StructInfo ret_struct_info = GetType(body);
+    Type ret_ty = GetType(body);
     body = Bind(body, rebinding_map);
 
     Function lifted_func;
     if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
-        ret_struct_info.same_as(func_node->ret_struct_info)) {
+        ret_ty.same_as(func_node->ret_ty)) {
       lifted_func = ffi::GetRef<Function>(func_node);
     } else {
       lifted_func =
-          Function(lifted_func_params, body, ret_struct_info, func_node->is_pure, func_node->attrs);
+          Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
     }
 
     TVM_FFI_ICHECK(lifted_func.defined());
@@ -359,7 +359,7 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ffi::GetRef<Call>(call_node);
 
-    auto orig_ty = Downcast<StructInfo>(call->ty);
+    auto orig_ty = Downcast<Type>(call->ty);
 
     if (auto opt_var = call->op.as<Var>()) {
       auto var = opt_var.value();
@@ -373,14 +373,14 @@ class LambdaLifter : public ExprMutator {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
             return purity_map.get(op.value(), false);
-          } else if (const auto* func_ty = orig_call->op->ty.as<FuncStructInfoNode>()) {
+          } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
             return func_ty->purity;
           } else {
             TVM_FFI_THROW(InternalError)
                 << "Could not determine purity of call to " << orig_call->op
                 << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
                 << "\"), "
-                << "nor is is annotated with FuncStructInfo (sinfo = " << orig_call->op->ty << ")";
+                << "nor is is annotated with FuncType (ty = " << orig_call->op->ty << ")";
           }
         }();
 
@@ -401,7 +401,7 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(nested_call->op, new_args, call->attrs, call->sinfo_args);
+        call = Call(nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 

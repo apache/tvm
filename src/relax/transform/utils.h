@@ -146,12 +146,12 @@ IRModule MakeGroupedFunctions(
     bool lift_constants = true, const ffi::Array<ffi::String>& entry_function_names = {});
 
 /*!
- * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
- * TensorStructInfo; its shape must be ShapeExpr.
- * \param sinfo The StructInfo to be checked.
- * \return true if the given StructInfo is a scalar tensor.
+ * \brief Check if the given Type is a scalar tensor. The ty should be an instance of
+ * TensorType; its shape must be ShapeExpr.
+ * \param ty The Type to be checked.
+ * \return true if the given Type is a scalar tensor.
  */
-bool IsScalarTensor(const StructInfo& sinfo);
+bool IsScalarTensor(const Type& ty);
 
 /*!
  * \brief Check if the given expr is a scalar tensor. Now the shape of the tensor expr must be
@@ -162,32 +162,32 @@ bool IsScalarTensor(const StructInfo& sinfo);
 bool IsScalarTensor(const Expr& expr);
 
 /*!
- * \brief Check if the given StructInfo is a nested tensor StructInfo satisfying the given
+ * \brief Check if the given Type is a nested tensor Type satisfying the given
  * condition f_condition.
- * \param sinfo The StructInfo to be checked.
- * \param f_condition The condition function for each leaf StructInfo with signature
- * `bool f_condition(TensorStructInfo)`.
+ * \param ty The Type to be checked.
+ * \param f_condition The condition function for each leaf Type with signature
+ * `bool f_condition(TensorType)`.
  * \tparam FType The condition function type.
- * \return true if the given StructInfo is a nested tensor satisfying the given f_condition.
+ * \return true if the given Type is a nested tensor satisfying the given f_condition.
  */
 template <typename FType>
-bool IsNestedTensorConditioned(const StructInfo& sinfo, FType f_condition) {
-  if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-    return f_condition(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-  } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-    return !std::any_of(
-        tuple_sinfo->fields.begin(), tuple_sinfo->fields.end(),
-        [&](const StructInfo& field) { return !IsNestedTensorConditioned(field, f_condition); });
+bool IsNestedTensorConditioned(const Type& ty, FType f_condition) {
+  if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+    return f_condition(ffi::GetRef<TensorType>(tensor_ty));
+  } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+    return !std::any_of(tuple_ty->fields.begin(), tuple_ty->fields.end(), [&](const Type& field) {
+      return !IsNestedTensorConditioned(field, f_condition);
+    });
   }
   return false;
 }
 
 /*!
- * \brief Check if the given StructInfo is a nested tensor.
- * \param sinfo The StructInfo to be checked.
- * \return true if the given StructInfo is a nested tensor.
+ * \brief Check if the given Type is a nested tensor.
+ * \param ty The Type to be checked.
+ * \return true if the given Type is a nested tensor.
  */
-bool IsNestedTensor(const StructInfo& sinfo);
+bool IsNestedTensor(const Type& ty);
 
 /*!
  * \brief Check if the given expr is a nested tensor.
@@ -270,8 +270,8 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
     if (all_params_unchanged && body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      auto new_ret_sinfo = this->VisitExprDepStructInfoField(op->ret_struct_info);
-      return Function(params, body, new_ret_sinfo, op->is_pure, op->attrs);
+      auto new_ret_ty = this->VisitExprDepTypeField(op->ret_ty);
+      return Function(params, body, new_ret_ty, op->is_pure, op->attrs);
     }
   }
 

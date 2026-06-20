@@ -49,7 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OrPatternNode::RegisterReflection();
   NotPatternNode::RegisterReflection();
   WildcardPatternNode::RegisterReflection();
-  StructInfoPatternNode::RegisterReflection();
+  TypePatternNode::RegisterReflection();
   ShapePatternNode::RegisterReflection();
   SameShapeConstraintNode::RegisterReflection();
   DataTypePatternNode::RegisterReflection();
@@ -313,22 +313,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
-StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) {
-  ffi::ObjectPtr<StructInfoPatternNode> n = ffi::make_object<StructInfoPatternNode>();
+TypePattern::TypePattern(DFPattern pattern, Type ty) {
+  ffi::ObjectPtr<TypePatternNode> n = ffi::make_object<TypePatternNode>();
   n->pattern = std::move(pattern);
-  n->struct_info = std::move(struct_info);
+  n->ty = std::move(ty);
   data_ = std::move(n);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.StructInfoPattern",
-                        [](DFPattern pattern, StructInfo struct_info) {
-                          return StructInfoPattern(pattern, struct_info);
-                        });
+  refl::GlobalDef().def("relax.dpl.TypePattern",
+                        [](DFPattern pattern, Type ty) { return TypePattern(pattern, ty); });
 }
-RELAX_PATTERN_PRINTER_DEF(StructInfoPatternNode, [](auto p, auto node) {
-  p->stream << "StructInfoPattern(" << node->pattern << " has relax StructInfo "
-            << node->struct_info << ")";
+RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
+  p->stream << "TypePattern(" << node->pattern << " has relax Type " << node->ty << ")";
 });
 
 ShapePattern::ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> shape) {
@@ -448,8 +445,8 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const ShapePatternNode* op) override {
     return ShapePattern(op->pattern, op->shape);
   }
-  DFPattern VisitDFPattern_(const StructInfoPatternNode* op) override {
-    return StructInfoPattern(op->pattern, op->struct_info);
+  DFPattern VisitDFPattern_(const TypePatternNode* op) override {
+    return TypePattern(op->pattern, op->ty);
   }
 
   DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
@@ -476,9 +473,7 @@ NotPattern DFPattern::operator~() const { return NotPattern(*this); }
 AttrPattern DFPattern::HasAttr(const ffi::Map<ffi::String, Any>& attrs) const {
   return AttrPattern(*this, DictAttrs(attrs));
 }
-StructInfoPattern DFPattern::HasStructInfo(const StructInfo& struct_info) const {
-  return StructInfoPattern(*this, struct_info);
-}
+TypePattern DFPattern::HasType(const Type& ty) const { return TypePattern(*this, ty); }
 DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(*this, dtype);
 }

@@ -87,7 +87,7 @@ def test_call_tir_dtensor():
     assert params[0].ty == R.DTensor(
         (128, 128), "float32", device_mesh_list[0], placement="S[0], R"
     )
-    assert foo_func.ret_struct_info == R.DTensor(
+    assert foo_func.ret_ty == R.DTensor(
         (128, 128), "float32", device_mesh_list[0], placement="S[0], R"
     )
     assert isinstance(foo_func.body, SeqExpr)
@@ -95,7 +95,7 @@ def test_call_tir_dtensor():
     assert isinstance(foo_func.body.blocks[0].bindings[0], VarBinding)
     value = foo_func.body.blocks[0].bindings[0].value
     assert isinstance(value, Call)
-    assert value.sinfo_args[0] == R.DTensor(
+    assert value.ty_args[0] == R.DTensor(
         (128, 128), "float32", device_mesh_list[0], placement="S[0], R"
     )
     _check(TestModule)

@@ -124,7 +124,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     tvm.ir.expr.GlobalVar
     assert s2.op.name_hint == "exp"
@@ -142,13 +142,13 @@ def test_transform_remove_purity_checking():
         @R.function
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             y = R.add(x, x)
-            z = R.call_pure_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            z = R.call_pure_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
             return z
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             closure = R.make_closure(Before.base, ())
-            res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            res = R.invoke_pure_closure(closure, (x,), ty_args=R.Tensor((), "int32"))
             return res
 
         @R.function(pure=False)
@@ -161,9 +161,7 @@ def test_transform_remove_purity_checking():
             @R.function
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 y = R.add(x, x)
-                q = R.call_pure_packed(
-                    "vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32"))
-                )
+                q = R.call_pure_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
                 return q
 
             z = R.const(1, dtype="int32")
@@ -194,14 +192,14 @@ def test_transform_remove_purity_checking():
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             y = R.add(x, x)
-            z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+            z = R.call_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
             return z
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             closure = R.make_closure(Expected.base, ())
-            res = R.invoke_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
+            res = R.invoke_closure(closure, (x,), ty_args=R.Tensor((), "int32"))
             return res
 
         @R.function(pure=False)
@@ -217,7 +215,7 @@ def test_transform_remove_purity_checking():
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 R.func_attr({"relax.force_pure": True})
                 y = R.add(x, x)
-                q = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
+                q = R.call_packed("vm.builtin.copy", y, ty_args=(R.Tensor((), dtype="int32")))
                 return q
 
             z = R.const(1, dtype="int32")
@@ -269,7 +267,7 @@ def test_call_dps_packed_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -444,12 +442,12 @@ def test_call_tir_inplace_some_new():
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), dtype="int32")
         ):
             R.func_attr({"relax.force_pure": True})
-            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+            gv0: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
             )
-            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_sinfo(
+            gv1: R.Tensor((2, 3), dtype="int32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),

@@ -42,8 +42,7 @@ class PurityRemover : public ExprMutator {
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
-      return Function(ret->params, new_body, ret->ret_struct_info, ret->is_pure, ret->attrs,
-                      ret->span);
+      return Function(ret->params, new_body, ret->ret_ty, ret->is_pure, ret->attrs, ret->span);
     }
     return ret;
   }
@@ -51,17 +50,17 @@ class PurityRemover : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
     if (call->op == call_pure_packed_op_) {
       auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
-                      call->attrs, call->sinfo_args);
+                      call->attrs, call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op == call_inplace_packed_op_) {
       // call_inplace_packed has its own attrs so we don't pass those down
       auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
-                      tvm::Attrs(), call->sinfo_args);
+                      tvm::Attrs(), call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op == invoke_pure_closure_op_) {
-      auto ret = Call(invoke_closure_op_, call->args, call->attrs, call->sinfo_args);
+      auto ret = Call(invoke_closure_op_, call->args, call->attrs, call->ty_args);
       return VisitExpr(ret);
     }
     return ExprMutator::VisitExpr_(call);

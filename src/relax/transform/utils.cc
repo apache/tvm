@@ -24,11 +24,11 @@
 namespace tvm {
 namespace relax {
 
-bool IsScalarTensor(const StructInfo& sinfo) {
-  if (!sinfo->IsInstance<TensorStructInfoNode>()) {
+bool IsScalarTensor(const Type& ty) {
+  if (!ty->IsInstance<TensorTypeNode>()) {
     return false;
   }
-  TensorStructInfo tensor_ty = Downcast<TensorStructInfo>(sinfo);
+  TensorType tensor_ty = Downcast<TensorType>(ty);
   if (!tensor_ty->shape.defined() || !tensor_ty->shape->IsInstance<ShapeExprNode>()) {
     return false;
   }
@@ -37,8 +37,8 @@ bool IsScalarTensor(const StructInfo& sinfo) {
 
 bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetType(expr)); }
 
-bool IsNestedTensor(const StructInfo& sinfo) {
-  return IsNestedTensorConditioned(sinfo, [](const TensorStructInfo& sinfo) { return true; });
+bool IsNestedTensor(const Type& ty) {
+  return IsNestedTensorConditioned(ty, [](const TensorType& ty) { return true; });
 }
 
 bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetType(expr)); }
@@ -46,12 +46,12 @@ bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetType(expr)); }
 Function ComposeFunctions(Function func_a, Function func_b) {
   ffi::Array<Binding> bindings;
 
-  Var func_a_output("func_a_output", func_a->ret_struct_info);
+  Var func_a_output("func_a_output", func_a->ret_ty);
 
   bindings.push_back(VarBinding(func_a_output, func_a->body));
 
   auto func_a_outputs = [&]() -> ffi::Array<Expr> {
-    if (auto func_a_output_tuple = func_a->ret_struct_info.as<TupleStructInfoNode>()) {
+    if (auto func_a_output_tuple = func_a->ret_ty.as<TupleTypeNode>()) {
       ffi::Array<Expr> outputs;
       for (size_t i = 0; i < func_a_output_tuple->fields.size(); i++) {
         outputs.push_back(TupleGetItem(func_a_output, i));
@@ -62,7 +62,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     }
   }();
 
-  if (func_b->params.size() == 1 && func_b->params[0]->ty.as<TupleStructInfoNode>()) {
+  if (func_b->params.size() == 1 && func_b->params[0]->ty.as<TupleTypeNode>()) {
     // Special case where the output of the first function is a tuple
     // that should be provided as-is to the second function, and
     // should not be unpacked into individual elements.
@@ -81,7 +81,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
 
   auto new_body = SeqExpr({BindingBlock(bindings)}, func_b->body);
 
-  auto new_function = Function(func_a->params, new_body, func_b->ret_struct_info,
+  auto new_function = Function(func_a->params, new_body, func_b->ret_ty,
                                func_a->is_pure && func_b->is_pure, func_a->attrs);
 
   new_function = CopyWithNewVars(new_function);

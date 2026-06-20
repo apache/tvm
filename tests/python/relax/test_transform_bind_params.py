@@ -110,17 +110,11 @@ def test_bind_params_symbolic_vars():
     func = mod["main"]
     assert len(func.params) == 1
     batch = func.params[0].ty.shape[0]
-    tvm.ir.assert_structural_equal(func.params[0].ty, relax.TensorStructInfo((batch, 4), "float32"))
-    tvm.ir.assert_structural_equal(
-        func.ret_struct_info, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    tvm.ir.assert_structural_equal(func.params[0].ty, relax.TensorType((batch, 4), "float32"))
+    tvm.ir.assert_structural_equal(func.ret_ty, relax.TensorType((batch, 8), "float32"))
     bindings = func.body.blocks[0].bindings
-    tvm.ir.assert_structural_equal(
-        bindings[0].var.ty, relax.TensorStructInfo((batch, 6), "float32")
-    )
-    tvm.ir.assert_structural_equal(
-        bindings[1].var.ty, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    tvm.ir.assert_structural_equal(bindings[0].var.ty, relax.TensorType((batch, 6), "float32"))
+    tvm.ir.assert_structural_equal(bindings[1].var.ty, relax.TensorType((batch, 8), "float32"))
 
 
 param_specification = tvm.testing.parameter("by_string", "by_var")

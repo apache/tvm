@@ -202,11 +202,11 @@ class BlockBuilderNode : public ffi::Object {
   /*!
    * \brief Emit a MatchCast.
    * \param value The input value.
-   * \param struct_info The struct info to be matched.
+   * \param ty The type to be matched.
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to the MatchCast.
    */
-  virtual Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint = "") = 0;
+  virtual Var EmitMatchCast(Expr value, Type ty, ffi::String name_hint = "") = 0;
 
   /*!
    * \brief Generate an output for the current dataflow block.
@@ -230,7 +230,7 @@ class BlockBuilderNode : public ffi::Object {
    * \param expr The input expression.
    * \return The normalized expression.
    *
-   * \note Invariant: If any of the sub expr have struct_info field.
+   * \note Invariant: If any of the sub expr have ty field.
    *       they must have already been normalized.
    */
   virtual Expr Normalize(const Expr& expr) = 0;

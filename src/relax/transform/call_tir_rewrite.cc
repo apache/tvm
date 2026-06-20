@@ -75,11 +75,11 @@ class CallTIRMutator : public ExprMutator {
       bool is_inplace = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
-      if (const auto& tensor_ty = MatchType<TensorStructInfo>(expr)) {
+      if (const auto& tensor_ty = MatchType<TensorType>(expr)) {
         // single output case
-        const TensorStructInfo& output_ty = tensor_ty.value();
+        const TensorType& output_ty = tensor_ty.value();
         TVM_FFI_ICHECK(output_ty->shape.defined())
-            << "the TensorStructInfo shape of call_tir has not populated";
+            << "the TensorType shape of call_tir has not populated";
         int dev_index = 0;
         ffi::String scope = "global";
         if (output_ty->vdevice.defined()) {
@@ -103,19 +103,19 @@ class CallTIRMutator : public ExprMutator {
                  " be -1.";
           outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
         }
-      } else if (const auto& tuple_ty = MatchType<TupleStructInfo>(expr)) {
+      } else if (const auto& tuple_ty = MatchType<TupleType>(expr)) {
         // multiple output case
-        const TupleStructInfo& output_ty = tuple_ty.value();
+        const TupleType& output_ty = tuple_ty.value();
         for (size_t i = 0; i < output_ty->fields.size(); ++i) {
           const auto& field = output_ty->fields[i];
 
-          TVM_FFI_ICHECK(field->IsInstance<TensorStructInfoNode>())
-              << "call_tir expects Tuple of TensorStructInfo, but got " << field
-              << " as an element of TupleStructInfo";
-          const auto& field_tensor = Downcast<TensorStructInfo>(field);
+          TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
+              << "call_tir expects Tuple of TensorType, but got " << field
+              << " as an element of TupleType";
+          const auto& field_tensor = Downcast<TensorType>(field);
           TVM_FFI_ICHECK(field_tensor->shape.defined())
-              << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
-              << " as an element of TupleStructInfo";
+              << "call_tir expects all TensorType has shape, but got " << field_tensor
+              << " as an element of TupleType";
 
           int dev_index = 0;
           ffi::String scope = "global";
@@ -137,8 +137,8 @@ class CallTIRMutator : public ExprMutator {
           }
         }
       } else {
-        TVM_FFI_THROW(TypeError) << "The struct info of call_tir expects to be TensorStructInfo or "
-                                    "TupleStructInfo, but got"
+        TVM_FFI_THROW(TypeError) << "The type of call_tir expects to be TensorType or "
+                                    "TupleType, but got"
                                  << expr->ty;
       }
 

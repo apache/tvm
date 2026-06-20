@@ -70,10 +70,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv1d", conv1d);
 }
 
-StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv1DAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -87,17 +87,16 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
                                                  /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
@@ -141,7 +140,7 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
       analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[0])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv1d(
@@ -200,7 +199,7 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv1DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1d)
+    .set_attr<FInferType>("FInferType", InferTypeConv1d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
@@ -240,10 +239,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv2d", conv2d);
 }
 
-StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv2DAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -257,17 +256,16 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
                                                   /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -318,7 +316,7 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
       analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[1])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv2d(
@@ -357,12 +355,12 @@ InferLayoutOutput InferLayoutConv2d(
       // Layout Transform
       auto data_si = GetType(call->args[0]);
       auto kernel_si = GetType(call->args[1]);
-      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
-      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      TensorType data_ty = data_si.as<TensorType>().value();
+      TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -411,7 +409,7 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d)
+    .set_attr<FInferType>("FInferType", InferTypeConv2d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
@@ -453,10 +451,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv3d", conv3d);
 }
 
-StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -470,17 +468,16 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
                                                    /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
@@ -538,7 +535,7 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
       analyzer->Simplify(floordiv(numerator_w, IntImm::Int32(attrs->strides[2])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv3d(
@@ -597,7 +594,7 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv3DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv3d)
+    .set_attr<FInferType>("FInferType", InferTypeConv3d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
@@ -643,10 +640,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv1d_transpose", conv1d_transpose);
 }
 
-StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv1DTransposeAttrs>();
   auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -659,17 +656,16 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
                                                  /*tgt_layout=*/"NCW",          //
                                                  /*tensor_name=*/"output");
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
@@ -721,7 +717,7 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv1dTranspose(
@@ -777,7 +773,7 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv1DTransposeAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1dTranspose)
+    .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
@@ -834,10 +830,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv2d_transpose", conv2d_transpose);
 }
 
-StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv2DTransposeAttrs>();
   auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -851,17 +847,16 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
                                                   /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -918,7 +913,7 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv2dTranspose(
@@ -953,12 +948,12 @@ InferLayoutOutput InferLayoutConv2dTranspose(
     } else {
       auto data_si = GetType(call->args[0]);
       auto kernel_si = GetType(call->args[1]);
-      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
-      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      TensorType data_ty = data_si.as<TensorType>().value();
+      TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -1006,7 +1001,7 @@ TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DTransposeAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2dTranspose)
+    .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
@@ -1066,10 +1061,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.conv3d_transpose", conv3d_transpose);
 }
 
-StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo weight_sinfo = input_sinfo[1];
+Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType weight_ty = input_ty[1];
 
   const auto* attrs = call->attrs.as<Conv3DTransposeAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
@@ -1083,17 +1078,16 @@ StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& 
                                                    /*tensor_name=*/"output");
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
   ffi::Optional<ShapeExpr> weight_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, weight_sinfo, weight_layout);
+      CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
   DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
+                           ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
                            : attrs->out_dtype;
-  ffi::Optional<VDevice> vdevice =
-      InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
+  ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
+    return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
@@ -1158,7 +1152,7 @@ StructInfo InferStructInfoConv3dTranspose(const Call& call, const BlockBuilder& 
   out_NCDHW_shape[4] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv3dTranspose(
@@ -1193,12 +1187,12 @@ InferLayoutOutput InferLayoutConv3dTranspose(
     } else {
       auto data_si = GetType(call->args[0]);
       auto kernel_si = GetType(call->args[1]);
-      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
-      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      TensorType data_ty = data_si.as<TensorType>().value();
+      TensorType kernel_ty = kernel_si.as<TensorType>().value();
       ffi::Optional<ShapeExpr> data_shape =
-          ffi::GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
       ffi::Optional<ShapeExpr> kernel_shape =
-          ffi::GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+          ffi::GetRef<ShapeExpr>(kernel_ty->shape.as<ShapeExprNode>());
 
       bool can_data_proved =
           CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
@@ -1246,7 +1240,7 @@ TVM_REGISTER_OP("relax.nn.conv3d_transpose")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv3DTransposeAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv3dTranspose)
+    .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)

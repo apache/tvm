@@ -81,7 +81,7 @@ void FunctionFrameNode::ExitWithScope() {
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
-                            /*ret_struct_info=*/ret_struct_info,
+                            /*ret_ty=*/ret_ty,
                             /*is_pure=*/is_pure.value_or(true),
                             /*attrs=*/DictAttrs(attrs));
   // Step 2: Update IRModule.

@@ -379,21 +379,21 @@ def _extract_relax_function_signature(f):
     signature = {}
 
     for i, arg in enumerate(f.params):
-        sinfo = arg.ty
-        if isinstance(sinfo, relax.TensorStructInfo):
-            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.shape)
-            signature[f"arg{i}_dtype"] = sinfo.dtype
-        elif isinstance(sinfo, relax.ShapeStructInfo):
-            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.values)
+        ty = arg.ty
+        if isinstance(ty, relax.TensorType):
+            signature[f"arg{i}_shape"] = get_const_tuple(ty.shape)
+            signature[f"arg{i}_dtype"] = ty.dtype
+        elif isinstance(ty, relax.ShapeType):
+            signature[f"arg{i}_shape"] = get_const_tuple(ty.values)
         else:
             raise NotImplementedError()
 
-    ret_sinfo = f.ret_struct_info
-    if ret_sinfo.shape is not None:
-        signature["ret_shape"] = get_const_tuple(ret_sinfo.shape)
+    ret_ty = f.ret_ty
+    if ret_ty.shape is not None:
+        signature["ret_shape"] = get_const_tuple(ret_ty.shape)
     else:
         signature["ret_shape"] = None
-    signature["ret_dtype"] = ret_sinfo.dtype
+    signature["ret_dtype"] = ret_ty.dtype
 
     return signature
 
@@ -803,7 +803,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            return relax.Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
+            return relax.Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
 
         op_type = f.attrs["Composite"]
 

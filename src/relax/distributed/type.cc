@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DTensor
-DTensorType::DTensorType(TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement,
+DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
                          Span span) {
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
       << "The device mesh and placement must have the same dimension size";
@@ -139,7 +139,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DTensorType",
-      [](TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
+      [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
         return DTensorType(tensor_ty, device_mesh, placement, span);
       });
 }

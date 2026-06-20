@@ -78,51 +78,49 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
   return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
 }
 
-inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
-                                              const IRDocsifier& d,
-                                              const ffi::Optional<relax::Expr>& rhs) {
+inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v_p,
+                                        const IRDocsifier& d,
+                                        const ffi::Optional<relax::Expr>& rhs) {
   if (!v->ty.defined()) {
     return std::nullopt;
   }
-  bool attempt_to_hide_struct_info =
-      !d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true);
+  bool attempt_to_hide_ty = !d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true);
 
   if (const auto* call = rhs.as<relax::CallNode>()) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
-      attempt_to_hide_struct_info = true;
+      attempt_to_hide_ty = true;
     }
   }
-  if (attempt_to_hide_struct_info) {
-    ffi::Optional<relax::StructInfo> inferred_ty = std::nullopt;
+  if (attempt_to_hide_ty) {
+    ffi::Optional<tvm::Type> inferred_ty = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
         auto op = opt.value();
 
-        static auto op_map_infer_struct_info =
-            Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
+        static auto op_map_infer_ty = Op::GetAttrMap<relax::FInferType>("FInferType");
 
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_ty = op_map_infer_struct_info[op](call, temp_builder);
-      } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
+        inferred_ty = op_map_infer_ty[op](call, temp_builder);
+      } else if (auto opt = call->op.as<relax::FuncType>()) {
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_ty =
             DeriveCallRetType(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
 
     } else if (const auto* tuple = rhs.as<relax::TupleNode>()) {
-      inferred_ty = relax::TupleStructInfo(tuple->fields.Map(relax::GetType));
+      inferred_ty = relax::TupleType(tuple->fields.Map(relax::GetType));
 
     } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
-      if (auto ptr = get_item->tuple->ty.as<relax::TupleStructInfoNode>();
+      if (auto ptr = get_item->tuple->ty.as<relax::TupleTypeNode>();
           ptr && get_item->index < static_cast<int>(ptr->fields.size())) {
         inferred_ty = ptr->fields[get_item->index];
       }
 
     } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
-      inferred_ty = trivial_binding->ty.as<relax::StructInfo>();
+      inferred_ty = trivial_binding->ty.as<tvm::Type>();
     }
 
     if (inferred_ty && ffi::StructuralEqual()(inferred_ty, v->ty)) {

@@ -47,7 +47,7 @@ inline ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const IRModule& mod_, const E
  * \brief Check whether the given types can appear in DistIR
  * \return Whether the given types can appear in DistIR
  */
-bool TypeCompatibleWithDistIR(ffi::Array<StructInfo> tys);
+bool TypeCompatibleWithDistIR(ffi::Array<Type> tys);
 
 /*!
  * \brief Check whether the given function is a DistIR function

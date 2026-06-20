@@ -3201,11 +3201,11 @@ def relax_extern_func():
         func = R.ExternFunc("dummy_func")
 
         B: R.Tensor([10, 20], "float32") = R.call_dps_packed(
-            func, [A], out_sinfo=R.Tensor([10, 20], "float32")
+            func, [A], out_ty=R.Tensor([10, 20], "float32")
         )
 
         C: R.Tensor(ndim=2, dtype="float32") = R.call_dps_packed(
-            func, [B], out_sinfo=R.Tensor([10, 20], "float32")
+            func, [B], out_ty=R.Tensor([10, 20], "float32")
         )
 
         return C
@@ -3213,15 +3213,15 @@ def relax_extern_func():
     return func
 
 
-def relax_match_cast_struct_info_proxy():
-    """StructInfoProxy subclasses may be used as expressions
+def relax_match_cast_ty_proxy():
+    """TypeProxy subclasses may be used as expressions
 
-    This is a regression test.  The TVMScript parser allows StructInfo
+    This is a regression test.  The TVMScript parser allows Type
     to be specified using a default-constructible class
     (e.g. `R.Tensor` or `R.Shape`) rather than an instance of that
     class (e.g. `R.Tensor()` or `R.Shape()`).  In previous
-    implementations, this was only handled when the `StructInfo` was
-    used in an annotation context.  However, a `StructInfo` may also
+    implementations, this was only handled when the `Type` was
+    used in an annotation context.  However, a `Type` may also
     appear as an argument, which is passed to `R.match_cast`.  Use of
     a default-constructible class must be handled in this context as
     well.
@@ -3239,8 +3239,8 @@ def relax_match_cast_struct_info_proxy():
         inner.__name__ = subclass.__name__
         return inner
 
-    # Not all subclasses of StructInfoProxy are default-constructible.
-    # This list is a subset of `StructInfoProxy.__subclasses__()`,
+    # Not all subclasses of TypeProxy are default-constructible.
+    # This list is a subset of `TypeProxy.__subclasses__()`,
     # excluding `PrimProxy` and `DTensorProxy`.
     subclasses = [
         tvm.script.parser.relax.entry.ObjectProxy,
@@ -3363,7 +3363,7 @@ ir_generator = tvm.testing.parameter(
     func_with_loop_jumps,
     func_with_loop_steps,
     *op_of_literal(),
-    *relax_match_cast_struct_info_proxy(),
+    *relax_match_cast_ty_proxy(),
     relax_symbolic_size_var,
     relax_float_symbolic_var,
 )
@@ -3372,10 +3372,10 @@ relax_ir_generator = tvm.testing.parameter(
     relax_extern_func,
 )
 
-show_all_relax_struct_info = tvm.testing.parameter(
+show_all_relax_ty = tvm.testing.parameter(
     by_dict={
-        "show_all_struct_info": True,
-        "hide_inferable_struct_info": False,
+        "show_all_ty": True,
+        "hide_inferable_ty": False,
     }
 )
 
@@ -3395,12 +3395,12 @@ def test_roundtrip(ir_generator):
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 
-def test_relax_roundtrip(relax_ir_generator, show_all_relax_struct_info):
+def test_relax_roundtrip(relax_ir_generator, show_all_relax_ty):
     original = relax_ir_generator()
     after_roundtrip = tvm.script.from_source(
         original.script(
             show_meta=True,
-            show_all_struct_info=show_all_relax_struct_info,
+            show_all_ty=show_all_relax_ty,
         )
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)

@@ -23,9 +23,9 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx) {
-  return InferDistStructInfoUnary<false>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return DataType::Bool(); });
+Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
+  return InferDistTypeUnary<false>(call, ctx,
+                                   [](const TensorType& input_ty) { return DataType::Bool(); });
 }
 
 RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(abs, /*require_float_dtype=*/false);

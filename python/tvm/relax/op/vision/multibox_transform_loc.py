@@ -60,7 +60,7 @@ def multibox_transform_loc(
 
     Notes
     -----
-    **Shape/dtype (checked in ``FInferStructInfo`` when static):**
+    **Shape/dtype (checked in ``FInferType`` when static):**
 
     - ``cls_pred``: 3-D; ``loc_pred``: 2-D; ``anchor``: 3-D.
     - ``cls_pred``, ``loc_pred``, ``anchor`` dtypes must match.
@@ -69,7 +69,7 @@ def multibox_transform_loc(
     - ``cls_pred.shape[0]`` must equal ``loc_pred.shape[0]`` (batch).
 
     If ``cls_pred`` has **unknown** shape, inference only returns generic rank-3 tensor
-    struct info for the two outputs; it does **not** verify ``4*N`` vs ``loc_pred`` or
+    type for the two outputs; it does **not** verify ``4*N`` vs ``loc_pred`` or
     ``anchor.shape[1]`` vs ``N``, because ``N`` is not available statically. Other checks
     (ranks, dtypes, ``loc_pred.shape[1] % 4 == 0`` when known, batch match when both batch
     axes are known, etc.) still run where applicable.

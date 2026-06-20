@@ -26,11 +26,11 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
   DTensorType input_dtensor_ty = input_dtensor_tys[0];
-  TensorStructInfo tensor_ty = input_dtensor_ty->tensor_ty;
+  TensorType tensor_ty = input_dtensor_ty->tensor_ty;
   DeviceMesh device_mesh = input_dtensor_ty->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
   return DTensorType(tensor_ty, device_mesh,
@@ -38,7 +38,7 @@ StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ct
 }
 
 TVM_REGISTER_OP("relax.ccl.allreduce")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoAllReduce);
+    .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
 
 }  // namespace distributed
 }  // namespace relax

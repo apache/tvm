@@ -102,14 +102,14 @@ LayoutDecision InitialLayoutDecision(int ndim) {
   return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
 }
 
-NLayout InitialNLayout(const StructInfo& sinfo) {
-  auto fmapleaf = [&](const StructInfo& sinfo) -> NLayout {
-    if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-      return NLayout(InitialLayoutDecision(tensor_sinfo->ndim));
+NLayout InitialNLayout(const Type& ty) {
+  auto fmapleaf = [&](const Type& ty) -> NLayout {
+    if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+      return NLayout(InitialLayoutDecision(tensor_ty->ndim));
     }
     return LayoutDecision::InitUnknownDim();
   };
-  return MapToNestedMsg<LayoutDecision>(sinfo, fmapleaf);
+  return MapToNestedMsg<LayoutDecision>(ty, fmapleaf);
 }
 
 NLayout InitialNLayout(const Expr& expr) { return InitialNLayout(GetType(expr)); }

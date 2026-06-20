@@ -23,7 +23,7 @@ from tvm import arith, tirx, topi
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
 from ...op import call_dps_packed
-from ...type import ShapeStructInfo, TensorStructInfo
+from ...type import ShapeType, TensorType
 from .common import register_legalize
 
 
@@ -53,10 +53,8 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
 def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
     arg_ty = call.args[0].ty
-    assert isinstance(arg_ty, TensorStructInfo), (
-        "The input struct info of allgather should be TensorStructInfo."
-    )
-    assert isinstance(arg_ty.shape.ty, ShapeStructInfo)
+    assert isinstance(arg_ty, TensorType), "The input type of allgather should be TensorType."
+    assert isinstance(arg_ty.shape.ty, ShapeType)
     arg_shape = arg_ty.shape.ty
     for i, shape_value in enumerate(arg_shape.values):
         if i == 0:
@@ -66,7 +64,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.allgather",
         [call.args[0], call.attrs.in_group],
-        out_ty=TensorStructInfo(
+        out_ty=TensorType(
             shape=output_shape,
             dtype=arg_ty.dtype,
             vdevice=arg_ty.vdevice,
@@ -86,10 +84,8 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 # Since collective communication ops are performed on contiguous memory,
 # we need to reshape and transpose the input tensor to make sharding dimension in the highest order
 def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
-    assert isinstance(expr.ty, TensorStructInfo), (
-        "The input struct info should be TensorStructInfo."
-    )
-    assert isinstance(expr.ty.shape.ty, ShapeStructInfo)
+    assert isinstance(expr.ty, TensorType), "The input type should be TensorType."
+    assert isinstance(expr.ty.shape.ty, ShapeType)
     arg_shape = expr.ty.shape.ty
     new_shape = []
     for i, shape_value in enumerate(arg_shape.values):
@@ -120,7 +116,7 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
         [transpose_var, False],
-        out_ty=TensorStructInfo(
+        out_ty=TensorType(
             shape=output_shape,
             dtype=call.args[0].ty.dtype,
             vdevice=call.args[0].ty.vdevice,

@@ -113,12 +113,12 @@ class Placement : public ffi::ObjectRef {
 /*!
  * \brief Type of DTensor (Distributed Tensor).
  */
-class DTensorTypeNode : public StructInfoNode {
+class DTensorTypeNode : public DependentTypeNode {
  public:
   /*!
    * \brief The tensor type carried by the DTensor type.
    */
-  TensorStructInfo tensor_ty;
+  TensorType tensor_ty;
   /*!
    * \brief The device mesh of the tensor.
    */
@@ -135,14 +135,14 @@ class DTensorTypeNode : public StructInfoNode {
         .def_ro("placement", &DTensorTypeNode::placement)
         .def_ro("tensor_ty", &DTensorTypeNode::tensor_ty);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorType", DTensorTypeNode, StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorType", DTensorTypeNode, DependentTypeNode);
 };
 
 /*!
  * \brief Managed reference to DTensorTypeNode.
  * \sa DTensorTypeNode
  */
-class DTensorType : public StructInfo {
+class DTensorType : public Type {
  public:
   /*!
    * \brief Construction with device mesh and placement.
@@ -151,10 +151,10 @@ class DTensorType : public StructInfo {
    * \param placement The placement of the tensor among the device mesh.
    * \param span The span of the AST.
    */
-  TVM_DLL DTensorType(TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement,
+  TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
                       Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorType, StructInfo, DTensorTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorType, Type, DTensorTypeNode);
 };
 
 }  // namespace distributed

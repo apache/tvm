@@ -45,7 +45,7 @@ class TestAutopad:
     def _test_autopad(self, pad_type, expected):
         bb = relax.BlockBuilder()
         input_shape = (1, 1, 4, 4)
-        x = relax.Var("x", relax.TensorStructInfo(input_shape, "float32"))
+        x = relax.Var("x", relax.TensorType(input_shape, "float32"))
 
         with bb.function("main", [x]):
             with bb.dataflow():

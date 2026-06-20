@@ -31,7 +31,7 @@ from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
@@ -59,7 +59,7 @@ def test_roi_align_op_correctness():
     assert relax.op.vision.roi_align(x, rois, (7, 7), 1.0).op == Op.get("relax.vision.roi_align")
 
 
-def test_roi_align_infer_struct_info():
+def test_roi_align_infer_ty():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 32, 32, 3), "float32"))
@@ -68,16 +68,16 @@ def test_roi_align_infer_struct_info():
     _check_inference(
         bb,
         relax.op.vision.roi_align(x0, rois, (7, 7), 0.25),
-        relax.TensorStructInfo((5, 3, 7, 7), "float32"),
+        relax.TensorType((5, 3, 7, 7), "float32"),
     )
     _check_inference(
         bb,
         relax.op.vision.roi_align(x1, rois, (5, 7), 1.0, layout="NHWC"),
-        relax.TensorStructInfo((5, 5, 7, 3), "float32"),
+        relax.TensorType((5, 5, 7, 3), "float32"),
     )
 
 
-def test_roi_align_infer_struct_info_aligned():
+def test_roi_align_infer_ty_aligned():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((5, 5), "float32"))
@@ -85,11 +85,11 @@ def test_roi_align_infer_struct_info_aligned():
     _check_inference(
         bb,
         relax.op.vision.roi_align(x, rois, (7, 7), 1.0, aligned=True),
-        relax.TensorStructInfo((5, 3, 7, 7), "float32"),
+        relax.TensorType((5, 3, 7, 7), "float32"),
     )
 
 
-def test_roi_align_infer_struct_info_shape_var():
+def test_roi_align_infer_ty_shape_var():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     c = tirx.Var("c", "int64")
@@ -103,7 +103,7 @@ def test_roi_align_infer_struct_info_shape_var():
     _check_inference(
         bb,
         relax.op.vision.roi_align(x, rois, (7, 7), 0.5),
-        relax.TensorStructInfo((num_roi, c, 7, 7), "float32"),
+        relax.TensorType((num_roi, c, 7, 7), "float32"),
     )
 
 
@@ -160,8 +160,8 @@ def test_roi_align_legalize():
     mod = LegalizeOps()(ROIAlign)
     assert "call_tir" in str(mod)
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo((2, 2, 3, 3), "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType((2, 2, 3, 3), "float32"),
     )
 
 
@@ -188,8 +188,8 @@ def test_roi_align_legalize_aligned():
     mod = LegalizeOps()(ROIAlign)
     assert "call_tir" in str(mod)
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo((1, 1, 1, 1), "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType((1, 1, 1, 1), "float32"),
     )
 
 
@@ -215,8 +215,8 @@ def test_roi_align_legalize_sample_ratio_zero():
     mod = LegalizeOps()(ROIAlign)
     assert "call_tir" in str(mod)
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo((1, 2, 2, 2), "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType((1, 2, 2, 2), "float32"),
     )
 
 
@@ -225,23 +225,23 @@ def test_get_valid_counts_op_correctness():
     assert relax.op.vision.get_valid_counts(data, 0.5).op == Op.get("relax.vision.get_valid_counts")
 
 
-def test_get_valid_counts_infer_struct_info():
+def test_get_valid_counts_infer_ty():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     _check_inference(
         bb,
         relax.op.vision.get_valid_counts(data, score_threshold=0.5, id_index=0, score_index=1),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((2,), "int32"),
-                relax.TensorStructInfo((2, 10, 6), "float32"),
-                relax.TensorStructInfo((2, 10), "int32"),
+                relax.TensorType((2,), "int32"),
+                relax.TensorType((2, 10, 6), "float32"),
+                relax.TensorType((2, 10), "int32"),
             ]
         ),
     )
 
 
-def test_get_valid_counts_infer_struct_info_shape_var():
+def test_get_valid_counts_infer_ty_shape_var():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     m = tirx.Var("m", "int64")
@@ -250,11 +250,11 @@ def test_get_valid_counts_infer_struct_info_shape_var():
     _check_inference(
         bb,
         relax.op.vision.get_valid_counts(data, score_threshold=0.0),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((n,), "int32"),
-                relax.TensorStructInfo((n, m, k), "float32"),
-                relax.TensorStructInfo((n, m), "int32"),
+                relax.TensorType((n,), "int32"),
+                relax.TensorType((n, m, k), "float32"),
+                relax.TensorType((n, m), "int32"),
             ]
         ),
     )
@@ -287,7 +287,7 @@ def test_nms_op_correctness():
     )
 
 
-def test_nms_infer_struct_info_return_indices():
+def test_nms_infer_ty_return_indices():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
@@ -295,16 +295,16 @@ def test_nms_infer_struct_info_return_indices():
     _check_inference(
         bb,
         relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=True),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((2, 10), "int32"),
-                relax.TensorStructInfo((2, 1), "int32"),
+                relax.TensorType((2, 10), "int32"),
+                relax.TensorType((2, 1), "int32"),
             ]
         ),
     )
 
 
-def test_nms_infer_struct_info_return_indices_soft_nms():
+def test_nms_infer_ty_return_indices_soft_nms():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
@@ -314,17 +314,17 @@ def test_nms_infer_struct_info_return_indices_soft_nms():
         relax.op.vision.non_max_suppression(
             data, valid_count, indices, return_indices=True, soft_nms_sigma=0.5
         ),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((2, 10, 6), "float32"),
-                relax.TensorStructInfo((2, 10), "int32"),
-                relax.TensorStructInfo((2, 1), "int32"),
+                relax.TensorType((2, 10, 6), "float32"),
+                relax.TensorType((2, 10), "int32"),
+                relax.TensorType((2, 1), "int32"),
             ]
         ),
     )
 
 
-def test_nms_infer_struct_info_return_data():
+def test_nms_infer_ty_return_data():
     bb = relax.BlockBuilder()
     data = relax.Var("data", R.Tensor((2, 10, 6), "float32"))
     valid_count = relax.Var("valid_count", R.Tensor((2,), "int32"))
@@ -332,11 +332,11 @@ def test_nms_infer_struct_info_return_data():
     _check_inference(
         bb,
         relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=False),
-        relax.TensorStructInfo((2, 10, 6), "float32"),
+        relax.TensorType((2, 10, 6), "float32"),
     )
 
 
-def test_nms_infer_struct_info_return_data_shape_var():
+def test_nms_infer_ty_return_data_shape_var():
     bb = relax.BlockBuilder()
     batch_size = tirx.Var("batch_size", "int64")
     num_anchors = tirx.Var("num_anchors", "int64")
@@ -347,7 +347,7 @@ def test_nms_infer_struct_info_return_data_shape_var():
     _check_inference(
         bb,
         relax.op.vision.non_max_suppression(data, valid_count, indices, return_indices=False),
-        relax.TensorStructInfo((batch_size, num_anchors, elem_length), "float32"),
+        relax.TensorType((batch_size, num_anchors, elem_length), "float32"),
     )
 
 
@@ -440,12 +440,12 @@ def test_get_valid_counts_legalize():
     mod = LegalizeOps()(GVC)
     _assert_relax_op_legalized(mod, "relax.vision.get_valid_counts")
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo((1,), "int32"),
-                relax.TensorStructInfo((1, 5, 6), "float32"),
-                relax.TensorStructInfo((1, 5), "int32"),
+                relax.TensorType((1,), "int32"),
+                relax.TensorType((1, 5, 6), "float32"),
+                relax.TensorType((1, 5), "int32"),
             ]
         ),
     )
@@ -481,11 +481,11 @@ def test_nms_legalize():
     mod = LegalizeOps()(NMS)
     _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo((1, 5), "int32"),
-                relax.TensorStructInfo((1, 1), "int32"),
+                relax.TensorType((1, 5), "int32"),
+                relax.TensorType((1, 1), "int32"),
             ]
         ),
     )
@@ -525,12 +525,12 @@ def test_nms_legalize_soft_nms():
     mod = LegalizeOps()(NMS)
     _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo((1, 5, 6), "float32"),
-                relax.TensorStructInfo((1, 5), "int32"),
-                relax.TensorStructInfo((1, 1), "int32"),
+                relax.TensorType((1, 5, 6), "float32"),
+                relax.TensorType((1, 5), "int32"),
+                relax.TensorType((1, 1), "int32"),
             ]
         ),
     )
@@ -566,8 +566,8 @@ def test_nms_legalize_return_data():
     mod = LegalizeOps()(NMS)
     _assert_relax_op_legalized(mod, "relax.vision.non_max_suppression")
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo((1, 5, 6), "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType((1, 5, 6), "float32"),
     )
 
 
@@ -650,9 +650,9 @@ def _run_nms_e2e(
     data_shape = tuple(int(dim) for dim in data_np.shape)
     valid_count_shape = tuple(int(dim) for dim in valid_count_np.shape)
     indices_shape = tuple(int(dim) for dim in indices_np.shape)
-    data = relax.Var("data", relax.TensorStructInfo(data_shape, "float32"))
-    valid_count = relax.Var("valid_count", relax.TensorStructInfo(valid_count_shape, "int32"))
-    indices = relax.Var("indices", relax.TensorStructInfo(indices_shape, "int32"))
+    data = relax.Var("data", relax.TensorType(data_shape, "float32"))
+    valid_count = relax.Var("valid_count", relax.TensorType(valid_count_shape, "int32"))
+    indices = relax.Var("indices", relax.TensorType(indices_shape, "int32"))
 
     bb = relax.BlockBuilder()
     with bb.function("main", (data, valid_count, indices)):
@@ -1176,7 +1176,7 @@ def test_roi_pool_op_correctness():
     assert relax.op.vision.roi_pool(x, rois, (7, 7), 1.0).op == Op.get("relax.vision.roi_pool")
 
 
-def test_roi_pool_infer_struct_info():
+def test_roi_pool_infer_ty():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     rois = relax.Var("rois", R.Tensor((5, 5), "float32"))
@@ -1184,11 +1184,11 @@ def test_roi_pool_infer_struct_info():
     _check_inference(
         bb,
         relax.op.vision.roi_pool(x, rois, (7, 5), 0.25),
-        relax.TensorStructInfo((5, 3, 7, 5), "float32"),
+        relax.TensorType((5, 3, 7, 5), "float32"),
     )
 
 
-def test_roi_pool_infer_struct_info_shape_var():
+def test_roi_pool_infer_ty_shape_var():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     c = tirx.Var("c", "int64")
@@ -1202,7 +1202,7 @@ def test_roi_pool_infer_struct_info_shape_var():
     _check_inference(
         bb,
         relax.op.vision.roi_pool(x, rois, (7, 7), 0.5),
-        relax.TensorStructInfo((num_roi, c, 7, 7), "float32"),
+        relax.TensorType((num_roi, c, 7, 7), "float32"),
     )
 
 
@@ -1257,12 +1257,12 @@ def test_roi_pool_legalize():
     mod = LegalizeOps()(ROIPool)
     assert "call_tir" in str(mod)
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TensorStructInfo((2, 2, 3, 2), "float32"),
+        mod["main"].ret_ty,
+        relax.TensorType((2, 2, 3, 2), "float32"),
     )
 
 
-def test_all_class_non_max_suppression_infer_struct_info():
+def test_all_class_non_max_suppression_infer_ty():
     bb = relax.BlockBuilder()
     batch_size, num_classes, num_boxes = 10, 8, 5
     boxes = relax.Var("boxes", R.Tensor((batch_size, num_boxes, 4), "float32"))
@@ -1276,10 +1276,10 @@ def test_all_class_non_max_suppression_infer_struct_info():
         relax.op.vision.all_class_non_max_suppression(
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
         ),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((batch_size * num_classes * num_boxes, 3), "int64"),
-                relax.TensorStructInfo((1,), "int64"),
+                relax.TensorType((batch_size * num_classes * num_boxes, 3), "int64"),
+                relax.TensorType((1,), "int64"),
             ]
         ),
     )
@@ -1293,7 +1293,7 @@ def test_all_class_non_max_suppression_wrong_input_number():
         relax.op.vision.all_class_non_max_suppression(boxes, scores)
 
 
-def test_all_class_non_max_suppression_infer_struct_info_shape_var():
+def test_all_class_non_max_suppression_infer_ty_shape_var():
     bb = relax.BlockBuilder()
     batch_size = tirx.Var("batch_size", "int64")
     num_classes = tirx.Var("num_classes", "int64")
@@ -1309,10 +1309,10 @@ def test_all_class_non_max_suppression_infer_struct_info_shape_var():
         relax.op.vision.all_class_non_max_suppression(
             boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, "onnx"
         ),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((batch_size * num_classes * num_boxes, 3), "int64"),
-                relax.TensorStructInfo((1,), "int64"),
+                relax.TensorType((batch_size * num_classes * num_boxes, 3), "int64"),
+                relax.TensorType((1,), "int64"),
             ]
         ),
     )
@@ -1338,13 +1338,13 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     # Check legalized function has dynamic output (uses dynamic_strided_slice)
     assert "dynamic_strided_slice" in str(mod)
 
-    ret_ty = mod["main"].ret_struct_info
+    ret_ty = mod["main"].ret_ty
     tvm.ir.assert_structural_equal(
         ret_ty,
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo(ndim=2, dtype="int64"),
-                relax.TensorStructInfo((1,), "int64"),
+                relax.TensorType(ndim=2, dtype="int64"),
+                relax.TensorType((1,), "int64"),
             ]
         ),
     )
@@ -1385,13 +1385,13 @@ def test_all_class_non_max_suppression_legalize_e2e():
 
     mod = LegalizeOps()(NMSModule)
 
-    # Check struct info
+    # Check type
     tvm.ir.assert_structural_equal(
-        mod["main"].ret_struct_info,
-        relax.TupleStructInfo(
+        mod["main"].ret_ty,
+        relax.TupleType(
             [
-                relax.TensorStructInfo(ndim=2, dtype="int64"),
-                relax.TensorStructInfo((1,), "int64"),
+                relax.TensorType(ndim=2, dtype="int64"),
+                relax.TensorType((1,), "int64"),
             ]
         ),
     )
@@ -1418,7 +1418,7 @@ def test_multibox_transform_loc_op_correctness():
     ).op == Op.get("relax.vision.multibox_transform_loc")
 
 
-def test_multibox_transform_loc_infer_struct_info():
+def test_multibox_transform_loc_infer_ty():
     bb = relax.BlockBuilder()
     cls = relax.Var("cls", R.Tensor((2, 3, 5), "float32"))
     loc = relax.Var("loc", R.Tensor((2, 20), "float32"))
@@ -1428,10 +1428,10 @@ def test_multibox_transform_loc_infer_struct_info():
         relax.op.vision.multibox_transform_loc(
             cls, loc, anc, False, 0.0, (0.1, 0.1, 0.2, 0.2), True
         ),
-        relax.TupleStructInfo(
+        relax.TupleType(
             [
-                relax.TensorStructInfo((2, 5, 4), "float32"),
-                relax.TensorStructInfo((2, 3, 5), "float32"),
+                relax.TensorType((2, 5, 4), "float32"),
+                relax.TensorType((2, 3, 5), "float32"),
             ]
         ),
     )

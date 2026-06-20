@@ -1366,7 +1366,7 @@ def test_shape_expr_arg():
                     "vm.builtin.attention_kv_cache_view",
                     kv_cache,
                     R.shape([1 + n, 32, 128]),
-                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                    ty_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
                 )
                 R.output(gv, lv2)
             return gv, lv2
@@ -1398,7 +1398,7 @@ def test_shape_expr_arg():
                     "vm.builtin.attention_kv_cache_view",
                     kv_cache,
                     R.shape([1 + n, 32, 128]),
-                    sinfo_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
+                    ty_args=(R.Tensor((1 + n, 32, 128), dtype="float32"),),
                 )
                 R.output(gv, lv)
             return gv, lv
@@ -1431,16 +1431,16 @@ def test_skipping_primvalue():
         def main(inp: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
             with R.dataflow():
                 lv = R.call_pure_packed(
-                    "my_func1", inp, R.prim_value(0), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
+                    "my_func1", inp, R.prim_value(0), ty_args=[R.Tensor((2, 2), dtype="float32")]
                 )
                 lv1 = R.call_pure_packed(
-                    "my_func2", lv, R.str("str"), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
+                    "my_func2", lv, R.str("str"), ty_args=[R.Tensor((2, 2), dtype="float32")]
                 )
                 gv = R.call_pure_packed(
                     "my_func3",
                     lv1,
                     R.dtype("float32"),
-                    sinfo_args=[R.Tensor((2, 2), dtype="float32")],
+                    ty_args=[R.Tensor((2, 2), dtype="float32")],
                 )
                 R.output(gv)
             return gv

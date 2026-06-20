@@ -54,6 +54,7 @@ from .expr import const, extern, get_shape_of
 from .type import (
     Type,
     ObjectType,
+    PrimType,
     ShapeType,
     TensorType,
     TupleType,
@@ -78,17 +79,6 @@ from .block_builder import BlockBuilder
 
 # ExprFunctor
 from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
-
-# StructInfo
-from .type import (
-    StructInfo,
-    ObjectStructInfo,
-    PrimStructInfo,
-    ShapeStructInfo,
-    TensorStructInfo,
-    TupleStructInfo,
-    FuncStructInfo,
-)
 
 # pipeline
 from .pipeline import get_default_pipeline

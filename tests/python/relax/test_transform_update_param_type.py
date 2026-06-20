@@ -36,15 +36,15 @@ class Base:
             after = transform(self.Before)
             tvm.ir.assert_structural_equal(self.Expected, after)
 
-    def update_ty(self, var: relax.Var) -> relax.StructInfo | None:
+    def update_ty(self, var: relax.Var) -> relax.Type | None:
         """The parameter type update function provided to the transform"""
         raise NotImplementedError("Should be implemented in derived class")
 
 
 class TestSimple(Base):
-    def update_ty(self, var: relax.Var) -> relax.StructInfo | None:
+    def update_ty(self, var: relax.Var) -> relax.Type | None:
         if var.name_hint == "weight":
-            return relax.TensorStructInfo([64, 16], "float32")
+            return relax.TensorType([64, 16], "float32")
 
     @I.ir_module
     class Before:

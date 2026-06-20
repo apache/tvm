@@ -39,8 +39,8 @@ namespace relax {
 
 using tvm::tirx::Buffer;
 
-static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
-  auto shape = tensor_sinfo->GetShape();
+static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
+  auto shape = tensor_ty->GetShape();
   TVM_FFI_ICHECK(shape.defined());
   return shape.value();
 }
@@ -83,14 +83,14 @@ class SpecializeTIRCallArgs : ExprMutator {
     ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
-      auto sinfo = GetType(args[i]);
-      TVM_FFI_ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
+      auto ty = GetType(args[i]);
+      TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
-      auto tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
-      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Shape undefined for call:" << call->args[0];
+      auto tensor_ty = Downcast<TensorType>(ty);
+      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
-      if (tensor_sinfo->vdevice.defined()) {
-        scope = tensor_sinfo->vdevice.value()->memory_scope;
+      if (tensor_ty->vdevice.defined()) {
+        scope = tensor_ty->vdevice.value()->memory_scope;
       }
       ffi::String name;
       if (args[i]->IsInstance<relax::VarNode>()) {
@@ -99,40 +99,40 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(tensor_sinfo),
-                                               tensor_sinfo->dtype, name, scope);
+      const Buffer& buffer =
+          tirx::decl_buffer(GetShapeFromTensorType(tensor_ty), tensor_ty->dtype, name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
-    auto out_sinfo = call->sinfo_args[0];
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto sinfo = Downcast<TensorStructInfo>(out_sinfo);
-      if (sinfo->vdevice.defined()) {
-        scope = sinfo->vdevice.value()->memory_scope;
+    auto out_ty = call->ty_args[0];
+    if (out_ty->IsInstance<TensorTypeNode>()) {
+      auto ty = Downcast<TensorType>(out_ty);
+      if (ty->vdevice.defined()) {
+        scope = ty->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
-          tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype, "ret_val", scope);
+          tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype, "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
-      TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
-          << "Expect output struct info of call_tir to be either TupleStructInfo or "
-             "TensorStructInfo, but got "
-          << out_sinfo;
+      TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
+          << "Expect output type of call_tir to be either TupleType or "
+             "TensorType, but got "
+          << out_ty;
 
-      const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-      ffi::Array<StructInfo> sinfo_fields;
+      const auto& tuple_ty = Downcast<TupleType>(out_ty);
+      ffi::Array<Type> ty_fields;
       int index = 0;
-      for (const auto& si : tuple_sinfo->fields) {
-        TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
-            << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
+      for (const auto& si : tuple_ty->fields) {
+        TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
+            << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto sinfo = Downcast<TensorStructInfo>(si);
-        if (sinfo->vdevice.defined()) {
-          scope = sinfo->vdevice.value()->memory_scope;
+        auto ty = Downcast<TensorType>(si);
+        if (ty->vdevice.defined()) {
+          scope = ty->vdevice.value()->memory_scope;
         }
 
-        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
+        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype,
                                                  "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;

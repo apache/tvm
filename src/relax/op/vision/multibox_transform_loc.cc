@@ -56,7 +56,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /*!
- * \brief Infer struct info for relax.vision.multibox_transform_loc.
+ * \brief Infer type for relax.vision.multibox_transform_loc.
  *
  * \note Shape cross-checks that need the anchor count N (e.g. loc_pred.shape[1] == 4*N,
  * anchor.shape[1] == N with N = cls_pred.shape[2]) run only when cls_pred has a known
@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * skips those N-based relations; other checks (ndim, dtype, loc dim divisible by 4, etc.)
  * still apply when their inputs are known.
  */
-StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
@@ -72,44 +72,43 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
         << call->args.size();
   }
 
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  const auto cls_sinfo = input_sinfo[0];
-  const auto loc_sinfo = input_sinfo[1];
-  const auto anchor_sinfo = input_sinfo[2];
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  const auto cls_ty = input_ty[0];
+  const auto loc_ty = input_ty[1];
+  const auto anchor_ty = input_ty[2];
 
-  if (!cls_sinfo->IsUnknownNdim() && cls_sinfo->ndim != 3) {
+  if (!cls_ty->IsUnknownNdim() && cls_ty->ndim != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: cls_pred must be 3-D [B, num_classes, N], got "
            "ndim "
-        << cls_sinfo->ndim;
+        << cls_ty->ndim;
   }
-  if (!loc_sinfo->IsUnknownNdim() && loc_sinfo->ndim != 2) {
+  if (!loc_ty->IsUnknownNdim() && loc_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "multibox_transform_loc: loc_pred must be 2-D [B, 4*N], got ndim " << loc_sinfo->ndim;
+        << "multibox_transform_loc: loc_pred must be 2-D [B, 4*N], got ndim " << loc_ty->ndim;
   }
-  if (!anchor_sinfo->IsUnknownNdim() && anchor_sinfo->ndim != 3) {
+  if (!anchor_ty->IsUnknownNdim() && anchor_ty->ndim != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: anchor must be 3-D [1, N, 4] ltrb, got ndim "
-        << anchor_sinfo->ndim;
+        << anchor_ty->ndim;
   }
 
-  if (!cls_sinfo->IsUnknownDtype() && !loc_sinfo->IsUnknownDtype() &&
-      cls_sinfo->dtype != loc_sinfo->dtype) {
+  if (!cls_ty->IsUnknownDtype() && !loc_ty->IsUnknownDtype() && cls_ty->dtype != loc_ty->dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "multibox_transform_loc: cls_pred and loc_pred dtype must match, got "
-        << cls_sinfo->dtype << " vs " << loc_sinfo->dtype;
+        << "multibox_transform_loc: cls_pred and loc_pred dtype must match, got " << cls_ty->dtype
+        << " vs " << loc_ty->dtype;
   }
-  if (!cls_sinfo->IsUnknownDtype() && !anchor_sinfo->IsUnknownDtype() &&
-      cls_sinfo->dtype != anchor_sinfo->dtype) {
+  if (!cls_ty->IsUnknownDtype() && !anchor_ty->IsUnknownDtype() &&
+      cls_ty->dtype != anchor_ty->dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "multibox_transform_loc: cls_pred and anchor dtype must match, got " << cls_sinfo->dtype
-        << " vs " << anchor_sinfo->dtype;
+        << "multibox_transform_loc: cls_pred and anchor dtype must match, got " << cls_ty->dtype
+        << " vs " << anchor_ty->dtype;
   }
 
-  auto vdev = cls_sinfo->vdevice;
-  const auto* cls_shape = cls_sinfo->shape.as<ShapeExprNode>();
-  const auto* loc_shape = loc_sinfo->shape.as<ShapeExprNode>();
-  const auto* anchor_shape = anchor_sinfo->shape.as<ShapeExprNode>();
+  auto vdev = cls_ty->vdevice;
+  const auto* cls_shape = cls_ty->shape.as<ShapeExprNode>();
+  const auto* loc_shape = loc_ty->shape.as<ShapeExprNode>();
+  const auto* anchor_shape = anchor_ty->shape.as<ShapeExprNode>();
 
   if (loc_shape != nullptr) {
     const auto* loc_dim1 = loc_shape->values[1].as<IntImmNode>();
@@ -145,9 +144,9 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
   }
 
   if (cls_shape == nullptr) {
-    ffi::Array<StructInfo> fields = {TensorStructInfo(cls_sinfo->dtype, 3, vdev),
-                                     TensorStructInfo(cls_sinfo->dtype, 3, vdev)};
-    return TupleStructInfo(fields);
+    ffi::Array<Type> fields = {TensorType(cls_ty->dtype, 3, vdev),
+                               TensorType(cls_ty->dtype, 3, vdev)};
+    return TupleType(fields);
   }
 
   const auto& batch = cls_shape->values[0];
@@ -179,10 +178,9 @@ StructInfo InferStructInfoMultiboxTransformLoc(const Call& call, const BlockBuil
 
   ffi::Array<PrimExpr> boxes_shape = {batch, num_anchors, IntImm::Int32(4)};
   ffi::Array<PrimExpr> scores_shape = {batch, num_classes, num_anchors};
-  ffi::Array<StructInfo> fields = {
-      TensorStructInfo(ShapeExpr(boxes_shape), cls_sinfo->dtype, vdev),
-      TensorStructInfo(ShapeExpr(scores_shape), cls_sinfo->dtype, vdev)};
-  return TupleStructInfo(fields);
+  ffi::Array<Type> fields = {TensorType(ShapeExpr(boxes_shape), cls_ty->dtype, vdev),
+                             TensorType(ShapeExpr(scores_shape), cls_ty->dtype, vdev)};
+  return TupleType(fields);
 }
 
 TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
@@ -196,7 +194,7 @@ TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
     .add_argument("loc_pred", "Tensor",
                   "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
     .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultiboxTransformLoc)
+    .set_attr<FInferType>("FInferType", InferTypeMultiboxTransformLoc)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

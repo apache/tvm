@@ -220,9 +220,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const ConstantNode* op) final {
     auto arg = builder_->ConvertConstant(op->data);
 
-    if (auto tsinfo = op->ty.as<TensorStructInfoNode>()) {
-      if (tsinfo->vdevice.defined()) {
-        VDevice vdev = tsinfo->vdevice.value();
+    if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
+      if (tensor_ty->vdevice.defined()) {
+        VDevice vdev = tensor_ty->vdevice.value();
         builder_->SaveMemoryScope(arg, vdev->memory_scope);
       }
     }

@@ -27,21 +27,21 @@ from tvm.runtime import DataType
 from tvm.tirx import PrimExpr
 
 from . import _ffi_api
-from .expr import Expr, ShapeExpr, StructInfo
-from .ty import FuncType, ObjectType, PackedFuncType, ShapeType, TensorType, TupleType, Type
+from .expr import Expr, ShapeExpr, Type
+from .ty import PackedFuncType
 
 
-@tvm_ffi.register_object("relax.ObjectStructInfo")
-class ObjectStructInfo(StructInfo):
-    """StructInfo of an Object."""
+@tvm_ffi.register_object("relax.ObjectType")
+class ObjectType(Type):
+    """Type of an Object."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ObjectStructInfo, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.PrimStructInfo")
-class PrimStructInfo(StructInfo):
-    """StructInfo of a primitive POD value.
+@tvm_ffi.register_object("relax.PrimType")
+class PrimType(Type):
+    """Type of a primitive POD value.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ class PrimStructInfo(StructInfo):
     ) -> None:
         # Guard against incorrect usage.  For backwards compatibility,
         # the dtype and value are in the opposite order from most
-        # usages.  While PrimStructInfo could take a single positional
+        # usages.  While PrimType could take a single positional
         # argument and check the type, this would require an API
         # difference from TVMScript's PrimProxy, which cannot.
         # (PrimProxy uses string arguments for datatype, and also for
@@ -71,23 +71,23 @@ class PrimStructInfo(StructInfo):
         # the two cases.)
         if isinstance(dtype, PrimExpr | int | float):
             raise TypeError(
-                f"The first positional argument of PrimStructInfo must be the datatype, "
+                f"The first positional argument of PrimType must be the datatype, "
                 f", but received {type(dtype)}.  "
                 f"The value can be specified as a keyword argument "
                 f"without needing specifying the dtype: "
-                f"PrimStructInfo(value=arg)."
+                f"PrimType(value=arg)."
             )
 
         if dtype is None and value is None:
             raise TypeError(
-                "PrimStructInfo.__init__ missing required argument.  "
+                "PrimType.__init__ missing required argument.  "
                 "Must provide either 'dtype' or 'value'"
             )
 
         if dtype is not None:
             if isinstance(value, PrimExpr):
                 assert value.dtype == dtype, (
-                    "When providing both 'value' and 'dtype' to PrimStructInfo.__init__, "
+                    "When providing both 'value' and 'dtype' to PrimType.__init__, "
                     "they must be consistent with each other.  "
                     "However, the value {value} has dtype {value.dtype}, "
                     "but the specified dtype was {dtype}."
@@ -100,14 +100,14 @@ class PrimStructInfo(StructInfo):
             value = tvm.tirx.IntImm("int64", value)
 
         if value is None:
-            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromDtype, dtype, span)  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimTypeFromDtype, dtype, span)  # type: ignore
         else:
-            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromValue, value, span)  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimTypeFromValue, value, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.ShapeStructInfo")
-class ShapeStructInfo(StructInfo):
-    """StructInfo of a shape value.
+@tvm_ffi.register_object("relax.ShapeType")
+class ShapeType(Type):
+    """Type of a shape value.
 
     Parameters
     ----------
@@ -130,16 +130,16 @@ class ShapeStructInfo(StructInfo):
         self, values: list[PrimExpr] | None = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ShapeStructInfo,
+            _ffi_api.ShapeType,
             values,
             ndim,
             span,  # type: ignore
         )
 
 
-@tvm_ffi.register_object("relax.TensorStructInfo")
-class TensorStructInfo(StructInfo):
-    """StructInfo of a Tensor value.
+@tvm_ffi.register_object("relax.TensorType")
+class TensorType(Type):
+    """Type of a Tensor value.
 
     Parameters
     ----------
@@ -177,7 +177,7 @@ class TensorStructInfo(StructInfo):
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo,
+            _ffi_api.TensorType,
             shape,
             dtype,
             ndim,
@@ -186,34 +186,34 @@ class TensorStructInfo(StructInfo):
         )
 
 
-@tvm_ffi.register_object("relax.TupleStructInfo")
-class TupleStructInfo(StructInfo):
-    """StructInfo of a Tuple value.
+@tvm_ffi.register_object("relax.TupleType")
+class TupleType(Type):
+    """Type of a Tuple value.
 
     Parameters
     ----------
-    fields: List[StructInfo]
-        The struct info of the fields.
+    fields: List[Type]
+        The type of the fields.
     """
 
-    fields: list[StructInfo]
+    fields: list[Type]
     span: Span
 
-    def __init__(self, fields: list[StructInfo], span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TupleStructInfo, fields, span)  # type: ignore
+    def __init__(self, fields: list[Type], span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)  # type: ignore
 
 
-@tvm_ffi.register_object("relax.FuncStructInfo")
-class FuncStructInfo(StructInfo):
-    """StructInfo of a function value.
+@tvm_ffi.register_object("relax.FuncType")
+class FuncType(Type):
+    """Type of a function value.
 
     Parameters
     ----------
-    params: List[StructInfo]
-        The struct info of the fields.
+    params: List[Type]
+        The type of the fields.
 
-    ret: StructInfo
-        The struct info of return value
+    ret: Type
+        The type of return value
 
     purity: bool
         Whether the function is pure (has no visible side effects).
@@ -222,17 +222,17 @@ class FuncStructInfo(StructInfo):
         we still consider it impure.
     """
 
-    params: list[StructInfo] | None
-    ret: StructInfo
+    params: list[Type] | None
+    ret: Type
     derive_func: EnvFunc | None
     purity: bool
     span: Span
 
     def __init__(
-        self, params: list[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
+        self, params: list[Type], ret: Type, purity: bool = True, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo,
+            _ffi_api.FuncType,
             params,
             ret,
             purity,
@@ -242,22 +242,22 @@ class FuncStructInfo(StructInfo):
     @staticmethod
     def opaque_func(
         *,
-        ret: StructInfo | None = None,
+        ret: Type | None = None,
         derive_func: str | EnvFunc | None = None,
         purity: bool = False,
         span: Span = None,
-    ) -> "FuncStructInfo":
+    ) -> "FuncType":
         """
-        Create an opaque FuncStructInfo.
+        Create an opaque FuncType.
 
         The opaque function takes either a ret
-        that specificies the struct info of the return value
+        that specificies the type of the return value
         or a derive_func that provides a customized derivation rule.
 
         Parameters
         ----------
-        ret: Optional[StructInfo]
-           The struct info of the function return value.
+        ret: Optional[Type]
+           The type of the function return value.
 
         derive_func: Optional[Union[str,EnvFunc]]
            The environment function used for derivation
@@ -270,7 +270,7 @@ class FuncStructInfo(StructInfo):
 
         Returns
         -------
-        info: FuncStructInfo
+        info: FuncType
 
         Note
         ----
@@ -279,4 +279,4 @@ class FuncStructInfo(StructInfo):
 
         if isinstance(derive_func, str):
             derive_func = tvm.ir.EnvFunc.get("tvm.relax.type.infer_view_ty")
-        return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, purity, span)  # type: ignore
+        return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, span)  # type: ignore

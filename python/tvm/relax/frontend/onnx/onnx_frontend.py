@@ -231,7 +231,7 @@ def get_info(
     """
     shape = []
     shape_name = []
-    for dim in info_proto.type.tensor_sinfope.shape.dim:
+    for dim in info_proto.type.tensor_type.shape.dim:
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
@@ -242,8 +242,8 @@ def get_info(
         shape.append(value)
 
     name = info_proto.name
-    if info_proto.type.tensor_sinfope.elem_type:
-        dtype = get_type(info_proto.type.tensor_sinfope.elem_type)
+    if info_proto.type.tensor_type.elem_type:
+        dtype = get_type(info_proto.type.tensor_type.elem_type)
     else:
         dtype = None
     return name, shape, dtype, shape_name, value_dict
@@ -794,13 +794,13 @@ def _legacy_softmax_prepare(
         return None
 
     axis = _normalize_legacy_softmax_axis(axis, rank, op_name)
-    struct_info = data.ty
-    if not isinstance(struct_info, relax.TensorStructInfo):
+    ty = data.ty
+    if not isinstance(ty, relax.TensorType):
         return None
-    if not isinstance(struct_info.shape, relax.ShapeExpr):
+    if not isinstance(ty.shape, relax.ShapeExpr):
         return None
 
-    original_shape = list(struct_info.shape.values)
+    original_shape = list(ty.shape.values)
     if len(original_shape) != rank:
         return None
 
@@ -818,11 +818,9 @@ def _get_axis_extent(data: relax.Expr, axis: int, op_name: str) -> tuple[int, in
         raise ValueError(f"{op_name} requires a statically known input rank.")
 
     normalized_axis = _normalize_constant_axes([axis], rank, op_name)[0]
-    struct_info = data.ty
-    if isinstance(struct_info, relax.TensorStructInfo) and isinstance(
-        struct_info.shape, relax.ShapeExpr
-    ):
-        axis_extent = struct_info.shape.values[normalized_axis]
+    ty = data.ty
+    if isinstance(ty, relax.TensorType) and isinstance(ty.shape, relax.ShapeExpr):
+        axis_extent = ty.shape.values[normalized_axis]
         if isinstance(axis_extent, tirx.IntImm):
             axis_extent = int(axis_extent.value)
         return normalized_axis, axis_extent
@@ -1322,7 +1320,7 @@ class Compress(OnnxOpConverter):
             raise ValueError("Condition tensor is expected to be a 1D boolean tensor")
         indices = relax.op.nonzero(condition)
         num_nonzero = tirx.Var("num_nonzero", "int64")
-        indices = bb.match_cast(indices, relax.TensorStructInfo([1, num_nonzero], "int64"))
+        indices = bb.match_cast(indices, relax.TensorType([1, num_nonzero], "int64"))
         indices = relax.op.reshape(indices, [-1])
 
         if axis is not None:
@@ -1480,12 +1478,12 @@ class Shape(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data_info = inputs[0].ty
 
-        if isinstance(data_info, relax.ShapeStructInfo):
+        if isinstance(data_info, relax.ShapeType):
             if data_info.ndim == -1:
                 raise ValueError("The ndim of ShapeExpr is expected to a real number, but got -1.")
             return relax.ShapeExpr([data_info.ndim])
 
-        # If no shape is defined in the struct info, it must be computed at runtime.
+        # If no shape is defined in the type, it must be computed at runtime.
         if not data_info.shape:
             data_shape = bb.normalize(relax.op.shape_of(inputs[0]))
             return data_shape
@@ -2393,9 +2391,9 @@ def _get_known_tensor_rank(expr: relax.Expr) -> int | None:
         return 1
     if isinstance(expr, relax.PrimValue):
         return 0
-    struct_info = expr.ty
-    if isinstance(struct_info, relax.TensorStructInfo):
-        return None if struct_info.ndim == -1 else struct_info.ndim
+    ty = expr.ty
+    if isinstance(ty, relax.TensorType):
+        return None if ty.ndim == -1 else ty.ndim
     return None
 
 
@@ -2413,15 +2411,15 @@ def _get_known_tensor_length(expr: relax.Expr | None) -> int | None:
         return len(expr.values)
     if isinstance(expr, relax.PrimValue):
         return 1
-    struct_info = expr.ty
-    if not isinstance(struct_info, relax.TensorStructInfo):
+    ty = expr.ty
+    if not isinstance(ty, relax.TensorType):
         return None
-    if struct_info.ndim == -1:
+    if ty.ndim == -1:
         return None
-    if struct_info.ndim != 1:
-        raise ValueError(f"Expected a 1-D tensor, but got ndim={struct_info.ndim}.")
-    if isinstance(struct_info.shape, relax.ShapeExpr):
-        dim = struct_info.shape.values[0]
+    if ty.ndim != 1:
+        raise ValueError(f"Expected a 1-D tensor, but got ndim={ty.ndim}.")
+    if isinstance(ty.shape, relax.ShapeExpr):
+        dim = ty.shape.values[0]
         if isinstance(dim, tirx.IntImm):
             return int(dim.value)
         if isinstance(dim, int):
@@ -2456,7 +2454,7 @@ def _as_int64_tensor(bb: relax.BlockBuilder, expr: relax.Expr) -> relax.Expr:
         if expr.ty.dtype == "int64":
             return expr
         return bb.normalize(relax.op.astype(expr, "int64"))
-    if isinstance(expr.ty, relax.TensorStructInfo) and expr.ty.dtype != "int64":
+    if isinstance(expr.ty, relax.TensorType) and expr.ty.dtype != "int64":
         return bb.normalize(relax.op.astype(expr, "int64"))
     return expr
 
@@ -2466,10 +2464,10 @@ def _tensor_to_shape_expr(
 ) -> relax.ShapeExpr:
     """Convert a statically sized int64 tensor into a ShapeExpr."""
 
-    shape_tensor = bb.match_cast(shape_tensor, relax.TensorStructInfo([shape_ndim], "int64"))
+    shape_tensor = bb.match_cast(shape_tensor, relax.TensorType([shape_ndim], "int64"))
     shape_dataflow_var = bb.emit(relax.op.tensor_to_shape(shape_tensor))
     shape_vars = [tirx.Var(f"{prefix}_{i}", "int64") for i in range(shape_ndim)]
-    bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
+    bb.match_cast(shape_dataflow_var, relax.ShapeType(shape_vars))
     return relax.ShapeExpr(shape_vars)
 
 
@@ -2540,7 +2538,7 @@ def _build_squeezed_shape_tensor(
     keep_mask = bb.normalize(relax.op.equal(remove_mask, relax.const(0, "int64")))
     keep_indices = bb.normalize(relax.op.nonzero(keep_mask))
     num_keep_dims = tirx.Var("squeeze_num_keep_dims", "int64")
-    keep_indices = bb.match_cast(keep_indices, relax.TensorStructInfo([1, num_keep_dims], "int64"))
+    keep_indices = bb.match_cast(keep_indices, relax.TensorType([1, num_keep_dims], "int64"))
     keep_indices = bb.normalize(relax.op.reshape(keep_indices, [-1]))
     return bb.normalize(relax.op.take(data_shape_tensor, keep_indices, axis=0))
 
@@ -2804,7 +2802,7 @@ class Tile(OnnxOpConverter):
         output_shape_vars = [
             tirx.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, reps_len))
         ]
-        bb.match_cast(output_shape, relax.ShapeStructInfo(output_shape_vars))
+        bb.match_cast(output_shape, relax.ShapeType(output_shape_vars))
         return bb.emit_te(topi.dyn_tile, data, output_shape_vars, reps_len)
 
 
@@ -2915,14 +2913,14 @@ class Expand(OnnxOpConverter):
             relax.Call(
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
                 [shape],
-                sinfo_args=[relax.ShapeStructInfo(ndim=shape_ndim)],
+                ty_args=[relax.ShapeType(ndim=shape_ndim)],
             )
         )
 
         shape_vars = []
         for i in range(shape_ndim):
             shape_vars.append(tvm.tirx.Var(f"x_{i}", "int64"))
-        bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
+        bb.match_cast(shape_dataflow_var, relax.ShapeType(shape_vars))
 
         # Applying broadcasting rules for dynamic shapes
         data_shape = list(data.ty.shape)
@@ -3691,7 +3689,7 @@ class LpPool(OnnxOpConverter):
         dtype = inputs[0].ty.dtype
         p = attr.get("p", 2.0)
         reci_p = relax.const(1.0 / p, dtype=dtype)
-        # emit for get struct_info
+        # emit for get ty
         data = bb.emit(relax.op.power(inputs[0], relax.const(p, dtype=dtype)))
         attr.update({"count_include_pad": True})
         avg_pool = AveragePool._impl_v1(bb, [data], attr, params)
@@ -4477,14 +4475,14 @@ class Unique(OnnxOpConverter):
             ]
 
         if num_outputs == 1:
-            return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+            return bb.match_cast(unique, relax.TensorType(output_shape, dtype))
 
-        outputs = [bb.match_cast(unique[0], relax.TensorStructInfo(output_shape, dtype))]
+        outputs = [bb.match_cast(unique[0], relax.TensorType(output_shape, dtype))]
         tuple_idx = 1  # Track which index in the tuple we're at
 
         if return_index:
             index_shape = (unique_numbers,)
-            index_ty = relax.TensorStructInfo(index_shape, "int64")
+            index_ty = relax.TensorType(index_shape, "int64")
             outputs.append(bb.match_cast(unique[tuple_idx], index_ty))
             tuple_idx += 1
 
@@ -4493,13 +4491,13 @@ class Unique(OnnxOpConverter):
             # When axis is None: shape is [X.size]
             # When axis is specified: shape is [X.shape[axis]]
             inverse_shape = (tirx.Var("inverse_numbers", "int64"),)
-            inverse_ty = relax.TensorStructInfo(inverse_shape, "int64")
+            inverse_ty = relax.TensorType(inverse_shape, "int64")
             outputs.append(bb.match_cast(unique[tuple_idx], inverse_ty))
             tuple_idx += 1
 
         if return_counts:
             count_shape = (unique_numbers,)
-            count_ty = relax.TensorStructInfo(count_shape, "int64")
+            count_ty = relax.TensorType(count_shape, "int64")
             outputs.append(bb.match_cast(unique[tuple_idx], count_ty))
 
         return relax.Tuple(outputs)
@@ -4514,7 +4512,7 @@ class NonZero(OnnxOpConverter):
         ndim = 1 if ndim == 0 else ndim
         nonzero_numbers = tirx.Var("nonzero_numbers", "int64")
         return bb.match_cast(
-            relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
+            relax.op.nonzero(inputs[0]), relax.TensorType((ndim, nonzero_numbers), "int64")
         )
 
 
@@ -5108,7 +5106,7 @@ class MatMulInteger(OnnxOpConverter):
             a_zp = relax.op.astype(
                 a_zero_point, "int32"
             )  # Ensure zero point is int32 for subtraction
-            a_zp = bb.normalize(a_zp)  # Normalize the expr so struct_info gets populated
+            a_zp = bb.normalize(a_zp)  # Normalize the expr so ty gets populated
             a_zp_ndim = len(a_zp.ty.shape)
 
             # Per-row case: [M] -> [M, 1] so it broadcasts over [M, K] row-wise
@@ -5457,9 +5455,7 @@ class ONNXGraphImporter:
 
     def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
-        return relax.Var(
-            name_hint=var_name, struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype)
-        )
+        return relax.Var(name_hint=var_name, ty=relax.TensorType(shape=shape, dtype=dtype))
 
     def _parse_graph_input(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse model inputs to Relax parameters."""
@@ -5569,7 +5565,7 @@ class ONNXGraphImporter:
                 if (
                     inp is not None
                     and isinstance(inp, relax.Expr)
-                    and isinstance(inp.ty, relax.ShapeStructInfo)
+                    and isinstance(inp.ty, relax.ShapeType)
                     and op_name not in shape_compatible_ops
                 ):
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
@@ -5585,7 +5581,7 @@ class ONNXGraphImporter:
             if op_name in return_tuple_ops:
                 outputs_num = 1
             elif not isinstance(op, relax.Tuple):
-                if isinstance(op.ty, relax.TupleStructInfo):
+                if isinstance(op.ty, relax.TupleType):
                     # This is a var bound to a tuple. We need to unpack it and create
                     # a new tuple.
                     tuple_items = []
@@ -5726,15 +5722,15 @@ class ONNXGraphImporter:
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
                 try:
                     _ = op.ty
-                    has_struct_info = True
+                    has_ty = True
                 except tvm.error.InternalError:
-                    has_struct_info = False
+                    has_ty = False
 
-                if not has_struct_info:
+                if not has_ty:
                     op = bb.normalize(op)
 
                 if not isinstance(op, relax.Tuple):
-                    if isinstance(op.ty, relax.TupleStructInfo):
+                    if isinstance(op.ty, relax.TupleType):
                         tuple_items = [relax.TupleGetItem(op, i) for i in range(len(op.ty.fields))]
                         op = relax.Tuple(tuple_items)
 

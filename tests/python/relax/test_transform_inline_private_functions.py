@@ -88,7 +88,7 @@ def test_skip_inline_of_recursive_functions():
         @R.function(private=True)
         def subroutine() -> R.Tensor([], "int64"):
             R.func_attr({"relax.force_pure": True})
-            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            cond = R.call_packed("dummy_function", ty_args=R.Tensor([], "bool"))
             if cond:
                 Out = Before.subroutine()
             else:

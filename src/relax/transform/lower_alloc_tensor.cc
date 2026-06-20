@@ -57,8 +57,8 @@ class Mutator : public ExprMutator {
           return ptr->values;
         }
 
-        auto sinfo = GetType(shape_arg);
-        if (auto ptr = sinfo.as<ShapeStructInfoNode>()) {
+        auto ty = GetType(shape_arg);
+        if (auto ptr = ty.as<ShapeTypeNode>()) {
           if (ptr->values) {
             return ptr->values.value();
           }
@@ -67,7 +67,7 @@ class Mutator : public ExprMutator {
         TVM_FFI_THROW(InternalError)
             << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
             << "or a variable that holds a ShapeExpr.  "
-            << "However, received argument " << shape_arg << " with struct info " << sinfo;
+            << "However, received argument " << shape_arg << " with type " << ty;
         TVM_FFI_UNREACHABLE();
       }();
 

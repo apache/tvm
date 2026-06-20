@@ -697,19 +697,19 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     }
   }
 
-  auto sinfo_pattern = GetType(func_pattern);
-  auto sinfo_replacement = GetType(func_replacement);
-  TVM_FFI_CHECK(ffi::StructuralEqual()(sinfo_pattern, sinfo_replacement), ValueError)
+  auto ty_pattern = GetType(func_pattern);
+  auto ty_replacement = GetType(func_replacement);
+  TVM_FFI_CHECK(ffi::StructuralEqual()(ty_pattern, ty_replacement), ValueError)
       << "The pattern and replacement must have the same signature, "
-      << "but the pattern has struct info " << sinfo_pattern
-      << ", while the replacement has struct info " << sinfo_replacement;
+      << "but the pattern has type " << ty_pattern << ", while the replacement has type "
+      << ty_replacement;
 
   ffi::Array<DFPattern> param_wildcards;
   ffi::Map<Var, DFPattern> pattern_lookup;
   for (const auto& param : func_pattern->params) {
     WildcardPattern wildcard;
     param_wildcards.push_back(wildcard);
-    pattern_lookup.Set(param, StructInfoPattern(wildcard, GetType(param)));
+    pattern_lookup.Set(param, TypePattern(wildcard, GetType(param)));
   }
 
   std::function<DFPattern(Expr)> make_pattern = [&](Expr expr) -> DFPattern {
@@ -736,7 +736,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       return ExternFuncPattern(func->global_symbol);
 
     } else if (auto prim = expr.as<PrimValueNode>()) {
-      return StructInfoPattern(WildcardPattern(), PrimStructInfo(prim->value));
+      return TypePattern(WildcardPattern(), PrimType(prim->value));
 
     } else {
       TVM_FFI_THROW(TypeError) << "Cannot convert Relax expression of type " << expr->GetTypeKey()
@@ -748,7 +748,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     for (const auto& binding : block->bindings) {
       auto value_pattern = make_pattern(GetBoundValue(binding));
       if (auto match_cast = binding.as<MatchCastNode>()) {
-        value_pattern = StructInfoPattern(value_pattern, match_cast->struct_info);
+        value_pattern = TypePattern(value_pattern, match_cast->ty);
       }
       pattern_lookup.Set(binding->var, value_pattern);
     }
@@ -902,7 +902,7 @@ class PatternMatchingMutator : public ExprMutator {
       auto bindings = orig_bindings.Map([&](Binding binding) -> Binding {
         if (auto new_expr = rewrites.variable_rewrites.Get(binding->var)) {
           if (auto match_cast = binding.as<MatchCastNode>()) {
-            return MatchCast(binding->var, new_expr.value(), match_cast->struct_info);
+            return MatchCast(binding->var, new_expr.value(), match_cast->ty);
           } else {
             return VarBinding(binding->var, new_expr.value());
           }
@@ -996,7 +996,7 @@ class PatternMatchingMutator : public ExprMutator {
         if (binding.as<VarBindingNode>()) {
           builder_->EmitNormalized(VarBinding(binding->var, value));
         } else if (auto match_cast = binding.as<MatchCastNode>()) {
-          builder_->EmitNormalized(MatchCast(binding->var, value, match_cast->struct_info));
+          builder_->EmitNormalized(MatchCast(binding->var, value, match_cast->ty));
         } else {
           TVM_FFI_THROW(InternalError) << "Binding must be either VarBinding or MatchCast";
         }

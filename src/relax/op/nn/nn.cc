@@ -78,8 +78,7 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<LeakyReluAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo",
-                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.softplus */
@@ -101,8 +100,7 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftplusAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo",
-                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.prelu */
@@ -119,8 +117,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.prelu", prelu);
 }
 
-StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_ty = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypePRelu(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   if (data_ty->IsUnknownNdim()) {
     return data_ty;
   }
@@ -146,7 +144,7 @@ InferLayoutOutput InferLayoutPRelu(
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_ty->ndim;
@@ -165,7 +163,7 @@ TVM_REGISTER_OP("relax.nn.prelu")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
     .set_attrs_type<PReluAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPRelu)
+    .set_attr<FInferType>("FInferType", InferTypePRelu)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
     .set_attr<bool>("FPurity", true);
 
@@ -183,8 +181,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.softmax", softmax);
 }
 
-StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_ty = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   if (data_ty->IsUnknownNdim()) {
     return data_ty;
   }
@@ -210,7 +208,7 @@ InferLayoutOutput InferLayoutSoftmax(
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_ty->ndim;
@@ -226,7 +224,7 @@ TVM_REGISTER_OP("relax.nn.softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
+    .set_attr<FInferType>("FInferType", InferTypeSoftmax)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
     .set_attr<bool>("FPurity", true);
 
@@ -247,7 +245,7 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
+    .set_attr<FInferType>("FInferType", InferTypeSoftmax)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.pad */
@@ -266,8 +264,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pad", pad);
 }
 
-StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+Type InferTypePad(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_ty[0]->ndim;
   ffi::Array<int64_t> pad_width = attrs->pad_width;
@@ -285,16 +283,16 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
     }
   } else {
     // Shape isnt defined, best we can do is return ndim and dtype.
-    return TensorStructInfo(input_ty[0]->dtype, ndim);
+    return TensorType(input_ty[0]->dtype, ndim);
   }
-  return TensorStructInfo(ShapeExpr(out_shape), input_ty[0]->dtype);
+  return TensorType(ShapeExpr(out_shape), input_ty[0]->dtype);
 }
 
 TVM_REGISTER_OP("relax.nn.pad")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PadAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
+    .set_attr<FInferType>("FInferType", InferTypePad)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.pixel_shuffle */
@@ -311,18 +309,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pixel_shuffle", pixel_shuffle);
 }
 
-StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+Type InferTypePixelShuffle(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
   int r = attrs->upscale_factor;
   TVM_FFI_ICHECK_GT(r, 0) << "Upscale factor must be positive";
 
-  const TensorStructInfo& input = input_ty[0];
+  const TensorType& input = input_ty[0];
   int ndim = input->ndim;
   TVM_FFI_ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
 
   if (!input->shape.defined()) {
-    return TensorStructInfo(input->dtype, ndim);
+    return TensorType(input->dtype, ndim);
   }
 
   const auto* shape = input->shape.as<ShapeExprNode>();
@@ -359,24 +357,23 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
     }
   }
 
-  return TensorStructInfo(ShapeExpr(out_shape), input->dtype);
+  return TensorType(ShapeExpr(out_shape), input->dtype);
 }
 
 TVM_REGISTER_OP("relax.nn.pixel_shuffle")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PixelShuffleAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPixelShuffle)
+    .set_attr<FInferType>("FInferType", InferTypePixelShuffle)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
-                            const ffi::Array<TensorStructInfo>& input_ty,
-                            ffi::Array<int64_t> axes) {
+                            const ffi::Array<TensorType>& input_ty, ffi::Array<int64_t> axes) {
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();
 
-  TensorStructInfo data_ty = input_ty[0];
+  TensorType data_ty = input_ty[0];
 
   std::vector<int> axes_non_neg;
   if (!data_ty->IsUnknownNdim()) {
@@ -459,8 +456,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.batch_norm", batch_norm);
 }
 
-StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+Type InferTypeBatchNorm(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
   const auto* attrs = call->attrs.as<BatchNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, {attrs->axis});
@@ -468,11 +465,10 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   DataType dtype = input_ty[0]->dtype;
   if (unknown_shape) {
     auto vdev = input_ty[0]->vdevice;
-    return TupleStructInfo({TensorStructInfo(dtype, input_ty[0]->ndim, vdev),
-                            TensorStructInfo(dtype, /*ndim=*/1, vdev),
-                            TensorStructInfo(dtype, /*ndim=*/1, vdev)});
+    return TupleType({TensorType(dtype, input_ty[0]->ndim, vdev),
+                      TensorType(dtype, /*ndim=*/1, vdev), TensorType(dtype, /*ndim=*/1, vdev)});
   } else {
-    return TupleStructInfo({input_ty[0], input_ty[3], input_ty[4]});
+    return TupleType({input_ty[0], input_ty[3], input_ty[4]});
   }
 }
 
@@ -482,7 +478,7 @@ InferLayoutOutput InferLayoutBatchNorm(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 5; ++i) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[i]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[i]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
@@ -494,7 +490,7 @@ InferLayoutOutput InferLayoutBatchNorm(
   // While dealing with sub layouts, its adviced to deal with batchnorm
   // on other ways like decomposing or fusion methods.
   // This handling is fail safe fallback.
-  const auto* input_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* input_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   int ndim = input_ty->ndim;
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
     layout = LayoutDecision(InitialLayout(ndim));
@@ -515,7 +511,7 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .add_argument("moving_mean", "Tensor", "Running mean of input.")
     .add_argument("moving_var", "Tensor", "Running variance of input.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm)
+    .set_attr<FInferType>("FInferType", InferTypeBatchNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
     .set_attr<bool>("FPurity", true);
 
@@ -538,15 +534,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.layer_norm", layer_norm);
 }
 
-StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+Type InferTypeLayerNorm(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
   const auto* attrs = call->attrs.as<LayerNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, attrs->axes);
 
-  return unknown_shape
-             ? TensorStructInfo(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
-             : input_ty[0];
+  return unknown_shape ? TensorType(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
+                       : input_ty[0];
 }
 
 InferLayoutOutput InferLayoutLayerNorm(
@@ -555,7 +550,7 @@ InferLayoutOutput InferLayoutLayerNorm(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[i]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[i]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
@@ -565,7 +560,7 @@ InferLayoutOutput InferLayoutLayerNorm(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<LayerNormAttrs> new_attrs = ffi::make_object<LayerNormAttrs>(*attrs);
-  const auto* input_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* input_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   int ndim = input_ty->ndim;
   std::vector<int64_t> new_axis;
   for (int64_t axis : attrs->axes) {
@@ -582,7 +577,7 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
+    .set_attr<FInferType>("FInferType", InferTypeLayerNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -608,12 +603,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.group_norm", group_norm);
 }
 
-StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeGroupNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<GroupNormAttrs>();
 
-  TensorStructInfo data_ty = input_ty[0];
+  TensorType data_ty = input_ty[0];
   int channel_axis = -1;
   if (!data_ty->IsUnknownNdim()) {
     channel_axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->channel_axis);
@@ -668,7 +663,7 @@ InferLayoutOutput InferLayoutGroupNorm(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[i]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[i]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
@@ -694,7 +689,7 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .add_argument("data", "Tensor", "Input to which group_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
+    .set_attr<FInferType>("FInferType", InferTypeGroupNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -719,12 +714,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.instance_norm", instance_norm);
 }
 
-StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeInstanceNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
-  TensorStructInfo data_ty = input_ty[0];
+  TensorType data_ty = input_ty[0];
 
   int channel_axis = -1;
   if (!data_ty->IsUnknownNdim()) {
@@ -769,7 +764,7 @@ InferLayoutOutput InferLayoutInstanceNorm(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[i]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[i]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
@@ -795,7 +790,7 @@ TVM_REGISTER_OP("relax.nn.instance_norm")
     .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
+    .set_attr<FInferType>("FInferType", InferTypeInstanceNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -815,15 +810,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.rms_norm", rms_norm);
 }
 
-StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+Type InferTypeRMSNorm(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
 
   const auto* attrs = call->attrs.as<RMSNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_ty, attrs->axes);
 
-  return unknown_shape
-             ? TensorStructInfo(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
-             : input_ty[0];
+  return unknown_shape ? TensorType(input_ty[0]->dtype, input_ty[0]->ndim, input_ty[0]->vdevice)
+                       : input_ty[0];
 }
 
 InferLayoutOutput InferLayoutRMSNorm(
@@ -832,7 +826,7 @@ InferLayoutOutput InferLayoutRMSNorm(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 2; ++i) {
-    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[i]);
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[i]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_ty->ndim));
@@ -855,7 +849,7 @@ TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "Input to which rms_norm will be applied.")
     .add_argument("weight", "Tensor", "The scale factor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRMSNorm)
+    .set_attr<FInferType>("FInferType", InferTypeRMSNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -875,25 +869,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.dropout", dropout);
 }
 
-StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_ty = GetUnaryInputTensorStructInfo(call, ctx);
-  return TupleStructInfo({data_ty, data_ty});
+Type InferTypeDropout(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+  return TupleType({data_ty, data_ty});
 }
 
 TVM_REGISTER_OP("relax.nn.dropout")
     .set_attrs_type<DropoutAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
+    .set_attr<FInferType>("FInferType", InferTypeDropout)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.cross_entropy_with_logits */
-StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo pred_ty = input_ty[0];
-  TensorStructInfo label_ty = input_ty[1];
+Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType pred_ty = input_ty[0];
+  TensorType label_ty = input_ty[1];
 
   // infer dtype
   DataType dtype = InferBinaryArithOpOutDtype(call, ctx, pred_ty, label_ty);
@@ -911,12 +905,12 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
 
   ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
   if (pred_ty->shape.defined()) {
-    pred_shape_value = GetTypeAs<ShapeStructInfoNode>(pred_ty->shape.value())->values;
+    pred_shape_value = GetTypeAs<ShapeTypeNode>(pred_ty->shape.value())->values;
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> label_shape_value;
   if (label_ty->shape.defined()) {
-    label_shape_value = GetTypeAs<ShapeStructInfoNode>(label_ty->shape.value())->values;
+    label_shape_value = GetTypeAs<ShapeTypeNode>(label_ty->shape.value())->values;
   }
 
   if (pred_shape_value.defined() && label_shape_value.defined()) {
@@ -931,7 +925,7 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
       }
     }
   }
-  return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), dtype, vdevice);
+  return TensorType(ShapeExpr(ffi::Array<PrimExpr>()), dtype, vdevice);
 }
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
@@ -948,7 +942,7 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_num_inputs(2)
     .add_argument("predictions", "Tensor", "The predictions.")
     .add_argument("labels", "Tensor", "The labels.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy)
+    .set_attr<FInferType>("FInferType", InferTypeCrossEntropy)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.nll_loss */
@@ -979,16 +973,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.nll_loss", nll_loss);
 }
 
-StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 2 || call->args.size() > 3) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "NLLLoss op should take 2 or 3 arguments";
   }
 
-  const auto* pred_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
-  const auto* tgt_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
-  const TensorStructInfoNode* wgt_ty = nullptr;
+  const auto* pred_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* tgt_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
+  const TensorTypeNode* wgt_ty = nullptr;
   if (call->args.size() == 3) {
-    wgt_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
+    wgt_ty = GetTypeAs<TensorTypeNode>(call->args[2]);
     if (wgt_ty == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "NLLLoss requires the argument weights to be Tensor. However, the given one is "
@@ -1011,10 +1005,10 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   DataType output_dtype;
   ffi::Optional<VDevice> vdevice;
   if (wgt_ty != nullptr) {
-    output_dtype = InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorStructInfo>(pred_ty),
-                                              ffi::GetRef<TensorStructInfo>(wgt_ty));
-    vdevice = InferBinaryArithOpOutVDevice(call, ctx, ffi::GetRef<TensorStructInfo>(pred_ty),
-                                           ffi::GetRef<TensorStructInfo>(wgt_ty));
+    output_dtype = InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorType>(pred_ty),
+                                              ffi::GetRef<TensorType>(wgt_ty));
+    vdevice = InferBinaryArithOpOutVDevice(call, ctx, ffi::GetRef<TensorType>(pred_ty),
+                                           ffi::GetRef<TensorType>(wgt_ty));
   } else {
     output_dtype = pred_ty->dtype;
     vdevice = pred_ty->vdevice;
@@ -1059,7 +1053,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
   if (pred_ty->shape.defined()) {
-    pred_shape_value = GetTypeAs<ShapeStructInfoNode>(pred_ty->shape.value())->values;
+    pred_shape_value = GetTypeAs<ShapeTypeNode>(pred_ty->shape.value())->values;
   }
   if (pred_shape_value.defined()) {
     if (pred_shape_value.value().size() == 1) {
@@ -1082,7 +1076,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> tgt_shape_value;
   if (tgt_ty->shape.defined()) {
-    tgt_shape_value = GetTypeAs<ShapeStructInfoNode>(tgt_ty->shape.value())->values;
+    tgt_shape_value = GetTypeAs<ShapeTypeNode>(tgt_ty->shape.value())->values;
   }
   if (tgt_shape_value.defined()) {
     if (tgt_shape_value.value().empty()) {
@@ -1135,7 +1129,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (wgt_ty != nullptr) {
     ffi::Optional<ffi::Array<PrimExpr>> wgt_shape_value;
     if (wgt_ty->shape.defined()) {
-      wgt_shape_value = GetTypeAs<ShapeStructInfoNode>(wgt_ty->shape.value())->values;
+      wgt_shape_value = GetTypeAs<ShapeTypeNode>(wgt_ty->shape.value())->values;
     }
     if (wgt_shape_value.defined()) {
       TVM_FFI_ICHECK(wgt_shape_value.value().size() == 1);
@@ -1156,14 +1150,14 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (reduction == "none") {
     // () or (N,) or (N, d1, d2, ..., dk)
     if (pred_ty->shape.as<ShapeExprNode>()) {
-      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice);
+      return TensorType(ShapeExpr(output_shape), output_dtype, vdevice);
     } else {
       int output_ndim = pred_ty->ndim == kUnknownNDim ? kUnknownNDim : pred_ty->ndim - 1;
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
+      return TensorType(output_dtype, /*ndim=*/output_ndim, vdevice);
     }
   } else {
     // sum or mean. output is scalar
-    return TensorStructInfo(/*shape=*/ShapeExpr(ffi::Array<PrimExpr>()), output_dtype, vdevice);
+    return TensorType(/*shape=*/ShapeExpr(ffi::Array<PrimExpr>()), output_dtype, vdevice);
   }
 }
 
@@ -1173,7 +1167,7 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "ffi::Optional<Tensor>", "The weight of each target values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
+    .set_attr<FInferType>("FInferType", InferTypeNLLLoss)
     .set_attr<bool>("FPurity", true);
 
 /* relax.nn.batch_flatten */
@@ -1188,11 +1182,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.batch_flatten", batch_flatten);
 }
 
-StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_ty = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeBatchFlatten(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
 
   if (data_ty->IsUnknownNdim()) {
-    return TensorStructInfo(data_ty->dtype, /*ndim=*/2, data_ty->vdevice);
+    return TensorType(data_ty->dtype, /*ndim=*/2, data_ty->vdevice);
   }
 
   if (data_ty->ndim < 2) {
@@ -1207,7 +1201,7 @@ StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx
 
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    return TensorStructInfo(data_ty->dtype, /*ndim=*/2, data_ty->vdevice);
+    return TensorType(data_ty->dtype, /*ndim=*/2, data_ty->vdevice);
   }
 
   PrimExpr batch_dim = data_shape->values[0];
@@ -1216,13 +1210,13 @@ StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx
     flat_dim = flat_dim * data_shape->values[i];
   }
 
-  return TensorStructInfo(ShapeExpr({batch_dim, flat_dim}), data_ty->dtype, data_ty->vdevice);
+  return TensorType(ShapeExpr({batch_dim, flat_dim}), data_ty->dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.nn.batch_flatten")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchFlatten)
+    .set_attr<FInferType>("FInferType", InferTypeBatchFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 

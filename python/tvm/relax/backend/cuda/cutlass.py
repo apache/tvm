@@ -536,7 +536,7 @@ class WorkspaceAnnotator(PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            new_f = Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
+            new_f = Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
 
             if "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
                 composite_func = body.blocks[0].bindings[0].value
@@ -547,8 +547,8 @@ class WorkspaceAnnotator(PyExprMutator):
 
         if "attention" in f.attrs["Composite"] and "cutlass" in f.attrs["Composite"]:
             # Workspace is needed only for larger head sizes, but for simplicity we always allocate.
-            out_dtype = f.ret_struct_info.dtype
-            out_size_1d = _shape_1d(f.ret_struct_info.shape)
+            out_dtype = f.ret_ty.dtype
+            out_size_1d = _shape_1d(f.ret_ty.shape)
             # This needs to be in sync with the actual value that the kernel expects.
             workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
             if not isinstance(workspace_size_bytes, int | tvm.tirx.expr.IntImm):

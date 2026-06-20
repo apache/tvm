@@ -22,7 +22,7 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.relax.type import ShapeStructInfo
+from tvm.relax.type import ShapeType
 
 from ...tirx import PrimExpr
 from ..block_builder import BlockBuilder
@@ -93,10 +93,10 @@ def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
     target_shape = _get_shape(input)
     expr_ty = _get_shape(bb.normalize(input_grad)).ty
     target_ty = target_shape.ty
-    assert isinstance(expr_ty, ShapeStructInfo)
-    assert isinstance(target_ty, ShapeStructInfo)
+    assert isinstance(expr_ty, ShapeType)
+    assert isinstance(target_ty, ShapeType)
 
-    def _check_shape_equal(lhs: ShapeStructInfo, rhs: ShapeStructInfo):
+    def _check_shape_equal(lhs: ShapeType, rhs: ShapeType):
         if len(lhs.values) != len(rhs.values):
             return False
         analyzer = Analyzer()
@@ -736,11 +736,11 @@ def concat_grad(
     assert axis is not None
     axis = int(axis)
     split_indices: list[PrimExpr] = []
-    sinfo = orig_call.args[0].ty
-    assert isinstance(sinfo, relax.TupleStructInfo)
-    for i in range(len(sinfo.fields) - 1):
-        tensor_ty = sinfo.fields[i]
-        assert isinstance(tensor_ty, relax.TensorStructInfo)
+    ty = orig_call.args[0].ty
+    assert isinstance(ty, relax.TupleType)
+    for i in range(len(ty.fields) - 1):
+        tensor_ty = ty.fields[i]
+        assert isinstance(tensor_ty, relax.TensorType)
         assert tensor_ty.shape is not None
         index = tensor_ty.shape[axis]
         if i > 0:
