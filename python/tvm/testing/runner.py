@@ -128,23 +128,20 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
         export_func(mod, artifact_path)
         device: Device = device(device_type, 0)
 
-        try:
-            args = _args_to_device(args, device)
-            remote_mod = load_module(artifact_path)
-            profile_result = remote_mod.time_evaluator(
-                func_name=remote_mod.entry_name,
-                dev=device,
-                number=evaluator_config.number,
-                repeat=evaluator_config.repeat,
-                min_repeat_ms=evaluator_config.min_repeat_ms,
-                f_preproc="cache_flush_cpu_non_first_arg"
-                if evaluator_config.enable_cpu_cache_flush
-                else "",
-            )(*args)
-            remote_mod(*args)
-            args = _args_to_numpy(args)
-        finally:
-            pass
+        args = _args_to_device(args, device)
+        remote_mod = load_module(artifact_path)
+        profile_result = remote_mod.time_evaluator(
+            func_name=remote_mod.entry_name,
+            dev=device,
+            number=evaluator_config.number,
+            repeat=evaluator_config.repeat,
+            min_repeat_ms=evaluator_config.min_repeat_ms,
+            f_preproc="cache_flush_cpu_non_first_arg"
+            if evaluator_config.enable_cpu_cache_flush
+            else "",
+        )(*args)
+        remote_mod(*args)
+        args = _args_to_numpy(args)
 
     return args, profile_result
 

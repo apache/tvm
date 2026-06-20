@@ -35,30 +35,12 @@ directory as the test scripts.
 import _pytest
 import pytest
 
-from tvm.testing import utils
-
 try:
     from xdist.scheduler.loadscope import LoadScopeScheduling
 
     HAVE_XDIST = True
 except ImportError:
     HAVE_XDIST = False
-
-
-def pytest_configure(config):
-    """Runs at pytest configure time.
-
-    Hardware/feature markers are declared statically in pyproject.toml; this
-    hook only reports the active target configuration.
-    """
-
-    print(
-        "enabled targets:",
-        "; ".join(
-            map(lambda x: str(x[0]) if isinstance(x[0], dict) else x[0], utils.enabled_targets())
-        ),
-    )
-    print("pytest marker:", config.option.markexpr)
 
 
 def pytest_collection_modifyitems(config, items):
