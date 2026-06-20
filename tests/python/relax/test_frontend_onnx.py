@@ -5120,6 +5120,32 @@ def test_nms():
         )
 
 
+def test_nms_scalar_shape1_constants():
+    """Scalar params given as 1-D single-element constants must import (NumPy 2.x cast)."""
+    nms_node = helper.make_node(
+        "NonMaxSuppression",
+        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
+        ["selected_indices"],
+    )
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_scalar_shape1",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, [1, 5, 4]),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, [1, 1, 5]),
+        ],
+        initializer=[
+            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
+            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),
+            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.0]),
+        ],
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    # Default import folds initializers to relax.Constant, exercising the scalar-cast path.
+    from_onnx(model)
+
+
 @pytest.mark.parametrize("with_explicit_max", [False, True])
 def test_nms_max_output_boxes_per_class_zero(with_explicit_max: bool):
     """ONNX default for max_output_boxes_per_class is 0, yielding empty output."""

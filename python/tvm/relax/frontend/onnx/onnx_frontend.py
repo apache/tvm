@@ -4884,7 +4884,7 @@ class NonMaxSuppression(OnnxOpConverter):
         if max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Constant
         ):
-            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
+            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy().item())
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
@@ -4898,12 +4898,19 @@ class NonMaxSuppression(OnnxOpConverter):
             max_output_boxes_per_class = 0  # Default value
 
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
-            iou_threshold = float(iou_threshold.data.numpy())
+            iou_threshold = float(iou_threshold.data.numpy().item())
+        elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
+            var_name = iou_threshold.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                iou_threshold = float(param_value.numpy().item())
+            else:
+                iou_threshold = 0.5  # Default value
         else:
             iou_threshold = 0.5  # Default value
 
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
-            score_threshold = float(score_threshold.data.numpy())
+            score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
             var_name = score_threshold.name_hint
             if var_name in params[1]:
@@ -4973,7 +4980,7 @@ class AllClassNMS(OnnxOpConverter):
         if max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Constant
         ):
-            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy())
+            max_output_boxes_per_class = int(max_output_boxes_per_class.data.numpy().item())
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
@@ -4987,12 +4994,19 @@ class AllClassNMS(OnnxOpConverter):
             max_output_boxes_per_class = 0  # Default value
 
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
-            iou_threshold = float(iou_threshold.data.numpy())
+            iou_threshold = float(iou_threshold.data.numpy().item())
+        elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
+            var_name = iou_threshold.name_hint
+            if var_name in params[1]:
+                _, param_value = params[1][var_name]
+                iou_threshold = float(param_value.numpy().item())
+            else:
+                iou_threshold = 0.5  # Default value
         else:
             iou_threshold = 0.5  # Default value
 
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
-            score_threshold = float(score_threshold.data.numpy())
+            score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
             var_name = score_threshold.name_hint
             if var_name in params[1]:
