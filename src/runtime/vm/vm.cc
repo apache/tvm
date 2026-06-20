@@ -28,6 +28,7 @@
 #include <tvm/runtime/vm/vm.h>
 #include <tvm/support/cuda/nvtx.h>
 
+#include <mutex>
 #include <thread>
 
 #include "./module_utils.h"
@@ -969,6 +970,50 @@ ffi::Function VirtualMachineImpl::_LookupFunction(const ffi::String& name) {
     });
   }
   return ffi::Function(nullptr);
+}
+
+class DSOLibraryCache {
+ public:
+  ffi::Module Open(const std::string& library_path) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = cache_.find(library_path);
+    if (it == cache_.end()) {
+      ffi::Module lib = ffi::Module::LoadFromFile(library_path);
+      cache_.emplace(library_path, lib);
+      return lib;
+    }
+    return it->second;
+  }
+
+  std::unordered_map<std::string, ffi::Module> cache_;
+  std::mutex mutex_;
+};
+
+/*!
+ * \brief Load a runtime Module, then create and initialize a RelaxVM
+ * \param path The path to the runtime Module (a DSO file) to be loaded
+ * \param device The device used to initialize the RelaxVM
+ * \return The RelaxVM as a runtime Module
+ */
+ffi::Module LoadVMModule(const std::string& path, const Device& device) {
+  static DSOLibraryCache cache;
+  ffi::Module dso_mod = cache.Open(path);
+  ffi::Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
+  if (!vm_load_executable.has_value()) {
+    // not built by RelaxVM, return the dso_mod directly
+    return dso_mod;
+  }
+  auto mod = (*vm_load_executable)().cast<ffi::Module>();
+  ffi::Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
+  if (!vm_initialization.has_value()) {
+    TVM_FFI_THROW(ValueError)
+        << "File `" << path
+        << "` is not built by RelaxVM, because `vm_initialization` does not exist";
+  }
+  (*vm_initialization)(static_cast<int>(device.device_type), static_cast<int>(device.device_id),
+                       static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+                       static_cast<int>(AllocatorType::kPooled));
+  return mod;
 }
 
 }  // namespace vm

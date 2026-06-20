@@ -57,13 +57,6 @@ inline std::string ReduceKind2String(ReduceKind kind) {
 }
 
 /*!
- * \brief Load a runtime Module, then create and initialize a RelaxVM
- * \param path The path to the runtime Module (a DSO file) to be loaded
- * \param device The default device used to initialize the RelaxVM
- * \return The RelaxVM as a runtime Module
- */
-TVM_RUNTIME_DLL ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device);
-/*!
  * \brief Create an uninitialized empty Tensor
  * \param shape The shape of the Tensor
  * \param dtype The dtype of the Tensor

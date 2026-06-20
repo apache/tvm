@@ -219,6 +219,14 @@ class VirtualMachine : public ffi::ModuleObj {
   std::unordered_map<uint32_t, Any> extensions;
 };
 
+/*!
+ * \brief Load a runtime Module, then create and initialize a RelaxVM
+ * \param path The path to the runtime Module (a DSO file) to be loaded
+ * \param device The device used to initialize the RelaxVM
+ * \return The RelaxVM as a runtime Module
+ */
+TVM_RUNTIME_DLL ffi::Module LoadVMModule(const std::string& path, const Device& device);
+
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

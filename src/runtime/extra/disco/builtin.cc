@@ -32,45 +32,6 @@
 namespace tvm {
 namespace runtime {
 
-class DSOLibraryCache {
- public:
-  ffi::Module Open(const std::string& library_path) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto it = cache_.find(library_path);
-    if (it == cache_.end()) {
-      ffi::Module lib = ffi::Module::LoadFromFile(library_path);
-      cache_.emplace(library_path, lib);
-      return lib;
-    }
-    return it->second;
-  }
-
-  std::unordered_map<std::string, ffi::Module> cache_;
-  std::mutex mutex_;
-};
-
-ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
-  static DSOLibraryCache cache;
-  ffi::Module dso_mod = cache.Open(path);
-  Device dev = UseDefaultDeviceIfNone(device);
-  ffi::Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
-  if (!vm_load_executable.has_value()) {
-    // not built by RelaxVM, return the dso_mod directly
-    return dso_mod;
-  }
-  auto mod = (*vm_load_executable)().cast<ffi::Module>();
-  ffi::Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
-  if (!vm_initialization.has_value()) {
-    TVM_FFI_THROW(ValueError)
-        << "File `" << path
-        << "` is not built by RelaxVM, because `vm_initialization` does not exist";
-  }
-  (*vm_initialization)(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
-                       static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-                       static_cast<int>(AllocatorType::kPooled));
-  return mod;
-}
-
 Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
   return Tensor::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
@@ -129,7 +90,12 @@ void SyncWorker() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.disco.load_vm_module", LoadVMModule)
+      .def("runtime.disco.load_vm_module",
+           [](std::string path, ffi::Optional<Device> device) -> ffi::Module {
+             Device dev = UseDefaultDeviceIfNone(device);
+             ffi::Module mod = tvm::runtime::vm::LoadVMModule(path, dev);
+             return mod;
+           })
       .def("runtime.disco.empty",
            [](ffi::Shape shape, DataType dtype, ffi::Optional<Device> device, bool worker0_only,
               bool in_group) -> ffi::Optional<Tensor> {
