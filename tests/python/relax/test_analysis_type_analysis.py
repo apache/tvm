@@ -16,7 +16,7 @@
 # under the License.
 # ruff: noqa: E731, F401, F841
 
-"""Tests analysis functions of struct info"""
+"""Tests Relax dependent type analysis functions."""
 
 import pytest
 import tvm_ffi

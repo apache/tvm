@@ -24,7 +24,7 @@ from tvm import tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, PrimValue, ShapeExpr, const
-from ...struct_info import ShapeStructInfo
+from ...type import ShapeStructInfo
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 

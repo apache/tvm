@@ -23,9 +23,9 @@ from tvm.tirx.expr import IntImm
 
 from ..analysis import check_well_formed
 from ..expr import Tuple
-from ..struct_info import TensorStructInfo
 from ..training.utils import AppendLoss
 from ..transform import DecomposeOpsForInference, DecomposeOpsForTraining, Gradient, LegalizeOps
+from ..type import TensorStructInfo
 from .loss import Loss
 from .optimizer import Optimizer
 

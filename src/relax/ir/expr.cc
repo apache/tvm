@@ -669,9 +669,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       return TupleStructInfo(call->sinfo_args);
     }
   };
-  refl::GlobalDef()
-      .def("tvm.relax.type.infer_by_ty_args", infer_by_ty_args)
-      .def("tvm.relax.struct_info.infer_by_sinfo_args", infer_by_ty_args);
+  refl::GlobalDef().def("tvm.relax.type.infer_by_ty_args", infer_by_ty_args);
 }
 
 // Get the derive function.

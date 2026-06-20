@@ -54,7 +54,7 @@ from .expr import (
     Var,
     VarBinding,
 )
-from .struct_info import StructInfo
+from .type import StructInfo
 
 visitor = derived_object
 """

@@ -81,7 +81,7 @@ def populuate_input_shape(
     results: INPUT_SHAPE_TYPE = []
     for input_info in input_infos:
         shape = []
-        if isinstance(input_info, relax.struct_info.ShapeStructInfo):
+        if isinstance(input_info, relax.ShapeStructInfo):
             # scalar input
             results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
         else:

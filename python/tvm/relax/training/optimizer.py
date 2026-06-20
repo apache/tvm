@@ -29,7 +29,7 @@ from ..block_builder import BlockBuilder
 from ..expr import Function, TupleGetItem, Var, const
 from ..expr import Tuple as RxTuple
 from ..op import add, divide, multiply, sqrt, subtract
-from ..struct_info import TensorStructInfo, TupleStructInfo
+from ..type import TensorStructInfo, TupleStructInfo
 
 
 # TODO(chaofan, yixin): Migrate key logics to C++

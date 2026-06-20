@@ -22,7 +22,7 @@ from tvm import relax, tirx
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import call_pure_packed
-from ...struct_info import ShapeStructInfo
+from ...type import ShapeStructInfo
 from .common import register_legalize
 
 

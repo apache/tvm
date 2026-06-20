@@ -26,7 +26,7 @@ from tvm.ir import IRModule
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
+from ...type import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect

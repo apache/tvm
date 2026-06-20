@@ -485,7 +485,7 @@ def test_lower_runtime_builtin_shape_change():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -517,7 +517,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -547,7 +547,7 @@ def test_lower_runtime_builtin_dtype_change():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -577,7 +577,7 @@ def test_lower_runtime_builtin_byte_offset():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -626,7 +626,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -638,7 +638,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
             C = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(

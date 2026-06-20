@@ -298,9 +298,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tvm.relax.type.infer_view_ty", InferStructInfoView)
-      .def("tvm.relax.struct_info.infer_view_sinfo", InferStructInfoView);
+  refl::GlobalDef().def("tvm.relax.type.infer_view_ty", InferStructInfoView);
 }
 
 Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {

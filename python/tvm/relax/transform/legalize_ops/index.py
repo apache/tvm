@@ -22,7 +22,7 @@ from tvm import te, tirx, topi
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import tensor_to_shape
-from ...struct_info import PrimStructInfo, ShapeStructInfo
+from ...type import PrimStructInfo, ShapeStructInfo
 from .common import register_legalize
 
 

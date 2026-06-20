@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tyanalysis.cc
- * \brief Implementations of foundation struct info analysis
+ * \file type_analysis.cc
+ * \brief Implementations of foundational Relax type analysis.
  *
  * \note Update this file when you added a new StructInfo.
  */
