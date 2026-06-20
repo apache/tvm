@@ -50,7 +50,7 @@ class StaticTypeDeriver : public TypeFunctor<Type(const StructInfo&)> {
   Type VisitType_(const TensorStructInfoNode* op) final { return TensorType(op->ndim, op->dtype); }
 
   // module: distributed
-  Type VisitType_(const distributed::DTensorStructInfoNode* op) final { return ObjectType(); }
+  Type VisitType_(const distributed::DTensorTypeNode* op) final { return ObjectType(); }
   // end-module: distributed
 
   Type VisitType_(const TupleStructInfoNode* op) final {
@@ -407,9 +407,9 @@ class StructInfoBaseChecker
   }
 
   // module: distributed
-  BaseCheckResult VisitType_(const distributed::DTensorStructInfoNode* lhs,
+  BaseCheckResult VisitType_(const distributed::DTensorTypeNode* lhs,
                              const StructInfo& other) final {
-    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+    auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
@@ -742,9 +742,8 @@ class StructInfoBasePreconditionCollector
     return IntImm::Bool(true);
   }
 
-  PrimExpr VisitType_(const distributed::DTensorStructInfoNode* lhs,
-                      const StructInfo& other) final {
-    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+  PrimExpr VisitType_(const distributed::DTensorTypeNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }

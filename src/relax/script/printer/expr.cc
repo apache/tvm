@@ -137,7 +137,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
         "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
-            if (n->ty.as<relax::distributed::DTensorStructInfoNode>()) {
+            if (n->ty.as<relax::distributed::DTensorTypeNode>()) {
               ExprDoc ann = d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"));
               return Relax(d, "dist.const")->Call({s.value(), ann});
             }

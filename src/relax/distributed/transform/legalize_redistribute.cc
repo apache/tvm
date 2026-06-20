@@ -68,7 +68,7 @@ class RedistributeLegalizer : public ExprMutator {
     if (call->op.same_as(redistribute_op)) {
       const auto* attrs = call->attrs.as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
-      const auto* input_ty = call->args[0]->ty.as<DTensorStructInfoNode>();
+      const auto* input_ty = call->args[0]->ty.as<DTensorTypeNode>();
       TVM_FFI_ICHECK(input_ty);
       // As the first step, we only support redistribute in the same device mesh,
       // and the device mesh must be 1d

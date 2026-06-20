@@ -36,8 +36,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                                  });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::distributed::DTensorStructInfo>(
-        "", [](relax::distributed::DTensorStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::distributed::DTensorType>(
+        "", [](relax::distributed::DTensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
@@ -128,7 +128,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DeviceMeshNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::PlacementNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DTensorStructInfoNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DTensorTypeNode, ReprPrintRelax);
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

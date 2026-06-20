@@ -40,7 +40,7 @@ bool TypeCompatibleWithRelax(ffi::Array<StructInfo> tys) {
     if (const auto* tuple_ty = ty.as<TupleStructInfoNode>()) {
       compatible &= TypeCompatibleWithRelax(tuple_ty->fields);
     } else {
-      compatible &= !ty->IsInstance<DTensorStructInfoNode>();
+      compatible &= !ty->IsInstance<DTensorTypeNode>();
     }
   }
   return compatible;

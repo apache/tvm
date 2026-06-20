@@ -49,7 +49,7 @@ void TypeVisitor::VisitType_(const TensorStructInfoNode* op) {
   }
 }
 
-void TypeVisitor::VisitType_(const distributed::DTensorStructInfoNode* op) {
+void TypeVisitor::VisitType_(const distributed::DTensorTypeNode* op) {
   this->VisitType(op->tensor_ty);
 }
 
@@ -117,9 +117,9 @@ StructInfo TypeMutator::VisitType_(const TensorStructInfoNode* op) {
   }
 }
 
-StructInfo TypeMutator::VisitType_(const distributed::DTensorStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const distributed::DTensorTypeNode* op) {
   TensorStructInfo tensor_ty = Downcast<TensorStructInfo>(this->VisitType(op->tensor_ty));
-  return distributed::DTensorStructInfo(tensor_ty, op->device_mesh, op->placement);
+  return distributed::DTensorType(tensor_ty, op->device_mesh, op->placement);
 }
 
 StructInfo TypeMutator::VisitType_(const TupleStructInfoNode* op) {

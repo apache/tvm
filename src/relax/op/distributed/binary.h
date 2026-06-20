@@ -38,8 +38,7 @@ namespace distributed {
 template <typename FType>
 StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
                                         FType f_compute_out_dtype) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
-      GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorStructInfo x1_ty, x2_ty;
   x1_ty = input_dtensor_tys[0]->tensor_ty;
   x2_ty = input_dtensor_tys[1]->tensor_ty;

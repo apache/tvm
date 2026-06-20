@@ -87,9 +87,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
-  const auto* ty = GetStructInfoAs<distributed::DTensorStructInfoNode>(call->args[0]);
+  const auto* ty = GetStructInfoAs<distributed::DTensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
-  return distributed::DTensorStructInfo(ty->tensor_ty, attrs->device_mesh, attrs->placement);
+  return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
 }
 
 TVM_REGISTER_OP("relax.dist.redistribute")
@@ -119,10 +119,9 @@ TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
     .set_attr<bool>("FPurity", true);
 
-Expr MakeCallTIRLocalView(Expr func, Tuple args,
-                          ffi::Array<distributed::DTensorStructInfo> out_ty_list,
+Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
                           ffi::Optional<Expr> packed_ints) {
-  for (const distributed::DTensorStructInfo& ty : out_ty_list) {
+  for (const distributed::DTensorType& ty : out_ty_list) {
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir_local_view should have defined ShapeExpr as shape. "
@@ -182,9 +181,9 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   using namespace distributed;
-  ffi::Array<DTensorStructInfo> input_dtensor_tys = GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
-  DTensorStructInfo input_dtensor_ty = input_dtensor_tys[0];
+  DTensorType input_dtensor_ty = input_dtensor_tys[0];
   TensorStructInfo tensor_ty = input_dtensor_ty->tensor_ty;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
@@ -207,8 +206,8 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   // FIXME: this is a hack where there's only 1d mesh
   TVM_FFI_ICHECK(device_mesh->shape.size() == 1);
   TVM_FFI_ICHECK(input_dtensor_ty->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
-  return DTensorStructInfo(tensor_ty, device_mesh,
-                           Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
+  return DTensorType(tensor_ty, device_mesh,
+                     Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
 }
 
 Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {

@@ -27,7 +27,7 @@ import numpy as _np  # type: ignore
 import tvm
 from tvm import base as _base
 from tvm.ir import PrimExpr
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 from tvm.relax.expr import Call, Constant, Expr, ExternFunc, ShapeExpr
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
@@ -52,7 +52,7 @@ from . import _ffi_api
 def call_tir(
     func: str | Expr,
     args: Expr,
-    out_ty: DTensorStructInfo | list[DTensorStructInfo],
+    out_ty: DTensorType | list[DTensorType],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
@@ -65,9 +65,9 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_ty : Union[DTensorStructInfo, List[DTensorStructInfo]]
+    out_ty : Union[DTensorType, List[DTensorType]]
         The structure info of the call_tir output.
-        It should be a single or a list of DTensorStructInfo. Each one denotes the
+        It should be a single or a list of DTensorType. Each one denotes the
         structure info of a returned distributed tensor.
 
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
@@ -97,7 +97,7 @@ def call_tir(
 
 def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
-    ty: DTensorStructInfo,
+    ty: DTensorType,
 ) -> Constant:
     """Create a constant value.
 
@@ -119,8 +119,8 @@ def const(
     - other using the same default rule as numpy.
     """
     ty = tvm.runtime.convert(ty)
-    if not isinstance(ty, DTensorStructInfo):
-        raise TypeError("ty needs to be an instance of DTensorStructInfo. ")
+    if not isinstance(ty, DTensorType):
+        raise TypeError("ty needs to be an instance of DTensorType. ")
     dtype = str(ty.tensor_ty.dtype)
     if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)

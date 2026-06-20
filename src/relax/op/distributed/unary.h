@@ -36,10 +36,9 @@ namespace distributed {
 template <bool require_float_dtype, typename FType>
 StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
                                     FType f_compute_out_dtype) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
-      GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
-  distributed::DTensorStructInfo input_dtensor_ty = input_dtensor_tys[0];
+  distributed::DTensorType input_dtensor_ty = input_dtensor_tys[0];
   TensorStructInfo input_tensor_ty = input_dtensor_ty->tensor_ty;
 
   if (require_float_dtype && !input_tensor_ty->IsUnknownDtype() &&
@@ -52,8 +51,8 @@ StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
   auto output_ty = ffi::make_object<TensorStructInfoNode>(*input_tensor_ty.get());
   output_ty->dtype = f_compute_out_dtype(input_tensor_ty);
   TensorStructInfo out_tensor_ty(output_ty);
-  return distributed::DTensorStructInfo(out_tensor_ty, input_dtensor_ty->device_mesh,
-                                        input_dtensor_ty->placement);
+  return distributed::DTensorType(out_tensor_ty, input_dtensor_ty->device_mesh,
+                                  input_dtensor_ty->placement);
 }
 
 template <bool require_float_dtype>

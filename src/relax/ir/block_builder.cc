@@ -834,7 +834,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Op op = ffi::GetRef<Op>(op_ptr);
       bool is_dist_op = false;
       for (const auto& arg : call->args) {
-        if (arg->ty.as<distributed::DTensorStructInfoNode>()) {
+        if (arg->ty.as<distributed::DTensorTypeNode>()) {
           is_dist_op = true;
           break;
         }

@@ -341,7 +341,7 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
   // shape for `R.dist.call_tir` calls, as it depends on the lowering
   // of DistIR into regular Relax.
   std::function<bool(StructInfo)> contains_dtensor = [&contains_dtensor](StructInfo sinfo) -> bool {
-    if (sinfo.as<distributed::DTensorStructInfoNode>()) {
+    if (sinfo.as<distributed::DTensorTypeNode>()) {
       return true;
     } else if (auto tuple = sinfo.as<TupleStructInfoNode>()) {
       return std::any_of(tuple->fields.begin(), tuple->fields.end(), contains_dtensor);

@@ -99,14 +99,14 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
     ffi::Array<ExprDoc> fields;
     AccessPath fields_p = out_ty_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
-      if (o->fields[i].as<relax::distributed::DTensorStructInfoNode>()) {
+      if (o->fields[i].as<relax::distributed::DTensorTypeNode>()) {
         is_dtensor = true;
       }
       fields.push_back(d->AsDoc<ExprDoc>(o->fields[i], fields_p->ArrayItem(i)));
     }
     kwargs_values.push_back(ListDoc(fields));
   } else {
-    if (out_ty.as<relax::distributed::DTensorStructInfoNode>()) {
+    if (out_ty.as<relax::distributed::DTensorTypeNode>()) {
       is_dtensor = true;
     }
     kwargs_values.push_back(d->AsDoc<ExprDoc>(out_ty, out_ty_p));

@@ -26,16 +26,16 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
-                                                                     const BlockBuilder& ctx) {
+ffi::Array<distributed::DTensorType> GetInputDTensorType(const Call& call,
+                                                         const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
   ffi::Array<Expr> args = GetCallArgs(call);
-  ffi::Array<distributed::DTensorStructInfo> input_tensor_ty;
+  ffi::Array<distributed::DTensorType> input_tensor_ty;
   input_tensor_ty.reserve(args.size());
   for (const Expr& arg : args) {
-    const auto* ty = GetStructInfoAs<distributed::DTensorStructInfoNode>(arg);
+    const auto* ty = GetStructInfoAs<distributed::DTensorTypeNode>(arg);
     if (ty != nullptr) {
-      input_tensor_ty.push_back(ffi::GetRef<distributed::DTensorStructInfo>(ty));
+      input_tensor_ty.push_back(ffi::GetRef<distributed::DTensorType>(ty));
     }
   }
   return input_tensor_ty;
@@ -44,8 +44,7 @@ ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call&
 StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
                              const StructInfo& orig_output_ty,
                              distributed::FBuildAxisGraph f_build_graph) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
-      GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   for (int i = 1; i < static_cast<int>(input_dtensor_tys.size()); i++) {
     TVM_FFI_ICHECK(ffi::StructuralEqual()(input_dtensor_tys[0]->device_mesh,
                                           input_dtensor_tys[i]->device_mesh));
@@ -57,7 +56,7 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
   ffi::Array<Expr> args = GetCallArgs(call);
   int n_input_var = input_dtensor_tys.size();
   for (int i = 0; i < n_input_var; i++) {
-    distributed::DTensorStructInfo dtensor_ty = input_dtensor_tys[i];
+    distributed::DTensorType dtensor_ty = input_dtensor_tys[i];
     Expr input_tensor = args[i];
     for (int j = 0; j < static_cast<int>(device_mesh->shape.size()); j++) {
       distributed::PlacementSpec placement_spec = dtensor_ty->placement->dim_specs[j];
@@ -93,8 +92,8 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
         output_placement_specs.Set(sharding_spec.second, distributed::PlacementSpec::Sharding(i));
       }
     }
-    new_output_dtensor_tys.push_back(DTensorStructInfo(
-        orig_output_tensor_tys[idx], device_mesh, distributed::Placement(output_placement_specs)));
+    new_output_dtensor_tys.push_back(DTensorType(orig_output_tensor_tys[idx], device_mesh,
+                                                 distributed::Placement(output_placement_specs)));
   }
 
   return new_output_dtensor_tys.size() == 1 ? new_output_dtensor_tys[0]

@@ -28,9 +28,9 @@
 
 namespace tvm {
 namespace relax {
-Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorStructInfo> out_ty_list,
+Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
                      ffi::Optional<Expr> packed_ints) {
-  for (const distributed::DTensorStructInfo& ty : out_ty_list) {
+  for (const distributed::DTensorType& ty : out_ty_list) {
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir should have defined ShapeExpr as shape. "

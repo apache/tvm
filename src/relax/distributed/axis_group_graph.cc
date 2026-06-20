@@ -69,7 +69,7 @@ const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
   if (tensor_ty) {
     return tensor_ty;
   }
-  const auto* dtensor_ty = GetStructInfoAs<DTensorStructInfoNode>(tensor);
+  const auto* dtensor_ty = GetStructInfoAs<DTensorTypeNode>(tensor);
   if (dtensor_ty) {
     return dtensor_ty->tensor_ty.get();
   }
@@ -104,12 +104,10 @@ void BuildAxisGraphUnary(const Var& output_var, const Call& call,
 void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
   ffi::Array<Expr> tensor_list;  // vars in param and output
-  if (call->args[0]->ty.as<TensorStructInfoNode>() ||
-      call->args[0]->ty.as<DTensorStructInfoNode>()) {
+  if (call->args[0]->ty.as<TensorStructInfoNode>() || call->args[0]->ty.as<DTensorTypeNode>()) {
     tensor_list.push_back(call->args[0]);
   }
-  if (call->args[1]->ty.as<TensorStructInfoNode>() ||
-      call->args[1]->ty.as<DTensorStructInfoNode>()) {
+  if (call->args[1]->ty.as<TensorStructInfoNode>() || call->args[1]->ty.as<DTensorTypeNode>()) {
     tensor_list.push_back(call->args[1]);
   }
   tensor_list.push_back(output_var);

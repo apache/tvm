@@ -27,8 +27,7 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
-      GetInputDTensorStructInfo(call, ctx);
+  ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
   TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();

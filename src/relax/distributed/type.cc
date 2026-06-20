@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/distributed/type.cc
- * \brief Relax dtensor struct info.
+ * \brief Relax DTensor type.
  */
 
 #include <tvm/ffi/reflection/registry.h>
@@ -29,7 +29,7 @@ namespace relax {
 namespace distributed {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  DTensorStructInfoNode::RegisterReflection();
+  DTensorTypeNode::RegisterReflection();
   PlacementNode::RegisterReflection();
   PlacementSpecNode::RegisterReflection();
 }
@@ -118,8 +118,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DTensor
-DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_ty, DeviceMesh device_mesh,
-                                     Placement placement, Span span) {
+DTensorType::DTensorType(TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement,
+                         Span span) {
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
       << "The device mesh and placement must have the same dimension size";
   for (auto spec : placement->dim_specs) {
@@ -127,7 +127,7 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_ty, DeviceMesh devi
     TVM_FFI_CHECK_LT(spec->axis, tensor_ty->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";
   }
-  ffi::ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
+  ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>();
   n->device_mesh = std::move(device_mesh);
   n->placement = std::move(placement);
   n->tensor_ty = std::move(tensor_ty);
@@ -138,9 +138,9 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_ty, DeviceMesh devi
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.distributed.DTensorStructInfo",
+      "relax.distributed.DTensorType",
       [](TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
-        return DTensorStructInfo(tensor_ty, device_mesh, placement, span);
+        return DTensorType(tensor_ty, device_mesh, placement, span);
       });
 }
 

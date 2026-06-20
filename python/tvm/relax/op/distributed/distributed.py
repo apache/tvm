@@ -18,7 +18,7 @@
 """Operators for distributed Relax."""
 
 from tvm.ir import PrimExpr
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 
 from ...expr import Call, Expr, GlobalVar, ShapeExpr
 from ...expr import Tuple as RxTuple
@@ -68,7 +68,7 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_ty: DTensorStructInfo | list[DTensorStructInfo],
+    out_ty: DTensorType | list[DTensorType],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
@@ -84,9 +84,9 @@ def call_tir_local_view(
     args : Expr
         The input arguments.
 
-    out_ty : Union[DTensorStructInfo, List[DTensorStructInfo]]
+    out_ty : Union[DTensorType, List[DTensorType]]
         The structure info of the call_tir output.
-        It should be a single or a list of DTensorStructInfo. Each one denotes the
+        It should be a single or a list of DTensorType. Each one denotes the
         structure info of a returned tensor.
 
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]

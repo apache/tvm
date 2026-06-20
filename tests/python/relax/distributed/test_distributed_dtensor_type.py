@@ -41,12 +41,12 @@ def _check_json_roundtrip(x):
     return xret
 
 
-def test_dtensor_struct_info():
+def test_dtensor_type():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
-    tensor_s0 = rx.TensorStructInfo([1, n + 1, m], "float32")
-    tensor_s1 = rx.TensorStructInfo([1, n + 1, m], "float32")
-    assert tensor_s0 == tensor_s1
+    tensor_ty0 = rx.TensorStructInfo([1, n + 1, m], "float32")
+    tensor_ty1 = rx.TensorStructInfo([1, n + 1, m], "float32")
+    assert tensor_ty0 == tensor_ty1
 
     device_mesh0 = rx.distributed.DeviceMesh((2, 2), Range(0, 4))
     device_mesh1 = rx.distributed.DeviceMesh((2, 2), Range(0, 4))
@@ -59,36 +59,36 @@ def test_dtensor_struct_info():
     placement1 = rx.distributed.Placement([shard0, replica])
     tvm.ir.assert_structural_equal(placement0, placement1)
 
-    s0 = rx.distributed.DTensorStructInfo(tensor_s0, device_mesh0, placement0)
-    s1 = rx.distributed.DTensorStructInfo(tensor_s1, device_mesh1, placement1)
-    _check_equal(s0, s1)
-    _check_json_roundtrip(s0)
-    _check_json_roundtrip(s1)
+    ty0 = rx.distributed.DTensorType(tensor_ty0, device_mesh0, placement0)
+    ty1 = rx.distributed.DTensorType(tensor_ty1, device_mesh1, placement1)
+    _check_equal(ty0, ty1)
+    _check_json_roundtrip(ty0)
+    _check_json_roundtrip(ty1)
 
-    assert s0 == s1
-    tvm.ir.assert_structural_equal(s0.device_mesh, device_mesh0)
-    assert s0.device_mesh.shape == (2, 2)
-    tvm.ir.assert_structural_equal(s0.device_mesh.device_range, Range(0, 4))
-    tvm.ir.assert_structural_equal(s0.placement, placement0)
-    assert len(s0.placement.dim_specs) == 2
-    assert s0.placement.dim_specs[0] == shard0
-    assert s0.placement.dim_specs[1] == replica
-    assert s0.tensor_ty == tensor_s0
+    assert ty0 == ty1
+    tvm.ir.assert_structural_equal(ty0.device_mesh, device_mesh0)
+    assert ty0.device_mesh.shape == (2, 2)
+    tvm.ir.assert_structural_equal(ty0.device_mesh.device_range, Range(0, 4))
+    tvm.ir.assert_structural_equal(ty0.placement, placement0)
+    assert len(ty0.placement.dim_specs) == 2
+    assert ty0.placement.dim_specs[0] == shard0
+    assert ty0.placement.dim_specs[1] == replica
+    assert ty0.tensor_ty == tensor_ty0
 
     # can turn into str
-    # str(s0)
+    # str(ty0)
 
     # dimension of device mesh and placement should be the same
     shard1 = rx.distributed.PlacementSpec.sharding(1)
     placement2 = rx.distributed.Placement([shard0, replica, shard1])
     with pytest.raises(ValueError):
-        rx.distributed.DTensorStructInfo(tensor_s0, device_mesh0, placement2)
+        rx.distributed.DTensorType(tensor_ty0, device_mesh0, placement2)
 
     # Sharding dimension should be smaller than tensor ndim
     shard3 = rx.distributed.PlacementSpec.sharding(3)
     placement3 = rx.distributed.Placement([shard3, replica])
     with pytest.raises(ValueError):
-        rx.distributed.DTensorStructInfo(tensor_s0, device_mesh0, placement3)
+        rx.distributed.DTensorType(tensor_ty0, device_mesh0, placement3)
 
 
 if __name__ == "__main__":

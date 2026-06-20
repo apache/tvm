@@ -19,7 +19,7 @@
 import tvm.testing
 from tvm.ir import Range
 from tvm.relax import TensorStructInfo
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -43,28 +43,22 @@ def test_constant():
     )
 
 
-def test_dtensor_struct_info():
+def test_dtensor_type():
     tensor_ty1 = TensorStructInfo((32, 32), "float32")
     tensor_ty2 = TensorStructInfo((32, 32), "void")
-    obj0 = DTensorStructInfo(
-        tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R")
-    )
+    obj0 = DTensorType(tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj0.__str__()
         == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[1], R")"""
     )
 
-    obj1 = DTensorStructInfo(
-        tensor_ty2, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R")
-    )
+    obj1 = DTensorType(tensor_ty2, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj1.__str__()
         == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), R.Range(0, 4)), placement="S[1], R")"""
     )
 
-    obj2 = DTensorStructInfo(
-        tensor_ty2, DeviceMesh((2, 2), [0, 1, 2, 3]), Placement.from_text("S[1], R")
-    )
+    obj2 = DTensorType(tensor_ty2, DeviceMesh((2, 2), [0, 1, 2, 3]), Placement.from_text("S[1], R"))
     assert (
         obj2.__str__()
         == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), [0, 1, 2, 3]), placement="S[1], R")"""

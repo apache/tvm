@@ -75,7 +75,7 @@ class DistIRSharder : public ExprMutator {
     return ShapeExpr(new_tensor_shape_value);
   }
 
-  TensorStructInfo ShardDTensorSinfo(DTensorStructInfo orig_ty) {
+  TensorStructInfo ShardDTensorType(DTensorType orig_ty) {
     TensorStructInfo tensor_ty = orig_ty->tensor_ty;
     TVM_FFI_ICHECK(tensor_ty->shape);
     const auto* orig_shape = tensor_ty->shape.as<ShapeExprNode>();
@@ -85,19 +85,19 @@ class DistIRSharder : public ExprMutator {
     return TensorStructInfo(new_tensor_ty);
   }
 
-  StructInfo ConvertSinfo(StructInfo orig_ty, bool shard_shape) {
-    if (const auto* dtensor_ty = orig_ty.as<DTensorStructInfoNode>()) {
+  StructInfo ConvertType(StructInfo orig_ty, bool shard_shape) {
+    if (const auto* dtensor_ty = orig_ty.as<DTensorTypeNode>()) {
       if (shard_shape) {
-        return ShardDTensorSinfo(ffi::GetRef<DTensorStructInfo>(dtensor_ty));
+        return ShardDTensorType(ffi::GetRef<DTensorType>(dtensor_ty));
       } else {
         return dtensor_ty->tensor_ty;
       }
     } else if (const auto* tuple_ty = orig_ty.as<TupleStructInfoNode>()) {
       ffi::Array<StructInfo> new_fields;
       for (const auto& field_ty : tuple_ty->fields) {
-        if (const auto* dtensor_ty = field_ty.as<DTensorStructInfoNode>()) {
+        if (const auto* dtensor_ty = field_ty.as<DTensorTypeNode>()) {
           if (shard_shape) {
-            new_fields.push_back(ShardDTensorSinfo(ffi::GetRef<DTensorStructInfo>(dtensor_ty)));
+            new_fields.push_back(ShardDTensorType(ffi::GetRef<DTensorType>(dtensor_ty)));
           } else {
             new_fields.push_back(dtensor_ty->tensor_ty);
           }
@@ -114,12 +114,12 @@ class DistIRSharder : public ExprMutator {
   Expr ShardInputParamTensorAndConstant(Expr input) {
     TVM_FFI_ICHECK(input->ty.defined());
     StructInfo old_ty = GetStructInfo(input);
-    StructInfo new_ty = ConvertSinfo(old_ty, false);
+    StructInfo new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
       Var new_param(var->name_hint(), new_ty);
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
-      for (const auto& spec : Downcast<DTensorStructInfo>(old_ty)->placement->dim_specs) {
+      for (const auto& spec : Downcast<DTensorType>(old_ty)->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
       Constant new_constant(constant->data, new_ty);
@@ -130,7 +130,7 @@ class DistIRSharder : public ExprMutator {
     }
   }
 
-  void EmitBroadcastOrScatter(Expr old_expr, Expr new_expr, DTensorStructInfo dtensor_ty) {
+  void EmitBroadcastOrScatter(Expr old_expr, Expr new_expr, DTensorType dtensor_ty) {
     // FIXME: this is a hack that only works for 1d device mesh
     TVM_FFI_ICHECK(dtensor_ty->device_mesh->shape.size() == 1);
     PlacementSpec sharding_spec = dtensor_ty->placement->dim_specs[0];
@@ -157,13 +157,13 @@ class DistIRSharder : public ExprMutator {
   void InputPreprocessing() {
     for (int i = 0; i < static_cast<int>(func_->params.size()); i++) {
       Var param = func_->params[i];
-      if (const auto* dtensor_ty = GetStructInfoAs<DTensorStructInfoNode>(param)) {
-        EmitBroadcastOrScatter(param, new_params_[i], ffi::GetRef<DTensorStructInfo>(dtensor_ty));
+      if (const auto* dtensor_ty = GetStructInfoAs<DTensorTypeNode>(param)) {
+        EmitBroadcastOrScatter(param, new_params_[i], ffi::GetRef<DTensorType>(dtensor_ty));
       } else if (const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(param)) {
         for (int j = 0; j < static_cast<int>(tuple_ty->fields.size()); j++) {
-          if (const auto* dtensor_ty = tuple_ty->fields[j].as<DTensorStructInfoNode>()) {
+          if (const auto* dtensor_ty = tuple_ty->fields[j].as<DTensorTypeNode>()) {
             EmitBroadcastOrScatter(TupleGetItem(param, j), TupleGetItem(new_params_[i], j),
-                                   ffi::GetRef<DTensorStructInfo>(dtensor_ty));
+                                   ffi::GetRef<DTensorType>(dtensor_ty));
           }
         }
       }
@@ -216,7 +216,7 @@ class DistIRSharder : public ExprMutator {
     static Op call_tir_local_view_op = Op::Get("relax.dist.call_tir_local_view");
     if (call->op.same_as(reshape_op)) {
       TVM_FFI_ICHECK(call->args[1].as<ShapeExprNode>());
-      const auto* out_ty = GetStructInfoAs<DTensorStructInfoNode>(binding_var);
+      const auto* out_ty = GetStructInfoAs<DTensorTypeNode>(binding_var);
       TVM_FFI_ICHECK(out_ty);
       auto new_call_node = ffi::make_object<CallNode>(*call);
       new_call_node->args.Set(1, ShardShape(Downcast<ShapeExpr>(call->args[1]), out_ty->device_mesh,
@@ -225,7 +225,7 @@ class DistIRSharder : public ExprMutator {
     } else if (call->op.same_as(call_tir_local_view_op)) {
       auto new_call_node = ffi::make_object<CallNode>(*call);
       new_call_node->op = call_tir_op;
-      new_call_node->sinfo_args = {ConvertSinfo(GetStructInfo(binding_var), true)};
+      new_call_node->sinfo_args = {ConvertType(GetStructInfo(binding_var), true)};
       return Call(new_call_node);
     } else if (call->op.same_as(call_tir_op)) {
       TVM_FFI_THROW(InternalError)
@@ -237,7 +237,7 @@ class DistIRSharder : public ExprMutator {
       } else if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
         new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_view");
         auto orig_shape = Downcast<ShapeExpr>(call->args[1]);
-        const auto* out_ty = GetStructInfoAs<DTensorStructInfoNode>(binding_var);
+        const auto* out_ty = GetStructInfoAs<DTensorTypeNode>(binding_var);
         TVM_FFI_ICHECK(out_ty);
         ShapeExpr new_shape = ShardShape(orig_shape, out_ty->device_mesh, out_ty->placement);
         new_call_node->args.Set(1, new_shape);
