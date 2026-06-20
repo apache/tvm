@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/expr.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 
 #include "../../../script/printer/ir/utils.h"
 #include "./utils.h"
@@ -42,9 +42,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
           bool require_kwargs = false;
-          if (n->tensor_sinfo->shape.defined()) {
+          if (n->tensor_ty->shape.defined()) {
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
-            if (const auto* shape = n->tensor_sinfo->shape.value().as<relax::ShapeExprNode>()) {
+            if (const auto* shape = n->tensor_ty->shape.value().as<relax::ShapeExprNode>()) {
               auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
               AccessPath shape_p = n_p->Attr("shape")->Attr("values");
               ffi::Array<ExprDoc> shape_docs;
@@ -54,18 +54,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               }
               args.push_back(TupleDoc(shape_docs));
             } else {
-              args.push_back(d->AsDoc<ExprDoc>(n->tensor_sinfo->shape.value(), n_p->Attr("shape")));
+              args.push_back(d->AsDoc<ExprDoc>(n->tensor_ty->shape.value(), n_p->Attr("shape")));
             }
           } else {
             require_kwargs = true;
           }
-          if (!n->tensor_sinfo->IsUnknownDtype()) {
+          if (!n->tensor_ty->IsUnknownDtype()) {
             if (!require_kwargs) {
-              args.push_back(LiteralDoc::DataType(n->tensor_sinfo->dtype, n_p->Attr("dtype")));
+              args.push_back(LiteralDoc::DataType(n->tensor_ty->dtype, n_p->Attr("dtype")));
             } else {
               kwargs_keys.push_back("dtype");
               kwargs_values.push_back(
-                  LiteralDoc::DataType(n->tensor_sinfo->dtype, n_p->Attr("dtype")));
+                  LiteralDoc::DataType(n->tensor_ty->dtype, n_p->Attr("dtype")));
             }
           } else {
             require_kwargs = true;
@@ -82,9 +82,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             kwargs_keys.push_back("placement");
             kwargs_values.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
           }
-          if (!n->tensor_sinfo->shape.defined() && !n->tensor_sinfo->IsUnknownNdim()) {
+          if (!n->tensor_ty->shape.defined() && !n->tensor_ty->IsUnknownNdim()) {
             kwargs_keys.push_back("ndim");
-            kwargs_values.push_back(LiteralDoc::Int(n->tensor_sinfo->ndim, n_p->Attr("ndim")));
+            kwargs_values.push_back(LiteralDoc::Int(n->tensor_ty->ndim, n_p->Attr("ndim")));
           }
           return Relax(d, "DTensor")->Call(args, kwargs_keys, kwargs_values);
         });

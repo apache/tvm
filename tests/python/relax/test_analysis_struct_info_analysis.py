@@ -354,7 +354,7 @@ def test_base_check():
 
 def _check_derive(ctx, finfo, args_ty, ret):
     gv = rx.GlobalVar("test")
-    rx.expr._update_struct_info(gv, finfo)
+    rx.expr._update_type(gv, finfo)
     args = []
     for i, sinfo in enumerate(args_ty):
         arg = rx.Var(f"arg{i}", sinfo)

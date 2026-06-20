@@ -18,8 +18,7 @@
 """Operators for distributed Relax."""
 
 from tvm.ir import PrimExpr
-from tvm.relax.distributed import DTensorStructInfo
-from tvm.relax.distributed.struct_info import DeviceMesh, Placement
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
 
 from ...expr import Call, Expr, GlobalVar, ShapeExpr
 from ...expr import Tuple as RxTuple

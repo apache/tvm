@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relax/distributed/struct_info.cc
+ * \file src/relax/distributed/type.cc
  * \brief Relax dtensor struct info.
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -118,19 +118,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DTensor
-DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
+DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_ty, DeviceMesh device_mesh,
                                      Placement placement, Span span) {
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
       << "The device mesh and placement must have the same dimension size";
   for (auto spec : placement->dim_specs) {
     if (spec->kind == PlacementSpecKind::kReplica) continue;
-    TVM_FFI_CHECK_LT(spec->axis, tensor_sinfo->ndim, ValueError)
+    TVM_FFI_CHECK_LT(spec->axis, tensor_ty->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";
   }
   ffi::ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
   n->device_mesh = std::move(device_mesh);
   n->placement = std::move(placement);
-  n->tensor_sinfo = std::move(tensor_sinfo);
+  n->tensor_ty = std::move(tensor_ty);
   n->span = span;
   data_ = std::move(n);
 }
@@ -139,8 +139,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DTensorStructInfo",
-      [](TensorStructInfo tensor_sinfo, DeviceMesh device_mesh, Placement placement, Span span) {
-        return DTensorStructInfo(tensor_sinfo, device_mesh, placement, span);
+      [](TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
+        return DTensorStructInfo(tensor_ty, device_mesh, placement, span);
       });
 }
 

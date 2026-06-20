@@ -71,7 +71,7 @@ const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
   }
   const auto* dtensor_ty = GetStructInfoAs<DTensorStructInfoNode>(tensor);
   if (dtensor_ty) {
-    return dtensor_ty->tensor_sinfo.get();
+    return dtensor_ty->tensor_ty.get();
   }
   TVM_FFI_THROW(InternalError) << tensor << " must be either Tensor or DTesor";
   throw;

@@ -31,7 +31,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 
 #include <string>
 #include <utility>

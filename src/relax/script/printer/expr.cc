@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 
 #include <cmath>
 #include <limits>

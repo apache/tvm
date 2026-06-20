@@ -20,7 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>

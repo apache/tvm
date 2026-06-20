@@ -18,15 +18,15 @@
  */
 
 /*!
- * \file tvm/relax/distributed/struct_info.h
+ * \file tvm/relax/distributed/type.h
  * \brief Struct info for DTensor (Distributed Tensor)
  */
 
-#ifndef TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
-#define TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
+#ifndef TVM_RELAX_DISTRIBUTED_TYPE_H_
+#define TVM_RELAX_DISTRIBUTED_TYPE_H_
 
 #include <tvm/relax/distributed/global_info.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -118,7 +118,7 @@ class DTensorStructInfoNode : public StructInfoNode {
   /*!
    * \brief The struct info inherited from TensorStructInfo
    */
-  TensorStructInfo tensor_sinfo;
+  TensorStructInfo tensor_ty;
   /*!
    * \brief The device mesh of the tensor.
    */
@@ -133,7 +133,7 @@ class DTensorStructInfoNode : public StructInfoNode {
     refl::ObjectDef<DTensorStructInfoNode>()
         .def_ro("device_mesh", &DTensorStructInfoNode::device_mesh)
         .def_ro("placement", &DTensorStructInfoNode::placement)
-        .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
+        .def_ro("tensor_ty", &DTensorStructInfoNode::tensor_ty);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorStructInfo", DTensorStructInfoNode,
                                     StructInfoNode);
@@ -147,13 +147,13 @@ class DTensorStructInfo : public StructInfo {
  public:
   /*!
    * \brief Construction with device mesh and placement.
-   * \param tensor_sinfo The struct info inherited from TensorStructInfo
+   * \param tensor_ty The struct info inherited from TensorStructInfo
    * \param device_mesh The device mesh of the tensor.
    * \param placement The placement of the tensor among the device mesh.
    * \param span The span of the AST.
    */
-  TVM_DLL DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
-                            Placement placement, Span span = Span());
+  TVM_DLL DTensorStructInfo(TensorStructInfo tensor_ty, DeviceMesh device_mesh, Placement placement,
+                            Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
 };
@@ -162,4 +162,4 @@ class DTensorStructInfo : public StructInfo {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
+#endif  // TVM_RELAX_DISTRIBUTED_TYPE_H_

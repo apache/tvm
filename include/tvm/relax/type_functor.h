@@ -25,7 +25,7 @@
 #define TVM_RELAX_TYPE_FUNCTOR_H_
 
 #include <tvm/ir/node_functor.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/type.h>
 
 #include <utility>

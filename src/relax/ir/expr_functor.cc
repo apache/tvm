@@ -29,7 +29,6 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 

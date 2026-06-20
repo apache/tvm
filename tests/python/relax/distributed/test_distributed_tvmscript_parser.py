@@ -181,9 +181,7 @@ def test_constant():
                     shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
                 ),
             )
-            gv1 = R.add(
-                gv0, R.dist.const(1.0, struct_info=R.DTensor((), "float32", "mesh[0]", "R, R"))
-            )
+            gv1 = R.add(gv0, R.dist.const(1.0, ty=R.DTensor((), "float32", "mesh[0]", "R, R")))
             return gv1
 
     _check(TestModule)

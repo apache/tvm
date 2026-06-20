@@ -38,38 +38,38 @@ namespace distributed {
 template <typename FType>
 StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
                                         FType f_compute_out_dtype) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
       GetInputDTensorStructInfo(call, ctx);
-  TensorStructInfo x1_sinfo, x2_sinfo;
-  x1_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
-  x2_sinfo = input_dtensor_sinfos[1]->tensor_sinfo;
+  TensorStructInfo x1_ty, x2_ty;
+  x1_ty = input_dtensor_tys[0]->tensor_ty;
+  x2_ty = input_dtensor_tys[1]->tensor_ty;
 
   // DateType
-  DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
+  DataType output_dtype = f_compute_out_dtype(call, ctx, x1_ty, x2_ty);
 
   // ndims
-  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())
       << "Unknown ndim is not supported for distributed operators.";
-  int output_ndim = std::max(x1_sinfo->ndim, x2_sinfo->ndim);
+  int output_ndim = std::max(x1_ty->ndim, x2_ty->ndim);
 
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
-  TensorStructInfo output_tensor_sinfo;
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  TensorStructInfo output_tensor_ty;
   // Shapes and ndims
   if (x1_shape && x2_shape) {
     // If all inputs have shapes, directly infer shapes
     ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!output_shape.defined()) {
-      output_tensor_sinfo = TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+      output_tensor_ty = TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
     } else {
       TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
-      output_tensor_sinfo = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+      output_tensor_ty = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
     }
   } else {
     TVM_FFI_VISIT_THROW(InternalError, call) << "Cannot infer shape for binary broadcast operator.";
   }
-  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
+  return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphBinary);
 }
 
 StructInfo InferDistStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx);

@@ -414,8 +414,7 @@ class StructInfoBaseChecker
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
-    BaseCheckResult tensor_sinfo_check_result =
-        this->VisitType(lhs->tensor_sinfo, rhs->tensor_sinfo);
+    BaseCheckResult tensor_sinfo_check_result = this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
     BaseCheckResult other_check_result;
     if (!struct_equal_(lhs->device_mesh, rhs->device_mesh) ||
         !struct_equal_(lhs->placement, rhs->placement)) {
@@ -756,7 +755,7 @@ class StructInfoBasePreconditionCollector
       return IntImm::Bool(false);
     }
 
-    return this->VisitType(lhs->tensor_sinfo, rhs->tensor_sinfo);
+    return this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
   }
 
   PrimExpr VisitType_(const TupleStructInfoNode* lhs, const StructInfo& other) final {

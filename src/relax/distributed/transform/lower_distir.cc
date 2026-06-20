@@ -76,7 +76,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   TensorStructInfo ShardDTensorSinfo(DTensorStructInfo orig_ty) {
-    TensorStructInfo tensor_ty = orig_ty->tensor_sinfo;
+    TensorStructInfo tensor_ty = orig_ty->tensor_ty;
     TVM_FFI_ICHECK(tensor_ty->shape);
     const auto* orig_shape = tensor_ty->shape.as<ShapeExprNode>();
     auto new_tensor_ty = ffi::make_object<TensorStructInfoNode>(*tensor_ty.get());
@@ -90,7 +90,7 @@ class DistIRSharder : public ExprMutator {
       if (shard_shape) {
         return ShardDTensorSinfo(ffi::GetRef<DTensorStructInfo>(dtensor_ty));
       } else {
-        return dtensor_ty->tensor_sinfo;
+        return dtensor_ty->tensor_ty;
       }
     } else if (const auto* tuple_ty = orig_ty.as<TupleStructInfoNode>()) {
       ffi::Array<StructInfo> new_fields;
@@ -99,7 +99,7 @@ class DistIRSharder : public ExprMutator {
           if (shard_shape) {
             new_fields.push_back(ShardDTensorSinfo(ffi::GetRef<DTensorStructInfo>(dtensor_ty)));
           } else {
-            new_fields.push_back(dtensor_ty->tensor_sinfo);
+            new_fields.push_back(dtensor_ty->tensor_ty);
           }
         } else {
           new_fields.push_back(field_ty);
@@ -241,7 +241,7 @@ class DistIRSharder : public ExprMutator {
         TVM_FFI_ICHECK(out_ty);
         ShapeExpr new_shape = ShardShape(orig_shape, out_ty->device_mesh, out_ty->placement);
         new_call_node->args.Set(1, new_shape);
-        new_call_node->sinfo_args = {TensorStructInfo(new_shape, out_ty->tensor_sinfo->dtype)};
+        new_call_node->sinfo_args = {TensorStructInfo(new_shape, out_ty->tensor_ty->dtype)};
       }
       return Call(new_call_node);
     }

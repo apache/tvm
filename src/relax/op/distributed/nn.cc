@@ -26,23 +26,23 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
       GetInputDTensorStructInfo(call, ctx);
-  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
-  TensorStructInfo input_tensor_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
+  TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
+  TensorStructInfo input_tensor_ty = input_dtensor_tys[0]->tensor_ty;
 
-  if (input_tensor_sinfo->IsUnknownNdim()) {
+  if (input_tensor_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
   }
-  if (!input_tensor_sinfo->IsUnknownDtype() && !input_tensor_sinfo->dtype.is_float()) {
+  if (!input_tensor_ty->IsUnknownDtype() && !input_tensor_ty->dtype.is_float()) {
     TVM_FFI_VISIT_THROW(TypeError, call) << "Softmax requires the input tensor to have float "
                                             "dtype. However, the given input dtype is "
-                                         << input_tensor_sinfo->dtype;
+                                         << input_tensor_ty->dtype;
   }
   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
-  NormalizeAxis(call, ctx, input_tensor_sinfo->ndim, attrs->axis);
+  NormalizeAxis(call, ctx, input_tensor_ty->ndim, attrs->axis);
 
-  return InferShardingSpec(call, ctx, input_tensor_sinfo, distributed::BuildAxisGraphReduce);
+  return InferShardingSpec(call, ctx, input_tensor_ty, distributed::BuildAxisGraphReduce);
 }
 
 TVM_REGISTER_OP("relax.nn.softmax")

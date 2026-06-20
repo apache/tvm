@@ -30,8 +30,8 @@ StructInfo InferDistStructInfoBroadcastArith(const Call& call, const BlockBuilde
 StructInfo InferDistStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
   return InferDistStructInfoBroadcast(
       call, ctx,
-      [](const Call& call, const BlockBuilder& ctx, const TensorStructInfo& x1_sinfo,
-         const TensorStructInfo& x2_sinfo) { return DataType::Bool(); });
+      [](const Call& call, const BlockBuilder& ctx, const TensorStructInfo& x1_ty,
+         const TensorStructInfo& x2_ty) { return DataType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/

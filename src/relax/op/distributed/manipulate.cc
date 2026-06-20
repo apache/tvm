@@ -33,7 +33,7 @@ namespace distributed {
 StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
       GetInputDTensorStructInfo(call, ctx);
-  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_sinfo;
+  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
 
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
 
@@ -87,7 +87,7 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
   }
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
       GetInputDTensorStructInfo(call, ctx);
-  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_sinfo;
+  TensorStructInfo data_ty = input_dtensor_tys[0]->tensor_ty;
 
   const auto* new_shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   if (!data_ty.defined()) {

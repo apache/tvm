@@ -24,8 +24,9 @@
 #ifndef TVM_RELAX_OP_ATTR_TYPES_H_
 #define TVM_RELAX_OP_ATTR_TYPES_H_
 
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/te/tensor.h>
 
 namespace tvm {

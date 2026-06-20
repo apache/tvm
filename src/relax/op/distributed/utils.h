@@ -19,7 +19,7 @@
 
 /*!
  * \file utils.h
- * \brief The util function for dtensor infer struct info
+ * \brief The util function for dtensor infer type
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_UTILS_H_
@@ -36,10 +36,10 @@ namespace relax {
 namespace distributed {
 
 /*!
- * \brief Get the dtensor struct info of the operator input.
+ * \brief Get the dtensor type of the operator input.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \return The dtensor struct info of each input.
+ * \return The dtensor type of each input.
  * \note This function require every input tensor to be DTensor.
  */
 ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call,
@@ -47,16 +47,16 @@ ffi::Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call&
 
 /*!
  * \brief Perform a local sharding spec propagation to infer the output dtensor
-          struct info or tuple of dtensor struct info.
+          type or tuple of dtensor type.
  *
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \param output_sinfo The original output struct info
+ * \param output_ty The original output type
  * \param f_build_graph The function to build axis graph
- * \return The inferred output struct info
+ * \return The inferred output type
  */
 StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                             const StructInfo& orig_output_sinfo,
+                             const StructInfo& orig_output_ty,
                              distributed::FBuildAxisGraph f_build_graph);
 
 }  // namespace distributed

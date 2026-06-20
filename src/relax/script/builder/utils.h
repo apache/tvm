@@ -21,7 +21,7 @@
 
 #include <tvm/relax/script/builder/frame.h>
 #include <tvm/relax/script/builder/ir.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 
 #include <string>

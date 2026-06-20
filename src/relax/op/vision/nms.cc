@@ -27,7 +27,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/relax/attrs/vision.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 
 #include <utility>
 #include <vector>

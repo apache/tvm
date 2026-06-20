@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/script/builder/ir.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 

@@ -18,6 +18,8 @@
  */
 #include "tvm/relax/attrs/ccl.h"
 
+#include <tvm/relax/block_builder.h>
+
 #include "utils.h"
 
 namespace tvm {
@@ -25,13 +27,13 @@ namespace relax {
 namespace distributed {
 
 StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
-  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
-  DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
-  TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
-  DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
+  ffi::Array<DTensorStructInfo> input_dtensor_tys = GetInputDTensorStructInfo(call, ctx);
+  TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
+  DTensorStructInfo input_dtensor_ty = input_dtensor_tys[0];
+  TensorStructInfo tensor_ty = input_dtensor_ty->tensor_ty;
+  DeviceMesh device_mesh = input_dtensor_ty->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
-  return DTensorStructInfo(tensor_sinfo, device_mesh,
+  return DTensorStructInfo(tensor_ty, device_mesh,
                            Placement::FromText(std::string(device_mesh->shape.size(), 'R')));
 }
 

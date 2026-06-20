@@ -501,7 +501,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
     } else if (call->op.same_as(call_tir_op)) {
       TVM_FFI_ICHECK(call->sinfo_args.size() == 1);
-      if (!SinfoCompatibleWithDistIR(call->sinfo_args)) {
+      if (!TypeCompatibleWithDistIR(call->sinfo_args)) {
         ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         if (placements.size() == 1) {
           new_call_node->sinfo_args = {DTensorStructInfo(
@@ -554,7 +554,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
       placements.push_back(Placement(placement_specs));
     }
-    // get inferred output type from struct info deduction
+    // get inferred output type from type deduction
     Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
     new_call =
         Downcast<Call>(builder_->Normalize(RewriteOutSinfo(new_call, device_mesh, placements)));
@@ -562,7 +562,7 @@ class DistributedIRBuilder : public ExprMutator {
     if (const auto* inferred_dtensor_ty = new_call->ty.as<DTensorStructInfoNode>()) {
       Expr new_value = RemoveAnnotateSharding(new_call);
       if (!ffi::StructuralEqual()(
-              DTensorStructInfo(inferred_dtensor_ty->tensor_sinfo, device_mesh, placements[0]),
+              DTensorStructInfo(inferred_dtensor_ty->tensor_ty, device_mesh, placements[0]),
               new_call->ty)) {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
       }
@@ -579,7 +579,7 @@ class DistributedIRBuilder : public ExprMutator {
       for (int i = 0; i < static_cast<int>(inferred_tuple_ty->fields.size()); i++) {
         if (!ffi::StructuralEqual()(
                 DTensorStructInfo(
-                    Downcast<DTensorStructInfo>(inferred_tuple_ty->fields[i])->tensor_sinfo,
+                    Downcast<DTensorStructInfo>(inferred_tuple_ty->fields[i])->tensor_ty,
                     device_mesh, placements[i]),
                 inferred_tuple_ty->fields[i])) {
           Var redistribute_var = builder_->Emit(

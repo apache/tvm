@@ -28,7 +28,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 

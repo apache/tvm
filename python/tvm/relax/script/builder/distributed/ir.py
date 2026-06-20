@@ -121,7 +121,7 @@ def const(
     ty = tvm.runtime.convert(ty)
     if not isinstance(ty, DTensorStructInfo):
         raise TypeError("ty needs to be an instance of DTensorStructInfo. ")
-    dtype = str(ty.tensor_sinfo.dtype)
+    dtype = str(ty.tensor_ty.dtype)
     if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 

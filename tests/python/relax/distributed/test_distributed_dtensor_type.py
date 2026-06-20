@@ -73,7 +73,7 @@ def test_dtensor_struct_info():
     assert len(s0.placement.dim_specs) == 2
     assert s0.placement.dim_specs[0] == shard0
     assert s0.placement.dim_specs[1] == replica
-    assert s0.tensor_sinfo == tensor_s0
+    assert s0.tensor_ty == tensor_s0
 
     # can turn into str
     # str(s0)

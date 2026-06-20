@@ -32,7 +32,6 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>

@@ -21,7 +21,7 @@
 
 #include <tvm/relax/expr.h>
 #include <tvm/relax/script/builder/frame.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/script/ir_builder/base.h>
 
 namespace tvm {

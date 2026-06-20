@@ -117,7 +117,7 @@ class DTensorStructInfo(StructInfo):
 
     Parameters
     ----------
-    tensor_sinfo: TensorStructInfo
+    tensor_ty: TensorStructInfo
         The struct info inherited from TensorStructInfo
     device_mesh: DeviceMesh
         The device mesh of the tensor.
@@ -126,20 +126,20 @@ class DTensorStructInfo(StructInfo):
 
     """
 
-    tensor_sinfo: TensorStructInfo
+    tensor_ty: TensorStructInfo
     device_mesh: DeviceMesh
     placement: Placement
 
     def __init__(
         self,
-        tensor_sinfo: TensorStructInfo,
+        tensor_ty: TensorStructInfo,
         device_mesh: DeviceMesh,
         placement: Placement,
         span: Span = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DTensorStructInfo,
-            tensor_sinfo,
+            tensor_ty,
             device_mesh,
             placement,
             span,  # type: ignore

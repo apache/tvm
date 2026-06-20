@@ -19,7 +19,7 @@
 
 /*!
  * \file unary.h
- * \brief The functions to infer struct info for distributed unary operator
+ * \brief The functions to infer type for distributed unary operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_UNARY_H_
@@ -36,30 +36,30 @@ namespace distributed {
 template <bool require_float_dtype, typename FType>
 StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
                                     FType f_compute_out_dtype) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
+  ffi::Array<distributed::DTensorStructInfo> input_dtensor_tys =
       GetInputDTensorStructInfo(call, ctx);
-  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
-  distributed::DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
-  TensorStructInfo input_tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
+  TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
+  distributed::DTensorStructInfo input_dtensor_ty = input_dtensor_tys[0];
+  TensorStructInfo input_tensor_ty = input_dtensor_ty->tensor_ty;
 
-  if (require_float_dtype && !input_tensor_sinfo->IsUnknownDtype() &&
-      !input_tensor_sinfo->dtype.is_float()) {
+  if (require_float_dtype && !input_tensor_ty->IsUnknownDtype() &&
+      !input_tensor_ty->dtype.is_float()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
-        << input_tensor_sinfo->dtype;
+        << input_tensor_ty->dtype;
   }
-  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_tensor_sinfo.get());
-  output_sinfo->dtype = f_compute_out_dtype(input_tensor_sinfo);
-  TensorStructInfo out_tensor_sinfo(output_sinfo);
-  return distributed::DTensorStructInfo(out_tensor_sinfo, input_dtensor_sinfo->device_mesh,
-                                        input_dtensor_sinfo->placement);
+  auto output_ty = ffi::make_object<TensorStructInfoNode>(*input_tensor_ty.get());
+  output_ty->dtype = f_compute_out_dtype(input_tensor_ty);
+  TensorStructInfo out_tensor_ty(output_ty);
+  return distributed::DTensorStructInfo(out_tensor_ty, input_dtensor_ty->device_mesh,
+                                        input_dtensor_ty->placement);
 }
 
 template <bool require_float_dtype>
 StructInfo InferDistStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) {
   return InferDistStructInfoUnary<require_float_dtype>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
+      call, ctx, [](const TensorStructInfo& input_ty) { return input_ty->dtype; });
 }
 
 StructInfo InferDistStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx);
