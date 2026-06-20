@@ -421,8 +421,7 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
 
 def Normalize() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
-    and hence the AST is in ANF), and all `struct_info_` of expressions are
-    available.
+    and hence the AST is in ANF), and all `ty` fields of expressions are available.
 
     Returns
     -------

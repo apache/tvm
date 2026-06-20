@@ -65,7 +65,7 @@ from .unary import cos, exp, log, sigmoid, sin
 def _get_shape(expr: Expr) -> ShapeExpr:
     """Get the shape from a Tensor expr."""
     try:
-        shape = expr.struct_info.shape
+        shape = expr.ty.shape
     except Exception as error:
         raise RuntimeError(
             f"Get the shape of {expr} failed. Please normalize it first and ensure it is a Tensor."
@@ -76,7 +76,7 @@ def _get_shape(expr: Expr) -> ShapeExpr:
 def _get_dtype(expr: Expr) -> str:
     """Get the dtype from a Tensor expr."""
     try:
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
     except Exception as error:
         raise RuntimeError(
             f"Get the dtype of {expr} failed. Please normalize it first and ensure it is a Tensor."
@@ -86,13 +86,13 @@ def _get_dtype(expr: Expr) -> str:
 
 def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
     """When expr and target has the same shape, return expr;
-    otherwise return `collapse_sum_to(expr, target.struct_info.shape)`.
+    otherwise return `collapse_sum_to(expr, target.ty.shape)`.
 
     Will use BlockBuilder to normalize expr first.
     """
     target_shape = _get_shape(input)
-    expr_sinfo = _get_shape(bb.normalize(input_grad)).struct_info
-    target_sinfo = target_shape.struct_info
+    expr_sinfo = _get_shape(bb.normalize(input_grad)).ty
+    target_sinfo = target_shape.ty
     assert isinstance(expr_sinfo, ShapeStructInfo)
     assert isinstance(target_sinfo, ShapeStructInfo)
 
@@ -736,7 +736,7 @@ def concat_grad(
     assert axis is not None
     axis = int(axis)
     split_indices: list[PrimExpr] = []
-    sinfo = orig_call.args[0].struct_info
+    sinfo = orig_call.args[0].ty
     assert isinstance(sinfo, relax.TupleStructInfo)
     for i in range(len(sinfo.fields) - 1):
         tensor_sinfo = sinfo.fields[i]
@@ -1108,7 +1108,7 @@ def cross_entropy_with_logits_grad(
     """
     x, y = orig_call.args
 
-    if x.struct_info.ndim > 1:
+    if x.ty.ndim > 1:
         batch_size = int(_get_shape(x)[0])
         output_grad = output_grad / relax.const(batch_size, _get_dtype(output_grad))
 

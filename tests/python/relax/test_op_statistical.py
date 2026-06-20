@@ -39,7 +39,7 @@ def test_op_correctness():
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
 
 
 def test_statistical_infer_struct_info():

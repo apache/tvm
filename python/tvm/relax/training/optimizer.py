@@ -144,24 +144,24 @@ class Optimizer:
         for x in params:
             if not isinstance(x, Var):
                 raise ValueError(f"Parameter {x} is not a Var")
-            if not isinstance(x.struct_info, TensorStructInfo):
+            if not isinstance(x.ty, TensorStructInfo):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters, but parameter {x.name_hint} has "
-                    f"struct info {x.struct_info}"
+                    f"struct info {x.ty}"
                 )
-            data_type = tvm.DataType(x.struct_info.dtype)
+            data_type = tvm.DataType(x.ty.dtype)
             if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
-                    f"of {x.name_hint} is {x.struct_info.dtype}"
+                    f"of {x.name_hint} is {x.ty.dtype}"
                 )
             if dtype is None:
-                dtype = x.struct_info.dtype
+                dtype = x.ty.dtype
             else:
-                if dtype != x.struct_info.dtype:
+                if dtype != x.ty.dtype:
                     raise ValueError(
                         f"All parameters should have the same dtype, but parameter {x.name_hint} "
-                        f"has dtype {x.struct_info.dtype}, which differs from the previous dtype "
+                        f"has dtype {x.ty.dtype}, which differs from the previous dtype "
                         f"{dtype}"
                     )
             if x in params_set:
@@ -231,7 +231,7 @@ class Optimizer:
 
 # TODO(chaofan, yixin): Support symbolic shapes
 def _get_shape_as_int_list(var: Var) -> list[int]:
-    return [int(val) for val in var.struct_info.shape]
+    return [int(val) for val in var.ty.shape]
 
 
 # We need to subtract on hyperparameters, but do not want to introduce floating point error.
@@ -317,8 +317,8 @@ class SGD(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.struct_info for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.struct_info for p in plist]))
+        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
         state_var = Var("optim_states", TupleStructInfo([TensorStructInfo((), "int64")]))
 
         # constants
@@ -443,7 +443,7 @@ class MomentumSGD(Optimizer):
             tvm.runtime.tensor(np.zeros((), "int64")),
             # v_{param} is initialized to all zeros
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
                 for p in self.param_list
             ),
         )
@@ -464,11 +464,11 @@ class MomentumSGD(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.struct_info for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.struct_info for p in plist]))
+        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
         state_var = Var(
             "optim_states",
-            TupleStructInfo([TensorStructInfo((), "int64"), *(p.struct_info for p in plist)]),
+            TupleStructInfo([TensorStructInfo((), "int64"), *(p.ty for p in plist)]),
         )
 
         # constants
@@ -618,12 +618,12 @@ class Adam(Optimizer):
             tvm.runtime.tensor(np.ones((), self.dtype)),
             # first_momentum
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
                 for p in self.param_list
             ),
             # second_momentum
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.struct_info.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
                 for p in self.param_list
             ),
         )
@@ -644,8 +644,8 @@ class Adam(Optimizer):
         dtype = self.dtype
 
         # input variables
-        param_var = Var("params", TupleStructInfo([p.struct_info for p in plist]))
-        grad_var = Var("gradients", TupleStructInfo([p.struct_info for p in plist]))
+        param_var = Var("params", TupleStructInfo([p.ty for p in plist]))
+        grad_var = Var("gradients", TupleStructInfo([p.ty for p in plist]))
         state_var = Var(
             "optim_states",
             TupleStructInfo(
@@ -653,8 +653,8 @@ class Adam(Optimizer):
                     TensorStructInfo((), "int64"),
                     TensorStructInfo((), dtype),
                     TensorStructInfo((), dtype),
-                    *(p.struct_info for p in plist),
-                    *(p.struct_info for p in plist),
+                    *(p.ty for p in plist),
+                    *(p.ty for p in plist),
                 ]
             ),
         )

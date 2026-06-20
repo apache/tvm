@@ -528,7 +528,7 @@ class OperatorConverter:
         return relax.Tuple(relax.Tuple(ret), selections)
 
     def _infer_shape(self, arg):
-        return self.bb.normalize(arg).struct_info.shape
+        return self.bb.normalize(arg).ty.shape
 
     def convert_op_to_relax(self):
         """Convert TFLite ops to relax ops"""
@@ -1134,7 +1134,7 @@ class OperatorConverter:
 
     def flatten_to_nd(self, x, nd=3):
         """Flatten input tensor to nd rank"""
-        shape = x.struct_info.shape
+        shape = x.ty.shape
         ndims = len(shape)
         if ndims == nd:
             return x
@@ -1899,7 +1899,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.struct_info.dtype
+        dtype = lhs.ty.dtype
         if dtype == "bool":
             op_fn = _op.logical_and
         elif dtype.startswith(("int", "uint")):
@@ -1917,7 +1917,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.struct_info.dtype
+        dtype = lhs.ty.dtype
         if dtype == "bool":
             op_fn = _op.logical_or
         elif dtype.startswith(("int", "uint")):
@@ -1987,7 +1987,7 @@ class OperatorConverter:
 
     def _ensure_stablehlo_float_dtype(self, expr, op_name):
         """Return expr dtype if the StableHLO subset supports it."""
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
         if not dtype.startswith("float"):
             raise tvm.error.OpNotImplemented(f"{op_name} with dtype {dtype} is not supported")
         return dtype
@@ -3852,7 +3852,7 @@ class OperatorConverter:
         stride = [int(i) for i in stride]
         axes = list(range(len(begin)))
         out = relax.op.strided_slice(data_expr, axes=axes, begin=begin, end=end, strides=stride)
-        out_shape = self.bb.normalize(out).struct_info.shape
+        out_shape = self.bb.normalize(out).ty.shape
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -4879,7 +4879,7 @@ class OperatorConverter:
             # TFLite fixes the tuple arity in the graph, even when the split
             # sizes themselves are supplied at runtime.
             num_splits = len(output_tensors)
-            rank = len(in_expr.struct_info.shape)
+            rank = len(in_expr.ty.shape)
 
             # end_base is the full input shape; only split_axis changes per slice.
             end_base = relax.op.shape_to_tensor(relax.op.shape_of(in_expr))
@@ -6711,8 +6711,8 @@ class OperatorConverter:
         input_a = self.get_expr(input_tensors[0].tensor_idx)
         input_b = self.get_expr(input_tensors[1].tensor_idx)
 
-        shape_a = list(input_a.struct_info.shape)
-        shape_b = list(input_b.struct_info.shape)
+        shape_a = list(input_a.ty.shape)
+        shape_b = list(input_b.ty.shape)
         rank_a = len(shape_a)
         rank_b = len(shape_b)
 
@@ -7328,7 +7328,7 @@ class OperatorConverter:
             num_detections = self.bb.emit(relax.TupleGetItem(nms_out, 2))
             class_id_from_score = relax.op.squeeze(class_id_from_score, axis=[1])
 
-        selected_score_slots = selected_scores.struct_info.shape.values[1]
+        selected_score_slots = selected_scores.ty.shape.values[1]
         selected_detection_positions = relax.op.expand_dims(
             relax.op.arange(selected_score_slots, dtype="int64"), axis=0
         )

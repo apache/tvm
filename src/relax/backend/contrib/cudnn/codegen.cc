@@ -106,12 +106,12 @@ class cuDNNJSONSerializer : public JSONSerializer {
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.nn.attention");
-    auto q_shape = Downcast<ShapeExpr>(
-        Downcast<TensorStructInfo>(root_call->args[0]->struct_info_.value())->shape.value());
-    auto k_shape = Downcast<ShapeExpr>(
-        Downcast<TensorStructInfo>(root_call->args[1]->struct_info_.value())->shape.value());
-    auto v_shape = Downcast<ShapeExpr>(
-        Downcast<TensorStructInfo>(root_call->args[2]->struct_info_.value())->shape.value());
+    auto q_shape =
+        Downcast<ShapeExpr>(Downcast<TensorStructInfo>(root_call->args[0]->ty)->shape.value());
+    auto k_shape =
+        Downcast<ShapeExpr>(Downcast<TensorStructInfo>(root_call->args[1]->ty)->shape.value());
+    auto v_shape =
+        Downcast<ShapeExpr>(Downcast<TensorStructInfo>(root_call->args[2]->ty)->shape.value());
     int num_heads = q_shape->values[2].as<IntImmNode>()->value;
     int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value;
     int head_size = q_shape->values[3].as<IntImmNode>()->value;

@@ -169,7 +169,7 @@ class TensorStructInfoNode : public StructInfoNode {
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
-    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(this->shape.value()->struct_info_);
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(this->shape.value()->ty);
     return shape_sinfo->values;
   }
 
@@ -366,7 +366,7 @@ class FuncStructInfo : public StructInfo {
 template <typename T>
 inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
   using TNode = typename T::ContainerType;
-  if (const TNode* ptr = expr->struct_info_.as<TNode>()) {
+  if (const TNode* ptr = expr->ty.as<TNode>()) {
     return ffi::GetRef<T>(ptr);
   } else {
     return std::nullopt;
@@ -382,9 +382,9 @@ inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetStructInfoAs(const Expr& expr) {
-  TVM_FFI_ICHECK(expr->struct_info_.defined())
+  TVM_FFI_ICHECK(expr->ty.defined())
       << "The struct_info is not populated, check if you have normalized the expr";
-  return expr->struct_info_.as<T>();
+  return expr->ty.as<T>();
 }
 
 /*!
@@ -394,7 +394,7 @@ inline const T* GetStructInfoAs(const Expr& expr) {
  * \return underlying struct info.
  */
 inline StructInfo GetStructInfo(const Expr& expr) {
-  auto* ptr = expr->struct_info_.as<StructInfoNode>();
+  auto* ptr = expr->ty.as<StructInfoNode>();
   TVM_FFI_ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
   return ffi::GetRef<StructInfo>(ptr);
 }
@@ -406,7 +406,7 @@ inline StructInfo GetStructInfo(const Expr& expr) {
  * \return Whether the expr has void struct info.
  */
 inline bool HasVoidStructInfo(const Expr& expr) {
-  auto* ptr = expr->struct_info_.as<TupleStructInfoNode>();
+  auto* ptr = expr->ty.as<TupleStructInfoNode>();
   return ptr != nullptr && ptr->fields.size() == 0;
 }
 

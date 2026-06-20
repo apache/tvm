@@ -38,20 +38,23 @@ IRModuleFrame IRModule() {
 
 // DeclFunction lives at the IR layer because an IRModule may host
 // heterogeneous function kinds (e.g. relax::Function, tirx::PrimFunc).
-// To derive the GlobalVar's struct_info_ without coupling the IR layer to
+// To derive the GlobalVar's ty without coupling the IR layer to
 // any specific dialect, dispatch is keyed by the function's type-key:
 // each dialect registers its own handler that maps a function of that
 // type to the appropriate struct_info.
-inline ffi::Optional<ffi::ObjectRef> GetGlobalVarStructInfo(const BaseFunc& func) {
-  if (func->struct_info_.defined()) {
-    return func->struct_info_;
+inline ffi::Optional<Type> GetGlobalVarStructInfo(const BaseFunc& func) {
+  if (func->ty.defined()) {
+    return func->ty;
   }
   // Registry: "script.ir_builder.decl_function.<type-key>" — per-function-kind
   // handler that derives the GlobalVar struct_info from the function signature.
   // Grep hint: grep -rn 'script.ir_builder.decl_function.' src/
   const std::string key = "script.ir_builder.decl_function." + func->GetTypeKey();
   if (auto fn = tvm::ffi::Function::GetGlobal(key)) {
-    return (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
+    ffi::Optional<ffi::ObjectRef> result = (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
+    if (result.defined()) {
+      return Downcast<Type>(result.value());
+    }
   }
   return std::nullopt;
 }
@@ -63,7 +66,7 @@ GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signat
 
   GlobalVar gv = GlobalVar(func_name);
   if (auto sinfo = GetGlobalVarStructInfo(func_signature)) {
-    gv->struct_info_ = sinfo.value();
+    gv->ty = sinfo.value();
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported function type: " << func_signature->GetTypeKey();
   }
@@ -82,7 +85,7 @@ void DefFunction(const ffi::String& func_name, const BaseFunc& func) {
   const GlobalVar& gv = (*it).second;
   frame->functions.Set(gv, func);
   if (auto sinfo = GetGlobalVarStructInfo(func)) {
-    gv->struct_info_ = sinfo.value();
+    gv->ty = sinfo.value();
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported function type: " << func->GetTypeKey();
   }

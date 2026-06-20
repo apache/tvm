@@ -733,8 +733,7 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleStructInfo& tuple_sinfo =
-          Downcast<TupleStructInfo>(tuple_get_item->tuple->struct_info_);
+      const TupleStructInfo& tuple_sinfo = Downcast<TupleStructInfo>(tuple_get_item->tuple->ty);
       for (int i = 0; i < tuple_get_item->index; ++i) {
         begin_buf_idx += GetTotalTensorSize(tuple_sinfo->fields[i]);
       }
@@ -1242,14 +1241,14 @@ class TIRFuseMutator : public ExprMutator {
       auto arg = call->args[i];
       auto sinfo = GetStructInfo(arg);
 
-      TVM_FFI_CHECK(!relax_func->params[i]->struct_info_->IsInstance<TupleStructInfoNode>() &&
+      TVM_FFI_CHECK(!relax_func->params[i]->ty->IsInstance<TupleStructInfoNode>() &&
                         !sinfo.as<TupleStructInfoNode>(),
                     InternalError)
           << "All tuple parameters should be expanded before this point in FuseTIR.  "
-          << "However, argument " << arg << " with struct info " << arg->struct_info_
+          << "However, argument " << arg << " with struct info " << arg->ty
           << " is passed as argument " << i << " to Primitive Relax function " << old_gvar
           << ", which expects parameter " << relax_func->params[i] << " to have struct info "
-          << relax_func->params[i]->struct_info_;
+          << relax_func->params[i]->ty;
 
       if (const auto* shape = sinfo.as<ShapeStructInfoNode>()) {
         TVM_FFI_ICHECK(shape->values.defined())

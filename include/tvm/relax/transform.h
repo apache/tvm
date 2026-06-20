@@ -153,7 +153,7 @@ TVM_DLL Pass AttachGlobalSymbol();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
- * struct_info_ of expressions.
+ * ty of expressions.
  *
  * \return The Pass.
  */

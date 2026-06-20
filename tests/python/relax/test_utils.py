@@ -53,7 +53,7 @@ def test_copy_with_new_vars_copied_symbolic_vars():
     assert len(after.params) == len(before.params)
     for before_var, after_var in zip(before.params, after.params):
         assert before_var != after_var
-        assert before_var.struct_info.shape[0] != after_var.struct_info.shape[0]
+        assert before_var.ty.shape[0] != after_var.ty.shape[0]
 
 
 def test_copy_with_new_vars_on_ir_module():

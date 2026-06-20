@@ -105,33 +105,26 @@ class Id : public ffi::ObjectRef {
  * and help us to simplify our assumption
  * during struct info deduction.
  */
-class StructInfoNode : public ffi::Object {
+class StructInfoNode : public TypeNode {
  public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StructInfoNode>().def_ro("span", &StructInfoNode::span,
-                                             refl::AttachFieldFlag::SEqHashIgnore());
+    refl::ObjectDef<StructInfoNode>();
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, TypeNode);
 };
 
 /*!
  * \brief Managed reference to StructInfoNode.
  * \sa StructInfoNode
  */
-class StructInfo : public ffi::ObjectRef {
+class StructInfo : public Type {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ffi::ObjectRef, StructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, Type, StructInfoNode);
 };
 
 /*!
@@ -353,7 +346,7 @@ class VarNode : public LeafExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
-    // customize structural equal and hash to include struct_info_
+    // customize structural equal and hash to include ty
     refl::TypeAttrDef<VarNode>()
         .def("__s_equal__", &VarNode::SEqual)
         .def("__s_hash__", &VarNode::SHash);
@@ -361,14 +354,13 @@ class VarNode : public LeafExprNode {
 
   bool SEqual(const VarNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    return equal(vid, other->vid, false, "vid") &&
-           equal(struct_info_, other->struct_info_, false, "struct_info_");
+    return equal(vid, other->vid, false, "vid") && equal(ty, other->ty, false, "ty");
   }
 
   int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
     int64_t hash_value = init_hash;
     hash_value = hash(vid, hash_value, false);
-    hash_value = hash(struct_info_, hash_value, false);
+    hash_value = hash(ty, hash_value, false);
     return hash_value;
   }
 
@@ -379,12 +371,11 @@ class VarNode : public LeafExprNode {
 
 class Var : public LeafExpr {
  public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> struct_info_annotation,
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> tyannotation,
                        Span span = Span())
-      : Var(Id(name_hint), struct_info_annotation, span) {}
+      : Var(Id(name_hint), tyannotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
-                       Span span = Span());
+  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> tyannotation, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
@@ -406,12 +397,11 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint,
-                               ffi::Optional<StructInfo> struct_info_annotation, Span span = Span())
-      : DataflowVar(Id(name_hint), struct_info_annotation, span) {}
+  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<StructInfo> tyannotation,
+                               Span span = Span())
+      : DataflowVar(Id(name_hint), tyannotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
-                               Span span = Span());
+  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> tyannotation, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
@@ -445,12 +435,12 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param struct_info_annotation The struct info of the constant tensor.
+   * \param tyannotation The struct info of the constant tensor.
    *        If not specified, infer it from data.
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Constant(runtime::Tensor data,
-                            ffi::Optional<StructInfo> struct_info_annotation = std::nullopt,
+                            ffi::Optional<StructInfo> tyannotation = std::nullopt,
                             Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);

@@ -17,7 +17,6 @@
 """Common expressions data structures in the IR."""
 
 from numbers import Number
-from typing import Optional
 
 import tvm_ffi
 
@@ -33,6 +32,7 @@ class BaseExpr(Node):
     """Base class of all the expressions."""
 
     span: Span | None
+    ty: "tvm.ir.Type | None"
 
 
 @tvm_ffi.register_object("ir.PrimExpr")
@@ -49,17 +49,6 @@ class PrimExpr(BaseExpr):
 @tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
-
-    @property
-    def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
-        """Get the struct info field
-
-        Returns
-        -------
-        struct_info : tvm.relax.StructInfo
-            The struct info if available.
-        """
-        return _ffi_api.ExprStructInfo(self)
 
 
 @tvm_ffi.register_object("ir.GlobalVar")

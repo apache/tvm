@@ -44,8 +44,8 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv1D where number of groups is more than one and input or output "
@@ -85,8 +85,8 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv2D where number of groups is more than one and input or output "
@@ -126,8 +126,8 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv3D where number of groups is more than one and input or output "
@@ -178,7 +178,7 @@ def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         call.args[1],
         stride=call.attrs.strides,
         padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
+        out_dtype=call.ty.dtype,
         output_padding=call.attrs.output_padding,
         groups=call.attrs.groups,
         primfunc_name_hint="conv1d_transpose",
@@ -213,7 +213,7 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         call.args[1],
         stride=call.attrs.strides,
         padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
+        out_dtype=call.ty.dtype,
         output_padding=call.attrs.output_padding,
         groups=call.attrs.groups,
         primfunc_name_hint="conv2d_transpose",
@@ -250,7 +250,7 @@ def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
         call.args[1],
         strides=call.attrs.strides,
         padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
+        out_dtype=call.ty.dtype,
         output_padding=call.attrs.output_padding,
         groups=call.attrs.groups,
         primfunc_name_hint="conv3d_transpose",
@@ -817,6 +817,6 @@ def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.batch_flatten")
 def _nn_batch_flatten(bb: BlockBuilder, call: Call) -> Expr:
-    if call.struct_info.shape is None:
+    if call.ty.shape is None:
         return call
-    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)
+    return bb.call_te(topi.reshape, call.args[0], call.ty.shape.values)

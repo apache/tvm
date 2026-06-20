@@ -89,11 +89,11 @@ def bind_assign_value(
     if isinstance(value, relax.Expr):
         var = R.emit(value, anno_sinfo)
     elif isinstance(value, MatchCastPair):
-        if anno_sinfo is not None and not tvm_ffi.structural_equal(anno_sinfo, value.struct_info):
+        if anno_sinfo is not None and not tvm_ffi.structural_equal(anno_sinfo, value.ty):
             self.report_error(
                 node, "Cannot specify inconsistent annotation for a match cast pair. "
             )
-        var = R.emit_match_cast(value.value, value.struct_info)
+        var = R.emit_match_cast(value.value, value.ty)
     else:
         return value
         # raise TypeError(f"Unsupported type {type(value)} in assignment")
@@ -315,15 +315,13 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     if isinstance(value, relax.Expr):
         var = R.emit(value)
         IRBuilder.name("_", var)
-        is_void_value = (
-            isinstance(var.struct_info, relax.TupleStructInfo) and len(var.struct_info.fields) == 0
-        )
+        is_void_value = isinstance(var.ty, relax.TupleStructInfo) and len(var.ty.fields) == 0
 
         if not is_void_value:
             self.report_error(
                 node,
                 f"Non-void relax expressions must be bound to a variable, "
-                f"but expression of type {var.struct_info} was used as a statement.",
+                f"but expression of type {var.ty} was used as a statement.",
             )
 
     elif value is not None:

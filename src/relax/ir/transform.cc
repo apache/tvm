@@ -265,11 +265,11 @@ class DataflowBlockMutator : public ExprMutator {
   }
 
  private:
-  class SymbolicVarCollector : public StructInfoVisitor {
+  class SymbolicVarCollector : public TypeVisitor {
    public:
     static std::unordered_set<const tirx::VarNode*> Collect(const StructInfo& info) {
       SymbolicVarCollector collector;
-      collector.VisitStructInfo(info);
+      collector.VisitType(info);
       return std::move(collector.symbolic_vars_);
     }
 

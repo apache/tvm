@@ -333,7 +333,7 @@ class CodegenCBase {
    * \return The dtype string.
    */
   std::string GetDtypeString(const Var& var) {
-    auto tsinfo = var->struct_info_.as<TensorStructInfoNode>();
+    auto tsinfo = var->ty.as<TensorStructInfoNode>();
     TVM_FFI_ICHECK(tsinfo) << "Expect TensorStructInfoNode";
     return GetDtypeString(tsinfo);
   }

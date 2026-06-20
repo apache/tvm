@@ -400,8 +400,8 @@ def test_shape_expr():
 def test_call():
     x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.struct_info, tir_vars=[x])
-    o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.struct_info)
+    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.ty, tir_vars=[x])
+    o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.ty)
     _assert_print(
         o0,
         """
@@ -550,7 +550,7 @@ def test_match_cast():
     obj = relax.MatchCast(
         var=b,
         value=a,
-        struct_info=b.struct_info,
+        struct_info=b.ty,
     )
     _assert_print(
         obj,

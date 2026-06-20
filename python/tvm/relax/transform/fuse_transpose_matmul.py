@@ -64,7 +64,7 @@ def _pattern():
 
     def _check(context: relax.transform.PatternCheckContext) -> bool:
         transpose_call = context.annotated_expr["wT"]
-        ndim = transpose_call.args[0].struct_info.ndim
+        ndim = transpose_call.args[0].ty.ndim
         if ndim == -1:
             return False
         if ndim == 2 and transpose_call.attrs.axes is None:
@@ -110,9 +110,7 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
             bT_shape = list(b.shape)
             bT_shape[-1], bT_shape[-2] = bT_shape[-2], bT_shape[-1]
             bT_relax = relax.Var("b", relax.TensorStructInfo(bT_shape))
-            output_shape = self.builder_.normalize(
-                relax.op.matmul(a_relax, bT_relax)
-            ).struct_info.shape
+            output_shape = self.builder_.normalize(relax.op.matmul(a_relax, bT_relax)).ty.shape
 
             def matmul_compute(*idx_spatial):
                 k = te.reduce_axis((0, a_shape[-1]), name="k")

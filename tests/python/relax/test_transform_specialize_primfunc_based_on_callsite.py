@@ -50,7 +50,7 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
                     )
             else:
                 for idx, arg in enumerate(call.args[1]):
-                    arg_sinfo = arg.struct_info
+                    arg_sinfo = arg.ty
                     assert isinstance(arg_sinfo, relax.TensorStructInfo), (
                         f"Expected TensorStructInfo but git {type(arg_sinfo)}"
                     )

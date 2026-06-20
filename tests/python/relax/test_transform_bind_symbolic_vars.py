@@ -221,7 +221,7 @@ def test_bind_single_variable_by_identity():
         def main_2(x: R.Tensor(("m", "n"), dtype="float32")):
             return x
 
-    main_1_n = Before["main_1"].params[0].struct_info.shape[1]
+    main_1_n = Before["main_1"].params[0].ty.shape[1]
     After = relax.transform.BindSymbolicVars({main_1_n: 16})(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 

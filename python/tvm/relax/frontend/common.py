@@ -75,8 +75,8 @@ def autopad(
         [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
     )
     # get input shape
-    ndim = data.struct_info.ndim
-    data_shape = list(data.struct_info.shape)
+    ndim = data.ty.ndim
+    data_shape = list(data.ty.shape)
     shape = data_shape[2:ndim]
 
     # set up integer constants

@@ -125,8 +125,8 @@ def test_mlp_blockbuilder():
     # Check numerical gradients equal
     args = []
     for arg in After["MLP_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
-        if arg.struct_info.dtype == "int64":
+        shape = [int(l) for l in arg.ty.shape]
+        if arg.ty.dtype == "int64":
             args.append(
                 tvm.runtime.tensor(np.random.randint(0, out_size, size=shape).astype(np.int64))
             )
@@ -188,7 +188,7 @@ def test_complex():
     After = relax.transform.Gradient("main")(Before)
     args = []
     for arg in After["main_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
+        shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
     vm_before = _legalize_and_build(Before, target, dev)
@@ -228,7 +228,7 @@ def test_matmul():
     After = relax.transform.Gradient("main")(Before)
     args = []
     for arg in After["main_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
+        shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
     vm_before = _legalize_and_build(Before, target, dev)

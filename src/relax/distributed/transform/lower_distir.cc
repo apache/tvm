@@ -112,7 +112,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    TVM_FFI_ICHECK(input->struct_info_);
+    TVM_FFI_ICHECK(input->ty.defined());
     StructInfo old_sinfo = GetStructInfo(input);
     StructInfo new_sinfo = ConvertSinfo(old_sinfo, false);
     if (const auto* var = input.as<VarNode>()) {

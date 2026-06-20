@@ -355,7 +355,7 @@ class CodegenCoreML(PyExprVisitor):
     def visit_function_(self, op) -> None:
         for var in op.params:
             name = var.name_hint
-            sinfo = var.struct_info
+            sinfo = var.ty
             if isinstance(sinfo, TensorStructInfo):
                 shape = [int(v) for v in list(sinfo.shape)]
             elif isinstance(sinfo, PrimStructInfo):
@@ -456,12 +456,12 @@ class CodegenCoreML(PyExprVisitor):
             input_desc = self.builder.spec.description.input
             input_desc[i].type.multiArrayType.dataType = FEATURE_TYPE_MAP[dtype]
 
-        output_dim = [int(n) for n in self.function.struct_info.ret.shape]
+        output_dim = [int(n) for n in self.function.ty.ret.shape]
 
         last_binding_var = self.function.body.blocks[0].bindings[-1].var
         self.builder.set_output(self.out_map[last_binding_var], [output_dim])
 
-        for i, dtype in enumerate([self.function.struct_info.ret.dtype]):
+        for i, dtype in enumerate([self.function.ty.ret.dtype]):
             assert dtype in FEATURE_TYPE_MAP
             output_desc = self.builder.spec.description.output
             output_desc[i].type.multiArrayType.dataType = FEATURE_TYPE_MAP[dtype]

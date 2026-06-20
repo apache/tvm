@@ -280,10 +280,10 @@ class ShapeToTensorTest:
 
 def test_op_shape_to_tensor(exec_mode):
     # Check struct info
-    isinstance(ShapeToTensorTest["const_shape"].body.struct_info, tvm.relax.TensorStructInfo)
-    assert ShapeToTensorTest["const_shape"].body.struct_info.ndim == 1
-    isinstance(ShapeToTensorTest["symbolic_shape"].body.struct_info, tvm.relax.TensorStructInfo)
-    assert ShapeToTensorTest["symbolic_shape"].body.struct_info.ndim == 1
+    isinstance(ShapeToTensorTest["const_shape"].body.ty, tvm.relax.TensorStructInfo)
+    assert ShapeToTensorTest["const_shape"].body.ty.ndim == 1
+    isinstance(ShapeToTensorTest["symbolic_shape"].body.ty, tvm.relax.TensorStructInfo)
+    assert ShapeToTensorTest["symbolic_shape"].body.ty.ndim == 1
 
     # Check its functionality
     out2d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 2]), exec_mode=exec_mode)

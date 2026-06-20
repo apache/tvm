@@ -274,7 +274,7 @@ def rewrite_bindings(
             Q_weight = matchings[Q_weight_pat]
             K_weight = matchings[K_weight_pat]
             V_weight = matchings[V_weight_pat]
-            width = Q_weight.struct_info.shape[1]
+            width = Q_weight.ty.shape[1]
 
             concat = R.concat([Q_weight, K_weight, V_weight], axis=1)
             matmul = R.matmul(inp, concat)

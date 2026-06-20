@@ -823,34 +823,34 @@ def test_collect_nonnegative_expressions():
     ):
         return R.tuple()
 
-    M, N = list(func.params[2].struct_info.values)
+    M, N = list(func.params[2].ty.values)
 
     # Expressions are de-duplicated, in order of their first appearance
     tvm.ir.assert_structural_equal(
-        rx.analysis.collect_non_negative_expressions(func.struct_info),
+        rx.analysis.collect_non_negative_expressions(func.ty),
         [M, N - 2, N, M + 2],
     )
 
     # Tensor shapes can imply that their shapes are non-negative
     tvm.ir.assert_structural_equal(
-        rx.analysis.collect_non_negative_expressions(func.params[0].struct_info),
+        rx.analysis.collect_non_negative_expressions(func.params[0].ty),
         [M, N - 2],
     )
     tvm.ir.assert_structural_equal(
-        rx.analysis.collect_non_negative_expressions(func.params[1].struct_info),
+        rx.analysis.collect_non_negative_expressions(func.params[1].ty),
         [N, M + 2],
     )
 
     # ShapeExpr values can imply that their contents are non-negative
     tvm.ir.assert_structural_equal(
-        rx.analysis.collect_non_negative_expressions(func.params[2].struct_info),
+        rx.analysis.collect_non_negative_expressions(func.params[2].ty),
         [M, N],
     )
 
     # PrimValue instances may contain negative values, and do not
     # imply that their contents are non-negative.
     tvm.ir.assert_structural_equal(
-        rx.analysis.collect_non_negative_expressions(func.params[3].struct_info),
+        rx.analysis.collect_non_negative_expressions(func.params[3].ty),
         [],
     )
 

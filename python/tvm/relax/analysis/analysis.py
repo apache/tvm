@@ -26,9 +26,9 @@ from enum import IntEnum
 
 import tvm
 from tvm import IRModule, tirx
+from tvm.ir import Type
 from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
 from tvm.relax.struct_info import FuncStructInfo, StructInfo
-from tvm.relax.ty import Type
 from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
 
 from . import _ffi_api

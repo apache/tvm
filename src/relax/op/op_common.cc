@@ -91,7 +91,7 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
   if (tuple_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-        << tup->struct_info_->GetTypeKey();
+        << tup->ty->GetTypeKey();
   }
 
   ffi::Array<TensorStructInfo> tensor_sinfo;
@@ -101,7 +101,7 @@ ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, cons
     if (field_tensor_sinfo == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << tup->struct_info_;
+          << tup->ty;
     }
     tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
   }

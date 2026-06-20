@@ -53,7 +53,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ExprDoc rhs = Relax(d, "match_cast")
                             ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
-                                    d->AsDoc<ExprDoc>(n->struct_info, n_p->Attr("struct_info_"))});
+                                    d->AsDoc<ExprDoc>(n->struct_info, n_p->Attr("ty"))});
           ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
           return AssignDoc(lhs, rhs, ann);
         });

@@ -60,7 +60,7 @@ class Id(Object):
 # NOTE: place base struct info in expr to avoid cyclic dep
 # from expr to struct info.
 @tvm_ffi.register_object("ir.StructInfo")
-class StructInfo(Node, Scriptable):
+class StructInfo(Type):
     """The base class of all StructInfo.
 
     StructInfo contains both the static type
@@ -155,7 +155,7 @@ class ExprWithOp(Expr, Scriptable):
     # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
 
     def __add__(self, other: Expr) -> "ExprWithOp":
-        if isinstance(self.struct_info_, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
+        if isinstance(self.ty, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
             return tuple([*self, *other])
 
         return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
@@ -254,10 +254,10 @@ class ExprWithOp(Expr, Scriptable):
         raised during shape inference, an earlier check makes it
         easier to find the invalid usage.
         """
-        if self.struct_info_ is None:
+        if self.ty is None:
             return
 
-        if not isinstance(self.struct_info_, tvm.relax.TensorStructInfo):
+        if not isinstance(self.ty, tvm.relax.TensorStructInfo):
             raise TypeError(
                 f"Runtime unpacking of DLDataType is only implemented for tensors, "
                 f"but was applied to object {self} of type {type(self)}."
@@ -447,13 +447,11 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.struct_info_ is not None and not isinstance(
-            axis.struct_info_, tvm.relax.PrimStructInfo
-        ):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimStructInfo):
             raise TypeError(
                 f"The index used to access {self.tensor}.shape "
                 f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.struct_info_}."
+                f"but index {axis} had struct info {axis.ty}."
             )
 
         op = tvm.ir.Op.get("relax.inspect.tensor_shape_i")
@@ -517,13 +515,11 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.struct_info_ is not None and not isinstance(
-            axis.struct_info_, tvm.relax.PrimStructInfo
-        ):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimStructInfo):
             raise TypeError(
                 f"The index used to access {self.tensor}.strides "
                 f'must have struct info R.Prim("int64"), '
-                f"but index {axis} had struct info {axis.struct_info_}."
+                f"but index {axis} had struct info {axis.ty}."
             )
 
         op = tvm.ir.Op.get("relax.inspect.tensor_stride_i")
@@ -637,7 +633,7 @@ class Tuple(ExprWithOp):
     def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
         if isinstance(fields, tvm.relax.Tuple):
             fields = fields.fields
-        elif isinstance(getattr(fields, "struct_info_", None), tvm.relax.TupleStructInfo):
+        elif isinstance(getattr(fields, "ty", None), tvm.relax.TupleStructInfo):
             fields = [*fields]
 
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore

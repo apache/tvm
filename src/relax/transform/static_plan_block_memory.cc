@@ -631,7 +631,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - the shape of the tensor is known, in the form of ShapeExpr;
     // - the tensor has known dtype;
     // - no storage token was created for this call before.
-    const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
+    const auto* sinfo = call->ty.as<TensorStructInfoNode>();
     TVM_FFI_ICHECK_NOTNULL(sinfo);
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
@@ -925,7 +925,7 @@ class StorageAllocationRewriter : public ExprMutator {
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.
       TVM_FFI_ICHECK_EQ(call->op, alloc_tensor_op);
-      const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
+      const auto* sinfo = call->ty.as<TensorStructInfoNode>();
       TVM_FFI_ICHECK_NOTNULL(sinfo);
       TVM_FFI_ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
       PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
@@ -962,7 +962,7 @@ class StorageAllocationRewriter : public ExprMutator {
       // estimation, we allocate a storage to its upper bound size, and
       // allocate a tensor out from it with the actual symbolic shape.
 
-      const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
+      const auto* sinfo = call->ty.as<TensorStructInfoNode>();
       TVM_FFI_ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK_NOTNULL(shape);

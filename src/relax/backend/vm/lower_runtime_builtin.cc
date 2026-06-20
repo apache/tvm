@@ -123,34 +123,34 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   Expr Reshape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(call_node->struct_info_.defined());
+    TVM_FFI_ICHECK(call_node->ty.defined());
     auto arg = call_node->args[1];
 
-    TVM_FFI_CHECK(arg->struct_info_->IsInstance<ShapeStructInfoNode>(), TypeError)
+    TVM_FFI_CHECK(arg->ty->IsInstance<ShapeStructInfoNode>(), TypeError)
         << "VMBuiltinLower expects the shape arg of R.reshape "
         << "to be a ShapeExpr or VarNode bound to a ShapeExpr.  "
         << "However, in expression " << call_node << ", the shape argument " << arg
-        << " has struct info " << arg->struct_info_;
+        << " has struct info " << arg->ty;
 
     return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(call_node->struct_info_.defined());
+    TVM_FFI_ICHECK(call_node->ty.defined());
     return Call(builtin_shape_of_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(call_node->struct_info_.defined());
+    TVM_FFI_ICHECK(call_node->ty.defined());
 
     return Call(builtin_tensor_to_shape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
   Expr CallPyFunc(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(call_node->struct_info_.defined());
+    TVM_FFI_ICHECK(call_node->ty.defined());
 
     // Create tuple with function name and arguments tuple
     ffi::Array<Expr> tuple_fields;
@@ -166,7 +166,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   Expr ToDevice(const Call& call_node) {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(call_node->struct_info_.defined());
+    TVM_FFI_ICHECK(call_node->ty.defined());
     auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
     ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);

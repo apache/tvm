@@ -291,23 +291,23 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
    *  their Expr fields.
    *
    *  We use component instead of sub-classing so there can be other
-   *  joint inheritance between ExprVisitor and StructInfoVisitor.
+   *  joint inheritance between ExprVisitor and TypeVisitor.
    */
-  class DefaultStructInfoFieldVisitor : public StructInfoVisitor {
+  class DefaultStructInfoFieldVisitor : public TypeVisitor {
    public:
     explicit DefaultStructInfoFieldVisitor(ExprVisitor* parent);
 
     // Override defaults in struct info visitor.
     void VisitStructInfoExprField(const Expr& expr) final;
     void VisitStructInfoExprField(const PrimExpr& expr) final;
-    void VisitStructInfo_(const FuncStructInfoNode* op) final;
+    void VisitType_(const FuncStructInfoNode* op) final;
 
    private:
     ExprVisitor* parent_;
   };
   // This visitor is not visible to child classes and only
   // used to supported default visiting behavior.
-  DefaultStructInfoFieldVisitor default_struct_info_field_visitor_{this};
+  DefaultStructInfoFieldVisitor default_tyfield_visitor_{this};
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -315,7 +315,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 /*!
  * \brief A mutator works in unnormalized form.
  *
- * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., struct_info_
+ * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., ty
  * of expressions can be nullptr, and the expressions may nest(and as a result the AST is not in
  * ANF).
  */
@@ -394,30 +394,30 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    *  Default visiting of struct info field and recursive into their Expr fields.
    *
    *  We use component instead of sub-classing so there can be other
-   *  joint inheritance between ExprMutator and StructInfoMutator.
+   *  joint inheritance between ExprMutator and TypeMutator.
    */
-  class DefaultStructInfoFieldMutator : public StructInfoMutator {
+  class DefaultStructInfoFieldMutator : public TypeMutator {
    public:
     explicit DefaultStructInfoFieldMutator(ExprMutatorBase* parent);
 
     // Override defaults in struct info visitor.
     Expr VisitStructInfoExprField(const Expr& expr) final;
     PrimExpr VisitStructInfoExprField(const PrimExpr& expr) final;
-    StructInfo VisitStructInfo_(const FuncStructInfoNode* op) final;
+    StructInfo VisitType_(const FuncStructInfoNode* op) final;
 
    private:
     ExprMutatorBase* parent_;
   };
   // This visitor is not visible to child classes and only
   // used to supported default visiting behavior.
-  DefaultStructInfoFieldMutator default_struct_info_field_mutator_{this};
+  DefaultStructInfoFieldMutator default_tyfield_mutator_{this};
 };
 
 /*!
  * \brief A mutator works in normal form.
  *
  * ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
+ * nesting and hence the AST is in ANF), and all ty of expressions are
  * available.
  */
 class ExprMutator : public ExprMutatorBase {

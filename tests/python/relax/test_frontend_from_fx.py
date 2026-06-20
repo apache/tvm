@@ -5036,8 +5036,8 @@ def test_keep_params():
 
     assert len(params) == len(func.params) - 1
     for param_var, param_tensor in zip(func.params[1:], params):
-        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_tensor.shape
-        assert param_var.struct_info.dtype == param_tensor.dtype
+        assert tuple(x.value for x in param_var.ty.shape.values) == param_tensor.shape
+        assert param_var.ty.dtype == param_tensor.dtype
 
     tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())

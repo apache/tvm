@@ -91,8 +91,8 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the struct_info fields.
         """
         fields = kwargs.copy()
-        if node.struct_info_ and self.include_struct_info_annotations:
-            fields["struct_info"] = self.visit_struct_info_(node.struct_info)
+        if node.ty and self.include_struct_info_annotations:
+            fields["struct_info"] = self.visit_struct_info_(node.ty)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 
     def build_list(

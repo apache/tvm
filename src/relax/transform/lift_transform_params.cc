@@ -530,8 +530,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
           int index_0 = j + num_inputs_0;
           mapper.VisitExpr(functions[i]->params[index_i], functions[0]->params[index_0]);
           ffi::StructuralEqual eq;
-          eq(functions[i]->params[index_i]->struct_info_,
-             functions[0]->params[index_0]->struct_info_);
+          eq(functions[i]->params[index_i]->ty, functions[0]->params[index_0]->ty);
         }
       }
     }
@@ -546,7 +545,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
     } else {
       var_remap_.Set(ffi::GetRef<Var>(lhs_var), rhs_var);
     }
-    TVM_FFI_ICHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->struct_info_, rhs_var->struct_info_,
+    TVM_FFI_ICHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->ty, rhs_var->ty,
                                                     /*map_free_vars=*/true))
         << "The struct info of the parameters should be the same for all target functions";
     auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(ffi::GetRef<Var>(lhs_var)));
@@ -696,7 +695,7 @@ class ConsumeBundledParams : public ExprMutator {
     auto num_input = opt_num_input.value();
     TVM_FFI_ICHECK_EQ(func->params.size(), num_input + 1);
     params_ = func->params.back();
-    TVM_FFI_ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
+    TVM_FFI_ICHECK(params_->ty.as<TupleStructInfoNode>());
     return ExprMutator::VisitExpr_(func);
   }
 

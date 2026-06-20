@@ -161,7 +161,7 @@ class ConstantFolder : public ExprMutator {
     const auto* call = expr.as<CallNode>();
     if (!call) return true;
 
-    const auto* tensor_sinfo = call->struct_info_.as<TensorStructInfoNode>();
+    const auto* tensor_sinfo = call->ty.as<TensorStructInfoNode>();
     if (!tensor_sinfo) return true;
 
     auto opt_shape = tensor_sinfo->GetShape();
@@ -287,7 +287,7 @@ class ConstantFolder : public ExprMutator {
     // Handle single tensor output.
     ffi::Optional<ffi::Shape> shape = MatchConstShape(call->sinfo_args[0]);
     if (shape) {
-      TensorStructInfo ret_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
+      TensorStructInfo ret_sinfo = Downcast<TensorStructInfo>(call->ty);
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_sinfo->dtype)
           .value_or({});
     }

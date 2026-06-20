@@ -80,16 +80,16 @@ class SortScanDispatcher(BackendDispatcher):
             input_tensor = call.args[0]
             boundaries = call.args[1]
             right = call.attrs.right
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.searchsorted
             with tgt:
                 if self.is_gpu_target(tgt):
                     te_func = topi.gpu.searchsorted
             return self.builder_.call_te(
-                te_func, boundaries, input_tensor, right, input_tensor.struct_info.dtype
+                te_func, boundaries, input_tensor, right, input_tensor.ty.dtype
             )
         if call.op.name == "relax.sort":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.sort
             kwargs = {}
             with tgt:
@@ -102,7 +102,7 @@ class SortScanDispatcher(BackendDispatcher):
                 te_func, call.args[0], call.attrs.axis, not call.attrs.descending, **kwargs
             )
         if call.op.name == "relax.argsort":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.argsort
             kwargs = {}
             with tgt:
@@ -120,7 +120,7 @@ class SortScanDispatcher(BackendDispatcher):
                 **kwargs,
             )
         if call.op.name == "relax.topk":
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             te_func = topi.topk
             kwargs = {}
             if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
@@ -141,9 +141,9 @@ class SortScanDispatcher(BackendDispatcher):
             self._append_calls_to_update(tir_call, tgt)
             return tir_call
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
-            tgt = self._get_target(call.struct_info)
+            tgt = self._get_target(call.ty)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
-            shape = call.struct_info.shape
+            shape = call.ty.shape
             # TODO(tvm-team): Support fully dynamic case with `shape=None`
             if shape is None:
                 raise ValueError("non-symbolic shape is not supported for now")
@@ -163,7 +163,7 @@ class SortScanDispatcher(BackendDispatcher):
                 dim = 1
                 for i in range(len(shape) - 1):
                     dim *= shape[i]
-                in_dtype = call.args[0].struct_info.dtype
+                in_dtype = call.args[0].ty.dtype
                 out_dtype = call.attrs.dtype
                 out_dtype = out_dtype or in_dtype
                 cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
@@ -186,7 +186,7 @@ class SortScanDispatcher(BackendDispatcher):
                     "vm.builtin.reshape",
                     cumsum,
                     shape,
-                    sinfo_args=call.struct_info,
+                    sinfo_args=call.ty,
                 )
 
             with tgt:
@@ -214,8 +214,8 @@ class SortScanDispatcher(BackendDispatcher):
         """
         Estimate the workspace size for thrust sort/argsort/topk/cumsum
         """
-        input_shape = call.args[0].struct_info.shape
-        input_byte_per_elem = DataType(call.args[0].struct_info.dtype).bits // 8
+        input_shape = call.args[0].ty.shape
+        input_byte_per_elem = DataType(call.args[0].ty.dtype).bits // 8
         int64_byte_per_elem = DataType("int64").bits // 8
         int32_byte_per_elem = DataType("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)

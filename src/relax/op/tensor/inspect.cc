@@ -59,17 +59,17 @@ std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Cal
   const auto& arg = call->args[0];
   const auto& axis = call->args[1];
 
-  auto tensor_sinfo = arg->struct_info_.as<TensorStructInfoNode>();
+  auto tensor_sinfo = arg->ty.as<TensorStructInfoNode>();
   TVM_FFI_CHECK(tensor_sinfo, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the first argument " << arg << " in expression " << call << " has struct info "
-      << arg->struct_info_;
+      << arg->ty;
 
-  auto axis_sinfo = axis->struct_info_.as<PrimStructInfoNode>();
+  auto axis_sinfo = axis->ty.as<PrimStructInfoNode>();
   TVM_FFI_CHECK(axis_sinfo, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the second argument " << arg << " in expression " << call << " has struct info "
-      << axis->struct_info_;
+      << axis->ty;
 
   auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
 
@@ -104,13 +104,13 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataTyp
 
   FuncStructInfo sinfo({TensorStructInfo(DataType::Void(), kUnknownNDim)},
                        PrimStructInfo(field_dtype));
-  func->struct_info_ = sinfo;
+  func->ty = sinfo;
 
   return func;
 }
 
 Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) {
-  if (auto prim_sinfo = call->struct_info_.as<PrimStructInfoNode>()) {
+  if (auto prim_sinfo = call->ty.as<PrimStructInfoNode>()) {
     if (prim_sinfo->value.defined()) {
       return PrimValue(prim_sinfo->value.value());
     }
@@ -137,7 +137,7 @@ StructInfo InferStructInfoTensorDtypeCode(const Call& call, const BlockBuilder&)
 }
 
 Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
+  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -175,7 +175,7 @@ StructInfo InferStructInfoTensorDtypeBits(const Call& call, const BlockBuilder&)
 }
 
 Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
+  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -213,7 +213,7 @@ StructInfo InferStructInfoTensorDtypeLanes(const Call& call, const BlockBuilder&
 }
 
 Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
+  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -251,7 +251,7 @@ StructInfo InferStructInfoTensorNDim(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
+  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -293,7 +293,7 @@ StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
+  auto field_dtype = Downcast<PrimStructInfo>(call->ty)->dtype;
 
   tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
     tirx::Var dlpack_handle("dlpack_handle", DataType::Handle());
@@ -330,7 +330,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     FuncStructInfo sinfo(
         {TensorStructInfo(DataType::Void(), kUnknownNDim), PrimStructInfo(axis->dtype)},
         PrimStructInfo(field_dtype));
-    func->struct_info_ = sinfo;
+    func->ty = sinfo;
     return func;
   }();
 

@@ -132,7 +132,7 @@ def test_vm_alloc_tensor():
     storage = rx.Var("storage", rx.TensorStructInfo(dtype="float32"))
     alloc = rx.op.vm.alloc_tensor(storage, offset=0, shape=rx.ShapeExpr([4, 5]), dtype="float32")
     alloc = bb.normalize(alloc)
-    tvm.ir.assert_structural_equal(alloc.struct_info, R.Tensor([4, 5], "float32"))
+    tvm.ir.assert_structural_equal(alloc.ty, R.Tensor([4, 5], "float32"))
 
 
 def test_vm_alloc_tensor_infer_struct_info():
@@ -141,7 +141,7 @@ def test_vm_alloc_tensor_infer_struct_info():
     storage = rx.Var("storage", rx.TensorStructInfo(dtype="float32"))
     alloc = rx.op.vm.alloc_tensor(storage, offset=0, shape=s1, dtype="float32")
     ret = bb.normalize(alloc)
-    tvm.ir.assert_structural_equal(ret.struct_info, R.Tensor(dtype="float32", ndim=3))
+    tvm.ir.assert_structural_equal(ret.ty, R.Tensor(dtype="float32", ndim=3))
 
 
 def test_vm_kill_object():
@@ -149,7 +149,7 @@ def test_vm_kill_object():
     storage = rx.Var("storage", rx.TensorStructInfo(dtype="float32"))
     kill = rx.op.vm.kill_object(storage)
     ret = bb.normalize(kill)
-    tvm.ir.assert_structural_equal(ret.struct_info, R.Tuple([]))
+    tvm.ir.assert_structural_equal(ret.ty, R.Tuple([]))
 
 
 def test_builtin_stop_lift_params():
@@ -157,7 +157,7 @@ def test_builtin_stop_lift_params():
     x = rx.Var("x", rx.TensorStructInfo(shape=[4, 5], dtype="float32"))
     x1 = rx.op.builtin.stop_lift_params(x)
     x1 = bb.normalize(x1)
-    tvm.ir.assert_structural_equal(x1.struct_info, R.Tensor([4, 5], "float32"))
+    tvm.ir.assert_structural_equal(x1.ty, R.Tensor([4, 5], "float32"))
 
 
 if __name__ == "__main__":

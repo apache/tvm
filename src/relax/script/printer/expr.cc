@@ -137,8 +137,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
         "", [](relax::Constant n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (ffi::Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
-            if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
-              ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
+            if (n->ty.as<relax::distributed::DTensorStructInfoNode>()) {
+              ExprDoc ann = d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"));
               return Relax(d, "dist.const")->Call({s.value(), ann});
             }
             return Relax(d, "const")
@@ -152,7 +152,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
-    ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));
+    ExprDoc ann = d->AsDoc<ExprDoc>(n->ty, p->Attr("ty"));
     Frame f = d->frames.back();
     ExprDoc var = DefineVar(n, f, d);
     f->stmts.push_back(AssignDoc(var, std::nullopt, ann));

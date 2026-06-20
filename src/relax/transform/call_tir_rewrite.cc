@@ -140,7 +140,7 @@ class CallTIRMutator : public ExprMutator {
       } else {
         TVM_FFI_THROW(TypeError) << "The struct info of call_tir expects to be TensorStructInfo or "
                                     "TupleStructInfo, but got"
-                                 << expr->struct_info_;
+                                 << expr->ty;
       }
 
       ffi::Array<Expr> args;

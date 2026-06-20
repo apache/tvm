@@ -458,16 +458,16 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
-  TVM_FFI_ICHECK(callee->struct_info_.as<FuncStructInfoNode>())
+  TVM_FFI_ICHECK(callee->ty.as<FuncStructInfoNode>())
       << "Operation " << call->op << " expects the first argument to be a TIR callee.  "
-      << "However, the first argument " << callee << " has struct info " << callee->struct_info_;
+      << "However, the first argument " << callee << " has struct info " << callee->ty;
 
   Expr arg_tuple = call->args[1];
 
-  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+  TVM_FFI_ICHECK(arg_tuple->ty.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
-      << "However, the second argument " << arg_tuple << " has struct info "
-      << arg_tuple->struct_info_ << ".";
+      << "However, the second argument " << arg_tuple << " has struct info " << arg_tuple->ty
+      << ".";
 
   TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
@@ -477,11 +477,10 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   if (call->args.size() > 2) {
     Expr packed_ints = call->args[2];
-    TVM_FFI_ICHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
+    TVM_FFI_ICHECK(packed_ints->ty.as<ShapeStructInfoNode>())
         << "Operation " << call->op << " expects the optional third argument, "
         << "if present, to be a ffi::Shape.  "
-        << "However, the third argument " << packed_ints << " has struct info "
-        << packed_ints->struct_info_;
+        << "However, the third argument " << packed_ints << " has struct info " << packed_ints->ty;
   }
 
   TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
@@ -520,7 +519,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     // example, if a relax function accepted a tuple as an parameter,
     // then provided that same tuple as an argument to call_tir.
     ffi::Array<Expr> tuple_elements;
-    size_t num_fields = Downcast<TupleStructInfo>(arg_tuple->struct_info_)->fields.size();
+    size_t num_fields = Downcast<TupleStructInfo>(arg_tuple->ty)->fields.size();
     for (size_t i = 0; i < num_fields; i++) {
       tuple_elements.push_back(TupleGetItem(arg_tuple, i));
     }
@@ -877,10 +876,10 @@ void ValidateCallPyFunc(Call call) {
 
   // Validate that args is a tuple
   Expr arg_tuple = call->args[1];
-  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+  TVM_FFI_ICHECK(arg_tuple->ty.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
-      << "However, the second argument " << arg_tuple << " has struct info "
-      << arg_tuple->struct_info_ << ".";
+      << "However, the second argument " << arg_tuple << " has struct info " << arg_tuple->ty
+      << ".";
 
   TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
@@ -1153,12 +1152,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args[0]->ty.defined());
   const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tsinfo);
   TVM_FFI_ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
                                      << "but " << call << " has argument " << call->args[0]
-                                     << " with struct info " << call->args[0]->struct_info_;
+                                     << " with struct info " << call->args[0]->ty;
 
   if (tsinfo->shape.defined()) {
     ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
@@ -1189,7 +1188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // shape_to_tensor
 StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args[0]->ty.defined());
   const auto* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(sinfo);
   int32_t ndim = sinfo->ndim;
@@ -1541,7 +1540,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args[0]->ty.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
@@ -1574,7 +1573,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args[0]->ty.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   return data_sinfo;
 }

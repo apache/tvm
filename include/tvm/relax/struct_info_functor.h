@@ -34,30 +34,30 @@ namespace tvm {
 namespace relax {
 
 template <typename FStructInfo>
-class StructInfoFunctor;
+class TypeFunctor;
 
 // functions to be overriden.
-#define STRUCT_INFO_FUNCTOR_DEFAULT                                  \
-  {                                                                  \
-    return VisitStructInfoDefault_(op, std::forward<Args>(args)...); \
+#define RELAX_TYPE_FUNCTOR_DEFAULT                             \
+  {                                                            \
+    return VisitTypeDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define TVM_STRUCT_INFO_FUNCTOR_DISPATCH(OP)                                                     \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {      \
-    return self->VisitStructInfo_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+#define TVM_RELAX_TYPE_FUNCTOR_DISPATCH(OP)                                                 \
+  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
+    return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
 template <typename R, typename... Args>
-class StructInfoFunctor<R(const StructInfo& n, Args...)> {
+class TypeFunctor<R(const StructInfo& n, Args...)> {
  private:
-  using TSelf = StructInfoFunctor<R(const StructInfo& n, Args...)>;
+  using TSelf = TypeFunctor<R(const StructInfo& n, Args...)>;
   using FStructInfo = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */
   using result_type = R;
   /*! \brief virtual destructor */
-  virtual ~StructInfoFunctor() {}
+  virtual ~TypeFunctor() {}
   /*!
    * \brief Same as call.
    * \param n The expression node.
@@ -65,7 +65,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
    * \return The result of the call
    */
   R operator()(const StructInfo& n, Args... args) {
-    return VisitStructInfo(n, std::forward<Args>(args)...);
+    return VisitType(n, std::forward<Args>(args)...);
   }
   /*!
    * \brief The functor call.
@@ -73,27 +73,21 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R VisitStructInfo(const StructInfo& n, Args... args) {
+  virtual R VisitType(const StructInfo& n, Args... args) {
     TVM_FFI_ICHECK(n.defined());
     static FStructInfo vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitStructInfo_(const ObjectStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const PrimStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const ShapeStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const TensorStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const distributed::DTensorStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const TupleStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfo_(const FuncStructInfoNode* op,
-                             Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
-  virtual R VisitStructInfoDefault_(const ffi::Object* op, Args...) {
+  virtual R VisitType_(const ObjectStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const PrimStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const ShapeStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TensorStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const distributed::DTensorStructInfoNode* op,
+                       Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TupleStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const FuncStructInfoNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitTypeDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }
@@ -103,32 +97,32 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
   static FStructInfo InitVTable() {
     FStructInfo vtable;
     // Set dispatch
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(ObjectStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(PrimStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(ShapeStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(TensorStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(distributed::DTensorStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(TupleStructInfoNode);
-    TVM_STRUCT_INFO_FUNCTOR_DISPATCH(FuncStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(ObjectStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(PrimStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(ShapeStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TensorStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(distributed::DTensorStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TupleStructInfoNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(FuncStructInfoNode);
     vtable.Finalize();
     return vtable;
   }
 };
 
-#undef TVM_STRUCT_INFO_FUNCTOR_DISPATCH
+#undef TVM_RELAX_TYPE_FUNCTOR_DISPATCH
 
 /*!
  * \brief A struct info visitor.
  */
-class TVM_DLL StructInfoVisitor : public StructInfoFunctor<void(const StructInfo& n)> {
+class TVM_DLL TypeVisitor : public TypeFunctor<void(const StructInfo& n)> {
  public:
-  void VisitStructInfo_(const ObjectStructInfoNode* op) override;
-  void VisitStructInfo_(const PrimStructInfoNode* op) override;
-  void VisitStructInfo_(const ShapeStructInfoNode* op) override;
-  void VisitStructInfo_(const TensorStructInfoNode* op) override;
-  void VisitStructInfo_(const distributed::DTensorStructInfoNode* op) override;
-  void VisitStructInfo_(const TupleStructInfoNode* op) override;
-  void VisitStructInfo_(const FuncStructInfoNode* op) override;
+  void VisitType_(const ObjectStructInfoNode* op) override;
+  void VisitType_(const PrimStructInfoNode* op) override;
+  void VisitType_(const ShapeStructInfoNode* op) override;
+  void VisitType_(const TensorStructInfoNode* op) override;
+  void VisitType_(const distributed::DTensorStructInfoNode* op) override;
+  void VisitType_(const TupleStructInfoNode* op) override;
+  void VisitType_(const FuncStructInfoNode* op) override;
 
  protected:
   // two functions to override when visit expr fields in struct info.
@@ -137,17 +131,17 @@ class TVM_DLL StructInfoVisitor : public StructInfoFunctor<void(const StructInfo
 };
 
 /*!
- * \brief StructInfoMutator that mutates struct info.
+ * \brief TypeMutator that mutates struct info.
  */
-class TVM_DLL StructInfoMutator : public StructInfoFunctor<StructInfo(const StructInfo& n)> {
+class TVM_DLL TypeMutator : public TypeFunctor<StructInfo(const StructInfo& n)> {
  public:
-  StructInfo VisitStructInfo_(const ObjectStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const PrimStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const TensorStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const distributed::DTensorStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const TupleStructInfoNode* op) override;
-  StructInfo VisitStructInfo_(const FuncStructInfoNode* op) override;
+  StructInfo VisitType_(const ObjectStructInfoNode* op) override;
+  StructInfo VisitType_(const PrimStructInfoNode* op) override;
+  StructInfo VisitType_(const ShapeStructInfoNode* op) override;
+  StructInfo VisitType_(const TensorStructInfoNode* op) override;
+  StructInfo VisitType_(const distributed::DTensorStructInfoNode* op) override;
+  StructInfo VisitType_(const TupleStructInfoNode* op) override;
+  StructInfo VisitType_(const FuncStructInfoNode* op) override;
 
  protected:
   // two functions to override when visit expr fields in struct info.

@@ -283,7 +283,7 @@ def test_if_non_seq_body():
     ]
     new_func = build_function(new_blocks)
     new_mod = tvm.IRModule.from_expr(new_func)
-    # apply normalization to fill in struct_info_
+    # apply normalization to fill in ty
     normalized = rx.transform.Normalize()(new_mod)
     rx.analysis.well_formed(normalized, check_struct_info=True)
 
@@ -322,7 +322,7 @@ def test_if_complex_condition():
     ]
     func = build_function(blocks)
     mod = tvm.IRModule.from_expr(func)
-    # apply normalization to fill in struct_info_
+    # apply normalization to fill in ty
     normalized = rx.transform.Normalize()(mod)
     rx.analysis.well_formed(normalized, check_struct_info=True)
 
@@ -1237,7 +1237,7 @@ def test_var_binding_must_have_compatible_struct_info():
     var = tvm.relax.Var("B", R.Tensor(shape=[128, 32], dtype="int32"))
     binding = tvm.relax.VarBinding(var, param)
     body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
-    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    tvm.relax.expr._update_struct_info(body, var.ty)
     main = tvm.relax.Function([param], body)
 
     assert not rx.analysis.check_well_formed(main)
@@ -1262,7 +1262,7 @@ def test_var_binding_may_have_less_constrained_struct_info():
             return B
 
     assert isinstance(
-        Module["main"].body.blocks[0].bindings[0].var.struct_info, tvm.relax.ObjectStructInfo
+        Module["main"].body.blocks[0].bindings[0].var.ty, tvm.relax.ObjectStructInfo
     ), "Validity of this test requires a variable with R.Object struct info"
 
     rx.analysis.well_formed(Module)
@@ -1293,7 +1293,7 @@ def test_var_binding_with_incomplete_struct_info_must_be_consistent():
     var = tvm.relax.Var("B", R.Tensor(ndim=3, dtype="int32"))
     binding = tvm.relax.VarBinding(var, param)
     body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
-    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    tvm.relax.expr._update_struct_info(body, var.ty)
     main = tvm.relax.Function([param], body)
 
     assert not rx.analysis.check_well_formed(main)

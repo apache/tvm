@@ -163,7 +163,7 @@ Pass AttachGlobalSymbol() {
         updates->Add(gvar, new_func);
         if (new_name.value() != gvar->name_hint) {
           GlobalVar new_gvar(new_name.value());
-          if (auto sinfo = gvar->struct_info_.as<StructInfo>()) {
+          if (auto sinfo = gvar->ty.as<StructInfo>()) {
             UpdateStructInfo(new_gvar, sinfo.value());
           }
 

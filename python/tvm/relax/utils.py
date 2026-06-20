@@ -221,11 +221,11 @@ def gen_call_tir_inputs(
 
         def _convert_te_arg_helper(arg):
             if isinstance(arg, Expr):  # type: ignore
-                if isinstance(arg.struct_info, TensorStructInfo):
-                    assert isinstance(arg.struct_info.shape, ShapeExpr), (
+                if isinstance(arg.ty, TensorStructInfo):
+                    assert isinstance(arg.ty.shape, ShapeExpr), (
                         "emit_te now only supports Tensor that has ShapeExpr shape"
                     )
-                    for shape_value in arg.struct_info.shape.values:
+                    for shape_value in arg.ty.shape.values:
                         _copy_undefined_var(shape_value)
 
                     n_args = len(create_primfunc_args)
@@ -243,14 +243,14 @@ def gen_call_tir_inputs(
 
                     return te_arg
 
-                if isinstance(arg.struct_info, ShapeStructInfo):
+                if isinstance(arg.ty, ShapeStructInfo):
                     assert isinstance(arg, ShapeExpr), (
                         "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
                     )
                     return [_convert_te_arg_helper(val) for val in arg.values]
 
-                if isinstance(arg.struct_info, PrimStructInfo):
-                    if arg.struct_info.value is None:
+                if isinstance(arg.ty, PrimStructInfo):
+                    if arg.ty.value is None:
                         n_args = len(create_primfunc_args)
                         if isinstance(arg, tvm.relax.Var):
                             name = arg.name_hint
@@ -259,14 +259,14 @@ def gen_call_tir_inputs(
                         else:
                             name = f"scalar_input_{n_args}"
 
-                        tir_param = tirx.Var(name, arg.struct_info.dtype)
+                        tir_param = tirx.Var(name, arg.ty.dtype)
 
                         call_tir_args.append(arg)
                         create_primfunc_args.append(tir_param)
 
                         return tir_param
                     else:
-                        return _convert_te_arg_helper(arg.struct_info.value)
+                        return _convert_te_arg_helper(arg.ty.value)
 
             elif isinstance(arg, list | Array):
                 return [_convert_te_arg_helper(x) for x in arg]
@@ -326,8 +326,8 @@ def gen_call_tir_inputs(
         """get the virtual device from arguments."""
         vdevice = None
         if isinstance(arg, Expr):  # type: ignore
-            if isinstance(arg.struct_info, TensorStructInfo):
-                vdevice = arg.struct_info.vdevice
+            if isinstance(arg.ty, TensorStructInfo):
+                vdevice = arg.ty.vdevice
         elif isinstance(arg, list | Array | tuple):
             for x in arg:
                 vdevice = _get_vdevice(x)

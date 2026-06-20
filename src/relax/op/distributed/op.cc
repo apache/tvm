@@ -43,7 +43,7 @@ StructInfo InferDistStructInfoStopLiftParams(const Call& call, const BlockBuilde
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "stop_lift_params should have exact 1 arg.";
   }
-  return Downcast<StructInfo>(call->args[0]->struct_info_.value());
+  return Downcast<StructInfo>(call->args[0]->ty);
 }
 
 TVM_REGISTER_OP("relax.builtin.stop_lift_params")

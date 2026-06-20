@@ -891,8 +891,8 @@ def test_annotation():
         return o
 
     def _check_struct_info(binding, expected_sinfo):
-        tvm.ir.assert_structural_equal(binding.var.struct_info, expected_sinfo)
-        tvm.ir.assert_structural_equal(binding.value.struct_info, expected_sinfo)
+        tvm.ir.assert_structural_equal(binding.var.ty, expected_sinfo)
+        tvm.ir.assert_structural_equal(binding.value.ty, expected_sinfo)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
@@ -920,8 +920,8 @@ def test_annotate_override():
 
     assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
     y_bind, z_bind = foo.body.blocks[0].bindings
-    assert isinstance(y_bind.var.struct_info, relax.TensorStructInfo)
-    assert isinstance(z_bind.var.struct_info, relax.ObjectStructInfo)
+    assert isinstance(y_bind.var.ty, relax.TensorStructInfo)
+    assert isinstance(z_bind.var.ty, relax.ObjectStructInfo)
 
     with pytest.raises(tvm.error.DiagnosticError):
 
@@ -939,7 +939,7 @@ def test_annotate_override():
 
     assert isinstance(bar.ret_struct_info, relax.TensorStructInfo)
     (z_bind,) = bar.body.blocks[0].bindings
-    assert isinstance(z_bind.var.struct_info, relax.TensorStructInfo)
+    assert isinstance(z_bind.var.ty, relax.TensorStructInfo)
 
 
 def test_call_dps_packed_empty_shape():
@@ -1302,7 +1302,7 @@ def test_scalar_tensor_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Tensor([], "bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
 def test_prim_value_as_branch_condition():
@@ -1318,7 +1318,7 @@ def test_prim_value_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_computed_prim_value_as_branch_condition():
@@ -1328,16 +1328,16 @@ def test_computed_prim_value_as_branch_condition():
     def func(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if R.prim_value(N % 16 == 0):
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
-    N = func.params[0].struct_info.shape[0]
+    N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.PrimValue)
     tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond.value)
-    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim(value=N % 16 == 0))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim(value=N % 16 == 0))
 
 
 def test_tir_expr_as_branch_condition():
@@ -1347,18 +1347,18 @@ def test_tir_expr_as_branch_condition():
     def sugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if N % 16 == 0:
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
     @R.function(private=True)
     def unsugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         if R.prim_value(N % 16 == 0):
-            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         else:
-            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
     tvm.ir.assert_structural_equal(unsugared, sugared)
@@ -1376,7 +1376,7 @@ def test_scalar_tensor_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Tensor([], "bool"))
+    tvm.ir.assert_structural_equal(condition.ty, R.Tensor([], "bool"))
 
 
 def test_prim_value_as_assert_condition():
@@ -1391,7 +1391,7 @@ def test_prim_value_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim("bool"))
+    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_computed_prim_value_as_assert_condition():
@@ -1401,15 +1401,15 @@ def test_computed_prim_value_as_assert_condition():
     def func(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(R.prim_value(N % 16 == 0))
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
-    N = func.params[0].struct_info.shape[0]
+    N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.PrimValue)
     tvm.ir.assert_structural_equal(N % 16 == 0, condition.value)
-    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim(value=N % 16 == 0))
+    tvm.ir.assert_structural_equal(condition.ty, R.Prim(value=N % 16 == 0))
 
 
 def test_tir_expr_as_assert_condition():
@@ -1419,14 +1419,14 @@ def test_tir_expr_as_assert_condition():
     def sugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(N % 16 == 0)
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
     @R.function(pure=False, private=True)
     def unsugared(x: R.Tensor(["N"], "float32")):
         N = T.int64()
         _ = R.assert_op(R.prim_value(N % 16 == 0))
-        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.ty])
         return out
 
     tvm.ir.assert_structural_equal(unsugared, sugared)
@@ -1893,8 +1893,8 @@ def test_global_var_sinfo():
         (R.Tensor((128, 128), dtype="float32"),), R.Tensor((128, 128), dtype="float32")
     )
     gv = Module.get_global_var("foo")
-    tvm.ir.assert_structural_equal(gv.struct_info, target_sinfo)
-    tvm.ir.assert_structural_equal(Module["foo"].struct_info, target_sinfo)
+    tvm.ir.assert_structural_equal(gv.ty, target_sinfo)
+    tvm.ir.assert_structural_equal(Module["foo"].ty, target_sinfo)
     _check(Module)
 
 

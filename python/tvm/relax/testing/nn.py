@@ -279,7 +279,7 @@ def _unpack_params(value: object) -> list[relax.Var]:
 
 def init_params(mod: tvm.IRModule) -> list[tvm.runtime.Tensor]:
     """Utility function to initialize model's parameters."""
-    shape_dict = {v.name_hint: v.struct_info.shape for v in mod["main"].params}
+    shape_dict = {v.name_hint: v.ty.shape for v in mod["main"].params}
     params = []
     for k, v in shape_dict.items():
         if k.startswith("data"):

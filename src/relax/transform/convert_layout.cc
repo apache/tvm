@@ -228,7 +228,7 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
-    new_call->struct_info_ = std::nullopt;
+    new_call->ty = Type();
     if (!res.defined() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.

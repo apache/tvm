@@ -44,7 +44,7 @@ def custom_op(define_normalization):
     op_name = "custom_op.ignore_second_argument"
 
     def infer_struct_info(call: relax.Call, context: relax.BlockBuilder):
-        return call.args[0].struct_info
+        return call.args[0].ty
 
     def normalize(context: relax.BlockBuilder, call: relax.Call):
         if len(call.args) == 1:
@@ -184,7 +184,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             return relax.Call(
                 tvm.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
-                sinfo_args=[A.struct_info],
+                sinfo_args=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -201,7 +201,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             return relax.Call(
                 tvm.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([A])],
-                sinfo_args=[A.struct_info],
+                sinfo_args=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -231,7 +231,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
             return relax.Call(
                 tvm.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
-                sinfo_args=[args[0].struct_info],
+                sinfo_args=[args[0].ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -247,7 +247,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
             return relax.Call(
                 tvm.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([args[0]])],
-                sinfo_args=[args[0].struct_info],
+                sinfo_args=[args[0].ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -278,7 +278,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 cls.multiply_by_two,
                 A,
                 inplace_indices=[0],
-                out_sinfo=[A.struct_info],
+                out_sinfo=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -298,7 +298,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 tvm.ir.Op.get("relax.call_tir_inplace"),
                 [cls.multiply_by_two, args],
                 attrs=inplace_attrs,
-                sinfo_args=[A.struct_info],
+                sinfo_args=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -328,7 +328,7 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
             return R.call_tir_with_grad(
                 cls.multiply_by_two,
                 A,
-                out_sinfo=[A.struct_info],
+                out_sinfo=[A.ty],
                 te_grad_name="f_grad",
             )
 
@@ -356,7 +356,7 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
                 tvm.ir.Op.get("relax.call_tir_with_grad"),
                 [cls.multiply_by_two, args],
                 attrs=with_grad_attrs,
-                sinfo_args=[A.struct_info],
+                sinfo_args=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)

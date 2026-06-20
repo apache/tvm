@@ -39,7 +39,7 @@ def test_op_correctness():
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
 
 
 def test_take_infer_struct_info():
@@ -727,15 +727,15 @@ def test_strided_slice_begin_end_strides_int64():
     ends = strided_slice.args[2]
     strides = strided_slice.args[3]
 
-    assert begins[0].struct_info.dtype == "int64"
-    assert begins[1].struct_info.dtype == "int64"
-    assert begins[2].struct_info.dtype == "int64"
-    assert ends[0].struct_info.dtype == "int64"
-    assert ends[1].struct_info.dtype == "int64"
-    assert ends[2].struct_info.dtype == "int64"
-    assert strides[0].struct_info.dtype == "int64"
-    assert strides[1].struct_info.dtype == "int64"
-    assert strides[2].struct_info.dtype == "int64"
+    assert begins[0].ty.dtype == "int64"
+    assert begins[1].ty.dtype == "int64"
+    assert begins[2].ty.dtype == "int64"
+    assert ends[0].ty.dtype == "int64"
+    assert ends[1].ty.dtype == "int64"
+    assert ends[2].ty.dtype == "int64"
+    assert strides[0].ty.dtype == "int64"
+    assert strides[1].ty.dtype == "int64"
+    assert strides[2].ty.dtype == "int64"
 
 
 def test_strided_slice_inconsistent_axes_begin_end_strides_length():

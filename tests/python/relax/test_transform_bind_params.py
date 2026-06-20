@@ -109,19 +109,17 @@ def test_bind_params_symbolic_vars():
     # Since it contains ConstantNode, it's hard to check with structural equality.
     func = mod["main"]
     assert len(func.params) == 1
-    batch = func.params[0].struct_info.shape[0]
-    tvm.ir.assert_structural_equal(
-        func.params[0].struct_info, relax.TensorStructInfo((batch, 4), "float32")
-    )
+    batch = func.params[0].ty.shape[0]
+    tvm.ir.assert_structural_equal(func.params[0].ty, relax.TensorStructInfo((batch, 4), "float32"))
     tvm.ir.assert_structural_equal(
         func.ret_struct_info, relax.TensorStructInfo((batch, 8), "float32")
     )
     bindings = func.body.blocks[0].bindings
     tvm.ir.assert_structural_equal(
-        bindings[0].var.struct_info, relax.TensorStructInfo((batch, 6), "float32")
+        bindings[0].var.ty, relax.TensorStructInfo((batch, 6), "float32")
     )
     tvm.ir.assert_structural_equal(
-        bindings[1].var.struct_info, relax.TensorStructInfo((batch, 8), "float32")
+        bindings[1].var.ty, relax.TensorStructInfo((batch, 8), "float32")
     )
 
 

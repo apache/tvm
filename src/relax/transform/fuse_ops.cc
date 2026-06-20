@@ -497,7 +497,7 @@ class FunctionCreator : public ExprMutator {
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
       ffi::String param_name = params_[param_idx]->name_hint();
-      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
+      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->ty);
 
       ffi::Array<Expr> item_args;
       ffi::Array<Var> item_params;

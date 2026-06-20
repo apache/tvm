@@ -55,7 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
+  TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->ty);
   PrimValue axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
     if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {

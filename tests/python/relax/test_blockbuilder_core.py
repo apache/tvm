@@ -102,7 +102,7 @@ def test_function_single_block():
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
-    assert_structural_equal(gv0.struct_info, rx.TensorStructInfo([m, n], "float16"))
+    assert_structural_equal(gv0.ty, rx.TensorStructInfo([m, n], "float16"))
     assert len(func.body.blocks) == 1
     assert len(func.body.blocks[0].bindings) == 3
 
@@ -130,7 +130,7 @@ def test_function_multi_blocks():
 
     func = bb.finalize()["func"]
 
-    assert_structural_equal(gv2.struct_info, rx.TensorStructInfo([m, n], "float16"))
+    assert_structural_equal(gv2.ty, rx.TensorStructInfo([m, n], "float16"))
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv2
@@ -192,27 +192,27 @@ def test_binary_shape_type_deduction():
     with bb.function("func", [x, y, z, w]):
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(x, y))
-            assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float16"))
+            assert_structural_equal(lv0.ty, rx.TensorStructInfo([m, n], "float16"))
 
             lv1 = bb.emit(rx.op.multiply(x, z))
-            assert_structural_equal(lv1.struct_info, rx.TensorStructInfo([m, 5], "float16"))
+            assert_structural_equal(lv1.ty, rx.TensorStructInfo([m, 5], "float16"))
 
             lv2 = bb.emit(rx.op.multiply(z, w))
-            assert isinstance(lv2.struct_info, rx.TensorStructInfo)
-            assert lv2.struct_info.ndim == 1
-            assert lv2.struct_info.dtype == "float16"
+            assert isinstance(lv2.ty, rx.TensorStructInfo)
+            assert lv2.ty.ndim == 1
+            assert lv2.ty.dtype == "float16"
 
             lv3 = bb.emit(rx.op.multiply(y, w))
-            assert isinstance(lv3.struct_info, rx.TensorStructInfo)
-            assert lv3.struct_info.ndim == 1
-            assert lv3.struct_info.dtype == "float16"
+            assert isinstance(lv3.ty, rx.TensorStructInfo)
+            assert lv3.ty.ndim == 1
+            assert lv3.ty.dtype == "float16"
 
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
 
-        assert isinstance(gv0.struct_info, rx.TensorStructInfo)
-        assert gv0.struct_info.ndim == 1
-        assert gv0.struct_info.dtype == "float16"
+        assert isinstance(gv0.ty, rx.TensorStructInfo)
+        assert gv0.ty.ndim == 1
+        assert gv0.ty.dtype == "float16"
 
 
 def test_emit_match_cast():
@@ -228,11 +228,11 @@ def test_emit_match_cast():
             #   match_cast(x: Tensor(_, "float32"], [m, n))
             lv0 = bb.match_cast(x, rx.TensorStructInfo([m, n], "float32"))
             assert isinstance(lv0, rx.DataflowVar)
-            assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float32"))
+            assert_structural_equal(lv0.ty, rx.TensorStructInfo([m, n], "float32"))
 
             # lv1: Shape = match_cast(shape, rx.ShapeStructInfo([m, n]))
             lv1 = bb.match_cast(y, rx.ShapeStructInfo([m, n]), "var_name")
-            assert lv1.struct_info == rx.ShapeStructInfo([m, n])
+            assert lv1.ty == rx.ShapeStructInfo([m, n])
             gv0 = bb.emit_output(lv1)
 
         bb.emit_func_output(gv0)
@@ -298,19 +298,19 @@ def test_normalize():
     # Tuple node
     tuple_1 = rx.Tuple([x, y])
     bb.normalize(tuple_1)
-    assert isinstance(tuple_1.struct_info, rx.TupleStructInfo)
-    assert isinstance(tuple_1.struct_info.fields[0], rx.TensorStructInfo)
-    assert isinstance(tuple_1.struct_info.fields[1], rx.TensorStructInfo)
+    assert isinstance(tuple_1.ty, rx.TupleStructInfo)
+    assert isinstance(tuple_1.ty.fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_1.ty.fields[1], rx.TensorStructInfo)
 
     # Nested Tuple
     tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])
     bb.normalize(tuple_2)
 
-    assert isinstance(tuple_2.struct_info, rx.TupleStructInfo)
-    assert isinstance(tuple_2.struct_info.fields[0], rx.TensorStructInfo)
-    assert isinstance(tuple_2.struct_info.fields[1], rx.TupleStructInfo)
-    assert isinstance(tuple_2.struct_info.fields[1].fields[0], rx.TensorStructInfo)
-    assert isinstance(tuple_2.struct_info.fields[1].fields[1], rx.TensorStructInfo)
+    assert isinstance(tuple_2.ty, rx.TupleStructInfo)
+    assert isinstance(tuple_2.ty.fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_2.ty.fields[1], rx.TupleStructInfo)
+    assert isinstance(tuple_2.ty.fields[1].fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_2.ty.fields[1].fields[1], rx.TensorStructInfo)
 
 
 def test_tuple_indexing():
@@ -321,17 +321,17 @@ def test_tuple_indexing():
     shape_y = rx.TensorStructInfo([n], "float16")
     relax_tuple = rx.Var("relax_tuple", rx.TupleStructInfo([shape_x, shape_y]))
 
-    assert isinstance(relax_tuple.struct_info, rx.TupleStructInfo)
-    assert isinstance(relax_tuple.struct_info.fields[0], rx.TensorStructInfo)
-    assert isinstance(relax_tuple.struct_info.fields[1], rx.TensorStructInfo)
+    assert isinstance(relax_tuple.ty, rx.TupleStructInfo)
+    assert isinstance(relax_tuple.ty.fields[0], rx.TensorStructInfo)
+    assert isinstance(relax_tuple.ty.fields[1], rx.TensorStructInfo)
 
     # TupleGetItem will initialize struct info from the
     # TupleStructInfo, if present.
     x = relax_tuple[0]
-    tvm.ir.assert_structural_equal(x.struct_info, shape_x)
+    tvm.ir.assert_structural_equal(x.ty, shape_x)
 
     y = relax_tuple[1]
-    tvm.ir.assert_structural_equal(y.struct_info, shape_y)
+    tvm.ir.assert_structural_equal(y.ty, shape_y)
 
     # Tuple unpacking produces TupleGetItem structs
     x_unpack, y_unpack = relax_tuple

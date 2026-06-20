@@ -995,19 +995,19 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
     if (wgt_sinfo == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "NLLLoss requires the argument weights to be Tensor. However, the given one is "
-          << call->args[2]->struct_info_->GetTypeKey();
+          << call->args[2]->ty->GetTypeKey();
     }
   }
 
   if (pred_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "NLLLoss requires the argument preditions to be Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (tgt_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "NLLLoss requires the argument targets to be Tensor. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   // infer dtype, vdevice

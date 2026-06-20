@@ -91,7 +91,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // this pass can provide a better StructInfo than the generic
     // handling in ExprMutator, by restoring the symbolic variables
     // within each branch.
-    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
+    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->ty));
 
     ffi::StructuralEqual struct_equal;
     if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {

@@ -98,10 +98,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     } else {
       auto call = Downcast<Call>(expr);
       ffi::Array<int64_t> permutation;
-      auto arg_sinfo = call->args[0]->struct_info_.as<TensorStructInfoNode>();
+      auto arg_sinfo = call->args[0]->ty.as<TensorStructInfoNode>();
       TVM_FFI_ICHECK(arg_sinfo) << "Expected permute_dims to have a single tensor argument, "
                                 << "but argument " << call->args[0] << " has struct info "
-                                << call->args[0]->struct_info_;
+                                << call->args[0]->ty;
       TVM_FFI_ICHECK_GE(arg_sinfo->ndim, 0);
       size_t ndim = arg_sinfo->ndim;
       for (size_t i = 0; i < ndim; i++) {

@@ -37,7 +37,7 @@ def _create_param_var(param: Var | StructInfo, param_name: str) -> Var:
         param = Var(param_name, param)
     if not isinstance(param, Var):
         raise TypeError("The type of param should be Var or StructInfo, but got " + type(param))
-    return Var(param.name_hint, param.struct_info)
+    return Var(param.name_hint, param.ty)
 
 
 class Loss:
@@ -367,7 +367,7 @@ class CategoricalCrossEntropyLoss(Loss):
                 logits = bb.emit(log_softmax(predictions))
                 if self.ignore_index >= 0:
                     targets = bb.emit(
-                        reshape(argmax(targets, axis=1), shape=(targets.struct_info.shape[0],))
+                        reshape(argmax(targets, axis=1), shape=(targets.ty.shape[0],))
                     )
                     loss = bb.emit_output(
                         nll_loss(logits, targets, weights, self._reduction, self.ignore_index)

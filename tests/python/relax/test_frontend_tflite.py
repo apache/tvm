@@ -76,8 +76,8 @@ def verify(TestClass, expected=None):
     tf_inputs = []
     tvm_inputs = []
     for arg in mod["main"].params:
-        shape = tuple(shape_val.value for shape_val in arg.struct_info.shape.values)
-        data = np.random.uniform(0, 1, size=shape).astype(arg.struct_info.dtype)
+        shape = tuple(shape_val.value for shape_val in arg.ty.shape.values)
+        data = np.random.uniform(0, 1, size=shape).astype(arg.ty.dtype)
         tvm_inputs.append(data)
         tf_inputs.append(tf.constant(data))
 
@@ -3100,7 +3100,7 @@ def test_detection_postprocess_shape_variations(build_kwargs):
     max_detections = build_kwargs["max_detections"]
 
     tvm.ir.assert_structural_equal(
-        mod["main"].params[1].struct_info,
+        mod["main"].params[1].ty,
         relax.TensorStructInfo((batch_size, num_anchors, input_num_classes), "float32"),
     )
     tvm.ir.assert_structural_equal(
@@ -12340,9 +12340,9 @@ def test_svdf_none_activation():
 
     fn = mod["main"]
     assert len(fn.params) == 2, f"expected 2 params (input, state), got {len(fn.params)}"
-    in_shape = fn.params[0].struct_info.shape
+    in_shape = fn.params[0].ty.shape
     assert tuple(int(d) for d in in_shape) == (batch, input_size)
-    state_shape = fn.params[1].struct_info.shape
+    state_shape = fn.params[1].ty.shape
     assert tuple(int(d) for d in state_shape) == (batch, num_filters * memory_size)
     out_shape = fn.ret_struct_info.shape
     assert tuple(int(d) for d in out_shape) == (batch, num_units)
@@ -12798,7 +12798,7 @@ def test_unidirectional_sequence_lstm_time_major():
     )
 
     fn = mod["main"]
-    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
     assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units)
 
 
@@ -13070,7 +13070,7 @@ def test_bidirectional_sequence_rnn_time_major():
     )
 
     fn = mod["main"]
-    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
     assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
 
 
@@ -13368,7 +13368,7 @@ def test_bidirectional_sequence_lstm_time_major():
     )
 
     fn = mod["main"]
-    assert tuple(int(d) for d in fn.params[0].struct_info.shape) == (time, batch, input_size)
+    assert tuple(int(d) for d in fn.params[0].ty.shape) == (time, batch, input_size)
     assert tuple(int(d) for d in fn.ret_struct_info.shape) == (time, batch, num_units * 2)
 
 
@@ -13578,7 +13578,7 @@ def test_unidirectional_sequence_rnn_relu_activation():
 
     fn = mod["main"]
     assert len(fn.params) == 1, "only the sequence input should be a graph input"
-    in_shape = fn.params[0].struct_info.shape
+    in_shape = fn.params[0].ty.shape
     assert tuple(int(d) for d in in_shape) == (batch, time, input_size)
     out_shape = fn.ret_struct_info.shape
     assert tuple(int(d) for d in out_shape) == (batch, time, num_units)
@@ -13610,7 +13610,7 @@ def test_unidirectional_sequence_rnn_time_major():
 
     fn = mod["main"]
     # Input to the graph is the raw time-major tensor [time, batch, input_size].
-    in_shape = fn.params[0].struct_info.shape
+    in_shape = fn.params[0].ty.shape
     assert tuple(int(d) for d in in_shape) == (time, batch, input_size)
     # Output is always batch-major [batch, time, num_units].
     out_shape = fn.ret_struct_info.shape

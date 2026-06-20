@@ -116,7 +116,7 @@ class Trainer:
 
     @staticmethod
     def _get_shape_list(expr):
-        return [int(dim) for dim in expr.struct_info.shape]
+        return [int(dim) for dim in expr.ty.shape]
 
     def xaiver_uniform_init_params(self):
         """Xaiver uniformly initialize parameters using the method described in `Understanding the
@@ -127,7 +127,7 @@ class Trainer:
         """
         self._params = []
         for p in self._param_vars:
-            shape, dtype = self._get_shape_list(p), p.struct_info.dtype
+            shape, dtype = self._get_shape_list(p), p.ty.dtype
             self._params.append(
                 tvm.runtime.tensor(
                     (np.sqrt(6.0 / np.sum(shape)) * np.random.uniform(-1.0, 1.0, shape)).astype(
@@ -140,14 +140,14 @@ class Trainer:
     def zero_init_params(self):
         """Zero initialize all parameters. Requires all parameters have static shapes."""
         self._params = [
-            tvm.runtime.tensor(np.zeros(self._get_shape_list(p), p.struct_info.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(p), p.ty.dtype), self.device)
             for p in self._param_vars
         ]
 
     def zero_init_states(self):
         """Zero initialize all states. Requires all states have static shapes."""
         self._states = [
-            tvm.runtime.tensor(np.zeros(self._get_shape_list(s), s.struct_info.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(s), s.ty.dtype), self.device)
             for s in self._state_vars
         ]
 

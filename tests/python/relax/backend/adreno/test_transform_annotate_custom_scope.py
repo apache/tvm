@@ -44,7 +44,7 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
         if call.op.name == "relax.call_tir":
             # if call.args[0].name_hint in self.scope_info:
             for idx, arg in enumerate(call.args[1]):
-                arg_sinfo = arg.struct_info
+                arg_sinfo = arg.ty
                 assert isinstance(arg_sinfo, relax.TensorStructInfo), (
                     f"Expected TensorStructInfo but git {type(arg_sinfo)}"
                 )

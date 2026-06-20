@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
+ * nesting and hence the AST is in ANF), and all ty of expressions are
  * available.
  */
 
@@ -147,7 +147,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   void VisitBinding_(const VarBindingNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (!binding->var->struct_info_.defined()) {
+    if (!binding->var->ty.defined()) {
       UpdateStructInfo(binding->var, GetStructInfo(new_value));
     }
 

@@ -82,7 +82,7 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
 inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
                                               const IRDocsifier& d,
                                               const ffi::Optional<relax::Expr>& rhs) {
-  if (!v->struct_info_.defined()) {
+  if (!v->ty.defined()) {
     return std::nullopt;
   }
   bool attempt_to_hide_struct_info =
@@ -117,20 +117,20 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
       inferred_sinfo = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
 
     } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
-      if (auto ptr = get_item->tuple->struct_info_.as<relax::TupleStructInfoNode>();
+      if (auto ptr = get_item->tuple->ty.as<relax::TupleStructInfoNode>();
           ptr && get_item->index < static_cast<int>(ptr->fields.size())) {
         inferred_sinfo = ptr->fields[get_item->index];
       }
 
     } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
-      inferred_sinfo = trivial_binding->struct_info_.as<relax::StructInfo>();
+      inferred_sinfo = trivial_binding->ty.as<relax::StructInfo>();
     }
 
-    if (inferred_sinfo && ffi::StructuralEqual()(inferred_sinfo, v->struct_info_)) {
+    if (inferred_sinfo && ffi::StructuralEqual()(inferred_sinfo, v->ty)) {
       return std::nullopt;
     }
   }
-  return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
+  return d->AsDoc<ExprDoc>(v->ty, v_p->Attr("ty"));
 }
 
 ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,

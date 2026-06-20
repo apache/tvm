@@ -23,7 +23,7 @@ namespace script {
 namespace printer {
 
 static bool HasDefaultExternFuncStructInfo(const relax::ExternFunc& n) {
-  const auto* sinfo = n->struct_info_.as<relax::FuncStructInfoNode>();
+  const auto* sinfo = n->ty.as<relax::FuncStructInfoNode>();
   if (sinfo == nullptr || sinfo->params.defined() || sinfo->purity ||
       !sinfo->ret->IsInstance<relax::ObjectStructInfoNode>()) {
     return false;
@@ -68,7 +68,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
       if (const auto& func_sinfo = relax::MatchStructInfo<relax::FuncStructInfo>(n)) {
         ret_type = d->AsDoc<ExprDoc>(func_sinfo.value()->ret,  //
-                                     n_p->Attr("struct_info_")->Attr("ret"));
+                                     n_p->Attr("ty")->Attr("ret"));
       }
       // Step 2. Print params
       ffi::Array<AssignDoc> params;
@@ -139,7 +139,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Array<ExprDoc> args;
           args.push_back(LiteralDoc::Str(n->global_symbol, n_p->Attr("global_symbol")));
           if (!HasDefaultExternFuncStructInfo(n)) {
-            args.push_back(d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_")));
+            args.push_back(d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty")));
           }
           return Relax(d, "ExternFunc")->Call(args);
         });

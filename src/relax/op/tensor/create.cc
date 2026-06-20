@@ -78,12 +78,12 @@ StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Full requires the input shape to be a Shape. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (fill_value_sinfo == nullptr || fill_value_sinfo->ndim != 0) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Full requires the input fill value to be zero rank Tensor. However, the given one is "
-        << call->args[1]->struct_info_;
+        << call->args[1]->ty;
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
@@ -154,7 +154,7 @@ StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
   if (shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   const auto* attrs = call->attrs.as<InitAttrs>();
   return TensorStructInfo(/*shape=*/call->args[0], attrs->dtype);
@@ -299,7 +299,7 @@ StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
   if (x_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Eye_like expects the input `x` to be a Tensor, but got "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (x_sinfo->ndim != 2 && x_sinfo->ndim != kUnknownNDim) {
     TVM_FFI_VISIT_THROW(ValueError, call)

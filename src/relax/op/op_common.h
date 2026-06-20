@@ -103,7 +103,7 @@ namespace detail {
 template <typename ArgType>
 ArgType GetArgStructInfoByIndex(const Call& call, const Op& op, const BlockBuilder& ctx,
                                 size_t index) {
-  if (!call->args[index]->struct_info_.defined()) {
+  if (!call->args[index]->ty.defined()) {
     TVM_FFI_VISIT_THROW(InternalError, call)
         << op << " op should have arguments with defined StructInfo.  "
         << "However, args[" << index << "] has undefined struct info.";

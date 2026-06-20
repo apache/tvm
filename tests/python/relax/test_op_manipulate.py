@@ -52,7 +52,7 @@ def test_op_correctness():
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
 
 
 def test_reshape_infer_struct_info():
@@ -3025,10 +3025,10 @@ def test_repeat_return_data_sinfo():
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32"))
 
-    _check_inference(bb, relax.op.repeat(x0, 1, 0), x0.struct_info)
-    _check_inference(bb, relax.op.repeat(x0, 1, -1), x0.struct_info)
-    _check_inference(bb, relax.op.repeat(x1, 1, 0), x1.struct_info)
-    _check_inference(bb, relax.op.repeat(x2, 1, 0), x2.struct_info)
+    _check_inference(bb, relax.op.repeat(x0, 1, 0), x0.ty)
+    _check_inference(bb, relax.op.repeat(x0, 1, -1), x0.ty)
+    _check_inference(bb, relax.op.repeat(x1, 1, 0), x1.ty)
+    _check_inference(bb, relax.op.repeat(x2, 1, 0), x2.ty)
 
 
 def test_repeat_infer_struct_info_wrong_input_type():
@@ -3149,11 +3149,11 @@ def test_tile_return_data_sinfo():
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32"))
 
-    _check_inference(bb, relax.op.tile(x0, 1), x0.struct_info)
-    _check_inference(bb, relax.op.tile(x0, (1, 1)), x0.struct_info)
-    _check_inference(bb, relax.op.tile(x0, (1, 1, 1)), x0.struct_info)
-    _check_inference(bb, relax.op.tile(x1, 1), x1.struct_info)
-    _check_inference(bb, relax.op.tile(x2, 1), x2.struct_info)
+    _check_inference(bb, relax.op.tile(x0, 1), x0.ty)
+    _check_inference(bb, relax.op.tile(x0, (1, 1)), x0.ty)
+    _check_inference(bb, relax.op.tile(x0, (1, 1, 1)), x0.ty)
+    _check_inference(bb, relax.op.tile(x1, 1), x1.ty)
+    _check_inference(bb, relax.op.tile(x2, 1), x2.ty)
 
 
 def test_tile_infer_struct_info_wrong_input_type():

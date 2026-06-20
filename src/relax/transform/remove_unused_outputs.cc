@@ -121,7 +121,7 @@ class PartialTupleUsageCollector : ExprVisitor {
   }
 
   std::vector<bool>* GetCalleeUsageMask(Expr expr) {
-    if (!expr->struct_info_.as<TupleStructInfoNode>()) {
+    if (!expr->ty.as<TupleStructInfoNode>()) {
       return nullptr;
     }
 
@@ -158,7 +158,7 @@ class PartialTupleUsageCollector : ExprVisitor {
 };
 
 Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
-  auto old_func_sinfo = func->struct_info_.as<FuncStructInfoNode>();
+  auto old_func_sinfo = func->ty.as<FuncStructInfoNode>();
 
   auto old_ret_sinfo = func->ret_struct_info.as<TupleStructInfoNode>();
   TVM_FFI_ICHECK(old_ret_sinfo) << "All functions returning non-tuple outputs "
@@ -184,12 +184,12 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   BindingBlock binding_block({binding});
   SeqExpr new_body({binding_block}, new_output);
 
-  auto old_sinfo = Downcast<FuncStructInfo>(func->struct_info_);
+  auto old_sinfo = Downcast<FuncStructInfo>(func->ty);
   FuncStructInfo new_sinfo(old_func_sinfo->params.value(), new_return_sinfo,
                            old_func_sinfo->purity);
 
   auto write_ptr = func.CopyOnWrite();
-  write_ptr->struct_info_ = new_sinfo;
+  write_ptr->ty = new_sinfo;
   write_ptr->body = new_body;
 
   return func;
@@ -242,7 +242,7 @@ Pass RemoveUnusedOutputs() {
             auto new_func = UpdateCallee(func.value(), usage_mask);
 
             GlobalVar new_gvar(gvar->name_hint);
-            new_gvar->struct_info_ = new_func->struct_info_;
+            new_gvar->ty = new_func->ty;
             new_callees->Add(new_gvar, new_func);
 
             callsite_updaters[gvar] = [old_gvar = gvar, new_gvar, usage_mask](Call call) -> Expr {
@@ -250,10 +250,10 @@ Pass RemoveUnusedOutputs() {
                   << "Updater should be applied to " << old_gvar << ", but was applied to "
                   << call->op;
 
-              auto old_call_sinfo = call->struct_info_.as<TupleStructInfoNode>();
+              auto old_call_sinfo = call->ty.as<TupleStructInfoNode>();
               TVM_FFI_CHECK(old_call_sinfo, InternalError)
                   << "Updater should be applied to Call producing an output tuple, "
-                  << "but " << call << " has struct info " << call->struct_info_;
+                  << "but " << call << " has struct info " << call->ty;
               TVM_FFI_ICHECK_EQ(usage_mask.size(), old_call_sinfo->fields.size())
                   << "Function " << call->op << " produces " << usage_mask.size() << " outputs, "
                   << "but " << call << " was used in a context expecting "

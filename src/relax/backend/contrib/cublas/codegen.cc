@@ -84,7 +84,7 @@ class CublasJSONSerializer : public JSONSerializer {
       const CallNode* dequantize_call = backend::GetOpInFunction(fn, "relax.dequantize");
       if (dequantize_call->args[1]->IsInstance<ConstantNode>()) {
         const auto* const_expr = dequantize_call->args[1].as<ConstantNode>();
-        auto sinfo = Downcast<TensorStructInfo>(const_expr->struct_info_);
+        auto sinfo = Downcast<TensorStructInfo>(const_expr->ty);
         float alpha = 1.0;
         if (sinfo->dtype == DataType::Float(16)) {
           alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(

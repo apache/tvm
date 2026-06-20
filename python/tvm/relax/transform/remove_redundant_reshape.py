@@ -74,9 +74,7 @@ class RemoveRedundantReshape:
 
             elif self.no_op_reshape in matches:
                 output_shape = matches[self.no_op_reshape].args[1]
-                if arg.struct_info.shape and tvm_ffi.structural_equal(
-                    arg.struct_info.shape, output_shape
-                ):
+                if arg.ty.shape and tvm_ffi.structural_equal(arg.ty.shape, output_shape):
                     return arg
             return expr
 

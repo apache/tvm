@@ -100,13 +100,13 @@ class Tensor(_TensorOp):
         """Private constructor. Tensor is never supposed to be constructed directly by users."""
 
         def _check_tensor(expr: rx.Expr) -> None:
-            assert expr.struct_info_ is not None
-            assert isinstance(expr.struct_info, TensorStructInfo)
-            assert expr.struct_info.ndim != -1
-            assert expr.struct_info.shape is not None
-            assert expr.struct_info.shape.struct_info_ is not None
-            assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
-            assert expr.struct_info.shape.struct_info.values is not None
+            assert expr.ty is not None
+            assert isinstance(expr.ty, TensorStructInfo)
+            assert expr.ty.ndim != -1
+            assert expr.ty.shape is not None
+            assert expr.ty.shape.ty is not None
+            assert isinstance(expr.ty.shape.ty, ShapeStructInfo)
+            assert expr.ty.shape.ty.values is not None
 
         _check_tensor(_expr)
         self._expr = _expr
@@ -203,7 +203,7 @@ class Tensor(_TensorOp):
         def _simplify(expr: tirx.PrimExpr):
             return expr.value if isinstance(expr, tirx.IntImm) else expr
 
-        shape_sinfo: ShapeStructInfo = self._expr.struct_info.shape.struct_info
+        shape_sinfo: ShapeStructInfo = self._expr.ty.shape.ty
         return [_simplify(x) for x in shape_sinfo.values]
 
     @property
@@ -215,7 +215,7 @@ class Tensor(_TensorOp):
         ndim : int
             The number of dimensions of the tensor
         """
-        return self._expr.struct_info.ndim
+        return self._expr.ty.ndim
 
     @property
     def dtype(self) -> str:
@@ -226,7 +226,7 @@ class Tensor(_TensorOp):
         dtype : str
             The data type of the tensor
         """
-        return self._expr.struct_info.dtype
+        return self._expr.ty.dtype
 
     def __repr__(self) -> str:
         return f'Tensor({self.shape}, "{self.dtype}")'
@@ -322,7 +322,7 @@ class Object:
         if not isinstance(_expr, rx.Var):
             _expr = BlockBuilder.current().emit(_expr, _name)
         self._expr = _expr
-        assert isinstance(self._expr.struct_info, ObjectStructInfo)
+        assert isinstance(self._expr.ty, ObjectStructInfo)
 
 
 class Effect:
@@ -778,17 +778,17 @@ def wrap_nested(expr: rx.Expr, name: str) -> Tensor | Sequence[Tensor]:
     """
     if not isinstance(expr, rx.DataflowVar):
         expr = BlockBuilder.current().emit(expr, name)
-    if isinstance(expr.struct_info_, TensorStructInfo):
+    if isinstance(expr.ty, TensorStructInfo):
         return Tensor(_expr=expr)
-    if isinstance(expr.struct_info_, TupleStructInfo):
+    if isinstance(expr.ty, TupleStructInfo):
         return tuple(
             wrap_nested(  # type: ignore
                 rx.TupleGetItem(expr, i),
                 name=f"{name}.{i}",
             )
-            for i in range(len(expr.struct_info_.fields))
+            for i in range(len(expr.ty.fields))
         )
-    raise TypeError(f"Unsupported return type: {expr.struct_info_}")
+    raise TypeError(f"Unsupported return type: {expr.ty}")
 
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):

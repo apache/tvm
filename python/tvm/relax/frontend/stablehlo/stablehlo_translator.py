@@ -145,10 +145,10 @@ class StableHLOImporter:
         if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
             return lhs, rhs
         if isinstance(lhs, relax.Expr):
-            assert isinstance(lhs.struct_info, relax.TensorStructInfo)
-            return lhs, relax.const(rhs, lhs.struct_info.dtype)
-        assert isinstance(rhs.struct_info, relax.TensorStructInfo)
-        return relax.const(lhs, rhs.struct_info.dtype), rhs
+            assert isinstance(lhs.ty, relax.TensorStructInfo)
+            return lhs, relax.const(rhs, lhs.ty.dtype)
+        assert isinstance(rhs.ty, relax.TensorStructInfo)
+        return relax.const(lhs, rhs.ty.dtype), rhs
 
     def _call_binary_op(self, op, lhs, rhs):
         lhs, rhs = StableHLOImporter._promote_binary_op_args(lhs, rhs)

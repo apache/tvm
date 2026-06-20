@@ -104,12 +104,12 @@ void BuildAxisGraphUnary(const Var& output_var, const Call& call,
 void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
   ffi::Array<Expr> tensor_list;  // vars in param and output
-  if (call->args[0]->struct_info_.as<TensorStructInfoNode>() ||
-      call->args[0]->struct_info_.as<DTensorStructInfoNode>()) {
+  if (call->args[0]->ty.as<TensorStructInfoNode>() ||
+      call->args[0]->ty.as<DTensorStructInfoNode>()) {
     tensor_list.push_back(call->args[0]);
   }
-  if (call->args[1]->struct_info_.as<TensorStructInfoNode>() ||
-      call->args[1]->struct_info_.as<DTensorStructInfoNode>()) {
+  if (call->args[1]->ty.as<TensorStructInfoNode>() ||
+      call->args[1]->ty.as<DTensorStructInfoNode>()) {
     tensor_list.push_back(call->args[1]);
   }
   tensor_list.push_back(output_var);

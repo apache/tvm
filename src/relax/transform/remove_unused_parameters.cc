@@ -106,8 +106,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   }
 
   FuncStructInfo new_sinfo(params.Map([](const auto& var) { return GetStructInfo(var); }),
-                           func->ret_struct_info,
-                           Downcast<FuncStructInfo>(func->struct_info_)->purity);
+                           func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
 
   auto arg_updater = [parameter_mask, old_relax_params = func->params,
                       free_tir_vars](ffi::Array<Expr> old_args) -> ffi::Array<Expr> {
@@ -140,7 +139,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
-  write_ptr->struct_info_ = new_sinfo;
+  write_ptr->ty = new_sinfo;
 
   return CalleeAnalysis{func, arg_updater};
 }
@@ -196,7 +195,7 @@ Pass RemoveUnusedParameters() {
           if (auto callee_res = AnalyzeCallee(func.value())) {
             auto new_func = callee_res->func;
             GlobalVar new_gvar(gvar->name_hint);
-            new_gvar->struct_info_ = new_func->struct_info_;
+            new_gvar->ty = new_func->ty;
             new_callees->Add(new_gvar, new_func);
 
             callsite_updaters[gvar] = [old_gvar = gvar, new_gvar,

@@ -81,12 +81,12 @@ StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx)
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "broadcast_to requires the input data to be Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (tgt_shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "broadcast_to requires the input new shape to be Shape. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   if (!data_sinfo->IsUnknownNdim() && !tgt_shape_sinfo->IsUnknownNdim() &&
@@ -101,7 +101,7 @@ StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx)
   if (!data_sinfo->shape.defined()) {
     return TensorStructInfo(/*shape=*/call->args[1], data_sinfo->dtype, data_sinfo->vdevice);
   }
-  ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->struct_info_);
+  ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->ty);
   if (!shape_sinfo->values.defined() || !tgt_shape_sinfo->values.defined()) {
     return TensorStructInfo(/*shape=*/call->args[1], data_sinfo->dtype, data_sinfo->vdevice);
   }
@@ -278,7 +278,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
       continue;
     }
     // Keep the shape value for equality check.
-    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->ty);
     if (shape_sinfo->values.defined()) {
       shape_values.push_back(shape_sinfo->values.value());
     }
@@ -352,14 +352,14 @@ InferLayoutOutput InferLayoutConcat(
       const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[0]);
       TVM_FFI_ICHECK(tuple_sinfo != nullptr)
           << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << call->args[0]->struct_info_->GetTypeKey();
+          << call->args[0]->ty->GetTypeKey();
       for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
         StructInfo field_sinfo = tuple_sinfo->fields[i];
         const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
         TVM_FFI_ICHECK(field_tensor_sinfo != nullptr)
             << call->op
             << " expects the input to be a Tuple of Tensors. However, the given input is "
-            << call->args[0]->struct_info_;
+            << call->args[0]->ty;
         auto t_sinfo = ffi::GetRef<TensorStructInfo>(field_tensor_sinfo);
         ffi::Optional<ShapeExpr> t_shape =
             ffi::GetRef<ShapeExpr>(t_sinfo->shape.as<ShapeExprNode>());
@@ -755,7 +755,7 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
                             data_sinfo->vdevice);
   }
 
-  ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->struct_info_);
+  ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->ty);
   if (!shape_sinfo->values.defined()) {
     return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size(),
                             data_sinfo->vdevice);
@@ -954,7 +954,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(data);
   TVM_FFI_ICHECK(data_sinfo != nullptr)
       << "Reshape expects the input data to be a Tensor. However, the given input is "
-      << data->struct_info_->GetTypeKey();
+      << data->ty->GetTypeKey();
   TVM_FFI_ICHECK(data_sinfo->shape.defined())
       << "Reshape expects the input tensor to have known shape when there is some dimension length "
          "to infer. However, the given input has no shape.";
@@ -1013,12 +1013,12 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input data to be Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (new_shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input new shape to be Shape. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
@@ -1263,7 +1263,7 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> shape_value;
   if (data_sinfo->shape.defined()) {
-    shape_value = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->struct_info_)->values;
+    shape_value = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->ty)->values;
   }
 
   std::vector<bool> axis_removal_mask;
@@ -1550,7 +1550,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
     shape_unknown = true;
 
     if (!sinfo->shape.defined()) continue;
-    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->ty);
     if (shape_sinfo->values.defined()) {
       shape_values.push_back(shape_sinfo->values.value());
     }
@@ -1719,12 +1719,12 @@ StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ct
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "CollapseSumTo requires the input data to be a Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "CollapseSumTo requires the input shape to be a Shape. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   DataType output_dtype = data_sinfo->dtype;
@@ -2110,12 +2110,12 @@ StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& c
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GatherElements requires the input data to be a Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (indices_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GatherElements requires the input indices to be a Tensor. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   if (!indices_sinfo->IsUnknownDtype() && !indices_sinfo->dtype.is_int()) {
@@ -2211,12 +2211,12 @@ StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GatherND requires the input data to be a Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (indices_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GatherND requires the input indices to be a Tensor. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
   TVM_FFI_ICHECK_GE(attrs->batch_dims, 0);
   int batch_dims = static_cast<int>(attrs->batch_dims);
@@ -2308,8 +2308,8 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
     }
   };
 
-  diag_def(data_sinfo, "data", call->args[0]->struct_info_->GetTypeKey());
-  diag_def(values_sinfo, "values", call->args[2]->struct_info_->GetTypeKey());
+  diag_def(data_sinfo, "data", call->args[0]->ty->GetTypeKey());
+  diag_def(values_sinfo, "values", call->args[2]->ty->GetTypeKey());
 
   // Handle indices: either a single tensor or a tuple of tensors
   ffi::Array<TensorStructInfo> indices_tensors;
@@ -2331,7 +2331,7 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   } else {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "IndexPut requires indices to be a Tensor or a tuple of Tensors. "
-        << "However, the given one is " << call->args[1]->struct_info_->GetTypeKey();
+        << "However, the given one is " << call->args[1]->ty->GetTypeKey();
   }
 
   if (data_sinfo->IsUnknownNdim()) {
@@ -2564,9 +2564,9 @@ StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& 
     }
   };
 
-  diag_def(data_sinfo, "data", call->args[0]->struct_info_->GetTypeKey());
-  diag_def(indices_sinfo, "indices", call->args[1]->struct_info_->GetTypeKey());
-  diag_def(updates_sinfo, "updates", call->args[2]->struct_info_->GetTypeKey());
+  diag_def(data_sinfo, "data", call->args[0]->ty->GetTypeKey());
+  diag_def(indices_sinfo, "indices", call->args[1]->ty->GetTypeKey());
+  diag_def(updates_sinfo, "updates", call->args[2]->ty->GetTypeKey());
 
   if (data_sinfo->IsUnknownNdim()) {
     // When `data` has unknown rank, assume rest of arguments are correct and proceed.
@@ -2875,7 +2875,7 @@ StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx
     if (sinfo == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "SliceScatter requires the input " << name
-          << " to be a Tensor. However, the given one is " << arg_expr->struct_info_->GetTypeKey();
+          << " to be a Tensor. However, the given one is " << arg_expr->ty->GetTypeKey();
     }
   };
 

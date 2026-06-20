@@ -27,15 +27,15 @@
 namespace tvm {
 namespace relax {
 
-void StructInfoVisitor::VisitStructInfo_(const ObjectStructInfoNode* op) {}
+void TypeVisitor::VisitType_(const ObjectStructInfoNode* op) {}
 
-void StructInfoVisitor::VisitStructInfo_(const PrimStructInfoNode* op) {
+void TypeVisitor::VisitType_(const PrimStructInfoNode* op) {
   if (op->value.defined()) {
     this->VisitStructInfoExprField(op->value.value());
   }
 }
 
-void StructInfoVisitor::VisitStructInfo_(const ShapeStructInfoNode* op) {
+void TypeVisitor::VisitType_(const ShapeStructInfoNode* op) {
   if (op->values.defined()) {
     for (PrimExpr value : op->values.value()) {
       this->VisitStructInfoExprField(value);
@@ -43,36 +43,36 @@ void StructInfoVisitor::VisitStructInfo_(const ShapeStructInfoNode* op) {
   }
 }
 
-void StructInfoVisitor::VisitStructInfo_(const TensorStructInfoNode* op) {
+void TypeVisitor::VisitType_(const TensorStructInfoNode* op) {
   if (op->shape.defined()) {
     this->VisitStructInfoExprField(op->shape.value());
   }
 }
 
-void StructInfoVisitor::VisitStructInfo_(const distributed::DTensorStructInfoNode* op) {
-  this->VisitStructInfo(op->tensor_sinfo);
+void TypeVisitor::VisitType_(const distributed::DTensorStructInfoNode* op) {
+  this->VisitType(op->tensor_sinfo);
 }
 
-void StructInfoVisitor::VisitStructInfo_(const TupleStructInfoNode* op) {
+void TypeVisitor::VisitType_(const TupleStructInfoNode* op) {
   for (StructInfo field : op->fields) {
-    this->VisitStructInfo(field);
+    this->VisitType(field);
   }
 }
 
-void StructInfoVisitor::VisitStructInfo_(const FuncStructInfoNode* op) {
+void TypeVisitor::VisitType_(const FuncStructInfoNode* op) {
   if (op->params.defined()) {
     for (StructInfo param : op->params.value()) {
-      this->VisitStructInfo(param);
+      this->VisitType(param);
     }
   }
-  this->VisitStructInfo(op->ret);
+  this->VisitType(op->ret);
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const ObjectStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const ObjectStructInfoNode* op) {
   return ffi::GetRef<StructInfo>(op);
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const PrimStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const PrimStructInfoNode* op) {
   if (!op->value.defined()) {
     return ffi::GetRef<StructInfo>(op);
   }
@@ -85,7 +85,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const PrimStructInfoNode* op) {
   }
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const ShapeStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const ShapeStructInfoNode* op) {
   ffi::Optional<ffi::Array<PrimExpr>> values;
 
   if (op->values.defined()) {
@@ -101,7 +101,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const ShapeStructInfoNode* op) {
   }
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const TensorStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const TensorStructInfoNode* op) {
   ffi::Optional<Expr> shape;
 
   if (op->shape.defined()) {
@@ -117,15 +117,14 @@ StructInfo StructInfoMutator::VisitStructInfo_(const TensorStructInfoNode* op) {
   }
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const distributed::DTensorStructInfoNode* op) {
-  TensorStructInfo tensor_sinfo =
-      Downcast<TensorStructInfo>(this->VisitStructInfo(op->tensor_sinfo));
+StructInfo TypeMutator::VisitType_(const distributed::DTensorStructInfoNode* op) {
+  TensorStructInfo tensor_sinfo = Downcast<TensorStructInfo>(this->VisitType(op->tensor_sinfo));
   return distributed::DTensorStructInfo(tensor_sinfo, op->device_mesh, op->placement);
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const TupleStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const TupleStructInfoNode* op) {
   ffi::Array<StructInfo> fields =
-      op->fields.Map([this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
+      op->fields.Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
 
   if (fields.same_as(op->fields)) {
     return ffi::GetRef<StructInfo>(op);
@@ -134,15 +133,15 @@ StructInfo StructInfoMutator::VisitStructInfo_(const TupleStructInfoNode* op) {
   }
 }
 
-StructInfo StructInfoMutator::VisitStructInfo_(const FuncStructInfoNode* op) {
+StructInfo TypeMutator::VisitType_(const FuncStructInfoNode* op) {
   ffi::Optional<ffi::Array<StructInfo>> params;
 
   if (op->params.defined()) {
-    params = op->params.value().Map(
-        [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
+    params =
+        op->params.value().Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
   }
 
-  StructInfo ret = this->VisitStructInfo(op->ret);
+  StructInfo ret = this->VisitType(op->ret);
 
   if (params.same_as(op->params) && ret.same_as(op->ret)) {
     return ffi::GetRef<StructInfo>(op);

@@ -43,8 +43,8 @@ def test_bind_static_value(replace_by_tir_var):
         return R.matmul(A, B)
 
     if replace_by_tir_var:
-        M, K = before.params[0].struct_info.shape
-        _, N = before.params[1].struct_info.shape
+        M, K = before.params[0].ty.shape
+        _, N = before.params[1].ty.shape
         symbolic_var_map = {M: 128, K: 64, N: 32}
     else:
         symbolic_var_map = {"M": 128, "K": 64, "N": 32}
@@ -128,7 +128,7 @@ def test_error_with_multiple_definitions():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    tir_var = func.params[0].struct_info.shape[0]
+    tir_var = func.params[0].ty.shape[0]
     symbolic_var_map = {tir_var: 0, "M": 0}
 
     with pytest.raises(RuntimeError):

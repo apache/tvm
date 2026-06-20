@@ -26,7 +26,7 @@
  * with the offending node so the caller can resolve a precise access path.
  * Use `check_well_formed` for a boolean answer.
  * This pass will check:
- *    1. Each Expr should have `struct_info_` field already populated, when
+ *    1. Each Expr should have `ty` field already populated, when
  *      `check_struct_info` is true.
  *    2. GlobalVars are defined before use. And all GlobalVars have different names.
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
@@ -57,7 +57,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    13. Expr always has struct_info_ (with the exception of Op).
+ *    13. Expr always has ty (with the exception of Op).
  *    14. DataflowBlocks may not contain If nodes.
  *    15. DataflowBlocks may not contain calls to impure functions or operators
  *        (only checked if check_struct_info is true).
@@ -91,7 +91,7 @@ namespace relax {
 //
 /*! \brief Helper to implement well formed check.*/
 class WellFormedChecker : public relax::ExprVisitor,
-                          public relax::StructInfoVisitor,
+                          public relax::TypeVisitor,
                           public tirx::ExprVisitor {
  public:
   // Throws ffi::Error on the first well-formedness violation, seeded with the
@@ -121,7 +121,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
  private:
   WellFormedChecker(ffi::Optional<IRModule> mod, bool check_struct_info)
-      : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
+      : mod_(std::move(mod)), check_ty(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
   using tirx::ExprVisitor::VisitExpr;
@@ -163,8 +163,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->struct_info_.defined()) {
-      TVM_FFI_VISIT_THROW(TypeError, expr) << "The struct_info_ of Expr " << expr << " is nullptr.";
+    if (!expr.as<OpNode>() && !expr->ty.defined()) {
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
@@ -179,11 +179,10 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->struct_info_.defined()) {
-      if (!op->struct_info_->IsInstance<FuncStructInfoNode>()) {
+    if (op->ty.defined()) {
+      if (!op->ty->IsInstance<FuncStructInfoNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
-            << "The struct_info_ of GlobalVar " << ffi::GetRef<Expr>(op)
-            << " must be either FuncStructInfo.";
+            << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncStructInfo.";
       }
     }
 
@@ -258,7 +257,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     WithMode(VisitMode::kMatchVarDef, [&]() {
       TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetStructInfo(param));
       }
     });
 
@@ -284,7 +283,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
     // check function ret_struct_info
     if (op->ret_struct_info.defined()) {
-      this->VisitStructInfo(op->ret_struct_info);
+      this->VisitType(op->ret_struct_info);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
           << "Function must have defined ret_struct_info";
@@ -292,8 +291,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_struct_info_ && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) &&
-        op->is_pure) {
+    if (check_ty && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
             << "Function " << op << " is annotated as pure but contains an impure call: " << impure
@@ -338,11 +336,11 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     for (const StructInfo& sinfo_arg : call->sinfo_args) {
-      this->VisitStructInfo(sinfo_arg);
+      this->VisitType(sinfo_arg);
     }
 
     CheckStructInfo(call);
-    if (is_dataflow_ && check_struct_info_) {
+    if (is_dataflow_ && check_ty) {
       if (auto impure = FindImpureCall(ffi::GetRef<Call>(call))) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "Impure function call " << impure << " occurs within a dataflow block.";
@@ -387,7 +385,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_struct_info_ && call->struct_info_.defined()) {
+    if (check_ty && call->ty.defined()) {
       // The `InferStructInfo` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `StructInfo`.
@@ -405,7 +403,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
       if (normalized.defined()) {
         auto inferred_struct_info = GetStructInfo(normalized.value());
-        auto current_struct_info = Downcast<StructInfo>(call->struct_info_);
+        auto current_struct_info = Downcast<StructInfo>(call->ty);
 
         // An error should be raised if the annotated StructInfo is
         // provably incorrect.  This check is done using
@@ -507,8 +505,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     this->VisitVarDef(binding->var);
 
-    if (check_struct_info_ && binding->var->struct_info_.defined() &&
-        binding->value->struct_info_.defined()) {
+    if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
       auto expr_sinfo = GetStructInfo(binding->value);
       auto var_sinfo = GetStructInfo(binding->var);
       if (!IsBaseOf(var_sinfo, expr_sinfo)) {
@@ -526,9 +523,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitBinding_(const MatchCastNode* binding) final {
     this->VisitExpr(binding->value);
     // define the vars
-    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
+    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitType(binding->struct_info); });
 
-    this->VisitStructInfo(binding->struct_info);
+    this->VisitType(binding->struct_info);
     this->VisitVarDef(binding->var);
   }
 
@@ -588,16 +585,16 @@ class WellFormedChecker : public relax::ExprVisitor,
     symbolic_var_func_map_.insert({var, cur_visited_func_});
   }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+  void VisitType_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
         TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+          this->VisitType(param);
         }
       });
     }
-    this->VisitStructInfo(op->ret);
+    this->VisitType(op->ret);
   }
 
   void VisitStructInfoExprField(const Expr& expr) final {
@@ -634,13 +631,13 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void CheckStructInfo(const ExprNode* op) {
-    if (!check_struct_info_) {
+    if (!check_ty) {
       return;
     }
 
-    auto* sinfo = op->struct_info_.as<StructInfoNode>();
+    auto* sinfo = op->ty.as<StructInfoNode>();
     if (sinfo != nullptr) {
-      this->VisitStructInfo(ffi::GetRef<StructInfo>(sinfo));
+      this->VisitType(ffi::GetRef<StructInfo>(sinfo));
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
           << "Expr must have struct_info populated. "
@@ -657,7 +654,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   ffi::Optional<IRModule> mod_;
-  const bool check_struct_info_;
+  const bool check_ty;
   bool is_dataflow_;
   // Current visited function.
   const FunctionNode* cur_visited_func_;

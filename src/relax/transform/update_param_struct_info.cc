@@ -38,9 +38,9 @@ namespace tvm {
 namespace relax {
 
 namespace {
-class ParamStructInfoMutator : public ExprMutator {
+class ParamTypeMutator : public ExprMutator {
  public:
-  explicit ParamStructInfoMutator(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func)
+  explicit ParamTypeMutator(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func)
       : sinfo_func_(sinfo_func) {}
 
   using ExprMutator::VisitExpr_;
@@ -72,7 +72,7 @@ class ParamStructInfoMutator : public ExprMutator {
 namespace transform {
 Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    ParamStructInfoMutator mutator(sinfo_func);
+    ParamTypeMutator mutator(sinfo_func);
 
     std::unordered_set<GlobalVar> to_remove;
     std::unordered_map<GlobalVar, Function> to_add;

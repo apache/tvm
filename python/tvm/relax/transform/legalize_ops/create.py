@@ -35,22 +35,22 @@ def _full(is_like: bool, fill_value: float | None, primfunc_name: str) -> Legali
             if fill_value is None
             else fill_value
         )
-        shape = call.args[0].struct_info.shape if is_like else call.args[0]
+        shape = call.args[0].ty.shape if is_like else call.args[0]
 
         if isinstance(shape, ShapeExpr):
             output_shape = shape.values
         else:
-            assert isinstance(shape.struct_info, ShapeStructInfo)
-            assert shape.struct_info.ndim >= 0
+            assert isinstance(shape.ty, ShapeStructInfo)
+            assert shape.ty.ndim >= 0
 
             shape = bb.emit(shape)
-            output_shape = [tirx.Var(f"s{i}", "int64") for i in range(shape.struct_info.ndim)]
+            output_shape = [tirx.Var(f"s{i}", "int64") for i in range(shape.ty.ndim)]
             bb.match_cast(shape, ShapeStructInfo(output_shape))
 
         return bb.call_te(
             topi.full,
             output_shape,
-            call.struct_info.dtype,
+            call.ty.dtype,
             _fill_value,
             primfunc_name_hint=primfunc_name,
         )
@@ -88,8 +88,8 @@ def _eye(is_like: bool, primfunc_name: str) -> LegalizeFunc:
         if is_like:
             x = call.args[0]
             k = _convert_to_scalar_const(call.args[1]) if len(call.args) > 1 else 0
-            n, m = x.struct_info.shape
-            dtype = x.struct_info.dtype
+            n, m = x.ty.shape
+            dtype = x.ty.dtype
         else:
             n = _convert_to_scalar_const(call.args[0])
             m = _convert_to_scalar_const(call.args[1]) if len(call.args) > 1 else n

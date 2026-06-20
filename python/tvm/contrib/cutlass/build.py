@@ -379,7 +379,7 @@ def _extract_relax_function_signature(f):
     signature = {}
 
     for i, arg in enumerate(f.params):
-        sinfo = arg.struct_info
+        sinfo = arg.ty
         if isinstance(sinfo, relax.TensorStructInfo):
             signature[f"arg{i}_shape"] = get_const_tuple(sinfo.shape)
             signature[f"arg{i}_dtype"] = sinfo.dtype
@@ -714,12 +714,12 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         if "stacked_attention" in op_type:
             arg["arg0_dtype"] = signature["arg0_dtype"]
-            q_shape = get_const_tuple(attention_node.args[0].struct_info.shape)
-            k_shape = get_const_tuple(attention_node.args[1].struct_info.shape)
-            v_shape = get_const_tuple(attention_node.args[2].struct_info.shape)
+            q_shape = get_const_tuple(attention_node.args[0].ty.shape)
+            k_shape = get_const_tuple(attention_node.args[1].ty.shape)
+            v_shape = get_const_tuple(attention_node.args[2].ty.shape)
             if len(attention_node.args) == 4:
-                arg["bias_shape"] = get_const_tuple(attention_node.args[3].struct_info.shape)
-                arg["bias_dtype"] = attention_node.args[3].struct_info.dtype
+                arg["bias_shape"] = get_const_tuple(attention_node.args[3].ty.shape)
+                arg["bias_dtype"] = attention_node.args[3].ty.dtype
 
             qkv_layout = "qkv_stacked"
         else:

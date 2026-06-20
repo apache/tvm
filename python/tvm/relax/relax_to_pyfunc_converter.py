@@ -426,8 +426,8 @@ class RelaxExpressionConverter:
                 return self.variable_map[var_name]
 
             # Try to infer shape from var's type annotation
-            if hasattr(var, "struct_info") and hasattr(var.struct_info, "shape"):
-                shape = var.struct_info.shape
+            if hasattr(var, "ty") and hasattr(var.ty, "shape"):
+                shape = var.ty.shape
                 if shape and len(shape) > 0:
                     # Convert symbolic shapes to concrete values
                     concrete_shape = []

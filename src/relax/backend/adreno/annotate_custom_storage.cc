@@ -500,14 +500,14 @@ class CollectProducerScopeInfo : public ExprVisitor {
     if (call->op == call_tir_op) {
       out_sinfo = call->sinfo_args[0];
     } else {
-      tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
+      tvm::OpAttrMap<FInferStructInfo> op_map_infer_ty =
           Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
 
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      TVM_FFI_ICHECK(op_map_infer_struct_info_.count(op))
+      TVM_FFI_ICHECK(op_map_infer_ty.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-      out_sinfo = op_map_infer_struct_info_[op](ffi::GetRef<Call>(call), builder_);
+      out_sinfo = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
     }
 
     std::unordered_map<ffi::String, int> scope_count;
@@ -717,12 +717,11 @@ class DefineVDevice : ExprMutator {
 
   Expr HintArg(const Expr& arg, ffi::String scope) {
     if (arg->IsInstance<ConstantNode>()) {
-      if (auto tsinfo = arg->struct_info_.as<TensorStructInfoNode>()) {
+      if (auto tsinfo = arg->ty.as<TensorStructInfoNode>()) {
         if (!tsinfo->vdevice.defined()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
           TVM_FFI_ICHECK(tsinfo->shape.defined()) << "Shape not defined for a constant tensor ..!";
-          arg->struct_info_ =
-              TensorStructInfo(tsinfo->shape.value(), tsinfo->dtype, vdev, tsinfo->span);
+          arg->ty = TensorStructInfo(tsinfo->shape.value(), tsinfo->dtype, vdev, tsinfo->span);
           return arg;
         }
       }

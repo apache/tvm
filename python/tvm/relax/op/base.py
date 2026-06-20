@@ -82,10 +82,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
-        and (
-            args.struct_info_ is None
-            or not isinstance(args.struct_info_, tvm.relax.TupleStructInfo)
-        )
+        and (args.ty is None or not isinstance(args.ty, tvm.relax.TupleStructInfo))
     ):
         return tvm.relax.Tuple([args])
     else:

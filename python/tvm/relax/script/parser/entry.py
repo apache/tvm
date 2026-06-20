@@ -215,10 +215,10 @@ class TensorProxy(StructInfoProxy):
                     "When the shape is an Expr, it must be a ShapeExpr or a Var with ShapeExpr "
                     f"value. But got: {shape} with type: {type(shape)}"
                 )
-            if isinstance(shape, Var) and not isinstance(shape.struct_info, ShapeStructInfo):
+            if isinstance(shape, Var) and not isinstance(shape.ty, ShapeStructInfo):
                 raise ValueError(
                     "When the shape is a Var, it must have shape struct_info. But got "
-                    f"{shape} with struct_info: {shape.struct_info}"
+                    f"{shape} with struct_info: {shape.ty}"
                 )
         self.shape = shape
         self.dtype = dtype
@@ -496,11 +496,11 @@ def Prim(
 ############################ R.match_cast #############################
 class MatchCastPair:
     value: Expr
-    struct_info: StructInfo
+    ty: StructInfo
 
     def __init__(self, value: Expr, struct_info: StructInfo) -> None:
         self.value = value
-        self.struct_info = struct_info
+        self.ty = struct_info
 
 
 def match_cast(value: Expr, struct_info: StructInfo):

@@ -115,7 +115,7 @@ def call_tir_local_view(
 def redistribute_replica_to_shard(input: Expr, num_workers: int, axis: int) -> Expr:
     """Slice tensor into several parts along one axis,
         and each worker takes one part.
-        input.struct_info.shape[axis] % num_workers == 0 is required.
+        input.ty.shape[axis] % num_workers == 0 is required.
         Each worker must have an identical copy of the input.
         This is a specialized version of redistribute op.
 

@@ -84,27 +84,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.ty.dtype))
         )
 
     def _log10(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.ty.dtype))
         )
 
     def _log1p(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        one = relax.const(1, x.struct_info.dtype)
+        one = relax.const(1, x.ty.dtype)
         return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
 
     def _reciprocal(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.ty.dtype), x))
 
     def _sqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
 
         # Check if input is integer type and convert to float32 if needed
         if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
@@ -114,7 +114,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _rsqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
 
         # Check if input is integer type and convert to float32 if needed
         if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
@@ -134,7 +134,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
         scale = node.args[1] is not None
         center = node.args[2] is not None
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
@@ -192,7 +192,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
 
         output = self.block_builder.emit(bn_tuple[0])
         new_running_mean = self.block_builder.emit(bn_tuple[1])
@@ -210,7 +210,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         eps = node.args[5] if len(node.args) > 5 else node.kwargs.get("eps", 1e-05)
@@ -508,7 +508,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # o_t = sigmoid(W_io * x_t + b_io + W_ho * h_{t-1} + b_ho)
         # c_t = f_t * c_{t-1} + i_t * g_t
         # h_t = o_t * tanh(c_t)
-        dtype = input_tensor.struct_info.dtype
+        dtype = input_tensor.ty.dtype
         params_per_direction = 4 if has_biases else 2
 
         # Extract or create forward direction weights
@@ -807,7 +807,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # Fallback to a default hidden size
             hidden_size = 16
 
-        dtype = input_tensor.struct_info.dtype
+        dtype = input_tensor.ty.dtype
 
         # Extract forward direction weights
         if params and len(params) >= params_per_direction:
@@ -1045,7 +1045,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         import numpy as np
 
         x = self.env[node.args[0]]
-        x_sinfo = x.struct_info
+        x_sinfo = x.ty
         shape = [int(s) for s in x_sinfo.shape]
         dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_sinfo.dtype, self.env)
         data = np.random.randn(*shape).astype(dtype)
@@ -1088,13 +1088,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
         if alpha != 1.0:
-            alpha_const = relax.const(alpha, matmul_result.struct_info.dtype)
+            alpha_const = relax.const(alpha, matmul_result.ty.dtype)
             matmul_result = self.block_builder.emit(relax.op.multiply(matmul_result, alpha_const))
 
         # Compute beta * input + alpha * matmul_result
         if beta != 0.0:
             if beta != 1.0:
-                beta_const = relax.const(beta, input_tensor.struct_info.dtype)
+                beta_const = relax.const(beta, input_tensor.ty.dtype)
                 input_scaled = self.block_builder.emit(relax.op.multiply(input_tensor, beta_const))
             else:
                 input_scaled = input_tensor
@@ -1168,7 +1168,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
             )
             boxes = self.block_builder.emit(
-                relax.op.subtract(boxes, relax.const(0.5, rois.struct_info.dtype))
+                relax.op.subtract(boxes, relax.const(0.5, rois.ty.dtype))
             )
             rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
 
@@ -1198,7 +1198,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.struct_info.dtype
+        dtype = x.ty.dtype
         gamma = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         beta = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         eps = node.args[4] if node.args[4] else 1e-05
@@ -1247,7 +1247,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         index = self.env[node.args[2]]
         value = node.args[3]
 
-        value_const = relax.const(value, x.struct_info.dtype)
+        value_const = relax.const(value, x.ty.dtype)
         src = self.block_builder.emit(relax.op.broadcast_to(value_const, self.shape_of(index)))
 
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
@@ -1417,10 +1417,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             placeholders = [n for n in nodes if n.op == "placeholder"]
             params = []
             for ph, operand in zip(placeholders, operands):
-                if hasattr(operand, "struct_info") and isinstance(
-                    operand.struct_info, relax.TensorStructInfo
-                ):
-                    orig_si = operand.struct_info
+                if hasattr(operand, "ty") and isinstance(operand.ty, relax.TensorStructInfo):
+                    orig_si = operand.ty
                     # Create fresh SizeVars to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
@@ -1432,8 +1430,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         si = relax.TensorStructInfo(new_shape, orig_si.dtype)
                     else:
                         si = orig_si
-                elif hasattr(operand, "struct_info"):
-                    si = operand.struct_info
+                elif hasattr(operand, "ty"):
+                    si = operand.ty
                 else:
                     si = relax.ObjectStructInfo()
                 param = relax.Var(ph.name, si)
@@ -1536,7 +1534,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "expm1.default": lambda node: self.block_builder.emit(
                 relax.op.subtract(
                     relax.op.exp(self.env[node.args[0]]),
-                    relax.const(1.0, self.env[node.args[0]].struct_info.dtype),
+                    relax.const(1.0, self.env[node.args[0]].ty.dtype),
                 )
             ),
             "floor.default": self._unary_op(relax.op.floor),

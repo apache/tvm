@@ -143,7 +143,7 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(call_node->struct_info_.defined());
+  TVM_FFI_ICHECK(call_node->ty.defined());
   Expr expr = call_node->args[0];
   const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
   TVM_FFI_ICHECK(sinfo);
@@ -264,7 +264,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
         // Replace non-target functions with stubs to keep references intact.
         keep_original_version.insert(gvar->name_hint);
         func = relax::ExternFunc("dummy_" + std::string(gvar->name_hint));
-        func->struct_info_ = gvar->struct_info_;
+        func->ty = gvar->ty;
       }
       subset->Add(gvar, func);
     }

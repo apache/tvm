@@ -1065,7 +1065,7 @@ def get_qkv_proj_rewriter():
         Q_weight = matchings[Q_weight_pat]
         K_weight = matchings[K_weight_pat]
         V_weight = matchings[V_weight_pat]
-        width = Q_weight.struct_info.shape[1]
+        width = Q_weight.ty.shape[1]
 
         concat = R.concat([Q_weight, K_weight, V_weight], axis=1)
         matmul = R.matmul(inp, concat)
@@ -1315,7 +1315,7 @@ def test_combine_transposed_matmul_twice():
 
             concat = R.concat([w1, w2], axis=0)
             matmul = R.matmul(inp, R.permute_dims(concat))
-            sections = [w1.struct_info.shape[0]]
+            sections = [w1.ty.shape[0]]
 
             chunks = R.split(matmul, sections, -1)
 
@@ -1479,7 +1479,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         arg = matches[pattern_arg]
         shape_expr = matches[pattern_shape_expr]
 
-        if tvm_ffi.structural_equal(arg.struct_info.shape, shape_expr):
+        if tvm_ffi.structural_equal(arg.ty.shape, shape_expr):
             return arg
         else:
             return expr
@@ -1614,7 +1614,7 @@ def test_iterative_rewrite_without_trivial_binding():
         strides = matches[pattern_strides]
         strided_slice = matches[pattern]
 
-        if arg.struct_info.shape is None:
+        if arg.ty.shape is None:
             return expr
 
         if len(axes) != 1:
@@ -1628,7 +1628,7 @@ def test_iterative_rewrite_without_trivial_binding():
         if stride != 1:
             return expr
 
-        size = arg.struct_info.shape[0]
+        size = arg.ty.shape[0]
         if (
             isinstance(size, tirx.IntImm)
             and isinstance(begin, tirx.IntImm)
@@ -1756,9 +1756,7 @@ def test_iterative_rewrite_with_removed_intermediates():
         if pat_unwrap_concat_split in matches:
             args = matches[pat_args]
 
-            if len(args) == 2 and tvm_ffi.structural_equal(
-                args[0].struct_info, args[1].struct_info
-            ):
+            if len(args) == 2 and tvm_ffi.structural_equal(args[0].ty, args[1].ty):
                 return args
 
         elif pat_add_self in matches:

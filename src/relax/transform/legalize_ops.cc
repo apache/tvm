@@ -124,7 +124,7 @@ class LegalizeMutator : public ExprMutator {
     bool pure_legalized_op = [&]() -> bool {
       if (auto legalized_op = call->op.as<Op>()) {
         return purity_map.get(legalized_op.value(), false);
-      } else if (auto func_sinfo = call->op->struct_info_.as<FuncStructInfoNode>()) {
+      } else if (auto func_sinfo = call->op->ty.as<FuncStructInfoNode>()) {
         return func_sinfo->purity;
       } else {
         return false;

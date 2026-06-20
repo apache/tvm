@@ -62,7 +62,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     }
   }();
 
-  if (func_b->params.size() == 1 && func_b->params[0]->struct_info_.as<TupleStructInfoNode>()) {
+  if (func_b->params.size() == 1 && func_b->params[0]->ty.as<TupleStructInfoNode>()) {
     // Special case where the output of the first function is a tuple
     // that should be provided as-is to the second function, and
     // should not be unpacked into individual elements.

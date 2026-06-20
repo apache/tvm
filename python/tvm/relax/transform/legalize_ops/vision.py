@@ -49,7 +49,7 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
     score_threshold = call.args[4]
     output_format = call.attrs.output_format
 
-    scores_shape = scores.struct_info.shape
+    scores_shape = scores.ty.shape
     if len(scores_shape) == 3:
         _, _, num_boxes = scores_shape
     elif len(scores_shape) == 2:

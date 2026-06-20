@@ -170,8 +170,7 @@ class CommonSubexprEliminator : public ExprMutator {
     Expr true_branch = VisitWithInnerScope(op->true_branch);
     Expr false_branch = VisitWithInnerScope(op->false_branch);
     if (op->cond.same_as(cond) && op->true_branch.same_as(true_branch) &&
-        op->false_branch.same_as(false_branch) &&
-        VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+        op->false_branch.same_as(false_branch) && VisitAndCheckStructInfoFieldUnchanged(op->ty)) {
       return ffi::GetRef<Expr>(op);
     } else {
       return If(cond, true_branch, false_branch, op->span);

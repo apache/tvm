@@ -48,7 +48,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         if isinstance(a_shape[-1], tirx.IntImm) and a_shape[-1] == 0:
             return te.compute(
                 output_shape,
-                lambda *_: tirx.const(0, call.struct_info.dtype),
+                lambda *_: tirx.const(0, call.ty.dtype),
                 name="matmul",
             )
 
@@ -98,8 +98,8 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     lhs, rhs = call.args
-    lhs_sinfo = call.args[0].struct_info
-    rhs_sinfo = call.args[1].struct_info
+    lhs_sinfo = call.args[0].ty
+    rhs_sinfo = call.args[1].ty
     assert lhs_sinfo.dtype and rhs_sinfo.dtype, (
         f"To legalize R.matmul into R.call_tir, the dtype of both operands must be known.  "
         f"However, the LHS {lhs} has struct info {lhs_sinfo} (dtype='{lhs_sinfo.dtype}') "
@@ -111,7 +111,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.einsum")
 def _einsum(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):

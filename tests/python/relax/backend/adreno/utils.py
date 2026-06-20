@@ -201,8 +201,8 @@ def verify_results(mod, target, ref_target):
 
     inputs = []
     for arg in mod["main"].params:
-        shape = tuple(shape_val.value for shape_val in arg.struct_info.shape.values)
-        inputs.append(np.random.uniform(0, 1, size=shape).astype(arg.struct_info.dtype))
+        shape = tuple(shape_val.value for shape_val in arg.ty.shape.values)
+        inputs.append(np.random.uniform(0, 1, size=shape).astype(arg.ty.dtype))
 
     mod_org, mod_ref = mod, mod.clone()
 

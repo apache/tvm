@@ -37,7 +37,7 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     def _relax_tuple_to_tir(relax_tuple):
         output = []
-        for field in relax_tuple.struct_info.fields:
+        for field in relax_tuple.ty.fields:
             assert isinstance(field, PrimStructInfo)
             assert field.value is not None
             output.append(field.value)
@@ -45,7 +45,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
 
     if len(call.args) == 4:
         data, axes, begin, end = call.args
-        strides = [tirx.IntImm("int64", 1)] * len(axes.struct_info.fields)
+        strides = [tirx.IntImm("int64", 1)] * len(axes.ty.fields)
     elif len(call.args) == 5:
         data, axes, begin, end, strides = call.args
         strides = _relax_tuple_to_tir(strides)
@@ -113,7 +113,7 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     )
 
     # 2. Convert tensor to shape and match cast with new symbolic vars
-    ndim = int(output_shape.struct_info.shape[0])
+    ndim = int(output_shape.ty.shape[0])
     output_shape = bb.emit(tensor_to_shape(output_shape))
     output_shape_vars = [tirx.Var("s", "int64") for i in range(ndim)]
     bb.match_cast(output_shape, ShapeStructInfo(output_shape_vars))

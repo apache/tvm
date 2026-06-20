@@ -55,7 +55,7 @@ static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo&
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensor(const Expr& expr) {
-  const auto& tensor_sinfo = Downcast<TensorStructInfo>(expr->struct_info_);
+  const auto& tensor_sinfo = Downcast<TensorStructInfo>(expr->ty);
   return GetShapeFromTensorStructInfo(tensor_sinfo);
 }
 
@@ -263,7 +263,7 @@ class AlterOpImplMutator : public ExprMutator {
     } else {
       auto padded_expr = builder_->Normalize(
           TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
-      const auto& tensor_sinfo = Downcast<TensorStructInfo>(padded_expr->struct_info_);
+      const auto& tensor_sinfo = Downcast<TensorStructInfo>(padded_expr->ty);
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_sinfo->dtype);
       return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_sinfo});

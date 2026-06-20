@@ -84,7 +84,7 @@ def test_call_tir_dtensor():
     foo_func = TestModule["foo"]
     params = foo_func.params
     assert len(params) == 1
-    assert params[0].struct_info == R.DTensor(
+    assert params[0].ty == R.DTensor(
         (128, 128), "float32", device_mesh_list[0], placement="S[0], R"
     )
     assert foo_func.ret_struct_info == R.DTensor(

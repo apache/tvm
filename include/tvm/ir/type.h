@@ -52,54 +52,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>
 
 namespace tvm {
-
-/*!
- * \brief Type is the base type of all types.
- *
- * TVM's type system contains following subclasses:
- *
- * - PrimType: type of primitive type values used in the low-level IR.
- * - FuncType: type of a function.
- * - TensorType: type of certain Tensor values in the expression.
- *
- * There are also advanced types to support generic(polymorphic types).
- * \sa Type
- */
-class TypeNode : public ffi::Object {
- public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
-                                       refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to TypeNode.
- * \sa TypeNode
- */
-class Type : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
-};
 
 /*!
  * \brief Primitive data types used in the low-level IR.

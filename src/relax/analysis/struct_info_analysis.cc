@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file struct_info_analysis.cc
+ * \file tyanalysis.cc
  * \brief Implementations of foundation struct info analysis
  *
  * \note Update this file when you added a new StructInfo.
@@ -39,37 +39,31 @@ namespace relax {
 //--------------------------
 // GetStaticType
 //--------------------------
-class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
+class StaticTypeDeriver : public TypeFunctor<Type(const StructInfo&)> {
  public:
-  Type VisitStructInfo_(const ObjectStructInfoNode* op) final { return ObjectType(op->span); }
+  Type VisitType_(const ObjectStructInfoNode* op) final { return ObjectType(op->span); }
 
-  Type VisitStructInfo_(const PrimStructInfoNode* op) final {
-    return PrimType(op->dtype, op->span);
-  }
+  Type VisitType_(const PrimStructInfoNode* op) final { return PrimType(op->dtype, op->span); }
 
-  Type VisitStructInfo_(const ShapeStructInfoNode* op) final {
-    return ShapeType(op->ndim, op->span);
-  }
+  Type VisitType_(const ShapeStructInfoNode* op) final { return ShapeType(op->ndim, op->span); }
 
-  Type VisitStructInfo_(const TensorStructInfoNode* op) final {
-    return TensorType(op->ndim, op->dtype);
-  }
+  Type VisitType_(const TensorStructInfoNode* op) final { return TensorType(op->ndim, op->dtype); }
 
   // module: distributed
-  Type VisitStructInfo_(const distributed::DTensorStructInfoNode* op) final { return ObjectType(); }
+  Type VisitType_(const distributed::DTensorStructInfoNode* op) final { return ObjectType(); }
   // end-module: distributed
 
-  Type VisitStructInfo_(const TupleStructInfoNode* op) final {
+  Type VisitType_(const TupleStructInfoNode* op) final {
     ffi::Array<Type> fields =
-        op->fields.Map([this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
+        op->fields.Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
     return TupleType(fields, op->span);
   }
 
-  Type VisitStructInfo_(const FuncStructInfoNode* op) final {
+  Type VisitType_(const FuncStructInfoNode* op) final {
     if (op->IsOpaque()) return PackedFuncType(op->span);
-    ffi::Array<Type> params = op->params.value().Map(
-        [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
-    Type ret = this->VisitStructInfo(op->ret);
+    ffi::Array<Type> params =
+        op->params.value().Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
+    Type ret = this->VisitType(op->ret);
     return FuncType(params, ret, op->span);
   }
 };
@@ -116,16 +110,14 @@ StructInfo StructInfoFromType(const Type& type) {
 //--------------------------
 // EraseToWellDefined
 //--------------------------
-class WellDefinedEraser : public StructInfoMutator,
-                          public ExprMutatorBase,
-                          public tirx::ExprMutator {
+class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tirx::ExprMutator {
  public:
   WellDefinedEraser(std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
                     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
                     arith::AnalyzerObj* ana)
       : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
 
-  StructInfo VisitStructInfo_(const PrimStructInfoNode* op) final {
+  StructInfo VisitType_(const PrimStructInfoNode* op) final {
     bool has_undefined = false;
     ffi::Optional<PrimExpr> value;
 
@@ -147,7 +139,7 @@ class WellDefinedEraser : public StructInfoMutator,
     }
   }
 
-  StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) final {
+  StructInfo VisitType_(const ShapeStructInfoNode* op) final {
     bool has_undefined = false;
     ffi::Optional<ffi::Array<PrimExpr>> values;
 
@@ -168,7 +160,7 @@ class WellDefinedEraser : public StructInfoMutator,
     }
   }
 
-  StructInfo VisitStructInfo_(const TensorStructInfoNode* op) final {
+  StructInfo VisitType_(const TensorStructInfoNode* op) final {
     bool has_undefined = false;
     ffi::Optional<Expr> shape;
 
@@ -196,7 +188,7 @@ class WellDefinedEraser : public StructInfoMutator,
     }
   }
 
-  StructInfo VisitStructInfo_(const FuncStructInfoNode* op) final {
+  StructInfo VisitType_(const FuncStructInfoNode* op) final {
     // NOTE: we always require func struct info to be well-defined.
     //
     // All the occuring symbolic variables are defined in parameters'
@@ -270,7 +262,7 @@ StructInfo EraseToWellDefined(
     const StructInfo& info,
     std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, const arith::Analyzer& ana) {
-  return WellDefinedEraser(f_shape_var_map, f_var_map, ana.get()).VisitStructInfo(info);
+  return WellDefinedEraser(f_shape_var_map, f_var_map, ana.get()).VisitType(info);
 }
 
 StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
@@ -315,23 +307,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // IsBaseOf
 //--------------------------
 class StructInfoBaseChecker
-    : public StructInfoFunctor<BaseCheckResult(const StructInfo&, const StructInfo&)> {
+    : public TypeFunctor<BaseCheckResult(const StructInfo&, const StructInfo&)> {
  public:
   explicit StructInfoBaseChecker(arith::AnalyzerObj* ana) : analyzer_(ana) {}
 
-  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+  BaseCheckResult VisitType(const StructInfo& lhs, const StructInfo& other) override {
     // quick path
     // Note: subclass may disable this quick path if we need to go over all struct info.
     if (lhs.same_as(other)) return BaseCheckResult::kPass;
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+    return TypeFunctor::VisitType(lhs, other);
   }
 
   // ffi::Object is base of everything
-  BaseCheckResult VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
     return BaseCheckResult::kPass;
   }
 
-  BaseCheckResult VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
@@ -348,7 +340,7 @@ class StructInfoBaseChecker
     return PrimValueMatchCheck(lhs->value.value(), rhs->value.value());
   }
 
-  BaseCheckResult VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<ShapeStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
@@ -372,7 +364,7 @@ class StructInfoBaseChecker
     return ShapeMatchCheck(lhs->values.value(), rhs->values.value());
   }
 
-  BaseCheckResult VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TensorStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
@@ -415,15 +407,15 @@ class StructInfoBaseChecker
   }
 
   // module: distributed
-  BaseCheckResult VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
-                                   const StructInfo& other) final {
+  BaseCheckResult VisitType_(const distributed::DTensorStructInfoNode* lhs,
+                             const StructInfo& other) final {
     auto* rhs = other.as<distributed::DTensorStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     BaseCheckResult tensor_sinfo_check_result =
-        this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+        this->VisitType(lhs->tensor_sinfo, rhs->tensor_sinfo);
     BaseCheckResult other_check_result;
     if (!struct_equal_(lhs->device_mesh, rhs->device_mesh) ||
         !struct_equal_(lhs->placement, rhs->placement)) {
@@ -435,7 +427,7 @@ class StructInfoBaseChecker
   }
   // end-module: distributed
 
-  BaseCheckResult VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TupleStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
@@ -444,8 +436,7 @@ class StructInfoBaseChecker
     return ArrayCheck(lhs->fields, rhs->fields);
   }
 
-  BaseCheckResult VisitStructInfo_(const FuncStructInfoNode* lhs,
-                                   const StructInfo& other) override {
+  BaseCheckResult VisitType_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) {
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
@@ -465,7 +456,7 @@ class StructInfoBaseChecker
                                                           : BaseCheckResult::kFailL2;
       }
       // no derivation function, only depends on ret
-      return this->VisitStructInfo(lhs->ret, rhs->ret);
+      return this->VisitType(lhs->ret, rhs->ret);
     }
 
     // Function check is best effort.
@@ -489,7 +480,7 @@ class StructInfoBaseChecker
     if (struct_equal_(ffi::GetRef<StructInfo>(lhs), other)) return BaseCheckResult::kPass;
 
     auto param_check = FuncParamsCheck(lhs->params.value(), rhs->params.value());
-    auto ret_check = this->VisitStructInfo(lhs->ret, rhs->ret);
+    auto ret_check = this->VisitType(lhs->ret, rhs->ret);
     return CombineCheck(param_check, ret_check);
   }
 
@@ -598,7 +589,7 @@ class StructInfoBaseChecker
     BaseCheckResult ret = BaseCheckResult::kPass;
 
     for (size_t i = 0; i < lhs.size(); ++i) {
-      auto cmp_ret = this->VisitStructInfo(lhs[i], rhs[i]);
+      auto cmp_ret = this->VisitType(lhs[i], rhs[i]);
       if (ret == BaseCheckResult::kFailL0) return ret;
       ret = CombineCheck(cmp_ret, ret);
     }
@@ -641,24 +632,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 class StructInfoBasePreconditionCollector
-    : public StructInfoFunctor<PrimExpr(const StructInfo&, const StructInfo&)> {
+    : public TypeFunctor<PrimExpr(const StructInfo&, const StructInfo&)> {
  public:
   explicit StructInfoBasePreconditionCollector() {}
 
-  PrimExpr VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+  PrimExpr VisitType(const StructInfo& lhs, const StructInfo& other) override {
     if (lhs.same_as(other)) {
       // Early bail-out if the StructInfo has reference equality.
       return IntImm::Bool(true);
     } else {
-      return StructInfoFunctor::VisitStructInfo(lhs, other);
+      return TypeFunctor::VisitType(lhs, other);
     }
   }
 
-  PrimExpr VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
     return IntImm::Bool(true);
   }
 
-  PrimExpr VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -677,7 +668,7 @@ class StructInfoBasePreconditionCollector
     }
   }
 
-  PrimExpr VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<ShapeStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -701,7 +692,7 @@ class StructInfoBasePreconditionCollector
     }
   }
 
-  PrimExpr VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TensorStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -752,8 +743,8 @@ class StructInfoBasePreconditionCollector
     return IntImm::Bool(true);
   }
 
-  PrimExpr VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
-                            const StructInfo& other) final {
+  PrimExpr VisitType_(const distributed::DTensorStructInfoNode* lhs,
+                      const StructInfo& other) final {
     auto* rhs = other.as<distributed::DTensorStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -765,10 +756,10 @@ class StructInfoBasePreconditionCollector
       return IntImm::Bool(false);
     }
 
-    return this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+    return this->VisitType(lhs->tensor_sinfo, rhs->tensor_sinfo);
   }
 
-  PrimExpr VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TupleStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -776,7 +767,7 @@ class StructInfoBasePreconditionCollector
     return ArrayCheck(lhs->fields, rhs->fields);
   }
 
-  PrimExpr VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
+  PrimExpr VisitType_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
@@ -794,7 +785,7 @@ class StructInfoBasePreconditionCollector
       return IntImm::Bool(false);
     }
 
-    PrimExpr all_match = VisitStructInfo(lhs->ret, rhs->ret);
+    PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
     PrimExpr param_check;
     if (lhs->params.defined()) {
@@ -803,7 +794,7 @@ class StructInfoBasePreconditionCollector
       param_check = IntImm::Bool(true);
     }
 
-    PrimExpr ret_check = VisitStructInfo(lhs->ret, rhs->ret);
+    PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
 
     return param_check && ret_check;
   }
@@ -829,7 +820,7 @@ class StructInfoBasePreconditionCollector
     PrimExpr all_pass = IntImm::Bool(true);
 
     for (size_t i = 0; i < lhs.size(); ++i) {
-      all_pass = all_pass && VisitStructInfo(lhs[i], rhs[i]);
+      all_pass = all_pass && VisitType(lhs[i], rhs[i]);
     }
     return all_pass;
   }
@@ -851,8 +842,8 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
   explicit CallRetStructInfoDeriver(arith::AnalyzerObj* ana) : StructInfoBaseChecker(ana) {}
 
   // No short cut, so we can recursively populate all pairs.
-  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+  BaseCheckResult VisitType(const StructInfo& lhs, const StructInfo& other) final {
+    return TypeFunctor::VisitType(lhs, other);
   }
 
   StructInfo Derive(const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
@@ -880,7 +871,7 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     for (size_t i = 0; i < params.size(); ++i) {
       TVM_FFI_VISIT_BEGIN();
       auto arg_sinfo = GetStructInfo(call->args[i]);
-      BaseCheckResult res = this->VisitStructInfo(params[i], arg_sinfo);
+      BaseCheckResult res = this->VisitType(params[i], arg_sinfo);
       // Report error if we find L1 level failure
       // L2 level is best effort so we don't report.
       // The behavior of L2 can be customized later.
@@ -1005,23 +996,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 // UnifyToLCA
 //--------------------------
-class StructInfoLCAFinder
-    : public StructInfoFunctor<StructInfo(const StructInfo&, const StructInfo&)> {
+class StructInfoLCAFinder : public TypeFunctor<StructInfo(const StructInfo&, const StructInfo&)> {
  public:
   explicit StructInfoLCAFinder(arith::AnalyzerObj* ana) : analyzer_(ana) {}
 
-  StructInfo VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
+  StructInfo VisitType(const StructInfo& lhs, const StructInfo& other) final {
     // quick path
     if (lhs.same_as(other)) return lhs;
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+    return TypeFunctor::VisitType(lhs, other);
   }
 
   // ffi::Object is based of everything, unify to object.
-  StructInfo VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
     return ffi::GetRef<StructInfo>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
     if (lhs->dtype != rhs->dtype) {
@@ -1045,7 +1035,7 @@ class StructInfoLCAFinder
     return ffi::GetRef<StructInfo>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<ShapeStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
@@ -1064,7 +1054,7 @@ class StructInfoLCAFinder
     return ffi::GetRef<StructInfo>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TensorStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
@@ -1097,7 +1087,7 @@ class StructInfoLCAFinder
     }
   }
 
-  StructInfo VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TupleStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
     ffi::Optional<ffi::Array<StructInfo>> fields = UnifyArray(lhs->fields, rhs->fields);
@@ -1112,7 +1102,7 @@ class StructInfoLCAFinder
     }
   }
 
-  StructInfo VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) final {
+  StructInfo VisitType_(const FuncStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
@@ -1130,7 +1120,7 @@ class StructInfoLCAFinder
         }
       } else {
         // no derivation function, only depends on ret
-        StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
+        StructInfo ret = this->VisitType(lhs->ret, rhs->ret);
         if (ret.same_as(lhs->ret)) return ffi::GetRef<StructInfo>(lhs);
         return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
       }
@@ -1139,7 +1129,7 @@ class StructInfoLCAFinder
     if (rhs->IsOpaque()) {
       // unify ret value, note that rhs's ret is context free(because it is opaque)
       // so result of the unify is also context-free.
-      StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
+      StructInfo ret = this->VisitType(lhs->ret, rhs->ret);
       return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
     }
 
@@ -1163,7 +1153,7 @@ class StructInfoLCAFinder
     }
 
     auto params = UnifyArray(lhs->params.value(), rhs->params.value());
-    auto ret = this->VisitStructInfo(lhs->ret, rhs->ret);
+    auto ret = this->VisitType(lhs->ret, rhs->ret);
 
     if (params.same_as(lhs->params) && ret.same_as(lhs->ret)) {
       return ffi::GetRef<StructInfo>(lhs);
@@ -1189,7 +1179,7 @@ class StructInfoLCAFinder
     if (lhs.same_as(rhs)) return lhs;
     if (lhs.size() != rhs.size()) return std::nullopt;
     size_t index = 0;
-    return lhs.Map([&](const StructInfo& a) { return this->VisitStructInfo(a, rhs[index++]); });
+    return lhs.Map([&](const StructInfo& a) { return this->VisitType(a, rhs[index++]); });
   }
 };
 
@@ -1213,7 +1203,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // TIRVarsInStructInfo
 //--------------------------
 
-class TIRVarsDetector : public StructInfoVisitor {
+class TIRVarsDetector : public TypeVisitor {
  public:
   enum class VarType {
     Definition,
@@ -1245,21 +1235,21 @@ class TIRVarsDetector : public StructInfoVisitor {
     }
   }
 
-  void VisitStructInfo_(const PrimStructInfoNode* prim_sinfo) final {
+  void VisitType_(const PrimStructInfoNode* prim_sinfo) final {
     if (prim_sinfo->value.defined()) {
       VisitPrimExpr(prim_sinfo->value.value());
     }
   }
 
-  void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
+  void VisitType_(const ShapeStructInfoNode* shape_sinfo) final {
     if (shape_sinfo->values.defined()) {
       VisitShape(shape_sinfo->values.value());
     }
   }
 
-  void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
+  void VisitType_(const TensorStructInfoNode* tensor_sinfo) final {
     if (tensor_sinfo->shape.defined()) {
-      VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
+      VisitType(GetStructInfo(tensor_sinfo->shape.value()));
     }
   }
 
@@ -1295,7 +1285,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.analysis.DefinableTIRVarsInStructInfo", DefinableTIRVarsInStructInfo);
 }
 
-class NonNegativeExpressionCollector : relax::StructInfoVisitor {
+class NonNegativeExpressionCollector : relax::TypeVisitor {
  public:
   static ffi::Array<PrimExpr> Collect(const StructInfo& sinfo) {
     NonNegativeExpressionCollector visitor;
@@ -1304,17 +1294,17 @@ class NonNegativeExpressionCollector : relax::StructInfoVisitor {
   }
 
  private:
-  void VisitStructInfo_(const TensorStructInfoNode* op) override {
+  void VisitType_(const TensorStructInfoNode* op) override {
     if (op->shape.defined()) {
-      VisitStructInfo(GetStructInfo(op->shape.value()));
+      VisitType(GetStructInfo(op->shape.value()));
     }
   }
 
-  void VisitStructInfo_(const PrimStructInfoNode* op) override {
+  void VisitType_(const PrimStructInfoNode* op) override {
     // Unlike the expressions in TensorStructInfo or ShapeStructInfo,
     // PrimStructInfo may contain negative values.  This override
     // prevents calling VisitStructInfoExprField from the default
-    // StructInfoVisitor implementation.
+    // TypeVisitor implementation.
   }
 
   void VisitStructInfoExprField(const PrimExpr& size_expr) override {
@@ -1344,7 +1334,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 class SymbolicVarCollector : public relax::ExprVisitor,
-                             public relax::StructInfoVisitor,
+                             public relax::TypeVisitor,
                              public tirx::ExprVisitor {
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
@@ -1392,13 +1382,13 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   void VisitExpr_(const FunctionNode* op) final {
     WithMode(VisitMode::kProvideDefinition, [&]() {
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetStructInfo(param));
       }
     });
 
     WithMode(VisitMode::kRequireDefinition, [&]() {
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetStructInfo(param));
       }
     });
 
@@ -1407,16 +1397,16 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   void VisitBinding_(const MatchCastNode* binding) final {
     WithMode(VisitMode(VisitMode::kProvideDefinition | VisitMode::kRequireDefinition),
-             [&]() { this->VisitStructInfo(binding->struct_info); });
+             [&]() { this->VisitType(binding->struct_info); });
 
     relax::ExprVisitor::VisitBinding_(binding);
   }
 
   void VisitExprDepStructInfoField(const StructInfo& struct_info) {
-    return this->VisitStructInfo(struct_info);
+    return this->VisitType(struct_info);
   }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+  void VisitType_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
       // Visit the parameters once to collect bindings, and another
       // time to collect usages.  Otherwise, a symbolic variable
@@ -1424,17 +1414,17 @@ class SymbolicVarCollector : public relax::ExprVisitor,
       // used by an earlier parameter.
       WithMode(VisitMode::kProvideDefinition, [&]() {
         for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+          this->VisitType(param);
         }
       });
 
       WithMode(VisitMode::kRequireDefinition, [&]() {
         for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+          this->VisitType(param);
         }
       });
     }
-    this->VisitStructInfo(op->ret);
+    this->VisitType(op->ret);
   }
 
   void VisitStructInfoExprField(const Expr& expr) final {

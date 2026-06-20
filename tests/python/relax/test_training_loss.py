@@ -284,7 +284,7 @@ def test_categorical_cross_entropy_loss_with_ignore_index():
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             targets = relax.op.reshape(
-                relax.op.argmax(targets, axis=1), shape=(targets.struct_info.shape[0],)
+                relax.op.argmax(targets, axis=1), shape=(targets.ty.shape[0],)
             )
             gv: R.Tensor((), "float32") = R.nn.nll_loss(
                 lv, targets, weights, reduction="sum", ignore_index=1

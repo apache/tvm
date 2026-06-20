@@ -223,13 +223,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
-  TVM_FFI_ICHECK(!expr->struct_info_.defined())
+  TVM_FFI_ICHECK(!expr->ty.defined())
       << "To ensure idempotency, "
       << "the expression passed to UpdateStructInfo "
       << "must not have any prior StructInfo.  "
-      << "However, expression " << expr << " has struct info " << expr->struct_info_
+      << "However, expression " << expr << " has struct info " << expr->ty
       << ", which cannot be overwritten with " << struct_info;
-  expr->struct_info_ = struct_info;
+  expr->ty = struct_info;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

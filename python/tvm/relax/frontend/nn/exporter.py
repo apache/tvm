@@ -184,9 +184,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
                 arg.name,
-                struct_info=TupleStructInfo(
-                    [_convert_input(arg_i).struct_info for arg_i in arg.elements]
-                ),
+                struct_info=TupleStructInfo([_convert_input(arg_i).ty for arg_i in arg.elements]),
             )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -215,7 +213,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_params",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleStructInfo(fields=[x.ty for x in inputs]),
             )
             for i, (name, param) in enumerate(params):
                 param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
@@ -236,7 +234,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_effects",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleStructInfo(fields=[x.ty for x in inputs]),
             )
             i = 0
             for effect_input, (_, effect) in zip(unflat_inputs, effects):

@@ -419,7 +419,7 @@ def test_inferred_sinfo_with_prim_args():
         tvm.relax.PrimStructInfo("int32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_sinfo_with_buffer_args():
@@ -437,7 +437,7 @@ def test_inferred_sinfo_with_buffer_args():
         tvm.relax.PrimStructInfo("float32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_sinfo_with_internal_allocation():
@@ -463,7 +463,7 @@ def test_inferred_sinfo_with_internal_allocation():
         tvm.relax.PrimStructInfo("float32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_sinfo_with_output_buffer():
@@ -485,7 +485,7 @@ def test_inferred_sinfo_with_output_buffer():
         tvm.relax.TupleStructInfo([]),
         purity=False,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_sinfo_with_dynamic_buffer():
@@ -510,7 +510,7 @@ def test_inferred_sinfo_with_dynamic_buffer():
         tvm.relax.TupleStructInfo([]),
         purity=False,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_reinterpret_nop():

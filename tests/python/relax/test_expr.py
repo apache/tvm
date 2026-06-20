@@ -45,26 +45,43 @@ def _check_json_roundtrip(x):
 def test_var() -> None:
     v0 = rx.Var("v0")
     assert v0.name_hint == "v0"
-    assert v0.struct_info_ is None
+    assert v0.ty is None
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
-    for s0, s1 in zip(v1.struct_info.shape, shape):
+    for s0, s1 in zip(v1.ty.shape, shape):
         assert s0 == s1
-    tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
+    tvm.ir.assert_structural_equal(v1.ty, rx.TensorStructInfo(shape, "float32"))
+
+
+def test_relax_expr_ty_running_example() -> None:
+    m = tirx.Var("m", "int64")
+    x = rx.Var("x", rx.TensorStructInfo([m, 16], "float32"))
+
+    assert isinstance(x.ty, tvm.ir.Type)
+    assert isinstance(x.ty, rx.TensorStructInfo)
+
+    call = rx.op.add(x, x)
+    assert call.ty is None
+
+    bb = rx.BlockBuilder()
+    normalized = bb.normalize(call)
+
+    assert isinstance(normalized.ty, rx.TensorStructInfo)
+    tvm.ir.assert_structural_equal(normalized.ty, x.ty)
 
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     assert v0.name_hint == "v0"
-    assert v0.struct_info_ is None
+    assert v0.ty is None
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
     assert v1.name_hint == "v1"
 
     assert isinstance(v1, rx.DataflowVar)
-    tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
+    tvm.ir.assert_structural_equal(v1.ty, rx.TensorStructInfo(shape, "float16"))
 
 
 def test_tuple() -> None:
@@ -91,9 +108,9 @@ def test_tuple_sinfo_inferred_on_construction():
     v1 = rx.Var("v1", rx.ObjectStructInfo())
     tup = rx.Tuple((v0, v1))
 
-    assert tup.struct_info_ is not None
+    assert tup.ty is not None
     tvm.ir.assert_structural_equal(
-        tup.struct_info, rx.TupleStructInfo([rx.ObjectStructInfo(), rx.ObjectStructInfo()])
+        tup.ty, rx.TupleStructInfo([rx.ObjectStructInfo(), rx.ObjectStructInfo()])
     )
 
 
@@ -102,7 +119,7 @@ def test_tuple_sinfo_requires_fields_with_known_sinfo():
     v1 = rx.Var("v1")
     tup = rx.Tuple((v0, v1))
 
-    assert tup.struct_info_ is None
+    assert tup.ty is None
 
 
 def test_match_cast() -> None:
@@ -221,7 +238,7 @@ def test_shape_expr():
     assert s[1] == n
     assert s[-1] == n
     assert s[-2] == m
-    assert isinstance(s.struct_info, rx.ShapeStructInfo)
+    assert isinstance(s.ty, rx.ShapeStructInfo)
 
     with pytest.raises(IndexError, match="ShapeExpr index out of range"):
         s[2]
@@ -232,12 +249,12 @@ def test_shape_expr():
     shape_expr = rx.ShapeExpr([10, 20])
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20
-    tvm.ir.assert_structural_equal(shape_expr.struct_info, R.Shape((10, 20)))
+    tvm.ir.assert_structural_equal(shape_expr.ty, R.Shape((10, 20)))
 
     x = rx.Var("v0", R.Tensor((10, 20), "float32"))
-    assert x.struct_info.shape[0] == 10
-    assert x.struct_info.shape[1] == 20
-    tvm.ir.assert_structural_equal(x.struct_info.shape.struct_info, R.Shape((10, 20)))
+    assert x.ty.shape[0] == 10
+    assert x.ty.shape[1] == 20
+    tvm.ir.assert_structural_equal(x.ty.shape.ty, R.Shape((10, 20)))
 
     m = tirx.Var("m", "int32")
     with pytest.raises(
@@ -257,7 +274,7 @@ def test_prim_value_with_var():
     n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n)
     assert pv.value.same_as(n)
-    tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n))
+    tvm.ir.assert_structural_equal(pv.ty, rx.PrimStructInfo(value=n))
     _check_equal(pv, rx.PrimValue(n))
     _check_json_roundtrip(pv)
 
@@ -265,7 +282,7 @@ def test_prim_value_with_var():
 def test_prim_value_with_expr():
     n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n + 1)
-    tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n + 1))
+    tvm.ir.assert_structural_equal(pv.ty, rx.PrimStructInfo(value=n + 1))
     _check_equal(pv, rx.PrimValue(n + 1))
     _check_json_roundtrip(pv)
 

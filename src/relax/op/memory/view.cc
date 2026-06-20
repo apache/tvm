@@ -319,24 +319,24 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   // legalize the `R.view`, we must provide an explicit parameters.
 
   if (HasVoidStructInfo(shape)) {
-    auto data_shape = data->struct_info_.as<TensorStructInfo>().value()->GetShape();
+    auto data_shape = data->ty.as<TensorStructInfo>().value()->GetShape();
     TVM_FFI_ICHECK(data_shape.defined())
         << "Legalization of " << call->op
         << " requires that either the output shape be explicitly specified, "
         << "or the input shape is known.  "
         << "However, in expression " << call << ", no output shape is specified, "
-        << "and the input " << data << " of type " << data->struct_info_ << " has unknown shape.";
+        << "and the input " << data << " of type " << data->ty << " has unknown shape.";
     shape = ShapeExpr(data_shape.value());
   }
 
   if (HasVoidStructInfo(dtype)) {
-    auto data_dtype = data->struct_info_.as<TensorStructInfo>().value()->dtype;
+    auto data_dtype = data->ty.as<TensorStructInfo>().value()->dtype;
     TVM_FFI_ICHECK(!data_dtype.is_void())
         << "Legalization of " << call->op
         << " requires that either the output dtype be explicitly specified, "
         << "or the input dtype is known.  "
         << "However, in expression " << call << ", no output dtype is specified, "
-        << "and the input " << data << " of type " << data->struct_info_ << " has unknown dtype.";
+        << "and the input " << data << " of type " << data->ty << " has unknown dtype.";
     dtype = relax::DataTypeImm(data_dtype);
   }
 

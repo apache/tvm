@@ -215,7 +215,7 @@ class LazyTransformParamsFuncCreator:
 
             # direct iterate over the struct info annotation
             for param in func.params[num_input:]:
-                for sinfo in unpack_sinfo(param.struct_info):
+                for sinfo in unpack_sinfo(param.ty):
                     if isinstance(sinfo, relax.PrimStructInfo | relax.ShapeStructInfo):
                         params.append(relax.Var("symbolic_var_holder", sinfo))
 
@@ -241,7 +241,7 @@ class LazyInputMutator(PyExprMutator):
             num_input = 0
 
         params = list(func.params)[num_input:]
-        if len(params) == 1 and isinstance(params[0].struct_info_, relax.TupleStructInfo):
+        if len(params) == 1 and isinstance(params[0].ty, relax.TupleStructInfo):
             self.tuple_param = params[0]
             self.params = {}
         else:
@@ -271,7 +271,7 @@ class LazyInputMutator(PyExprMutator):
                     [relax.ObjectStructInfo()],
                 )
             )
-            match_cast = relax.MatchCast(var, get_item_result, var.struct_info)
+            match_cast = relax.MatchCast(var, get_item_result, var.ty)
             self.builder_.emit_normalized(match_cast)
 
             del self.params[var]
@@ -279,7 +279,7 @@ class LazyInputMutator(PyExprMutator):
         return super().visit_var_(var)
 
     def visit_tuple_getitem_(self, node: relax.TupleGetItem) -> relax.Expr:
-        sinfo = node.struct_info
+        sinfo = node.ty
 
         node = super().visit_tuple_getitem_(node)
 

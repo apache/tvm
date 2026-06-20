@@ -144,7 +144,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     }
 
     auto get_shape = [](Expr expr) -> ffi::Optional<ffi::Array<PrimExpr>> {
-      auto sinfo = expr->struct_info_.as<TensorStructInfoNode>();
+      auto sinfo = expr->ty.as<TensorStructInfoNode>();
       if (sinfo) {
         return sinfo->GetShape();
       } else {

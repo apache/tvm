@@ -38,10 +38,10 @@ class BackendDispatcher(PyExprMutator):
     def get_shape_dtype(expr: relax.Expr) -> tuple[relax.ShapeExpr, str]:
         """Get shape and dtype from an expression.
         If the shape and dtype is unknown, raise an error."""
-        sinfo = expr.struct_info
-        if not isinstance(expr.struct_info, relax.TensorStructInfo):
+        sinfo = expr.ty
+        if not isinstance(expr.ty, relax.TensorStructInfo):
             raise ValueError(
-                f"Expecting a expr with TensorStructInfo, but got {expr} with {expr.struct_info}"
+                f"Expecting a expr with TensorStructInfo, but got {expr} with {expr.ty}"
             )
 
         shape, dtype = sinfo.shape, sinfo.dtype

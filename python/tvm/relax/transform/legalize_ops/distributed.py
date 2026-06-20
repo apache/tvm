@@ -36,7 +36,7 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     )
     _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
 
-    split_axis_size = call.args[0].struct_info.shape[axis]
+    split_axis_size = call.args[0].ty.shape[axis]
     return relax.op.strided_slice(
         call.args[0],
         axes=[axis],

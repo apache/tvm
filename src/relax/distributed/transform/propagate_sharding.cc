@@ -125,7 +125,7 @@ void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode
     args = call->args;
   }
   for (const auto& arg : args) {
-    if (arg->struct_info_.as<TensorStructInfoNode>()) {
+    if (arg->ty.as<TensorStructInfoNode>()) {
       tensor_list.push_back(arg);
     }
   }
@@ -186,9 +186,9 @@ class AxisGroupGraphBuilder : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const VarNode* val) {
     ffi::Array<TensorStructInfo> tensor_sinfos;
-    if (const auto* tensor_sinfo = binding->var->struct_info_.as<TensorStructInfoNode>()) {
+    if (const auto* tensor_sinfo = binding->var->ty.as<TensorStructInfoNode>()) {
       tensor_sinfos.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-    } else if (const auto* tuple_sinfo = binding->var->struct_info_.as<TupleStructInfoNode>()) {
+    } else if (const auto* tuple_sinfo = binding->var->ty.as<TupleStructInfoNode>()) {
       TVM_FFI_ICHECK(tuple_sinfo);
       for (const auto& sinfo : tuple_sinfo->fields) {
         tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
@@ -386,10 +386,9 @@ class DistributedIRBuilder : public ExprMutator {
 
   Expr RewriteInputTensorAndConstant(Expr tensor) {
     StructInfo new_sinfo;
-    if (tensor->struct_info_.as<TensorStructInfoNode>()) {
-      new_sinfo =
-          ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tensor->struct_info_), tensor);
-    } else if (const auto* tuple = tensor->struct_info_.as<TupleStructInfoNode>()) {
+    if (tensor->ty.as<TensorStructInfoNode>()) {
+      new_sinfo = ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tensor->ty), tensor);
+    } else if (const auto* tuple = tensor->ty.as<TupleStructInfoNode>()) {
       ffi::Array<StructInfo> tuple_sinfo_fields;
       for (int i = 0; i < static_cast<int>(tuple->fields.size()); i++) {
         if (tuple->fields[i].as<TensorStructInfoNode>()) {
@@ -498,7 +497,7 @@ class DistributedIRBuilder : public ExprMutator {
             Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0]);
         new_call_node->sinfo_args = {new_dtensor_sinfo};
         new_call = Call(new_call_node);
-        new_call->struct_info_ = new_dtensor_sinfo;
+        new_call->ty = new_dtensor_sinfo;
       }
     } else if (call->op.same_as(call_tir_op)) {
       TVM_FFI_ICHECK(call->sinfo_args.size() == 1);
@@ -518,7 +517,7 @@ class DistributedIRBuilder : public ExprMutator {
           new_call_node->sinfo_args = {TupleStructInfo(new_tuple_sinfo_fields)};
         }
         new_call = Call(new_call_node);
-        new_call->struct_info_ = new_call_node->sinfo_args[0];
+        new_call->ty = new_call_node->sinfo_args[0];
       }
     }
     return new_call;
@@ -560,11 +559,11 @@ class DistributedIRBuilder : public ExprMutator {
     new_call =
         Downcast<Call>(builder_->Normalize(RewriteOutSinfo(new_call, device_mesh, placements)));
 
-    if (const auto* inferred_dtensor_sinfo = new_call->struct_info_.as<DTensorStructInfoNode>()) {
+    if (const auto* inferred_dtensor_sinfo = new_call->ty.as<DTensorStructInfoNode>()) {
       Expr new_value = RemoveAnnotateSharding(new_call);
       if (!ffi::StructuralEqual()(
               DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh, placements[0]),
-              new_call->struct_info_)) {
+              new_call->ty)) {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
       }
       if (const auto* var = new_value.as<VarNode>()) {
@@ -573,7 +572,7 @@ class DistributedIRBuilder : public ExprMutator {
         ReEmitBinding(binding, builder_->Normalize(new_value));
       }
     } else {
-      const auto* inferred_tuple_sinfo = new_call->struct_info_.as<TupleStructInfoNode>();
+      const auto* inferred_tuple_sinfo = new_call->ty.as<TupleStructInfoNode>();
       TVM_FFI_ICHECK(inferred_tuple_sinfo) << new_call;
       Var new_var = builder_->Emit(new_call);
       var_remap_[binding->var->vid] = new_var;

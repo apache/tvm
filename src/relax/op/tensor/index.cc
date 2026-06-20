@@ -341,7 +341,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     check_tuple("strides", call->args[4]);
   }
 
-  const auto* data_sinfo = data->struct_info_.as<TensorStructInfoNode>();
+  const auto* data_sinfo = data->ty.as<TensorStructInfoNode>();
 
   DataType dtype = DataType::Void();
   ffi::Optional<VDevice> vdevice = std::nullopt;

@@ -155,8 +155,7 @@ class DeviceHintCollector : ExprVisitor {
   }
 
   void VisitVarDef(const Var& var) override {
-    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>();
-        tinfo && tinfo->vdevice.defined()) {
+    if (auto tinfo = var->ty.as<TensorStructInfoNode>(); tinfo && tinfo->vdevice.defined()) {
       known_vdevice_.Set(var, tinfo->vdevice.value());
     }
     ExprVisitor::VisitVarDef(var);
@@ -353,7 +352,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
 
   Var VisitVarDef(const Var& old_var) override {
     auto var = ExprMutator::VisitVarDef(old_var);
-    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>()) {
+    if (auto tinfo = var->ty.as<TensorStructInfoNode>()) {
       if (auto opt = vdevice_map_.Get(old_var)) {
         auto vdevice = opt.value();
         TensorStructInfo new_sinfo = [&]() {
@@ -386,7 +385,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     auto arg = call->args[0];
-    auto input_vdevice = Downcast<TensorStructInfo>(arg->struct_info_)->vdevice;
+    auto input_vdevice = Downcast<TensorStructInfo>(arg->ty)->vdevice;
     auto output_vdevice = vdevice_lookup_(call->attrs);
 
     if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {

@@ -45,19 +45,19 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.allreduce",
         [call.args[0], ShapeExpr([op_type_map[op_type_str]]), call.attrs.in_group],
-        out_sinfo=call.args[0].struct_info,
+        out_sinfo=call.args[0].ty,
     )
 
 
 @register_legalize("relax.ccl.allgather")
 def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
-    arg_sinfo = call.args[0].struct_info
+    arg_sinfo = call.args[0].ty
     assert isinstance(arg_sinfo, TensorStructInfo), (
         "The input struct info of allgather should be TensorStructInfo."
     )
-    assert isinstance(arg_sinfo.shape.struct_info, ShapeStructInfo)
-    arg_shape = arg_sinfo.shape.struct_info
+    assert isinstance(arg_sinfo.shape.ty, ShapeStructInfo)
+    arg_shape = arg_sinfo.shape.ty
     for i, shape_value in enumerate(arg_shape.values):
         if i == 0:
             output_shape.append(shape_value * call.attrs.num_workers)
@@ -79,18 +79,18 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.broadcast_from_worker0",
         [call.args[0], False],
-        out_sinfo=call.args[0].struct_info,
+        out_sinfo=call.args[0].ty,
     )
 
 
 # Since collective communication ops are performed on contiguous memory,
 # we need to reshape and transpose the input tensor to make sharding dimension in the highest order
 def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
-    assert isinstance(expr.struct_info, TensorStructInfo), (
+    assert isinstance(expr.ty, TensorStructInfo), (
         "The input struct info should be TensorStructInfo."
     )
-    assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
-    arg_shape = expr.struct_info.shape.struct_info
+    assert isinstance(expr.ty.shape.ty, ShapeStructInfo)
+    arg_shape = expr.ty.shape.ty
     new_shape = []
     for i, shape_value in enumerate(arg_shape.values):
         if i == axis:
@@ -115,14 +115,14 @@ def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: in
 @register_legalize("relax.ccl.scatter_from_worker0")
 def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     transpose_var = _transpose_for_ccl(_bb, call.args[0], call.attrs.axis, call.attrs.num_workers)
-    output_shape = transpose_var.struct_info.shape.struct_info.values
+    output_shape = transpose_var.ty.shape.ty.values
     output_shape = output_shape[1:]
     return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
         [transpose_var, False],
         out_sinfo=TensorStructInfo(
             shape=output_shape,
-            dtype=call.args[0].struct_info.dtype,
-            vdevice=call.args[0].struct_info.vdevice,
+            dtype=call.args[0].ty.dtype,
+            vdevice=call.args[0].ty.vdevice,
         ),
     )

@@ -137,9 +137,8 @@ class FuncBuilder : public ExprMutator {
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(),
-                         VisitExprDepStructInfoField(
-                             Downcast<ffi::Optional<StructInfo>>(input->struct_info_).value()));
+      auto new_var =
+          Var(input->name_hint(), VisitExprDepStructInfoField(Downcast<StructInfo>(input->ty)));
       var_remap_[input->vid] = new_var;
       params.push_back(new_var);
     }
@@ -161,7 +160,7 @@ class FuncBuilder : public ExprMutator {
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
     attrs.Set(relax::attr::kForcePure, true);
-    auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
+    auto func = Function(params, body, Downcast<StructInfo>(output->ty),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
   }
@@ -251,8 +250,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
             func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
-          ffi::Array<tirx::Var> symbolic_vars = DefinableTIRVarsInStructInfo(
-              Downcast<StructInfo>(func->params[i]->struct_info_.value()));
+          ffi::Array<tirx::Var> symbolic_vars =
+              DefinableTIRVarsInStructInfo(Downcast<StructInfo>(func->params[i]->ty));
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
               if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {
@@ -514,8 +513,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         vars_collector->push_back(var);
       }
       // recursively check the struct info to collect the symbolic TIR vars
-      return static_vars_.count(var) && IsStatic(Downcast<StructInfo>(var->struct_info_.value()),
-                                                 vars_collector, tir_vars_collector);
+      return static_vars_.count(var) &&
+             IsStatic(Downcast<StructInfo>(var->ty), vars_collector, tir_vars_collector);
     }
 
     if (const auto* shape = expr.as<ShapeExprNode>()) {
@@ -784,7 +783,7 @@ class CUDAGraphRewriter : public ExprMutator {
       TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
-      auto ret_struct_info = Downcast<FuncStructInfo>(gv_alloc->struct_info_.value())->ret;
+      auto ret_struct_info = Downcast<FuncStructInfo>(gv_alloc->ty)->ret;
       launch_subgraph =
           Call(call_builtin_with_ctx_op,
                {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm::Int64(0))})}, Attrs(),
@@ -804,8 +803,7 @@ class CUDAGraphRewriter : public ExprMutator {
         // The ret_struct_info of the lifted function can contain symbolic variables. We need to
         // bind the symbolic parameters to the actual values.
         const auto& shape_expr = plan->func->params.back();
-        auto symbolic_params =
-            Downcast<ShapeStructInfo>(shape_expr->struct_info_.value())->values.value();
+        auto symbolic_params = Downcast<ShapeStructInfo>(shape_expr->ty)->values.value();
         ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
         TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {

@@ -135,7 +135,7 @@ def relax_check_gradients(
     # If the result is a tuple, weights will be a list, and the weighted result will be
     # sum(i * j for i, j in zip(weights, result))
     # In the gradient process, weights is the output gradient, i.e. the gradient w.r.t. the result.
-    out_sinfo = forward_mod[func_name].body.body.struct_info
+    out_sinfo = forward_mod[func_name].body.body.ty
     weights = _gen_weights(out_sinfo)
 
     # The inputs of the forward function are inputs_filtered below.

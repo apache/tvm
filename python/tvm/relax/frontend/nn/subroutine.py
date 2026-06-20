@@ -45,7 +45,7 @@ def _normalize_expr(block_builder, arg, as_relax_expr=False):
     if isinstance(arg, tuple):
         arg = relax.Tuple([_normalize_expr(block_builder, element) for element in arg])
 
-    if isinstance(arg, relax.Expr) and getattr(arg, "struct_info_", None) is None:
+    if isinstance(arg, relax.Expr) and getattr(arg, "ty", None) is None:
         arg = block_builder.emit(arg)
 
     if isinstance(arg, nn.Tensor) and as_relax_expr:
@@ -56,9 +56,9 @@ def _normalize_expr(block_builder, arg, as_relax_expr=False):
 
 def _get_struct_info(arg):
     if isinstance(arg, relax.Expr):
-        return arg.struct_info_
+        return arg.ty
     elif isinstance(arg, nn.Tensor):
-        return arg._expr.struct_info_
+        return arg._expr.ty
     elif isinstance(arg, tuple | list | tvm_ffi.Array):
         return relax.TupleStructInfo([_get_struct_info(field) for field in arg])
     else:
@@ -108,7 +108,7 @@ class SubroutineMixin:
             out = subroutine(*subroutine_args)
 
             if is_nn_tensor_output:
-                if out.struct_info_ is None:
+                if out.ty is None:
                     out = block_builder.emit(out, name_hint=f"{subroutine.name_hint}_output")
                 out = nn.Tensor(_expr=out)
             return out

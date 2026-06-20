@@ -118,14 +118,13 @@ class CollectLastUsage : public ExprVisitor {
         // In the future, this may be handled more easily at the
         // CodeGenVM level.
         bool stored_in_vm_register =
-            !(visitor.constant_tensors_.count(var) || var->struct_info_.as<FuncStructInfoNode>() ||
-              var->struct_info_.as<ShapeStructInfoNode>() ||
-              var->struct_info_.as<PrimStructInfoNode>());
+            !(visitor.constant_tensors_.count(var) || var->ty.as<FuncStructInfoNode>() ||
+              var->ty.as<ShapeStructInfoNode>() || var->ty.as<PrimStructInfoNode>());
 
         if (!is_output && !already_killed) {
           if (visitor.storage_objects_.count(var)) {
             output[last_usage_point].storage.push_back(var);
-          } else if (var->struct_info_.as<TensorStructInfoNode>() && stored_in_vm_register) {
+          } else if (var->ty.as<TensorStructInfoNode>() && stored_in_vm_register) {
             output[last_usage_point].tensors.push_back(var);
           } else if (stored_in_vm_register) {
             output[last_usage_point].objects.push_back(var);

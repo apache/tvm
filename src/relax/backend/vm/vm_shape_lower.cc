@@ -73,7 +73,7 @@ using PrimExprSlotMap =
     std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
 
 // Collector to collect PrimExprSlotMap
-class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
+class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  public:
   // collect the PrimExpr slot for a given function
   static void Collect(Function func, std::vector<std::unique_ptr<PrimExprSlot>>* slot_vec,
@@ -83,11 +83,11 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
     collector.slot_map_ = slot_map;
     // collect shape declaration in func params
     for (auto param : func->params) {
-      collector.VisitStructInfo(GetStructInfo(param));
+      collector.VisitType(GetStructInfo(param));
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
-    collector.VisitStructInfo(func->ret_struct_info);
+    collector.VisitType(func->ret_struct_info);
   }
 
  private:
@@ -105,14 +105,14 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
   void VisitBinding_(const MatchCastNode* op) final {
     // Visit the match cast struct info so we can define
     // the symbolic variables here.
-    this->VisitStructInfo(op->struct_info);
+    this->VisitType(op->struct_info);
   }
 
   void VisitExpr_(const FunctionNode* op) final {
     // Do not recurse into function node as it is self-contained
   }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+  void VisitType_(const FuncStructInfoNode* op) final {
     // Do not recurse into function struct info as it is self-contained
   }
 
@@ -201,8 +201,8 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
  */
 class VMShapeLowerMutator
     : public ExprMutator,
-      public StructInfoFunctor<void(const StructInfo&, Expr, bool, bool, const ffi::String&,
-                                    std::vector<MatchShapeTodoItem>*)> {
+      public TypeFunctor<void(const StructInfo&, Expr, bool, bool, const ffi::String&,
+                              std::vector<MatchShapeTodoItem>*)> {
  public:
   static IRModule Lower(IRModule mod, bool emit_err_ctx) {
     VMShapeLowerMutator mutator(mod, emit_err_ctx);
@@ -386,7 +386,7 @@ class VMShapeLowerMutator
     args.push_back(value_or_index);
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(builtin_make_prim_value_, args, Attrs(), {Downcast<StructInfo>(op->struct_info_)});
+    Call call(builtin_make_prim_value_, args, Attrs(), {Downcast<StructInfo>(op->ty)});
     return call;
   }
 
@@ -507,7 +507,7 @@ class VMShapeLowerMutator
       ffi::Array<Expr> args = {item.input, shape_heap_};
 
       Expr match_op;
-      if (item.input->struct_info_.as<PrimStructInfoNode>()) {
+      if (item.input->ty.as<PrimStructInfoNode>()) {
         match_op = builtin_match_prim_value_;
         TVM_FFI_ICHECK_EQ(item.pattern.size(), 1);
       } else {
@@ -628,27 +628,23 @@ class VMShapeLowerMutator
   void CheckMatchCast(const StructInfo& struct_info, Expr value, bool always_check,
                       bool dynamic_only, const ffi::String& err_ctx,
                       std::vector<MatchShapeTodoItem>* match_todos) {
-    return this->VisitStructInfo(struct_info, value, always_check, dynamic_only, err_ctx,
-                                 match_todos);
+    return this->VisitType(struct_info, value, always_check, dynamic_only, err_ctx, match_todos);
   }
 
-  void VisitStructInfo(const StructInfo& struct_info, Expr value, bool always_check,
-                       bool dynamic_only, const ffi::String& err_ctx,
-                       std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType(const StructInfo& struct_info, Expr value, bool always_check, bool dynamic_only,
+                 const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // short-cut, if the struct info already satisfies the
     // constraint during match cast, we can skip matching
     if (!always_check && IsBaseOf(struct_info, GetStructInfo(value))) return;
-    return StructInfoFunctor::VisitStructInfo(struct_info, value, always_check, dynamic_only,
-                                              err_ctx, match_todos);
+    return TypeFunctor::VisitType(struct_info, value, always_check, dynamic_only, err_ctx,
+                                  match_todos);
   }
 
-  void VisitStructInfo_(const ObjectStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {}
+  void VisitType_(const ObjectStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {}
 
-  void VisitStructInfo_(const PrimStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType_(const PrimStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     if (always_check || !IsBaseOf(PrimStructInfo(op->dtype), GetStructInfo(value))) {
       // check_shape_info(value, ndim, err_ctx)
@@ -665,9 +661,8 @@ class VMShapeLowerMutator
     }
   }
 
-  void VisitStructInfo_(const ShapeStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType_(const ShapeStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetStructInfo(value))) {
       // check_shape_info(value, ndim, err_ctx)
@@ -685,9 +680,8 @@ class VMShapeLowerMutator
     }
   }
 
-  void VisitStructInfo_(const TensorStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType_(const TensorStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
     auto* shape_expr = op->shape.as<ShapeExprNode>();
     if (dynamic_only &&
@@ -737,9 +731,8 @@ class VMShapeLowerMutator
     }
   }
 
-  void VisitStructInfo_(const TupleStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType_(const TupleStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     auto* value_tinfo = GetStructInfoAs<TupleStructInfoNode>(value);
     if (value_tinfo) {
       TVM_FFI_CHECK_EQ(value_tinfo->fields.size(), op->fields.size(), TypeError)
@@ -755,14 +748,13 @@ class VMShapeLowerMutator
     }
     // recursively visit each sub-field and run matching
     for (size_t i = 0; i < op->fields.size(); ++i) {
-      this->VisitStructInfo(op->fields[i], MakeTupleGetItem(value, i), always_check, dynamic_only,
-                            err_ctx, match_todos);
+      this->VisitType(op->fields[i], MakeTupleGetItem(value, i), always_check, dynamic_only,
+                      err_ctx, match_todos);
     }
   }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op, Expr value, bool always_check,
-                        bool dynamic_only, const ffi::String& err_ctx,
-                        std::vector<MatchShapeTodoItem>* match_todos) final {
+  void VisitType_(const FuncStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
+                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // we only check function is callable.
     if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
     // check_func_info(value, err_ctx)

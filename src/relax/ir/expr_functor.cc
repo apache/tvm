@@ -92,7 +92,7 @@ namespace relax {
 void ExprVisitor::VisitExprDepStructInfoField(const StructInfo& struct_info) {
   // recurse into struct info in case they depend on value
   // under the current scope.
-  default_struct_info_field_visitor_.VisitStructInfo(struct_info);
+  default_tyfield_visitor_.VisitType(struct_info);
 }
 
 ExprVisitor::DefaultStructInfoFieldVisitor::DefaultStructInfoFieldVisitor(ExprVisitor* parent)
@@ -106,7 +106,7 @@ void ExprVisitor::DefaultStructInfoFieldVisitor::VisitStructInfoExprField(const 
   parent_->VisitPrimExpr(expr);
 }
 
-void ExprVisitor::DefaultStructInfoFieldVisitor::VisitStructInfo_(const FuncStructInfoNode* op) {
+void ExprVisitor::DefaultStructInfoFieldVisitor::VisitType_(const FuncStructInfoNode* op) {
   // Do not recurse into function struct info
   // as they won't contain ref to values in current scope.
 }
@@ -128,7 +128,7 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   for (Expr field : op->fields) {
     this->VisitExpr(field);
   }
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -136,7 +136,7 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
 // Visit the use-site of a defined Var
 void ExprVisitor::VisitExpr_(const VarNode* op) {
   this->VisitSpan(op->span);
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -168,7 +168,7 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
     this->VisitExpr(arg);
   }
 
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -179,7 +179,7 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitExpr(op->true_branch);
   this->VisitExpr(op->false_branch);
 
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -190,7 +190,7 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->tuple);
 
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -201,7 +201,7 @@ void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
   }
   this->VisitSpan(op->span);
 
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
@@ -218,14 +218,14 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   }
   this->VisitExpr(op->body);
 
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
 }
 
 void ExprVisitor::VisitExpr_(const PrimValueNode* op) {
   this->VisitPrimExpr(op->value);
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = op->ty.as<StructInfoNode>()) {
     this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
   }
   this->VisitSpan(op->span);
@@ -342,7 +342,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo ExprMutatorBase::VisitExprDepStructInfoField(const StructInfo& struct_info) {
   // recurse into struct info in case they depend on value
   // under the current scope.
-  return default_struct_info_field_mutator_.VisitStructInfo(struct_info);
+  return default_tyfield_mutator_.VisitType(struct_info);
 }
 
 ExprMutatorBase::DefaultStructInfoFieldMutator::DefaultStructInfoFieldMutator(
@@ -358,7 +358,7 @@ PrimExpr ExprMutatorBase::DefaultStructInfoFieldMutator::VisitStructInfoExprFiel
   return parent_->VisitPrimExpr(expr);
 }
 
-StructInfo ExprMutatorBase::DefaultStructInfoFieldMutator::VisitStructInfo_(
+StructInfo ExprMutatorBase::DefaultStructInfoFieldMutator::VisitType_(
     const FuncStructInfoNode* op) {
   // Do not recurse into function struct info
   // as they won't contain ref to values in current scope.
@@ -439,7 +439,7 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
     unchanged &= new_arg.same_as(arg);
   }
 
-  if (unchanged && VisitAndCheckStructInfoFieldUnchanged(call_node->struct_info_)) {
+  if (unchanged && VisitAndCheckStructInfoFieldUnchanged(call_node->ty)) {
     return ffi::GetRef<Expr>(call_node);
   } else {
     return Call(new_op, call_args, call_node->attrs, sinfo_args, call_node->span);
@@ -451,8 +451,7 @@ Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
   Expr true_b = this->VisitExpr(op->true_branch);
   Expr false_b = this->VisitExpr(op->false_branch);
   if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
-      op->false_branch.same_as(false_b) &&
-      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+      op->false_branch.same_as(false_b) && VisitAndCheckStructInfoFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   } else {
     return If(guard, true_b, false_b, op->span);
@@ -516,7 +515,7 @@ Expr ExprMutatorBase::VisitExpr_(const SeqExprNode* op) {
   Expr body = this->VisitExpr(op->body);
 
   if (all_blocks_unchanged && body.same_as(op->body) &&
-      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+      VisitAndCheckStructInfoFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   }
   return SeqExpr(blocks, body);
@@ -615,8 +614,7 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
   Expr true_b = this->VisitWithInnerScope(op->true_branch);
   Expr false_b = this->VisitWithInnerScope(op->false_branch);
   if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
-      op->false_branch.same_as(false_b) &&
-      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+      op->false_branch.same_as(false_b) && VisitAndCheckStructInfoFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   } else {
     return If(guard, true_b, false_b, op->span);
@@ -643,7 +641,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 
   if (all_blocks_unchanged && body.same_as(op->body) &&
-      VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+      VisitAndCheckStructInfoFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   } else {
     return SeqExpr(blocks, body);
@@ -677,7 +675,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     return;
   }
 
-  auto new_sinfo = new_value->struct_info_.as<StructInfo>();
+  auto new_sinfo = new_value->ty.as<StructInfo>();
 
   TVM_FFI_CHECK(new_sinfo, InternalError)
       << "In binding of variable " << binding->var << ", the value " << new_value
@@ -749,9 +747,9 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {
-  if (auto* sinfo = var->struct_info_.as<StructInfoNode>()) {
+  if (auto* sinfo = var->ty.as<StructInfoNode>()) {
     StructInfo struct_info = this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
-    if (struct_info.same_as(var->struct_info_)) {
+    if (struct_info.same_as(var->ty)) {
       return ffi::GetRef<Var>(var);
     } else {
       return Var(var->vid, struct_info, var->span);
@@ -847,10 +845,9 @@ Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
   TVM_FFI_ICHECK(struct_info.defined());
 
   // TODO(relax-team) add StructInfoEqual check
-  if (var->struct_info_.defined()) {
+  if (var->ty.defined()) {
     // use same-as as a quick path
-    if (var->struct_info_.same_as(struct_info) ||
-        ffi::StructuralEqual()(var->struct_info_, struct_info)) {
+    if (var->ty.same_as(struct_info) || ffi::StructuralEqual()(var->ty, struct_info)) {
       return var;
     } else {
       Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, struct_info, var->span)

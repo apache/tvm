@@ -48,8 +48,8 @@ bool SinfoCompatibleWithRelax(ffi::Array<StructInfo> sinfos) {
 bool IsDistIRFunc(Function func) {
   ffi::Array<StructInfo> param_sinfos;
   for (const auto& param : func->params) {
-    TVM_FFI_ICHECK(param->struct_info_);
-    param_sinfos.push_back(Downcast<StructInfo>(param->struct_info_.value()));
+    TVM_FFI_ICHECK(param->ty.defined());
+    param_sinfos.push_back(Downcast<StructInfo>(param->ty));
   }
   bool compatible_with_dist_ir = SinfoCompatibleWithDistIR(param_sinfos);
   bool compatible_with_relax = SinfoCompatibleWithRelax(param_sinfos);

@@ -571,7 +571,7 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   // no need to jump, as var.dtype == value.dtype
-  auto expr_sinfo = expr.as<ExprNode>()->struct_info_;
+  auto expr_sinfo = expr.as<ExprNode>()->ty;
   if (const TensorStructInfoNode* tensor_sinfo = expr_sinfo.as<TensorStructInfoNode>()) {
     return (ffi::StructuralEqual()(op->dtype, tensor_sinfo->dtype)) &&
            VisitDFPattern(op->pattern, expr);

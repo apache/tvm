@@ -93,12 +93,12 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
   if (!data_sinfo.defined()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input data to be Tensor. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   if (new_shape_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input new shape to be Shape. However, the given one is "
-        << call->args[1]->struct_info_->GetTypeKey();
+        << call->args[1]->ty->GetTypeKey();
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;

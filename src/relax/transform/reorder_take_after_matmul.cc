@@ -64,16 +64,16 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         << "Attributes for relax.take operator should be TakeAttrs, "
         << "but were instead " << take_call->attrs << " with type " << take_call->GetTypeKey();
 
-    const auto* lhs_sinfo = lhs->struct_info_.as<TensorStructInfoNode>();
+    const auto* lhs_sinfo = lhs->ty.as<TensorStructInfoNode>();
     if (!lhs_sinfo) return expr;
 
-    const auto* weights_sinfo = weights->struct_info_.as<TensorStructInfoNode>();
+    const auto* weights_sinfo = weights->ty.as<TensorStructInfoNode>();
     if (!weights_sinfo) return expr;
 
-    const auto* indices_sinfo = indices->struct_info_.as<TensorStructInfoNode>();
+    const auto* indices_sinfo = indices->ty.as<TensorStructInfoNode>();
     if (!indices_sinfo) return expr;
 
-    const auto* matmul_sinfo = expr->struct_info_.as<TensorStructInfoNode>();
+    const auto* matmul_sinfo = expr->ty.as<TensorStructInfoNode>();
     if (!matmul_sinfo) return expr;
 
     if (!attrs->axis.has_value()) return expr;

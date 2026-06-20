@@ -2231,7 +2231,7 @@ def test_batched_var_len_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2284,7 +2284,7 @@ def test_batched_var_len_multi_query_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2379,7 +2379,7 @@ def test_batched_var_len_sliding_window():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])

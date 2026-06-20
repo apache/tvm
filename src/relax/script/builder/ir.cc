@@ -216,7 +216,7 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr,
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   if (annotate_struct_info.defined()) {
     const auto& sinfo = annotate_struct_info.value();
-    if (!expr->struct_info_.defined()) {
+    if (!expr->ty.defined()) {
       UpdateStructInfo(expr, sinfo);
     } else {
       TVM_FFI_ICHECK(StructInfoBaseCheck(sinfo, GetStructInfo(expr)) !=
