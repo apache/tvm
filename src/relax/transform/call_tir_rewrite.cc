@@ -75,7 +75,7 @@ class CallTIRMutator : public ExprMutator {
       bool is_inplace = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
-      if (const auto& tensor_ty = MatchStructInfo<TensorStructInfo>(expr)) {
+      if (const auto& tensor_ty = MatchType<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& output_ty = tensor_ty.value();
         TVM_FFI_ICHECK(output_ty->shape.defined())
@@ -103,7 +103,7 @@ class CallTIRMutator : public ExprMutator {
                  " be -1.";
           outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
         }
-      } else if (const auto& tuple_ty = MatchStructInfo<TupleStructInfo>(expr)) {
+      } else if (const auto& tuple_ty = MatchType<TupleStructInfo>(expr)) {
         // multiple output case
         const TupleStructInfo& output_ty = tuple_ty.value();
         for (size_t i = 0; i < output_ty->fields.size(); ++i) {

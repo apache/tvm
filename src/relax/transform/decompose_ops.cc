@@ -35,8 +35,8 @@ namespace tvm {
 namespace relax {
 
 TensorStructInfo MatchTensorStructInfo(Expr data) {
-  auto _sinfo = MatchStructInfo<TensorStructInfo>(data);
-  TVM_FFI_ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetStructInfo(data);
+  auto _sinfo = MatchType<TensorStructInfo>(data);
+  TVM_FFI_ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetType(data);
   return _sinfo.value();
 }
 
@@ -145,7 +145,7 @@ Expr DecomposeLayerNorm(const Call& call) {
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   TVM_FFI_ICHECK(call_node->ty.defined());
   Expr expr = call_node->args[0];
-  const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
+  const ShapeStructInfoNode* sinfo = GetTypeAs<ShapeStructInfoNode>(call_node);
   TVM_FFI_ICHECK(sinfo);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"

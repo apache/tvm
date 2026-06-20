@@ -69,10 +69,8 @@ def test_reshape_expand_dims():
         ):
             cls = Module
             with R.dataflow():
-                y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
-                z = R.call_tir(
-                    cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), "float32")
-                )
+                y = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((2, 4, 3), dtype="float32"))
+                z = R.call_tir(cls.expand_dims, (y,), out_ty=R.Tensor((2, 1, 4, 1, 3), "float32"))
                 R.output(z)
             return z
 
@@ -124,7 +122,7 @@ def test_reshape_expand_dims():
                 # Note: `z` is the output var of the dataflow block, and is thus
                 # not expected to be rewritten.
                 z = R.call_tir(
-                    cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4, 1, 3), dtype="float32")
+                    cls.expand_dims, (y,), out_ty=R.Tensor((2, 1, 4, 1, 3), dtype="float32")
                 )
                 R.output(z)
             return z
@@ -175,9 +173,9 @@ def test_reshape_pattern_detect():
         ) -> R.Tensor((2, 1, 4096, 1, 5, 64), dtype="float32"):
             cls = Module
             with R.dataflow():
-                y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4096, 5, 64), dtype="float32"))
+                y = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((2, 4096, 5, 64), dtype="float32"))
                 z = R.call_tir(
-                    cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4096, 1, 5, 64), "float32")
+                    cls.expand_dims, (y,), out_ty=R.Tensor((2, 1, 4096, 1, 5, 64), "float32")
                 )
                 R.output(z)
             return z
@@ -214,7 +212,7 @@ def test_reshape_pattern_detect():
             cls = Expected
             with R.dataflow():
                 y: R.Tensor((2, 4096, 5, 64), dtype="float32") = R.reshape(x, R.shape([2, 4096, 5, 64]))
-                z = R.call_tir(cls.expand_dims, (y,), out_sinfo=R.Tensor((2, 1, 4096, 1, 5, 64), dtype="float32"))
+                z = R.call_tir(cls.expand_dims, (y,), out_ty=R.Tensor((2, 1, 4096, 1, 5, 64), dtype="float32"))
                 R.output(z)
             return z
     # fmt: on
@@ -260,9 +258,7 @@ def test_reshape_dynamic_shape():
         ):
             cls = Module
             with R.dataflow():
-                y = R.call_tir(
-                    cls.reshape, (x,), out_sinfo=R.Tensor((1, 8, 16, 128), dtype="float16")
-                )
+                y = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((1, 8, 16, 128), dtype="float16"))
                 z = R.add(y, R.const(1, "float16"))
                 R.output(z)
             return z
@@ -339,7 +335,7 @@ def test_reshape_non_dataflow():
         @R.function
         def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
             cls = Module
-            y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
+            y = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((2, 4, 3), dtype="float32"))
             return y
 
     assert relax.analysis.has_reshape_pattern(Module["reshape"])
@@ -404,7 +400,7 @@ def test_tuple_get_reshape():
                 lv645 = R.call_tir(
                     cls.fused_reshape5,
                     (lv, lv1, lv2),
-                    out_sinfo=R.Tensor((2, 4096, 8, 40), dtype="float16"),
+                    out_ty=R.Tensor((2, 4096, 8, 40), dtype="float16"),
                 )
                 out: R.Tensor((2, 4096, 8, 40), dtype="float16") = R.add(lv645, lv645)
                 R.output(out)
@@ -507,10 +503,8 @@ def test_invalid_reshape():
         def main(A: R.Tensor((1, 1024), dtype="int32")) -> R.Tensor((1, 1000), dtype="int32"):
             with R.dataflow():
                 cls = Module
-                S = R.call_tir(
-                    cls.strided_slice, (A,), out_sinfo=R.Tensor((1, 1000), dtype="int32")
-                )
-                A = R.call_tir(cls.add_one, (S,), out_sinfo=R.Tensor((1, 1000), dtype="int32"))
+                S = R.call_tir(cls.strided_slice, (A,), out_ty=R.Tensor((1, 1000), dtype="int32"))
+                A = R.call_tir(cls.add_one, (S,), out_ty=R.Tensor((1, 1000), dtype="int32"))
                 R.output(A)
             return A
 
@@ -582,7 +576,7 @@ def test_reshape_scalar():
             cls = Expected
             with R.dataflow():
                 lv1: R.Tensor((1,), dtype="float32") = R.reshape(x, R.shape([1]))
-                lv2 = R.call_tir(cls.add, (lv1, lv1), out_sinfo=R.Tensor((1,), dtype="float32"))
+                lv2 = R.call_tir(cls.add, (lv1, lv1), out_ty=R.Tensor((1,), dtype="float32"))
                 R.output(lv2)
             return lv2
 
@@ -611,7 +605,7 @@ def test_rewrite_static_reshape():
 
             with R.dataflow():
                 y = R.reshape(x, R.shape([64, 4]))
-                z = R.call_tir(cls.add, (y, y), out_sinfo=R.Tensor((64, 4), dtype="float32"))
+                z = R.call_tir(cls.add, (y, y), out_ty=R.Tensor((64, 4), dtype="float32"))
                 R.output(z)
             return z
 
@@ -669,7 +663,7 @@ def test_rewrite_static_reshape():
 #                     cls.add,
 #                     (y, y),
 #                     tir_vars=[N],
-#                     out_sinfo=R.Tensor((N // 4, 4), dtype="float32"),
+#                     out_ty=R.Tensor((N // 4, 4), dtype="float32"),
 #                 )
 #                 R.output(z)
 #             return z
@@ -734,7 +728,7 @@ def test_rewrite_dynamic_reshape():
                     cls.add,
                     (y, y),
                     tir_vars=[N],
-                    out_sinfo=R.Tensor((N * 4, 4), dtype="float32"),
+                    out_ty=R.Tensor((N * 4, 4), dtype="float32"),
                 )
                 R.output(z)
             return z

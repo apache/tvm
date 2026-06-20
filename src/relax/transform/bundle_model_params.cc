@@ -59,7 +59,7 @@ class ModelParamBundler : public ExprMutator {
 
     ffi::Array<StructInfo> param_tuple;
     for (size_t i = num_input; i < func->params.size(); i++) {
-      param_tuple.push_back(GetStructInfo(func->params[i]));
+      param_tuple.push_back(GetType(func->params[i]));
     }
 
     Var var_param_tuple(param_tuple_name_.value_or("model_params"), TupleStructInfo(param_tuple));

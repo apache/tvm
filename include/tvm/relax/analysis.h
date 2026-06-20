@@ -95,8 +95,8 @@ TVM_DLL StructInfo StructInfoFromType(const Type& type);
  * \note  call->op field is ignored during derivation and we only rely on information
  *        presented by func_sinfo.
  */
-TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
-                                           const BlockBuilder& ctx);
+TVM_DLL StructInfo DeriveCallRetType(const FuncStructInfo& finfo, const Call& call,
+                                     const BlockBuilder& ctx);
 /*!
  * \brief Derive the call's ret value struct info using a caller-provided analyzer.
  * \param finfo The function struct info.
@@ -105,8 +105,8 @@ TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Ca
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return The derived struct info of the call.
  */
-TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
-                                           const BlockBuilder& ctx, const arith::Analyzer& ana);
+TVM_DLL StructInfo DeriveCallRetType(const FuncStructInfo& finfo, const Call& call,
+                                     const BlockBuilder& ctx, const arith::Analyzer& ana);
 
 /*!
  * \brief Erase the info to a corresponding more coarse grained
@@ -273,7 +273,7 @@ enum class BaseCheckResult {
  *
  * \sa BaseCheckResult
  */
-TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived);
+TVM_DLL BaseCheckResult TypeBaseCheck(const StructInfo& base, const StructInfo& derived);
 /*!
  * \brief Run a base check using a caller-provided analyzer.
  * \param base The base struct info.
@@ -283,8 +283,8 @@ TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const Struct
  *
  * \sa BaseCheckResult
  */
-TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived,
-                                            const arith::Analyzer& ana);
+TVM_DLL BaseCheckResult TypeBaseCheck(const StructInfo& base, const StructInfo& derived,
+                                      const arith::Analyzer& ana);
 
 /*!
  * \brief Check the relation of two struct info to see if one subsumes another one.
@@ -307,7 +307,7 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
 /*!
  * \brief Return the condition for which base is a superset of derived
  *
- * This function returns finer-grained conditions for kFailL2 than StructInfoBaseCheck
+ * This function returns finer-grained conditions for kFailL2 than TypeBaseCheck
  *
  * If the returned expression is true, or simplifies to true, then
  * base is a superset of derived.  If the returned expression is
@@ -324,7 +324,7 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
  *
  * \sa BaseCheckResult
  */
-TVM_DLL PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived);
+TVM_DLL PrimExpr TypeBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived);
 
 /*!
  * \brief Unify the two struct info to their least common ancestor.
@@ -333,7 +333,7 @@ TVM_DLL PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const S
  * \param rhs The right operand.
  * \return The unified information.
  */
-TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs);
+TVM_DLL StructInfo TypeLCA(const StructInfo& lhs, const StructInfo& rhs);
 /*!
  * \brief Unify two struct infos using a caller-provided analyzer.
  * \param lhs The left operand.
@@ -341,8 +341,8 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs);
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return The unified information.
  */
-TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
-                                 const arith::Analyzer& ana);
+TVM_DLL StructInfo TypeLCA(const StructInfo& lhs, const StructInfo& rhs,
+                           const arith::Analyzer& ana);
 
 /*!
  * \brief Get the TIR variables that appear in the input struct info.
@@ -350,7 +350,7 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
  * \param sinfo The struct info object to be analyzed.
  * \return The list of TIR variables that appear in the input struct info.
  */
-TVM_DLL ffi::Array<tirx::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tirx::Var> TIRVarsInType(const StructInfo& sinfo);
 
 /*!
  * \brief Get the TIR variables that appear in the input struct info.
@@ -364,7 +364,7 @@ TVM_DLL ffi::Array<tirx::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
  *   deduplicated, each TIR variable will appear at most once, and in
  *   order of occurrence.
  */
-TVM_DLL ffi::Array<tirx::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
+TVM_DLL ffi::Array<tirx::Var> DefinableTIRVarsInType(const StructInfo& sinfo);
 
 /*! \brief Collect expressions whose usage requires them to be non-negative
  *

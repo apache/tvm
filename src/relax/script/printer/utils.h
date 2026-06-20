@@ -109,11 +109,11 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
       } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_ty =
-            DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
+            DeriveCallRetType(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
 
     } else if (const auto* tuple = rhs.as<relax::TupleNode>()) {
-      inferred_ty = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
+      inferred_ty = relax::TupleStructInfo(tuple->fields.Map(relax::GetType));
 
     } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
       if (auto ptr = get_item->tuple->ty.as<relax::TupleStructInfoNode>();

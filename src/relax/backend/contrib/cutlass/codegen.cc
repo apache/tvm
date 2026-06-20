@@ -165,7 +165,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     std::vector<std::string> arg_types, arg_names;
 
     for (const auto& arg : ext_func_args_) {
-      auto sinfo = GetStructInfo(arg);
+      auto sinfo = GetType(arg);
       if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
         arg_types.emplace_back(backend::DType2String(tensor_sinfo->dtype));
       } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
@@ -298,7 +298,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
                                   const ffi::Map<ffi::String, ffi::Any>& attrs) {
     auto func_args = GetArgumentNames(call);
-    auto struct_info = GetStructInfo(ffi::GetRef<Call>(call));
+    auto struct_info = GetType(ffi::GetRef<Call>(call));
 
     std::vector<std::string> out_types;
     if (const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>()) {

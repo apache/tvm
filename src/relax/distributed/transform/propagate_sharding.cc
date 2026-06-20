@@ -171,7 +171,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     axis_group_graph_->JoinAxis(Axis(val->tuple.get(), -1, val->index), {binding->var.get(), -1},
                                 distributed::AxisGroupGraph::EdgeType::kDescend);
-    const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(binding->var);
+    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(binding->var);
     if (!tensor_ty) {
       ExprVisitor::VisitBinding_(binding, val);
       return;
@@ -255,7 +255,7 @@ class ShardingConflictHandler : public ExprVisitor {
     ShardingConflictHandler handler(axis_group_graph);
     handler.VisitExpr(function);
     for (const Var& var : function->params) {
-      if (GetStructInfoAs<TensorStructInfoNode>(var)) {
+      if (GetTypeAs<TensorStructInfoNode>(var)) {
         handler.CheckTensorShardingCompatible(var);
       }
     }
@@ -267,7 +267,7 @@ class ShardingConflictHandler : public ExprVisitor {
       : axis_group_graph_(axis_group_graph) {}
 
   void CheckTensorShardingCompatible(Var var) {
-    const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(var);
+    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(var);
     TVM_FFI_ICHECK(tensor_ty);
     const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape);
@@ -308,7 +308,7 @@ class ShardingConflictHandler : public ExprVisitor {
   }
 
   void CheckConstantNoSharding(Constant constant) {
-    const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(constant);
+    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(constant);
     for (int i = 0; i < tensor_ty->ndim; i++) {
       AxisShardingSpec sharding_spec;
       int has_sharding_spec;
@@ -330,7 +330,7 @@ class ShardingConflictHandler : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
-    if (GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
+    if (GetTypeAs<TensorStructInfoNode>(binding->var)) {
       CheckTensorShardingCompatible(binding->var);
     }
     ExprVisitor::VisitBinding_(binding);
@@ -422,7 +422,7 @@ class DistributedIRBuilder : public ExprMutator {
     // Step 4. Rewrite Function
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
-      if (GetStructInfoAs<TensorStructInfoNode>(var) || GetStructInfoAs<TupleStructInfoNode>(var)) {
+      if (GetTypeAs<TensorStructInfoNode>(var) || GetTypeAs<TupleStructInfoNode>(var)) {
         Var new_param = Downcast<Var>(RewriteInputTensorAndConstant(var));
         input_tensor_remap_.Set(var, new_param);
         new_params.push_back(new_param);
@@ -524,9 +524,9 @@ class DistributedIRBuilder : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
     ffi::Array<TensorStructInfo> orig_output_tys;
-    if (const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
+    if (const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(binding->var)) {
       orig_output_tys.push_back(ffi::GetRef<TensorStructInfo>(tensor_ty));
-    } else if (const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(binding->var)) {
+    } else if (const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(binding->var)) {
       for (const auto& field_ty : tuple_ty->fields) {
         orig_output_tys.push_back(Downcast<TensorStructInfo>(field_ty));
       }

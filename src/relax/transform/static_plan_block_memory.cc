@@ -436,7 +436,7 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
-  ffi::Array<tirx::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
+  ffi::Array<tirx::Var> var_in_signature = TIRVarsInType(GetType(func));
   for (const tirx::Var& tir_var : var_in_signature) {
     auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
     auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);

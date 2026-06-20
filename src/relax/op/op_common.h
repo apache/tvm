@@ -109,7 +109,7 @@ ArgType GetArgStructInfoByIndex(const Call& call, const Op& op, const BlockBuild
         << "However, args[" << index << "] has undefined struct info.";
   }
 
-  auto sinfo = GetStructInfo(call->args[index]);
+  auto sinfo = GetType(call->args[index]);
   auto typed_ty = sinfo.as<ArgType>();
 
   if (!typed_ty.has_value()) {
@@ -243,7 +243,7 @@ StructInfo ReturnStructInfoFromArg(const Call& call, const BlockBuilder& ctx) {
         << op << " op has only " << n_input << "arguments, but try to get the arg with index "
         << arg_index;
   }
-  return GetStructInfo(call->args[arg_index]);
+  return GetType(call->args[arg_index]);
 }
 
 /*!

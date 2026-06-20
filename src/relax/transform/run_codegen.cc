@@ -120,7 +120,7 @@ class CodeGenRunner : ExprMutator {
         return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
       };
 
-      auto ret_sinfo = GetStructInfo(call);
+      auto ret_sinfo = GetType(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
         return create_call_dps_packed(it->second, ret_sinfo);
       } else if (auto opt_func = builder_->GetContextIRModule()->Lookup(gvar).as<Function>()) {

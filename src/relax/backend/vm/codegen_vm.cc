@@ -142,7 +142,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // allocate dst register.
-    RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
+    RegName dst_reg = HasVoidType(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
       if (call_node->op == call_builtin_with_ctx_op_) {
         // TODO(relax-team) migrate most handling of op to

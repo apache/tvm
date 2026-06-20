@@ -55,7 +55,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
     return te::PlaceholderOp(n).output(0);
   }
   TVM_FFI_ICHECK(value->ty.defined()) << "value must be normalized and contain StructInfo";
-  auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(value);
+  auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(value);
   TVM_FFI_ICHECK(tensor_ty) << "Value must be a tensor";
   auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
   TVM_FFI_CHECK(shape_expr, ValueError)

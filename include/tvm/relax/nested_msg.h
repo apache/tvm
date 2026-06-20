@@ -318,8 +318,8 @@ NestedMsg<T> MapToNestedMsg(StructInfo sinfo, FType fmapleaf) {
  * \tparam FType The mapping function type
  */
 template <typename T, typename FType>
-NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
-  auto sinfo = GetStructInfo(expr);
+NestedMsg<T> MapToNestedMsgByType(Expr expr, FType fmapleaf) {
+  auto sinfo = GetType(expr);
   if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
     ffi::Array<NestedMsg<T>> res;
     res.reserve(tuple->fields.size());
@@ -330,7 +330,7 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
       } else {
         field = TupleGetItem(expr, i);
       }
-      res.push_back(MapToNestedMsgBySInfo<T, FType>(field, fmapleaf));
+      res.push_back(MapToNestedMsgByType<T, FType>(field, fmapleaf));
     }
     return res;
   } else {
@@ -520,7 +520,7 @@ void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
  */
 template <typename T, std::size_t N, typename FType>
 Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftransleaf) {
-  StructInfo sinfo = GetStructInfo(expr);
+  StructInfo sinfo = GetType(expr);
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
     std::array<ffi::Array<NestedMsg<T>>, N> msg_arrays;
     for (size_t i = 0; i < N; ++i) {

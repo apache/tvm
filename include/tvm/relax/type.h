@@ -417,7 +417,7 @@ class TupleStructInfo : public StructInfo {
  * \param ctx The builder context.
  * \return The derived struct info of the call.
  */
-using StructInfoDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
+using TypeDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief Structure information about function.
@@ -442,7 +442,7 @@ class FuncStructInfoNode : public StructInfoNode {
    * \note When derive_func is not empty, then params should be std::nullopt,
    *       ret should be ObjectStructInfo()
    */
-  ffi::Optional<StructInfoDeriveFunc> derive_func;
+  ffi::Optional<TypeDeriveFunc> derive_func;
   /*!
    * \brief Whether the function is pure.
    * \note This parameter should be set to true only if the function is pure on all inputs.
@@ -501,7 +501,7 @@ class FuncStructInfo : public StructInfo {
    * \return The FuncStructInfo for opaque packedfunc.
    * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity = false,
+  TVM_DLL static FuncStructInfo OpaqueFunc(TypeDeriveFunc derive_func, bool purity = false,
                                            Span span = Span());
 
   /*!
@@ -583,22 +583,6 @@ inline bool HasVoidType(const Expr& expr) {
  *  if the original one is nullptr.
  */
 TVM_DLL void UpdateType(Expr expr, StructInfo ty);
-
-template <typename T>
-inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
-  return MatchType<T>(expr);
-}
-
-template <typename T>
-inline const T* GetStructInfoAs(const Expr& expr) {
-  return GetTypeAs<T>(expr);
-}
-
-inline StructInfo GetStructInfo(const Expr& expr) { return GetType(expr); }
-
-inline bool HasVoidStructInfo(const Expr& expr) { return HasVoidType(expr); }
-
-TVM_DLL void UpdateStructInfo(Expr expr, StructInfo struct_info);
 
 }  // namespace relax
 }  // namespace tvm

@@ -94,7 +94,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     auto new_ty = VisitExprDepStructInfoField(Downcast<StructInfo>(op->ty));
 
     ffi::StructuralEqual struct_equal;
-    if (!struct_equal(new_ty, GetStructInfo(true_b))) {
+    if (!struct_equal(new_ty, GetType(true_b))) {
       auto output_var = Var("then_branch_with_dyn", new_ty);
 
       true_b = SeqExpr({BindingBlock({
@@ -103,7 +103,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
                        output_var);
     }
 
-    if (!struct_equal(new_ty, GetStructInfo(false_b))) {
+    if (!struct_equal(new_ty, GetType(false_b))) {
       auto output_var = Var("else_branch_with_dyn", new_ty);
 
       false_b = SeqExpr({BindingBlock({
@@ -172,7 +172,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
+        DataflowVar new_var(var->name_hint(), GetType(var));
 
         plan.replace_binding.Set(var->vid, new_var);
         plan.replace_usage.Set(var->vid, new_var);
@@ -316,7 +316,7 @@ class CanonicalizePlanner : public ExprVisitor {
       }
 
       auto earlier_tuple_size =
-          Downcast<TupleStructInfo>(GetStructInfo(first_element->tuple))->fields.size();
+          Downcast<TupleStructInfo>(GetType(first_element->tuple))->fields.size();
       if (earlier_tuple_size != expr_tuple->fields.size()) {
         return std::nullopt;
       }
@@ -353,8 +353,7 @@ class CanonicalizePlanner : public ExprVisitor {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return ffi::StructuralEqual()(GetStructInfo(binding->var),
-                                      GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetType(binding->var), GetType(match_cast->value));
       } else {
         TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }

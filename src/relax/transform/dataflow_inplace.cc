@@ -171,7 +171,7 @@ class AliasAnalyzer {
     for (auto input : inputs) {
       int curr_idx = get_fresh_idx();
       alias_map_[input] = {curr_idx};
-      if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(input)) {
+      if (auto* tup_info = GetTypeAs<TupleStructInfoNode>(input)) {
         InsertFreshTuple(curr_idx, tup_info);
       }
     }
@@ -251,7 +251,7 @@ class AliasAnalyzer {
     std::unordered_set<int> ret;
     int res_idx = get_fresh_idx();
     // the result may be a tuple
-    if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+    if (auto* tup_info_node = GetTypeAs<TupleStructInfoNode>(bound_var)) {
       InsertFreshTuple(res_idx, tup_info_node);
     }
     AddCapturedIndices(&ret, res_idx);
@@ -344,7 +344,7 @@ class AliasAnalyzer {
 
           // If the returned value is a tuple, we'll assume it's a fresh tuple
           // (there may be exceptions to this too)
-          if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+          if (auto* tup_info = GetTypeAs<TupleStructInfoNode>(bound_var)) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
             InsertFreshTuple(tup_idx, tup_info);
@@ -690,7 +690,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         std::unordered_set<int> candidates;
         std::unordered_set<int> exact_match_candidates;
 
-        auto target_sinfo = GatherCandidateSinfo(GetStructInfo(defined_var));
+        auto target_sinfo = GatherCandidateSinfo(GetType(defined_var));
         // can't be done in-place, ignore
         if (target_sinfo.empty()) {
           continue;
@@ -700,7 +700,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         for (size_t j = 0; j < call_node->args.size(); j++) {
           auto arg = call_node->args[j];
           for (auto target : target_sinfo) {
-            auto [matches_size, matches_exactly] = SizeMatches(target, GetStructInfo(arg), ctx);
+            auto [matches_size, matches_exactly] = SizeMatches(target, GetType(arg), ctx);
             if (matches_size) {
               candidates.insert(static_cast<int>(j));
               if (matches_exactly) {

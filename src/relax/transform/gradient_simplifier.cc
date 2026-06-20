@@ -84,7 +84,7 @@ class GradientSimplifier : private ExprMutator {
     if (call_node->op != Op::Get("relax.permute_dims")) {
       return false;
     }
-    auto sinfo = MatchStructInfo<TensorStructInfo>(call_node->args[0]);
+    auto sinfo = MatchType<TensorStructInfo>(call_node->args[0]);
     if (!sinfo) {
       return false;
     }
@@ -107,7 +107,7 @@ class GradientSimplifier : private ExprMutator {
 
   // Return permute_dims(expr). Generate the axes needed.
   static Expr GetTransposeOf(const Expr& expr) {
-    auto sinfo = MatchStructInfo<TensorStructInfo>(expr);
+    auto sinfo = MatchType<TensorStructInfo>(expr);
     TVM_FFI_ICHECK(sinfo);
     auto ndim = sinfo.value()->ndim;
     if (ndim == 1) {
@@ -177,8 +177,8 @@ class GradientSimplifier : private ExprMutator {
       // operation should be eliminated
 
       // Skip matmuls with 1-dim input because in these cases we cannot simply transpose the input
-      auto a_dim = MatchStructInfo<TensorStructInfo>(prev_call_node->args[0]).value()->ndim;
-      auto b_dim = MatchStructInfo<TensorStructInfo>(prev_call_node->args[1]).value()->ndim;
+      auto a_dim = MatchType<TensorStructInfo>(prev_call_node->args[0]).value()->ndim;
+      auto b_dim = MatchType<TensorStructInfo>(prev_call_node->args[1]).value()->ndim;
       if (a_dim == 1 || b_dim == 1) {
         return reemit_and_return();
       }

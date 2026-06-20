@@ -285,7 +285,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), GetStructInfo(free_var), free_var->span);
+      Var var = Var(free_var->name_hint(), GetType(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -300,10 +300,9 @@ class LambdaLifter : public ExprMutator {
     {
       auto func_ty = Downcast<FuncStructInfo>(func_node->ty);
       if (is_closure) {
-        func_ty =
-            FuncStructInfo(lifted_func_params.Map(GetStructInfo), func_ty->ret, func_ty->purity);
+        func_ty = FuncStructInfo(lifted_func_params.Map(GetType), func_ty->ret, func_ty->purity);
       }
-      UpdateStructInfo(gvar_lifted_func, func_ty);
+      UpdateType(gvar_lifted_func, func_ty);
     }
 
     Expr body = func_node->body;
@@ -321,7 +320,7 @@ class LambdaLifter : public ExprMutator {
     }
 
     body = this->VisitWithNewScope(body, lifted_func_params);
-    StructInfo ret_struct_info = GetStructInfo(body);
+    StructInfo ret_struct_info = GetType(body);
     body = Bind(body, rebinding_map);
 
     Function lifted_func;
@@ -341,7 +340,7 @@ class LambdaLifter : public ExprMutator {
 
     // Add the lifted function to the module.
     lifted_func = CopyWithNewVars(lifted_func);
-    gvar_lifted_func->ty = GetStructInfo(lifted_func);
+    gvar_lifted_func->ty = GetType(lifted_func);
 
     builder_->UpdateFunction(gvar_lifted_func, lifted_func);
 

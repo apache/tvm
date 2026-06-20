@@ -209,7 +209,7 @@ def test_legalize_scalar_data_type_preserve():
         @R.function
         def main(x: R.Tensor((3, 3), dtype="float16")) -> R.Tensor((3, 3), dtype="float16"):
             cls = Expected0
-            gv = R.call_tir(cls.multiply, (x,), out_sinfo=R.Tensor((3, 3), dtype="float16"))
+            gv = R.call_tir(cls.multiply, (x,), out_ty=R.Tensor((3, 3), dtype="float16"))
             return gv
 
     @tvm.script.ir_module
@@ -231,7 +231,7 @@ def test_legalize_scalar_data_type_preserve():
         @R.function
         def main(x: R.Tensor((3, 3), dtype="uint8")) -> R.Tensor((3, 3), dtype="uint8"):
             cls = Expected1
-            gv = R.call_tir(cls.multiply, (x,), out_sinfo=R.Tensor((3, 3), dtype="uint8"))
+            gv = R.call_tir(cls.multiply, (x,), out_ty=R.Tensor((3, 3), dtype="uint8"))
             return gv
 
     @tvm.script.ir_module
@@ -253,7 +253,7 @@ def test_legalize_scalar_data_type_preserve():
         @R.function
         def main(x: R.Tensor((3, 3), dtype="bool")) -> R.Tensor((3, 3), dtype="bool"):
             cls = Expected2
-            gv = R.call_tir(cls.equal, (x,), out_sinfo=R.Tensor((3, 3), dtype="bool"))
+            gv = R.call_tir(cls.equal, (x,), out_ty=R.Tensor((3, 3), dtype="bool"))
             return gv
     # fmt: on
 
@@ -392,7 +392,7 @@ def test_legalize_with_vdevice():
             B: R.Tensor((32, 32), dtype="float32"),
         ):
             cls = Expected
-            C = R.call_tir(cls.add, (A, B), out_sinfo=R.Tensor((32, 32), dtype="float32"))
+            C = R.call_tir(cls.add, (A, B), out_ty=R.Tensor((32, 32), dtype="float32"))
             return C
 
         @T.prim_func(private=True, s_tir=True)
@@ -416,7 +416,7 @@ def test_legalize_with_vdevice():
             C = R.call_tir(
                 cls.add_llvm,
                 (A, B),
-                out_sinfo=R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
+                out_ty=R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
             )
             return C
 

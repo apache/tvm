@@ -97,7 +97,7 @@ InferLayoutOutput InferLayoutStatistical(
 
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
   int ndim = tensor_sinfo->ndim;

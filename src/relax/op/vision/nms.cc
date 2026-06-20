@@ -139,7 +139,7 @@ StructInfo InferStructInfoGetValidCounts(const Call& call, const BlockBuilder& c
         << "get_valid_counts expects 1 argument, got " << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call) << "get_valid_counts expects input data to be a Tensor.";
   }
@@ -225,9 +225,9 @@ StructInfo InferStructInfoNMS(const Call& call, const BlockBuilder& ctx) {
         << "non_max_suppression expects 3 arguments, got " << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* valid_count_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* valid_count_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
+  const auto* indices_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[2]);
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "non_max_suppression expects input data to be a Tensor.";

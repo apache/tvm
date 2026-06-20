@@ -49,13 +49,13 @@ class PyTorchIntegrationModule(BasePyModule):
         n = x.shape[0]
 
         # Call TIR function
-        lv = self.call_tir(self.matmul, [x, w], out_sinfo=R.Tensor((n, 20), "float32"))
+        lv = self.call_tir(self.matmul, [x, w], out_ty=R.Tensor((n, 20), "float32"))
 
         # Apply ReLU
         lv1 = F.relu(lv)
 
         # Call packed function (will be added dynamically)
-        lv2 = self.call_dps_packed("my_softmax", [lv1, 1], out_sinfo=R.Tensor((n, 20), "float32"))
+        lv2 = self.call_dps_packed("my_softmax", [lv1, 1], out_ty=R.Tensor((n, 20), "float32"))
 
         # Call Python function
         lv3 = self.my_identity_func(lv2)

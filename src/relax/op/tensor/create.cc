@@ -73,8 +73,8 @@ StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
   }
-  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  const auto* fill_value_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[0]);
+  const auto* fill_value_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
   if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Full requires the input shape to be a Shape. However, the given one is "
@@ -150,7 +150,7 @@ StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
   }
 
-  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
+  const auto* shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[0]);
   if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
@@ -295,7 +295,7 @@ StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
         << " arguments";
   }
 
-  const auto* x_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* x_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   if (x_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Eye_like expects the input `x` to be a Tensor, but got "

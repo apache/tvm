@@ -399,7 +399,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
   using ExprMutator::LookupBinding;
   using ExprMutator::var_remap_;
   using ExprMutator::VisitWithNewScope;
-  using ExprMutator::WithStructInfo;
+  using ExprMutator::WithType;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -654,10 +654,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PyExprMutator mutator, const Expr& expr) { return mutator->VisitWithNewScope(expr); })
       .def("relax.PyExprMutatorLookupBinding",
            [](PyExprMutator mutator, const Var& var) { return mutator->LookupBinding(var); })
-      .def("relax.PyExprMutatorWithStructInfo",
-           [](PyExprMutator mutator, Var var, StructInfo sinfo) {
-             return mutator->WithStructInfo(var, sinfo);
-           })
+      .def("relax.PyExprMutatorWithType",
+           [](PyExprMutator mutator, Var var, StructInfo ty) { return mutator->WithType(var, ty); })
       .def("relax.PyExprMutatorSetVarRemap",
            [](PyExprMutator mutator, Id id, Var var) { return mutator->var_remap_[id] = var; })
       .def("relax.PyExprMutatorGetVarRemap",

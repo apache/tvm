@@ -214,17 +214,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 tvm::relax::Var Emit(const tvm::relax::Expr& expr,
                      const ffi::Optional<tvm::relax::StructInfo>& annotate_struct_info) {
-  using tvm::relax::GetStructInfo;
+  using tvm::relax::GetType;
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   if (annotate_struct_info.defined()) {
     const auto& sinfo = annotate_struct_info.value();
     if (!expr->ty.defined()) {
-      UpdateStructInfo(expr, sinfo);
+      UpdateType(expr, sinfo);
     } else {
-      TVM_FFI_ICHECK(StructInfoBaseCheck(sinfo, GetStructInfo(expr)) !=
-                     tvm::relax::BaseCheckResult::kFailL0)
-          << "Invalid annotation. Got rhs value struct info: " << GetStructInfo(expr)
+      TVM_FFI_ICHECK(TypeBaseCheck(sinfo, GetType(expr)) != tvm::relax::BaseCheckResult::kFailL0)
+          << "Invalid annotation. Got rhs value struct info: " << GetType(expr)
           << ", given struct info: " << sinfo;
     }
   }

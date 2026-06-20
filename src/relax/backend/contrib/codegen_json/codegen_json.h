@@ -265,7 +265,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
    *         will flatten it.
    */
   NodeEntries AddNode(JSONGraphObjectPtr node, const Expr& expr) {
-    auto struct_info = GetStructInfo(expr);
+    auto struct_info = GetType(expr);
     auto node_id = nodes_.size();
     nodes_.push_back(node);
     NodeEntries ret;

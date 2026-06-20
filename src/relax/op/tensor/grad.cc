@@ -44,7 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[0]);
+  return GetType(call->args[0]);
 }
 
 TVM_REGISTER_OP("relax.grad.no_grad")
@@ -69,7 +69,7 @@ StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& 
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.start_checkpoint should be a Var.";
   }
-  return GetStructInfo(call->args[0]);
+  return GetType(call->args[0]);
 }
 
 TVM_REGISTER_OP("relax.grad.start_checkpoint")
@@ -94,7 +94,7 @@ StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ct
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.end_checkpoint should be a Var.";
   }
-  return GetStructInfo(call->args[0]);
+  return GetType(call->args[0]);
 }
 
 TVM_REGISTER_OP("relax.grad.end_checkpoint")
@@ -128,7 +128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoNLLLossBackward(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[1]);
+  return GetType(call->args[1]);
 }
 
 TVM_REGISTER_OP("relax.grad.nll_loss_backward")
@@ -165,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoMaxPool2DBackward(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[1]);
+  return GetType(call->args[1]);
 }
 
 TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
@@ -200,7 +200,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoAvgPool2DBackward(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[1]);
+  return GetType(call->args[1]);
 }
 
 TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
@@ -227,7 +227,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoTakeBackward(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[1]);
+  return GetType(call->args[1]);
 }
 
 TVM_REGISTER_OP("relax.grad.take_backward")

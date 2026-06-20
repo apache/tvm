@@ -414,7 +414,7 @@ class FunctionCreator : public ExprMutator {
           const Tuple& args = Downcast<Tuple>(call->args[1]);
           for (const Expr& arg : args->fields) {
             CheckDefAndUpdateParam(arg);
-            TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
+            TVM_FFI_ICHECK(GetTypeAs<TupleStructInfoNode>(arg) == nullptr);
           }
           // TODO(tvm-team): handle shape expr
         } else {
@@ -433,12 +433,12 @@ class FunctionCreator : public ExprMutator {
             if (auto tuple = arg.as<TupleNode>()) {
               for (const Expr& tup_arg : tuple->fields) {
                 CheckDefAndUpdateParam(tup_arg);
-                TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
+                TVM_FFI_ICHECK(GetTypeAs<TupleStructInfoNode>(tup_arg) == nullptr);
               }
             } else {
               CheckDefAndUpdateParam(arg);
             }
-            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
+            if (GetTypeAs<TupleStructInfoNode>(arg) != nullptr) {
               // The argument is fully referenced. Thus we remove it from the mapping.
               partially_used_tuple_params_.erase(arg.get());
             }
@@ -618,9 +618,9 @@ class FunctionCreator : public ExprMutator {
       ffi::String name = var != nullptr
                              ? var->name_hint()
                              : ffi::String("param_" + std::to_string(n_param_for_const_++));
-      StructInfo param_ty = GetStructInfo(expr);
+      StructInfo param_ty = GetType(expr);
       if (!IsInlinableConstants(expr)) {
-        Var param(std::move(name), GetStructInfo(expr));
+        Var param(std::move(name), GetType(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
       }
@@ -759,7 +759,7 @@ class OperatorFusor : public ExprMutator {
   }
 
   bool IsTupleOutput(Function f) {
-    auto sinfo = GetStructInfo(f).as<FuncStructInfoNode>();
+    auto sinfo = GetType(f).as<FuncStructInfoNode>();
     TVM_FFI_ICHECK(sinfo);
     return sinfo->ret->IsInstance<TupleStructInfoNode>();
   }
@@ -767,7 +767,7 @@ class OperatorFusor : public ExprMutator {
   bool IsNestedTupleOutput(Function f) {
     if (!IsTupleOutput(f)) return false;
 
-    auto tup = GetStructInfo(f).as<FuncStructInfoNode>()->ret.as<TupleStructInfoNode>();
+    auto tup = GetType(f).as<FuncStructInfoNode>()->ret.as<TupleStructInfoNode>();
     for (const auto& field : tup->fields) {
       if (field->IsInstance<TupleStructInfoNode>()) return true;
     }
@@ -829,7 +829,7 @@ class OperatorFusor : public ExprMutator {
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
       if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
-        if (!GetStructInfo(binding->var)->IsInstance<TupleStructInfoNode>() ||
+        if (!GetType(binding->var)->IsInstance<TupleStructInfoNode>() ||
             IsNestedTupleOutput(func)) {
           // When binding->var itself is a tuple, we do not need to remap this variable to the
           // output of TupleGetItem unless the output is a nested tuple.
@@ -1322,7 +1322,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     ffi::Array<Expr> params;
 
     for (auto v : func_node->params) {
-      Var new_v(v->name_hint(), GetStructInfo(v));
+      Var new_v(v->name_hint(), GetType(v));
       param_vars.push_back(new_v);
       params.push_back(new_v);
     }
@@ -1330,7 +1330,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     // We cannot delegate to `ExprMutator::VisitExpr_(const FunctionNode*)` at this point, as it
     // would recursively visit the Call node.  However, we are still required to generate
     // well-formed Relax IR.  As a result, we need to build the SeqExpr ourselves.
-    Var local_func_var("local_func", GetStructInfo(f_inner));
+    Var local_func_var("local_func", GetType(f_inner));
     Var output_var("output", f_inner->ret_struct_info);
     SeqExpr new_body({BindingBlock({
                          VarBinding(local_func_var, f_inner),

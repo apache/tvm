@@ -132,20 +132,20 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
         << "However, in expression " << call_node << ", the shape argument " << arg
         << " has struct info " << arg->ty;
 
-    return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    return Call(builtin_reshape_, call_node->args, Attrs(), {GetType(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(call_node->ty.defined());
-    return Call(builtin_shape_of_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    return Call(builtin_shape_of_, call_node->args, Attrs(), {GetType(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(call_node->ty.defined());
 
-    return Call(builtin_tensor_to_shape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    return Call(builtin_tensor_to_shape_, call_node->args, Attrs(), {GetType(call_node)});
   }
 
   Expr CallPyFunc(const Call& call_node) {
@@ -178,7 +178,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     args.push_back(PrimValue::Int64(dev_type));
     args.push_back(PrimValue::Int64(dev_id));
     args.push_back(storage_scope);
-    return Call(builtin_to_device_, args, call_node->attrs, {GetStructInfo(call_node)});
+    return Call(builtin_to_device_, args, call_node->attrs, {GetType(call_node)});
   }
 
   Expr MakeClosure(const Call& call_node) {

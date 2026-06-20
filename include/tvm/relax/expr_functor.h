@@ -544,13 +544,13 @@ class ExprMutator : public ExprMutatorBase {
   }
 
   /*!
-   * \brief Create a new var with specified struct_info if the original var's shape or type does
-   * not match with the specified ones.
+   * \brief Create a new var with specified type if the original var's shape or type does not
+   * match with the specified ones.
    * \param var The var to be updated.
-   * \param struct_info The struct info to be updated.
-   * \return The var filled with struct_info
+   * \param ty The type to be updated.
+   * \return The var filled with type information.
    */
-  Var WithStructInfo(Var var, StructInfo struct_info);
+  Var WithType(Var var, StructInfo ty);
 
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;

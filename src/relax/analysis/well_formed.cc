@@ -257,7 +257,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     WithMode(VisitMode::kMatchVarDef, [&]() {
       TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
-        relax::TypeVisitor::VisitType(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetType(param));
       }
     });
 
@@ -402,12 +402,12 @@ class WellFormedChecker : public relax::ExprVisitor,
             << err.what();
       }
       if (normalized.defined()) {
-        auto inferred_struct_info = GetStructInfo(normalized.value());
+        auto inferred_struct_info = GetType(normalized.value());
         auto current_struct_info = Downcast<StructInfo>(call->ty);
 
         // An error should be raised if the annotated StructInfo is
         // provably incorrect.  This check is done using
-        // `StructInfoBaseCheck(...) < kFailL1`, because `kFailL1`
+        // `TypeBaseCheck(...) < kFailL1`, because `kFailL1`
         // represents cases that are neither provably correct nor
         // provably incorrect.  If this check were replaced with
         // `!IsBaseOf(...)`, cases that are correct but not provably
@@ -418,8 +418,7 @@ class WellFormedChecker : public relax::ExprVisitor,
         // StructInfo, but the TIR simplifications are not sufficient
         // to prove that the two expressions are equivalent, we should
         // not raise an error.
-        if (StructInfoBaseCheck(current_struct_info, inferred_struct_info) <
-            BaseCheckResult::kFailL1) {
+        if (TypeBaseCheck(current_struct_info, inferred_struct_info) < BaseCheckResult::kFailL1) {
           TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(call))
               << "All information in StructInfo annotations must be correct.  "
               << "However, while the expression " << ffi::GetRef<Call>(call) << " is annotated as "
@@ -506,8 +505,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     this->VisitVarDef(binding->var);
 
     if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
-      auto expr_ty = GetStructInfo(binding->value);
-      auto var_ty = GetStructInfo(binding->var);
+      auto expr_ty = GetType(binding->value);
+      auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {
         TVM_FFI_VISIT_THROW(TypeError, binding->var)
             << "Expression of type " << expr_ty << " cannot be assigned to a variable of type "

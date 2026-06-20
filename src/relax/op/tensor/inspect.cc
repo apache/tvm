@@ -42,7 +42,7 @@ TensorStructInfo GetTensorArgInfo(const Call& call) {
       << "but received " << call->args.size() << " arguments: " << call->args;
 
   const auto& arg = call->args[0];
-  auto sinfo = GetStructInfo(arg);
+  auto sinfo = GetType(arg);
 
   auto tensor_ty = sinfo.as<TensorStructInfo>();
   TVM_FFI_CHECK(tensor_ty, TypeError) << "Operator " << call->op << " expects a tensor argument, "

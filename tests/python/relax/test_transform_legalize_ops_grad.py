@@ -79,7 +79,7 @@ def test_nll_loss_backward():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"), weights: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_sinfo=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
             return gv
     # fmt: on
 
@@ -149,7 +149,7 @@ def test_nll_loss_backward_no_weight():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_nll_loss_backward_no_weight, (output_grad, predictions, targets), out_sinfo=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.te_nll_loss_backward_no_weight, (output_grad, predictions, targets), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
             return gv
     # fmt: on
 
@@ -171,7 +171,7 @@ def test_nll_loss_backward_no_batch():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((4,), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_sinfo=R.Tensor((4,), dtype="float32"))
+            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_ty=R.Tensor((4,), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -256,7 +256,7 @@ def test_max_pool2d_backward():
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), out_sinfo=R.Tensor((3, 2, 10, 10), dtype="float32"))
+            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), out_ty=R.Tensor((3, 2, 10, 10), dtype="float32"))
             return gv
     # fmt: on
 
@@ -291,7 +291,7 @@ def test_avg_pool2d_backward():
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.avg_pool2d_backward, (output_grad, data), out_sinfo=R.Tensor((3, 2, 10, 10), dtype="float32"))
+            gv = R.call_tir(cls.avg_pool2d_backward, (output_grad, data), out_ty=R.Tensor((3, 2, 10, 10), dtype="float32"))
             return gv
     # fmt: on
 
@@ -326,7 +326,7 @@ def test_take_backward():
         @R.function
         def main(output_grad: R.Tensor((3, 2, 5), dtype="float32"), x: R.Tensor((3, 4, 5), dtype="float32"), indices: R.Tensor((2,), dtype="int32")) -> R.Tensor((3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_sinfo=R.Tensor((3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((3, 4, 5), dtype="float32"))
             return gv
     # fmt: on
 
@@ -369,7 +369,7 @@ def test_take_backward_symbolic():
             n = T.int64()
             i = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_sinfo=R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((m, n), dtype="float32"))
             return gv
     # fmt: on
 

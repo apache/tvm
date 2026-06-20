@@ -44,7 +44,7 @@ class VDeviceMutator : public ExprMutator {
   Expr VisitExpr(const Expr& expr) final {
     auto visited_expr = ExprMutator::VisitExpr(expr);
     if (visited_expr->ty.defined()) {
-      auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(visited_expr);
+      auto* tinfo = GetTypeAs<TensorStructInfoNode>(visited_expr);
       bool unchanged = true;
       if (tinfo != nullptr) {
         if (tinfo->vdevice.defined()) {

@@ -83,7 +83,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     collector.slot_map_ = slot_map;
     // collect shape declaration in func params
     for (auto param : func->params) {
-      collector.VisitType(GetStructInfo(param));
+      collector.VisitType(GetType(param));
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
@@ -252,7 +252,7 @@ class VMShapeLowerMutator
         num_input = static_cast<size_t>(opt_num_input.value());
       }
       for (size_t i = 0; i < func->params.size(); ++i) {
-        StructInfo sinfo = GetStructInfo(func->params[i]);
+        StructInfo sinfo = GetType(func->params[i]);
         std::ostringstream err_ctx;
         err_ctx << "ErrorContext(fn=" << gvar->name_hint << ", loc=param[" << i
                 << "], param=" << func->params[i]->name_hint() << ", annotation=" << sinfo << ") ";
@@ -335,12 +335,12 @@ class VMShapeLowerMutator
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
                 {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_ty});
-      UpdateStructInfo(call, heap_ty);
+      UpdateType(call, heap_ty);
       return VarBinding(var, call);
     } else {
       Var var("shape_heap", ObjectStructInfo());
       Call call(null_value_op_, {});
-      UpdateStructInfo(call, ObjectStructInfo());
+      UpdateType(call, ObjectStructInfo());
       return VarBinding(var, call);
     }
   }
@@ -635,7 +635,7 @@ class VMShapeLowerMutator
                  const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // short-cut, if the struct info already satisfies the
     // constraint during match cast, we can skip matching
-    if (!always_check && IsBaseOf(struct_info, GetStructInfo(value))) return;
+    if (!always_check && IsBaseOf(struct_info, GetType(value))) return;
     return TypeFunctor::VisitType(struct_info, value, always_check, dynamic_only, err_ctx,
                                   match_todos);
   }
@@ -646,7 +646,7 @@ class VMShapeLowerMutator
   void VisitType_(const PrimStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
-    if (always_check || !IsBaseOf(PrimStructInfo(op->dtype), GetStructInfo(value))) {
+    if (always_check || !IsBaseOf(PrimStructInfo(op->dtype), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(builtin_check_prim_value_info_,
                 {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
@@ -664,7 +664,7 @@ class VMShapeLowerMutator
   void VisitType_(const ShapeStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // emit runtime check of shape
-    if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetStructInfo(value))) {
+    if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(builtin_check_shape_info_,
                 {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(),
@@ -690,7 +690,7 @@ class VMShapeLowerMutator
       // if we only check dynamic shapes, and the shape is static, we can skip.
       return;
     }
-    if (always_check || !IsBaseOf(TensorStructInfo(op->dtype, op->ndim), GetStructInfo(value))) {
+    if (always_check || !IsBaseOf(TensorStructInfo(op->dtype, op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
       Call call(builtin_check_tensor_info_,
                 {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype), GetErrContext(err_ctx)},
@@ -720,20 +720,20 @@ class VMShapeLowerMutator
   Expr MakeTupleGetItem(Expr value, int64_t index) {
     if (auto* tuple_expr = value.as<TupleNode>()) {
       return tuple_expr->fields[index];
-    } else if (GetStructInfoAs<TupleStructInfoNode>(value)) {
+    } else if (GetTypeAs<TupleStructInfoNode>(value)) {
       // value is tuple type, it is OK to run tuple get item.
       return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
       Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});
-      UpdateStructInfo(call, ObjectStructInfo());
+      UpdateType(call, ObjectStructInfo());
       return call;
     }
   }
 
   void VisitType_(const TupleStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
-    auto* value_tinfo = GetStructInfoAs<TupleStructInfoNode>(value);
+    auto* value_tinfo = GetTypeAs<TupleStructInfoNode>(value);
     if (value_tinfo) {
       TVM_FFI_CHECK_EQ(value_tinfo->fields.size(), op->fields.size(), TypeError)
           << err_ctx << " during match-cast we find tuple size mismatch";
@@ -756,7 +756,7 @@ class VMShapeLowerMutator
   void VisitType_(const FuncStructInfoNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     // we only check function is callable.
-    if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
+    if (!always_check && MatchType<FuncStructInfo>(value)) return;
     // check_func_info(value, err_ctx)
     Call call(builtin_check_func_info_, {value, GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
     builder_->Emit(call, "_");

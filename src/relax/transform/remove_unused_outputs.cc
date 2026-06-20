@@ -178,7 +178,7 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
 
   Expr new_output = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
   StructInfo new_return_sinfo =
-      outputs.size() == 1 ? GetStructInfo(outputs[0]) : TupleStructInfo(outputs.Map(GetStructInfo));
+      outputs.size() == 1 ? GetType(outputs[0]) : TupleStructInfo(outputs.Map(GetType));
 
   VarBinding binding(previous_outputs, func->body);
   BindingBlock binding_block({binding});

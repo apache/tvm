@@ -139,7 +139,7 @@ class ConstantFolder : public ExprMutator {
    * of the program.
    */
   static bool ExprContainsTensor(const Expr& expr) {
-    if (GetStructInfo(expr).as<TensorStructInfoNode>()) {
+    if (GetType(expr).as<TensorStructInfoNode>()) {
       return true;
     }
     if (const auto* tuple = expr.as<TupleNode>()) {

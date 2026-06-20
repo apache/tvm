@@ -53,9 +53,7 @@ std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
   return indices_map;
 }
 
-inline TensorStructInfo GetTensorSInfo(Expr e) {
-  return Downcast<TensorStructInfo>(GetStructInfo(e));
-}
+inline TensorStructInfo GetTensorSInfo(Expr e) { return Downcast<TensorStructInfo>(GetType(e)); }
 
 struct BranchInfo {
   int num_branches;

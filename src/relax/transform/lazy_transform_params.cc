@@ -73,7 +73,7 @@ class LazyInputMutator : public ExprMutator {
     new_params.push_back(fget_param);
 
     auto array_externally_visible_vars =
-        DefinableTIRVarsInStructInfo(TupleStructInfo(new_params.Map(GetStructInfo)));
+        DefinableTIRVarsInType(TupleStructInfo(new_params.Map(GetType)));
     std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                           array_externally_visible_vars.end());
     StructInfo new_ret_struct_info = EraseToWellDefined(
@@ -106,7 +106,7 @@ class LazyInputMutator : public ExprMutator {
                                                       StringImm(var->name_hint()),
                                                   }),
                                       var->name_hint() + "_untyped");
-        return builder_->EmitMatchCast(untyped, GetStructInfo(var), var->name_hint());
+        return builder_->EmitMatchCast(untyped, GetType(var), var->name_hint());
       }
     }
 

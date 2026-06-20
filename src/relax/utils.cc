@@ -160,8 +160,7 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     if (!expr_tensor) return;
     if (!expr_tensor->shape.defined()) return;
 
-    bind_from_shape(GetStructInfo(var_tensor->shape.value()),
-                    GetStructInfo(expr_tensor->shape.value()));
+    bind_from_shape(GetType(var_tensor->shape.value()), GetType(expr_tensor->shape.value()));
   };
 
   std::function<void(const StructInfo&, const StructInfo&)> bind_from_struct_info = nullptr;
@@ -187,8 +186,8 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
   };
 
   for (const auto& [relax_var, relax_expr] : relax_var_remap) {
-    auto var_sinfo = GetStructInfo(relax_var);
-    auto expr_sinfo = GetStructInfo(relax_expr);
+    auto var_sinfo = GetType(relax_var);
+    auto expr_sinfo = GetType(relax_expr);
     bind_from_struct_info(var_sinfo, expr_sinfo);
   }
 
@@ -229,7 +228,7 @@ bool IsImpureCall(const Call& call) {
     return !(purity_map[op]);
   }
   // the StructInfo must be FuncStructInfo
-  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
+  auto func_struct_info = GetTypeAs<FuncStructInfoNode>(call->op);
   return !func_struct_info->purity;
 }
 

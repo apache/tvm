@@ -35,7 +35,7 @@ class SimplePyFuncModule(BasePyModule):
         """Simple addition function."""
         x_tvm = self._convert_pytorch_to_tvm(x)
         y_tvm = self._convert_pytorch_to_tvm(y)
-        result = self.call_tir(self.add_tir, [x_tvm, y_tvm], out_sinfo=R.Tensor((5,), "float32"))
+        result = self.call_tir(self.add_tir, [x_tvm, y_tvm], out_ty=R.Tensor((5,), "float32"))
         return self._convert_tvm_to_pytorch(result)
 
     @I.pyfunc
@@ -43,9 +43,7 @@ class SimplePyFuncModule(BasePyModule):
         """Simple multiplication function."""
         x_tvm = self._convert_pytorch_to_tvm(x)
         y_tvm = self._convert_pytorch_to_tvm(y)
-        result = self.call_tir(
-            self.multiply_tir, [x_tvm, y_tvm], out_sinfo=R.Tensor((5,), "float32")
-        )
+        result = self.call_tir(self.multiply_tir, [x_tvm, y_tvm], out_ty=R.Tensor((5,), "float32"))
         return self._convert_tvm_to_pytorch(result)
 
     @T.prim_func(s_tir=True)
@@ -91,16 +89,16 @@ class ComplexPyFuncModule(BasePyModule):
 
             # Run ML inference
             features = self.call_tir(
-                self.extract_features, [tvm_data], out_sinfo=R.Tensor((10,), "float32")
+                self.extract_features, [tvm_data], out_ty=R.Tensor((10,), "float32")
             )
 
             predictions = self.call_tir(
-                self.ml_inference, [features, tvm_params], out_sinfo=R.Tensor((5,), "float32")
+                self.ml_inference, [features, tvm_params], out_ty=R.Tensor((5,), "float32")
             )
 
             # Post-process results
             final_result = self.call_tir(
-                self.post_process, [predictions], out_sinfo=R.Tensor((5,), "float32")
+                self.post_process, [predictions], out_ty=R.Tensor((5,), "float32")
             )
 
             return self._convert_tvm_to_pytorch(final_result)
@@ -123,7 +121,7 @@ class ComplexPyFuncModule(BasePyModule):
         # Convert and return
         tvm_processed = self._convert_pytorch_to_tvm(processed)
         result = self.call_tir(
-            self.normalize_data, [tvm_processed], out_sinfo=R.Tensor((10,), "float32")
+            self.normalize_data, [tvm_processed], out_ty=R.Tensor((10,), "float32")
         )
         return self._convert_tvm_to_pytorch(result)
 
@@ -240,7 +238,7 @@ class PerformancePyFuncModule(BasePyModule):
         x_tvm = self._convert_pytorch_to_tvm(x)
         y_tvm = self._convert_pytorch_to_tvm(y)
         result = self.call_tir(
-            self.vectorized_add, [x_tvm, y_tvm], out_sinfo=R.Tensor((10,), "float32")
+            self.vectorized_add, [x_tvm, y_tvm], out_ty=R.Tensor((10,), "float32")
         )
         return self._convert_tvm_to_pytorch(result)
 
@@ -317,7 +315,7 @@ class IntegrationPyFuncModule(BasePyModule):
             result = self.call_tir(
                 self.final_transform,
                 [tvm_data],
-                out_sinfo=R.Tensor((reduced_data.shape[0], 10), "float32"),
+                out_ty=R.Tensor((reduced_data.shape[0], 10), "float32"),
             )
 
             return self._convert_tvm_to_pytorch(result)
@@ -727,7 +725,7 @@ def test_call_py_func_with_base_py_module():
     x = Var("x", TensorStructInfo((5,), "float32"))
     y = Var("y", TensorStructInfo((5,), "float32"))
 
-    call_expr = call_py_func(StringImm("test_func"), (x, y), out_sinfo=R.Tensor((5,), "float32"))
+    call_expr = call_py_func(StringImm("test_func"), (x, y), out_ty=R.Tensor((5,), "float32"))
 
     assert call_expr.op.name == "relax.call_py_func"
     assert call_expr.args[0].value == "test_func"
@@ -738,7 +736,7 @@ def test_call_py_func_with_base_py_module():
         call_py_func(
             "invalid",
             (Var("x", TensorStructInfo((5,), "float32")),),
-            out_sinfo=R.Tensor((5,), "float32"),
+            out_ty=R.Tensor((5,), "float32"),
         )
         assert False, "Should raise type error"
     except Exception as e:
@@ -749,7 +747,7 @@ def test_call_py_func_with_base_py_module():
     class ValidationTestModule(BasePyModule):
         @R.function
         def test_invalid_call(x: R.Tensor((5,), "float32")) -> R.Tensor((5,), "float32"):
-            result = R.call_py_func("non_existent_func", (x,), out_sinfo=R.Tensor((5,), "float32"))
+            result = R.call_py_func("non_existent_func", (x,), out_ty=R.Tensor((5,), "float32"))
             return result
 
     device = tvm.cpu()
@@ -775,9 +773,9 @@ def test_call_py_func_with_base_py_module():
 
         @R.function
         def mixed_computation(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
-            relu_result = R.call_py_func("torch_relu", (x,), out_sinfo=R.Tensor((10,), "float32"))
+            relu_result = R.call_py_func("torch_relu", (x,), out_ty=R.Tensor((10,), "float32"))
             final_result = R.call_py_func(
-                "torch_softmax", (relu_result,), out_sinfo=R.Tensor((10,), "float32")
+                "torch_softmax", (relu_result,), out_ty=R.Tensor((10,), "float32")
             )
             return final_result
 

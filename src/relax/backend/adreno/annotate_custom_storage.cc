@@ -357,7 +357,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
     ffi::Array<ffi::String> arg_scope;
     for (uint32_t i = 0; i < func_args->fields.size(); ++i) {
-      auto sinfo = GetStructInfo(func_args->fields[i]);
+      auto sinfo = GetType(func_args->fields[i]);
       if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
         bool is_texture =
             i < is_texture_supported.size() ? is_texture_supported[i] : is_texture_supported[0];
@@ -533,12 +533,12 @@ class CollectProducerScopeInfo : public ExprVisitor {
       }
     }
     // Applying same scope for outputs
-    StructInfo updated_ret_ty = UpdateStructInfo(out_ty, {final_scope});
+    StructInfo updated_ret_ty = UpdateOutputType(out_ty, {final_scope});
     producer_ty.Set(ffi::GetRef<Expr>(call), updated_ret_ty);
   }
 
  private:
-  StructInfo UpdateStructInfo(const StructInfo& out_ty, ffi::Array<ffi::String> scope) {
+  StructInfo UpdateOutputType(const StructInfo& out_ty, ffi::Array<ffi::String> scope) {
     if (out_ty->IsInstance<TensorStructInfoNode>()) {
       auto tensor_ty = Downcast<TensorStructInfo>(out_ty);
       auto shape_arr = GetShapeFromTensorStructInfo(tensor_ty);
@@ -679,7 +679,7 @@ class DefineVDevice : ExprMutator {
 
     int arg_idx = 0;
     for (auto arg : func_args->fields) {
-      auto sinfo = GetStructInfo(arg);
+      auto sinfo = GetType(arg);
       if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
         ffi::String scope = "global";
         if (call_scope_info_.find(ffi::GetRef<Expr>(call_node)) != call_scope_info_.end()) {

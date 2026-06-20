@@ -68,7 +68,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   // to that of a scalar (0-d) tensor.
   TensorStructInfo indices_ty = [&]() {
     auto arg = call->args[1];
-    auto sinfo = GetStructInfo(arg);
+    auto sinfo = GetType(arg);
     if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
       return tensor_ty.value();
     } else if (auto prim_ty = sinfo.as<PrimStructInfoNode>()) {
@@ -266,7 +266,7 @@ template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
 ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> expr) {
   if (expr) {
-    return UnpackTupleOfPrimValue<PrimType>(GetStructInfo(expr.value()));
+    return UnpackTupleOfPrimValue<PrimType>(GetType(expr.value()));
   } else {
     return std::nullopt;
   }
@@ -291,22 +291,21 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     }
   }();
 
-  auto axes_ty = GetStructInfo(call->args[1]);
-  auto begin_ty = GetStructInfo(call->args[2]);
-  auto end_ty = GetStructInfo(call->args[3]);
+  auto axes_ty = GetType(call->args[1]);
+  auto begin_ty = GetType(call->args[2]);
+  auto end_ty = GetType(call->args[3]);
   auto strides_ty = [&]() -> ffi::Optional<StructInfo> {
     if (n_args > 4) {
-      return GetStructInfo(call->args[4]);
+      return GetType(call->args[4]);
     } else {
       return std::nullopt;
     }
   }();
 
-  TVM_FFI_ICHECK(
-      IsBaseOf(relax::TensorStructInfo(DataType::Void(), kUnknownNDim), GetStructInfo(data)))
+  TVM_FFI_ICHECK(IsBaseOf(relax::TensorStructInfo(DataType::Void(), kUnknownNDim), GetType(data)))
       << "Operator " << call->op << " requires the first argument to be a tensor.  "
       << "However, in expression " << call << ", the first argument " << data << " has struct info "
-      << GetStructInfo(data);
+      << GetType(data);
 
   // TODO(Lunderberg): Implement this check using `IsBaseOf`.  Doing
   // so will require a way to represent a `relax::TupleStructInfo` of
@@ -324,7 +323,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     });
   };
   auto check_tuple = [&](const char* name, Expr expr) {
-    auto sinfo = GetStructInfo(expr);
+    auto sinfo = GetType(expr);
 
     TVM_FFI_ICHECK(is_base_of_tuple_of_int64(sinfo))
         << "Operator " << call->op << " requires the " << name
@@ -447,7 +446,7 @@ InferLayoutOutput InferLayoutStridedSlice(
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "
@@ -459,7 +458,7 @@ InferLayoutOutput InferLayoutStridedSlice(
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
-  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(GetStructInfo(call->args[1]));
+  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(GetType(call->args[1]));
   TVM_FFI_ICHECK(opt_axes_tuple) << "Layout inference of " << call->op
                                  << " requires slices to be along static axes.  "
                                  << "However, expression " << call
@@ -500,10 +499,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* begin_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  const auto* end_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
-  const auto* strides_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* begin_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
+  const auto* end_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
+  const auto* strides_ty = GetTypeAs<TensorStructInfoNode>(call->args[3]);
 
   TVM_FFI_ICHECK(data_ty);
   if (data_ty->IsUnknownNdim()) {
@@ -559,7 +558,7 @@ InferLayoutOutput InferLayoutDynStridedSlice(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "

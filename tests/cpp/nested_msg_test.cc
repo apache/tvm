@@ -167,16 +167,15 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_TRUE(Equal(output, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
 
-  auto output2 =
-      MapToNestedMsg<IntImm>(GetStructInfo(t1), [&](StructInfo sinfo) -> NestedMsg<IntImm> {
-        const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
-        if (prim_sinfo == nullptr) return std::nullopt;
-        int bits = prim_sinfo->dtype.bits();
-        if (bits == 16) return c0;
-        if (bits == 32) return c1;
-        if (bits == 64) return c2;
-        return std::nullopt;
-      });
+  auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](StructInfo sinfo) -> NestedMsg<IntImm> {
+    const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
+    if (prim_sinfo == nullptr) return std::nullopt;
+    int bits = prim_sinfo->dtype.bits();
+    if (bits == 16) return c0;
+    if (bits == 32) return c1;
+    if (bits == 64) return c2;
+    return std::nullopt;
+  });
 
   EXPECT_TRUE(Equal(output2, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
@@ -200,13 +199,13 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_EQ(z_count, 1);
 }
 
-TEST(NestedMsg, MapToNestedMsgBySInfo) {
+TEST(NestedMsg, MapToNestedMsgByType) {
   auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
   auto sf1 = TupleStructInfo({sf0, sf0});
   auto sf2 = TupleStructInfo({sf0, sf0});
   auto x = relax::Var("x", TupleStructInfo({sf1, sf2, sf0}));
 
-  auto msg = MapToNestedMsgBySInfo<Expr>(x, [](Expr value) { return value; });
+  auto msg = MapToNestedMsgByType<Expr>(x, [](Expr value) { return value; });
 
   EXPECT_TRUE(msg.IsNested());
   auto arr = msg.NestedArray();

@@ -101,7 +101,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
   if (upper_bounds || lower_bounds) {
     ffi::Map<ffi::String, tirx::Var> name_lookup;
-    for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
+    for (const auto& tir_var : TIRVarsInType(GetType(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
     }

@@ -35,13 +35,13 @@ bool IsScalarTensor(const StructInfo& sinfo) {
   return tensor_ty->shape.as<ShapeExprNode>()->values.size() == 0;
 }
 
-bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetStructInfo(expr)); }
+bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetType(expr)); }
 
 bool IsNestedTensor(const StructInfo& sinfo) {
   return IsNestedTensorConditioned(sinfo, [](const TensorStructInfo& sinfo) { return true; });
 }
 
-bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetStructInfo(expr)); }
+bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetType(expr)); }
 
 Function ComposeFunctions(Function func_a, Function func_b) {
   ffi::Array<Binding> bindings;
@@ -67,7 +67,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     // that should be provided as-is to the second function, and
     // should not be unpacked into individual elements.
     auto param = func_b->params[0];
-    bindings.push_back(MatchCast(param, func_a_output, GetStructInfo(param)));
+    bindings.push_back(MatchCast(param, func_a_output, GetType(param)));
   } else {
     TVM_FFI_CHECK_EQ(func_a_outputs.size(), func_b->params.size(), ValueError)
         << "Cannot compose functions together.  "
@@ -75,7 +75,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
         << "but second function expects " << func_b->params.size() << " parameters as input";
     for (size_t i = 0; i < func_a_outputs.size(); i++) {
       auto param = func_b->params[i];
-      bindings.push_back(MatchCast(param, func_a_outputs[i], GetStructInfo(param)));
+      bindings.push_back(MatchCast(param, func_a_outputs[i], GetType(param)));
     }
   }
 

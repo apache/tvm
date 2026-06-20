@@ -170,7 +170,7 @@ void BindingBlockFrameNode::ExitWithScope() {
     std::unordered_map<tvm::relax::Id, tvm::relax::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
         var_remap;
     for (const auto& output_var : output_vars) {
-      tvm::relax::Var new_output_var(output_var->name_hint(), GetStructInfo(output_var));
+      tvm::relax::Var new_output_var(output_var->name_hint(), GetType(output_var));
       new_output_vars.push_back(new_output_var);
       var_remap[output_var->vid] = new_output_var;
     }

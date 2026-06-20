@@ -284,7 +284,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return it->second;
     } else {
       if (fp16_input_names_.count(var->name_hint())) {
-        auto sinfo = GetStructInfo(var);
+        auto sinfo = GetType(var);
         if (auto tensor_ty = sinfo.as<TensorStructInfoNode>()) {
           VDevice vdev = VDevice();
           if (tensor_ty->vdevice.defined()) {
@@ -310,7 +310,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   // Note that this function only accepts expr with nested tensor type
   Expr RewriteExpr(const Expr& expr, const NType& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NType, 1> to) -> Expr {
-      const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
+      const auto* tensor = GetTypeAs<TensorStructInfoNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
@@ -390,7 +390,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     };
 
     for (const Expr& arg : args) {
-      auto sinfo = GetStructInfo(arg);
+      auto sinfo = GetType(arg);
       auto constant = arg.as<ConstantNode>();
       auto tuple = arg.as<TupleNode>();
 

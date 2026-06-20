@@ -158,8 +158,8 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       Var loss_param = loss_func_params[i];
       Var backbone_ret = backbone_return_arr_[i];
-      auto loss_param_sinfo = GetStructInfo(loss_param);
-      auto backbone_ret_sinfo = GetStructInfo(backbone_ret);
+      auto loss_param_sinfo = GetType(loss_param);
+      auto backbone_ret_sinfo = GetType(backbone_ret);
 
       TVM_FFI_ICHECK(checker(backbone_ret_sinfo, loss_param_sinfo))
           << "The struct info of the " << i
@@ -190,7 +190,7 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0) {
-        auto new_var = DataflowVar(var->vid, GetStructInfo(var), var->span);
+        auto new_var = DataflowVar(var->vid, GetType(var), var->span);
         this->var_remap_[var->vid] = new_var;
         backbone_return_arr_.Set(i, new_var);
       }

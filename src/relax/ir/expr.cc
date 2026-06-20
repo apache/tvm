@@ -165,7 +165,7 @@ Tuple::Tuple(tvm::ffi::Array<Expr> fields, Span span) {
     ffi::Array<StructInfo> field_ty;
     for (const auto& field : fields) {
       if (field->ty.defined()) {
-        field_ty.push_back(GetStructInfo(field));
+        field_ty.push_back(GetType(field));
       } else {
         return std::nullopt;
       }
@@ -552,13 +552,13 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
 
   for (const Var& param : params) {
     TVM_FFI_ICHECK(param->ty.defined()) << "relax.Function requires params to contain ty";
-    param_ty.push_back(GetStructInfo(param));
+    param_ty.push_back(GetType(param));
   }
 
   ffi::Optional<StructInfo> body_ty;
 
   if (body->ty.defined()) {
-    body_ty = GetStructInfo(body);
+    body_ty = GetType(body);
   }
 
   TVM_FFI_ICHECK(body_ty.defined() || ret_struct_info.defined())
@@ -579,7 +579,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
     // to the function return type, symbolic variables may only be
     // used if they were defined by the function's parameters.
     auto f_shape_var_map = [&] {
-      auto tir_vars = DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
+      auto tir_vars = DefinableTIRVarsInType(TupleStructInfo(params.Map(GetType)));
       std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
       return [lookup = std::move(lookup)](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
         if (lookup.count(var)) {
@@ -620,7 +620,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_inf
   ffi::Array<StructInfo> param_ty;
   for (const Var& param : params) {
     TVM_FFI_ICHECK(param->ty.defined()) << "relax.Function requires params to contain ty.";
-    param_ty.push_back(GetStructInfo(param));
+    param_ty.push_back(GetType(param));
   }
 
   FuncStructInfo finfo(param_ty, ret_struct_info, is_pure);
@@ -675,7 +675,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Get the derive function.
 FuncStructInfo GetExternFuncStructInfo() {
   EnvFunc fn = EnvFunc::Get("tvm.relax.type.infer_by_ty_args");
-  StructInfoDeriveFunc derive;
+  TypeDeriveFunc derive;
   derive = fn;
   return FuncStructInfo::OpaqueFunc(derive);
 }
@@ -710,7 +710,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
   TVM_FFI_ICHECK(expr->ty.defined()) << "GetShapeOf can only be applied to normalized expr";
-  auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
+  auto* tinfo = GetTypeAs<TensorStructInfoNode>(expr);
 
   TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
   if (tinfo->shape.defined()) return tinfo->shape.value();
@@ -718,7 +718,7 @@ Expr GetShapeOf(const Expr& expr) {
   static const Op& op = Op::Get("relax.shape_of");
   // default case, call shape of, eagerly normalize the expr.
   relax::Call call_shape_of(op, {expr}, {}, {});
-  UpdateStructInfo(call_shape_of, ShapeStructInfo(tinfo->ndim));
+  UpdateType(call_shape_of, ShapeStructInfo(tinfo->ndim));
   return call_shape_of;
 }
 

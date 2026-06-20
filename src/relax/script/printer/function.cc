@@ -66,7 +66,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->func_vars = &func_vars;
       // Step 1. Print the return type
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (const auto& func_ty = relax::MatchStructInfo<relax::FuncStructInfo>(n)) {
+      if (const auto& func_ty = relax::MatchType<relax::FuncStructInfo>(n)) {
         ret_type = d->AsDoc<ExprDoc>(func_ty.value()->ret,  //
                                      n_p->Attr("ty")->Attr("ret"));
       }

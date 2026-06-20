@@ -233,7 +233,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     if (call_node->op == null_value_op_) {
       return tirx::Call(DataType::Handle(), tirx::builtin::reinterpret(), {IntImm::Int64(0)});
     }
-    int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
+    int64_t dst_reg = HasVoidType(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
       if (call_node->op == call_builtin_with_ctx_op_) {
         EmitCallBuiltinWithCtx(call, dst_reg);

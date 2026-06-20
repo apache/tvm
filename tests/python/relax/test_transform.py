@@ -532,7 +532,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
                 gv1 = R.call_tir_inplace(
                     cls.multiply_by_two,
                     [[A]],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -563,7 +563,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -592,7 +592,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1
@@ -621,7 +621,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                     inplace_indices=[0],
                 )
                 return gv1

@@ -205,11 +205,11 @@ def test_alias_call_tir():
         def main(x: R.Tensor((10, 10), "int32")) -> R.Tensor((10, 10), "int32"):
             with R.dataflow():
                 cls = AliasCallTir
-                y = R.call_tir(cls.tir_id, (x,), out_sinfo=R.Tensor((10, 10), "int32"))
+                y = R.call_tir(cls.tir_id, (x,), out_ty=R.Tensor((10, 10), "int32"))
                 t = R.call_tir(
                     cls.tir_id2,
                     (y,),
-                    out_sinfo=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
+                    out_ty=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
                 )
                 z = y
                 p = t[0]
@@ -496,7 +496,7 @@ def test_insert_inplace_calls():
                     cls.add_inplace,
                     (z, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -504,7 +504,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (a, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -513,7 +513,7 @@ def test_insert_inplace_calls():
                     cls.subtract_inplace,
                     (r, r),
                     inplace_indices=[1],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((1, 3), dtype="float32"),
                     ],
                 )
@@ -521,7 +521,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (q, s),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -602,13 +602,13 @@ def test_dynamic():
                 a_1 = R.call_tir_inplace(
                     cls.add_inplace,
                     (z, y),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[0],
                 )
                 s = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (a_1, a_1),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[1],
                 )
                 R.output(s)

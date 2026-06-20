@@ -118,7 +118,7 @@ class LayoutConvertMutator : public ExprMutator {
       TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
                      !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
           << "Cannot convert when exactly one of the layouts is unknown";
-      const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
+      const auto* tensor = GetTypeAs<TensorStructInfoNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
 
       if (from.LeafValue()->layout.ndim() == to.LeafValue()->layout.ndim()) {

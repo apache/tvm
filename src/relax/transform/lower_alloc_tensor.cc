@@ -57,7 +57,7 @@ class Mutator : public ExprMutator {
           return ptr->values;
         }
 
-        auto sinfo = GetStructInfo(shape_arg);
+        auto sinfo = GetType(shape_arg);
         if (auto ptr = sinfo.as<ShapeStructInfoNode>()) {
           if (ptr->values) {
             return ptr->values.value();

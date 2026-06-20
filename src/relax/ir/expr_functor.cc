@@ -588,7 +588,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   if (all_params_unchanged && body.same_as(op->body)) {
     // No changes to the function, return the original object
     return ffi::GetRef<Expr>(op);
-  } else if (IsBaseOf(GetStructInfo(body), op->ret_struct_info)) {
+  } else if (IsBaseOf(GetType(body), op->ret_struct_info)) {
     // If the function was mutated into a form that can no longer
     // propagate shape information all the way to the return value, we
     // may keep the return struct info.  This is only allowed when the
@@ -682,7 +682,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
       << " does not have StructInfo.  "
       << "This typically occurs when ReEmitBinding is called without first calling Normalize.";
 
-  Var temp = WithStructInfo(new_var, new_ty.value());
+  Var temp = WithType(new_var, new_ty.value());
   if (!temp.same_as(new_var)) {
     new_var = temp;
   }
@@ -706,7 +706,7 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
       return ffi::GetRef<MatchCast>(binding);
     } else {
       new_value = builder_->NormalizeArgument(new_value);
-      new_var = WithStructInfo(new_var, new_struct_info);
+      new_var = WithType(new_var, new_struct_info);
 
       var_remap_[binding->var->vid] = new_var;
       var_remap_[new_var->vid] = new_var;
@@ -741,7 +741,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   // provide default behavior in subclasses, we may produce a Var
   // where we should produce a DataflowVar.
   if (!output->IsInstance<DataflowVarNode>()) {
-    output = DataflowVar(output->vid, GetStructInfo(output), output->span);
+    output = DataflowVar(output->vid, GetType(output), output->span);
   }
   return output;
 }
@@ -800,7 +800,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   PrimExpr constraint = IntImm::Bool(true);
   if (params.defined()) {
     auto non_negative_expressions =
-        CollectNonNegativeExpressions(TupleStructInfo(params.value().Map(GetStructInfo)));
+        CollectNonNegativeExpressions(TupleStructInfo(params.value().Map(GetType)));
     for (const auto& expr : non_negative_expressions) {
       constraint = constraint && (expr >= 0);
     }
@@ -841,21 +841,21 @@ ffi::Optional<Expr> ExprMutator::LookupBinding(const Var& var) {
   return builder_->LookupBinding(var);
 }
 
-Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
-  TVM_FFI_ICHECK(struct_info.defined());
+Var ExprMutator::WithType(Var var, StructInfo ty) {
+  TVM_FFI_ICHECK(ty.defined());
 
-  // TODO(relax-team) add StructInfoEqual check
+  // TODO(relax-team) add TypeEqual check
   if (var->ty.defined()) {
     // use same-as as a quick path
-    if (var->ty.same_as(struct_info) || ffi::StructuralEqual()(var->ty, struct_info)) {
+    if (var->ty.same_as(ty) || ffi::StructuralEqual()(var->ty, ty)) {
       return var;
     } else {
-      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, struct_info, var->span)
-                                              : Var(var->vid, struct_info, var->span);
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, ty, var->span)
+                                              : Var(var->vid, ty, var->span);
       return new_var;
     }
   } else {
-    UpdateStructInfo(var, struct_info);
+    UpdateType(var, ty);
     return var;
   }
 }

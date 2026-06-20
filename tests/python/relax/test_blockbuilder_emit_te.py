@@ -66,7 +66,7 @@ def test_emit_te_with_symbolic_arg():
             gv = R.call_tir(
                 cls.te_func,
                 (x,),
-                out_sinfo=R.Tensor((10,), dtype="float32"),
+                out_ty=R.Tensor((10,), dtype="float32"),
                 tir_vars=R.shape([m]),
             )
             return gv
@@ -120,7 +120,7 @@ def test_symbolic_shape_in_prim_value():
                 cls.te_slice,
                 A,
                 tir_vars=[row_index],
-                out_sinfo=R.Tensor([16], "float32"),
+                out_ty=R.Tensor([16], "float32"),
             )
             return gv
 

@@ -355,8 +355,8 @@ InferLayoutOutput InferLayoutConv2d(
       return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
     } else {
       // Layout Transform
-      auto data_si = GetStructInfo(call->args[0]);
-      auto kernel_si = GetStructInfo(call->args[1]);
+      auto data_si = GetType(call->args[0]);
+      auto kernel_si = GetType(call->args[1]);
       TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
       TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
       ffi::Optional<ShapeExpr> data_shape =
@@ -951,8 +951,8 @@ InferLayoutOutput InferLayoutConv2dTranspose(
       new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
       return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
     } else {
-      auto data_si = GetStructInfo(call->args[0]);
-      auto kernel_si = GetStructInfo(call->args[1]);
+      auto data_si = GetType(call->args[0]);
+      auto kernel_si = GetType(call->args[1]);
       TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
       TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
       ffi::Optional<ShapeExpr> data_shape =
@@ -1191,8 +1191,8 @@ InferLayoutOutput InferLayoutConv3dTranspose(
       new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
       return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
     } else {
-      auto data_si = GetStructInfo(call->args[0]);
-      auto kernel_si = GetStructInfo(call->args[1]);
+      auto data_si = GetType(call->args[0]);
+      auto kernel_si = GetType(call->args[1]);
       TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
       TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
       ffi::Optional<ShapeExpr> data_shape =

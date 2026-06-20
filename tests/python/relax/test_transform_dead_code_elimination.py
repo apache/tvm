@@ -367,7 +367,7 @@ def test_preserve_indirectly_used_prim_func():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_sinfo=R.Tensor((16, 16), "float32"),
+                out_ty=R.Tensor((16, 16), "float32"),
             )
             return gv0
 

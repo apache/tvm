@@ -34,7 +34,7 @@ NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
   return MapToNestedMsg<ffi::String>(sinfo, fmapleaf);
 }
 
-NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetStructInfo(expr), dtype); }
+NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetType(expr), dtype); }
 
 NType NTypeMerge(const NType& a, const NType& b) {
   auto fcombine = [&](const ffi::String& a_str, const ffi::String& b_str) -> ffi::String {

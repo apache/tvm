@@ -265,7 +265,7 @@ class LegalizeMutator : public ExprMutator {
 
       bool arg_shapes_defined =
           std::all_of(visited_call->args.begin(), visited_call->args.end(),
-                      [](Expr arg) { return KnowAllShapeValues(GetStructInfo(arg)); });
+                      [](Expr arg) { return KnowAllShapeValues(GetType(arg)); });
       if (!arg_shapes_defined) {
         // This operator cannot be legalized, because legalization
         // requires the argument shapes to be known.
@@ -297,7 +297,7 @@ class LegalizeMutator : public ExprMutator {
         }
         return false;
       }();
-      bool ret_shape_defined = KnowAllShapeValues(GetStructInfo(visited_call));
+      bool ret_shape_defined = KnowAllShapeValues(GetType(visited_call));
       if (!is_data_dependent_op && !ret_shape_defined) {
         // This operator cannot be legalized, because legalization by
         // default requires the output shape.  The exception is
@@ -331,7 +331,7 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});
+        return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetType(call)});
       };
     } else {
       // No legalization.

@@ -144,7 +144,7 @@ class CollectConsumerDetails : public ExprVisitor {
     }
 
     for (auto arg : func_args->fields) {
-      auto sinfo = GetStructInfo(arg);
+      auto sinfo = GetType(arg);
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
         ffi::Array<Expr> call_list;
 

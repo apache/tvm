@@ -112,7 +112,7 @@ NLayout InitialNLayout(const StructInfo& sinfo) {
   return MapToNestedMsg<LayoutDecision>(sinfo, fmapleaf);
 }
 
-NLayout InitialNLayout(const Expr& expr) { return InitialNLayout(GetStructInfo(expr)); }
+NLayout InitialNLayout(const Expr& expr) { return InitialNLayout(GetType(expr)); }
 
 LayoutDecision GetLayoutDecision(const VarLayoutMap& var_layout_map, const Expr& arg) {
   NLayout nlayout = GetNLayout(var_layout_map, arg);

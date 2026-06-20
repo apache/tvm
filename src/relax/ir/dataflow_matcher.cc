@@ -434,9 +434,9 @@ bool DFPatternMatcher::VisitDFPattern_(const StructInfoPatternNode* op, const Ex
   }
 
   auto expr = UnwrapBindings(expr0, var2val_);
-  auto expr_struct_info = GetStructInfo(expr);
+  auto expr_struct_info = GetType(expr);
 
-  PrimExpr new_constraint = StructInfoBaseCheckPrecondition(op->struct_info, expr_struct_info);
+  PrimExpr new_constraint = TypeBaseCheckPrecondition(op->struct_info, expr_struct_info);
   if (auto* as_int = new_constraint.as<IntImmNode>()) {
     return as_int->value;
   }
@@ -490,7 +490,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
   // no need to jump, as var.shape == value.shape
-  if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
+  if (const auto* tinfo = GetTypeAs<TensorStructInfoNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
       return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
@@ -511,7 +511,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
     if (auto opt_var = match_state(arg.get())) {
       auto var = opt_var.value();
       auto opt_var_shape = [&]() -> ffi::Optional<ffi::Array<PrimExpr>> {
-        auto sinfo = GetStructInfo(var);
+        auto sinfo = GetType(var);
         if (auto tensor = sinfo.as<TensorStructInfoNode>()) {
           return tensor->GetShape();
         } else if (auto shape_expr = sinfo.as<ShapeStructInfoNode>()) {

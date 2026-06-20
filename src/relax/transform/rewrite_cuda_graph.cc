@@ -251,7 +251,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
           ffi::Array<tirx::Var> symbolic_vars =
-              DefinableTIRVarsInStructInfo(Downcast<StructInfo>(func->params[i]->ty));
+              DefinableTIRVarsInType(Downcast<StructInfo>(func->params[i]->ty));
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
               if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {

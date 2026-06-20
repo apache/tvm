@@ -65,11 +65,11 @@ namespace relax {
 namespace distributed {
 
 const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(tensor);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(tensor);
   if (tensor_ty) {
     return tensor_ty;
   }
-  const auto* dtensor_ty = GetStructInfoAs<DTensorTypeNode>(tensor);
+  const auto* dtensor_ty = GetTypeAs<DTensorTypeNode>(tensor);
   if (dtensor_ty) {
     return dtensor_ty->tensor_ty.get();
   }
@@ -308,8 +308,8 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
   const auto* tensor_ty = GetTensorStructInfo(input_tensor);
-  const auto* new_shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
-  const auto* old_shape_ty = GetStructInfoAs<ShapeStructInfoNode>(tensor_ty->shape.value());
+  const auto* new_shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* old_shape_ty = GetTypeAs<ShapeStructInfoNode>(tensor_ty->shape.value());
   TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
   ffi::Array<PrimExpr> old_shape_values = old_shape_ty->values.value();
   ffi::Array<PrimExpr> new_shape_values = new_shape_ty->values.value();

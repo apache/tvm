@@ -379,9 +379,9 @@ class LowerTIRToLocalView : public ExprMutator {
 
  private:
   inline ffi::Array<DTensorType> ExtractDTensorType(Var var) {
-    if (const auto* dtensor_ty = GetStructInfoAs<DTensorTypeNode>(var)) {
+    if (const auto* dtensor_ty = GetTypeAs<DTensorTypeNode>(var)) {
       return {ffi::GetRef<DTensorType>(dtensor_ty)};
-    } else if (const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(var)) {
+    } else if (const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(var)) {
       ffi::Array<DTensorType> ret;
       for (const auto& field : tuple_ty->fields) {
         ret.push_back(Downcast<DTensorType>(field));
@@ -402,7 +402,7 @@ class LowerTIRToLocalView : public ExprMutator {
     std::vector<ShardingSpec> sharding_specs;
     ffi::Array<Expr> args = Downcast<Tuple>(val->args[1])->fields;
     for (const auto& arg : args) {
-      const auto* ty = GetStructInfoAs<DTensorTypeNode>(arg);
+      const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
       TVM_FFI_ICHECK(ty);
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }

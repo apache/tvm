@@ -58,7 +58,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
-  return GetStructInfo(call->args[0]);
+  return GetType(call->args[0]);
 }
 
 TVM_REGISTER_OP("relax.dist.annotate_sharding")
@@ -87,7 +87,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
-  const auto* ty = GetStructInfoAs<distributed::DTensorTypeNode>(call->args[0]);
+  const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
 }

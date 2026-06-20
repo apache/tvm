@@ -208,7 +208,7 @@ def test_erase_to_well_defined_func():
 
 def test_base_check():
     BR = rx.analysis.BaseCheckResult
-    bcheck = rx.analysis.struct_info_base_check
+    bcheck = rx.analysis.type_base_check
 
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectStructInfo()
@@ -360,11 +360,11 @@ def _check_derive(ctx, finfo, args_ty, ret):
         arg = rx.Var(f"arg{i}", sinfo)
         args.append(arg)
     call = rx.Call(gv, args)
-    derived_ret = rx.analysis.derive_call_ret_struct_info(finfo, call, ctx)
+    derived_ret = rx.analysis.derive_call_ret_type(finfo, call, ctx)
     tvm.ir.assert_structural_equal(ret, derived_ret)
 
 
-def test_derive_call_ret_struct_info():
+def test_derive_call_ret_type():
     obj0 = rx.ObjectStructInfo()
     prim0 = rx.PrimStructInfo("float32")
 
@@ -514,11 +514,11 @@ def test_derive_call_ret_struct_info():
 
 
 def _check_lca(lhs, rhs, target):
-    tvm.ir.assert_structural_equal(rx.analysis.struct_info_lca(lhs, rhs), target)
-    tvm.ir.assert_structural_equal(rx.analysis.struct_info_lca(rhs, lhs), target)
+    tvm.ir.assert_structural_equal(rx.analysis.type_lca(lhs, rhs), target)
+    tvm.ir.assert_structural_equal(rx.analysis.type_lca(rhs, lhs), target)
 
 
-def test_struct_info_lca():
+def test_type_lca():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectStructInfo()
     prim0 = rx.PrimStructInfo("int32")
@@ -695,7 +695,7 @@ def _generate_prim_test_cases():
 
 
 @pytest.mark.parametrize("test_case", list(_generate_prim_test_cases()))
-def test_prim_struct_info_lca(test_case):
+def test_prim_type_lca(test_case):
     def _normalize_sinfo(sinfo):
         if isinstance(sinfo, tvm.relax.StructInfo):
             return sinfo
@@ -708,7 +708,7 @@ def test_prim_struct_info_lca(test_case):
 
     lhs, rhs, expected = map(_normalize_sinfo, test_case)
 
-    lca = rx.analysis.struct_info_lca(lhs, rhs)
+    lca = rx.analysis.type_lca(lhs, rhs)
     assert tvm_ffi.structural_equal(lca, expected), (
         f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
     )
@@ -738,16 +738,14 @@ def _generate_tir_var_test_cases():
 tir_var_test_case = tvm.testing.parameter(*_generate_tir_var_test_cases())
 
 
-def test_tir_vars_in_struct_info(tir_var_test_case):
+def test_tir_vars_in_type(tir_var_test_case):
     sinfo, _vars_definable, vars_used = tir_var_test_case
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(sinfo), vars_used)
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_type(sinfo), vars_used)
 
 
-def test_definable_tir_vars_in_struct_info(tir_var_test_case):
+def test_definable_tir_vars_in_type(tir_var_test_case):
     sinfo, vars_definable, _vars_used = tir_var_test_case
-    tvm.ir.assert_structural_equal(
-        rx.analysis.definable_tir_vars_in_struct_info(sinfo), vars_definable
-    )
+    tvm.ir.assert_structural_equal(rx.analysis.definable_tir_vars_in_type(sinfo), vars_definable)
 
 
 def test_collect_symbolic_var_from_tensor_shape():

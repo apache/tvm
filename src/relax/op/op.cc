@@ -69,8 +69,8 @@ StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   // use the StructInfo of the argument
-  auto arg_ty = GetStructInfo(call->args[0]);
-  auto* tensor_ty = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
+  auto arg_ty = GetType(call->args[0]);
+  auto* tensor_ty = GetType(call->args[0]).as<TensorStructInfoNode>();
   TVM_FFI_ICHECK(tensor_ty) << "shape_of expects a tensor input, but received " << arg_ty
                             << "; use MatchCast if necessary";
   if (tensor_ty->ndim == kUnknownNDim) {
@@ -97,14 +97,14 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
   // the callee must be an opaque function
   auto callee = call->args[0];
   TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
-  auto opt = MatchStructInfo<FuncStructInfo>(callee);
+  auto opt = MatchType<FuncStructInfo>(callee);
   TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
   TVM_FFI_ICHECK(finfo->IsOpaque())
       << "call_pure_packed must be called with an opaque function, but " << callee
       << " is not opaque";
 
-  // same logic as from DeriveCallRetStructInfo for ordinary calls
+  // same logic as from DeriveCallRetType for ordinary calls
   if (finfo->derive_func.defined()) {
     // derive using custom derivation function.
     return finfo->derive_func.value()(call, ctx);
@@ -150,7 +150,7 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   // the callee must be an opaque function
   auto callee = call->args[0];
   TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
-  auto opt = MatchStructInfo<FuncStructInfo>(callee);
+  auto opt = MatchType<FuncStructInfo>(callee);
   TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
   TVM_FFI_ICHECK(finfo->IsOpaque())
@@ -181,7 +181,7 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
                                              "-1 (or else simply use call_pure_packed)";
   }
 
-  // same logic as from DeriveCallRetStructInfo for ordinary calls
+  // same logic as from DeriveCallRetType for ordinary calls
   StructInfo ret;
   if (finfo->derive_func.defined()) {
     // derive using custom derivation function.
@@ -195,7 +195,7 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   // (note: arg 0 is the packed func, so we add 1 to the arg index)
   if (attrs->inplace_indices.size() == 1) {
     auto arg_idx = attrs->inplace_indices[0] + 1;
-    auto arg_ty = GetStructInfo(call->args[arg_idx]);
+    auto arg_ty = GetType(call->args[arg_idx]);
     if (!IsBaseOf(ret, arg_ty, ctx->GetAnalyzer())) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The derived return StructInfo does not match that for "
@@ -212,7 +212,7 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
         continue;
       }
       auto arg_idx = attrs->inplace_indices[i] + 1;
-      auto arg_ty = GetStructInfo(call->args[arg_idx]);
+      auto arg_ty = GetType(call->args[arg_idx]);
       auto ret_ty = tup_info->fields[i];
       if (!IsBaseOf(ret_ty, arg_ty, ctx->GetAnalyzer())) {
         TVM_FFI_VISIT_THROW(ValueError, call)
@@ -355,14 +355,14 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
 
   // At this point, the return types are known.  However, the shapes
   // in `callee_params` may contain dynamic shape parameters that are
-  // not present in the caller's scope.  The `DeriveCallRetStructInfo`
+  // not present in the caller's scope.  The `DeriveCallRetType`
   // utility can infer the value of dynamic parameters in
   // `FuncStructInfoNode::ret` based on definitions in
   // `FuncStructInfoNode::params`, inferring the correct values in the
   // caller's scope.
   //
   // Since the callee of `R.call_tir` is provided with output
-  // arguments, where `DeriveCallRetStructInfo` requires a callee that
+  // arguments, where `DeriveCallRetType` requires a callee that
   // produces its own outputs, a dummy function signature and
   // arguments are used.
 
@@ -423,7 +423,7 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     return dummy_args;
   }();
 
-  auto derived_ret_sinfo = DeriveCallRetStructInfo(
+  auto derived_ret_sinfo = DeriveCallRetType(
       dummy_callee_sinfo, Call(Var("dummy_callee", dummy_callee_sinfo), dummy_args),
       BlockBuilder::Create(std::nullopt));
 
@@ -548,7 +548,7 @@ void ValidateCallTIR(Call call) {
     if (call->args.size() <= 2) {
       return std::nullopt;
     } else {
-      return GetStructInfo(call->args[2]);
+      return GetType(call->args[2]);
     }
   }();
 
@@ -562,7 +562,7 @@ void ValidateCallTIR(Call call) {
 
   StructInfo explicit_ty = call->sinfo_args[0];
   auto inferred_ty = InferCallTIROutputStructInfoFromArguments(
-      GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
+      GetType(callee), GetType(arg_tuple), packed_int_sinfo, opt_inplace_indices);
   if (inferred_ty.defined()) {
     TVM_FFI_CHECK(IsBaseOf(inferred_ty.value(), explicit_ty), TypeError)
         << "The `out_ty` argument for R.call_tir must be compatible with the PrimFunc.  "
@@ -738,7 +738,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
           << "but output " << i_output << " has struct info " << sinfo_output;
     }
 
-    auto sinfo_input = GetStructInfo(call_args->fields[i_input]);
+    auto sinfo_input = GetType(call_args->fields[i_input]);
     auto tinfo_input = sinfo_input.as<TensorStructInfoNode>();
 
     if (!tinfo_input ||
@@ -1001,7 +1001,7 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Assert must have at least one argument (the condition).";
   }
-  StructInfo arg_struct_info = GetStructInfo(call->args[0]);
+  StructInfo arg_struct_info = GetType(call->args[0]);
   if (!IsBoolStructInfo(arg_struct_info)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument to assert must be a boolean scalar, but received " << arg_struct_info;
@@ -1123,8 +1123,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // size
 
 StructInfo InferStructInfoSize(const Call& call, const BlockBuilder& ctx) {
-  auto arg_ty = GetStructInfo(call->args[0]);
-  auto* tensor_ty = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
+  auto arg_ty = GetType(call->args[0]);
+  auto* tensor_ty = GetType(call->args[0]).as<TensorStructInfoNode>();
   TVM_FFI_ICHECK(tensor_ty) << "size expects a tensor input, but received " << arg_ty
                             << "; use MatchCast if necessary";
   return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), DataType::Int(64));
@@ -1151,7 +1151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(call->args[0]->ty.defined());
-  const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tsinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tsinfo);
   TVM_FFI_ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
                                      << "but " << call << " has argument " << call->args[0]
@@ -1187,7 +1187,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(call->args[0]->ty.defined());
-  const auto* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
+  const auto* sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(sinfo);
   int32_t ndim = sinfo->ndim;
   return TensorStructInfo(ShapeExpr({PrimExpr(ndim)}), DataType::Int(64));
@@ -1290,7 +1290,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // memory planning alloc_tensor
 
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  TVM_FFI_ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
+  TVM_FFI_ICHECK(GetTypeAs<ShapeStructInfoNode>(call->args[2]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
@@ -1429,7 +1429,7 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
 
   if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
     return TensorStructInfo(ffi::GetRef<Expr>(output_shape), out_dtype, vdevice);
-  } else if (const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[2])) {
+  } else if (const auto* shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[2])) {
     if (shape_ty->values.defined()) {
       return TensorStructInfo(ShapeExpr(shape_ty->values.value()), out_dtype, vdevice);
     } else {

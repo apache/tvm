@@ -155,7 +155,7 @@ class AlterOpImplMutator : public ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
         << "call_tir sinfo_args.size() is expected to be 1";
-    StructInfo updated_ret_ty = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
+    StructInfo updated_ret_ty = UpdateOutputType(call->sinfo_args[0], buffer_transforms);
     auto updated_call = builder_->Normalize(
         Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_ty}));
 
@@ -318,13 +318,13 @@ class AlterOpImplMutator : public ExprMutator {
     return Tuple(updated_inputs);
   }
 
-  /*! \brief Updates output struct info */
-  StructInfo UpdateStructInfo(const StructInfo& out_ty,
+  /*! \brief Updates the call_tir output type after applying buffer transforms. */
+  StructInfo UpdateOutputType(const StructInfo& out_ty,
                               const ffi::Array<IndexMap>& buffer_transforms) {
     if (buffer_transforms.empty()) return out_ty;
 
     if (out_ty->IsInstance<TensorStructInfoNode>())
-      return UpdateStructInfo(Downcast<TensorStructInfo>(out_ty),
+      return UpdateOutputType(Downcast<TensorStructInfo>(out_ty),
                               buffer_transforms[buffer_transforms.size() - 1]);
 
     TVM_FFI_ICHECK(out_ty->IsInstance<TupleStructInfoNode>())
@@ -341,14 +341,14 @@ class AlterOpImplMutator : public ExprMutator {
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
              "output structinfo, but got "
           << si;
-      sinfo_fields.push_back(UpdateStructInfo(Downcast<TensorStructInfo>(si),
+      sinfo_fields.push_back(UpdateOutputType(Downcast<TensorStructInfo>(si),
                                               buffer_transforms[first_output_index + i++]));
     }
     return TupleStructInfo(sinfo_fields);
   }
 
   /*! \brief Returns the TensorStructInfo after applying the \p transform on its shape */
-  StructInfo UpdateStructInfo(const TensorStructInfo& tensor_ty, const IndexMap& transform) {
+  StructInfo UpdateOutputType(const TensorStructInfo& tensor_ty, const IndexMap& transform) {
     if (transform.get() == nullptr) return tensor_ty;
     auto shape = GetShapeFromTensorStructInfo(tensor_ty);
     arith::Analyzer analyzer;

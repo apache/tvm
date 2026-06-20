@@ -86,8 +86,8 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   // to reduce computational steps in the parent, but we need to
   // provide the symbolic variables the other steps.
   auto defined_tir_params = [&]() -> PSet<tirx::Var> {
-    auto param_ty = TupleStructInfo(params.Map([](const auto& var) { return GetStructInfo(var); }));
-    auto arr = DefinableTIRVarsInStructInfo(param_ty);
+    auto param_ty = TupleStructInfo(params.Map([](const auto& var) { return GetType(var); }));
+    auto arr = DefinableTIRVarsInType(param_ty);
     return {arr.begin(), arr.end()};
   }();
 
@@ -104,7 +104,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
     params.push_back(relax_var);
   }
 
-  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetStructInfo(var); }),
+  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetType(var); }),
                         func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
 
   auto arg_updater = [parameter_mask, old_relax_params = func->params,

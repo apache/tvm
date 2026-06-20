@@ -83,7 +83,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
-      auto sinfo = GetStructInfo(args[i]);
+      auto sinfo = GetType(args[i]);
       TVM_FFI_ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_sinfo = Downcast<TensorStructInfo>(sinfo);

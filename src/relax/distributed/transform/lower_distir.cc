@@ -113,7 +113,7 @@ class DistIRSharder : public ExprMutator {
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
     TVM_FFI_ICHECK(input->ty.defined());
-    StructInfo old_ty = GetStructInfo(input);
+    StructInfo old_ty = GetType(input);
     StructInfo new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
       Var new_param(var->name_hint(), new_ty);
@@ -157,9 +157,9 @@ class DistIRSharder : public ExprMutator {
   void InputPreprocessing() {
     for (int i = 0; i < static_cast<int>(func_->params.size()); i++) {
       Var param = func_->params[i];
-      if (const auto* dtensor_ty = GetStructInfoAs<DTensorTypeNode>(param)) {
+      if (const auto* dtensor_ty = GetTypeAs<DTensorTypeNode>(param)) {
         EmitBroadcastOrScatter(param, new_params_[i], ffi::GetRef<DTensorType>(dtensor_ty));
-      } else if (const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(param)) {
+      } else if (const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(param)) {
         for (int j = 0; j < static_cast<int>(tuple_ty->fields.size()); j++) {
           if (const auto* dtensor_ty = tuple_ty->fields[j].as<DTensorTypeNode>()) {
             EmitBroadcastOrScatter(TupleGetItem(param, j), TupleGetItem(new_params_[i], j),
@@ -216,7 +216,7 @@ class DistIRSharder : public ExprMutator {
     static Op call_tir_local_view_op = Op::Get("relax.dist.call_tir_local_view");
     if (call->op.same_as(reshape_op)) {
       TVM_FFI_ICHECK(call->args[1].as<ShapeExprNode>());
-      const auto* out_ty = GetStructInfoAs<DTensorTypeNode>(binding_var);
+      const auto* out_ty = GetTypeAs<DTensorTypeNode>(binding_var);
       TVM_FFI_ICHECK(out_ty);
       auto new_call_node = ffi::make_object<CallNode>(*call);
       new_call_node->args.Set(1, ShardShape(Downcast<ShapeExpr>(call->args[1]), out_ty->device_mesh,
@@ -225,7 +225,7 @@ class DistIRSharder : public ExprMutator {
     } else if (call->op.same_as(call_tir_local_view_op)) {
       auto new_call_node = ffi::make_object<CallNode>(*call);
       new_call_node->op = call_tir_op;
-      new_call_node->sinfo_args = {ConvertType(GetStructInfo(binding_var), true)};
+      new_call_node->sinfo_args = {ConvertType(GetType(binding_var), true)};
       return Call(new_call_node);
     } else if (call->op.same_as(call_tir_op)) {
       TVM_FFI_THROW(InternalError)
@@ -237,7 +237,7 @@ class DistIRSharder : public ExprMutator {
       } else if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
         new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_view");
         auto orig_shape = Downcast<ShapeExpr>(call->args[1]);
-        const auto* out_ty = GetStructInfoAs<DTensorTypeNode>(binding_var);
+        const auto* out_ty = GetTypeAs<DTensorTypeNode>(binding_var);
         TVM_FFI_ICHECK(out_ty);
         ShapeExpr new_shape = ShardShape(orig_shape, out_ty->device_mesh, out_ty->placement);
         new_call_node->args.Set(1, new_shape);

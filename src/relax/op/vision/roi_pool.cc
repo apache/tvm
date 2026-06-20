@@ -64,8 +64,8 @@ StructInfo InferStructInfoROIPool(const Call& call, const BlockBuilder& ctx) {
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* rois_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* rois_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "ROIPool expects the input data to be a Tensor, while the given data is "

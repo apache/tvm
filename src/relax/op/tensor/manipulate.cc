@@ -76,8 +76,8 @@ StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx)
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "broadcast_to should take 2 arguments.";
   }
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* tgt_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tgt_shape_sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "broadcast_to requires the input data to be Tensor. However, the given one is "
@@ -347,7 +347,7 @@ InferLayoutOutput InferLayoutConcat(
     TVM_FFI_ICHECK(n_layout.IsLeaf());
     LayoutDecision in_layout = n_layout.LeafValue();
     if (in_layout->layout.ndim() != in_layout->layout.ndim_primal()) {
-      const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(call->args[0]);
+      const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(call->args[0]);
       TVM_FFI_ICHECK(tuple_ty != nullptr)
           << " expects the input to be a Tuple of Tensors. However, the given input is "
           << call->args[0]->ty->GetTypeKey();
@@ -458,7 +458,7 @@ InferLayoutOutput InferLayoutExpandDims(
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
 
@@ -845,7 +845,7 @@ InferLayoutOutput InferLayoutPermuteDims(
 
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
   int ndim = tensor_ty->ndim;
@@ -946,14 +946,14 @@ Expr ConvertNewShapeToExpr(const Expr& data,
   }
 
   // Otherwise, we require the input tensor to have known shape value for inference.
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(data);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(data);
   TVM_FFI_ICHECK(data_ty != nullptr)
       << "Reshape expects the input data to be a Tensor. However, the given input is "
       << data->ty->GetTypeKey();
   TVM_FFI_ICHECK(data_ty->shape.defined())
       << "Reshape expects the input tensor to have known shape when there is some dimension length "
          "to infer. However, the given input has no shape.";
-  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(data_ty->shape.value());
+  const auto* shape_ty = GetTypeAs<ShapeStructInfoNode>(data_ty->shape.value());
   TVM_FFI_ICHECK(shape_ty != nullptr && shape_ty->values.defined())
       << "Reshape expects the input tensor to have known shape when there is some dimension length "
          "to infer. However, the given input shape is "
@@ -1003,8 +1003,8 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Reshape op should take 2 arguments";
   }
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* new_shape_sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Reshape requires the input data to be Tensor. However, the given one is "
@@ -1018,7 +1018,7 @@ StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
   if (data_ty->shape.defined()) {
-    const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_ty->shape.value());
+    const auto* old_shape_sinfo = GetTypeAs<ShapeStructInfoNode>(data_ty->shape.value());
     TVM_FFI_ICHECK_NOTNULL(old_shape_sinfo);
     old_shape_values = old_shape_sinfo->values;
   }
@@ -1179,7 +1179,7 @@ InferLayoutOutput InferLayoutSplit(
 
   const auto* attrs = call->attrs.as<SplitAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support known ndim";
 
@@ -1323,7 +1323,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
   const auto* attrs = call->attrs.as<SqueezeAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
   TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Only support static shape for now";
@@ -1657,12 +1657,12 @@ StructInfo InferStructInfoCollapseSumLike(const Call& call, const BlockBuilder& 
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
   if (data_ty->shape.defined()) {
-    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_ty->shape.value())->values;
+    data_shape_value = GetTypeAs<ShapeStructInfoNode>(data_ty->shape.value())->values;
   }
   ffi::Optional<ffi::Array<PrimExpr>> collapse_target_shape_value;
   if (collapse_target_sinfo->shape.defined()) {
     collapse_target_shape_value =
-        GetStructInfoAs<ShapeStructInfoNode>(collapse_target_sinfo->shape.value())->values;
+        GetTypeAs<ShapeStructInfoNode>(collapse_target_sinfo->shape.value())->values;
   }
 
   if (data_shape_value.defined() && collapse_target_shape_value.defined()) {
@@ -1702,8 +1702,8 @@ StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ct
     TVM_FFI_VISIT_THROW(ValueError, call) << "CollapseSumTo should have 2 arguments";
   }
 
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* shape_ty = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -1720,7 +1720,7 @@ StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ct
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
   if (data_ty->shape.defined()) {
-    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_ty->shape.value())->values;
+    data_shape_value = GetTypeAs<ShapeStructInfoNode>(data_ty->shape.value())->values;
   }
 
   if (data_shape_value.defined() && shape_ty->values.defined()) {
@@ -1802,7 +1802,7 @@ InferLayoutOutput InferLayoutRepeat(
 
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
 
@@ -1926,7 +1926,7 @@ InferLayoutOutput InferLayoutTile(
 
   const auto* attrs = call->attrs.as<TileAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
 
@@ -2044,7 +2044,7 @@ InferLayoutOutput InferLayoutFlip(
 
   const auto* attrs = call->attrs.as<FlipAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
-  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
 
@@ -2092,8 +2092,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* indices_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
   const auto* attrs = call->attrs.as<GatherElementsAttrs>();
 
   if (data_ty == nullptr) {
@@ -2157,7 +2157,7 @@ InferLayoutOutput InferLayoutGatherElements(
   }
 
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_ty->ndim;
@@ -2193,8 +2193,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* indices_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
   const auto* attrs = call->attrs.as<GatherNDAttrs>();
 
   if (data_ty == nullptr) {
@@ -2286,8 +2286,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* values_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* values_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
 
   auto diag_def = [&](const TensorStructInfoNode* sinfo, ffi::String name, ffi::String type_key) {
     if (sinfo == nullptr) {
@@ -2303,7 +2303,7 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   // Handle indices: either a single tensor or a tuple of tensors
   ffi::Array<TensorStructInfo> indices_tensors;
 
-  if (const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(call->args[1])) {
+  if (const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(call->args[1])) {
     // Indices is a tuple of tensors
     for (size_t i = 0; i < tuple_ty->fields.size(); ++i) {
       const auto* tensor_ty = tuple_ty->fields[i].as<TensorStructInfoNode>();
@@ -2314,7 +2314,7 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
       }
       indices_tensors.push_back(ffi::GetRef<TensorStructInfo>(tensor_ty));
     }
-  } else if (const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1])) {
+  } else if (const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[1])) {
     // Indices is a single tensor
     indices_tensors.push_back(ffi::GetRef<TensorStructInfo>(tensor_ty));
   } else {
@@ -2540,9 +2540,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer analyzer = ctx->GetAnalyzer();
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* indices_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  const auto* updates_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
+  const auto* updates_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
 
   auto diag_def = [&](const TensorStructInfoNode* sinfo, ffi::String name, ffi::String type_key) {
     if (sinfo == nullptr) {
@@ -2642,7 +2642,7 @@ InferLayoutOutput InferLayoutScatterElements(
   }
 
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    const auto* tensor_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_ty->ndim;
@@ -2682,9 +2682,9 @@ StructInfo InferStructInfoScatterND(const Call& call, const BlockBuilder& ctx) {
   // `call->args` contains: [data, indices, updates]
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   TVM_FFI_ICHECK_EQ(call->args.size(), 3);
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* indices_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  const auto* updates_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
+  const auto* updates_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2798,8 +2798,8 @@ InferLayoutOutput InferLayoutScatterND(
   LayoutDecision indices_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   LayoutDecision updates_layout = GetLayoutDecision(var_layout_map, call->args[2]);
 
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* updates_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* updates_ty = GetTypeAs<TensorStructInfoNode>(call->args[2]);
   TVM_FFI_ICHECK(data_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(updates_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!data_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -2854,8 +2854,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer analyzer = ctx->GetAnalyzer();
-  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* src_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* src_ty = GetTypeAs<TensorStructInfoNode>(call->args[1]);
   auto* attrs = call->attrs.as<SliceScatterAttrs>();
 
   auto diag_tensor_check = [&](const TensorStructInfoNode* sinfo, const Expr& arg_expr,

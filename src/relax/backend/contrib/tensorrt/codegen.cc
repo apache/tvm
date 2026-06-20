@@ -143,7 +143,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void MaybeFillReduceAxes(const CallNode* call_node) {
     const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
     if (attrs == nullptr || attrs->axis.has_value()) return;
-    const auto* tensor_sinfo = GetStructInfo(call_node->args[0]).as<TensorStructInfoNode>();
+    const auto* tensor_sinfo = GetType(call_node->args[0]).as<TensorStructInfoNode>();
     if (tensor_sinfo == nullptr || !tensor_sinfo->shape.defined()) return;
     const auto* shape = tensor_sinfo->shape.value().as<ShapeExprNode>();
     if (shape == nullptr) return;

@@ -58,7 +58,7 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   TVM_FFI_ICHECK_LT(i_arg, op->arguments.size());
 
   auto arg = call->args[i_arg];
-  auto sinfo = GetStructInfo(arg);
+  auto sinfo = GetType(arg);
 
   if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
     return tensor_ty.value();
@@ -87,7 +87,7 @@ ffi::Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const Bl
 
 ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
                                                           const Expr& tup) {
-  const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(tup);
+  const auto* tuple_ty = GetTypeAs<TupleStructInfoNode>(tup);
   if (tuple_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "

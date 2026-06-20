@@ -61,7 +61,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   Expr arg_relative_byte_offset = call->args[3];
 
   TensorStructInfo data_ty = [&]() -> TensorStructInfo {
-    StructInfo sinfo = GetStructInfo(arg_data);
+    StructInfo sinfo = GetType(arg_data);
     if (auto opt = sinfo.as<TensorStructInfo>()) {
       return opt.value();
     } else {
@@ -71,8 +71,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
   auto view_shape_sinfo = [&]() -> const ShapeStructInfoNode* {
-    StructInfo sinfo = GetStructInfo(arg_shape);
-    if (HasVoidStructInfo(arg_shape)) {
+    StructInfo sinfo = GetType(arg_shape);
+    if (HasVoidType(arg_shape)) {
       // No shape change is applied.  The input tensor's shape is
       // kept as-is.
       return nullptr;
@@ -88,9 +88,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   }();
 
   auto view_dtype = [&]() -> std::optional<DataType> {
-    StructInfo sinfo = GetStructInfo(arg_dtype);
+    StructInfo sinfo = GetType(arg_dtype);
 
-    if (HasVoidStructInfo(arg_dtype)) {
+    if (HasVoidType(arg_dtype)) {
       // No datatype change is applied.  The input tensor's dtype is
       // kept as-is.
       return std::nullopt;
@@ -125,9 +125,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   }();
 
   auto view_relative_byte_offset = [&]() -> ffi::Optional<PrimExpr> {
-    StructInfo sinfo = GetStructInfo(arg_relative_byte_offset);
+    StructInfo sinfo = GetType(arg_relative_byte_offset);
 
-    if (HasVoidStructInfo(arg_relative_byte_offset)) {
+    if (HasVoidType(arg_relative_byte_offset)) {
       // No byte offset is specified, so no change is applied.
       return IntImm::Int64(0);
     } else if (auto prim_ty = sinfo.as<PrimStructInfoNode>()) {
@@ -307,8 +307,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr dtype = call->args[2];
   Expr relative_byte_offset = call->args[3];
 
-  if (HasVoidStructInfo(shape) && HasVoidStructInfo(dtype) &&
-      HasVoidStructInfo(relative_byte_offset)) {
+  if (HasVoidType(shape) && HasVoidType(dtype) && HasVoidType(relative_byte_offset)) {
     // Special-case, no change is required by the view.
     return data;
   }
@@ -318,7 +317,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   // a pass updates the input `data` tensor.  However, when we
   // legalize the `R.view`, we must provide an explicit parameters.
 
-  if (HasVoidStructInfo(shape)) {
+  if (HasVoidType(shape)) {
     auto data_shape = data->ty.as<TensorStructInfo>().value()->GetShape();
     TVM_FFI_ICHECK(data_shape.defined())
         << "Legalization of " << call->op
@@ -329,7 +328,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
     shape = ShapeExpr(data_shape.value());
   }
 
-  if (HasVoidStructInfo(dtype)) {
+  if (HasVoidType(dtype)) {
     auto data_dtype = data->ty.as<TensorStructInfo>().value()->dtype;
     TVM_FFI_ICHECK(!data_dtype.is_void())
         << "Legalization of " << call->op
@@ -340,11 +339,11 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
     dtype = relax::DataTypeImm(data_dtype);
   }
 
-  if (HasVoidStructInfo(relative_byte_offset)) {
+  if (HasVoidType(relative_byte_offset)) {
     relative_byte_offset = relax::PrimValue::Int64(0);
   }
 
-  StructInfoDeriveFunc infer_ty_env_func;
+  TypeDeriveFunc infer_ty_env_func;
   infer_ty_env_func = EnvFunc::Get("tvm.relax.type.infer_view_ty");
   auto runtime_view_ty = FuncStructInfo::OpaqueFunc(infer_ty_env_func, true);
 
@@ -381,12 +380,12 @@ StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder&
         << "Operator " << call->op << " should receive 1 argument, "
         << "but received " << call->args;
   }
-  return GetStructInfo(call->args[0]);
+  return GetType(call->args[0]);
 }
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call(builtin_ensure_zero_offset_, call->args, Attrs(), {GetStructInfo(call)});
+  return Call(builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
 }
 
 TVM_REGISTER_OP("relax.memory.ensure_zero_offset")

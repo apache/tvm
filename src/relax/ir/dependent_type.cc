@@ -184,8 +184,7 @@ FuncStructInfo::FuncStructInfo(ffi::Array<StructInfo> params, StructInfo ret, bo
   data_ = std::move(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity,
-                                          Span span) {
+FuncStructInfo FuncStructInfo::OpaqueFunc(TypeDeriveFunc derive_func, bool purity, Span span) {
   ffi::ObjectPtr<FuncStructInfoNode> n = ffi::make_object<FuncStructInfoNode>();
   n->derive_func = std::move(derive_func);
   n->ret = ObjectStructInfo();
@@ -210,7 +209,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return FuncStructInfo(params, ret, purity, span);
            })
       .def("relax.FuncStructInfoOpaqueFunc", [](ffi::Optional<StructInfo> ret,
-                                                ffi::Optional<StructInfoDeriveFunc> derive_func,
+                                                ffi::Optional<TypeDeriveFunc> derive_func,
                                                 bool purity, Span span) {
         if (derive_func.defined()) {
           TVM_FFI_CHECK(!ret.defined(), ValueError) << "Cannot specify both ret and derive_func";
@@ -231,18 +230,11 @@ void UpdateType(Expr expr, StructInfo ty) {
   expr->ty = ty;
 }
 
-void UpdateStructInfo(Expr expr, StructInfo struct_info) {
-  UpdateType(expr, std::move(struct_info));
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.UpdateType", [](Expr expr, StructInfo ty) { UpdateType(expr, ty); })
-      .def("ir.ExprType", [](Expr expr) { return GetType(expr); })
-      .def("relax.UpdateStructInfo",
-           [](Expr expr, StructInfo struct_info) { UpdateStructInfo(expr, struct_info); })
-      .def("ir.ExprStructInfo", [](Expr expr) { return GetStructInfo(expr); });
+      .def("ir.ExprType", [](Expr expr) { return GetType(expr); });
 }
 
 }  // namespace relax

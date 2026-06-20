@@ -148,7 +148,7 @@ class NormalizeMutator : public ExprMutatorBase {
   void VisitBinding_(const VarBindingNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!binding->var->ty.defined()) {
-      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+      UpdateType(binding->var, GetType(new_value));
     }
 
     if (new_value.same_as(binding->value)) {

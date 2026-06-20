@@ -100,7 +100,7 @@ class BaseCheckResult(IntEnum):
     PASS = 3
 
 
-def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckResult:
+def type_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckResult:
     """Run a base check to see if base subsumes derived.
 
     Parameters
@@ -116,10 +116,10 @@ def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckRe
     ret : StructInfo
         The derived return value struct info.
     """
-    return _ffi_api.StructInfoBaseCheck(base, derived)  # type: ignore
+    return _ffi_api.TypeBaseCheck(base, derived)  # type: ignore
 
 
-def derive_call_ret_struct_info(
+def derive_call_ret_type(
     func_ty: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
 ) -> StructInfo:
     """Derive the call's ret value struct info from inputs.
@@ -145,10 +145,10 @@ def derive_call_ret_struct_info(
     This is an internal derivation function, call.op field is
     ignored in this case and the derivation only depends on func_ty.
     """
-    return _ffi_api.DeriveCallRetStructInfo(func_ty, call, ctx)  # type: ignore
+    return _ffi_api.DeriveCallRetType(func_ty, call, ctx)  # type: ignore
 
 
-def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
+def type_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     """Unify the two struct info to their least common ancestor.
 
     Parameters
@@ -164,10 +164,10 @@ def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
     ret : StructInfo
         The corresponding lca result.
     """
-    return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
+    return _ffi_api.TypeLCA(lhs, rhs)  # type: ignore
 
 
-def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
+def tir_vars_in_type(sinfo: StructInfo) -> list[tirx.Var]:
     """Get the TIR variables that appear in the input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -181,10 +181,10 @@ def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
     ret : List[tirx.Var]
         The list of TIR variables that appear in the input struct info.
     """
-    return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
+    return _ffi_api.TIRVarsInType(sinfo)  # type: ignore
 
 
-def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
+def definable_tir_vars_in_type(sinfo: StructInfo) -> list[tirx.Var]:
     """Get the TIR variables that may be defined from input struct info.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
@@ -199,7 +199,7 @@ def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
 
         The list of TIR variables that can be defined from the StructInfo
     """
-    return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
+    return _ffi_api.DefinableTIRVarsInType(sinfo)  # type: ignore
 
 
 def collect_non_negative_expressions(sinfo: StructInfo) -> list[tirx.PrimExpr]:

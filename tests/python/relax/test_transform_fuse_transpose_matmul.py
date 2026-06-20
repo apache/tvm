@@ -65,9 +65,7 @@ def test_transform_fuse_transpose_matmul():
         ) -> R.Tensor((128, 128), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(
-                    cls.NT_matmul, (x, w), out_sinfo=R.Tensor((128, 128), dtype="float32")
-                )
+                gv = R.call_tir(cls.NT_matmul, (x, w), out_ty=R.Tensor((128, 128), dtype="float32"))
                 R.output(gv)
             return gv
 
@@ -118,9 +116,7 @@ def test_transform_fuse_transpose_matmul_const():
         def main(x: R.Tensor((128, 256), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(
-                    cls.NT_matmul, (x, w), out_sinfo=R.Tensor((128, 128), dtype="float32")
-                )
+                gv = R.call_tir(cls.NT_matmul, (x, w), out_ty=R.Tensor((128, 128), dtype="float32"))
                 R.output(gv)
             return gv
 

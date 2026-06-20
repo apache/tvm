@@ -957,7 +957,7 @@ class FusedTIRConstructor : public ExprVisitor {
   static void CollectPrimFuncParams(const Var& relax_param,
                                     std::vector<ffi::Variant<tirx::Var, tirx::Buffer>>* out,
                                     const ffi::Optional<tirx::Buffer>& tir_buffer_param) {
-    auto struct_info = GetStructInfo(relax_param);
+    auto struct_info = GetType(relax_param);
 
     TVM_FFI_CHECK(!struct_info.as<TupleStructInfoNode>(), InternalError)
         << "All tuple parameters should be expanded before this point in FuseTIR.  "
@@ -1152,7 +1152,7 @@ class TIRFuseMutator : public ExprMutator {
       const auto& [prim_func, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
 
       GlobalVar new_gvar(old_gvar->name_hint);
-      UpdateStructInfo(new_gvar, GetStructInfo(prim_func));
+      UpdateType(new_gvar, GetType(prim_func));
 
       mod->Remove(old_gvar);
       updates->Add(new_gvar, prim_func);
@@ -1239,7 +1239,7 @@ class TIRFuseMutator : public ExprMutator {
     ffi::Array<PrimExpr> tir_vars;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto arg = call->args[i];
-      auto sinfo = GetStructInfo(arg);
+      auto sinfo = GetType(arg);
 
       TVM_FFI_CHECK(!relax_func->params[i]->ty->IsInstance<TupleStructInfoNode>() &&
                         !sinfo.as<TupleStructInfoNode>(),
@@ -1285,7 +1285,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(call_op, call_args, call_attrs, {GetStructInfo(call)});
+    return Call(call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

@@ -56,7 +56,7 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -96,7 +96,7 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1_m,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1_m)
             _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, sinfo_args=(R.Object,))
@@ -137,7 +137,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -178,7 +178,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             gv_1: R.Tuple(
@@ -220,7 +220,7 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -265,7 +265,7 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
@@ -309,7 +309,7 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -352,7 +352,7 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
@@ -432,7 +432,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                 cls.slice_buffer,
                 (param,),
                 tir_vars=[slice_index],
-                out_sinfo=R.Tensor((16,), dtype="float32"),
+                out_ty=R.Tensor((16,), dtype="float32"),
             )
             output = (transformed,)
             return output
@@ -465,7 +465,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                 cls.slice_buffer,
                 (param_m,),
                 tir_vars=[slice_index],
-                out_sinfo=R.Tensor((16,), dtype="float32"),
+                out_ty=R.Tensor((16,), dtype="float32"),
             )
             unused_1_ = R.vm.kill_object(param_m)
             unused_2_ = R.call_packed(
@@ -523,7 +523,7 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((ic, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((ic, 3, 3, 3), dtype="float32"),
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -564,7 +564,7 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((ic, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((ic, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, sinfo_args=(R.Object,))
@@ -593,8 +593,8 @@ def test_output_with_use_site():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             x: R.Tensor((), dtype="float32") = params[0]
-            y = R.call_tir(cls.copy, (x,), out_sinfo=R.Tensor((), dtype="float32"))
-            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x,), out_ty=R.Tensor((), dtype="float32"))
+            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
             gv: R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (y, z)
             return gv
 
@@ -613,9 +613,9 @@ def test_output_with_use_site():
             x: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
             gv: R.Tensor((), dtype="float32") = R.match_cast(x, R.Tensor((), dtype="float32"))
             x_m: R.Tensor((), dtype="float32") = gv
-            y = R.call_tir(cls.copy, (x_m,), out_sinfo=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x_m,), out_ty=R.Tensor((), dtype="float32"))
             _: R.Tuple = R.vm.kill_object(x_m)
-            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
+            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
             _1: R.Object = R.call_packed("set_item", R.prim_value(0), y, sinfo_args=(R.Object,))
             _2: R.Object = R.call_packed("set_item", R.prim_value(1), z, sinfo_args=(R.Object,))
             gv: R.Tuple = R.tuple()

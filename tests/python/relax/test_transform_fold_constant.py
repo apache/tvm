@@ -469,7 +469,7 @@ def test_fold_tuple_output():
             lv0 = relax.call_tir(
                 cls.split,
                 (c0,),
-                out_sinfo=[
+                out_ty=[
                     R.Tensor((2, 4), dtype="float32"),
                     R.Tensor((2, 4), dtype="float32"),
                 ],

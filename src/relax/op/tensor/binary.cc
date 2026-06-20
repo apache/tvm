@@ -42,8 +42,8 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
         << call->op << " op should have " << n_input << " arguments";
   }
 
-  auto lhs_sinfo = GetStructInfo(call->args[0]);
-  auto rhs_sinfo = GetStructInfo(call->args[1]);
+  auto lhs_sinfo = GetType(call->args[0]);
+  auto rhs_sinfo = GetType(call->args[1]);
 
   TVM_FFI_CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>(),
                 TypeError)
@@ -152,8 +152,8 @@ InferLayoutOutput InferLayoutBinaryEwise(
   LayoutDecision layout1 = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision layout2 = GetLayoutDecision(var_layout_map, call->args[1]);
 
-  auto* x1_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  auto* x2_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  auto* x1_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  auto* x2_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
 
   TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";

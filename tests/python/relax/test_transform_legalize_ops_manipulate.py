@@ -543,7 +543,7 @@ def test_reshape():
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor((8, 3), dtype="float32"):
             lv: R.Shape((8, 3)) = R.shape((8, 3))
-            gv = R.call_tir(Expected2.reshape, (x,), out_sinfo=R.Tensor((8, 3), dtype="float32"))
+            gv = R.call_tir(Expected2.reshape, (x,), out_ty=R.Tensor((8, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -679,9 +679,7 @@ def test_reshape_symbolic():
         ) -> R.Tensor((5, "b * 2"), dtype="float32"):
             b = T.int64()
             lv: R.Shape([5, b * 2]) = R.shape([5, b * 2])
-            gv = R.call_tir(
-                Expected3.reshape, (x,), out_sinfo=R.Tensor((5, b * 2), dtype="float32")
-            )
+            gv = R.call_tir(Expected3.reshape, (x,), out_ty=R.Tensor((5, b * 2), dtype="float32"))
             return gv
 
     mod3 = LegalizeOps()(Reshape3)
@@ -719,7 +717,7 @@ def test_data_dependent_reshape():
             gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=2),))
             _ = R.match_cast(gv, R.Shape([M,N]))
             _ = R.shape([M,N])
-            gv_1 = R.call_tir(Expected.reshape, (y,), out_sinfo=R.Tensor([M,N], dtype="float32"))
+            gv_1 = R.call_tir(Expected.reshape, (y,), out_ty=R.Tensor([M,N], dtype="float32"))
             return gv_1
 
         @T.prim_func(private=True, s_tir=True)
@@ -1101,7 +1099,7 @@ def test_repeat():
     class Expected:
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((6, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((6, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((6, 2, 3), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1135,7 +1133,7 @@ def test_repeat_no_axis():
         def main(
             x: R.Tensor((3, 2, 3), dtype="float32")
         ) -> R.Tensor((36,), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((36,), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((36,), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1206,7 +1204,7 @@ def test_repeat_symbolic():
             a = T.Var("a", "int64")
             b = T.Var("b", "int64")
             c = T.Var("c", "int64")
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((2 * a, b, c), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((2 * a, b, c), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1238,7 +1236,7 @@ def test_tile():
 
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((2, 3, 4, 9), dtype="float32"):
-            gv = R.call_tir(Expected.tile, (x,), out_sinfo=R.Tensor((2, 3, 4, 9), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, 3, 4, 9), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1278,7 +1276,7 @@ def test_tile_symbolic():
             a = T.Var("a", "int64")
             b = T.Var("b", "int64")
             c = T.Var("c", "int64")
-            gv = R.call_tir(Expected.tile, (x,), out_sinfo=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
             return gv
     # fmt: on
     mod = LegalizeOps()(Tile)
@@ -1299,7 +1297,7 @@ def test_flip():
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1341,7 +1339,7 @@ def test_flip_symbolic():
             a = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((a, b), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((a, b), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1453,7 +1451,7 @@ def test_scatter_elements():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                out_ty=R.Tensor((4, 4), dtype="float32"),
             )
             return gv
 
@@ -1544,7 +1542,7 @@ def test_scatter_elements_symbolic():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_sinfo=R.Tensor((a, b), dtype="float32"),
+                out_ty=R.Tensor((a, b), dtype="float32"),
             )
             return gv
     # fmt: on
@@ -1608,7 +1606,7 @@ def test_layout_transform():
         @R.function
         def main(x: R.Tensor((10, 21, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1646,7 +1644,7 @@ def test_layout_transform_with_pad():
         @R.function
         def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1690,7 +1688,7 @@ def test_layout_transform_symbolic():
             c = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_sinfo=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1730,7 +1728,7 @@ def test_layout_transform_with_pad_axis_sep():
         @R.function
         def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 

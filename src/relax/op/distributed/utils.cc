@@ -33,7 +33,7 @@ ffi::Array<distributed::DTensorType> GetInputDTensorType(const Call& call,
   ffi::Array<distributed::DTensorType> input_tensor_ty;
   input_tensor_ty.reserve(args.size());
   for (const Expr& arg : args) {
-    const auto* ty = GetStructInfoAs<distributed::DTensorTypeNode>(arg);
+    const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(arg);
     if (ty != nullptr) {
       input_tensor_ty.push_back(ffi::GetRef<distributed::DTensorType>(ty));
     }

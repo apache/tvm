@@ -89,7 +89,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
       StructInfo finfo;
       if (func->ty.defined()) {
-        finfo = GetStructInfo(func);
+        finfo = GetType(func);
       } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
         // NOTE: use a slightly different struct info than checked type
         // in PrimFunc so handle can turn into Tensor.
@@ -98,7 +98,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect struct_info field to be populated";
       }
-      UpdateStructInfo(gvar, finfo);
+      UpdateType(gvar, finfo);
 
       context_mod_->Add(gvar, func);
 
@@ -196,7 +196,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // defined in parameter struct info annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    ffi::Map<tirx::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+    ffi::Map<tirx::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetType(var));
     for (const auto& kv : var_map) {
       const tirx::Var& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
@@ -237,16 +237,15 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint) final {
     value = this->Normalize(value);
 
-    TVM_FFI_ICHECK(StructInfoBaseCheck(GetStructInfo(value), struct_info) !=
-                   BaseCheckResult::kFailL0)
+    TVM_FFI_ICHECK(TypeBaseCheck(GetType(value), struct_info) != BaseCheckResult::kFailL0)
         << "It is impossible to match cast any value into the target struct_info. "
            "But got value struct info: "
-        << GetStructInfo(value) << ", given struct info: " << struct_info;
+        << GetType(value) << ", given struct info: " << struct_info;
 
     // NOTE: do match cast checking later in a pass.
     BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
-    UpdateStructInfo(var, struct_info);
+    UpdateType(var, struct_info);
 
     MatchCast match_cast(var, value, struct_info);
     cur_frame->bindings.push_back(match_cast);
@@ -389,7 +388,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     Var var = CreateVar(is_dataflow, name_hint);
 
     // set the values
-    UpdateStructInfo(var, Downcast<StructInfo>(expr->ty));
+    UpdateType(var, Downcast<StructInfo>(expr->ty));
 
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
@@ -600,7 +599,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const VarNode* var_ptr) final {
     auto var = VisitVar_<Var>(var_ptr);
-    if (HasVoidStructInfo(var)) {
+    if (HasVoidType(var)) {
       return VisitExpr(Tuple(ffi::Array<Expr>{}));
     } else {
       return var;
@@ -636,9 +635,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!tuple->ty.defined()) {
       ffi::Array<StructInfo> tuple_ty;
       for (Expr field : tuple->fields) {
-        tuple_ty.push_back(GetStructInfo(field));
+        tuple_ty.push_back(GetType(field));
       }
-      UpdateStructInfo(tuple, TupleStructInfo(tuple_ty, op->span));
+      UpdateType(tuple, TupleStructInfo(tuple_ty, op->span));
     }
     return tuple;
   }
@@ -668,7 +667,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     if (!call->ty.defined()) {
       auto inferred_ty = InferStructInfo(call);
-      UpdateStructInfo(call, inferred_ty);
+      UpdateType(call, inferred_ty);
     }
 
     // If the operation has defined a custom normalization
@@ -730,7 +729,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     // only do shape/type inference if the SeqExpr does not have shape/type
     if (!seq_expr->ty.defined()) {
-      UpdateStructInfo(seq_expr, EraseToWellDefinedInScope(GetStructInfo(seq_expr->body)));
+      UpdateType(seq_expr, EraseToWellDefinedInScope(GetType(seq_expr->body)));
     }
     return seq_expr;
   }
@@ -748,9 +747,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if_node = If(new_cond, new_true, new_false, op->span);
     }
     if (!if_node->ty.defined()) {
-      auto true_info = EraseToWellDefinedInScope(GetStructInfo(new_true));
-      auto false_info = EraseToWellDefinedInScope(GetStructInfo(new_false));
-      UpdateStructInfo(if_node, StructInfoLCA(true_info, false_info));
+      auto true_info = EraseToWellDefinedInScope(GetType(new_true));
+      auto false_info = EraseToWellDefinedInScope(GetType(new_false));
+      UpdateType(if_node, TypeLCA(true_info, false_info));
     }
     return if_node;
   }
@@ -762,11 +761,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
                                                      : TupleGetItem(new_tuple, op->index);
 
     if (!node->ty.defined()) {
-      auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
+      auto opt = MatchType<TupleStructInfo>(node->tuple);
       TVM_FFI_ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
                           << "but expression " << node->tuple << " has struct info "
                           << node->tuple->ty;
-      UpdateStructInfo(node, opt.value()->fields[node->index]);
+      UpdateType(node, opt.value()->fields[node->index]);
     }
 
     return node;
@@ -788,7 +787,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       binding = VarBinding(binding->var, new_value, binding->span);
     }
     if (!binding->var->ty.defined()) {
-      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+      UpdateType(binding->var, GetType(new_value));
     }
     return binding;
   }
@@ -799,7 +798,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       binding = MatchCast(binding->var, new_value, binding->struct_info, binding->span);
     }
     if (!binding->var->ty.defined()) {
-      UpdateStructInfo(binding->var, binding->struct_info);
+      UpdateType(binding->var, binding->struct_info);
     }
     return binding;
   }
@@ -854,10 +853,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     } else {
       // derive using function parameters
       TVM_FFI_ICHECK(call->op->ty.defined());
-      auto opt = MatchStructInfo<FuncStructInfo>(call->op);
+      auto opt = MatchType<FuncStructInfo>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-      return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), analyzer_);
+      return DeriveCallRetType(finfo, call, ffi::GetRef<BlockBuilder>(this), analyzer_);
     }
   }
 
@@ -904,7 +903,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
 
       SeqExpr seq(bindings, post);
-      UpdateStructInfo(seq, EraseToWellDefinedInScope(GetStructInfo(seq->body)));
+      UpdateType(seq, EraseToWellDefinedInScope(GetType(seq->body)));
 
       ret = seq;
     }

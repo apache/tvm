@@ -66,7 +66,7 @@ ffi::Optional<Function> ExpandParams(Function func) {
     expand_param(param);
   }
 
-  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetStructInfo(var); }),
+  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetType(var); }),
                         func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
 
   auto write_ptr = func.CopyOnWrite();

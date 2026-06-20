@@ -697,8 +697,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     }
   }
 
-  auto sinfo_pattern = GetStructInfo(func_pattern);
-  auto sinfo_replacement = GetStructInfo(func_replacement);
+  auto sinfo_pattern = GetType(func_pattern);
+  auto sinfo_replacement = GetType(func_replacement);
   TVM_FFI_CHECK(ffi::StructuralEqual()(sinfo_pattern, sinfo_replacement), ValueError)
       << "The pattern and replacement must have the same signature, "
       << "but the pattern has struct info " << sinfo_pattern
@@ -709,7 +709,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   for (const auto& param : func_pattern->params) {
     WildcardPattern wildcard;
     param_wildcards.push_back(wildcard);
-    pattern_lookup.Set(param, StructInfoPattern(wildcard, GetStructInfo(param)));
+    pattern_lookup.Set(param, StructInfoPattern(wildcard, GetType(param)));
   }
 
   std::function<DFPattern(Expr)> make_pattern = [&](Expr expr) -> DFPattern {
@@ -772,10 +772,10 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       // Introduce an intermediate variable, to ensure that the
       // MatchCast's target will be a Var, even for expressions that
       // wouldn't normally be normalized into a variable.
-      Var intermediate_var("intermediate_var", GetStructInfo(matched_expr));
+      Var intermediate_var("intermediate_var", GetType(matched_expr));
       wildcard_bindings.push_back(VarBinding(intermediate_var, matched_expr));
       wildcard_bindings.push_back(
-          MatchCast(func_replacement->params[i], intermediate_var, GetStructInfo(matched_expr)));
+          MatchCast(func_replacement->params[i], intermediate_var, GetType(matched_expr)));
     }
 
     new_blocks.push_back(DataflowBlock(wildcard_bindings));
@@ -874,7 +874,7 @@ class PatternMatchingMutator : public ExprMutator {
     // simplifies the special handling of the SeqExpr's body.
     ffi::Optional<Var> dummy_output_var = std::nullopt;
     if (!seq->body->IsInstance<VarNode>()) {
-      dummy_output_var = Var("dummy_output_var", GetStructInfo(seq->body));
+      dummy_output_var = Var("dummy_output_var", GetType(seq->body));
       VarBinding dummy_binding(dummy_output_var.value(), seq->body);
 
       auto last_block = [&]() {

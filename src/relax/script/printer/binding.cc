@@ -46,7 +46,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::MatchCast>(
         "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
           using relax::StructInfo;
-          using relax::MatchStructInfo;
+          using relax::MatchType;
           ffi::Optional<ExprDoc> ann = std::nullopt;
           if (d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true)) {
             ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
@@ -72,8 +72,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
             d->cfg->binding_names.pop_back();
             return ret;
-          } else if (d->cfg->syntax_sugar && relax::HasVoidStructInfo(n->value) &&
-                     relax::HasVoidStructInfo(n->var)) {
+          } else if (d->cfg->syntax_sugar && relax::HasVoidType(n->value) &&
+                     relax::HasVoidType(n->var)) {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
             return ExprStmtDoc(rhs);
           } else {

@@ -69,8 +69,8 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* size_sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -183,8 +183,8 @@ StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* size_sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -290,8 +290,8 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* grid_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* grid_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[1]);
 
   if (data_sinfo == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -371,8 +371,8 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_sinfo = GetTypeAs<TensorStructInfoNode>(call->args[0]);
+  const auto* size_sinfo = GetTypeAs<ShapeStructInfoNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
 
   if (data_sinfo == nullptr) {

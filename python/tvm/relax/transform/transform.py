@@ -1448,20 +1448,19 @@ def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.i
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
-    """Update struct info of parameters
+def UpdateParamType(ty_func: Callable[[Var], StructInfo | None]):
+    """Update parameter types.
 
-    Update struct info of parameters.  Internal bindings and function
-    return type will be updated using relax's struct inference rules.
-    Errors resulting from struct inference will be propagated to the
-    user.
+    Internal bindings and the function return type are updated using Relax's
+    type inference rules.  Errors resulting from type inference are propagated
+    to the user.
 
     Parameters
     ----------
-    sinfo_func: Callable[[Var], Optional[StructInfo]]
+    ty_func: Callable[[Var], Optional[StructInfo]]
 
         A function that is called once for each function parameter,
-        and returns the updated struct info to be used for it.  If the
+        and returns the updated type to be used for it.  If the
         function returns `None`, the parameter is not modified.
 
     Returns
@@ -1470,7 +1469,7 @@ def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
         The corresponding pass.
 
     """
-    return _ffi_api.UpdateParamStructInfo(sinfo_func)  # type: ignore
+    return _ffi_api.UpdateParamType(ty_func)  # type: ignore
 
 
 def AdjustMatmulOrder():

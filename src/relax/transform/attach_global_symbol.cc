@@ -164,7 +164,7 @@ Pass AttachGlobalSymbol() {
         if (new_name.value() != gvar->name_hint) {
           GlobalVar new_gvar(new_name.value());
           if (auto sinfo = gvar->ty.as<StructInfo>()) {
-            UpdateStructInfo(new_gvar, sinfo.value());
+            UpdateType(new_gvar, sinfo.value());
           }
 
           gvar_updates.Set(gvar, new_gvar);

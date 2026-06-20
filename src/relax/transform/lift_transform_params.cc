@@ -106,12 +106,12 @@ struct BaseCollectInfo {
     }
 
     for (const auto& var : outputs) {
-      Var out_var(var->name_hint() + "_output", GetStructInfo(var));
+      Var out_var(var->name_hint() + "_output", GetType(var));
       output_var_binding.push_back(VarBinding(out_var, var));
       output_exprs.push_back(out_var);
     }
 
-    Var tuple_var("output_tuple", TupleStructInfo(output_exprs.Map(GetStructInfo)));
+    Var tuple_var("output_tuple", TupleStructInfo(output_exprs.Map(GetType)));
     output_var_binding.push_back(VarBinding(tuple_var, Tuple(output_exprs)));
 
     SeqExpr body(
@@ -120,7 +120,7 @@ struct BaseCollectInfo {
             DataflowBlock(output_var_binding),
         },
         tuple_var);
-    Function func(params, body, GetStructInfo(tuple_var));
+    Function func(params, body, GetType(tuple_var));
     func = WithAttr(func, attr::kNumInput, 0);
     func = CopyWithNewVars(func);
     func = BundleModelParams(func);
@@ -141,11 +141,9 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   // The cross-function between between TIR variables.
   ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
   ffi::Array<tirx::Var> GetPropagatedSymbolicVariables() const {
-    auto vars_from_original_params =
-        DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
+    auto vars_from_original_params = DefinableTIRVarsInType(TupleStructInfo(params.Map(GetType)));
     auto vars_from_transformed_params = [&]() -> std::unordered_set<tirx::Var> {
-      auto tir_vars =
-          DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
+      auto tir_vars = DefinableTIRVarsInType(TupleStructInfo(GetCompileTimeOutputs().Map(GetType)));
       return {tir_vars.begin(), tir_vars.end()};
     }();
 
@@ -184,17 +182,16 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
   ffi::Array<tirx::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_any_param =
-        DefinableTIRVarsInStructInfo(TupleStructInfo(orig_func->params.Map(GetStructInfo)));
+        DefinableTIRVarsInType(TupleStructInfo(orig_func->params.Map(GetType)));
 
     auto vars_from_runtime_params = [&]() -> std::unordered_set<tirx::Var> {
-      auto tir_var_vec =
-          DefinableTIRVarsInStructInfo(TupleStructInfo(GetRuntimeInputs().Map(GetStructInfo)));
+      auto tir_var_vec = DefinableTIRVarsInType(TupleStructInfo(GetRuntimeInputs().Map(GetType)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
     auto vars_from_transformed_params = [&]() -> std::unordered_set<tirx::Var> {
       auto tir_var_vec =
-          DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
+          DefinableTIRVarsInType(TupleStructInfo(GetCompileTimeOutputs().Map(GetType)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
@@ -285,7 +282,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_outputs;
     }();
     for (const auto& var : compile_time_outputs) {
-      Var param_var(var->name_hint(), GetStructInfo(var));
+      Var param_var(var->name_hint(), GetType(var));
       bindings.push_back(VarBinding(var, param_var));
       params.push_back(param_var);
     }
@@ -367,7 +364,7 @@ class BaseLiftableBindingCollector : public ExprVisitor {
 
     // Cond 4. Do not lift when its struct info contains symbolic variables that do not appear in
     // params.
-    for (const auto& var : TIRVarsInStructInfo(GetStructInfo(binding->var))) {
+    for (const auto& var : TIRVarsInType(GetType(binding->var))) {
       if (!liftable_vars_.count(var)) {
         return false;
       }
@@ -445,7 +442,7 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
     for (size_t i = num_runtime_params; i < func->params.size(); i++) {
       liftable_vars_.insert(func->params[i]);
       info_.requires_compile_time_param.insert(func->params[i]);
-      for (const auto& tir_var : DefinableTIRVarsInStructInfo(GetStructInfo(func->params[i]))) {
+      for (const auto& tir_var : DefinableTIRVarsInType(GetType(func->params[i]))) {
         liftable_vars_.insert(tir_var);
       }
     }
@@ -548,8 +545,8 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
     TVM_FFI_ICHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->ty, rhs_var->ty,
                                                     /*map_free_vars=*/true))
         << "The struct info of the parameters should be the same for all target functions";
-    auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(ffi::GetRef<Var>(lhs_var)));
-    auto rhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(rhs_expr));
+    auto lhs_tir_vars = DefinableTIRVarsInType(GetType(ffi::GetRef<Var>(lhs_var)));
+    auto rhs_tir_vars = DefinableTIRVarsInType(GetType(rhs_expr));
     TVM_FFI_ICHECK_EQ(lhs_tir_vars.size(), rhs_tir_vars.size());
     for (size_t i = 0; i < lhs_tir_vars.size(); i++) {
       if (auto it = tir_var_remap_.find(lhs_tir_vars[i]); it != tir_var_remap_.end()) {
@@ -814,7 +811,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
           transform = ComposeFunctions(old_transform, transform);
         }
         GlobalVar new_gvar(name);
-        UpdateStructInfo(new_gvar, GetStructInfo(transform));
+        UpdateType(new_gvar, GetType(transform));
         write_ptr->Add(new_gvar, transform);
       }
     }

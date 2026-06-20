@@ -600,7 +600,7 @@ def test_arange_symbolic():
         def main(x: R.Tensor(["n"], "float32")):
             cls = Expected
             n = T.int64()
-            gv = R.call_tir(cls.arange, R.tuple(), out_sinfo=R.Tensor((n // 2,), dtype="int64"), tir_vars=R.shape([n]))
+            gv = R.call_tir(cls.arange, R.tuple(), out_ty=R.Tensor((n // 2,), dtype="int64"), tir_vars=R.shape([n]))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
