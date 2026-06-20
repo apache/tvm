@@ -30,9 +30,9 @@ def test_op_correctness():
     assert relax.op.ewise_fma(x, y, z).op == Op.get("relax.ewise_fma")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def test_ewise_fma_infer_struct_info():

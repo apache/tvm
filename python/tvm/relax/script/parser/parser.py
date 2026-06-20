@@ -45,7 +45,7 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    anno_sinfo: StructInfo | None = None,
+    anno_ty: StructInfo | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -87,9 +87,9 @@ def bind_assign_value(
         value = R.const(value)
 
     if isinstance(value, relax.Expr):
-        var = R.emit(value, anno_sinfo)
+        var = R.emit(value, anno_ty)
     elif isinstance(value, MatchCastPair):
-        if anno_sinfo is not None and not tvm_ffi.structural_equal(anno_sinfo, value.ty):
+        if anno_ty is not None and not tvm_ffi.structural_equal(anno_ty, value.ty):
             self.report_error(
                 node, "Cannot specify inconsistent annotation for a match cast pair. "
             )
@@ -182,9 +182,9 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_sinfo_proxy = eval_struct_info_proxy(self, arg.annotation)
+        param_ty_proxy = eval_struct_info_proxy(self, arg.annotation)
 
-        for var_name in param_sinfo_proxy.get_symbolic_vars():
+        for var_name in param_ty_proxy.get_symbolic_vars():
             if var_name not in symbolic_vars:
                 symbolic_vars[var_name] = tirx.Var(var_name, "int64")
 
@@ -206,17 +206,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     if not func_val and is_recursive(node):
         collect_symbolic_var_from_params(self, node)
         if node.returns is None:
-            ret_sinfo = relax.TupleStructInfo([])
+            ret_ty = relax.TupleStructInfo([])
         else:
-            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
-        params_sinfo = []
+            ret_ty = eval_struct_info(self, node.returns, eval_str=True)
+        params_ty = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params_sinfo.append(param_sinfo)
+            param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+            params_ty.append(param_ty)
         # created a var for the local function, the same var could be used for recursive call
-        local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
+        local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
@@ -231,8 +231,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 collect_symbolic_var_from_params(self, node)
 
                 if node.returns is not None:
-                    ann_sinfo = eval_struct_info(self, node.returns, eval_str=True)
-                    R.func_ret_struct_info(ann_sinfo)
+                    ann_ty = eval_struct_info(self, node.returns, eval_str=True)
+                    R.func_ret_struct_info(ann_ty)
 
                 self.visit(node.args)
 
@@ -272,19 +272,19 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         if node.returns is None:
             # Use ObjectStructInfo as unknown return type
             # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
-            ret_sinfo = relax.ObjectStructInfo()
+            ret_ty = relax.ObjectStructInfo()
         else:
-            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
+            ret_ty = eval_struct_info(self, node.returns, eval_str=True)
         params = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params.append(relax.Var(arg.arg, param_sinfo))
+            param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+            params.append(relax.Var(arg.arg, param_ty))
 
     is_pure = find_decorator_annotation(node, "pure")
 
-    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
+    func_signature = relax.Function.create_empty(params, ret_ty, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 
 
@@ -334,8 +334,8 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-        param = R.arg(arg.arg, param_sinfo)
+        param_ty = eval_struct_info(self, arg.annotation, eval_str=True)
+        param = R.arg(arg.arg, param_ty)
 
         self.var_table.add(arg.arg, param)
 
@@ -384,11 +384,11 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    anno_sinfo = self.visit_tvm_annotation(node.annotation)
+    anno_ty = self.visit_tvm_annotation(node.annotation)
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=functools.partial(bind_assign_value, anno_sinfo=anno_sinfo),
+        bind_value=functools.partial(bind_assign_value, anno_ty=anno_ty),
         allow_shadowing=True,
     )
 

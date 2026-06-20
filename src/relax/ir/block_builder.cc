@@ -30,9 +30,9 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
@@ -411,8 +411,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       name_hint = is_dataflow ? "lv" : "gv";
     }
     Id vid = Id(GetUniqueName(name_hint));
-    return is_dataflow ? DataflowVar(vid, /*tyannotation=*/std::nullopt)
-                       : Var(vid, /*tyannotation=*/std::nullopt);
+    return is_dataflow ? DataflowVar(vid, /*ty_annotation=*/std::nullopt)
+                       : Var(vid, /*ty_annotation=*/std::nullopt);
   }
 
  private:
@@ -635,11 +635,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
     if (!tuple->ty.defined()) {
-      ffi::Array<StructInfo> tuple_sinfo;
+      ffi::Array<StructInfo> tuple_ty;
       for (Expr field : tuple->fields) {
-        tuple_sinfo.push_back(GetStructInfo(field));
+        tuple_ty.push_back(GetStructInfo(field));
       }
-      UpdateStructInfo(tuple, TupleStructInfo(tuple_sinfo, op->span));
+      UpdateStructInfo(tuple, TupleStructInfo(tuple_ty, op->span));
     }
     return tuple;
   }
@@ -668,8 +668,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
 
     if (!call->ty.defined()) {
-      auto inferred_sinfo = InferStructInfo(call);
-      UpdateStructInfo(call, inferred_sinfo);
+      auto inferred_ty = InferStructInfo(call);
+      UpdateStructInfo(call, inferred_ty);
     }
 
     // If the operation has defined a custom normalization

@@ -30,6 +30,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/transform.h>
 
@@ -47,14 +48,13 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
  * \return A boolean indicating the given struct info contains shape values that are all known.
  */
 bool KnowAllShapeValues(const StructInfo& sinfo) {
-  if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-    return tensor_sinfo->shape.defined() &&
-           tensor_sinfo->shape.value()->IsInstance<ShapeExprNode>();
-  } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
-    return shape_sinfo->values.defined();
-  } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-    return std::all_of(tuple_sinfo->fields.begin(), tuple_sinfo->fields.end(),
-                       [](StructInfo field_sinfo) { return KnowAllShapeValues(field_sinfo); });
+  if (const auto* tensor_ty = sinfo.as<TensorStructInfoNode>()) {
+    return tensor_ty->shape.defined() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
+  } else if (const auto* shape_ty = sinfo.as<ShapeStructInfoNode>()) {
+    return shape_ty->values.defined();
+  } else if (const auto* tuple_ty = sinfo.as<TupleStructInfoNode>()) {
+    return std::all_of(tuple_ty->fields.begin(), tuple_ty->fields.end(),
+                       [](StructInfo field_ty) { return KnowAllShapeValues(field_ty); });
   } else if (sinfo.as<PrimStructInfoNode>()) {
     return true;
   } else {
@@ -124,8 +124,8 @@ class LegalizeMutator : public ExprMutator {
     bool pure_legalized_op = [&]() -> bool {
       if (auto legalized_op = call->op.as<Op>()) {
         return purity_map.get(legalized_op.value(), false);
-      } else if (auto func_sinfo = call->op->ty.as<FuncStructInfoNode>()) {
-        return func_sinfo->purity;
+      } else if (auto func_ty = call->op->ty.as<FuncStructInfoNode>()) {
+        return func_ty->purity;
       } else {
         return false;
       }
@@ -157,8 +157,8 @@ class LegalizeMutator : public ExprMutator {
             return vdevice->target;
           }
         }
-      } else if (const auto* tup_sinfo = sinfo.as<TupleStructInfoNode>()) {
-        return GetTarget(tup_sinfo->fields);
+      } else if (const auto* tup_ty = sinfo.as<TupleStructInfoNode>()) {
+        return GetTarget(tup_ty->fields);
       }
     }
     return std::nullopt;

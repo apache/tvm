@@ -27,7 +27,7 @@ from tvm.runtime import Object, ObjectConvertible
 
 from ...ir import PrimExpr
 from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
-from ..struct_info import StructInfo, TensorStructInfo
+from ..type import StructInfo, TensorStructInfo
 from ..utils import convert_to_expr
 from . import _ffi_api
 
@@ -92,7 +92,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 def call_tir(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    out_ty: TensorStructInfo | list[TensorStructInfo],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
@@ -106,7 +106,7 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+    out_ty : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir output.
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -121,19 +121,19 @@ def call_tir(
     """
     args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
     if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir(gvar, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir(gvar, args, out_ty, tir_vars)  # type: ignore
 
 
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    out_ty: TensorStructInfo | list[TensorStructInfo],
     te_grad_name: str,
     te_grad_kwargs: dict[str, Object] | None = None,
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
@@ -151,7 +151,7 @@ def call_tir_with_grad(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+    out_ty : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir_with_grad output.
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -174,8 +174,8 @@ def call_tir_with_grad(
     """
     args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
     if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
@@ -184,7 +184,7 @@ def call_tir_with_grad(
         te_grad_kwargs = {}
 
     return _ffi_api.call_tir_with_grad(  # type: ignore
-        gvar, args, out_sinfo, te_grad_name, te_grad_kwargs, tir_vars
+        gvar, args, out_ty, te_grad_name, te_grad_kwargs, tir_vars
     )
 
 
@@ -192,7 +192,7 @@ def call_tir_inplace(
     gvar: GlobalVar,
     args: Expr,
     inplace_indices: int | list[int],
-    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    out_ty: TensorStructInfo | list[TensorStructInfo],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
@@ -224,7 +224,7 @@ def call_tir_inplace(
         If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
         At least one member of `inplace_indices` must not be -1.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+    out_ty : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir_inplace output.
         It should be a single `TensorStructInfo` or a list of `TensorStructInfo`.
         Each one denotes the structure info of a returned tensor.
@@ -243,8 +243,8 @@ def call_tir_inplace(
     if not isinstance(inplace_indices, list):
         inplace_indices = [inplace_indices]
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
     if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
@@ -253,7 +253,7 @@ def call_tir_inplace(
         gvar,
         args,
         inplace_indices,
-        out_sinfo,
+        out_ty,
         tir_vars,
     )
 
@@ -261,7 +261,7 @@ def call_tir_inplace(
 def call_dps_packed(
     func: str | Expr,
     args: Expr,
-    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    out_ty: TensorStructInfo | list[TensorStructInfo],
 ) -> Call:
     """
     Call a destination-passing-style packed function and return the output.
@@ -278,7 +278,7 @@ def call_dps_packed(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+    out_ty : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_dps_packed output.
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -293,16 +293,16 @@ def call_dps_packed(
 
     args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
-    return _ffi_api.call_dps_packed(func, args, out_sinfo)  # type: ignore
+    return _ffi_api.call_dps_packed(func, args, out_ty)  # type: ignore
 
 
 def call_py_func(
     func_name: str,
     args: Expr,
-    out_sinfo: TensorStructInfo | list[TensorStructInfo],
+    out_ty: TensorStructInfo | list[TensorStructInfo],
 ) -> Call:
     """
     Call a Python function and return the output.
@@ -316,7 +316,7 @@ def call_py_func(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+    out_ty : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_py_func output.
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -328,10 +328,10 @@ def call_py_func(
     """
     args = _wrap_inline_arg_tuple(args)
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
-    return _ffi_api.call_py_func(func_name, args, out_sinfo)  # type: ignore
+    return _ffi_api.call_py_func(func_name, args, out_ty)  # type: ignore
 
 
 def call_builtin_with_ctx(

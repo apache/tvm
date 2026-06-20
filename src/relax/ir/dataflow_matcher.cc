@@ -33,6 +33,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
 
@@ -571,9 +572,9 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   // no need to jump, as var.dtype == value.dtype
-  auto expr_sinfo = expr.as<ExprNode>()->ty;
-  if (const TensorStructInfoNode* tensor_sinfo = expr_sinfo.as<TensorStructInfoNode>()) {
-    return (ffi::StructuralEqual()(op->dtype, tensor_sinfo->dtype)) &&
+  auto expr_ty = expr.as<ExprNode>()->ty;
+  if (const TensorStructInfoNode* tensor_ty = expr_ty.as<TensorStructInfoNode>()) {
+    return (ffi::StructuralEqual()(op->dtype, tensor_ty->dtype)) &&
            VisitDFPattern(op->pattern, expr);
   }
   return false;

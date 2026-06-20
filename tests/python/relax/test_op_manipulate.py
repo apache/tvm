@@ -50,9 +50,9 @@ def test_op_correctness():
     assert relax.op.scatter_nd(x, x, x).op == Op.get("relax.scatter_nd")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def test_reshape_infer_struct_info():

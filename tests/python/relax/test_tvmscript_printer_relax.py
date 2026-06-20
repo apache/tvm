@@ -400,14 +400,14 @@ def test_shape_expr():
 def test_call():
     x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
-    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_sinfo=a.ty, tir_vars=[x])
-    o1 = relax.call_dps_packed("my_dps_func", args=a, out_sinfo=a.ty)
+    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_ty=a.ty, tir_vars=[x])
+    o1 = relax.call_dps_packed("my_dps_func", args=a, out_ty=a.ty)
     _assert_print(
         o0,
         """
 x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_tir(tir_func, (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
+R.call_tir(tir_func, (a,), out_ty=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
 """,
     )
     _assert_print(
@@ -415,7 +415,7 @@ R.call_tir(tir_func, (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"), tir_v
         """
 x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="float32"))
+R.call_dps_packed("my_dps_func", (a,), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
 
@@ -436,7 +436,7 @@ def test_call_tir_with_grad():
         """
 v0: R.Tensor((54, 96), dtype="float32")
 x = T.int64()
-R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
+R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
 """,
     )
 
@@ -452,7 +452,7 @@ def test_call_tir_inplace():
             y,
         ),
         inplace_indices=[-1, 0],
-        out_sinfo=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")],
+        out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")],
         tir_vars=[t],
     )
     _assert_print(
@@ -461,7 +461,7 @@ def test_call_tir_inplace():
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
 t = T.int64()
-R.call_tir_inplace(tir_func, (x, y), out_sinfo=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0], tir_vars=R.shape([t]))
+R.call_tir_inplace(tir_func, (x, y), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0], tir_vars=R.shape([t]))
         """,
     )
 
@@ -648,7 +648,7 @@ class Module:
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
         cls = Module
-        gv0 = R.call_tir(cls.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
+        gv0 = R.call_tir(cls.tir_func, (x,), out_ty=R.Tensor((128,), dtype="float32"))
         return gv0
 """,
     )
@@ -671,7 +671,7 @@ class Module:
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
-        gv0 = R.call_tir(Module.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
+        gv0 = R.call_tir(Module.tir_func, (x,), out_ty=R.Tensor((128,), dtype="float32"))
         return gv0
 """,
     )
@@ -827,8 +827,8 @@ def test_reused_extern_func():
     @R.function
     def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
         extern_func = R.ExternFunc("extern_func")
-        y = R.call_dps_packed(extern_func, (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
-        z = R.call_dps_packed(extern_func, (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+        y = R.call_dps_packed(extern_func, (x,), out_ty=R.Tensor((128, 128), dtype="float32"))
+        z = R.call_dps_packed(extern_func, (y,), out_ty=R.Tensor((128, 128), dtype="float32"))
         return z
 
     _assert_print(
@@ -839,8 +839,8 @@ def test_reused_extern_func():
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
     extern_func: R.Callable = R.ExternFunc("extern_func")
-    y = R.call_dps_packed(extern_func, (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
-    z = R.call_dps_packed(extern_func, (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    y = R.call_dps_packed(extern_func, (x,), out_ty=R.Tensor((128, 128), dtype="float32"))
+    z = R.call_dps_packed(extern_func, (y,), out_ty=R.Tensor((128, 128), dtype="float32"))
     return z
                   """,
     )
@@ -852,10 +852,10 @@ def test_inline_extern_func():
     @R.function
     def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
         y = R.call_dps_packed(
-            R.ExternFunc("extern_func"), (x,), out_sinfo=R.Tensor((128, 128), dtype="float32")
+            R.ExternFunc("extern_func"), (x,), out_ty=R.Tensor((128, 128), dtype="float32")
         )
         z = R.call_dps_packed(
-            R.ExternFunc("extern_func"), (y,), out_sinfo=R.Tensor((128, 128), dtype="float32")
+            R.ExternFunc("extern_func"), (y,), out_ty=R.Tensor((128, 128), dtype="float32")
         )
         return z
 
@@ -866,8 +866,8 @@ def test_inline_extern_func():
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
-    y = R.call_dps_packed("extern_func", (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
-    z = R.call_dps_packed("extern_func", (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    y = R.call_dps_packed("extern_func", (x,), out_ty=R.Tensor((128, 128), dtype="float32"))
+    z = R.call_dps_packed("extern_func", (y,), out_ty=R.Tensor((128, 128), dtype="float32"))
     return z
                   """,
     )

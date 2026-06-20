@@ -36,8 +36,8 @@ from tvm.relax.expr import (
     Var,
     VarBinding,
 )
-from tvm.relax.struct_info import PrimStructInfo, TensorStructInfo
 from tvm.relax.transform import PatternCheckContext
+from tvm.relax.type import PrimStructInfo, TensorStructInfo
 from tvm.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor

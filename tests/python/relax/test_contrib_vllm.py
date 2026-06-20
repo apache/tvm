@@ -95,7 +95,7 @@ def test_attention():
                         16,
                         max_len,
                     ],
-                    out_sinfo=query.ty,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out
@@ -140,7 +140,7 @@ def test_attention():
                         max_logits,
                         tmp_out,
                     ],
-                    out_sinfo=query.ty,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out

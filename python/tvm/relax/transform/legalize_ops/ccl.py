@@ -23,7 +23,7 @@ from tvm import arith, tirx, topi
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
 from ...op import call_dps_packed
-from ...struct_info import ShapeStructInfo, TensorStructInfo
+from ...type import ShapeStructInfo, TensorStructInfo
 from .common import register_legalize
 
 
@@ -45,19 +45,19 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.allreduce",
         [call.args[0], ShapeExpr([op_type_map[op_type_str]]), call.attrs.in_group],
-        out_sinfo=call.args[0].ty,
+        out_ty=call.args[0].ty,
     )
 
 
 @register_legalize("relax.ccl.allgather")
 def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
-    arg_sinfo = call.args[0].ty
-    assert isinstance(arg_sinfo, TensorStructInfo), (
+    arg_ty = call.args[0].ty
+    assert isinstance(arg_ty, TensorStructInfo), (
         "The input struct info of allgather should be TensorStructInfo."
     )
-    assert isinstance(arg_sinfo.shape.ty, ShapeStructInfo)
-    arg_shape = arg_sinfo.shape.ty
+    assert isinstance(arg_ty.shape.ty, ShapeStructInfo)
+    arg_shape = arg_ty.shape.ty
     for i, shape_value in enumerate(arg_shape.values):
         if i == 0:
             output_shape.append(shape_value * call.attrs.num_workers)
@@ -66,10 +66,10 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.allgather",
         [call.args[0], call.attrs.in_group],
-        out_sinfo=TensorStructInfo(
+        out_ty=TensorStructInfo(
             shape=output_shape,
-            dtype=arg_sinfo.dtype,
-            vdevice=arg_sinfo.vdevice,
+            dtype=arg_ty.dtype,
+            vdevice=arg_ty.vdevice,
         ),
     )
 
@@ -79,7 +79,7 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.broadcast_from_worker0",
         [call.args[0], False],
-        out_sinfo=call.args[0].ty,
+        out_ty=call.args[0].ty,
     )
 
 
@@ -120,7 +120,7 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
         [transpose_var, False],
-        out_sinfo=TensorStructInfo(
+        out_ty=TensorStructInfo(
             shape=output_shape,
             dtype=call.args[0].ty.dtype,
             vdevice=call.args[0].ty.vdevice,

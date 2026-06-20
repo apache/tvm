@@ -86,9 +86,8 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   // to reduce computational steps in the parent, but we need to
   // provide the symbolic variables the other steps.
   auto defined_tir_params = [&]() -> PSet<tirx::Var> {
-    auto param_sinfo =
-        TupleStructInfo(params.Map([](const auto& var) { return GetStructInfo(var); }));
-    auto arr = DefinableTIRVarsInStructInfo(param_sinfo);
+    auto param_ty = TupleStructInfo(params.Map([](const auto& var) { return GetStructInfo(var); }));
+    auto arr = DefinableTIRVarsInStructInfo(param_ty);
     return {arr.begin(), arr.end()};
   }();
 
@@ -105,8 +104,8 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
     params.push_back(relax_var);
   }
 
-  FuncStructInfo new_sinfo(params.Map([](const auto& var) { return GetStructInfo(var); }),
-                           func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
+  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetStructInfo(var); }),
+                        func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
 
   auto arg_updater = [parameter_mask, old_relax_params = func->params,
                       free_tir_vars](ffi::Array<Expr> old_args) -> ffi::Array<Expr> {
@@ -139,7 +138,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
-  write_ptr->ty = new_sinfo;
+  write_ptr->ty = new_ty;
 
   return CalleeAnalysis{func, arg_updater};
 }

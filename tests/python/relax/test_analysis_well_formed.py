@@ -510,7 +510,7 @@ def test_sinfo_args_tir_var_used_before_define_call_tir():
     # Error: Symbolic Var m1, n1 are not defined
     m1 = tirx.Var("m1", "int64")
     n1 = tirx.Var("n1", "int64")
-    call = R.call_dps_packed("my_func", x, out_sinfo=R.Tensor((m1, n1), "float32"))
+    call = R.call_dps_packed("my_func", x, out_ty=R.Tensor((m1, n1), "float32"))
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.check_well_formed(mod, check_struct_info=False)
@@ -523,12 +523,12 @@ def test_sinfo_erase_to_well_formed():
     def foo(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m1", "n1"), dtype="float32"):
         m = T.int64()
         n = T.int64()
-        gv = R.call_dps_packed("my_func", (x,), out_sinfo=R.Tensor((m, n), dtype="float32"))
+        gv = R.call_dps_packed("my_func", (x,), out_ty=R.Tensor((m, n), dtype="float32"))
         return gv
     """
     m1 = tirx.Var("m1", "int64")
     n1 = tirx.Var("n1", "int64")
-    call = R.call_dps_packed("my_func", x, out_sinfo=R.Tensor((m, n), "float32"))
+    call = R.call_dps_packed("my_func", x, out_ty=R.Tensor((m, n), "float32"))
     blocks = [rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])]
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     func = rx.Function([x], seq_expr, R.Tensor((m1, n1), "float32")).with_attr(
@@ -713,7 +713,7 @@ def test_call_tir_with_matching_arguments():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -738,7 +738,7 @@ def test_call_tir_input_ndim():
     class Module:
         @R.function
         def main(A: R.Tensor([4, 4], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -762,7 +762,7 @@ def test_call_tir_output_ndim():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([4, 4], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([4, 4], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -787,7 +787,7 @@ def test_call_tir_input_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([32], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -811,7 +811,7 @@ def test_call_tir_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([32], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([32], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -837,7 +837,7 @@ def test_call_tir_input_dtype():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float32")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -863,7 +863,7 @@ def test_call_tir_output_dtype():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float32"))
+            B = R.call_tir(Module.add_one, A, out_ty=R.Tensor([16], "float32"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -881,7 +881,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
     Here, the input arguments to the `reshape` function are not
     sufficient to infer the shape of the outputs.  This is legal,
-    since the output shape is determined by the `out_sinfo` parameter.
+    since the output shape is determined by the `out_ty` parameter.
 
     Inability to verify the output shape does not mean that the output
     shape is invalid.
@@ -892,7 +892,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 8], "float16"))
+            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 8], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -925,7 +925,7 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([16, 16], "float16"))
+            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([16, 16], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -960,7 +960,7 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):
-            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 4, 2], "float16"))
+            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([2, 4, 2], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -983,11 +983,11 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
     Here, the input arguments to the `reshape` function are not
     sufficient to infer the shape of the outputs.  This is legal,
-    since the output shape is taken from the `out_sinfo` parameter.
+    since the output shape is taken from the `out_ty` parameter.
 
     Identifying this failure mode is not yet supported in the current
     implementation.  This is because the output is inferred as
-    `R.Tensor(ndim=3, dtype="float16")`, and the explicit `out_sinfo`
+    `R.Tensor(ndim=3, dtype="float16")`, and the explicit `out_ty`
     is a 3-d tensor.  The mismatch in the first dimension is not yet
     counted, because the entire tensor shape is removed by
     `EraseToWellDefined`.
@@ -998,7 +998,7 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
     class Module:
         @R.function
         def main(A: R.Tensor([256], "float16")):
-            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([8, 16, 2], "float16"))
+            B = R.call_tir(Module.reshape, A, out_ty=R.Tensor([8, 16, 2], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -1022,7 +1022,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
     TIR buffer.  Even though it is dynamic, the input shapes are
     sufficient to infer that `M==8` and `N==4`.  As a result, the
     output shape of `[M*N]` can be inferred to be `[32]`, and the
-    shape specified in `out_sinfo` can be validated.
+    shape specified in `out_ty` can be validated.
 
     """
 
@@ -1030,7 +1030,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
-            B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([32], "float16"))
+            B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([32], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -1055,7 +1055,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
     TIR buffer.  Even though it is dynamic, the input shapes are
     sufficient to infer that `M==8` and `N==4`.  As a result, the
     output shape of `[M*N]` can be inferred to be `[32]`, and the
-    shape specified in `out_sinfo` can be validated.
+    shape specified in `out_ty` can be validated.
 
     This unit test is identical to the above test
     `test_call_tir_with_correct_inferred_dynamic_output_shape`, except
@@ -1068,7 +1068,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
     class Module:
         @R.function
         def main(A: R.Tensor([8, 4], "float16")):
-            B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([64], "float16"))
+            B = R.call_tir(Module.flatten, A, out_ty=R.Tensor([64], "float16"))
             return B
 
         @T.prim_func(s_tir=True)
@@ -1106,7 +1106,7 @@ def test_call_tir_with_dtensor_arguments():
         @R.function
         def main(A: R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")):
             B = R.dist.call_tir(
-                Module.flatten, A, out_sinfo=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
+                Module.flatten, A, out_ty=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
             )
             return B
 
@@ -1136,7 +1136,7 @@ def test_call_tir_inplace_with_correct_shapes():
                 Module.add_one,
                 A,
                 inplace_indices=[0],
-                out_sinfo=R.Tensor([16], "float16"),
+                out_ty=R.Tensor([16], "float16"),
             )
             return B
 
@@ -1161,7 +1161,7 @@ def test_call_tir_inplace_with_incorrect_shapes():
                 Module.add_one,
                 A,
                 inplace_indices=[0],
-                out_sinfo=R.Tensor([32], "float16"),
+                out_ty=R.Tensor([32], "float16"),
             )
             return B
 
@@ -1186,7 +1186,7 @@ def test_call_tir_inplace_with_some_allocated_outputs():
                 Module.add_one,
                 (A, B),
                 inplace_indices=[-1, 1],
-                out_sinfo=[
+                out_ty=[
                     R.Tensor([16], "float16"),
                     R.Tensor([32], "float16"),
                 ],

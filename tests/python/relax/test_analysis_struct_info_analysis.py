@@ -352,11 +352,11 @@ def test_base_check():
     assert fopaque.is_base_of(fn_info_shape(1))
 
 
-def _check_derive(ctx, finfo, args_sinfo, ret):
+def _check_derive(ctx, finfo, args_ty, ret):
     gv = rx.GlobalVar("test")
     rx.expr._update_struct_info(gv, finfo)
     args = []
-    for i, sinfo in enumerate(args_sinfo):
+    for i, sinfo in enumerate(args_ty):
         arg = rx.Var(f"arg{i}", sinfo)
         args.append(arg)
     call = rx.Call(gv, args)

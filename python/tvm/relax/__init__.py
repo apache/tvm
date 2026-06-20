@@ -51,7 +51,7 @@ from .expr import (
 from .expr import const, extern, get_shape_of
 
 # Type
-from .ty import (
+from .type import (
     Type,
     ObjectType,
     ShapeType,
@@ -80,7 +80,7 @@ from .block_builder import BlockBuilder
 from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
 
 # StructInfo
-from .struct_info import (
+from .type import (
     StructInfo,
     ObjectStructInfo,
     PrimStructInfo,
@@ -105,6 +105,7 @@ from .base_py_module import BasePyModule
 from . import exec_builder
 from . import expr
 from . import ty
+from . import type
 from . import analysis
 from . import transform
 from . import block_builder

@@ -104,8 +104,8 @@ class DataflowReshapeRewriter : public ExprMutator {
       return ffi::GetRef<Call>(call);
     }
 
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->ty);
-    return reshape(arg, res_sinfo->shape.value());
+    TensorStructInfo res_ty = Downcast<TensorStructInfo>(call->ty);
+    return reshape(arg, res_ty->shape.value());
   }
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
@@ -121,14 +121,14 @@ class DataflowReshapeRewriter : public ExprMutator {
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
     TVM_FFI_ICHECK(inp->ty.defined() && call->ty.defined());
-    TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->ty);
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->ty);
+    TensorStructInfo inp_ty = Downcast<TensorStructInfo>(inp->ty);
+    TensorStructInfo res_ty = Downcast<TensorStructInfo>(call->ty);
 
-    if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
+    if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;
     }
-    TVM_FFI_ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
-    if (inp_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
+    TVM_FFI_ICHECK(inp_ty->shape.defined() && res_ty->shape.defined());
+    if (inp_ty->IsUnknownNdim() || res_ty->IsUnknownNdim()) {
       return false;
     }
     auto product = [](ffi::Array<PrimExpr> args) -> PrimExpr {
@@ -142,8 +142,8 @@ class DataflowReshapeRewriter : public ExprMutator {
       for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
       return p;
     };
-    auto inp_count = product(inp_sinfo->GetShape().value());
-    auto res_count = product(res_sinfo->GetShape().value());
+    auto inp_count = product(inp_ty->GetShape().value());
+    auto res_count = product(res_ty->GetShape().value());
     if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }

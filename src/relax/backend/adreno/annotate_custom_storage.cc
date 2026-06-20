@@ -90,10 +90,10 @@
  *   ) -> R.Tensor((2, 32, 54, 54), dtype="float32"):
  *      with R.dataflow():
  *           lv = R.call_tir(cls.te_layout_transform, (x,),
- *               out_sinfo=R.Tensor((2, 16, 56, 56, 4), dtype="float32")
+ *               out_ty=R.Tensor((2, 16, 56, 56, 4), dtype="float32")
  *           )
  *           lv1 = R.call_tir(cls.te_layout_transform1, (w,),
- *               out_sinfo=R.Tensor((8, 64, 3, 3, 4), dtype="float32")
+ *               out_ty=R.Tensor((8, 64, 3, 3, 4), dtype="float32")
  *           )
  *           lv2: R.Tensor((2, 8, 54, 54, 4), dtype="float32") = R.nn.conv2d(
  *               lv,
@@ -104,7 +104,7 @@
  *               out_dtype="float32"
  *           )
  *           gv = R.call_tir(cls.te_layout_transform2, (lv2,),
- *               out_sinfo=R.Tensor((2, 32, 54, 54), dtype="float32")
+ *               out_ty=R.Tensor((2, 32, 54, 54), dtype="float32")
  *           )
  *           R.output(gv)
  *       return gv
@@ -142,7 +142,7 @@
  *               x, R.device(dev_type=4, dev_id=0), "global"
  *          )
  *          lv_1 = R.call_tir(cls.te_layout_transform, (lv,),
- *              out_sinfo=R.Tensor((2, 16, 56, 56, 4), dtype="float32",
+ *              out_ty=R.Tensor((2, 16, 56, 56, 4), dtype="float32",
  *                  vdevice="opencl:0:global.texture-nhwc"
  *              )
  *          )
@@ -150,7 +150,7 @@
  *              w, R.device(dev_type=4, dev_id=0), "global"
  *          )
  *          lv1_1 = R.call_tir(cls.te_layout_transform1, (lv1,),
- *              out_sinfo=R.Tensor((8, 64, 3, 3, 4), dtype="float32",
+ *              out_ty=R.Tensor((8, 64, 3, 3, 4), dtype="float32",
  *                  vdevice="opencl:2:global.texture-weight"
  *              )
  *          )
@@ -174,12 +174,12 @@
  *              vdevice="opencl:1:global"
  *          ) = R.hint_on_device(lv2_1, R.device(dev_type=4, dev_id=0), "global")
  *          gv = R.call_tir(cls.te_layout_transform2, (lv4,),
- *              out_sinfo=R.Tensor((2, 32, 54, 54), dtype="float32", vdevice="opencl:1:global")
+ *              out_ty=R.Tensor((2, 32, 54, 54), dtype="float32", vdevice="opencl:1:global")
  *          )
  *          R.output(gv)
  *      return gv
  *
- * What we have above is hint_on_device injections and out_sinfo for all calls.
+ * What we have above is hint_on_device injections and out_ty for all calls.
  * Now, we apply RealizeVDevice to formalize the hints. Follwed by we also call
  * CanonicalizeBindings that removes redundant assignments like
  *
@@ -199,12 +199,12 @@
  *    ) -> R.Tensor((2, 32, 54, 54), dtype="float32"):
  *        with R.dataflow():
  *           lv = R.call_tir(cls.te_layout_transform, (x,),
- *               out_sinfo=R.Tensor((2, 16, 56, 56, 4), dtype="float32",
+ *               out_ty=R.Tensor((2, 16, 56, 56, 4), dtype="float32",
  *                   vdevice="opencl:0:global.texture-nhwc"
  *               )
  *           )
  *           lv1 = R.call_tir(cls.te_layout_transform1, (w,),
- *               out_sinfo=R.Tensor((8, 64, 3, 3, 4), dtype="float32",
+ *               out_ty=R.Tensor((8, 64, 3, 3, 4), dtype="float32",
  *                   vdevice="opencl:2:global.texture-weight"
  *               )
  *           )
@@ -219,13 +219,13 @@
  *               )
  *           )
  *           gv = R.call_tir(cls.te_layout_transform2, (lv4,),
- *               out_sinfo=R.Tensor((2, 32, 54, 54), dtype="float32", vdevice="opencl:1:global")
+ *               out_ty=R.Tensor((2, 32, 54, 54), dtype="float32", vdevice="opencl:1:global")
  *           )
  *           R.output(gv)
  *       return gv
  *
  * Followed by, the compilation pipeline calls
- * - legalization of the remainng ops: This legalization do forwards the annotated out_sinfo
+ * - legalization of the remainng ops: This legalization do forwards the annotated out_ty
  *   VDevice information to tir_calls
  * - AnnotateTIROpPattern : TIROp Patterns for newly legalizes ops
  * - Fusion
@@ -258,8 +258,8 @@ namespace adreno {
 
 using tvm::tirx::Buffer;
 
-static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
-  auto shape = tensor_sinfo->GetShape();
+static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_ty) {
+  auto shape = tensor_ty->GetShape();
   TVM_FFI_ICHECK(shape.defined());
   return shape.value();
 }
@@ -358,11 +358,10 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     ffi::Array<ffi::String> arg_scope;
     for (uint32_t i = 0; i < func_args->fields.size(); ++i) {
       auto sinfo = GetStructInfo(func_args->fields[i]);
-      if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+      if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
         bool is_texture =
             i < is_texture_supported.size() ? is_texture_supported[i] : is_texture_supported[0];
-        auto scope =
-            is_texture ? Scope(GetShapeFromTensorStructInfo(tensor_sinfo.value())) : "global";
+        auto scope = is_texture ? Scope(GetShapeFromTensorStructInfo(tensor_ty.value())) : "global";
         ffi::Map<Expr, ffi::Array<ffi::String>> ent_call;
         const VarNode* arg_var = func_args->fields[i].as<VarNode>();
         if (scope_info.find(ffi::GetRef<Expr>(arg_var)) != scope_info.end()) {
@@ -488,17 +487,17 @@ class CollectProducerScopeInfo : public ExprVisitor {
     builder_ = builder;
     VisitExpr(func->body);
 
-    return producer_sinfo;
+    return producer_ty;
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     ExprVisitor::VisitBinding_(binding, call);
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    StructInfo out_sinfo;
+    StructInfo out_ty;
 
     if (call->op == call_tir_op) {
-      out_sinfo = call->sinfo_args[0];
+      out_ty = call->sinfo_args[0];
     } else {
       tvm::OpAttrMap<FInferStructInfo> op_map_infer_ty =
           Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
@@ -507,7 +506,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
       Op op = ffi::GetRef<Op>(op_ptr);
       TVM_FFI_ICHECK(op_map_infer_ty.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-      out_sinfo = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
+      out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
     }
 
     std::unordered_map<ffi::String, int> scope_count;
@@ -534,27 +533,27 @@ class CollectProducerScopeInfo : public ExprVisitor {
       }
     }
     // Applying same scope for outputs
-    StructInfo updated_ret_sinfo = UpdateStructInfo(out_sinfo, {final_scope});
-    producer_sinfo.Set(ffi::GetRef<Expr>(call), updated_ret_sinfo);
+    StructInfo updated_ret_ty = UpdateStructInfo(out_ty, {final_scope});
+    producer_ty.Set(ffi::GetRef<Expr>(call), updated_ret_ty);
   }
 
  private:
-  StructInfo UpdateStructInfo(const StructInfo& out_sinfo, ffi::Array<ffi::String> scope) {
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto tensor_sinfo = Downcast<TensorStructInfo>(out_sinfo);
-      auto shape_arr = GetShapeFromTensorStructInfo(tensor_sinfo);
-      return TensorStructInfo(ShapeExpr(shape_arr), tensor_sinfo->dtype,
+  StructInfo UpdateStructInfo(const StructInfo& out_ty, ffi::Array<ffi::String> scope) {
+    if (out_ty->IsInstance<TensorStructInfoNode>()) {
+      auto tensor_ty = Downcast<TensorStructInfo>(out_ty);
+      auto shape_arr = GetShapeFromTensorStructInfo(tensor_ty);
+      return TensorStructInfo(ShapeExpr(shape_arr), tensor_ty->dtype,
                               VDevice(target_, 0, scope[0]));
     }
 
-    TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
+    TVM_FFI_ICHECK(out_ty->IsInstance<TupleStructInfoNode>())
         << "Expect output struct info of call_tir to be either TupleStructInfo or "
            "TensorStructInfo, but got "
-        << out_sinfo;
+        << out_ty;
 
-    const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
+    const auto& tuple_ty = Downcast<TupleStructInfo>(out_ty);
     ffi::Array<StructInfo> sinfo_fields;
-    for (const auto& si : tuple_sinfo->fields) {
+    for (const auto& si : tuple_ty->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
              "output structinfo, but got "
@@ -568,7 +567,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
   }
 
   ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info_;
-  ffi::Map<Expr, StructInfo> producer_sinfo;
+  ffi::Map<Expr, StructInfo> producer_ty;
   IRModule mod_;
   Target target_;
   BlockBuilder builder_;
@@ -597,8 +596,8 @@ class DefineVDevice : ExprMutator {
         auto info = CollectConsumerScopeInfo().Collect(mod_, Downcast<Function>(func), target_);
         call_scope_info_ = info.first;
         scope_info_ = info.second;
-        producer_sinfo_ = CollectProducerScopeInfo().Collect(mod_, Downcast<Function>(func),
-                                                             scope_info_, target_, builder_);
+        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, Downcast<Function>(func),
+                                                          scope_info_, target_, builder_);
         relax::Function update_func = Downcast<Function>(VisitExpr(func));
         updates_->Add(gv, update_func);
       }
@@ -627,7 +626,7 @@ class DefineVDevice : ExprMutator {
     GlobalVar gv;
     Tuple func_args;
 
-    StructInfo out_sinfo;
+    StructInfo out_ty;
 
     if (call->op == call_tir_op) {
       gv = Downcast<GlobalVar>(call->args[0]);
@@ -637,26 +636,26 @@ class DefineVDevice : ExprMutator {
     }
 
     ffi::Array<Expr> new_args;
-    StructInfo updated_ret_sinfo = producer_sinfo_[ffi::GetRef<Expr>(call_node)];
+    StructInfo updated_ret_ty = producer_ty_[ffi::GetRef<Expr>(call_node)];
 
-    if (updated_ret_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto tensor_sinfo = Downcast<TensorStructInfo>(updated_ret_sinfo);
-      auto shape = tensor_sinfo->shape.value();
-      auto dtype = tensor_sinfo->dtype;
-      if (tensor_sinfo->vdevice.defined()) {
-        auto vdev = tensor_sinfo->vdevice.value();
+    if (updated_ret_ty->IsInstance<TensorStructInfoNode>()) {
+      auto tensor_ty = Downcast<TensorStructInfo>(updated_ret_ty);
+      auto shape = tensor_ty->shape.value();
+      auto dtype = tensor_ty->dtype;
+      if (tensor_ty->vdevice.defined()) {
+        auto vdev = tensor_ty->vdevice.value();
         const VDevice& vdev_global = MakeGlobalVDevice(vdev);
-        updated_ret_sinfo = TensorStructInfo(shape, dtype, vdev_global);
+        updated_ret_ty = TensorStructInfo(shape, dtype, vdev_global);
       }
     } else {
-      TVM_FFI_ICHECK(updated_ret_sinfo->IsInstance<TupleStructInfoNode>())
+      TVM_FFI_ICHECK(updated_ret_ty->IsInstance<TupleStructInfoNode>())
           << "Expect output struct info of call_tir to be either TupleStructInfo or "
              "TensorStructInfo, but got "
-          << updated_ret_sinfo;
+          << updated_ret_ty;
 
-      const auto& tuple_sinfo = Downcast<TupleStructInfo>(updated_ret_sinfo);
+      const auto& tuple_ty = Downcast<TupleStructInfo>(updated_ret_ty);
       ffi::Array<StructInfo> sinfo_fields;
-      for (const auto& si : tuple_sinfo->fields) {
+      for (const auto& si : tuple_ty->fields) {
         TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
             << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
                "output structinfo, but got "
@@ -675,13 +674,13 @@ class DefineVDevice : ExprMutator {
           sinfo_fields.push_back(sinfo);
         }
       }
-      updated_ret_sinfo = TupleStructInfo(sinfo_fields);
+      updated_ret_ty = TupleStructInfo(sinfo_fields);
     }
 
     int arg_idx = 0;
     for (auto arg : func_args->fields) {
       auto sinfo = GetStructInfo(arg);
-      if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+      if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
         ffi::String scope = "global";
         if (call_scope_info_.find(ffi::GetRef<Expr>(call_node)) != call_scope_info_.end()) {
           scope = call_scope_info_[ffi::GetRef<Expr>(call_node)][arg_idx];
@@ -695,9 +694,9 @@ class DefineVDevice : ExprMutator {
 
     if (call->op == call_tir_op) {
       return builder_->Normalize(
-          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_sinfo}));
+          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
     } else {
-      return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_sinfo}));
+      return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_ty}));
     }
   }
 
@@ -754,7 +753,7 @@ class DefineVDevice : ExprMutator {
   Target target_;
   ffi::Array<VDevice> vdevices_;
   ffi::Map<Expr, ffi::Map<Expr, ffi::Array<ffi::String>>> scope_info_;
-  ffi::Map<Expr, StructInfo> producer_sinfo_;
+  ffi::Map<Expr, StructInfo> producer_ty_;
   ffi::Map<Expr, ffi::Array<ffi::String>> call_scope_info_;
 };
 

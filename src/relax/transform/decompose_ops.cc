@@ -25,6 +25,7 @@
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 
 #include <unordered_set>

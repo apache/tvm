@@ -206,16 +206,16 @@ class LazyTransformParamsFuncCreator:
         symbolic_vars = relax.analysis.defined_symbolic_vars(func)
         if symbolic_vars:
 
-            def unpack_sinfo(sinfo):
+            def unpack_ty(sinfo):
                 if isinstance(sinfo, relax.TupleStructInfo):
                     for field in sinfo.fields:
-                        yield from unpack_sinfo(field)
+                        yield from unpack_ty(field)
                 else:
                     yield sinfo
 
             # direct iterate over the struct info annotation
             for param in func.params[num_input:]:
-                for sinfo in unpack_sinfo(param.ty):
+                for sinfo in unpack_ty(param.ty):
                     if isinstance(sinfo, relax.PrimStructInfo | relax.ShapeStructInfo):
                         params.append(relax.Var("symbolic_var_holder", sinfo))
 

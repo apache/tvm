@@ -44,13 +44,11 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
         if call.op.name == "relax.call_tir":
             # if call.args[0].name_hint in self.scope_info:
             for idx, arg in enumerate(call.args[1]):
-                arg_sinfo = arg.ty
-                assert isinstance(arg_sinfo, relax.TensorStructInfo), (
-                    f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                arg_ty = arg.ty
+                assert isinstance(arg_ty, relax.TensorStructInfo), (
+                    f"Expected TensorStructInfo but git {type(arg_ty)}"
                 )
-                call_mem_scope = (
-                    "global" if not arg_sinfo.vdevice else arg_sinfo.vdevice.memory_scope
-                )
+                call_mem_scope = "global" if not arg_ty.vdevice else arg_ty.vdevice.memory_scope
                 assert call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx], (
                     f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
                 )

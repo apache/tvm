@@ -29,7 +29,8 @@
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/tirx/function.h>
 
 #include <unordered_map>

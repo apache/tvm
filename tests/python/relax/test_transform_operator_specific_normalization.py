@@ -278,7 +278,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 cls.multiply_by_two,
                 A,
                 inplace_indices=[0],
-                out_sinfo=[A.ty],
+                out_ty=[A.ty],
             )
 
         @T.prim_func(private=True, s_tir=True)
@@ -328,7 +328,7 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
             return R.call_tir_with_grad(
                 cls.multiply_by_two,
                 A,
-                out_sinfo=[A.ty],
+                out_ty=[A.ty],
                 te_grad_name="f_grad",
             )
 

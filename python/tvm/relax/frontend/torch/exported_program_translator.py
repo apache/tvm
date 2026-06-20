@@ -1045,9 +1045,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         import numpy as np
 
         x = self.env[node.args[0]]
-        x_sinfo = x.ty
-        shape = [int(s) for s in x_sinfo.shape]
-        dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_sinfo.dtype, self.env)
+        x_ty = x.ty
+        shape = [int(s) for s in x_ty.shape]
+        dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_ty.dtype, self.env)
         data = np.random.randn(*shape).astype(dtype)
         return self.block_builder.emit(relax.const(data, dtype))
 

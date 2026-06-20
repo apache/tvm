@@ -454,13 +454,13 @@ def test_op_call_py_func(exec_mode):
     class CallPyFuncTest:
         @R.function
         def simple_call(x: R.Tensor((3,), "float32")):
-            result = R.call_py_func(R.str("torch_relu"), (x,), out_sinfo=R.Tensor((3,), "float32"))
+            result = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((3,), "float32"))
             return result
 
         @R.function
         def multiple_calls(x: R.Tensor((2,), "float32")):
-            y = R.call_py_func(R.str("torch_relu"), (x,), out_sinfo=R.Tensor((2,), "float32"))
-            z = R.call_py_func(R.str("torch_sigmoid"), (y,), out_sinfo=R.Tensor((2,), "float32"))
+            y = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((2,), "float32"))
+            z = R.call_py_func(R.str("torch_sigmoid"), (y,), out_ty=R.Tensor((2,), "float32"))
             return z
 
     np.random.seed(0)

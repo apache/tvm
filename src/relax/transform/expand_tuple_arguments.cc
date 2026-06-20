@@ -66,13 +66,13 @@ ffi::Optional<Function> ExpandParams(Function func) {
     expand_param(param);
   }
 
-  FuncStructInfo new_sinfo(params.Map([](const auto& var) { return GetStructInfo(var); }),
-                           func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
+  FuncStructInfo new_ty(params.Map([](const auto& var) { return GetStructInfo(var); }),
+                        func->ret_struct_info, Downcast<FuncStructInfo>(func->ty)->purity);
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
   write_ptr->body = SeqExpr({BindingBlock(bindings)}, func->body);
-  write_ptr->ty = new_sinfo;
+  write_ptr->ty = new_ty;
 
   return func;
 }

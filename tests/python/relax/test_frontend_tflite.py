@@ -3882,7 +3882,7 @@ def test_matrix_diag():
                         R.const(False, "bool"),
                         R.const(False, "bool"),
                     ),
-                    out_sinfo=R.Tensor((3, 3), dtype="float32"),
+                    out_ty=R.Tensor((3, 3), dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -3922,7 +3922,7 @@ def test_matrix_set_diag():
                         R.const(False, "bool"),
                         R.const(False, "bool"),
                     ),
-                    out_sinfo=R.Tensor((3, 3), dtype="float32"),
+                    out_ty=R.Tensor((3, 3), dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -3963,7 +3963,7 @@ def test_sparse_to_dense():
                 gv = R.call_dps_packed(
                     "topi.sparse_to_dense",
                     (indices, R.const([3], "int32"), values, default_value),
-                    out_sinfo=R.Tensor((3,), dtype="float32"),
+                    out_ty=R.Tensor((3,), dtype="float32"),
                 )
                 R.output(gv)
             return gv

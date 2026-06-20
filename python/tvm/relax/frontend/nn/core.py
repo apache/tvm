@@ -45,7 +45,7 @@ from tvm.target import Target
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import (
+from ...type import (
     ObjectStructInfo,
     ShapeStructInfo,
     TensorStructInfo,
@@ -203,8 +203,8 @@ class Tensor(_TensorOp):
         def _simplify(expr: tirx.PrimExpr):
             return expr.value if isinstance(expr, tirx.IntImm) else expr
 
-        shape_sinfo: ShapeStructInfo = self._expr.ty.shape.ty
-        return [_simplify(x) for x in shape_sinfo.values]
+        shape_ty: ShapeStructInfo = self._expr.ty.shape.ty
+        return [_simplify(x) for x in shape_ty.values]
 
     @property
     def ndim(self) -> int:

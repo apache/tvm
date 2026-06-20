@@ -25,8 +25,8 @@ namespace distributed {
 bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos) {
   bool compatible = true;
   for (const auto& sinfo : sinfos) {
-    if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      compatible &= SinfoCompatibleWithDistIR(tuple_sinfo->fields);
+    if (const auto* tuple_ty = sinfo.as<TupleStructInfoNode>()) {
+      compatible &= SinfoCompatibleWithDistIR(tuple_ty->fields);
     } else {
       compatible &= !sinfo->IsInstance<TensorStructInfoNode>();
     }
@@ -37,8 +37,8 @@ bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos) {
 bool SinfoCompatibleWithRelax(ffi::Array<StructInfo> sinfos) {
   bool compatible = true;
   for (const auto& sinfo : sinfos) {
-    if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      compatible &= SinfoCompatibleWithRelax(tuple_sinfo->fields);
+    if (const auto* tuple_ty = sinfo.as<TupleStructInfoNode>()) {
+      compatible &= SinfoCompatibleWithRelax(tuple_ty->fields);
     } else {
       compatible &= !sinfo->IsInstance<DTensorStructInfoNode>();
     }

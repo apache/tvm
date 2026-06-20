@@ -73,7 +73,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
@@ -506,12 +506,12 @@ class WellFormedChecker : public relax::ExprVisitor,
     this->VisitVarDef(binding->var);
 
     if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
-      auto expr_sinfo = GetStructInfo(binding->value);
-      auto var_sinfo = GetStructInfo(binding->var);
-      if (!IsBaseOf(var_sinfo, expr_sinfo)) {
+      auto expr_ty = GetStructInfo(binding->value);
+      auto var_ty = GetStructInfo(binding->var);
+      if (!IsBaseOf(var_ty, expr_ty)) {
         TVM_FFI_VISIT_THROW(TypeError, binding->var)
-            << "Expression of type " << expr_sinfo << " cannot be assigned to a variable of type "
-            << var_sinfo;
+            << "Expression of type " << expr_ty << " cannot be assigned to a variable of type "
+            << var_ty;
       }
     }
 

@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
@@ -870,15 +870,15 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     // Visit each param arg pair, check and populate the var map
     for (size_t i = 0; i < params.size(); ++i) {
       TVM_FFI_VISIT_BEGIN();
-      auto arg_sinfo = GetStructInfo(call->args[i]);
-      BaseCheckResult res = this->VisitType(params[i], arg_sinfo);
+      auto arg_ty = GetStructInfo(call->args[i]);
+      BaseCheckResult res = this->VisitType(params[i], arg_ty);
       // Report error if we find L1 level failure
       // L2 level is best effort so we don't report.
       // The behavior of L2 can be customized later.
       if (res == BaseCheckResult::kFailL0 || res == BaseCheckResult::kFailL1) {
         TVM_FFI_VISIT_THROW(ValueError, call->args[i])
             << "Argument " << i << " type mismatch:"
-            << " expected " << params[i] << ", given " << arg_sinfo;
+            << " expected " << params[i] << ", given " << arg_ty;
       }
       TVM_FFI_VISIT_END(call->args[i]);
     }
@@ -1235,21 +1235,21 @@ class TIRVarsDetector : public TypeVisitor {
     }
   }
 
-  void VisitType_(const PrimStructInfoNode* prim_sinfo) final {
-    if (prim_sinfo->value.defined()) {
-      VisitPrimExpr(prim_sinfo->value.value());
+  void VisitType_(const PrimStructInfoNode* prim_ty) final {
+    if (prim_ty->value.defined()) {
+      VisitPrimExpr(prim_ty->value.value());
     }
   }
 
-  void VisitType_(const ShapeStructInfoNode* shape_sinfo) final {
-    if (shape_sinfo->values.defined()) {
-      VisitShape(shape_sinfo->values.value());
+  void VisitType_(const ShapeStructInfoNode* shape_ty) final {
+    if (shape_ty->values.defined()) {
+      VisitShape(shape_ty->values.value());
     }
   }
 
-  void VisitType_(const TensorStructInfoNode* tensor_sinfo) final {
-    if (tensor_sinfo->shape.defined()) {
-      VisitType(GetStructInfo(tensor_sinfo->shape.value()));
+  void VisitType_(const TensorStructInfoNode* tensor_ty) final {
+    if (tensor_ty->shape.defined()) {
+      VisitType(GetStructInfo(tensor_ty->shape.value()));
     }
   }
 

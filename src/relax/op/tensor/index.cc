@@ -62,17 +62,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
-  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  TensorStructInfo data_ty = GetInputTensorStructInfo(call, 0, ctx);
 
   // StructInfo inference when the index is a PrimValue is equivalent
   // to that of a scalar (0-d) tensor.
-  TensorStructInfo indices_sinfo = [&]() {
+  TensorStructInfo indices_ty = [&]() {
     auto arg = call->args[1];
     auto sinfo = GetStructInfo(arg);
-    if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-      return tensor_sinfo.value();
-    } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
-      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), prim_sinfo->dtype);
+    if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
+      return tensor_ty.value();
+    } else if (auto prim_ty = sinfo.as<PrimStructInfoNode>()) {
+      return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), prim_ty->dtype);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "Operator " << call->op << " requires the indices argument to be "
@@ -85,47 +85,45 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  if (indices_sinfo->IsUnknownDtype()) {
+  if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
-  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+  } else if (!(indices_ty->dtype.is_int() || indices_ty->dtype.is_uint())) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Take op requires the input indices to have integer dtype. However, the "
            "given indices dtype is "
-        << indices_sinfo->dtype;
+        << indices_ty->dtype;
   }
 
   const auto* attrs = call->attrs.as<TakeAttrs>();
-  if (!attrs->axis.has_value() && data_sinfo->ndim != 1) {
+  if (!attrs->axis.has_value() && data_ty->ndim != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Take op expects the input data to be 1-dimensional tensor when the axis "
            "is not specified. However, the given data tensor has ndim "
-        << data_sinfo->ndim;
+        << data_ty->ndim;
   }
-  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  if (data_ty->IsUnknownNdim() || indices_ty->IsUnknownNdim()) {
+    return TensorStructInfo(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
 
   int axis = 0;
   if (attrs->axis.has_value()) {
-    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
+    axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis.value());
   }
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
-                            data_sinfo->vdevice);
+    return TensorStructInfo(data_ty->dtype, indices_ty->ndim + data_ty->ndim - 1, data_ty->vdevice);
   }
 
   ffi::Array<PrimExpr> output_shape;
-  for (int i = 0; i < data_sinfo->ndim; i++) {
+  for (int i = 0; i < data_ty->ndim; i++) {
     if (i == axis) {
-      for (int j = 0; j < indices_sinfo->ndim; j++)
-        output_shape.push_back(indices_shape->values[j]);
+      for (int j = 0; j < indices_ty->ndim; j++) output_shape.push_back(indices_shape->values[j]);
     } else {
       output_shape.push_back(data_shape->values[i]);
     }
   }
-  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype, data_sinfo->vdevice);
+  return TensorStructInfo(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.take")
@@ -227,15 +225,15 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<StructI
 
     if (field.as<ObjectStructInfoNode>()) return std::nullopt;
 
-    auto prim_sinfo = field.as<PrimStructInfoNode>();
-    TVM_FFI_CHECK(prim_sinfo, TypeError)
+    auto prim_ty = field.as<PrimStructInfoNode>();
+    TVM_FFI_CHECK(prim_ty, TypeError)
         << "The struct info " << sinfo << " cannot contain a tuple whose elements are "
         << PrimType::ContainerType::_type_key << ", because element " << i << " has struct info "
         << field;
 
-    if (!prim_sinfo->value.defined()) return std::nullopt;
+    if (!prim_ty->value.defined()) return std::nullopt;
 
-    ffi::Optional<PrimType> element = prim_sinfo->value.as<PrimType>();
+    ffi::Optional<PrimType> element = prim_ty->value.as<PrimType>();
     if (!element) return std::nullopt;
 
     output.push_back(element.value());
@@ -293,10 +291,10 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     }
   }();
 
-  auto axes_sinfo = GetStructInfo(call->args[1]);
-  auto begin_sinfo = GetStructInfo(call->args[2]);
-  auto end_sinfo = GetStructInfo(call->args[3]);
-  auto strides_sinfo = [&]() -> ffi::Optional<StructInfo> {
+  auto axes_ty = GetStructInfo(call->args[1]);
+  auto begin_ty = GetStructInfo(call->args[2]);
+  auto end_ty = GetStructInfo(call->args[3]);
+  auto strides_ty = [&]() -> ffi::Optional<StructInfo> {
     if (n_args > 4) {
       return GetStructInfo(call->args[4]);
     } else {
@@ -341,20 +339,20 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     check_tuple("strides", call->args[4]);
   }
 
-  const auto* data_sinfo = data->ty.as<TensorStructInfoNode>();
+  const auto* data_ty = data->ty.as<TensorStructInfoNode>();
 
   DataType dtype = DataType::Void();
   ffi::Optional<VDevice> vdevice = std::nullopt;
   int ndim = kUnknownNDim;
-  if (data_sinfo) {
-    dtype = data_sinfo->dtype;
-    vdevice = data_sinfo->vdevice;
-    ndim = data_sinfo->ndim;
+  if (data_ty) {
+    dtype = data_ty->dtype;
+    vdevice = data_ty->vdevice;
+    ndim = data_ty->ndim;
   }
 
   ffi::Optional<Expr> shape = [&]() -> ffi::Optional<Expr> {
-    if (!data_sinfo) return std::nullopt;
-    if (!data_sinfo->shape) return std::nullopt;
+    if (!data_ty) return std::nullopt;
+    if (!data_ty->shape) return std::nullopt;
 
     auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(axes);
     if (!opt_axes_tuple) return std::nullopt;
@@ -397,10 +395,10 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
         << "However, there are " << axes_tuple.size() << " axes specified (" << axes_tuple
         << ") and " << strides_tuple.size() << " strides specified (" << strides_tuple << ")";
 
-    auto opt_data_shape = data_sinfo->GetShape();
+    auto opt_data_shape = data_ty->GetShape();
 
     if (axes_tuple.empty() && !opt_data_shape.defined()) {
-      return data_sinfo->shape.value();
+      return data_ty->shape.value();
     } else if (!opt_data_shape.defined()) {
       return std::nullopt;
     }
@@ -408,10 +406,10 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     ffi::Array<int64_t> axes_tuple_i64;
     axes_tuple_i64.reserve(axes_tuple.size());
     for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(v->value);
-    std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, axes_tuple_i64);
+    std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
-    ffi::Array<PrimExpr> output_shape = data_sinfo->GetShape().value();
+    ffi::Array<PrimExpr> output_shape = data_ty->GetShape().value();
     for (size_t i = 0; i < axes.size(); i++) {
       size_t axis = axes[i];
       PrimExpr input_dim = output_shape[axis];
@@ -449,16 +447,16 @@ InferLayoutOutput InferLayoutStridedSlice(
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
   TVM_FFI_ICHECK(attrs != nullptr) << "Invalid Call";
 
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  TVM_FFI_ICHECK(tensor_sinfo) << "Invalid Call";
-  TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim())
+  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
+  TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "
       << "but expression " << call << " has argument " << call->args[0]
       << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   // Can't handle sub indexed layouts.
   if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
-    existing_layout = LayoutDecision(InitialLayout(tensor_sinfo->ndim));
+    existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
   auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(GetStructInfo(call->args[1]));
@@ -502,25 +500,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* begin_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  const auto* end_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
-  const auto* strides_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
+  const auto* data_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* begin_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* end_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+  const auto* strides_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[3]);
 
-  TVM_FFI_ICHECK(data_sinfo);
-  if (data_sinfo->IsUnknownNdim()) {
+  TVM_FFI_ICHECK(data_ty);
+  if (data_ty->IsUnknownNdim()) {
     LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/strides "
                     "tensors are well-formed. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+    return TensorStructInfo(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
-  if (data_sinfo->IsUnknownDtype()) {
+  if (data_ty->IsUnknownDtype()) {
     LOG(WARNING) << "When data type is unknown, dynamic strided slice assumes to have a valid "
                     "dtype. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
   }
 
-  int n_axis = data_sinfo->ndim;
+  int n_axis = data_ty->ndim;
   auto diag_def = [&](const TensorStructInfoNode* sinfo, ffi::String name) {
     TVM_FFI_ICHECK(sinfo) << "Dynamic strided slice requires the input " << name
                           << " to be have the struct info. Please try normalizing the inputs.";
@@ -546,14 +544,14 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
           << "values to be all int64. However, " << name << " has dtype " << sinfo->dtype << ".";
     }
   };
-  diag_def(begin_sinfo, "begin");
-  diag_def(end_sinfo, "end");
-  diag_def(strides_sinfo, "strides");
+  diag_def(begin_ty, "begin");
+  diag_def(end_ty, "end");
+  diag_def(strides_ty, "strides");
 
   // The output shape will depend on the runtime value in begin/end/strides tensors.
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimValue lands.
-  return TensorStructInfo(data_sinfo->dtype, n_axis, data_sinfo->vdevice);
+  return TensorStructInfo(data_ty->dtype, n_axis, data_ty->vdevice);
 }
 
 InferLayoutOutput InferLayoutDynStridedSlice(
@@ -561,13 +559,13 @@ InferLayoutOutput InferLayoutDynStridedSlice(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  TVM_FFI_ICHECK(tensor_sinfo) << "Invalid Call";
-  TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim())
+  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  TVM_FFI_ICHECK(tensor_ty) << "Invalid Call";
+  TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim())
       << "Layout inference only supports known dimensionality, "
       << "but expression " << call << " has argument " << call->args[0]
       << " of unknown dimensionality.";
-  int ndim = tensor_sinfo->ndim;
+  int ndim = tensor_ty->ndim;
   // Since begin/end/strides are dynamic tensors, we cannot transform
   // them at compile time. Fall back to the initial layout.
   LayoutDecision initial = LayoutDecision(InitialLayout(ndim));

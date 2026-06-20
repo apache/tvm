@@ -22,7 +22,7 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.relax.struct_info import ShapeStructInfo
+from tvm.relax.type import ShapeStructInfo
 
 from ...tirx import PrimExpr
 from ..block_builder import BlockBuilder
@@ -91,10 +91,10 @@ def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
     Will use BlockBuilder to normalize expr first.
     """
     target_shape = _get_shape(input)
-    expr_sinfo = _get_shape(bb.normalize(input_grad)).ty
-    target_sinfo = target_shape.ty
-    assert isinstance(expr_sinfo, ShapeStructInfo)
-    assert isinstance(target_sinfo, ShapeStructInfo)
+    expr_ty = _get_shape(bb.normalize(input_grad)).ty
+    target_ty = target_shape.ty
+    assert isinstance(expr_ty, ShapeStructInfo)
+    assert isinstance(target_ty, ShapeStructInfo)
 
     def _check_shape_equal(lhs: ShapeStructInfo, rhs: ShapeStructInfo):
         if len(lhs.values) != len(rhs.values):
@@ -107,7 +107,7 @@ def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
 
     return (
         input_grad
-        if _check_shape_equal(expr_sinfo, target_sinfo)
+        if _check_shape_equal(expr_ty, target_ty)
         else collapse_sum_to(input_grad, target_shape)
     )
 
@@ -739,10 +739,10 @@ def concat_grad(
     sinfo = orig_call.args[0].ty
     assert isinstance(sinfo, relax.TupleStructInfo)
     for i in range(len(sinfo.fields) - 1):
-        tensor_sinfo = sinfo.fields[i]
-        assert isinstance(tensor_sinfo, relax.TensorStructInfo)
-        assert tensor_sinfo.shape is not None
-        index = tensor_sinfo.shape[axis]
+        tensor_ty = sinfo.fields[i]
+        assert isinstance(tensor_ty, relax.TensorStructInfo)
+        assert tensor_ty.shape is not None
+        index = tensor_ty.shape[axis]
         if i > 0:
             index += split_indices[i - 1]
         split_indices.append(index)

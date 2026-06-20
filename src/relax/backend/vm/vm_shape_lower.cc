@@ -26,7 +26,8 @@
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/vm/builtin.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -330,12 +331,12 @@ class VMShapeLowerMutator
 
   VarBinding AllocShapeHeapBinding(IntImm heap_size) {
     if (heap_size->value > 0) {
-      TensorStructInfo heap_sinfo(ShapeDType(), 1);
-      Var var("shape_heap", heap_sinfo);
+      TensorStructInfo heap_ty(ShapeDType(), 1);
+      Var var("shape_heap", heap_ty);
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
-                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_sinfo});
-      UpdateStructInfo(call, heap_sinfo);
+                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_ty});
+      UpdateStructInfo(call, heap_ty);
       return VarBinding(var, call);
     } else {
       Var var("shape_heap", ObjectStructInfo());

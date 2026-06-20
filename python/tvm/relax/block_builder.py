@@ -32,7 +32,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 from .expr import BaseFunc, Binding, BindingBlock, Expr, GlobalVar, Tuple, Var
 from .op.base import call_tir, call_tir_with_grad
-from .struct_info import StructInfo
+from .type import StructInfo
 from .utils import gen_call_tir_inputs
 
 
@@ -361,13 +361,13 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
 
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
 
-        return call_tir(gvar, call_args, output_sinfo, tir_vars)
+        return call_tir(gvar, call_args, output_ty, tir_vars)
 
     def call_te_with_grad(
         self,
@@ -413,7 +413,7 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
 
         if te_grad_kwargs is None:
             te_grad_kwargs = {}
@@ -423,7 +423,7 @@ class BlockBuilder(Object):
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir_with_grad(
-            gvar, call_args, output_sinfo, te_grad_name, te_grad_kwargs, tir_vars
+            gvar, call_args, output_ty, te_grad_name, te_grad_kwargs, tir_vars
         )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:

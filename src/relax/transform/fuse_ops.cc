@@ -35,6 +35,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
@@ -497,14 +498,14 @@ class FunctionCreator : public ExprMutator {
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
       ffi::String param_name = params_[param_idx]->name_hint();
-      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->ty);
+      TupleStructInfo param_ty = Downcast<TupleStructInfo>(tuple_arg->ty);
 
       ffi::Array<Expr> item_args;
       ffi::Array<Var> item_params;
       item_args.reserve(item_indices.size());
       item_params.reserve(item_indices.size());
       for (int item_idx : item_indices) {
-        Var item_param(param_name + "_" + std::to_string(item_idx), param_sinfo->fields[item_idx]);
+        Var item_param(param_name + "_" + std::to_string(item_idx), param_ty->fields[item_idx]);
         item_args.push_back(TupleGetItem(ffi::GetRef<Expr>(tuple_arg), item_idx));
         item_params.push_back(item_param);
         tuple_get_item_remap[tuple_arg][item_idx] = item_param;
@@ -618,7 +619,7 @@ class FunctionCreator : public ExprMutator {
       ffi::String name = var != nullptr
                              ? var->name_hint()
                              : ffi::String("param_" + std::to_string(n_param_for_const_++));
-      StructInfo param_sinfo = GetStructInfo(expr);
+      StructInfo param_ty = GetStructInfo(expr);
       if (!IsInlinableConstants(expr)) {
         Var param(std::move(name), GetStructInfo(expr));
         arguments_.push_back(expr);
@@ -627,7 +628,7 @@ class FunctionCreator : public ExprMutator {
 
       // Mark the tuple parameter is partially referenced in the beginning.
       // We will remove it from the mapping once we find it is fully referenced.
-      if (param_sinfo->IsInstance<TupleStructInfoNode>()) {
+      if (param_ty->IsInstance<TupleStructInfoNode>()) {
         partially_used_tuple_params_[expr.get()] = {};
         tuple_param_idx_[expr.get()] = static_cast<int>(arguments_.size()) - 1;
       }

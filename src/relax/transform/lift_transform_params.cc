@@ -254,9 +254,9 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_tir_vars;
     }();
     if (propagated_tir_vars.size()) {
-      ShapeStructInfo shape_sinfo(
+      ShapeStructInfo shape_ty(
           propagated_tir_vars.Map([](tirx::Var var) -> PrimExpr { return var; }));
-      Var shape_expr("vars_from_compile_time_params", shape_sinfo);
+      Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }
     ffi::Array<Var> compile_time_outputs = [&]() {

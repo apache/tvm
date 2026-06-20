@@ -21,7 +21,7 @@
 import tvm
 from tvm import relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
-from tvm.relax.struct_info import TensorStructInfo
+from tvm.relax.type import TensorStructInfo
 from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tirx.expr import IntImm
 
@@ -353,5 +353,5 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     gvar = bb.add_func(sch.mod["main"], primfunc_name)
     output_shape = index_map.map_shape(list(call_args[0].ty.shape))
     output_dtype = call_args[0].ty.dtype
-    output_sinfo = [TensorStructInfo(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_sinfo, tir_vars)
+    output_ty = [TensorStructInfo(output_shape, output_dtype)]
+    return call_tir(gvar, call_args, output_ty, tir_vars)

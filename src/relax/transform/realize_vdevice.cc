@@ -355,7 +355,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
     if (auto tinfo = var->ty.as<TensorStructInfoNode>()) {
       if (auto opt = vdevice_map_.Get(old_var)) {
         auto vdevice = opt.value();
-        TensorStructInfo new_sinfo = [&]() {
+        TensorStructInfo new_ty = [&]() {
           if (tinfo->shape.defined()) {
             return TensorStructInfo(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
           } else {
@@ -364,9 +364,9 @@ class VDeviceStructInfoUpdater : ExprMutator {
         }();
 
         if (var->IsInstance<DataflowVarNode>()) {
-          var = DataflowVar(var->vid, new_sinfo, var->span);
+          var = DataflowVar(var->vid, new_ty, var->span);
         } else {
-          var = Var(var->vid, new_sinfo, var->span);
+          var = Var(var->vid, new_ty, var->span);
         }
       }
     }

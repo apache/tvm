@@ -60,8 +60,8 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   auto arg = call->args[i_arg];
   auto sinfo = GetStructInfo(arg);
 
-  if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-    return tensor_sinfo.value();
+  if (auto tensor_ty = sinfo.as<TensorStructInfo>()) {
+    return tensor_ty.value();
   } else {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Operator " << op << " requires argument " << i_arg << " (" << op->arguments[i_arg]->name
@@ -87,25 +87,25 @@ ffi::Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const Bl
 
 ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
                                                           const Expr& tup) {
-  const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tup);
-  if (tuple_sinfo == nullptr) {
+  const auto* tuple_ty = GetStructInfoAs<TupleStructInfoNode>(tup);
+  if (tuple_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
         << tup->ty->GetTypeKey();
   }
 
-  ffi::Array<TensorStructInfo> tensor_sinfo;
-  tensor_sinfo.reserve(tuple_sinfo->fields.size());
-  for (StructInfo field_sinfo : tuple_sinfo->fields) {
-    const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
+  ffi::Array<TensorStructInfo> tensor_ty;
+  tensor_ty.reserve(tuple_ty->fields.size());
+  for (StructInfo field_ty : tuple_ty->fields) {
+    const auto* field_tensor_sinfo = field_ty.as<TensorStructInfoNode>();
     if (field_tensor_sinfo == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
           << tup->ty;
     }
-    tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
+    tensor_ty.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
   }
-  return tensor_sinfo;
+  return tensor_ty;
 }
 
 BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,

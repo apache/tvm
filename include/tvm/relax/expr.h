@@ -36,8 +36,6 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelaxExpr;
-using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *
@@ -74,57 +72,6 @@ class Id : public ffi::ObjectRef {
   TVM_DLL explicit Id(ffi::String name_hint);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ffi::ObjectRef, IdNode);
-};
-
-/*!
- * \brief Base type of all structure information.
- *
- * StructInfo stores possible structure information
- * deduced during compile-time. It encapsulates
- * both static type and runtime information such
- * as shape.
- *
- * StructInfo of each non-primitive Expr can be
- * deduced during compilation in a "best-effort" manner.
- *
- * When struct_info appears in function parameter and return
- * signatures. They will imply a runtime check that matches
- * the structure information with the value.
- *
- * When it appears in Expr, they follow "assume-semantics",
- * which means the compiler will take the deduced information as it is
- * and only do best effort prove and checks.
- *
- * Each struct info can be uniquely erased to a static-type.
- * The compiler will still compile the code(with less information)
- * when we erase to the static type.
- *
- * If an StructInfo contains an Expr field, then that field
- * must be normalized already through NormalizeArg.
- * This invariant will be checked in constructors
- * and help us to simplify our assumption
- * during struct info deduction.
- */
-class StructInfoNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StructInfoNode>();
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to StructInfoNode.
- * \sa StructInfoNode
- */
-class StructInfo : public Type {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, Type, StructInfoNode);
 };
 
 /*!
@@ -371,11 +318,11 @@ class VarNode : public LeafExprNode {
 
 class Var : public LeafExpr {
  public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> tyannotation,
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> ty_annotation,
                        Span span = Span())
-      : Var(Id(name_hint), tyannotation, span) {}
+      : Var(Id(name_hint), ty_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> tyannotation, Span span = Span());
+  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> ty_annotation, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
@@ -397,11 +344,11 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<StructInfo> tyannotation,
+  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<StructInfo> ty_annotation,
                                Span span = Span())
-      : DataflowVar(Id(name_hint), tyannotation, span) {}
+      : DataflowVar(Id(name_hint), ty_annotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> tyannotation, Span span = Span());
+  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> ty_annotation, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
@@ -435,12 +382,12 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param tyannotation The struct info of the constant tensor.
+   * \param ty_annotation The struct info of the constant tensor.
    *        If not specified, infer it from data.
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Constant(runtime::Tensor data,
-                            ffi::Optional<StructInfo> tyannotation = std::nullopt,
+                            ffi::Optional<StructInfo> ty_annotation = std::nullopt,
                             Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);

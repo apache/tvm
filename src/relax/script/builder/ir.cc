@@ -20,6 +20,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/script/builder/ir.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
 #include "./utils.h"
@@ -106,14 +107,16 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   }
 }
 
-void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
-  FunctionFrame frame = FindFunctionFrame("R.func_ret_struct_info");
+void FuncRetType(const tvm::relax::StructInfo& ret_ty) {
+  FunctionFrame frame = FindFunctionFrame("R.func_ret_type");
   if (frame->ret_struct_info.defined()) {
     TVM_FFI_THROW(ValueError) << "Duplicate function return struct info, previous one is:\n "
                               << frame->ret_struct_info.value();
   }
-  frame->ret_struct_info = ret_sinfo;
+  frame->ret_struct_info = ret_ty;
 }
+
+void FuncRetStructInfo(const tvm::relax::StructInfo& ret_ty) { FuncRetType(ret_ty); }
 
 void FuncRetValue(const tvm::relax::Expr& value) {
   // Step 0. Normalize the value.
@@ -153,6 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.relax.Arg", Arg)
       .def("script.ir_builder.relax.FuncName", FuncName)
       .def("script.ir_builder.relax.FuncAttrs", FuncAttrs)
+      .def("script.ir_builder.relax.FuncRetType", FuncRetType)
       .def("script.ir_builder.relax.FuncRetStructInfo", FuncRetStructInfo)
       .def("script.ir_builder.relax.FuncRetValue", FuncRetValue);
 }

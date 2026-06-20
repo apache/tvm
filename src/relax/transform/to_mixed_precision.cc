@@ -285,14 +285,14 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     } else {
       if (fp16_input_names_.count(var->name_hint())) {
         auto sinfo = GetStructInfo(var);
-        if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
+        if (auto tensor_ty = sinfo.as<TensorStructInfoNode>()) {
           VDevice vdev = VDevice();
-          if (tensor_sinfo->vdevice.defined()) {
-            vdev = tensor_sinfo->vdevice.value();
+          if (tensor_ty->vdevice.defined()) {
+            vdev = tensor_ty->vdevice.value();
           }
-          TensorStructInfo fp16_sinfo(tensor_sinfo->shape.value(), DataType::Float(16), vdev,
-                                      tensor_sinfo->span);
-          Var fp16_var(var->vid, fp16_sinfo, var->span);
+          TensorStructInfo fp16_ty(tensor_ty->shape.value(), DataType::Float(16), vdev,
+                                   tensor_ty->span);
+          Var fp16_var(var->vid, fp16_ty, var->span);
           var_remap_[var->vid] = fp16_var;
           return fp16_var;
         }
@@ -346,8 +346,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
   bool AllFP16Castable(const ffi::Array<Expr>& args) {
     auto is_fp16 = [](StructInfo sinfo) {
-      if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-          tensor_sinfo && tensor_sinfo->dtype == DataType::Float(16)) {
+      if (auto tensor_ty = sinfo.as<TensorStructInfoNode>();
+          tensor_ty && tensor_ty->dtype == DataType::Float(16)) {
         return true;
       }
       return false;

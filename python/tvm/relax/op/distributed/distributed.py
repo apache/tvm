@@ -69,7 +69,7 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    out_ty: DTensorStructInfo | list[DTensorStructInfo],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
@@ -85,7 +85,7 @@ def call_tir_local_view(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[DTensorStructInfo, List[DTensorStructInfo]]
+    out_ty : Union[DTensorStructInfo, List[DTensorStructInfo]]
         The structure info of the call_tir output.
         It should be a single or a list of DTensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -103,13 +103,13 @@ def call_tir_local_view(
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
     if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir_local_view(gvar, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir_local_view(gvar, args, out_ty, tir_vars)  # type: ignore
 
 
 def redistribute_replica_to_shard(input: Expr, num_workers: int, axis: int) -> Expr:

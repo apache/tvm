@@ -28,11 +28,11 @@ bool IsScalarTensor(const StructInfo& sinfo) {
   if (!sinfo->IsInstance<TensorStructInfoNode>()) {
     return false;
   }
-  TensorStructInfo tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
-  if (!tensor_sinfo->shape.defined() || !tensor_sinfo->shape->IsInstance<ShapeExprNode>()) {
+  TensorStructInfo tensor_ty = Downcast<TensorStructInfo>(sinfo);
+  if (!tensor_ty->shape.defined() || !tensor_ty->shape->IsInstance<ShapeExprNode>()) {
     return false;
   }
-  return tensor_sinfo->shape.as<ShapeExprNode>()->values.size() == 0;
+  return tensor_ty->shape.as<ShapeExprNode>()->values.size() == 0;
 }
 
 bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetStructInfo(expr)); }

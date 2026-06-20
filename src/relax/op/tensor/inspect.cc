@@ -44,12 +44,11 @@ TensorStructInfo GetTensorArgInfo(const Call& call) {
   const auto& arg = call->args[0];
   auto sinfo = GetStructInfo(arg);
 
-  auto tensor_sinfo = sinfo.as<TensorStructInfo>();
-  TVM_FFI_CHECK(tensor_sinfo, TypeError)
-      << "Operator " << call->op << " expects a tensor argument, "
-      << "but argument " << arg << " has struct info " << sinfo;
+  auto tensor_ty = sinfo.as<TensorStructInfo>();
+  TVM_FFI_CHECK(tensor_ty, TypeError) << "Operator " << call->op << " expects a tensor argument, "
+                                      << "but argument " << arg << " has struct info " << sinfo;
 
-  return tensor_sinfo.value();
+  return tensor_ty.value();
 }
 
 std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Call& call) {
@@ -59,31 +58,31 @@ std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Cal
   const auto& arg = call->args[0];
   const auto& axis = call->args[1];
 
-  auto tensor_sinfo = arg->ty.as<TensorStructInfoNode>();
-  TVM_FFI_CHECK(tensor_sinfo, TypeError)
+  auto tensor_ty = arg->ty.as<TensorStructInfoNode>();
+  TVM_FFI_CHECK(tensor_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the first argument " << arg << " in expression " << call << " has struct info "
       << arg->ty;
 
-  auto axis_sinfo = axis->ty.as<PrimStructInfoNode>();
-  TVM_FFI_CHECK(axis_sinfo, TypeError)
+  auto axis_ty = axis->ty.as<PrimStructInfoNode>();
+  TVM_FFI_CHECK(axis_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the second argument " << arg << " in expression " << call << " has struct info "
       << axis->ty;
 
-  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis) {
     TVM_FFI_ICHECK_GE(int_imm_axis->value, 0);
   }
-  if (int_imm_axis && !tensor_sinfo->IsUnknownNdim()) {
-    TVM_FFI_CHECK_LT(int_imm_axis->value, tensor_sinfo->ndim, ValueError)
+  if (int_imm_axis && !tensor_ty->IsUnknownNdim()) {
+    TVM_FFI_CHECK_LT(int_imm_axis->value, tensor_ty->ndim, ValueError)
         << "Expression " << call << " attempts to access " << arg << ".shape["
         << int_imm_axis->value << "]"
-        << ", but " << arg << ".shape only has " << tensor_sinfo->ndim << " elements";
+        << ", but " << arg << ".shape only has " << tensor_ty->ndim << " elements";
   }
 
-  return {ffi::GetRef<TensorStructInfo>(tensor_sinfo), ffi::GetRef<PrimStructInfo>(axis_sinfo)};
+  return {ffi::GetRef<TensorStructInfo>(tensor_ty), ffi::GetRef<PrimStructInfo>(axis_ty)};
 }
 
 DataType GetTensorDataType(const Call& call) { return GetTensorArgInfo(call)->dtype; }
@@ -110,9 +109,9 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataTyp
 }
 
 Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) {
-  if (auto prim_sinfo = call->ty.as<PrimStructInfoNode>()) {
-    if (prim_sinfo->value.defined()) {
-      return PrimValue(prim_sinfo->value.value());
+  if (auto prim_ty = call->ty.as<PrimStructInfoNode>()) {
+    if (prim_ty->value.defined()) {
+      return PrimValue(prim_ty->value.value());
     }
   }
   return call;
@@ -280,10 +279,10 @@ Expr tensor_shape_i(Expr expr) {
 StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
-  auto [tensor_sinfo, axis_sinfo] = GetTensorArgInfoWithIndex(call);
+  auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
 
-  auto tensor_shape = tensor_sinfo->GetShape();
-  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+  auto tensor_shape = tensor_ty->GetShape();
+  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis && tensor_shape.defined()) {
     return PrimStructInfo(tensor_shape.value()[int_imm_axis->value]);
@@ -358,10 +357,10 @@ Expr tensor_stride_i(Expr expr) {
 StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
-  auto [tensor_sinfo, axis_sinfo] = GetTensorArgInfoWithIndex(call);
+  auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
 
-  auto opt_tensor_shape = tensor_sinfo->GetShape();
-  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+  auto opt_tensor_shape = tensor_ty->GetShape();
+  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis && opt_tensor_shape.defined()) {
     // As of 2024-03-14, Relax does not have an explicit
@@ -406,9 +405,9 @@ Expr tensor_byte_offset(Expr expr) {
 StructInfo InferStructInfoTensorByteOffset(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(64);
 
-  auto tensor_sinfo = GetTensorArgInfo(call);
+  auto tensor_ty = GetTensorArgInfo(call);
 
-  auto opt_tensor_shape = tensor_sinfo->GetShape();
+  auto opt_tensor_shape = tensor_ty->GetShape();
   if (opt_tensor_shape.defined()) {
     // Relax implicitly requires that the byte offset is zero for any
     // legalizable tensor.  See InferStructInfoTensorStride for full
@@ -437,9 +436,9 @@ Expr tensor_elem_offset(Expr expr) {
 StructInfo InferStructInfoTensorElemOffset(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::UInt(64);
 
-  auto tensor_sinfo = GetTensorArgInfo(call);
+  auto tensor_ty = GetTensorArgInfo(call);
 
-  auto opt_tensor_shape = tensor_sinfo->GetShape();
+  auto opt_tensor_shape = tensor_ty->GetShape();
   if (opt_tensor_shape.defined()) {
     // Relax implicitly requires that the element offset is zero for
     // any legalizable tensor.  See InferStructInfoTensorStride for

@@ -180,7 +180,7 @@ class SortScanDispatcher(BackendDispatcher):
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                    out_ty=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",

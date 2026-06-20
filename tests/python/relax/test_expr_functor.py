@@ -844,8 +844,8 @@ def test_function_parameter_mutation():
         def visit_var_def_(self, var):
             if var.name_hint in self.shape_replacements:
                 new_shape = self.shape_replacements[var.name_hint]
-                new_sinfo = relax.TensorStructInfo(new_shape, dtype=var.ty.dtype)
-                return relax.Var(f"{var.name_hint}_with_new_shape", new_sinfo)
+                new_ty = relax.TensorStructInfo(new_shape, dtype=var.ty.dtype)
+                return relax.Var(f"{var.name_hint}_with_new_shape", new_ty)
             else:
                 return var
 

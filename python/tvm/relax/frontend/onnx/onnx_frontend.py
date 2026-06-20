@@ -231,7 +231,7 @@ def get_info(
     """
     shape = []
     shape_name = []
-    for dim in info_proto.type.tensor_type.shape.dim:
+    for dim in info_proto.type.tensor_sinfope.shape.dim:
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
@@ -242,8 +242,8 @@ def get_info(
         shape.append(value)
 
     name = info_proto.name
-    if info_proto.type.tensor_type.elem_type:
-        dtype = get_type(info_proto.type.tensor_type.elem_type)
+    if info_proto.type.tensor_sinfope.elem_type:
+        dtype = get_type(info_proto.type.tensor_sinfope.elem_type)
     else:
         dtype = None
     return name, shape, dtype, shape_name, value_dict
@@ -4484,8 +4484,8 @@ class Unique(OnnxOpConverter):
 
         if return_index:
             index_shape = (unique_numbers,)
-            index_sinfo = relax.TensorStructInfo(index_shape, "int64")
-            outputs.append(bb.match_cast(unique[tuple_idx], index_sinfo))
+            index_ty = relax.TensorStructInfo(index_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], index_ty))
             tuple_idx += 1
 
         if return_inverse:
@@ -4493,14 +4493,14 @@ class Unique(OnnxOpConverter):
             # When axis is None: shape is [X.size]
             # When axis is specified: shape is [X.shape[axis]]
             inverse_shape = (tirx.Var("inverse_numbers", "int64"),)
-            inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
-            outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
+            inverse_ty = relax.TensorStructInfo(inverse_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], inverse_ty))
             tuple_idx += 1
 
         if return_counts:
             count_shape = (unique_numbers,)
-            count_sinfo = relax.TensorStructInfo(count_shape, "int64")
-            outputs.append(bb.match_cast(unique[tuple_idx], count_sinfo))
+            count_ty = relax.TensorStructInfo(count_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], count_ty))
 
         return relax.Tuple(outputs)
 

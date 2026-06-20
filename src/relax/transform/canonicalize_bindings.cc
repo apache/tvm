@@ -31,6 +31,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -91,23 +92,23 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // this pass can provide a better StructInfo than the generic
     // handling in ExprMutator, by restoring the symbolic variables
     // within each branch.
-    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->ty));
+    auto new_ty = VisitExprDepStructInfoField(Downcast<StructInfo>(op->ty));
 
     ffi::StructuralEqual struct_equal;
-    if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
-      auto output_var = Var("then_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetStructInfo(true_b))) {
+      auto output_var = Var("then_branch_with_dyn", new_ty);
 
       true_b = SeqExpr({BindingBlock({
-                           MatchCast(output_var, true_b, new_sinfo),
+                           MatchCast(output_var, true_b, new_ty),
                        })},
                        output_var);
     }
 
-    if (!struct_equal(new_sinfo, GetStructInfo(false_b))) {
-      auto output_var = Var("else_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetStructInfo(false_b))) {
+      auto output_var = Var("else_branch_with_dyn", new_ty);
 
       false_b = SeqExpr({BindingBlock({
-                            MatchCast(output_var, false_b, new_sinfo),
+                            MatchCast(output_var, false_b, new_ty),
                         })},
                         output_var);
     }

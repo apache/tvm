@@ -198,7 +198,7 @@ from tvm.relax.op import (
     call_py_func as _call_py_func,
 )
 from tvm.relax.op.builtin import stop_lift_params
-from tvm.relax.struct_info import StructInfo
+from tvm.relax.type import StructInfo
 from tvm.relax.utils import convert_to_expr, gen_call_tir_inputs
 from tvm.runtime import Object as tvm_Object
 from tvm.runtime import ObjectConvertible
@@ -316,14 +316,19 @@ def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
-    """Specify the return struct info of the last function frame.
+def func_ret_type(ret_ty: StructInfo) -> None:
+    """Specify the return type of the last function frame.
     Parameters
     ----------
-    ret_type: StructInfo
-        The function return struct info.
+    ret_ty: StructInfo
+        The function return type.
     """
-    return _ffi_api.FuncRetStructInfo(ret_sinfo)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.FuncRetType(ret_ty)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def func_ret_struct_info(ret_ty: StructInfo) -> None:
+    """Backward-compatible alias for `func_ret_type`."""
+    return func_ret_type(ret_ty)
 
 
 def func_ret_value(value: Expr) -> None:
@@ -464,7 +469,7 @@ def call_packed(
 def call_py_func(
     py_func_name: py_str,
     *args: Expr,
-    out_sinfo: StructInfo | list[StructInfo],
+    out_ty: StructInfo | list[StructInfo],
 ) -> Call:
     """Create a relax Call, which calls a Python function.
 
@@ -475,7 +480,7 @@ def call_py_func(
         in the IRModule's pyfuncs attribute.
     *args : Expr
         The arguments.
-    out_sinfo: Union[StructInfo, List[StructInfo]]
+    out_ty: Union[StructInfo, List[StructInfo]]
         The structure info of the call_py_func output.
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
@@ -486,12 +491,12 @@ def call_py_func(
         The created Relax Call for call_py_func operator.
     """
     args = py_tuple(convert_to_expr(a) for a in args)
-    if isinstance(out_sinfo, py_tuple):  # type: ignore
-        out_sinfo = list(out_sinfo)
-    elif not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if isinstance(out_ty, py_tuple):  # type: ignore
+        out_ty = list(out_ty)
+    elif not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
-    out_sinfo = [
+    out_ty = [
         (
             sinfo()
             if callable(sinfo)
@@ -499,7 +504,7 @@ def call_py_func(
             if isinstance(sinfo, ObjectConvertible)
             else sinfo
         )
-        for sinfo in out_sinfo
+        for sinfo in out_ty
     ]
 
     # Convert string to StringImm
@@ -509,7 +514,7 @@ def call_py_func(
         )
     except (TypeError, ValueError, AttributeError):
         func_name_imm = StringImm(py_func_name)
-    return _call_py_func(func_name_imm, args, out_sinfo)
+    return _call_py_func(func_name_imm, args, out_ty)
 
 
 def _sinfo_arg_wrapper(func):
@@ -588,11 +593,11 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         A newly created call that calls into a tirx function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    tir_func, call_args, out_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
-    return call_tir(gvar, call_args, out_sinfo, tir_vars)
+    return call_tir(gvar, call_args, out_ty, tir_vars)
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
@@ -626,20 +631,20 @@ def emit_var_binding(value: VarBinding) -> Var:
     return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
-def emit_with_sinfo(
+def emit_with_type(
     op: str,
     args: Expr,
-    sinfo_args: StructInfo | list[StructInfo] | None = None,
+    ty_args: StructInfo | list[StructInfo] | None = None,
 ) -> Call:
-    """Create a relax Call with sinfo_args.
+    """Create a Relax Call with type arguments.
     Parameters
     ----------
     op: Expr
-        The relax op for which sinfo_args to be appended
+        The relax op for which type args are to be appended
     args : Expr
         The arguments.
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
-        The list of structure info arguments.
+    ty_args: Optional[Union[StructInfo, List[StructInfo]]]
+        The list of type arguments.
 
     Returns
     -------
@@ -647,7 +652,16 @@ def emit_with_sinfo(
         The created Relax Call
     """
     builtin_call = tvm.ir.Op.get(op)
-    return Call(builtin_call, args, attrs=None, sinfo_args=sinfo_args)
+    return Call(builtin_call, args, attrs=None, sinfo_args=ty_args)
+
+
+def emit_with_sinfo(
+    op: str,
+    args: Expr,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
+) -> Call:
+    """Backward-compatible alias for `emit_with_type`."""
+    return emit_with_type(op, args, sinfo_args)
 
 
 ############################### SeqExpr ###############################
@@ -857,6 +871,7 @@ __all__ = [
     "emit_te",
     "emit_var_binding",
     "emit_with_sinfo",
+    "emit_with_type",
     "equal",
     "erf",
     "ewise_fma",
@@ -875,6 +890,7 @@ __all__ = [
     "func_attr",
     "func_name",
     "func_ret_struct_info",
+    "func_ret_type",
     "func_ret_value",
     "function",
     "gather_elements",

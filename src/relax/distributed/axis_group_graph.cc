@@ -65,13 +65,13 @@ namespace relax {
 namespace distributed {
 
 const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(tensor);
-  if (tensor_sinfo) {
-    return tensor_sinfo;
+  const auto* tensor_ty = GetStructInfoAs<TensorStructInfoNode>(tensor);
+  if (tensor_ty) {
+    return tensor_ty;
   }
-  const auto* dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(tensor);
-  if (dtensor_sinfo) {
-    return dtensor_sinfo->tensor_sinfo.get();
+  const auto* dtensor_ty = GetStructInfoAs<DTensorStructInfoNode>(tensor);
+  if (dtensor_ty) {
+    return dtensor_ty->tensor_sinfo.get();
   }
   TVM_FFI_THROW(InternalError) << tensor << " must be either Tensor or DTesor";
   throw;
@@ -117,12 +117,12 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
     UnaryOpHelper(tensor_list, axis_group_graph);
     return;
   }
-  const auto* x1_sinfo = GetTensorStructInfo(tensor_list[0]);
-  const auto* x2_sinfo = GetTensorStructInfo(tensor_list[1]);
-  int x1_ndim = x1_sinfo->ndim;
-  int x2_ndim = x2_sinfo->ndim;
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
+  const auto* x1_ty = GetTensorStructInfo(tensor_list[0]);
+  const auto* x2_ty = GetTensorStructInfo(tensor_list[1]);
+  int x1_ndim = x1_ty->ndim;
+  int x2_ndim = x2_ty->ndim;
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(x1_shape && x2_shape);
   arith::Analyzer analyzer;
   for (int i = 1; i <= std::min(x1_ndim, x2_ndim); ++i) {
@@ -212,10 +212,10 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
   Expr x1 = call->args[0];
   Expr x2 = call->args[1];
   Var x3 = output_var;
-  const auto* x1_sinfo = GetTensorStructInfo(x1);
-  const auto* x2_sinfo = GetTensorStructInfo(x2);
-  int x1_ndim = x1_sinfo->ndim;
-  int x2_ndim = x2_sinfo->ndim;
+  const auto* x1_ty = GetTensorStructInfo(x1);
+  const auto* x2_ty = GetTensorStructInfo(x2);
+  int x1_ndim = x1_ty->ndim;
+  int x2_ndim = x2_ty->ndim;
   TVM_FFI_ICHECK(x1_ndim > 0 && x2_ndim > 0);
   int x1_prepended = 0;
   int x2_appended = 0;
@@ -227,8 +227,8 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
     x2_ndim = 2;
     x2_appended = 1;
   }
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(x1_shape && x2_shape);
   ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
                                        x1_shape->values.end() - 2 + x1_prepended};
@@ -262,7 +262,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
     }
   }
   // join reduction dim
-  axis_group_graph->JoinAxis({x1.get(), x1_sinfo->ndim - 1}, {x2.get(), x2_ndim - 2},
+  axis_group_graph->JoinAxis({x1.get(), x1_ty->ndim - 1}, {x2.get(), x2_ndim - 2},
                              distributed::AxisGroupGraph::EdgeType::kSimbling);
   // join lhs_spatial dim and rhs_spatial dim
   if (!x1_prepended) {
@@ -309,12 +309,12 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
-  const auto* tensor_sinfo = GetTensorStructInfo(input_tensor);
-  const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
-  const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(tensor_sinfo->shape.value());
-  TVM_FFI_ICHECK_NOTNULL(old_shape_sinfo);
-  ffi::Array<PrimExpr> old_shape_values = old_shape_sinfo->values.value();
-  ffi::Array<PrimExpr> new_shape_values = new_shape_sinfo->values.value();
+  const auto* tensor_ty = GetTensorStructInfo(input_tensor);
+  const auto* new_shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* old_shape_ty = GetStructInfoAs<ShapeStructInfoNode>(tensor_ty->shape.value());
+  TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
+  ffi::Array<PrimExpr> old_shape_values = old_shape_ty->values.value();
+  ffi::Array<PrimExpr> new_shape_values = new_shape_ty->values.value();
   int i = old_shape_values.size();
   int j = new_shape_values.size();
   PrimExpr old_shape_product = 1, new_shape_product = 1;
@@ -340,9 +340,9 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
 }
 
 inline int GetNumOutput(Call call) {
-  StructInfo sinfo = call->sinfo_args[0];
-  if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-    return tuple_sinfo->fields.size();
+  StructInfo output_ty = call->sinfo_args[0];
+  if (const auto* tuple_ty = output_ty.as<TupleStructInfoNode>()) {
+    return tuple_ty->fields.size();
   } else {
     return 1;
   }

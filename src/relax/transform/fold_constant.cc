@@ -24,6 +24,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
@@ -53,12 +54,12 @@ class ConstantFolder : public ExprMutator {
    * if the input struct info is not TensorStructInfo.
    */
   static ffi::Optional<ffi::Shape> MatchConstShape(const StructInfo& struct_info) {
-    const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
-    if (tensor_sinfo == nullptr) {
+    const auto* tensor_ty = struct_info.as<TensorStructInfoNode>();
+    if (tensor_ty == nullptr) {
       return std::nullopt;
     }
 
-    const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
+    const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr) << "struct info given by call_tir should have ShapeExpr shape";
 
     std::vector<int64_t> shape_values;
@@ -161,10 +162,10 @@ class ConstantFolder : public ExprMutator {
     const auto* call = expr.as<CallNode>();
     if (!call) return true;
 
-    const auto* tensor_sinfo = call->ty.as<TensorStructInfoNode>();
-    if (!tensor_sinfo) return true;
+    const auto* tensor_ty = call->ty.as<TensorStructInfoNode>();
+    if (!tensor_ty) return true;
 
-    auto opt_shape = tensor_sinfo->GetShape();
+    auto opt_shape = tensor_ty->GetShape();
     if (!opt_shape) return true;
 
     int64_t num_elements = 1;
@@ -229,21 +230,21 @@ class ConstantFolder : public ExprMutator {
   // Returns std::nullopt on failure.
   ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::PrimFunc tir_func,
                                                 ffi::Array<runtime::Tensor> arr_args,
-                                                const TupleStructInfoNode* tuple_sinfo) {
+                                                const TupleStructInfoNode* tuple_ty) {
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
     if (!func) return std::nullopt;
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
-    size_t num_outputs = tuple_sinfo->fields.size();
+    size_t num_outputs = tuple_ty->fields.size();
 
     // Match shapes and dtypes for all output fields.
     std::vector<runtime::Tensor> ret_tensors;
     for (size_t i = 0; i < num_outputs; ++i) {
-      ffi::Optional<ffi::Shape> shape = MatchConstShape(tuple_sinfo->fields[i]);
+      ffi::Optional<ffi::Shape> shape = MatchConstShape(tuple_ty->fields[i]);
       if (!shape) return std::nullopt;
-      auto tensor_sinfo = Downcast<TensorStructInfo>(tuple_sinfo->fields[i]);
-      if (tensor_sinfo->IsUnknownDtype()) return std::nullopt;
-      ret_tensors.push_back(runtime::Tensor::Empty(shape.value(), tensor_sinfo->dtype, cpu_dev));
+      auto tensor_ty = Downcast<TensorStructInfo>(tuple_ty->fields[i]);
+      if (tensor_ty->IsUnknownDtype()) return std::nullopt;
+      ret_tensors.push_back(runtime::Tensor::Empty(shape.value(), tensor_ty->dtype, cpu_dev));
     }
 
     // Pack input args + all output tensors.
@@ -280,15 +281,15 @@ class ConstantFolder : public ExprMutator {
     if (!func || !arr_args) return {};
 
     // Handle tuple output: sinfo_args[0] is a TupleStructInfo.
-    if (const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>()) {
-      return ConstEvaluateCallTIRTuple(func.value(), arr_args.value(), tuple_sinfo);
+    if (const auto* tuple_ty = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+      return ConstEvaluateCallTIRTuple(func.value(), arr_args.value(), tuple_ty);
     }
 
     // Handle single tensor output.
     ffi::Optional<ffi::Shape> shape = MatchConstShape(call->sinfo_args[0]);
     if (shape) {
-      TensorStructInfo ret_sinfo = Downcast<TensorStructInfo>(call->ty);
-      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_sinfo->dtype)
+      TensorStructInfo ret_ty = Downcast<TensorStructInfo>(call->ty);
+      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_ty->dtype)
           .value_or({});
     }
     return {};

@@ -543,16 +543,16 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   bool IsStatic(const StructInfo& sinfo, std::vector<const VarNode*>* vars_collector = nullptr,
                 std::vector<const tirx::VarNode*>* tir_vars_collector = nullptr) {
-    if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-      if (auto shape = tensor_sinfo->GetShape()) {
+    if (const auto* tensor_ty = sinfo.as<TensorStructInfoNode>()) {
+      if (auto shape = tensor_ty->GetShape()) {
         return IsStatic(shape.value(), vars_collector, tir_vars_collector);
       }
-    } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
-      if (shape_sinfo->values) {
-        return IsStatic(shape_sinfo->values.value(), vars_collector, tir_vars_collector);
+    } else if (const auto* shape_ty = sinfo.as<ShapeStructInfoNode>()) {
+      if (shape_ty->values) {
+        return IsStatic(shape_ty->values.value(), vars_collector, tir_vars_collector);
       }
-    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      return IsStatic(tuple_sinfo->fields, vars_collector, tir_vars_collector);
+    } else if (const auto* tuple_ty = sinfo.as<TupleStructInfoNode>()) {
+      return IsStatic(tuple_ty->fields, vars_collector, tir_vars_collector);
     } else if (sinfo.as<ObjectStructInfoNode>() || sinfo.as<PrimStructInfoNode>()) {
       return true;
     }
@@ -791,7 +791,7 @@ class CUDAGraphRewriter : public ExprMutator {
     } else {
       auto gv_func = builder_->AddFunction(
           plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
-      StructInfo call_sinfo = plan->func->ret_struct_info;
+      StructInfo call_ty = plan->func->ret_struct_info;
       // Arguments of the lifted function
       ffi::Array<Expr> args;
       for (const auto& arg : plan->inputs) {
@@ -810,7 +810,7 @@ class CUDAGraphRewriter : public ExprMutator {
           tir_var_remap.Set(Downcast<tirx::Var>(symbolic_params[i]),
                             propogated_tir_vars->values[i]);
         }
-        call_sinfo = Bind(call_sinfo, tir_var_remap);
+        call_ty = Bind(call_ty, tir_var_remap);
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
@@ -821,9 +821,8 @@ class CUDAGraphRewriter : public ExprMutator {
         // passing it twice simplifies the handling during the capture phase.
         tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
       }
-      launch_subgraph =
-          Call(call_builtin_with_ctx_op, {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
-               {call_sinfo});
+      launch_subgraph = Call(call_builtin_with_ctx_op,
+                             {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (const auto& [var, tuple_index] : plan->outputs) {

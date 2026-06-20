@@ -37,9 +37,9 @@ def test_op_correctness():
     assert relax.op.dynamic_strided_slice(x, x, x, x).op == Op.get("relax.dynamic_strided_slice")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def test_take_infer_struct_info():
@@ -994,7 +994,7 @@ def test_legalize_dynamic_begin_end():
             return R.call_tir(
                 expected.strided_slice,
                 (A,),
-                out_sinfo=R.Tensor((1, 16), "float32"),
+                out_ty=R.Tensor((1, 16), "float32"),
                 tir_vars=R.shape([index]),
             )
 
@@ -1045,7 +1045,7 @@ def test_legalize_dynamic_begin_inf_end():
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape(["index"])) -> R.Tensor(("T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0)", 16), dtype="float32"):
             index = T.int64()
             cls = expected
-            gv = R.call_tir(cls.strided_slice, (A,), out_sinfo=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"), tir_vars=R.shape([index]))
+            gv = R.call_tir(cls.strided_slice, (A,), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"), tir_vars=R.shape([index]))
             return gv
     # fmt: on
 

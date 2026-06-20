@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file src/relax/ir/struct_info.cc
- * \brief Relax struct info.
+ * \file src/relax/ir/dependent_type.cc
+ * \brief Relax dependent type nodes.
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/struct_info.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type.h>
+#include <tvm/relax/type_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -119,12 +119,12 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, ffi::Optional<VDe
                                    Span span) {
   ffi::ObjectPtr<TensorStructInfoNode> n = ffi::make_object<TensorStructInfoNode>();
   // assign ndim before move
-  ffi::Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
-  TVM_FFI_ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
+  ffi::Optional<ShapeStructInfo> shape_ty = MatchType<ShapeStructInfo>(shape);
+  TVM_FFI_ICHECK(shape_ty) << "We expect shape to contain pre-set shape type";
   TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   TVM_FFI_ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
-  n->ndim = sinfo.value()->ndim;
+  n->ndim = shape_ty.value()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -222,19 +222,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Helper functions
+void UpdateType(Expr expr, StructInfo ty) {
+  TVM_FFI_ICHECK(!expr->ty.defined()) << "To ensure idempotency, "
+                                      << "the expression passed to UpdateType "
+                                      << "must not have any prior type.  "
+                                      << "However, expression " << expr << " has type " << expr->ty
+                                      << ", which cannot be overwritten with " << ty;
+  expr->ty = ty;
+}
+
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
-  TVM_FFI_ICHECK(!expr->ty.defined())
-      << "To ensure idempotency, "
-      << "the expression passed to UpdateStructInfo "
-      << "must not have any prior StructInfo.  "
-      << "However, expression " << expr << " has struct info " << expr->ty
-      << ", which cannot be overwritten with " << struct_info;
-  expr->ty = struct_info;
+  UpdateType(expr, std::move(struct_info));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
+      .def("relax.UpdateType", [](Expr expr, StructInfo ty) { UpdateType(expr, ty); })
+      .def("ir.ExprType", [](Expr expr) { return GetType(expr); })
       .def("relax.UpdateStructInfo",
            [](Expr expr, StructInfo struct_info) { UpdateStructInfo(expr, struct_info); })
       .def("ir.ExprStructInfo", [](Expr expr) { return GetStructInfo(expr); });

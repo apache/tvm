@@ -23,6 +23,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -733,11 +734,11 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleStructInfo& tuple_sinfo = Downcast<TupleStructInfo>(tuple_get_item->tuple->ty);
+      const TupleStructInfo& tuple_ty = Downcast<TupleStructInfo>(tuple_get_item->tuple->ty);
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTotalTensorSize(tuple_sinfo->fields[i]);
+        begin_buf_idx += GetTotalTensorSize(tuple_ty->fields[i]);
       }
-      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_sinfo->fields[tuple_get_item->index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_ty->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           ffi::GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -778,21 +779,21 @@ class FusedTIRConstructor : public ExprVisitor {
               << "FuseTIR expects all parameters are Tensors with symbolic shape.";
           return shape_expr->values;
         };
-    if (const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+    if (const auto* tuple_ty = call->sinfo_args[0].as<TupleStructInfoNode>()) {
       ffi::Array<ffi::Array<PrimExpr>> shapes;
-      for (const StructInfo& field : tuple_sinfo->fields) {
-        const auto* tensor_sinfo = field.as<TensorStructInfoNode>();
-        TVM_FFI_ICHECK(tensor_sinfo)
+      for (const StructInfo& field : tuple_ty->fields) {
+        const auto* tensor_ty = field.as<TensorStructInfoNode>();
+        TVM_FFI_ICHECK(tensor_ty)
             << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
                "TensorStructInfo, but got "
             << call->sinfo_args[0];
-        shapes.push_back(get_tensor_shape(tensor_sinfo));
+        shapes.push_back(get_tensor_shape(tensor_ty));
       }
       return shapes;
-    } else if (const auto* tensor_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>()) {
-      return {get_tensor_shape(tensor_sinfo)};
+    } else if (const auto* tensor_ty = call->sinfo_args[0].as<TensorStructInfoNode>()) {
+      return {get_tensor_shape(tensor_ty)};
     } else {
-      TVM_FFI_ICHECK(tensor_sinfo)
+      TVM_FFI_ICHECK(tensor_ty)
           << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
              "TensorStructInfo, but got "
           << call->sinfo_args[0];
@@ -1031,9 +1032,9 @@ class FusedTIRConstructor : public ExprVisitor {
   static size_t GetTotalTensorSize(const StructInfo& sinfo) {
     if (sinfo.as<TensorStructInfoNode>()) {
       return 1;
-    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
+    } else if (const auto* tuple_ty = sinfo.as<TupleStructInfoNode>()) {
       size_t num = 0;
-      for (const StructInfo& sinfo : tuple_sinfo->fields) {
+      for (const StructInfo& sinfo : tuple_ty->fields) {
         num += GetTotalTensorSize(sinfo);
       }
       return num;

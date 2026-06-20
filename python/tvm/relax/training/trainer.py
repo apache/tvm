@@ -55,7 +55,7 @@ class Trainer:
         setup_trainer = SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),
-            [pred_sinfo, target_sinfo],
+            [pred_ty, target_ty],
         )
         train_mod = setup_trainer(Backbone)
         ex = tvm.compile(train_mod, target)

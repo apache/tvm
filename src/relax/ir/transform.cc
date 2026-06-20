@@ -28,8 +28,8 @@
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 
 namespace tvm {

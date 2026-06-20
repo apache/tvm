@@ -298,12 +298,12 @@ class LambdaLifter : public ExprMutator {
 
     auto gvar_lifted_func = GlobalVar(lift_func_name);
     {
-      auto func_sinfo = Downcast<FuncStructInfo>(func_node->ty);
+      auto func_ty = Downcast<FuncStructInfo>(func_node->ty);
       if (is_closure) {
-        func_sinfo = FuncStructInfo(lifted_func_params.Map(GetStructInfo), func_sinfo->ret,
-                                    func_sinfo->purity);
+        func_ty =
+            FuncStructInfo(lifted_func_params.Map(GetStructInfo), func_ty->ret, func_ty->purity);
       }
-      UpdateStructInfo(gvar_lifted_func, func_sinfo);
+      UpdateStructInfo(gvar_lifted_func, func_ty);
     }
 
     Expr body = func_node->body;
@@ -360,7 +360,7 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ffi::GetRef<Call>(call_node);
 
-    auto orig_sinfo = Downcast<StructInfo>(call->ty);
+    auto orig_ty = Downcast<StructInfo>(call->ty);
 
     if (auto opt_var = call->op.as<Var>()) {
       auto var = opt_var.value();
@@ -374,8 +374,8 @@ class LambdaLifter : public ExprMutator {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
             return purity_map.get(op.value(), false);
-          } else if (const auto* func_sinfo = orig_call->op->ty.as<FuncStructInfoNode>()) {
-            return func_sinfo->purity;
+          } else if (const auto* func_ty = orig_call->op->ty.as<FuncStructInfoNode>()) {
+            return func_ty->purity;
           } else {
             TVM_FFI_THROW(InternalError)
                 << "Could not determine purity of call to " << orig_call->op
@@ -387,7 +387,7 @@ class LambdaLifter : public ExprMutator {
 
         auto prev = call;
         call = Call(is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
-                    {var, Tuple(call->args)}, {}, {orig_sinfo});
+                    {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
 

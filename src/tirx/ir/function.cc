@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -40,7 +41,7 @@ namespace {
 relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
   ffi::Array<relax::StructInfo> params;
   for (const auto& param : prim_func->params) {
-    relax::StructInfo param_sinfo = [&]() -> relax::StructInfo {
+    relax::StructInfo param_ty = [&]() -> relax::StructInfo {
       if (auto opt_buf = prim_func->buffer_map.Get(param)) {
         auto buf = opt_buf.value();
         relax::ShapeExpr shape(
@@ -55,7 +56,7 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
 
       return relax::PrimStructInfo(param->dtype);
     }();
-    params.push_back(param_sinfo);
+    params.push_back(param_ty);
   }
 
   relax::StructInfo ret = [&]() -> relax::StructInfo {

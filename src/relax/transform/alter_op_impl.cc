@@ -48,15 +48,15 @@ static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& sha
   return shape.Map([](const PrimExpr& dim) { return Range(IntImm(dim.dtype(), 0), dim); });
 }
 
-static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
-  auto shape = tensor_sinfo->GetShape();
+static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_ty) {
+  auto shape = tensor_ty->GetShape();
   TVM_FFI_ICHECK(shape.defined());
   return shape.value();
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensor(const Expr& expr) {
-  const auto& tensor_sinfo = Downcast<TensorStructInfo>(expr->ty);
-  return GetShapeFromTensorStructInfo(tensor_sinfo);
+  const auto& tensor_ty = Downcast<TensorStructInfo>(expr->ty);
+  return GetShapeFromTensorStructInfo(tensor_ty);
 }
 
 static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
@@ -155,29 +155,29 @@ class AlterOpImplMutator : public ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
         << "call_tir sinfo_args.size() is expected to be 1";
-    StructInfo updated_ret_sinfo = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
+    StructInfo updated_ret_ty = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
     auto updated_call = builder_->Normalize(
-        Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_sinfo}));
+        Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
     return TransformOutputs(updated_call, buffer_transforms, call->sinfo_args[0], axis_separators,
                             input_axis_separators);
   }
 
-  ffi::Array<TensorStructInfo> GetTensorStructInfoPerOutput(const StructInfo& output_sinfo) {
-    if (const auto* tensor_sinfo = output_sinfo.as<TensorStructInfoNode>())
-      return {ffi::GetRef<TensorStructInfo>(tensor_sinfo)};
-    const auto* tuple_sinfo = output_sinfo.as<TupleStructInfoNode>();
-    TVM_FFI_ICHECK(tuple_sinfo);
+  ffi::Array<TensorStructInfo> GetTensorStructInfoPerOutput(const StructInfo& output_ty) {
+    if (const auto* tensor_ty = output_ty.as<TensorStructInfoNode>())
+      return {ffi::GetRef<TensorStructInfo>(tensor_ty)};
+    const auto* tuple_ty = output_ty.as<TupleStructInfoNode>();
+    TVM_FFI_ICHECK(tuple_ty);
 
-    ffi::Array<TensorStructInfo> arr_tensor_sinfo;
-    arr_tensor_sinfo.reserve(tuple_sinfo->fields.size());
-    for (const auto& sinfo : tuple_sinfo->fields) {
-      const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK(tensor_sinfo) << "Nested tuples in output of call_tir is not supported yet";
-      arr_tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
+    ffi::Array<TensorStructInfo> tensor_tys;
+    tensor_tys.reserve(tuple_ty->fields.size());
+    for (const auto& sinfo : tuple_ty->fields) {
+      const auto* tensor_ty = sinfo.as<TensorStructInfoNode>();
+      TVM_FFI_ICHECK(tensor_ty) << "Nested tuples in output of call_tir is not supported yet";
+      tensor_tys.push_back(ffi::GetRef<TensorStructInfo>(tensor_ty));
     }
-    return arr_tensor_sinfo;
+    return tensor_tys;
   }
 
   bool IsScalarConstant(const Expr& expr) {
@@ -263,9 +263,9 @@ class AlterOpImplMutator : public ExprMutator {
     } else {
       auto padded_expr = builder_->Normalize(
           TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
-      const auto& tensor_sinfo = Downcast<TensorStructInfo>(padded_expr->ty);
+      const auto& tensor_ty = Downcast<TensorStructInfo>(padded_expr->ty);
 
-      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_sinfo->dtype);
+      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype);
       return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_sinfo});
     }
   }
@@ -319,24 +319,24 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   /*! \brief Updates output struct info */
-  StructInfo UpdateStructInfo(const StructInfo& out_sinfo,
+  StructInfo UpdateStructInfo(const StructInfo& out_ty,
                               const ffi::Array<IndexMap>& buffer_transforms) {
-    if (buffer_transforms.empty()) return out_sinfo;
+    if (buffer_transforms.empty()) return out_ty;
 
-    if (out_sinfo->IsInstance<TensorStructInfoNode>())
-      return UpdateStructInfo(Downcast<TensorStructInfo>(out_sinfo),
+    if (out_ty->IsInstance<TensorStructInfoNode>())
+      return UpdateStructInfo(Downcast<TensorStructInfo>(out_ty),
                               buffer_transforms[buffer_transforms.size() - 1]);
 
-    TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
+    TVM_FFI_ICHECK(out_ty->IsInstance<TupleStructInfoNode>())
         << "Expect output struct info of call_tir to be either TupleStructInfo or "
            "TensorStructInfo, but got "
-        << out_sinfo;
+        << out_ty;
 
-    const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
+    const auto& tuple_ty = Downcast<TupleStructInfo>(out_ty);
     ffi::Array<StructInfo> sinfo_fields;
-    size_t first_output_index = buffer_transforms.size() - tuple_sinfo->fields.size();
+    size_t first_output_index = buffer_transforms.size() - tuple_ty->fields.size();
     size_t i = 0;
-    for (const auto& si : tuple_sinfo->fields) {
+    for (const auto& si : tuple_ty->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
              "output structinfo, but got "
@@ -348,16 +348,15 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   /*! \brief Returns the TensorStructInfo after applying the \p transform on its shape */
-  StructInfo UpdateStructInfo(const TensorStructInfo& tensor_sinfo, const IndexMap& transform) {
-    if (transform.get() == nullptr) return tensor_sinfo;
-    auto shape = GetShapeFromTensorStructInfo(tensor_sinfo);
+  StructInfo UpdateStructInfo(const TensorStructInfo& tensor_ty, const IndexMap& transform) {
+    if (transform.get() == nullptr) return tensor_ty;
+    auto shape = GetShapeFromTensorStructInfo(tensor_ty);
     arith::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, analyzer);
-    if (tensor_sinfo->vdevice.defined()) {
-      return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype,
-                              tensor_sinfo->vdevice.value());
+    if (tensor_ty->vdevice.defined()) {
+      return TensorStructInfo(ShapeExpr(new_shape), tensor_ty->dtype, tensor_ty->vdevice.value());
     }
-    return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype);
+    return TensorStructInfo(ShapeExpr(new_shape), tensor_ty->dtype);
   }
 
   Expr TransformOutputs(

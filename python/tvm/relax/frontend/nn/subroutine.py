@@ -141,20 +141,20 @@ class SubroutineMixin:
             param._expr if isinstance(param, nn.Tensor) else param for param in self.parameters()
         ]
 
-        arg_sinfo = _get_struct_info([*func_args.values(), *model_params])
+        arg_ty = _get_struct_info([*func_args.values(), *model_params])
         is_dataflow = block_builder.current_block_is_dataflow()
         lookup_key = (
             old_forward,
-            tvm_ffi.structural_hash(arg_sinfo, map_free_vars=True),
+            tvm_ffi.structural_hash(arg_ty, map_free_vars=True),
             is_dataflow,
         )
 
-        for cached_sinfo, cached_result in cls._gvar.get(lookup_key, []):
-            if tvm_ffi.structural_equal(cached_sinfo, arg_sinfo, map_free_vars=True):
+        for cached_ty, cached_result in cls._gvar.get(lookup_key, []):
+            if tvm_ffi.structural_equal(cached_ty, arg_ty, map_free_vars=True):
                 return cached_result
 
         func_name = _camel_to_snake(cls.__name__)
-        func_params = [relax.Var(name, sinfo) for name, sinfo in zip(func_args, arg_sinfo.fields)]
+        func_params = [relax.Var(name, sinfo) for name, sinfo in zip(func_args, arg_ty.fields)]
         old_forward_args = [
             nn.Tensor(_expr=param) if isinstance(old_arg, nn.Tensor) else param
             for param, old_arg in zip(func_params, func_args.values())
@@ -184,5 +184,5 @@ class SubroutineMixin:
 
         result = (gvar, is_nn_tensor_output)
         bucket = cls._gvar.setdefault(lookup_key, [])
-        bucket.append((arg_sinfo, result))
+        bucket.append((arg_ty, result))
         return result

@@ -1376,7 +1376,7 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1388,7 +1388,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
@@ -1407,7 +1407,7 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1419,7 +1419,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float32") = R.matmul(x, lv6, out_dtype="float32")
                 cast: R.Tensor((64, 128), dtype="float16") = R.astype(lv1_1, dtype="float16")
@@ -1440,7 +1440,7 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1452,7 +1452,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
@@ -1595,7 +1595,7 @@ def test_fp16A_int8B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
+                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
                 )
                 lv1: R.Tensor((64, 64), dtype="int8") = lv[0]
                 lv2: R.Tensor((64, 64), dtype="int8") = R.call_pure_packed(
@@ -1608,9 +1608,7 @@ def test_fp16A_int8B_gemm():
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((64,), dtype="float16") = R.builtin.stop_lift_params(lv3)
-                lv6 = R.call_tir(
-                    cls.decode, (lv4, lv5), out_sinfo=R.Tensor((64, 64), dtype="float16")
-                )
+                lv6 = R.call_tir(cls.decode, (lv4, lv5), out_ty=R.Tensor((64, 64), dtype="float16"))
                 lv1_1: R.Tensor((64, 64), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
                 lv2_2: R.Tensor((64, 128), dtype="float16") = R.nn.gelu(lv2_1)
@@ -1710,7 +1708,7 @@ def test_rms_norm():
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.rms_norm, (input, weight), out_sinfo=R.Tensor((1, 1, 4096), dtype="float16")
+                    cls.rms_norm, (input, weight), out_ty=R.Tensor((1, 1, 4096), dtype="float16")
                 )
                 R.output(lv)
             return lv
@@ -1874,7 +1872,7 @@ def test_fp16A_int8B_gemm_batched():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
+                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
                 )
                 lv1: R.Tensor((64, 64), dtype="int8") = lv[0]
                 lv2: R.Tensor((64, 64), dtype="int8") = R.call_pure_packed(
@@ -1887,9 +1885,7 @@ def test_fp16A_int8B_gemm_batched():
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((64,), dtype="float16") = R.builtin.stop_lift_params(lv3)
-                lv6 = R.call_tir(
-                    cls.decode, (lv4, lv5), out_sinfo=R.Tensor((64, 64), dtype="float16")
-                )
+                lv6 = R.call_tir(cls.decode, (lv4, lv5), out_ty=R.Tensor((64, 64), dtype="float16"))
                 lv1_1: R.Tensor((b, 64, 64), dtype="float16") = R.matmul(
                     x, lv6, out_dtype="float16"
                 )
@@ -2026,7 +2022,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((128, 128), dtype="int8"),
                         R.Tensor((2, 128), dtype="float16"),
                     ],
@@ -2043,7 +2039,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 lv4: R.Tensor((128, 128), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((2, 128), dtype="float16") = R.builtin.stop_lift_params(lv3)
                 lv6 = R.call_tir(
-                    cls.decode, (lv4, lv5), out_sinfo=R.Tensor((128, 128), dtype="float16")
+                    cls.decode, (lv4, lv5), out_ty=R.Tensor((128, 128), dtype="float16")
                 )
                 lv1_1: R.Tensor((b, 128, 128), dtype="float16") = R.matmul(
                     x, lv6, out_dtype="float16"
@@ -2231,7 +2227,7 @@ def test_batched_var_len_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2284,7 +2280,7 @@ def test_batched_var_len_multi_query_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2379,7 +2375,7 @@ def test_batched_var_len_sliding_window():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.ty
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])

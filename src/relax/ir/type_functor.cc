@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file struct_info_functor.cc
- * \brief Implementations of struct info functors.
+ * \file type_functor.cc
+ * \brief Implementations of Relax type functors.
  */
 #include <tvm/ffi/cast.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -118,13 +118,13 @@ StructInfo TypeMutator::VisitType_(const TensorStructInfoNode* op) {
 }
 
 StructInfo TypeMutator::VisitType_(const distributed::DTensorStructInfoNode* op) {
-  TensorStructInfo tensor_sinfo = Downcast<TensorStructInfo>(this->VisitType(op->tensor_sinfo));
-  return distributed::DTensorStructInfo(tensor_sinfo, op->device_mesh, op->placement);
+  TensorStructInfo tensor_ty = Downcast<TensorStructInfo>(this->VisitType(op->tensor_sinfo));
+  return distributed::DTensorStructInfo(tensor_ty, op->device_mesh, op->placement);
 }
 
 StructInfo TypeMutator::VisitType_(const TupleStructInfoNode* op) {
   ffi::Array<StructInfo> fields =
-      op->fields.Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
+      op->fields.Map([this](const StructInfo& ty) { return this->VisitType(ty); });
 
   if (fields.same_as(op->fields)) {
     return ffi::GetRef<StructInfo>(op);
@@ -137,8 +137,7 @@ StructInfo TypeMutator::VisitType_(const FuncStructInfoNode* op) {
   ffi::Optional<ffi::Array<StructInfo>> params;
 
   if (op->params.defined()) {
-    params =
-        op->params.value().Map([this](const StructInfo& sinfo) { return this->VisitType(sinfo); });
+    params = op->params.value().Map([this](const StructInfo& ty) { return this->VisitType(ty); });
   }
 
   StructInfo ret = this->VisitType(op->ret);

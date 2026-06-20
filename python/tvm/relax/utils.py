@@ -38,7 +38,7 @@ from ..tirx import PrimExpr
 from . import _ffi_api
 from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm, te_tensor
 from .expr import Tuple as rx_Tuple
-from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
+from .type import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 
 def metadata_partitioner(rx_txt: str) -> list[str]:
@@ -168,7 +168,7 @@ def gen_call_tir_inputs(
     -------
     ret : Tuple[tirx.PrimFunc, Expr, List[TensorStructInfo], Optional[ShapeExpr]]
         ret contains the inputs for call_tir, including a tirx prim_func, args,
-        out_sinfo, and tir_vars.
+        out_ty, and tir_vars.
     """
 
     tir_var_map: dict[tirx.Var, tirx.PrimExpr] = {}
@@ -348,7 +348,7 @@ def gen_call_tir_inputs(
         )
 
     primfunc_attrs = kwargs.pop("primfunc_attrs", None)
-    custom_out_sinfo = kwargs.pop("sinfo_args", [])
+    custom_out_ty = kwargs.pop("sinfo_args", [])
 
     te_args = _convert_te_arg(args)
     te_kwargs = _convert_te_arg(kwargs)
@@ -373,10 +373,10 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-    if len(custom_out_sinfo) == 1:
-        output_sinfo = custom_out_sinfo[0]
+    if len(custom_out_ty) == 1:
+        output_ty = custom_out_ty[0]
     else:
-        output_sinfo = [
+        output_ty = [
             TensorStructInfo(
                 _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
                 out.dtype,
@@ -389,4 +389,4 @@ def gen_call_tir_inputs(
     if len(unbound_tir_vars) > 0:
         tir_vars = _shape_with_old_tir_var(unbound_tir_vars, tir_var_inverse_map)
 
-    return (tir_func, call_tir_args, output_sinfo, tir_vars)
+    return (tir_func, call_tir_args, output_ty, tir_vars)

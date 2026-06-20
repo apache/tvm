@@ -851,7 +851,7 @@ def test_call_packed():
     _check(foo, bb.get()["foo"])
 
 
-def test_call_packed_without_sinfo_args():
+def test_call_packed_without_ty_args():
     @R.function(pure=False)
     def foo(x: R.Object) -> R.Object:
         z = R.call_packed("test", x)
@@ -890,9 +890,9 @@ def test_annotation():
         o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, sinfo_args=R.Object)
         return o
 
-    def _check_struct_info(binding, expected_sinfo):
-        tvm.ir.assert_structural_equal(binding.var.ty, expected_sinfo)
-        tvm.ir.assert_structural_equal(binding.value.ty, expected_sinfo)
+    def _check_struct_info(binding, expected_ty):
+        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
+        tvm.ir.assert_structural_equal(binding.value.ty, expected_ty)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
@@ -1067,7 +1067,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                     # caught and raised during parsing.
                     args,
                     inplace_indices=[0, -1],
-                    out_sinfo=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                    out_ty=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
                 )
                 return res
 
@@ -1889,12 +1889,12 @@ def test_global_var_sinfo():
             gv0 = R.emit_te(topi.add, x, x)
             return gv0
 
-    target_sinfo = R.Callable(
+    target_ty = R.Callable(
         (R.Tensor((128, 128), dtype="float32"),), R.Tensor((128, 128), dtype="float32")
     )
     gv = Module.get_global_var("foo")
-    tvm.ir.assert_structural_equal(gv.ty, target_sinfo)
-    tvm.ir.assert_structural_equal(Module["foo"].ty, target_sinfo)
+    tvm.ir.assert_structural_equal(gv.ty, target_ty)
+    tvm.ir.assert_structural_equal(Module["foo"].ty, target_ty)
     _check(Module)
 
 
@@ -2236,8 +2236,8 @@ def test_reused_extern_func():
     bb = relax.BlockBuilder()
     with bb.function("main", [x], private=True):
         func = bb.emit(relax.ExternFunc("extern_func"))
-        y = bb.emit(relax.call_dps_packed(func, x, out_sinfo=R.Tensor((128, 128), "float32")))
-        z = bb.emit(relax.call_dps_packed(func, y, out_sinfo=R.Tensor((128, 128), "float32")))
+        y = bb.emit(relax.call_dps_packed(func, x, out_ty=R.Tensor((128, 128), "float32")))
+        z = bb.emit(relax.call_dps_packed(func, y, out_ty=R.Tensor((128, 128), "float32")))
         bb.emit_func_output(z)
 
     expected = bb.get()["main"]
@@ -2334,7 +2334,7 @@ def test_function_symbolic_variables_are_annotated():
     """
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor(["extent"])):
+    def inferred_ty(A: R.Tensor(["extent"])):
         extent = T.int64()
         output = R.strided_slice(A, [0], [0], [extent - 1])
         return output
@@ -2345,7 +2345,7 @@ def test_function_symbolic_variables_are_annotated():
         output: R.Tensor([extent - 1]) = R.strided_slice(A, [0], [0], [extent - 1])
         return output
 
-    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+    tvm.ir.assert_structural_equal(inferred_ty, expected)
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():
@@ -2362,7 +2362,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(
+    def explicit_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
@@ -2377,7 +2377,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
         return out
 
     @R.function(private=True)
-    def inferred_sinfo(
+    def inferred_ty(
         A: R.Tensor(["N"], "float32"),
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
@@ -2390,7 +2390,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
 
         return out
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_return_from_dataflow_block():

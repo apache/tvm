@@ -29,6 +29,7 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
@@ -675,14 +676,14 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     return;
   }
 
-  auto new_sinfo = new_value->ty.as<StructInfo>();
+  auto new_ty = new_value->ty.as<StructInfo>();
 
-  TVM_FFI_CHECK(new_sinfo, InternalError)
+  TVM_FFI_CHECK(new_ty, InternalError)
       << "In binding of variable " << binding->var << ", the value " << new_value
       << " does not have StructInfo.  "
       << "This typically occurs when ReEmitBinding is called without first calling Normalize.";
 
-  Var temp = WithStructInfo(new_var, new_sinfo.value());
+  Var temp = WithStructInfo(new_var, new_ty.value());
   if (!temp.same_as(new_var)) {
     new_var = temp;
   }

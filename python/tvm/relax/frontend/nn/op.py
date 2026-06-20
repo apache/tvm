@@ -2084,9 +2084,9 @@ def tensor_ir_op(
             )
 
     if isinstance(out, Tensor):
-        out_sinfo = [out._expr.ty]
+        out_ty = [out._expr.ty]
     else:
-        out_sinfo = [x._expr.ty for x in out]
+        out_ty = [x._expr.ty for x in out]
 
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
@@ -2095,7 +2095,7 @@ def tensor_ir_op(
         tir_vars = None
 
     return wrap_nested(
-        bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
+        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty, tir_vars=tir_vars)),
         name=name_hint,
     )
 
@@ -2154,17 +2154,15 @@ def tensor_ir_inplace_op(
             )
 
     if isinstance(out, Tensor):
-        out_sinfo = [out._expr.ty]
+        out_ty = [out._expr.ty]
     else:
-        out_sinfo = [x._expr.ty for x in out]
+        out_ty = [x._expr.ty for x in out]
 
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(
-            rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_sinfo, tir_vars)
-        ),
+        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty, tir_vars)),
         name=name_hint,
     )
 
@@ -2211,12 +2209,12 @@ def extern(
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
     rx_inputs = _convert(args, "input")
-    rx_outputs_sinfo = _convert(out, "dummy").ty
+    rx_outputs_ty = _convert(out, "dummy").ty
     return wrap_nested(
         _op.call_dps_packed(
             name,
             args=rx_inputs,
-            out_sinfo=rx_outputs_sinfo,
+            out_ty=rx_outputs_ty,
         ),
         name,
     )  # type: ignore

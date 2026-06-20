@@ -52,7 +52,7 @@ from . import _ffi_api
 def call_tir(
     func: str | Expr,
     args: Expr,
-    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    out_ty: DTensorStructInfo | list[DTensorStructInfo],
     tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
@@ -65,7 +65,7 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[DTensorStructInfo, List[DTensorStructInfo]]
+    out_ty : Union[DTensorStructInfo, List[DTensorStructInfo]]
         The structure info of the call_tir output.
         It should be a single or a list of DTensorStructInfo. Each one denotes the
         structure info of a returned distributed tensor.
@@ -86,18 +86,18 @@ def call_tir(
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
+    if not isinstance(out_ty, list):
+        out_ty = [out_ty]
 
     if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir_dist(func, args, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir_dist(func, args, out_ty, tir_vars)  # type: ignore
 
 
 def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
-    struct_info: DTensorStructInfo,
+    ty: DTensorStructInfo,
 ) -> Constant:
     """Create a constant value.
 
@@ -118,10 +118,10 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    struct_info = tvm.runtime.convert(struct_info)
-    if not isinstance(struct_info, DTensorStructInfo):
-        raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
-    dtype = str(struct_info.tensor_sinfo.dtype)
+    ty = tvm.runtime.convert(ty)
+    if not isinstance(ty, DTensorStructInfo):
+        raise TypeError("ty needs to be an instance of DTensorStructInfo. ")
+    dtype = str(ty.tensor_sinfo.dtype)
     if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 
@@ -133,7 +133,7 @@ def const(
     if not isinstance(value, _tensor.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return Constant(value, struct_info)
+    return Constant(value, ty)
 
 
 def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:

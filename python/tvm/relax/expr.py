@@ -1250,5 +1250,5 @@ def get_shape_of(expr: Expr) -> Expr:
     return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
-def _update_struct_info(expr: Expr, struct_info: StructInfo | None) -> None:
-    _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore
+def _update_type(expr: Expr, ty: StructInfo | None) -> None:
+    _ffi_api.UpdateType(expr, ty)  # type: ignore

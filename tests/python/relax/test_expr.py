@@ -56,10 +56,11 @@ def test_var() -> None:
 
 def test_relax_expr_ty_running_example() -> None:
     m = tirx.Var("m", "int64")
-    x = rx.Var("x", rx.TensorStructInfo([m, 16], "float32"))
+    x = rx.Var("x", R.Tensor([m, 16], "float32"))
 
     assert isinstance(x.ty, tvm.ir.Type)
-    assert isinstance(x.ty, rx.TensorStructInfo)
+    assert x.ty.dtype == "float32"
+    assert x.ty.ndim == 2
 
     call = rx.op.add(x, x)
     assert call.ty is None
@@ -67,7 +68,7 @@ def test_relax_expr_ty_running_example() -> None:
     bb = rx.BlockBuilder()
     normalized = bb.normalize(call)
 
-    assert isinstance(normalized.ty, rx.TensorStructInfo)
+    assert isinstance(normalized.ty, tvm.ir.Type)
     tvm.ir.assert_structural_equal(normalized.ty, x.ty)
 
 

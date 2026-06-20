@@ -27,8 +27,8 @@ import tvm.testing
 from tvm import relax
 from tvm.ir.op import Op
 from tvm.relax.expr import Call
-from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 from tvm.relax.transform import LegalizeOps
+from tvm.relax.type import TensorStructInfo, TupleStructInfo
 from tvm.testing.utils import check_numerical_grads
 
 
@@ -97,12 +97,12 @@ def relax_check_gradients(
             return data.numpy()
         return data
 
-    def _gen_weights(out_sinfo):
-        if isinstance(out_sinfo, TupleStructInfo):
-            return [_gen_weights(sinfo) for sinfo in out_sinfo.fields]
+    def _gen_weights(out_ty):
+        if isinstance(out_ty, TupleStructInfo):
+            return [_gen_weights(sinfo) for sinfo in out_ty.fields]
         else:
-            assert isinstance(out_sinfo, TensorStructInfo)
-            return np.random.uniform(size=[int(i) for i in out_sinfo.shape]).astype(out_sinfo.dtype)
+            assert isinstance(out_ty, TensorStructInfo)
+            return np.random.uniform(size=[int(i) for i in out_ty.shape]).astype(out_ty.dtype)
 
     def _is_call_no_grad(expr):
         return isinstance(expr, Call) and expr.op == Op.get("relax.grad.no_grad")
@@ -135,8 +135,8 @@ def relax_check_gradients(
     # If the result is a tuple, weights will be a list, and the weighted result will be
     # sum(i * j for i, j in zip(weights, result))
     # In the gradient process, weights is the output gradient, i.e. the gradient w.r.t. the result.
-    out_sinfo = forward_mod[func_name].body.body.ty
-    weights = _gen_weights(out_sinfo)
+    out_ty = forward_mod[func_name].body.body.ty
+    weights = _gen_weights(out_ty)
 
     # The inputs of the forward function are inputs_filtered below.
     def forward(*inputs):

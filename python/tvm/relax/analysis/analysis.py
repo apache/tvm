@@ -28,7 +28,7 @@ import tvm
 from tvm import IRModule, tirx
 from tvm.ir import Type
 from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
-from tvm.relax.struct_info import FuncStructInfo, StructInfo
+from tvm.relax.type import FuncStructInfo, StructInfo
 from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
 
 from . import _ffi_api
@@ -120,13 +120,13 @@ def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckRe
 
 
 def derive_call_ret_struct_info(
-    func_sinfo: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
+    func_ty: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
 ) -> StructInfo:
     """Derive the call's ret value struct info from inputs.
 
     Parameters
     ----------
-    func_sinfo: FuncStructInfo
+    func_ty: FuncStructInfo
         The call's function signature.
 
     call: Call
@@ -143,9 +143,9 @@ def derive_call_ret_struct_info(
     Note
     ----
     This is an internal derivation function, call.op field is
-    ignored in this case and the derivation only depends on func_sinfo.
+    ignored in this case and the derivation only depends on func_ty.
     """
-    return _ffi_api.DeriveCallRetStructInfo(func_sinfo, call, ctx)  # type: ignore
+    return _ffi_api.DeriveCallRetStructInfo(func_ty, call, ctx)  # type: ignore
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:

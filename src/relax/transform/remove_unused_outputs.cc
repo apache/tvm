@@ -184,12 +184,11 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   BindingBlock binding_block({binding});
   SeqExpr new_body({binding_block}, new_output);
 
-  auto old_sinfo = Downcast<FuncStructInfo>(func->ty);
-  FuncStructInfo new_sinfo(old_func_sinfo->params.value(), new_return_sinfo,
-                           old_func_sinfo->purity);
+  auto old_ty = Downcast<FuncStructInfo>(func->ty);
+  FuncStructInfo new_ty(old_func_sinfo->params.value(), new_return_sinfo, old_func_sinfo->purity);
 
   auto write_ptr = func.CopyOnWrite();
-  write_ptr->ty = new_sinfo;
+  write_ptr->ty = new_ty;
   write_ptr->body = new_body;
 
   return func;

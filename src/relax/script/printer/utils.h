@@ -96,7 +96,7 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
     }
   }
   if (attempt_to_hide_struct_info) {
-    ffi::Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
+    ffi::Optional<relax::StructInfo> inferred_ty = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
@@ -106,27 +106,27 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
             Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
 
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_sinfo = op_map_infer_struct_info[op](call, temp_builder);
+        inferred_ty = op_map_infer_struct_info[op](call, temp_builder);
       } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_sinfo =
+        inferred_ty =
             DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
 
     } else if (const auto* tuple = rhs.as<relax::TupleNode>()) {
-      inferred_sinfo = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
+      inferred_ty = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
 
     } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
       if (auto ptr = get_item->tuple->ty.as<relax::TupleStructInfoNode>();
           ptr && get_item->index < static_cast<int>(ptr->fields.size())) {
-        inferred_sinfo = ptr->fields[get_item->index];
+        inferred_ty = ptr->fields[get_item->index];
       }
 
     } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
-      inferred_sinfo = trivial_binding->ty.as<relax::StructInfo>();
+      inferred_ty = trivial_binding->ty.as<relax::StructInfo>();
     }
 
-    if (inferred_sinfo && ffi::StructuralEqual()(inferred_sinfo, v->ty)) {
+    if (inferred_ty && ffi::StructuralEqual()(inferred_ty, v->ty)) {
       return std::nullopt;
     }
   }

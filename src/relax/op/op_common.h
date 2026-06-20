@@ -110,15 +110,15 @@ ArgType GetArgStructInfoByIndex(const Call& call, const Op& op, const BlockBuild
   }
 
   auto sinfo = GetStructInfo(call->args[index]);
-  auto typed_sinfo = sinfo.as<ArgType>();
+  auto typed_ty = sinfo.as<ArgType>();
 
-  if (!typed_sinfo.has_value()) {
+  if (!typed_ty.has_value()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << op << " requires that args[" << index << "] be a " << ArgType::ContainerType::_type_key
         << ", but was instead " << sinfo << " of type " << sinfo->GetTypeKey();
   }
 
-  return typed_sinfo.value();
+  return typed_ty.value();
 }
 
 /*! \brief Implementation helper for GetArgStructInfo */
@@ -193,7 +193,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param f_compute_out_dtype The function to compute the output dtype, with
- * signature DataType f_compute_out_dtype(const TensorStructInfo& input_sinfo).
+ * signature DataType f_compute_out_dtype(const TensorStructInfo& input_ty).
  * \tparam require_float_dtype whether this op requires the input dtype to be float
  * \tparam Ftype the type of f_compute_out_dtype
  * \return The inferred struct info.
@@ -201,26 +201,26 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
 template <bool require_float_dtype, typename FType>
 inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx,
                                        FType f_compute_out_dtype) {
-  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  if (require_float_dtype && !input_sinfo->IsUnknownDtype() &&
-      (!input_sinfo->dtype.is_float() && !input_sinfo->dtype.is_bfloat())) {
+  TensorStructInfo input_ty = GetUnaryInputTensorStructInfo(call, ctx);
+  if (require_float_dtype && !input_ty->IsUnknownDtype() &&
+      (!input_ty->dtype.is_float() && !input_ty->dtype.is_bfloat())) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
-        << input_sinfo->dtype;
+        << input_ty->dtype;
   }
-  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
-  output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
+  auto output_ty = ffi::make_object<TensorStructInfoNode>(*input_ty.get());
+  output_ty->dtype = f_compute_out_dtype(input_ty);
   if (call->sinfo_args.size() > 0) {
-    auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK(defined_sinfo);
-    auto shape = output_sinfo->GetShape();
+    auto defined_ty = call->sinfo_args[0].as<TensorStructInfoNode>();
+    TVM_FFI_ICHECK(defined_ty);
+    auto shape = output_ty->GetShape();
     TVM_FFI_ICHECK(shape.defined());
-    TVM_FFI_ICHECK(defined_sinfo->vdevice.has_value());
-    return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
-                            defined_sinfo->vdevice.value());
+    TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
+    return TensorStructInfo(ShapeExpr(shape.value()), output_ty->dtype,
+                            defined_ty->vdevice.value());
   } else {
-    return TensorStructInfo(output_sinfo);
+    return TensorStructInfo(output_ty);
   }
 }
 
@@ -257,7 +257,7 @@ StructInfo ReturnStructInfoFromArg(const Call& call, const BlockBuilder& ctx) {
 template <bool require_float_dtype>
 StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) {
   return InferStructInfoUnary<require_float_dtype>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
+      call, ctx, [](const TensorStructInfo& input_ty) { return input_ty->dtype; });
 }
 
 /*!
@@ -295,31 +295,30 @@ inline std::optional<DataType> GetElementDType(const StructInfo& sinfo) {
  * \brief Infer the output datatype for binary arithmetic operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \param lhs_sinfo The struct info of the first operand
- * \param rhs_sinfo The struct info of the second operand
+ * \param lhs_ty The struct info of the first operand
+ * \param rhs_ty The struct info of the second operand
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorStructInfo don’t match
  */
 inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
-                                           const StructInfo& lhs_sinfo,
-                                           const StructInfo& rhs_sinfo) {
-  auto opt_lhs_dtype = GetElementDType(lhs_sinfo);
+                                           const StructInfo& lhs_ty, const StructInfo& rhs_ty) {
+  auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " has argument " << call->args[0]
-        << " on the LHS, with struct info " << lhs_sinfo << ".   This is of type "
-        << lhs_sinfo->GetTypeKey() << ", which does not have a datatype.";
+        << " on the LHS, with struct info " << lhs_ty << ".   This is of type "
+        << lhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto lhs_dtype = opt_lhs_dtype.value();
 
-  auto opt_rhs_dtype = GetElementDType(rhs_sinfo);
+  auto opt_rhs_dtype = GetElementDType(rhs_ty);
   if (!opt_rhs_dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " has argument " << call->args[1]
-        << " on the RHS, with struct info " << rhs_sinfo << ".   This is of type "
-        << rhs_sinfo->GetTypeKey() << ", which does not have a datatype.";
+        << " on the RHS, with struct info " << rhs_ty << ".   This is of type "
+        << rhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto rhs_dtype = opt_rhs_dtype.value();
 
@@ -329,8 +328,8 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (StructInfo of "
-        << lhs_sinfo << "), and datatype " << rhs_dtype << " on the RHS (StructInfo of "
-        << rhs_sinfo << ").";
+        << lhs_ty << "), and datatype " << rhs_dtype << " on the RHS (StructInfo of " << rhs_ty
+        << ").";
   }
   return lhs_dtype;
 }
@@ -339,15 +338,15 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
  * \brief Infer the output virtual device for binary arithmetic operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \param lhs_sinfo The struct info of the first operand
- * \param rhs_sinfo The struct info of the second operand
+ * \param lhs_ty The struct info of the first operand
+ * \param rhs_ty The struct info of the second operand
  * \return The inferred output vdevice.
  * \throw Throw exception if the vdevice of two input TensorStructInfo don’t match
  */
 inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
                                                            const BlockBuilder& ctx,
-                                                           const StructInfo& lhs_sinfo,
-                                                           const StructInfo& rhs_sinfo) {
+                                                           const StructInfo& lhs_ty,
+                                                           const StructInfo& rhs_ty) {
   auto get_vdevice = [&](const StructInfo& sinfo) -> ffi::Optional<VDevice> {
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->vdevice;
@@ -365,8 +364,8 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
     return get_vdevice(call->sinfo_args[0]);
   }
 
-  auto lhs_vdevice = get_vdevice(lhs_sinfo);
-  auto rhs_vdevice = get_vdevice(rhs_sinfo);
+  auto lhs_vdevice = get_vdevice(lhs_ty);
+  auto rhs_vdevice = get_vdevice(rhs_ty);
 
   if (!lhs_vdevice.defined() || !lhs_vdevice.value()->target.defined()) {
     return rhs_vdevice;

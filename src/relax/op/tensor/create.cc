@@ -73,9 +73,9 @@ StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
   }
-  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
+  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
   const auto* fill_value_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  if (shape_sinfo == nullptr) {
+  if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Full requires the input shape to be a Shape. However, the given one is "
         << call->args[0]->ty->GetTypeKey();
@@ -116,9 +116,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo fill_value_sinfo = input_sinfo[1];
+  ffi::Array<TensorStructInfo> input_ty = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_ty = input_ty[0];
+  TensorStructInfo fill_value_sinfo = input_ty[1];
   if (fill_value_sinfo->ndim != 0) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "FullLike requires the input fill value to be zero "
                                              "rank Tensor. However, the given one has ndim"
@@ -127,11 +127,11 @@ StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<InitAttrs>();
   if (attrs->dtype.is_void()) {
-    return data_sinfo;
+    return data_ty;
   } else {
-    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
-    output_sinfo->dtype = attrs->dtype;
-    return TensorStructInfo(output_sinfo);
+    auto output_ty = ffi::make_object<TensorStructInfoNode>(*data_ty.get());
+    output_ty->dtype = attrs->dtype;
+    return TensorStructInfo(output_ty);
   }
 }
 
@@ -150,8 +150,8 @@ StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
   }
 
-  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  if (shape_sinfo == nullptr) {
+  const auto* shape_ty = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
+  if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
         << call->args[0]->ty->GetTypeKey();
@@ -162,14 +162,14 @@ StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
 
 // Structure info inference for ones_like and zeros_like
 StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_ty = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<InitAttrs>();
   if (attrs->dtype.is_void()) {
-    return data_sinfo;
+    return data_ty;
   } else {
-    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
-    output_sinfo->dtype = attrs->dtype;
-    return TensorStructInfo(output_sinfo);
+    auto output_ty = ffi::make_object<TensorStructInfoNode>(*data_ty.get());
+    output_ty->dtype = attrs->dtype;
+    return TensorStructInfo(output_ty);
   }
 }
 
@@ -295,22 +295,22 @@ StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
         << " arguments";
   }
 
-  const auto* x_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  if (x_sinfo == nullptr) {
+  const auto* x_ty = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (x_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Eye_like expects the input `x` to be a Tensor, but got "
         << call->args[0]->ty->GetTypeKey();
   }
-  if (x_sinfo->ndim != 2 && x_sinfo->ndim != kUnknownNDim) {
+  if (x_ty->ndim != 2 && x_ty->ndim != kUnknownNDim) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "Eye_like expects the input tensor to be 2-dimensional, but got " << x_sinfo->ndim
+        << "Eye_like expects the input tensor to be 2-dimensional, but got " << x_ty->ndim
         << " dimensions";
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  DataType out_dtype = attrs->dtype.is_void() ? x_sinfo->dtype : attrs->dtype;
+  DataType out_dtype = attrs->dtype.is_void() ? x_ty->dtype : attrs->dtype;
 
-  return TensorStructInfo(x_sinfo->shape.value(), out_dtype, x_sinfo->vdevice);
+  return TensorStructInfo(x_ty->shape.value(), out_dtype, x_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.eye")
@@ -461,15 +461,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
-  auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);
+  auto [data_ty, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);
 
-  if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim < 2) {
+  if (!data_ty->IsUnknownNdim() && data_ty->ndim < 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << call->op
                                           << " requires the input tensor to have at least two "
                                              "dimensions. However, the given input has "
-                                          << data_sinfo->ndim << " dimension(s).";
+                                          << data_ty->ndim << " dimension(s).";
   }
-  return data_sinfo;
+  return data_ty;
 }
 
 TVM_REGISTER_OP("relax.tril")

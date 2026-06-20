@@ -153,7 +153,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                         rx.PrimValue(sm_scale),
                         qkv._expr,
                     ],
-                    out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
+                    out_ty=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
                 )
             )
         ).reshape(b, s, num_qo_heads, d)
@@ -185,7 +185,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     k._expr,
                     v._expr,
                 ],
-                out_sinfo=[
+                out_ty=[
                     rx.TensorStructInfo((b * s, h_qo, d_v), q.dtype),
                     rx.TensorStructInfo((b * s, h_qo), "float32"),
                 ],
@@ -218,7 +218,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     rx.PrimValue(sm_scale),
                     q._expr,
                 ],
-                out_sinfo=[
+                out_ty=[
                     rx.TensorStructInfo((b * s, h_qo, v_head_dim), q.dtype),
                     rx.TensorStructInfo((b * s, h_qo), "float32"),
                 ],

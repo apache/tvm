@@ -90,14 +90,14 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   // Step 2. Print n->args[1], the input arguments
   args.push_back(d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayItem(1)));
-  // Step 3. Print n->sinfo_args, the output struct info
-  relax::StructInfo o_sinfo = n->sinfo_args[0];
-  AccessPath o_sinfo_p = n_p->Attr("sinfo_args")->ArrayItem(0);
+  // Step 3. Print n->sinfo_args, the output type
+  relax::StructInfo out_ty = n->sinfo_args[0];
+  AccessPath out_ty_p = n_p->Attr("sinfo_args")->ArrayItem(0);
   bool is_dtensor = false;
-  kwargs_keys.push_back("out_sinfo");
-  if (const auto* o = o_sinfo.as<relax::TupleStructInfoNode>()) {
+  kwargs_keys.push_back("out_ty");
+  if (const auto* o = out_ty.as<relax::TupleStructInfoNode>()) {
     ffi::Array<ExprDoc> fields;
-    AccessPath fields_p = o_sinfo_p->Attr("fields");
+    AccessPath fields_p = out_ty_p->Attr("fields");
     for (int i = 0, l = o->fields.size(); i < l; ++i) {
       if (o->fields[i].as<relax::distributed::DTensorStructInfoNode>()) {
         is_dtensor = true;
@@ -106,10 +106,10 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
     }
     kwargs_values.push_back(ListDoc(fields));
   } else {
-    if (o_sinfo.as<relax::distributed::DTensorStructInfoNode>()) {
+    if (out_ty.as<relax::distributed::DTensorStructInfoNode>()) {
       is_dtensor = true;
     }
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
+    kwargs_values.push_back(d->AsDoc<ExprDoc>(out_ty, out_ty_p));
   }
 
   // for call_tir_inplace, we also need to include the inplace args

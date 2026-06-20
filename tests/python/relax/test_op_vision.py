@@ -31,9 +31,9 @@ from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.StructInfo):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def _assert_relax_op_legalized(mod: tvm.IRModule, op_name: str) -> None:
@@ -1338,9 +1338,9 @@ def test_all_class_non_max_suppression_legalize_dynamic_trim():
     # Check legalized function has dynamic output (uses dynamic_strided_slice)
     assert "dynamic_strided_slice" in str(mod)
 
-    ret_sinfo = mod["main"].ret_struct_info
+    ret_ty = mod["main"].ret_struct_info
     tvm.ir.assert_structural_equal(
-        ret_sinfo,
+        ret_ty,
         relax.TupleStructInfo(
             [
                 relax.TensorStructInfo(ndim=2, dtype="int64"),

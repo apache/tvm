@@ -50,8 +50,8 @@ class ParamTypeMutator : public ExprMutator {
     auto func = ffi::GetRef<Function>(op);
 
     auto params = op->params.Map([this](Var param) {
-      if (auto new_sinfo = sinfo_func_(param)) {
-        auto new_param = WithStructInfo(param, new_sinfo.value());
+      if (auto new_ty = sinfo_func_(param)) {
+        auto new_param = WithStructInfo(param, new_ty.value());
         var_remap_[param->vid] = new_param;
         return new_param;
       } else {

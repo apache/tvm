@@ -3941,7 +3941,7 @@ class OperatorConverter:
         return relax.op.call_dps_packed(
             "tvm.contrib.random.uniform",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(out_shape, output_dtype),
         )
 
     def convert_random_standard_normal(self, op):
@@ -3962,7 +3962,7 @@ class OperatorConverter:
         return relax.op.call_dps_packed(
             "tvm.contrib.random.normal",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(out_shape, output_dtype),
         )
 
     def convert_multinomial(self, op):
@@ -4001,7 +4001,7 @@ class OperatorConverter:
         uniform_sample = relax.op.call_dps_packed(
             "tvm.contrib.random.uniform",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo([output_batch, 1], "float32"),
+            out_ty=relax.TensorStructInfo([output_batch, 1], "float32"),
         )
         sample_indices = relax.op.reshape(
             relax.op.broadcast_to(
@@ -6543,7 +6543,7 @@ class OperatorConverter:
                 relax.ShapeExpr(crop_begin),
                 relax.ShapeExpr(crop_end),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(output_shape, output_dtype),
         )
 
         return out
@@ -6787,7 +6787,7 @@ class OperatorConverter:
                 relax.ShapeExpr(pad_after),
                 0.0,
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(output_shape, output_dtype),
         )
 
         return out
@@ -6882,7 +6882,7 @@ class OperatorConverter:
         out = relax.op.call_dps_packed(
             "topi.sparse_to_dense",
             (indices_expr, output_shape_expr, values_expr, default_value_expr),
-            out_sinfo=relax.TensorStructInfo(output_shape_val, output_dtype),
+            out_ty=relax.TensorStructInfo(output_shape_val, output_dtype),
         )
 
         return out
@@ -7693,7 +7693,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(output_shape, output_dtype),
         )
         return out
 
@@ -7734,7 +7734,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorStructInfo(output_shape, output_dtype),
         )
         return out
 

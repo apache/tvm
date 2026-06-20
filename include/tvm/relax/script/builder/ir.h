@@ -60,10 +60,11 @@ TVM_DLL void FuncName(const ffi::String& name);
 TVM_DLL void FuncAttrs(ffi::Map<ffi::String, Any> attrs);
 
 /*!
- * \brief Specify the return struct info of the last function frame.
- * \param ret_sinfo The return struct info.
+ * \brief Specify the return type of the last function frame.
+ * \param ret_ty The return type.
  */
-TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo);
+TVM_DLL void FuncRetType(const tvm::relax::StructInfo& ret_ty);
+TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_ty);
 
 /*!
  * \brief Specify the return value of the last function frame.
