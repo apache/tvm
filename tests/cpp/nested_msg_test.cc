@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/data_type.h>
@@ -144,9 +145,9 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", PrimType(runtime::DataType::Int(16)));
-  relax::Var y("y", PrimType(runtime::DataType::Int(32)));
-  relax::Var z("z", PrimType(runtime::DataType::Int(64)));
+  relax::Var x("x", relax::PrimType(runtime::DataType::Int(16)));
+  relax::Var y("y", relax::PrimType(runtime::DataType::Int(32)));
+  relax::Var z("z", relax::PrimType(runtime::DataType::Int(64)));
 
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
@@ -168,7 +169,7 @@ TEST(NestedMsg, MapAndDecompose) {
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
 
   auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<IntImm> {
-    const auto* prim_ty = ty.as<PrimTypeNode>();
+    const auto* prim_ty = ty.as<relax::PrimTypeNode>();
     if (prim_ty == nullptr) return std::nullopt;
     int bits = prim_ty->dtype.bits();
     if (bits == 16) return c0;
@@ -305,7 +306,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
-  PrimType s = PrimType(runtime::DataType::Int(32));
+  relax::PrimType s = relax::PrimType(runtime::DataType::Int(32));
   relax::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
