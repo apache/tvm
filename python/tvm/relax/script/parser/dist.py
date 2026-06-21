@@ -58,7 +58,7 @@ class DTensorProxy(TypeProxy):
     def get_symbolic_vars(self) -> set[str]:
         return self.tensor_ty_proxy.get_symbolic_vars()
 
-    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> TensorType:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> DTensorType:
         return DTensorType(
             self.tensor_ty_proxy.as_ty(dict_globals),
             self.device_mesh,

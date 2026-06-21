@@ -111,9 +111,7 @@ void ExprVisitor::DefaultTypeFieldVisitor::VisitType_(const FuncTypeNode* op) {
 }
 
 void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
-  if (auto* ty_node = ty.as<DependentTypeNode>()) {
-    visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
-  } else if (auto* ty_node = ty.as<TupleTypeNode>()) {
+  if (auto* ty_node = ty.as<TypeNode>()) {
     visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
   }
 }
@@ -733,14 +731,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {
-  if (auto* ty_node = var->ty.as<DependentTypeNode>()) {
-    Type ty = this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
-    if (ty.same_as(var->ty)) {
-      return ffi::GetRef<Var>(var);
-    } else {
-      return Var(var->vid, ty, var->span);
-    }
-  } else if (auto* ty_node = var->ty.as<TupleTypeNode>()) {
+  if (auto* ty_node = var->ty.as<TypeNode>()) {
     Type ty = this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
     if (ty.same_as(var->ty)) {
       return ffi::GetRef<Var>(var);

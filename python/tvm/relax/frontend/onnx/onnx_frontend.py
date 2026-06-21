@@ -5571,7 +5571,7 @@ class ONNXGraphImporter:
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
             try:
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
-                # Create struct information for the new operator.
+                # Create type information for the new operator.
                 if isinstance(op, relax.Expr):
                     op = self.bb.normalize(op)
             except Exception as err:  # pylint: disable=broad-exception-caught

@@ -78,10 +78,7 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
           << "Operator " << call->op << " requires the indices argument to be "
           << "either a tensor or a scalar value.  "
           << "However, argument " << arg << " has type " << ty;
-      // Unreachable, but [[noreturn]] attribute on virtual function
-      // `ReportFatal` is insufficient to silence -Wreturn-type, as
-      // child class might not be [[noreturn]].
-      return TensorType();
+      TVM_FFI_UNREACHABLE();
     }
   }();
 

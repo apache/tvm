@@ -285,7 +285,7 @@ def arg(name: py_str, ty: Type) -> Var:
     name: str
         The name of the parameter.
     ty: Type
-        The Struct Info of the parameter
+        The type of the parameter
 
     Returns
     -------

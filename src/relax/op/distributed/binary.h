@@ -38,9 +38,8 @@ namespace distributed {
 template <typename FType>
 Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorType x1_ty, x2_ty;
-  x1_ty = input_dtensor_tys[0]->tensor_ty;
-  x2_ty = input_dtensor_tys[1]->tensor_ty;
+  TensorType x1_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
   // DateType
   DataType output_dtype = f_compute_out_dtype(call, ctx, x1_ty, x2_ty);
@@ -52,7 +51,7 @@ Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_c
 
   const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
-  TensorType output_tensor_ty;
+  Type output_tensor_ty;
   // Shapes and ndims
   if (x1_shape && x2_shape) {
     // If all inputs have shapes, directly infer shapes
@@ -74,12 +73,12 @@ Type InferDistTypeBroadcastArith(const Call& call, const BlockBuilder& ctx);
 
 Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx);
 
-#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                                    \
+#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(OpName) \
+  TVM_REGISTER_OP("relax." #OpName)                             \
       .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith)
 
-#define RELAX_REGISTER_CMP_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                       \
+#define RELAX_REGISTER_CMP_DIST_INFER_TYPE(OpName) \
+  TVM_REGISTER_OP("relax." #OpName)                \
       .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP)
 
 }  // namespace distributed

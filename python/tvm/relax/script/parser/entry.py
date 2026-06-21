@@ -142,7 +142,7 @@ def macro(*args, hygienic: bool = True) -> _Callable:
     )
 
 
-############################# Struct Info ##############################
+############################# Type ##############################
 
 
 class TypeProxy(ObjectConvertible):
@@ -177,7 +177,7 @@ class ObjectProxy(TypeProxy):
     def get_symbolic_vars(self) -> set[str]:
         return set()
 
-    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ShapeType:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ObjectType:
         return ObjectType()
 
 
@@ -476,7 +476,7 @@ class PrimProxy(TypeProxy):
         else:
             return set()
 
-    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ShapeType:
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> PrimType:
         if self.value is None:
             return PrimType(dtype=self.dtype)
         else:

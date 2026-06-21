@@ -28,9 +28,8 @@ namespace distributed {
 
 Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
-  TensorType x1_ty, x2_ty;
-  x1_ty = input_dtensor_tys[0]->tensor_ty;
-  x2_ty = input_dtensor_tys[1]->tensor_ty;
+  TensorType x1_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
   const auto* attrs = call->attrs.as<MatmulAttrs>();
   DataType out_dtype = attrs->out_dtype.is_void()

@@ -27,6 +27,9 @@
 
 #include <tvm/relax/distributed/global_info.h>
 #include <tvm/relax/type.h>
+
+#include <utility>
+
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -113,8 +116,16 @@ class Placement : public ffi::ObjectRef {
 /*!
  * \brief Type of DTensor (Distributed Tensor).
  */
-class DTensorTypeNode : public DependentTypeNode {
+class DTensorTypeNode : public TypeNode {
  public:
+  explicit DTensorTypeNode(ffi::UnsafeInit)
+      : tensor_ty(ffi::UnsafeInit{}), device_mesh(), placement() {}
+
+  DTensorTypeNode(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement)
+      : tensor_ty(std::move(tensor_ty)),
+        device_mesh(std::move(device_mesh)),
+        placement(std::move(placement)) {}
+
   /*!
    * \brief The tensor type carried by the DTensor type.
    */
@@ -135,7 +146,7 @@ class DTensorTypeNode : public DependentTypeNode {
         .def_ro("placement", &DTensorTypeNode::placement)
         .def_ro("tensor_ty", &DTensorTypeNode::tensor_ty);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorType", DTensorTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorType", DTensorTypeNode, TypeNode);
 };
 
 /*!
@@ -154,7 +165,7 @@ class DTensorType : public Type {
   TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
                       Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorType, Type, DTensorTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DTensorType, Type, DTensorTypeNode);
 };
 
 }  // namespace distributed

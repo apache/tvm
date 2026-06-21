@@ -238,7 +238,7 @@ class DTypeDecisionCollector : public ExprVisitor {
       this->VisitBindingBlock(*it);
     }
 
-    if (auto* ty = op->ty.as<DependentTypeNode>()) {
+    if (auto* ty = op->ty.as<TypeNode>()) {
       this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }
@@ -257,7 +257,7 @@ class DTypeDecisionCollector : public ExprVisitor {
     this->VisitExpr(op->false_branch);
     this->VisitExpr(op->cond);
 
-    if (auto* ty = op->ty.as<DependentTypeNode>()) {
+    if (auto* ty = op->ty.as<TypeNode>()) {
       this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }

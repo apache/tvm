@@ -92,7 +92,7 @@ inline TensorType GetUnaryInputTensorType(const Call& call, const BlockBuilder& 
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param tup The input tuple.
- * \return The tensor struct infos of tuple input.
+ * \return The tensor types of tuple input.
  * \throw Throw exception if input expression is not a tuple.
  */
 ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder& ctx,
@@ -129,12 +129,12 @@ std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op, const B
 }  // namespace detail
 
 /*!
- * \brief Get all arg struct infos as expected types
+ * \brief Get all argument types as expected types.
  *
  * \tparam ArgTypes The expected types of arguments, in the order they appear.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \return The tensor struct infos of tuple input.
+ * \return The argument types.
  * \throw Throw exception if input expression is not a tuple.
  */
 template <typename... ArgTypes>

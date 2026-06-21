@@ -95,7 +95,7 @@ class PrimType : public Type {
    */
   TVM_DLL explicit PrimType(runtime::DataType dtype, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimType, Type, PrimTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimType, Type, PrimTypeNode);
 };
 
 /*!
@@ -141,7 +141,7 @@ class PointerType : public Type {
    */
   TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PointerType, Type, PointerTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
 };
 
 /*!
@@ -181,7 +181,7 @@ class TupleType : public Type {
    */
   TVM_DLL TupleType static Empty();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleType, Type, TupleTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
 };
 
 /*!
@@ -237,7 +237,7 @@ class FuncType : public Type {
    */
   TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FuncType, Type, FuncTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };
 
 /*!
@@ -261,16 +261,7 @@ class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());
 
-  explicit TensorMapType(::tvm::ffi::ObjectPtr<TensorMapTypeNode> n) : Type(n) {}
-  TensorMapType(const TensorMapType&) = default;
-  TensorMapType(TensorMapType&&) = default;
-  TensorMapType& operator=(const TensorMapType&) = default;
-  TensorMapType& operator=(TensorMapType&&) = default;
-  const TensorMapTypeNode* operator->() const {
-    return static_cast<const TensorMapTypeNode*>(data_.get());
-  }
-  const TensorMapTypeNode* get() const { return operator->(); }
-  using ContainerType = TensorMapTypeNode;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };
 
 }  // namespace tvm

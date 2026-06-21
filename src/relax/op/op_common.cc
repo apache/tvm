@@ -67,10 +67,7 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
         << "Operator " << op << " requires argument " << i_arg << " (" << op->arguments[i_arg]->name
         << ") to be a tensor.  "
         << "However, the argument " << arg << " is instead of type " << ty;
-    // Unreachable, but [[noreturn]] attribute on virtual function
-    // `ReportFatal` is insufficient to silence -Wreturn-type, as
-    // child class might not be [[noreturn]].
-    return TensorType();
+    TVM_FFI_UNREACHABLE();
   }
 }
 

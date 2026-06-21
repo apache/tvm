@@ -47,16 +47,16 @@ Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.nn.softmax").set_attr<FInferType>("dist.FInferType", InferDistTypeSoftmax);
 
 /* relax.nn.relu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(nn.relu, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.relu, /*require_float_dtype=*/false);
 
 /* relax.nn.gelu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(nn.gelu, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu, /*require_float_dtype=*/true);
 
 /* relax.nn.gelu_tanh */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(nn.gelu_tanh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu_tanh, /*require_float_dtype=*/true);
 
 /* relax.nn.silu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(nn.silu, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.silu, /*require_float_dtype=*/true);
 
 }  // namespace distributed
 }  // namespace relax

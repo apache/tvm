@@ -115,7 +115,7 @@ class BlockBuilder(Object):
         m = tirx.Var("m", "int32")
         n = tirx.Var("n", "int32")
         x = rx.Var("x", rx.TensorType([m, n], "float16"))
-        y = rx.Var("y", rx.TensorType([n], "float16")
+        y = rx.Var("y", rx.TensorType([n], "float16"))
         bb = rx.BlockBuilder()
         with bb.function([x, y], "func"):
             with bb.dataflow() as df:

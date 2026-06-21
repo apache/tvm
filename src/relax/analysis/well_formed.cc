@@ -632,9 +632,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       return;
     }
 
-    if (auto* ty = op->ty.as<DependentTypeNode>()) {
-      this->VisitType(ffi::GetRef<Type>(ty));
-    } else if (auto* ty = op->ty.as<TupleTypeNode>()) {
+    if (auto* ty = op->ty.as<TypeNode>()) {
       this->VisitType(ffi::GetRef<Type>(ty));
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))

@@ -330,7 +330,7 @@ TVM_DLL PrimExpr TypeBaseCheckPrecondition(const Type& base, const Type& derived
  */
 TVM_DLL Type TypeLCA(const Type& lhs, const Type& rhs);
 /*!
- * \brief Unify two struct infos using a caller-provided analyzer.
+ * \brief Unify two types using a caller-provided analyzer.
  * \param lhs The left operand.
  * \param rhs The right operand.
  * \param ana Context analyzer to prove symbolic expression equality.

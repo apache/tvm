@@ -91,7 +91,7 @@ class PrinterConfigNode : public ffi::Object {
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
    *   "tirx.prefix"              — the TIR prefix (default "T")
    *   "relax.prefix"             — the Relax prefix (default "R")
-   *   "relax.show_all_ty" — whether to show all struct info (default true)
+   *   "relax.show_all_ty" — whether to show all Relax type annotations (default true)
    *
    * Use GetExtraConfig<T>(key, fallback) to read values with a typed fallback.
    */

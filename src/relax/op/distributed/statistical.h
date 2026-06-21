@@ -33,8 +33,8 @@ namespace distributed {
 
 Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx);
 
-#define RELAX_REGISTER_STATISTICAL_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                               \
+#define RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(OpName) \
+  TVM_REGISTER_OP("relax." #OpName)                        \
       .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical)
 
 }  // namespace distributed

@@ -68,16 +68,16 @@ class PackedFuncType : public Type {
 };
 
 /*!
- * \brief Base type of all structure information.
+ * \brief Base type of all Relax type information.
  *
- * Type stores possible structure information deduced during compile-time.
+ * Type stores possible type information deduced during compile-time.
  * It encapsulates both static type and runtime information such as shape.
  *
  * Type of each non-primitive Expr can be deduced during compilation in a
  * "best-effort" manner.
  *
  * When ty appears in function parameter and return signatures, it
- * implies a runtime check that matches the structure information with the value.
+ * implies a runtime check that matches the type information with the value.
  *
  * When it appears in Expr, it follows "assume-semantics", which means the
  * compiler will take the deduced information as it is and only do best effort
@@ -91,29 +91,16 @@ class PackedFuncType : public Type {
  * normalized through NormalizeArg.  This invariant is checked in constructors
  * and simplifies assumptions during type deduction.
  */
-class DependentTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DependentTypeNode>();
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 6;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.DependentType", DependentTypeNode, TypeNode);
-};
-
 /*!
  * \brief Opaque object.
  */
-class ObjectTypeNode : public DependentTypeNode {
+class ObjectTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ObjectTypeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, TypeNode);
 };
 
 /*!
@@ -130,7 +117,7 @@ class ObjectType : public Type {
 /*!
  * \brief Primitive value.
  */
-class PrimTypeNode : public DependentTypeNode {
+class PrimTypeNode : public TypeNode {
  public:
   /*! \brief Underlying primitive value, if known */
   ffi::Optional<PrimExpr> value;
@@ -144,7 +131,7 @@ class PrimTypeNode : public DependentTypeNode {
         .def_ro("value", &PrimTypeNode::value)
         .def_ro("dtype", &PrimTypeNode::dtype);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimType", PrimTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimType", PrimTypeNode, TypeNode);
 };
 
 /*!
@@ -165,7 +152,7 @@ class PrimType : public Type {
 /*!
  * \brief Type of shape value.
  */
-class ShapeTypeNode : public DependentTypeNode {
+class ShapeTypeNode : public TypeNode {
  public:
   /*! \brief optionally stores the symbolic value patterns of the shape */
   ffi::Optional<ffi::Array<PrimExpr>> values;
@@ -184,7 +171,7 @@ class ShapeTypeNode : public DependentTypeNode {
         .def_ro("values", &ShapeTypeNode::values)
         .def_ro("ndim", &ShapeTypeNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ShapeType", ShapeTypeNode, TypeNode);
 };
 
 /*!
@@ -212,7 +199,7 @@ class ShapeType : public Type {
 /*!
  * \brief Type of Tensor.
  */
-class TensorTypeNode : public DependentTypeNode {
+class TensorTypeNode : public TypeNode {
  public:
   /*!
    * \brief optionally store the shape expression of the tensor.
@@ -252,7 +239,7 @@ class TensorTypeNode : public DependentTypeNode {
         .def_ro("vdevice", &TensorTypeNode::vdevice)
         .def_ro("ndim", &TensorTypeNode::ndim);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorType", TensorTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TensorType", TensorTypeNode, TypeNode);
 };
 
 /*!
@@ -261,6 +248,11 @@ class TensorTypeNode : public DependentTypeNode {
  */
 class TensorType : public Type {
  public:
+  explicit TensorType(ffi::ObjectPtr<TensorTypeNode> data) : Type(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Construction with a known shape expression.
    * \param shape The shape of the tensor.
@@ -283,7 +275,7 @@ class TensorType : public Type {
   TVM_DLL TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
                      Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorType, Type, TensorTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 };
 
 /*!
@@ -295,12 +287,12 @@ class TensorType : public Type {
 using TypeDeriveFunc = TypedEnvFunc<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
- * \brief Structure information about function.
+ * \brief Function type information.
  *
  * This data structure contains enough information for us to do best-effort
- * structure information deduction.
+ * type deduction.
  */
-class FuncTypeNode : public DependentTypeNode {
+class FuncTypeNode : public TypeNode {
  public:
   /*!
    * \brief The parameter type of the function.
@@ -339,7 +331,7 @@ class FuncTypeNode : public DependentTypeNode {
         .def_ro("derive_func", &FuncTypeNode::derive_func)
         .def_ro("purity", &FuncTypeNode::purity);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncType", FuncTypeNode, DependentTypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FuncType", FuncTypeNode, TypeNode);
 };
 
 /*!

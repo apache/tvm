@@ -127,10 +127,8 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
     TVM_FFI_CHECK_LT(spec->axis, tensor_ty->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";
   }
-  ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>();
-  n->device_mesh = std::move(device_mesh);
-  n->placement = std::move(placement);
-  n->tensor_ty = std::move(tensor_ty);
+  ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>(
+      std::move(tensor_ty), std::move(device_mesh), std::move(placement));
   n->span = span;
   data_ = std::move(n);
 }

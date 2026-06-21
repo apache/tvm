@@ -118,7 +118,7 @@ Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
     }
   }
   Expr target_shape = call->args[1];
-  TensorType output_tensor_ty;
+  Type output_tensor_ty;
   // If shape values are defined, use them
   if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.defined()) {
     output_tensor_ty = TensorType(ShapeExpr(new_shape_ty->values.value()), data_ty->dtype);

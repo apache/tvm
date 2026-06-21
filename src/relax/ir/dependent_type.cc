@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/ir/dependent_type.cc
- * \brief Relax dependent type nodes.
+ * \brief Relax type nodes.
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -31,7 +31,6 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  DependentTypeNode::RegisterReflection();
   ObjectTypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   ShapeTypeNode::RegisterReflection();
