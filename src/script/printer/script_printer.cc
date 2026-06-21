@@ -123,8 +123,8 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     }
   }
   // Boolean dialect keys.
-  if (auto v = config_dict.Get("relax.show_all_struct_info")) {
-    n->extra_config.Set(ffi::String("relax.show_all_struct_info"), v.value());
+  if (auto v = config_dict.Get("relax.show_all_ty")) {
+    n->extra_config.Set(ffi::String("relax.show_all_ty"), v.value());
   }
   if (auto v = config_dict.Get("extra_config")) {
     auto extra = Downcast<ffi::Map<ffi::String, ffi::Any>>(v.value());

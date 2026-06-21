@@ -332,11 +332,11 @@ def test_specialize_buffer_var_to_expr():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialization_updates_struct_info():
-    """Update struct info in specialization
+def test_specialization_updates_ty():
+    """Update type in specialization
 
-    A PrimFunc may have a `relax.StructInfo`.  If that PrimFunc is
-    specialized, the struct info should be updated.
+    A PrimFunc may have a `relax.Type`.  If that PrimFunc is
+    specialized, the type should be updated.
     """
 
     @T.prim_func(private=True, s_tir=True)
@@ -347,20 +347,18 @@ def test_specialization_updates_struct_info():
     def expected() -> T.int32:
         T.ret(50)
 
-    sinfo_before = tvm.relax.FuncStructInfo(
-        [tvm.relax.PrimStructInfo("int32")], tvm.relax.PrimStructInfo("int32")
-    )
-    tvm.ir.assert_structural_equal(before.struct_info, sinfo_before)
+    ty_before = tvm.relax.FuncType([tvm.relax.PrimType("int32")], tvm.relax.PrimType("int32"))
+    tvm.ir.assert_structural_equal(before.ty, ty_before)
 
-    sinfo_expected = tvm.relax.FuncStructInfo([], tvm.relax.PrimStructInfo("int32"))
-    tvm.ir.assert_structural_equal(expected.struct_info, sinfo_expected)
+    ty_expected = tvm.relax.FuncType([], tvm.relax.PrimType("int32"))
+    tvm.ir.assert_structural_equal(expected.ty, ty_expected)
 
     n = before.params[0]
     param_map = {n: 5}
     after = before.specialize(param_map)
 
     tvm.ir.assert_structural_equal(after, expected)
-    tvm.ir.assert_structural_equal(after.struct_info, sinfo_expected)
+    tvm.ir.assert_structural_equal(after.ty, ty_expected)
 
 
 if __name__ == "__main__":

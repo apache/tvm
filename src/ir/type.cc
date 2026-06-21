@@ -92,7 +92,8 @@ TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.TupleType", [](ffi::Array<Type> fields) { return TupleType(fields); })
+      .def("ir.TupleType",
+           [](ffi::Array<Type> fields, Span span) { return TupleType(fields, span); })
       .def("ir.TensorMapType", [](Span span) { return TensorMapType(span); });
 }
 
