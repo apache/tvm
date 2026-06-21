@@ -33,6 +33,9 @@ def test_op_correctness():
     assert relax.op.image.resize2d(x, (28, 28)).op == Op.get("relax.image.resize2d")
     theta = relax.Var("theta", R.Tensor((2, 2, 3), "float32"))
     assert relax.op.image.affine_grid(theta, (16, 16)).op == Op.get("relax.image.affine_grid")
+    affine_grid = relax.op.image.affine_grid(theta, (16, 16), align_corners=False)
+    assert affine_grid.op == Op.get("relax.image.affine_grid")
+    assert not affine_grid.attrs.align_corners
     y = relax.Var("y", R.Tensor((2, 3, 8, 16, 32), "float32"))
     assert relax.op.image.resize3d(y, (4, 8, 12)).op == Op.get("relax.image.resize3d")
 
@@ -394,6 +397,11 @@ def test_affine_grid_infer_struct_info():
     )
     _check_inference(
         bb,
+        relax.op.image.affine_grid(x0, size=(16, 20), align_corners=False),
+        relax.TensorStructInfo((2, 2, 16, 20), "float32"),
+    )
+    _check_inference(
+        bb,
         relax.op.image.affine_grid(x2, size=(16, 16)),
         relax.TensorStructInfo(dtype="float32", ndim=4),
     )
@@ -464,14 +472,15 @@ def test_affine_grid_wrong_size_ndim():
         (4, 32, 32),
     ],
 )
-def test_affine_grid_e2e(batch, target_h, target_w):
+@pytest.mark.parametrize("align_corners", [True, False])
+def test_affine_grid_e2e(batch, target_h, target_w, align_corners):
     """End-to-end numerical correctness test: build, run, compare with numpy reference."""
 
     @tvm.script.ir_module
     class AffineGridModule:
         @R.function
         def main(theta: R.Tensor(("batch", 2, 3), "float32")) -> R.Tensor("float32", ndim=4):
-            gv = R.image.affine_grid(theta, size=(target_h, target_w))
+            gv = R.image.affine_grid(theta, size=(target_h, target_w), align_corners=align_corners)
             return gv
 
     target = "llvm"
@@ -485,7 +494,9 @@ def test_affine_grid_e2e(batch, target_h, target_w):
     out_nd = vm["main"](theta_nd)
     out_np = out_nd.numpy()
 
-    ref_np = tvm.topi.testing.affine_grid_python(theta_np, (target_h, target_w))
+    ref_np = tvm.topi.testing.affine_grid_python(
+        theta_np, (target_h, target_w), align_corners=align_corners
+    )
 
     tvm.testing.assert_allclose(out_np, ref_np, rtol=1e-5, atol=1e-5)
 

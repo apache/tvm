@@ -171,6 +171,11 @@ class Resize2DAttrs(Attrs):
     """Attributes used in image resize2d operator"""
 
 
+@tvm_ffi.register_object("relax.attrs.AffineGridAttrs")
+class AffineGridAttrs(Attrs):
+    """Attributes used in image affine_grid operator"""
+
+
 @tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
 class ArgmaxArgminAttrs(Attrs):
     """Attributes for argmax/argmin operator"""

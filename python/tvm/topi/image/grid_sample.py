@@ -20,7 +20,7 @@
 from tvm import te, tirx
 
 
-def affine_grid(data, target_shape):
+def affine_grid(data, target_shape, align_corners=True):
     """affine_grid operator that generates 2D sampling grid.
 
     This operation is described in https://arxiv.org/pdf/1506.02025.pdf. It generates a uniform
@@ -35,6 +35,10 @@ def affine_grid(data, target_shape):
     target_shape: list/tuple of two int
         Specifies the output shape (H, W).
 
+    align_corners : bool
+        If true, -1 and 1 refer to the centers of the corner output pixels.
+        If false, -1 and 1 refer to the outer corners of the output image.
+
     Returns
     -------
     Output : tvm.Tensor
@@ -47,13 +51,20 @@ def affine_grid(data, target_shape):
     )
 
     dtype = data.dtype
-    y_step = tirx.const((2.0 - 1e-7) / (target_shape[0] - 1), dtype=dtype)
-    x_step = tirx.const((2.0 - 1e-7) / (target_shape[1] - 1), dtype=dtype)
-    start = tirx.const(-1.0, dtype=dtype)
+    if align_corners:
+        y_step = tirx.const((2.0 - 1e-7) / (target_shape[0] - 1), dtype=dtype)
+        x_step = tirx.const((2.0 - 1e-7) / (target_shape[1] - 1), dtype=dtype)
+        y_start = tirx.const(-1.0, dtype=dtype)
+        x_start = tirx.const(-1.0, dtype=dtype)
+    else:
+        y_step = tirx.const(2.0 / target_shape[0], dtype=dtype)
+        x_step = tirx.const(2.0 / target_shape[1], dtype=dtype)
+        y_start = tirx.const((1.0 / target_shape[0]) - 1.0, dtype=dtype)
+        x_start = tirx.const((1.0 / target_shape[1]) - 1.0, dtype=dtype)
 
     def _compute(n, dim, i, j):
-        y = start + i * y_step
-        x = start + j * x_step
+        y = y_start + i * y_step
+        x = x_start + j * x_step
         return data[n, dim, 0] * x + data[n, dim, 1] * y + data[n, dim, 2]
 
     oshape = (data.shape[0], len(target_shape), *target_shape)

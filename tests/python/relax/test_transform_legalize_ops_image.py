@@ -138,6 +138,95 @@ def test_image_affine_grid():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_image_affine_grid_no_attrs_backward_compatibility():
+    theta = relax.Var("theta", R.Tensor((2, 2, 3), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [theta]):
+        gv = bb.emit(
+            relax.Call(
+                tvm.ir.Op.get("relax.image.affine_grid"),
+                [theta, relax.ShapeExpr((16, 16))],
+                attrs=None,
+            )
+        )
+        bb.emit_func_output(gv)
+    AffineGrid = bb.get()
+
+    seen_call_with_no_attrs = False
+
+    def _visit(expr):
+        nonlocal seen_call_with_no_attrs
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            if expr.op.name == "relax.image.affine_grid" and expr.attrs is None:
+                seen_call_with_no_attrs = True
+
+    relax.analysis.post_order_visit(AffineGrid["main"].body, _visit)
+    assert seen_call_with_no_attrs
+
+    # fmt: off
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
+            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
+            with T.sblock("root"):
+                T.reads()
+                T.writes()
+                for n, dim, i, j in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                    with T.sblock("compute"):
+                        v_n, v_dim, v_i, v_j = T.axis.remap("SSSS", [n, dim, i, j])
+                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        T.writes(compute[v_n, v_dim, v_i, v_j])
+                        compute[v_n, v_dim, v_i, v_j] = theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_j) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(2)]
+    # fmt: on
+
+    mod = LegalizeOps()(AffineGrid)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_image_affine_grid_align_corners_false():
+    # fmt: off
+    @tvm.script.ir_module
+    class AffineGrid:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv: R.Tensor((2, 2, 16, 16), "float32") = R.image.affine_grid(theta, size=(16, 16), align_corners=False)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
+            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
+            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
+            with T.sblock("root"):
+                T.reads()
+                T.writes()
+                for n, dim, i, j in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                    with T.sblock("compute"):
+                        v_n, v_dim, v_i, v_j = T.axis.remap("SSSS", [n, dim, i, j])
+                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        T.writes(compute[v_n, v_dim, v_i, v_j])
+                        compute[v_n, v_dim, v_i, v_j] = theta[v_n, v_dim, T.int64(0)] * (T.float32(-0.9375) + T.Cast("float32", v_j) * T.float32(0.125)) + theta[v_n, v_dim, T.int64(1)] * (T.float32(-0.9375) + T.Cast("float32", v_i) * T.float32(0.125)) + theta[v_n, v_dim, T.int64(2)]
+    # fmt: on
+
+    mod = LegalizeOps()(AffineGrid)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_image_resize3d():
     # fmt: off
     @tvm.script.ir_module

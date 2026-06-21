@@ -62,10 +62,12 @@ def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
                 f"affine_grid legalization requires static target_shape, got symbolic value: {v}"
             )
     target_shape = [int(v) for v in call.args[1].values]
+    align_corners = call.attrs.align_corners if call.attrs is not None else True
     return bb.call_te(
         topi.image.affine_grid,
         call.args[0],
         target_shape=target_shape,
+        align_corners=align_corners,
     )
 
 

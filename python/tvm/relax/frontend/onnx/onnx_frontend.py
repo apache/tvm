@@ -3321,10 +3321,7 @@ class AffineGrid(OnnxOpConverter):
     def _impl_v20(cls, bb, inputs, attr, params):
         theta = inputs[0]  # [N, 2, 3] for 2D
         size = get_constant(inputs[1], params)  # [N, C, H, W] for 2D
-        align_corners = attr.get("align_corners", 0)
-
-        if align_corners != 1:
-            raise NotImplementedError("AffineGrid with align_corners=0 is not yet supported in TVM")
+        align_corners = bool(attr.get("align_corners", 0))
 
         # Extract size values
         if isinstance(size, relax.Constant):
@@ -3340,7 +3337,9 @@ class AffineGrid(OnnxOpConverter):
         target_h, target_w = size_vals[2], size_vals[3]
 
         # Relax affine_grid outputs [N, 2, H, W]
-        grid = bb.emit(relax.op.image.affine_grid(theta, (target_h, target_w)))
+        grid = bb.emit(
+            relax.op.image.affine_grid(theta, (target_h, target_w), align_corners=align_corners)
+        )
         # Permute to ONNX convention [N, H, W, 2]
         return bb.emit(relax.op.permute_dims(grid, axes=[0, 2, 3, 1]))
 
