@@ -108,6 +108,7 @@ from .manipulate import (
     permute_dims,
     repeat,
     reshape,
+    reverse_sequence,
     scatter_elements,
     scatter_nd,
     slice_scatter,

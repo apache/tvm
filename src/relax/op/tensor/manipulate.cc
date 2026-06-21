@@ -51,6 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RepeatAttrs::RegisterReflection();
   TileAttrs::RegisterReflection();
   FlipAttrs::RegisterReflection();
+  ReverseSequenceAttrs::RegisterReflection();
   GatherElementsAttrs::RegisterReflection();
   GatherNDAttrs::RegisterReflection();
   IndexPutAttrs::RegisterReflection();
@@ -2067,6 +2068,96 @@ TVM_REGISTER_OP("relax.flip")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferType>("FInferType", InferTypeFlip)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
+    .set_attr<bool>("FPurity", true);
+
+/* relax.reverse_sequence */
+
+Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t batch_axis) {
+  auto attrs = ffi::make_object<ReverseSequenceAttrs>();
+  attrs->seq_axis = seq_axis;
+  attrs->batch_axis = batch_axis;
+  static const Op& op = Op::Get("relax.reverse_sequence");
+  return Call(op, {std::move(data), std::move(seq_lengths)}, Attrs{attrs}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.reverse_sequence", reverse_sequence);
+}
+
+Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    TVM_FFI_VISIT_THROW(ValueError, call) << "ReverseSequence op should take 2 arguments";
+  }
+  TensorType data_ty = GetInputTensorType(call, 0, ctx);
+  TensorType seq_lengths_ty = GetInputTensorType(call, 1, ctx);
+
+  if (!seq_lengths_ty->IsUnknownNdim() && seq_lengths_ty->ndim != 1) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ReverseSequence requires seq_lengths to be 1-D. However, seq_lengths has ndim "
+        << seq_lengths_ty->ndim;
+  }
+  if (!seq_lengths_ty->dtype.is_void() && !seq_lengths_ty->dtype.is_int()) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ReverseSequence requires seq_lengths to have dtype int32 or int64. However, "
+           "seq_lengths has dtype "
+        << seq_lengths_ty->dtype;
+  }
+  if (seq_lengths_ty->dtype.is_int() && seq_lengths_ty->dtype.bits() != 32 &&
+      seq_lengths_ty->dtype.bits() != 64) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "ReverseSequence requires seq_lengths to have dtype int32 or int64. However, "
+           "seq_lengths has dtype "
+        << seq_lengths_ty->dtype;
+  }
+
+  const auto* attrs = call->attrs.as<ReverseSequenceAttrs>();
+  int64_t seq_axis = attrs->seq_axis;
+  int64_t batch_axis = attrs->batch_axis;
+  if (!data_ty->IsUnknownNdim()) {
+    int ndim = data_ty->ndim;
+    auto check_axis = [&](int64_t axis, ffi::String axis_name) {
+      if (axis < -ndim || axis >= ndim) {
+        TVM_FFI_VISIT_THROW(ValueError, call)
+            << "ReverseSequence requires " << axis_name
+            << " to belong to range [-ndim, ndim). However, the axis is " << axis
+            << ", while ndim is " << ndim;
+      }
+    };
+    check_axis(seq_axis, "seq_axis");
+    check_axis(batch_axis, "batch_axis");
+
+    if (batch_axis < 0) {
+      batch_axis += ndim;
+    }
+
+    if (data_ty->shape.defined() && seq_lengths_ty->shape.defined()) {
+      const auto* data_shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
+      const auto* seq_lengths_shape_ty = GetTypeAs<ShapeTypeNode>(seq_lengths_ty->shape.value());
+      if (data_shape_ty != nullptr && seq_lengths_shape_ty != nullptr &&
+          data_shape_ty->values.defined() && seq_lengths_shape_ty->values.defined()) {
+        PrimExpr batch_extent = data_shape_ty->values.value()[batch_axis];
+        PrimExpr seq_lengths_extent = seq_lengths_shape_ty->values.value()[0];
+        if (ctx->GetAnalyzer()->CanProve(seq_lengths_extent != batch_extent)) {
+          TVM_FFI_VISIT_THROW(ValueError, call)
+              << "ReverseSequence requires seq_lengths.shape[0] to equal the batch axis extent. "
+                 "However, seq_lengths.shape[0] is "
+              << seq_lengths_extent << ", while data.shape[" << batch_axis << "] is "
+              << batch_extent;
+        }
+      }
+    }
+  }
+
+  return data_ty;
+}
+
+TVM_REGISTER_OP("relax.reverse_sequence")
+    .set_attrs_type<ReverseSequenceAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("seq_lengths", "Tensor", "The sequence length tensor.")
+    .set_attr<FInferType>("FInferType", InferTypeReverseSequence)
     .set_attr<bool>("FPurity", true);
 
 /* relax.gather_elements */

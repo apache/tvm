@@ -5168,22 +5168,7 @@ class OperatorConverter:
         batch_axis = options.BatchDim()
         seq_axis = options.SeqDim()
 
-        if batch_axis != 0:
-            raise tvm.error.OpNotImplemented(
-                "TFLite REVERSE_SEQUENCE with non-zero batch_dim is not supported yet."
-            )
-
-        output_tensors = self.get_output_tensors(op)
-        assert len(output_tensors) == 1, "output tensors length should be 1"
-        output_tensor = output_tensors[0]
-        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
-        output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
-
-        return relax.op.call_dps_packed(
-            "topi.reverse_sequence",
-            (in_expr, length_expr, seq_axis),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
-        )
+        return relax.op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
 
     def convert_bitcast(self, op):
         """Convert TFLite BITCAST"""

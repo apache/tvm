@@ -46,6 +46,8 @@ def test_op_correctness():
     assert relax.op.cumsum(x, axis=1, dtype="int32").op == Op.get("relax.cumsum")
     assert relax.op.einsum(x, subscripts="ii").op == Op.get("relax.einsum")
     assert relax.op.flip(x, axis=1).op == Op.get("relax.flip")
+    seq_lengths = relax.Var("seq_lengths", R.Tensor((3,), "int32"))
+    assert relax.op.reverse_sequence(x, seq_lengths).op == Op.get("relax.reverse_sequence")
     assert relax.op.scatter_elements(x, x, x).op == Op.get("relax.scatter_elements")
     assert relax.op.scatter_nd(x, x, x).op == Op.get("relax.scatter_nd")
 
@@ -3017,6 +3019,76 @@ def test_flip_infer_ty_wrong_inputs():
 
     with pytest.raises(ValueError):
         bb.normalize(relax.op.flip(x0, axis=3))
+
+
+def test_reverse_sequence_infer_ty():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor("float16", ndim=3))
+    x2 = relax.Var("x", R.Tensor("int32"))
+    x3 = relax.Var("x", R.Tensor((2, 10, 4)))
+    x4 = relax.Var("x", R.Tensor(ndim=3))
+    x5 = relax.Var("x", R.Tensor((2, 10, 4), "float32", vdev0))
+    s0 = relax.Var("s", R.Tensor((2,), "int32"))
+    s1 = relax.Var("s", R.Tensor("int64", ndim=1))
+
+    _check_inference(
+        bb,
+        relax.op.reverse_sequence(x0, s0, seq_axis=1, batch_axis=0),
+        relax.TensorType((2, 10, 4), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.reverse_sequence(x5, s0, seq_axis=1, batch_axis=0),
+        relax.TensorType((2, 10, 4), "float32", vdev0),
+    )
+    _check_inference(
+        bb, relax.op.reverse_sequence(x1, s1, seq_axis=0, batch_axis=1), R.Tensor("float16", ndim=3)
+    )
+    _check_inference(bb, relax.op.reverse_sequence(x2, s1), R.Tensor("int32"))
+    _check_inference(bb, relax.op.reverse_sequence(x3, s0), R.Tensor((2, 10, 4)))
+    _check_inference(bb, relax.op.reverse_sequence(x4, s1), R.Tensor(ndim=3))
+
+
+def test_reverse_sequence_infer_ty_shape_symbolic():
+    bb = relax.BlockBuilder()
+    a = tirx.Var("a", "int64")
+    b = tirx.Var("b", "int64")
+    x = relax.Var("x", R.Tensor((a, b, 4), "float32"))
+    seq_lengths = relax.Var("seq_lengths", R.Tensor((b,), "int64"))
+
+    _check_inference(
+        bb,
+        relax.op.reverse_sequence(x, seq_lengths, seq_axis=0, batch_axis=1),
+        relax.TensorType((a, b, 4), "float32"),
+    )
+
+
+def test_reverse_sequence_infer_ty_wrong_inputs():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
+    seq_lengths = relax.Var("seq_lengths", R.Tensor((2,), "int32"))
+    seq_lengths_2d = relax.Var("seq_lengths", R.Tensor((2, 1), "int32"))
+    seq_lengths_float = relax.Var("seq_lengths", R.Tensor((2,), "float32"))
+    seq_lengths_int16 = relax.Var("seq_lengths", R.Tensor((2,), "int16"))
+    seq_lengths_mismatch = relax.Var("seq_lengths", R.Tensor((3,), "int32"))
+    not_tensor = relax.Var("seq_lengths", relax.ObjectType())
+
+    with pytest.raises(TypeError):
+        bb.normalize(relax.op.reverse_sequence(x, not_tensor))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths_2d))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths_float))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths_int16))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths, seq_axis=3))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths, batch_axis=-4))
+    with pytest.raises(ValueError):
+        bb.normalize(relax.op.reverse_sequence(x, seq_lengths_mismatch))
 
 
 def test_gather_elements_infer_ty():

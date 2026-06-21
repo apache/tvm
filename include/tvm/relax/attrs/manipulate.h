@@ -195,6 +195,23 @@ struct FlipAttrs : public AttrsNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, AttrsNode);
 };  // struct FlipAttrs
 
+/*! \brief Attributes used in reverse_sequence operators */
+struct ReverseSequenceAttrs : public AttrsNode {
+  int64_t seq_axis;
+  int64_t batch_axis;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReverseSequenceAttrs>()
+        .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
+                "The axis along which to reverse variable length slices.")
+        .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis,
+                "The axis that indexes the batch.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ReverseSequenceAttrs", ReverseSequenceAttrs,
+                                    AttrsNode);
+};  // struct ReverseSequenceAttrs
+
 /*! \brief Attributes used in gather_elements operators */
 struct GatherElementsAttrs : public AttrsNode {
   int64_t axis;

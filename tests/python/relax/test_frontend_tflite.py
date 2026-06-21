@@ -1629,15 +1629,28 @@ def test_reverse_sequence():
         ) -> R.Tensor((2, 4, 3), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                gv: R.Tensor((2, 4, 3), dtype="float32") = R.call_dps_packed(
-                    "topi.reverse_sequence",
-                    (tvmgen_tensor_0, tvmgen_tensor_1, 1),
-                    out_sinfo=R.Tensor((2, 4, 3), dtype="float32"),
+                gv: R.Tensor((2, 4, 3), dtype="float32") = R.reverse_sequence(
+                    tvmgen_tensor_0, tvmgen_tensor_1, seq_axis=1, batch_axis=0
                 )
                 R.output(gv)
             return gv
 
     tvm.ir.assert_structural_equal(mod, Expected)
+    ir = mod.script()
+    assert "R.reverse_sequence" in ir
+    assert 'R.call_dps_packed("topi.reverse_sequence"' not in ir
+
+    data = np.arange(24, dtype="float32").reshape((2, 4, 3))
+    seq_lengths = np.array([1, 3], dtype="int32")
+    expected = data.copy()
+    expected[1, :3, :] = expected[1, :3, :][::-1]
+
+    ex = tvm.compile(mod, tvm.target.Target("c"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", data, seq_lengths)
+    vm.invoke_stateful("main")
+    output = vm.get_outputs("main")
+    np.testing.assert_allclose(output.numpy(), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_gather():
