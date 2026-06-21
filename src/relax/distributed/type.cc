@@ -120,9 +120,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // DTensor
 DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
                          Span span) {
+  TVM_FFI_CHECK(device_mesh.defined(), ValueError) << "device_mesh must be defined";
+  TVM_FFI_CHECK(placement.defined(), ValueError) << "placement must be defined";
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
       << "The device mesh and placement must have the same dimension size";
   for (auto spec : placement->dim_specs) {
+    TVM_FFI_CHECK(spec.defined(), ValueError) << "placement specs must be defined";
     if (spec->kind == PlacementSpecKind::kReplica) continue;
     TVM_FFI_CHECK_LT(spec->axis, tensor_ty->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";

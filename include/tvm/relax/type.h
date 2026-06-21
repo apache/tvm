@@ -227,8 +227,12 @@ class TensorTypeNode : public TypeNode {
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
-    ShapeType shape_ty = Downcast<ShapeType>(this->shape.value()->ty);
-    return shape_ty->values;
+    const Expr& shape_expr = this->shape.value();
+    if (!shape_expr->ty.defined()) return {};
+    if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
+      return shape_ty->values;
+    }
+    return {};
   }
 
   static void RegisterReflection() {
@@ -396,6 +400,9 @@ class FuncType : public Type {
  */
 template <typename T>
 inline ffi::Optional<T> MatchType(const Expr& expr) {
+  if (!expr.defined()) {
+    return std::nullopt;
+  }
   using TNode = typename T::ContainerType;
   if (const TNode* ptr = expr->ty.as<TNode>()) {
     return ffi::GetRef<T>(ptr);

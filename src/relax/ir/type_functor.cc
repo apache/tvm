@@ -84,13 +84,13 @@ Type TypeMutator::VisitType_(const PrimTypeNode* op) {
 }
 
 Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
-  ffi::Optional<ffi::Array<PrimExpr>> values;
-
-  if (op->values.defined()) {
-    // if no changes are made the original array will be returned.
-    values = op->values.value().Map(
-        [this](const PrimExpr& expr) { return this->VisitTypeExprField(expr); });
+  if (!op->values.defined()) {
+    return ffi::GetRef<Type>(op);
   }
+
+  // if no changes are made the original array will be returned.
+  ffi::Optional<ffi::Array<PrimExpr>> values = op->values.value().Map(
+      [this](const PrimExpr& expr) { return this->VisitTypeExprField(expr); });
 
   if (values.same_as(op->values)) {
     return ffi::GetRef<Type>(op);
@@ -100,12 +100,11 @@ Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
 }
 
 Type TypeMutator::VisitType_(const TensorTypeNode* op) {
-  ffi::Optional<Expr> shape;
-
-  if (op->shape.defined()) {
-    shape = this->VisitTypeExprField(op->shape.value());
+  if (!op->shape.defined()) {
+    return ffi::GetRef<Type>(op);
   }
 
+  ffi::Optional<Expr> shape = this->VisitTypeExprField(op->shape.value());
   VDevice vdev = op->vdevice.value_or(VDevice());
 
   if (shape.same_as(op->shape)) {
@@ -142,8 +141,12 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   if (params.same_as(op->params) && ret.same_as(op->ret)) {
     return ffi::GetRef<Type>(op);
   } else {
-    TVM_FFI_ICHECK(ret.defined()) << "FuncType that contains params must contain ret";
-    return FuncType(params.value(), ret, op->purity, op->span);
+    TVM_FFI_ICHECK(ret.defined()) << "FuncType must contain ret";
+    if (params.defined()) {
+      return FuncType(params.value(), ret, op->purity, op->span);
+    } else {
+      return FuncType::OpaqueFunc(ret, op->purity, op->span);
+    }
   }
 }
 

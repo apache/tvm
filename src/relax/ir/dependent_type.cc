@@ -93,7 +93,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) {
 
 ShapeType::ShapeType(int ndim, Span span) {
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
-  TVM_FFI_ICHECK_GE(ndim, -1) << "ndim of ShapeType must be >= -1, but got " << ndim;
+  TVM_FFI_ICHECK(ndim >= -1) << "ndim of ShapeType must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
@@ -116,9 +116,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TensorType::TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice, Span span) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   // assign ndim before move
+  TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   ffi::Optional<ShapeType> shape_ty = MatchType<ShapeType>(shape);
   TVM_FFI_ICHECK(shape_ty) << "We expect shape to contain pre-set shape type";
-  TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   TVM_FFI_ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorType";
   n->ndim = shape_ty.value()->ndim;
@@ -132,7 +132,7 @@ TensorType::TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevic
 
 TensorType::TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice, Span span) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
-  TVM_FFI_ICHECK_GE(ndim, -1) << "ndim of TensorType must be >= -1, but got " << ndim;
+  TVM_FFI_ICHECK(ndim >= -1) << "ndim of TensorType must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
   n->vdevice = vdevice;
