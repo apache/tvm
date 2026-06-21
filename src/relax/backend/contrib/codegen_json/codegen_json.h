@@ -27,7 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
 #include <cstdint>
@@ -265,7 +265,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
    *         will flatten it.
    */
   NodeEntries AddNode(JSONGraphObjectPtr node, const Expr& expr) {
-    auto struct_info = GetStructInfo(expr);
+    auto ty = GetType(expr);
     auto node_id = nodes_.size();
     nodes_.push_back(node);
     NodeEntries ret;
@@ -273,27 +273,26 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     TypeVector dtype;
 
     // Flatten tuple node.
-    if (const auto* tuple_sinfo = struct_info.as<TupleStructInfoNode>()) {
-      for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
-        const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
-        TVM_FFI_ICHECK(tensor_sinfo)
-            << "Expect TensorStructInfo, but received: ." << tuple_sinfo->fields[i]->GetTypeKey();
-        TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
-        ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
+    if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+      for (size_t i = 0; i < tuple_ty->fields.size(); ++i) {
+        const auto* tensor_ty = tuple_ty->fields[i].as<TensorTypeNode>();
+        TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: ."
+                                  << tuple_ty->fields[i]->GetTypeKey();
+        TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
+        ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_ty->shape.value());
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
-        dtype.emplace_back(DType2String(tensor_sinfo->dtype));
+        dtype.emplace_back(DType2String(tensor_ty->dtype));
       }
-      node->SetNumOutput(tuple_sinfo->fields.size());
+      node->SetNumOutput(tuple_ty->fields.size());
     } else {
-      const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK(tensor_sinfo)
-          << "Expect TensorStructInfo, but received: " << struct_info->GetTypeKey();
-      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
-      ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
+      const auto* tensor_ty = ty.as<TensorTypeNode>();
+      TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: " << ty->GetTypeKey();
+      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
+      ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_ty->shape.value());
 
       shape.emplace_back(GetIntShape(output_shape->values));
-      dtype.emplace_back(DType2String(tensor_sinfo->dtype));
+      dtype.emplace_back(DType2String(tensor_ty->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
     node->SetShape(shape);

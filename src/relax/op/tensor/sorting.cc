@@ -53,15 +53,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.sort", sort);
 }
 
-StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
-  return GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
+  return GetUnaryInputTensorType(call, ctx);
 }
 
 TVM_REGISTER_OP("relax.sort")
     .set_attrs_type<SortAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSort)
+    .set_attr<FInferType>("FInferType", InferTypeSort)
     .set_attr<bool>("FPurity", true);
 
 /* relax.argsort */
@@ -81,21 +81,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.argsort", argsort);
 }
 
-StructInfo InferStructInfoArgsort(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
-  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
-  if (data_sinfo->shape.defined()) {
-    return TensorStructInfo(data_sinfo->shape.value(), out_type, data_sinfo->vdevice);
+  DataType out_type = attrs->dtype.is_void() ? data_ty->dtype : attrs->dtype;
+  if (data_ty->shape.defined()) {
+    return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
-  return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice);
+  return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.argsort")
     .set_attrs_type<ArgsortAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgsort)
+    .set_attr<FInferType>("FInferType", InferTypeArgsort)
     .set_attr<bool>("FPurity", true);
 
 /* relax.topk */
@@ -117,12 +117,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.topk", topk);
 }
 
-StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();
-  DataType indices_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
-  int ndim = data_sinfo->ndim;
+  DataType indices_type = attrs->dtype.is_void() ? data_ty->dtype : attrs->dtype;
+  int ndim = data_ty->ndim;
   int k = attrs->k;
   ffi::String ret_type = attrs->ret_type;
   int axis = attrs->axis;
@@ -130,30 +130,27 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
     axis += ndim;
   }
 
-  std::vector<StructInfo> output_sinfos;
-  output_sinfos.reserve(2);
+  std::vector<Type> output_tys;
+  output_tys.reserve(2);
   if (data_shape == nullptr) {
-    output_sinfos.push_back(
-        TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice));
-    output_sinfos.push_back(TensorStructInfo(indices_type, data_sinfo->ndim, data_sinfo->vdevice));
+    output_tys.push_back(TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice));
+    output_tys.push_back(TensorType(indices_type, data_ty->ndim, data_ty->vdevice));
   } else {
     ffi::Array<PrimExpr> out_shape = data_shape->values;
     const auto* int_dim = out_shape[axis].as<IntImmNode>();
     if (k > 0 && (int_dim == nullptr || k < int_dim->value)) {
       out_shape.Set(axis, k);
     }
-    output_sinfos.push_back(
-        TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice));
-    output_sinfos.push_back(
-        TensorStructInfo(ShapeExpr(out_shape), indices_type, data_sinfo->vdevice));
+    output_tys.push_back(TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice));
+    output_tys.push_back(TensorType(ShapeExpr(out_shape), indices_type, data_ty->vdevice));
   }
 
   if (ret_type == "both") {
-    return TupleStructInfo(output_sinfos);
+    return TupleType(output_tys);
   } else if (ret_type == "values") {
-    return output_sinfos[0];
+    return output_tys[0];
   } else if (ret_type == "indices") {
-    return output_sinfos[1];
+    return output_tys[1];
   }
   TVM_FFI_THROW(InternalError) << "Unsupported ret type: " << ret_type;
   TVM_FFI_UNREACHABLE();
@@ -163,7 +160,7 @@ TVM_REGISTER_OP("relax.topk")
     .set_attrs_type<TopKAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTopK)
+    .set_attr<FInferType>("FInferType", InferTypeTopK)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

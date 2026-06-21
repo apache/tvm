@@ -22,19 +22,19 @@
 namespace tvm {
 namespace relax {
 
-NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
-  auto fmapleaf = [&](const StructInfo& sinfo) -> NType {
-    const auto* tensor = sinfo.as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
+NType NTypeFrom(const Type& ty, DataType dtype) {
+  auto fmapleaf = [&](const Type& ty) -> NType {
+    const auto* tensor = ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK(tensor) << "Expected TensorType, but got " << ty;
     if (dtype == DataType::Void())
       return NType(DLDataTypeToString(tensor->dtype));
     else
       return NType(DLDataTypeToString(dtype));
   };
-  return MapToNestedMsg<ffi::String>(sinfo, fmapleaf);
+  return MapToNestedMsg<ffi::String>(ty, fmapleaf);
 }
 
-NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetStructInfo(expr), dtype); }
+NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetType(expr), dtype); }
 
 NType NTypeMerge(const NType& a, const NType& b) {
   auto fcombine = [&](const ffi::String& a_str, const ffi::String& b_str) -> ffi::String {

@@ -1046,8 +1046,8 @@ def test_call_tir_with_float16_args():
         def main(A: R.Tensor([64], "float16")):
             cls = Before
             with R.dataflow():
-                B = R.call_tir(cls.tir_identity, [A], out_sinfo=R.Tensor([64], "float16"))
-                C = R.call_tir(cls.tir_identity, [B], out_sinfo=R.Tensor([64], "float16"))
+                B = R.call_tir(cls.tir_identity, [A], out_ty=R.Tensor([64], "float16"))
+                C = R.call_tir(cls.tir_identity, [B], out_ty=R.Tensor([64], "float16"))
                 R.output(C)
             return C
 

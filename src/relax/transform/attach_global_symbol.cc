@@ -25,8 +25,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -163,8 +163,8 @@ Pass AttachGlobalSymbol() {
         updates->Add(gvar, new_func);
         if (new_name.value() != gvar->name_hint) {
           GlobalVar new_gvar(new_name.value());
-          if (auto sinfo = gvar->struct_info_.as<StructInfo>()) {
-            UpdateStructInfo(new_gvar, sinfo.value());
+          if (auto ty = gvar->ty.as<Type>()) {
+            UpdateType(new_gvar, ty.value());
           }
 
           gvar_updates.Set(gvar, new_gvar);

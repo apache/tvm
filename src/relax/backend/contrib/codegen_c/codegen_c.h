@@ -333,9 +333,9 @@ class CodegenCBase {
    * \return The dtype string.
    */
   std::string GetDtypeString(const Var& var) {
-    auto tsinfo = var->struct_info_.as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK(tsinfo) << "Expect TensorStructInfoNode";
-    return GetDtypeString(tsinfo);
+    auto tensor_ty = var->ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK(tensor_ty) << "Expect TensorTypeNode";
+    return GetDtypeString(tensor_ty);
   }
 
   /*!
@@ -345,24 +345,24 @@ class CodegenCBase {
    *
    * \return The dtype string.
    */
-  std::string GetDtypeString(const TensorStructInfoNode* tsinfo) {
+  std::string GetDtypeString(const TensorTypeNode* tensor_ty) {
     std::string dtype;
-    if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 32)) {
+    if (runtime::TypeMatch(tensor_ty->dtype, kDLFloat, 32)) {
       dtype = "float";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 16)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLFloat, 16)) {
       dtype = "half";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLBfloat, 16)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLBfloat, 16)) {
       dtype = "bfloat";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 32)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLInt, 32)) {
       dtype = "int";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 64)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLInt, 64)) {
       dtype = "int64_t";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 8)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLInt, 8)) {
       dtype = "int8_t";
-    } else if (runtime::TypeMatch(tsinfo->dtype, kDLUInt, 8)) {
+    } else if (runtime::TypeMatch(tensor_ty->dtype, kDLUInt, 8)) {
       dtype = "uint8_t";
     } else {
-      TVM_FFI_THROW(InternalError) << "Unsupported dtype " << tsinfo->dtype;
+      TVM_FFI_THROW(InternalError) << "Unsupported dtype " << tensor_ty->dtype;
     }
 
     return dtype;

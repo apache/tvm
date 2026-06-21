@@ -125,7 +125,7 @@ void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode
     args = call->args;
   }
   for (const auto& arg : args) {
-    if (arg->struct_info_.as<TensorStructInfoNode>()) {
+    if (arg->ty.as<TensorTypeNode>()) {
       tensor_list.push_back(arg);
     }
   }
@@ -171,12 +171,12 @@ class AxisGroupGraphBuilder : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     axis_group_graph_->JoinAxis(Axis(val->tuple.get(), -1, val->index), {binding->var.get(), -1},
                                 distributed::AxisGroupGraph::EdgeType::kDescend);
-    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var);
-    if (!tensor_sinfo) {
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(binding->var);
+    if (!tensor_ty) {
       ExprVisitor::VisitBinding_(binding, val);
       return;
     }
-    int ndim = tensor_sinfo->ndim;
+    int ndim = tensor_ty->ndim;
     for (int i = 0; i < ndim; i++) {
       axis_group_graph_->JoinAxis(Axis(val->tuple.get(), i, val->index), {binding->var.get(), i},
                                   distributed::AxisGroupGraph::EdgeType::kDescend);
@@ -185,20 +185,20 @@ class AxisGroupGraphBuilder : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const VarNode* val) {
-    ffi::Array<TensorStructInfo> tensor_sinfos;
-    if (const auto* tensor_sinfo = binding->var->struct_info_.as<TensorStructInfoNode>()) {
-      tensor_sinfos.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-    } else if (const auto* tuple_sinfo = binding->var->struct_info_.as<TupleStructInfoNode>()) {
-      TVM_FFI_ICHECK(tuple_sinfo);
-      for (const auto& sinfo : tuple_sinfo->fields) {
-        tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
+    ffi::Array<TensorType> tensor_tys;
+    if (const auto* tensor_ty = binding->var->ty.as<TensorTypeNode>()) {
+      tensor_tys.push_back(ffi::GetRef<TensorType>(tensor_ty));
+    } else if (const auto* tuple_ty = binding->var->ty.as<TupleTypeNode>()) {
+      TVM_FFI_ICHECK(tuple_ty);
+      for (const auto& field_ty : tuple_ty->fields) {
+        tensor_tys.push_back(Downcast<TensorType>(field_ty));
       }
     } else {
       ExprVisitor::VisitBinding_(binding, val);
       return;
     }
-    for (int idx = 0; idx < static_cast<int>(tensor_sinfos.size()); idx++) {
-      int ndim = tensor_sinfos[idx]->ndim;
+    for (int idx = 0; idx < static_cast<int>(tensor_tys.size()); idx++) {
+      int ndim = tensor_tys[idx]->ndim;
       for (int i = -1; i < ndim; i++) {
         axis_group_graph_->JoinAxis({val, i, idx}, {binding->var.get(), i, idx},
                                     distributed::AxisGroupGraph::EdgeType::kDescend);
@@ -255,7 +255,7 @@ class ShardingConflictHandler : public ExprVisitor {
     ShardingConflictHandler handler(axis_group_graph);
     handler.VisitExpr(function);
     for (const Var& var : function->params) {
-      if (GetStructInfoAs<TensorStructInfoNode>(var)) {
+      if (GetTypeAs<TensorTypeNode>(var)) {
         handler.CheckTensorShardingCompatible(var);
       }
     }
@@ -267,11 +267,11 @@ class ShardingConflictHandler : public ExprVisitor {
       : axis_group_graph_(axis_group_graph) {}
 
   void CheckTensorShardingCompatible(Var var) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(var);
-    TVM_FFI_ICHECK(sinfo);
-    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(var);
+    TVM_FFI_ICHECK(tensor_ty);
+    const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape);
-    int ndim = sinfo->ndim;
+    int ndim = tensor_ty->ndim;
     std::unordered_set<int> sharded_mesh_dim;
     ffi::Optional<DeviceMesh> device_mesh;
     for (int i = -1; i < ndim; i++) {
@@ -308,8 +308,8 @@ class ShardingConflictHandler : public ExprVisitor {
   }
 
   void CheckConstantNoSharding(Constant constant) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(constant);
-    for (int i = 0; i < sinfo->ndim; i++) {
+    const auto* tensor_ty = GetTypeAs<TensorTypeNode>(constant);
+    for (int i = 0; i < tensor_ty->ndim; i++) {
       AxisShardingSpec sharding_spec;
       int has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
@@ -330,7 +330,7 @@ class ShardingConflictHandler : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
-    if (GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
+    if (GetTypeAs<TensorTypeNode>(binding->var)) {
       CheckTensorShardingCompatible(binding->var);
     }
     ExprVisitor::VisitBinding_(binding);
@@ -362,9 +362,8 @@ class DistributedIRBuilder : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  DTensorStructInfo ConvertToDTensorStructInfo(TensorStructInfo sinfo, Expr expr,
-                                               int tuple_idx = 0) {
-    int ndim = sinfo->ndim;
+  DTensorType ConvertToDTensorType(TensorType tensor_ty, Expr expr, int tuple_idx = 0) {
+    int ndim = tensor_ty->ndim;
     DeviceMesh device_mesh =
         std::get<0>(axis_group_graph_.GetAxisShardingSpec({expr.get(), -1, tuple_idx})).first;
     TVM_FFI_ICHECK(device_mesh.defined())
@@ -381,32 +380,31 @@ class DistributedIRBuilder : public ExprMutator {
         placement_specs.Set(sharding_dim, PlacementSpec::Sharding(i));
       }
     }
-    return DTensorStructInfo(sinfo, device_mesh, Placement(placement_specs));
+    return DTensorType(tensor_ty, device_mesh, Placement(placement_specs));
   }
 
   Expr RewriteInputTensorAndConstant(Expr tensor) {
-    StructInfo new_sinfo;
-    if (tensor->struct_info_.as<TensorStructInfoNode>()) {
-      new_sinfo =
-          ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tensor->struct_info_), tensor);
-    } else if (const auto* tuple = tensor->struct_info_.as<TupleStructInfoNode>()) {
-      ffi::Array<StructInfo> tuple_sinfo_fields;
+    Type new_ty;
+    if (tensor->ty.as<TensorTypeNode>()) {
+      new_ty = ConvertToDTensorType(Downcast<TensorType>(tensor->ty), tensor);
+    } else if (const auto* tuple = tensor->ty.as<TupleTypeNode>()) {
+      ffi::Array<Type> tuple_ty_fields;
       for (int i = 0; i < static_cast<int>(tuple->fields.size()); i++) {
-        if (tuple->fields[i].as<TensorStructInfoNode>()) {
-          tuple_sinfo_fields.push_back(
-              ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tuple->fields[i]), tensor, i));
+        if (tuple->fields[i].as<TensorTypeNode>()) {
+          tuple_ty_fields.push_back(
+              ConvertToDTensorType(Downcast<TensorType>(tuple->fields[i]), tensor, i));
         } else {
-          tuple_sinfo_fields.push_back(tuple->fields[i]);
+          tuple_ty_fields.push_back(tuple->fields[i]);
         }
       }
-      new_sinfo = TupleStructInfo(tuple_sinfo_fields);
+      new_ty = TupleType(tuple_ty_fields);
     }
 
     if (const auto* var = tensor.as<VarNode>()) {
-      Var new_param(var->name_hint(), new_sinfo);
+      Var new_param(var->name_hint(), new_ty);
       return new_param;
     } else if (const auto* constant = tensor.as<ConstantNode>()) {
-      Constant new_constant(constant->data, new_sinfo);
+      Constant new_constant(constant->data, new_ty);
       return new_constant;
     } else {
       TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or Constant";
@@ -424,7 +422,7 @@ class DistributedIRBuilder : public ExprMutator {
     // Step 4. Rewrite Function
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
-      if (GetStructInfoAs<TensorStructInfoNode>(var) || GetStructInfoAs<TupleStructInfoNode>(var)) {
+      if (GetTypeAs<TensorTypeNode>(var) || GetTypeAs<TupleTypeNode>(var)) {
         Var new_param = Downcast<Var>(RewriteInputTensorAndConstant(var));
         input_tensor_remap_.Set(var, new_param);
         new_params.push_back(new_param);
@@ -455,10 +453,10 @@ class DistributedIRBuilder : public ExprMutator {
 
     ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>(*new_call.get());
     if (new_call->op.same_as(call_tir_op)) {
-      // do not infer output sinfo when arg size is 0
+      // do not infer output type when arg size is 0
       if (!args.empty()) {
         n->args.Set(1, Tuple(args));
-        n->sinfo_args = {InferShardingSpec(Call(n), this->builder_, new_call->sinfo_args[0], f)};
+        n->ty_args = {InferShardingSpec(Call(n), this->builder_, new_call->ty_args[0], f)};
       }
     } else {
       n->args = args;
@@ -487,64 +485,64 @@ class DistributedIRBuilder : public ExprMutator {
     return redistribute(expr, device_mesh, placement);
   }
 
-  Call RewriteOutSinfo(Call call, DeviceMesh device_mesh, ffi::Array<Placement> placements) {
-    // in cases when infer fails (like arg size is 0), we use propagated sinfo for output
+  Call RewriteOutType(Call call, DeviceMesh device_mesh, ffi::Array<Placement> placements) {
+    // In cases when inference fails (for example, arg size is 0), use the propagated output type.
     Call new_call = call;
     static Op call_tir_op = Op::Get("relax.call_tir");
     if (const auto* extern_func = call->op.as<ExternFuncNode>()) {
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
         ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
-        StructInfo new_dtensor_sinfo = DTensorStructInfo(
-            Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0]);
-        new_call_node->sinfo_args = {new_dtensor_sinfo};
+        Type new_dtensor_ty =
+            DTensorType(Downcast<TensorType>(call->ty_args[0]), device_mesh, placements[0]);
+        new_call_node->ty_args = {new_dtensor_ty};
         new_call = Call(new_call_node);
-        new_call->struct_info_ = new_dtensor_sinfo;
+        new_call->ty = new_dtensor_ty;
       }
     } else if (call->op.same_as(call_tir_op)) {
-      TVM_FFI_ICHECK(call->sinfo_args.size() == 1);
-      if (!SinfoCompatibleWithDistIR(call->sinfo_args)) {
+      TVM_FFI_ICHECK(call->ty_args.size() == 1);
+      if (!TypeCompatibleWithDistIR(call->ty_args)) {
         ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         if (placements.size() == 1) {
-          new_call_node->sinfo_args = {DTensorStructInfo(
-              Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0])};
+          new_call_node->ty_args = {
+              DTensorType(Downcast<TensorType>(call->ty_args[0]), device_mesh, placements[0])};
         } else {
-          const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>();
-          TVM_FFI_ICHECK(placements.size() == tuple_sinfo->fields.size());
-          ffi::Array<StructInfo> new_tuple_sinfo_fields;
+          const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>();
+          TVM_FFI_ICHECK(placements.size() == tuple_ty->fields.size());
+          ffi::Array<Type> new_tuple_ty_fields;
           for (int i = 0; i < static_cast<int>(placements.size()); i++) {
-            new_tuple_sinfo_fields.push_back(DTensorStructInfo(
-                Downcast<TensorStructInfo>(tuple_sinfo->fields[i]), device_mesh, placements[i]));
+            new_tuple_ty_fields.push_back(
+                DTensorType(Downcast<TensorType>(tuple_ty->fields[i]), device_mesh, placements[i]));
           }
-          new_call_node->sinfo_args = {TupleStructInfo(new_tuple_sinfo_fields)};
+          new_call_node->ty_args = {TupleType(new_tuple_ty_fields)};
         }
         new_call = Call(new_call_node);
-        new_call->struct_info_ = new_call_node->sinfo_args[0];
+        new_call->ty = new_call_node->ty_args[0];
       }
     }
     return new_call;
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    ffi::Array<TensorStructInfo> orig_output_tensor_sinfos;
-    if (const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
-      orig_output_tensor_sinfos.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-    } else if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(binding->var)) {
-      for (const auto& sinfo : tuple_sinfo->fields) {
-        orig_output_tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
+    ffi::Array<TensorType> orig_output_tys;
+    if (const auto* tensor_ty = GetTypeAs<TensorTypeNode>(binding->var)) {
+      orig_output_tys.push_back(ffi::GetRef<TensorType>(tensor_ty));
+    } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(binding->var)) {
+      for (const auto& field_ty : tuple_ty->fields) {
+        orig_output_tys.push_back(Downcast<TensorType>(field_ty));
       }
     } else {
       ExprMutator::VisitBinding_(binding, val);
       return;
     }
-    // get annotated sinfo from axis group graph
+    // Get the annotated output type from the axis group graph.
     DeviceMesh device_mesh =
         std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
     TVM_FFI_ICHECK(device_mesh.defined());
     ffi::Array<Placement> placements;  // every tuple element has a placement
-    for (int idx = 0; idx < static_cast<int>(orig_output_tensor_sinfos.size()); idx++) {
+    for (int idx = 0; idx < static_cast<int>(orig_output_tys.size()); idx++) {
       ffi::Array<PlacementSpec> placement_specs(
           std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
-      for (int i = 0; i < orig_output_tensor_sinfos[idx]->ndim; i++) {
+      for (int i = 0; i < orig_output_tys[idx]->ndim; i++) {
         AxisShardingSpec sharding_spec;
         bool has_sharding_spec;
         std::tie(sharding_spec, has_sharding_spec) =
@@ -555,16 +553,16 @@ class DistributedIRBuilder : public ExprMutator {
       }
       placements.push_back(Placement(placement_specs));
     }
-    // get inferred sinfo from struct info deduction
+    // get inferred output type from type deduction
     Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
     new_call =
-        Downcast<Call>(builder_->Normalize(RewriteOutSinfo(new_call, device_mesh, placements)));
+        Downcast<Call>(builder_->Normalize(RewriteOutType(new_call, device_mesh, placements)));
 
-    if (const auto* inferred_dtensor_sinfo = new_call->struct_info_.as<DTensorStructInfoNode>()) {
+    if (const auto* inferred_dtensor_ty = new_call->ty.as<DTensorTypeNode>()) {
       Expr new_value = RemoveAnnotateSharding(new_call);
       if (!ffi::StructuralEqual()(
-              DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh, placements[0]),
-              new_call->struct_info_)) {
+              DTensorType(inferred_dtensor_ty->tensor_ty, device_mesh, placements[0]),
+              new_call->ty)) {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
       }
       if (const auto* var = new_value.as<VarNode>()) {
@@ -573,16 +571,15 @@ class DistributedIRBuilder : public ExprMutator {
         ReEmitBinding(binding, builder_->Normalize(new_value));
       }
     } else {
-      const auto* inferred_tuple_sinfo = new_call->struct_info_.as<TupleStructInfoNode>();
-      TVM_FFI_ICHECK(inferred_tuple_sinfo) << new_call;
+      const auto* inferred_tuple_ty = new_call->ty.as<TupleTypeNode>();
+      TVM_FFI_ICHECK(inferred_tuple_ty) << new_call;
       Var new_var = builder_->Emit(new_call);
       var_remap_[binding->var->vid] = new_var;
-      for (int i = 0; i < static_cast<int>(inferred_tuple_sinfo->fields.size()); i++) {
+      for (int i = 0; i < static_cast<int>(inferred_tuple_ty->fields.size()); i++) {
         if (!ffi::StructuralEqual()(
-                DTensorStructInfo(
-                    Downcast<DTensorStructInfo>(inferred_tuple_sinfo->fields[i])->tensor_sinfo,
-                    device_mesh, placements[i]),
-                inferred_tuple_sinfo->fields[i])) {
+                DTensorType(Downcast<DTensorType>(inferred_tuple_ty->fields[i])->tensor_ty,
+                            device_mesh, placements[i]),
+                inferred_tuple_ty->fields[i])) {
           Var redistribute_var = builder_->Emit(
               InsertRedistribute(TupleGetItem(new_var, i), device_mesh, placements[i]));
           tuple_getitem_remap_[TupleGetItem(binding->var, i)] = redistribute_var;

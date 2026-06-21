@@ -111,8 +111,8 @@ class VarVisitor : protected ExprVisitor {
     VisitSpan(call_node->span);
     VisitExpr(call_node->op);
 
-    for (StructInfo sinfo_arg : call_node->sinfo_args) {
-      VisitExprDepStructInfoField(sinfo_arg);
+    for (Type ty_arg : call_node->ty_args) {
+      VisitExprDepTypeField(ty_arg);
     }
 
     for (Expr arg : call_node->args) {

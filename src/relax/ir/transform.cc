@@ -28,8 +28,8 @@
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 
 namespace tvm {
@@ -224,7 +224,7 @@ class DataflowBlockMutator : public ExprMutator {
     for (const Binding& binding : n->bindings) {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
         for (const tirx::VarNode* var : collected_vars) {
           symbolic_vars.Set(var->name_hint, ffi::GetRef<tirx::Var>(var));
         }
@@ -242,7 +242,7 @@ class DataflowBlockMutator : public ExprMutator {
     for (const Binding& binding : updated_block->bindings) {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
         for (const tirx::VarNode* var : collected_vars) {
           if (symbolic_vars.count(var->name_hint) > 0) {
             tirx::Var old_var = symbolic_vars[var->name_hint];
@@ -265,16 +265,16 @@ class DataflowBlockMutator : public ExprMutator {
   }
 
  private:
-  class SymbolicVarCollector : public StructInfoVisitor {
+  class SymbolicVarCollector : public TypeVisitor {
    public:
-    static std::unordered_set<const tirx::VarNode*> Collect(const StructInfo& info) {
+    static std::unordered_set<const tirx::VarNode*> Collect(const Type& info) {
       SymbolicVarCollector collector;
-      collector.VisitStructInfo(info);
+      collector.VisitType(info);
       return std::move(collector.symbolic_vars_);
     }
 
    private:
-    void VisitStructInfoExprField(const PrimExpr& expr) final {
+    void VisitTypeExprField(const PrimExpr& expr) final {
       if (const tirx::VarNode* sym_var = expr.as<tirx::VarNode>()) {
         symbolic_vars_.insert(sym_var);
       }

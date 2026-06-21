@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relax/transform/update_param_struct_info.cc
+ * \file tvm/relax/transform/update_param_type.cc
  * \brief Mutate IRModule to accept new parameters
  */
 
@@ -38,10 +38,10 @@ namespace tvm {
 namespace relax {
 
 namespace {
-class ParamStructInfoMutator : public ExprMutator {
+class ParamTypeMutator : public ExprMutator {
  public:
-  explicit ParamStructInfoMutator(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func)
-      : sinfo_func_(sinfo_func) {}
+  explicit ParamTypeMutator(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func)
+      : ty_func_(ty_func) {}
 
   using ExprMutator::VisitExpr_;
   using ExprMutator::VisitVarDef_;
@@ -50,8 +50,8 @@ class ParamStructInfoMutator : public ExprMutator {
     auto func = ffi::GetRef<Function>(op);
 
     auto params = op->params.Map([this](Var param) {
-      if (auto new_sinfo = sinfo_func_(param)) {
-        auto new_param = WithStructInfo(param, new_sinfo.value());
+      if (auto new_ty = ty_func_(param)) {
+        auto new_param = WithType(param, new_ty.value());
         var_remap_[param->vid] = new_param;
         return new_param;
       } else {
@@ -65,14 +65,14 @@ class ParamStructInfoMutator : public ExprMutator {
     return ExprMutator::VisitExpr_(func.get());
   }
 
-  ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func_;
+  ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func_;
 };
 }  // namespace
 
 namespace transform {
-Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> sinfo_func) {
+Pass UpdateParamType(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    ParamStructInfoMutator mutator(sinfo_func);
+    ParamTypeMutator mutator(ty_func);
 
     std::unordered_set<GlobalVar> to_remove;
     std::unordered_map<GlobalVar, Function> to_add;
@@ -82,7 +82,7 @@ Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> si
         auto updated = Downcast<Function>(mutator(func.value()));
         if (!updated.same_as(base_func)) {
           GlobalVar new_gvar(gvar->name_hint);
-          UpdateStructInfo(new_gvar, GetStructInfo(updated));
+          UpdateType(new_gvar, GetType(updated));
           to_add.insert({new_gvar, updated});
           to_remove.insert(gvar);
         }
@@ -102,12 +102,12 @@ Pass UpdateParamStructInfo(ffi::TypedFunction<ffi::Optional<StructInfo>(Var)> si
 
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamStructInfo", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamType", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.UpdateParamStructInfo", UpdateParamStructInfo);
+  refl::GlobalDef().def("relax.transform.UpdateParamType", UpdateParamType);
 }
 
 }  // namespace transform

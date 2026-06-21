@@ -105,8 +105,8 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
             # If residual depends on the result of the root call, this cannot be handled by cutlass.
             return False
 
-        shape1 = root_var.struct_info.shape
-        shape2 = residual.struct_info.shape
+        shape1 = root_var.ty.shape
+        shape2 = residual.ty.shape
         out_channel = shape1[-1]
 
         if not _is_same_shape(shape1, shape2) and not _is_bias_like(shape2, out_channel):
@@ -127,7 +127,7 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
     if (
         data_layout != "NHWC"
         or kernel_layout != "OHWI"
-        or not _is_supported_dtype(data.struct_info.dtype, weight.struct_info.dtype)
+        or not _is_supported_dtype(data.ty.dtype, weight.ty.dtype)
     ):
         return False
 
@@ -135,13 +135,13 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
         return False
 
     # Check if any dimensions are symbolic.
-    for dim in data.struct_info.shape.values:
+    for dim in data.ty.shape.values:
         if isinstance(dim, tvm.tirx.Var):
             return False
 
     # pylint: disable=invalid-name
-    IC = data.struct_info.shape.values[3]
-    OC = weight.struct_info.shape.values[0]
+    IC = data.ty.shape.values[3]
+    OC = weight.ty.shape.values[0]
     # not depthwise conv2d
     return not IC == OC == conv2d_call.attrs.groups
 
@@ -154,16 +154,16 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs = context.annotated_expr["lhs"]
     rhs = context.annotated_expr["rhs"]
 
-    lhs_dtype = lhs.struct_info.dtype
-    rhs_dtype = rhs.struct_info.dtype
+    lhs_dtype = lhs.ty.dtype
+    rhs_dtype = rhs.ty.dtype
     if not _is_supported_dtype(lhs_dtype, rhs_dtype):
         return False
 
     if not _check_residual(context.annotated_expr["root"], context):
         return False
 
-    lhs_shape = lhs.struct_info.shape.values
-    rhs_shape = rhs.struct_info.shape.values
+    lhs_shape = lhs.ty.shape.values
+    rhs_shape = rhs.ty.shape.values
     return is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
 
 
@@ -223,22 +223,22 @@ def _check_decode_matmul(ctx):
         return False
 
     # out_dtype = "float32" not supported unless matmul is followed by cast to fp16.
-    if root.struct_info.dtype == "float32":
+    if root.ty.dtype == "float32":
         return False
 
     call_tir_decode = ctx.annotated_expr["w_decoded"]
     if "decode" not in call_tir_decode.args[0].name_hint:
         return False
 
-    N = root.struct_info.shape[-1]
+    N = root.ty.shape[-1]
 
-    if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
+    if ctx.annotated_expr["lhs"].ty.dtype != "float16":
         return False
 
     # weight needs to be packed to int8.
     packed_weight = ctx.annotated_expr["w_encoded"]
 
-    if packed_weight.struct_info.dtype != "int8":
+    if packed_weight.ty.dtype != "int8":
         return False
 
     # The kernel expects the weight to be preprocessed by this packed function.
@@ -251,16 +251,16 @@ def _check_decode_matmul(ctx):
 
     scales = ctx.annotated_expr["scales"]
 
-    if scales.struct_info.dtype != "float16":
+    if scales.ty.dtype != "float16":
         return False
 
     # scale shape needs to be (N,) or (1, N) or (K // group_size, N)
-    if len(scales.struct_info.shape) > 2 or scales.struct_info.shape[-1] != N:
+    if len(scales.ty.shape) > 2 or scales.ty.shape[-1] != N:
         return False
 
     if "bias" in ctx.annotated_expr:
-        out_shape = root.struct_info.shape
-        bias_shape = ctx.annotated_expr["bias"].struct_info.shape
+        out_shape = root.ty.shape
+        bias_shape = ctx.annotated_expr["bias"].ty.shape
 
         # bias shape needs to be (N,), possibly with additional axes on the front.
         # It can also have the same shape as the output.
@@ -378,7 +378,7 @@ def _check_stacked_attention(context: PatternCheckContext) -> bool:
     """Check if the given stacked attention workload can be offloaded to CUTLASS."""
     if has_leaking_intermediate_variables(context):
         return False
-    if not context.annotated_expr["stacked_qkv"].struct_info.ndim == 3:
+    if not context.annotated_expr["stacked_qkv"].ty.ndim == 3:
         return False
     if "split" in context.annotated_expr:
         split_op = context.annotated_expr["split"]
@@ -458,7 +458,7 @@ def _check_layer_norm(context: PatternCheckContext) -> bool:
         return False
 
     axis = int(attrs.axes[0])
-    rank = len(context.matched_expr.struct_info.shape)
+    rank = len(context.matched_expr.ty.shape)
 
     if axis < 0:
         axis += rank
@@ -536,7 +536,7 @@ class WorkspaceAnnotator(PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            new_f = Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
+            new_f = Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
 
             if "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
                 composite_func = body.blocks[0].bindings[0].value
@@ -547,8 +547,8 @@ class WorkspaceAnnotator(PyExprMutator):
 
         if "attention" in f.attrs["Composite"] and "cutlass" in f.attrs["Composite"]:
             # Workspace is needed only for larger head sizes, but for simplicity we always allocate.
-            out_dtype = f.ret_struct_info.dtype
-            out_size_1d = _shape_1d(f.ret_struct_info.shape)
+            out_dtype = f.ret_ty.dtype
+            out_size_1d = _shape_1d(f.ret_ty.shape)
             # This needs to be in sync with the actual value that the kernel expects.
             workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
             if not isinstance(workspace_size_bytes, int | tvm.tirx.expr.IntImm):

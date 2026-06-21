@@ -25,7 +25,7 @@
 #define TVM_RELAX_ATTRS_DISTRIBUTED_H_
 
 #include <tvm/relax/distributed/global_info.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {

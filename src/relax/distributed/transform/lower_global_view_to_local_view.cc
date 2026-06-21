@@ -378,18 +378,18 @@ class LowerTIRToLocalView : public ExprMutator {
   }
 
  private:
-  inline ffi::Array<DTensorStructInfo> ExtractDTensorStructInfo(Var var) {
-    if (const auto* dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(var)) {
-      return {ffi::GetRef<DTensorStructInfo>(dtensor_sinfo)};
-    } else if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(var)) {
-      ffi::Array<DTensorStructInfo> ret;
-      for (const auto& field : tuple_sinfo->fields) {
-        ret.push_back(Downcast<DTensorStructInfo>(field));
+  inline ffi::Array<DTensorType> ExtractDTensorType(Var var) {
+    if (const auto* dtensor_ty = GetTypeAs<DTensorTypeNode>(var)) {
+      return {ffi::GetRef<DTensorType>(dtensor_ty)};
+    } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(var)) {
+      ffi::Array<DTensorType> ret;
+      for (const auto& field : tuple_ty->fields) {
+        ret.push_back(Downcast<DTensorType>(field));
       }
       return ret;
     } else {
       TVM_FFI_THROW(InternalError)
-          << "The output of a call_tir should be a DTensorStructInfo or TupleStructInfo";
+          << "The output of a call_tir should be a DTensorType or TupleType";
     }
   }
 
@@ -402,14 +402,14 @@ class LowerTIRToLocalView : public ExprMutator {
     std::vector<ShardingSpec> sharding_specs;
     ffi::Array<Expr> args = Downcast<Tuple>(val->args[1])->fields;
     for (const auto& arg : args) {
-      const auto* sinfo = GetStructInfoAs<DTensorStructInfoNode>(arg);
-      TVM_FFI_ICHECK(sinfo);
-      sharding_specs.push_back(ShardingSpec(sinfo->device_mesh, sinfo->placement));
+      const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
+      TVM_FFI_ICHECK(ty);
+      sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
     Var output_var = binding->var;
-    ffi::Array<DTensorStructInfo> output_sinfos = ExtractDTensorStructInfo(output_var);
-    for (const auto& sinfo : output_sinfos) {
-      sharding_specs.push_back(ShardingSpec(sinfo->device_mesh, sinfo->placement));
+    ffi::Array<DTensorType> output_tys = ExtractDTensorType(output_var);
+    for (const auto& ty : output_tys) {
+      sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
     GlobalVar gvar = Downcast<GlobalVar>(val->args[0]);
     tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();

@@ -19,8 +19,9 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>
@@ -144,9 +145,9 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", PrimStructInfo(runtime::DataType::Int(16)));
-  relax::Var y("y", PrimStructInfo(runtime::DataType::Int(32)));
-  relax::Var z("z", PrimStructInfo(runtime::DataType::Int(64)));
+  relax::Var x("x", relax::PrimType(runtime::DataType::Int(16)));
+  relax::Var y("y", relax::PrimType(runtime::DataType::Int(32)));
+  relax::Var z("z", relax::PrimType(runtime::DataType::Int(64)));
 
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
@@ -167,16 +168,15 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_TRUE(Equal(output, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
 
-  auto output2 =
-      MapToNestedMsg<IntImm>(GetStructInfo(t1), [&](StructInfo sinfo) -> NestedMsg<IntImm> {
-        const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
-        if (prim_sinfo == nullptr) return std::nullopt;
-        int bits = prim_sinfo->dtype.bits();
-        if (bits == 16) return c0;
-        if (bits == 32) return c1;
-        if (bits == 64) return c2;
-        return std::nullopt;
-      });
+  auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<IntImm> {
+    const auto* prim_ty = ty.as<relax::PrimTypeNode>();
+    if (prim_ty == nullptr) return std::nullopt;
+    int bits = prim_ty->dtype.bits();
+    if (bits == 16) return c0;
+    if (bits == 32) return c1;
+    if (bits == 64) return c2;
+    return std::nullopt;
+  });
 
   EXPECT_TRUE(Equal(output2, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
@@ -200,13 +200,13 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_EQ(z_count, 1);
 }
 
-TEST(NestedMsg, MapToNestedMsgBySInfo) {
-  auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
-  auto sf1 = TupleStructInfo({sf0, sf0});
-  auto sf2 = TupleStructInfo({sf0, sf0});
-  auto x = relax::Var("x", TupleStructInfo({sf1, sf2, sf0}));
+TEST(NestedMsg, MapToNestedMsgByType) {
+  auto sf0 = TensorType(DataType::Float(32), /*ndim=*/0);
+  auto sf1 = TupleType({sf0, sf0});
+  auto sf2 = TupleType({sf0, sf0});
+  auto x = relax::Var("x", TupleType({sf1, sf2, sf0}));
 
-  auto msg = MapToNestedMsgBySInfo<Expr>(x, [](Expr value) { return value; });
+  auto msg = MapToNestedMsgByType<Expr>(x, [](Expr value) { return value; });
 
   EXPECT_TRUE(msg.IsNested());
   auto arr = msg.NestedArray();
@@ -223,8 +223,8 @@ TEST(NestedMsg, MapToNestedMsgBySInfo) {
 }
 
 TEST(NestedMsg, NestedMsgToExpr) {
-  auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
-  auto sf1 = TupleStructInfo({sf0, sf0});
+  auto sf0 = TensorType(DataType::Float(32), /*ndim=*/0);
+  auto sf1 = TupleType({sf0, sf0});
 
   auto c0 = IntImm::Int32(0);
   auto c1 = IntImm::Int32(1);
@@ -306,7 +306,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
-  PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
+  relax::PrimType s = relax::PrimType(runtime::DataType::Int(32));
   relax::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));

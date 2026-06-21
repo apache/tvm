@@ -1362,7 +1362,7 @@ def layer_norm(
         normalized_shape = [normalized_shape]
     dim_num = len(normalized_shape)
     axes = list(range(-dim_num, 0))
-    dtype = x._expr.struct_info.dtype
+    dtype = x._expr.ty.dtype
 
     if weight is not None:
         weight = weight._expr
@@ -1480,7 +1480,7 @@ def group_norm(
         weight = weight._expr
     if bias is not None:
         bias = bias._expr
-    dim = len(x._expr.struct_info.shape)
+    dim = len(x._expr.ty.shape)
     if axes is None:
         axes = list(range(2, dim))
     return wrap_nested(
@@ -2084,9 +2084,9 @@ def tensor_ir_op(
             )
 
     if isinstance(out, Tensor):
-        out_sinfo = [out._expr.struct_info]
+        out_ty = [out._expr.ty]
     else:
-        out_sinfo = [x._expr.struct_info for x in out]
+        out_ty = [x._expr.ty for x in out]
 
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
@@ -2095,7 +2095,7 @@ def tensor_ir_op(
         tir_vars = None
 
     return wrap_nested(
-        bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
+        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty, tir_vars=tir_vars)),
         name=name_hint,
     )
 
@@ -2154,17 +2154,15 @@ def tensor_ir_inplace_op(
             )
 
     if isinstance(out, Tensor):
-        out_sinfo = [out._expr.struct_info]
+        out_ty = [out._expr.ty]
     else:
-        out_sinfo = [x._expr.struct_info for x in out]
+        out_ty = [x._expr.ty for x in out]
 
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(
-            rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_sinfo, tir_vars)
-        ),
+        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty, tir_vars)),
         name=name_hint,
     )
 
@@ -2211,12 +2209,12 @@ def extern(
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
     rx_inputs = _convert(args, "input")
-    rx_outputs_sinfo = _convert(out, "dummy").struct_info
+    rx_outputs_ty = _convert(out, "dummy").ty
     return wrap_nested(
         _op.call_dps_packed(
             name,
             args=rx_inputs,
-            out_sinfo=rx_outputs_sinfo,
+            out_ty=rx_outputs_ty,
         ),
         name,
     )  # type: ignore
@@ -2282,7 +2280,7 @@ def debug_func(
             rx.StringImm(name),
             rx.StringImm(_line_info),
             *converted_args,
-            sinfo_args=[rx.ObjectStructInfo()],
+            ty_args=[rx.ObjectType()],
         ),
         name_hint=io.effect.name_hint,
     )

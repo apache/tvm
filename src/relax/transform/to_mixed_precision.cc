@@ -218,14 +218,13 @@ class DTypeDecisionCollector : public ExprVisitor {
     // require the i-th field rhs tuple to be the type of the lhs
     NType lhs_type = GetDType(binding->var);
     std::vector<NType> require_rhs;
-    const TupleStructInfoNode* sinfo =
-        tuple_get_item_node->tuple->struct_info_.as<TupleStructInfoNode>();
-    TVM_FFI_ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
-    for (size_t i = 0; i < sinfo->fields.size(); ++i) {
+    const TupleTypeNode* ty = tuple_get_item_node->tuple->ty.as<TupleTypeNode>();
+    TVM_FFI_ICHECK(ty != nullptr) << "TupleGetItemNode must have TupleType";
+    for (size_t i = 0; i < ty->fields.size(); ++i) {
       if (i == static_cast<size_t>(tuple_get_item_node->index)) {
         require_rhs.push_back(lhs_type);
       } else {
-        require_rhs.push_back(NTypeFrom(sinfo->fields[i], unknown_));
+        require_rhs.push_back(NTypeFrom(ty->fields[i], unknown_));
       }
     }
     RequireArgsToType({tuple_get_item_node->tuple}, {NType(require_rhs)});
@@ -239,8 +238,8 @@ class DTypeDecisionCollector : public ExprVisitor {
       this->VisitBindingBlock(*it);
     }
 
-    if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
+    if (auto* ty = op->ty.as<TypeNode>()) {
+      this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }
 
@@ -258,8 +257,8 @@ class DTypeDecisionCollector : public ExprVisitor {
     this->VisitExpr(op->false_branch);
     this->VisitExpr(op->cond);
 
-    if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
-      this->VisitExprDepStructInfoField(ffi::GetRef<StructInfo>(sinfo));
+    if (auto* ty = op->ty.as<TypeNode>()) {
+      this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
     }
   }
 
@@ -285,15 +284,14 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return it->second;
     } else {
       if (fp16_input_names_.count(var->name_hint())) {
-        auto sinfo = GetStructInfo(var);
-        if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
+        auto ty = GetType(var);
+        if (auto tensor_ty = ty.as<TensorTypeNode>()) {
           VDevice vdev = VDevice();
-          if (tensor_sinfo->vdevice.defined()) {
-            vdev = tensor_sinfo->vdevice.value();
+          if (tensor_ty->vdevice.defined()) {
+            vdev = tensor_ty->vdevice.value();
           }
-          TensorStructInfo fp16_sinfo(tensor_sinfo->shape.value(), DataType::Float(16), vdev,
-                                      tensor_sinfo->span);
-          Var fp16_var(var->vid, fp16_sinfo, var->span);
+          TensorType fp16_ty(tensor_ty->shape.value(), DataType::Float(16), vdev, tensor_ty->span);
+          Var fp16_var(var->vid, fp16_ty, var->span);
           var_remap_[var->vid] = fp16_var;
           return fp16_var;
         }
@@ -311,7 +309,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   // Note that this function only accepts expr with nested tensor type
   Expr RewriteExpr(const Expr& expr, const NType& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NType, 1> to) -> Expr {
-      const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
+      const auto* tensor = GetTypeAs<TensorTypeNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
@@ -346,9 +344,9 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   }
 
   bool AllFP16Castable(const ffi::Array<Expr>& args) {
-    auto is_fp16 = [](StructInfo sinfo) {
-      if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-          tensor_sinfo && tensor_sinfo->dtype == DataType::Float(16)) {
+    auto is_fp16 = [](Type ty) {
+      if (auto tensor_ty = ty.as<TensorTypeNode>();
+          tensor_ty && tensor_ty->dtype == DataType::Float(16)) {
         return true;
       }
       return false;
@@ -391,11 +389,11 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     };
 
     for (const Expr& arg : args) {
-      auto sinfo = GetStructInfo(arg);
+      auto ty = GetType(arg);
       auto constant = arg.as<ConstantNode>();
       auto tuple = arg.as<TupleNode>();
 
-      if (!IsNestedTensor(arg) || is_fp16(sinfo) || (constant && is_in_fp16_range(constant)) ||
+      if (!IsNestedTensor(arg) || is_fp16(ty) || (constant && is_in_fp16_range(constant)) ||
           (tuple && AllFP16Castable(tuple->fields))) {
         continue;
       } else {
@@ -511,7 +509,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (opt_new_dtype) {
       auto new_dtype = opt_new_dtype.value();
       new_call.CopyOnWrite()->args = RewriteArgs(new_call->args, new_dtype);
-      new_call.CopyOnWrite()->struct_info_ = std::nullopt;
+      new_call.CopyOnWrite()->ty = Type();
 
       new_value = builder_->Normalize(Call(new_call));
 
@@ -535,7 +533,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     ffi::ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
     new_tuple->fields = RemapArgs(tuple_node->fields);
-    new_tuple->struct_info_ = std::nullopt;
+    new_tuple->ty = Type();
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype
@@ -555,7 +553,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     ffi::ObjectPtr<TupleGetItemNode> new_tuple_get_item =
         ffi::make_object<TupleGetItemNode>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
-    new_tuple_get_item->struct_info_ = std::nullopt;
+    new_tuple_get_item->ty = Type();
     Expr new_value = TupleGetItem(new_tuple_get_item);
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype

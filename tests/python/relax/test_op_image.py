@@ -37,12 +37,12 @@ def test_op_correctness():
     assert relax.op.image.resize3d(y, (4, 8, 12)).op == Op.get("relax.image.resize3d")
 
 
-def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
+def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
-def test_resize2d_infer_struct_info():
+def test_resize2d_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
@@ -56,63 +56,59 @@ def test_resize2d_infer_struct_info():
     x8 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32", vdev0))
 
     _check_inference(
-        bb, relax.op.image.resize2d(x0, (28, 28)), relax.TensorStructInfo((2, 3, 28, 28), "float32")
+        bb, relax.op.image.resize2d(x0, (28, 28)), relax.TensorType((2, 3, 28, 28), "float32")
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x8, (28, 28)),
-        relax.TensorStructInfo((2, 3, 28, 28), "float32", vdev0),
+        relax.TensorType((2, 3, 28, 28), "float32", vdev0),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x0, size=28),
-        relax.TensorStructInfo((2, 3, 28, 28), "float32"),
+        relax.TensorType((2, 3, 28, 28), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x0, size=(28, 30)),
-        relax.TensorStructInfo((2, 3, 28, 30), "float32"),
+        relax.TensorType((2, 3, 28, 30), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x1, size=28, layout="NHWC"),
-        relax.TensorStructInfo((2, 28, 28, 3), "float32"),
+        relax.TensorType((2, 28, 28, 3), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x0, size=28, out_dtype="float16"),
-        relax.TensorStructInfo((2, 3, 28, 28), "float16"),
+        relax.TensorType((2, 3, 28, 28), "float16"),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x2, size=28, layout="NCHW16c"),
-        relax.TensorStructInfo((2, 4, 28, 28, 16), "float32"),
+        relax.TensorType((2, 4, 28, 28, 16), "float32"),
     )
     _check_inference(
-        bb, relax.op.image.resize2d(x3, size=28), relax.TensorStructInfo(dtype="float32", ndim=4)
+        bb, relax.op.image.resize2d(x3, size=28), relax.TensorType(dtype="float32", ndim=4)
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x4, size=28, layout="NCHW16c"),
-        relax.TensorStructInfo(dtype="float32", ndim=5),
+        relax.TensorType(dtype="float32", ndim=5),
     )
     _check_inference(
-        bb, relax.op.image.resize2d(x5, size=28), relax.TensorStructInfo(dtype="float32", ndim=4)
+        bb, relax.op.image.resize2d(x5, size=28), relax.TensorType(dtype="float32", ndim=4)
     )
-    _check_inference(
-        bb, relax.op.image.resize2d(x6, size=28), relax.TensorStructInfo(dtype="", ndim=4)
-    )
+    _check_inference(bb, relax.op.image.resize2d(x6, size=28), relax.TensorType(dtype="", ndim=4))
     _check_inference(
         bb,
         relax.op.image.resize2d(x6, size=28, out_dtype="float32"),
-        relax.TensorStructInfo(dtype="float32", ndim=4),
+        relax.TensorType(dtype="float32", ndim=4),
     )
-    _check_inference(
-        bb, relax.op.image.resize2d(x7, size=28), relax.TensorStructInfo(dtype="", ndim=4)
-    )
+    _check_inference(bb, relax.op.image.resize2d(x7, size=28), relax.TensorType(dtype="", ndim=4))
 
 
-def test_resize2d_infer_struct_info_shape_symbolic():
+def test_resize2d_infer_ty_shape_symbolic():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     c = tirx.Var("c", "int64")
@@ -124,77 +120,75 @@ def test_resize2d_infer_struct_info_shape_symbolic():
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, 16), "float32"))
 
     _check_inference(
-        bb, relax.op.image.resize2d(x0, size=oh), relax.TensorStructInfo((n, c, oh, oh), "float32")
+        bb, relax.op.image.resize2d(x0, size=oh), relax.TensorType((n, c, oh, oh), "float32")
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x0, size=(oh, ow)),
-        relax.TensorStructInfo((n, c, oh, ow), "float32"),
+        relax.TensorType((n, c, oh, ow), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x1, size=(oh, ow), layout="NCHW16c"),
-        relax.TensorStructInfo((n, c, oh, ow, 16), "float32"),
+        relax.TensorType((n, c, oh, ow, 16), "float32"),
     )
 
 
-def test_resize2d_infer_struct_info_shape_var():
+def test_resize2d_infer_ty_shape_var():
     bb = relax.BlockBuilder()
-    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
-    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=5))
-    s2 = relax.Var("s", relax.ShapeStructInfo())
-    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
-    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
-    x2 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
+    s0 = relax.Var("s", relax.ShapeType(ndim=4))
+    s1 = relax.Var("s", relax.ShapeType(ndim=5))
+    s2 = relax.Var("s", relax.ShapeType())
+    x0 = relax.Var("x", relax.TensorType(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorType(s1, "float32"))
+    x2 = relax.Var("x", relax.TensorType(s2, "float32"))
 
     _check_inference(
-        bb, relax.op.image.resize2d(x0, size=32), relax.TensorStructInfo(dtype="float32", ndim=4)
+        bb, relax.op.image.resize2d(x0, size=32), relax.TensorType(dtype="float32", ndim=4)
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x1, size=32, layout="NCHW16c"),
-        relax.TensorStructInfo(dtype="float32", ndim=5),
+        relax.TensorType(dtype="float32", ndim=5),
     )
     _check_inference(
         bb,
         relax.op.image.resize2d(x2, size=32, layout="NCHW16c"),
-        relax.TensorStructInfo(dtype="float32", ndim=5),
+        relax.TensorType(dtype="float32", ndim=5),
     )
 
 
-def test_resize2d_infer_struct_info_pool_size_var():
+def test_resize2d_infer_ty_pool_size_var():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
-    s0 = relax.Var("s", relax.ShapeStructInfo((30, 30)))
-    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
+    s0 = relax.Var("s", relax.ShapeType((30, 30)))
+    s1 = relax.Var("s", relax.ShapeType(ndim=2))
 
     _check_inference(
         bb,
         relax.op.image.resize2d(x0, s0),
-        relax.TensorStructInfo(dtype="float32", ndim=4),
+        relax.TensorType(dtype="float32", ndim=4),
     )
-    _check_inference(
-        bb, relax.op.image.resize2d(x0, s1), relax.TensorStructInfo(dtype="float32", ndim=4)
-    )
+    _check_inference(bb, relax.op.image.resize2d(x0, s1), relax.TensorType(dtype="float32", ndim=4))
 
 
-def test_resize2d_infer_struct_info_more_input_dtype():
+def test_resize2d_infer_ty_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float16"))
     x1 = relax.Var("x", R.Tensor((2, 3, 32, 32), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3, 32, 32), "int64"))
     _check_inference(
-        bb, relax.op.image.resize2d(x0, size=28), relax.TensorStructInfo((2, 3, 28, 28), "float16")
+        bb, relax.op.image.resize2d(x0, size=28), relax.TensorType((2, 3, 28, 28), "float16")
     )
     _check_inference(
-        bb, relax.op.image.resize2d(x1, size=28), relax.TensorStructInfo((2, 3, 28, 28), "int8")
+        bb, relax.op.image.resize2d(x1, size=28), relax.TensorType((2, 3, 28, 28), "int8")
     )
     _check_inference(
-        bb, relax.op.image.resize2d(x2, size=28), relax.TensorStructInfo((2, 3, 28, 28), "int64")
+        bb, relax.op.image.resize2d(x2, size=28), relax.TensorType((2, 3, 28, 28), "int64")
     )
 
 
-def test_resize3d_infer_struct_info():
+def test_resize3d_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
@@ -206,39 +200,39 @@ def test_resize3d_infer_struct_info():
     _check_inference(
         bb,
         relax.op.image.resize3d(x0, (4, 8, 12)),
-        relax.TensorStructInfo((2, 3, 4, 8, 12), "float32"),
+        relax.TensorType((2, 3, 4, 8, 12), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize3d(x4, (4, 8, 12)),
-        relax.TensorStructInfo((2, 3, 4, 8, 12), "float32", vdev0),
+        relax.TensorType((2, 3, 4, 8, 12), "float32", vdev0),
     )
     _check_inference(
         bb,
         relax.op.image.resize3d(x0, 7),
-        relax.TensorStructInfo((2, 3, 7, 7, 7), "float32"),
+        relax.TensorType((2, 3, 7, 7, 7), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize3d(x1, (4, 8, 12), layout="NDHWC"),
-        relax.TensorStructInfo((2, 4, 8, 12, 3), "float32"),
+        relax.TensorType((2, 4, 8, 12, 3), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize3d(x2, (4, 8, 12), layout="NCDHW8c"),
-        relax.TensorStructInfo((2, 4, 4, 8, 12, 8), "float32"),
+        relax.TensorType((2, 4, 4, 8, 12, 8), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.resize3d(x0, (4, 8, 12), out_dtype="float16"),
-        relax.TensorStructInfo((2, 3, 4, 8, 12), "float16"),
+        relax.TensorType((2, 3, 4, 8, 12), "float16"),
     )
     _check_inference(
-        bb, relax.op.image.resize3d(x3, (4, 8, 12)), relax.TensorStructInfo(dtype="float32", ndim=5)
+        bb, relax.op.image.resize3d(x3, (4, 8, 12)), relax.TensorType(dtype="float32", ndim=5)
     )
 
 
-def test_resize3d_infer_struct_info_wrong_layout_string():
+def test_resize3d_infer_ty_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
     with pytest.raises(ValueError):
@@ -262,12 +256,12 @@ def test_resize3d_wrong_size_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float16"))
     s0 = relax.ShapeExpr((3, 3))
-    s1 = relax.Var("s", relax.ShapeStructInfo((30, 30, 30, 30)))
-    s2 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
-    s3 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
-    s4 = relax.Var("s", relax.ShapeStructInfo(ndim=1))
-    s5 = relax.Var("s", relax.ShapeStructInfo(ndim=0))
-    s6 = relax.Var("s", relax.ShapeStructInfo())
+    s1 = relax.Var("s", relax.ShapeType((30, 30, 30, 30)))
+    s2 = relax.Var("s", relax.ShapeType(ndim=4))
+    s3 = relax.Var("s", relax.ShapeType(ndim=2))
+    s4 = relax.Var("s", relax.ShapeType(ndim=1))
+    s5 = relax.Var("s", relax.ShapeType(ndim=0))
+    s6 = relax.Var("s", relax.ShapeType())
 
     with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize3d(x0, (3, 3)))
@@ -287,10 +281,10 @@ def test_resize3d_wrong_size_ndim():
         bb.normalize(relax.op.image.resize3d(x0, s6))
 
 
-def test_resize3d_infer_struct_info_wrong_input_type():
+def test_resize3d_infer_ty_wrong_input_type():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 8, 16, 32)))
-    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 8, 16, 32), "float32")))
+    x0 = relax.Var("x", relax.ShapeType((2, 3, 8, 16, 32)))
+    x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 8, 16, 32), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 8, 16, 32), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3, 3)))
 
@@ -302,7 +296,7 @@ def test_resize3d_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.image.resize3d(x2, s0))
 
 
-def test_resize2d_infer_struct_info_wrong_layout_string():
+def test_resize2d_infer_ty_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     with pytest.raises(ValueError):
@@ -326,11 +320,11 @@ def test_resize2d_wrong_pool_size_ndim():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float16"))
     s0 = relax.ShapeExpr((3,))
-    s1 = relax.Var("s", relax.ShapeStructInfo((30, 30, 30)))
-    s2 = relax.Var("s", relax.ShapeStructInfo(ndim=3))
-    s3 = relax.Var("s", relax.ShapeStructInfo(ndim=1))
-    s4 = relax.Var("s", relax.ShapeStructInfo(ndim=0))
-    s5 = relax.Var("s", relax.ShapeStructInfo())
+    s1 = relax.Var("s", relax.ShapeType((30, 30, 30)))
+    s2 = relax.Var("s", relax.ShapeType(ndim=3))
+    s3 = relax.Var("s", relax.ShapeType(ndim=1))
+    s4 = relax.Var("s", relax.ShapeType(ndim=0))
+    s5 = relax.Var("s", relax.ShapeType())
 
     with pytest.raises(ValueError):
         bb.normalize(relax.op.image.resize2d(x0, (3, 3, 3)))
@@ -348,10 +342,10 @@ def test_resize2d_wrong_pool_size_ndim():
         bb.normalize(relax.op.image.resize2d(x0, s5))
 
 
-def test_resize2d_infer_struct_info_wrong_input_type():
+def test_resize2d_infer_ty_wrong_input_type():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28)))
-    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28), "float32")))
+    x0 = relax.Var("x", relax.ShapeType((2, 3, 28, 28)))
+    x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 28, 28), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3)))
 
@@ -363,7 +357,7 @@ def test_resize2d_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.image.resize2d(x2, s0))
 
 
-def test_affine_grid_infer_struct_info():
+def test_affine_grid_infer_ty():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 2, 3), "float32"))
@@ -375,41 +369,41 @@ def test_affine_grid_infer_struct_info():
     _check_inference(
         bb,
         relax.op.image.affine_grid(x0, (16, 16)),
-        relax.TensorStructInfo((2, 2, 16, 16), "float32"),
+        relax.TensorType((2, 2, 16, 16), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x1, (16, 16)),
-        relax.TensorStructInfo((2, 2, 16, 16), "float32", vdev0),
+        relax.TensorType((2, 2, 16, 16), "float32", vdev0),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x0, size=16),
-        relax.TensorStructInfo((2, 2, 16, 16), "float32"),
+        relax.TensorType((2, 2, 16, 16), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x0, size=(16, 20)),
-        relax.TensorStructInfo((2, 2, 16, 20), "float32"),
+        relax.TensorType((2, 2, 16, 20), "float32"),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x2, size=(16, 16)),
-        relax.TensorStructInfo(dtype="float32", ndim=4),
+        relax.TensorType(dtype="float32", ndim=4),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x3, size=(16, 16)),
-        relax.TensorStructInfo(dtype="float32", ndim=4),
+        relax.TensorType(dtype="float32", ndim=4),
     )
     _check_inference(
         bb,
         relax.op.image.affine_grid(x4, size=(16, 16)),
-        relax.TensorStructInfo(dtype="", ndim=4),
+        relax.TensorType(dtype="", ndim=4),
     )
 
 
-def test_affine_grid_infer_struct_info_shape_symbolic():
+def test_affine_grid_infer_ty_shape_symbolic():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")
     oh = tirx.Var("oh", "int64")
@@ -419,13 +413,13 @@ def test_affine_grid_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.image.affine_grid(x0, size=(oh, ow)),
-        relax.TensorStructInfo((n, 2, oh, ow), "float32"),
+        relax.TensorType((n, 2, oh, ow), "float32"),
     )
 
 
-def test_affine_grid_infer_struct_info_wrong_input_type():
+def test_affine_grid_infer_ty_wrong_input_type():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", relax.ShapeStructInfo((2, 2, 3)))
+    x0 = relax.Var("x", relax.ShapeType((2, 2, 3)))
     x1 = relax.Var("x", R.Tensor((2, 2, 3), "float32"))
     s0 = relax.Var("s", R.Tensor((3, 3)))
 

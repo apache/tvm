@@ -141,7 +141,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         - The input qkv and output tensor have `head_dim` at the last dim.
         """
         # pylint: disable=protected-access
-        b, s, _, d = qkv._expr.struct_info.shape
+        b, s, _, d = qkv._expr.ty.shape
         qkv = qkv.reshape(b * s, qkv.shape[2], d)
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
@@ -153,7 +153,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                         rx.PrimValue(sm_scale),
                         qkv._expr,
                     ],
-                    out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
+                    out_ty=rx.TensorType((b * s, num_qo_heads, d), qkv.dtype),
                 )
             )
         ).reshape(b, s, num_qo_heads, d)
@@ -168,8 +168,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     ) -> tuple[Tensor, Tensor]:
         """Fine-grained API that computes ragged self attention with Q/K/V data."""
         # pylint: disable=protected-access
-        b, s, h_qo, d_qk = q._expr.struct_info.shape
-        _, _, h_kv, d_v = v._expr.struct_info.shape
+        b, s, h_qo, d_qk = q._expr.ty.shape
+        _, _, h_kv, d_v = v._expr.ty.shape
         q = q.reshape(b * s, h_qo, d_qk)
         k = k.reshape(b * s, h_kv, d_qk)
         v = v.reshape(b * s, h_kv, d_v)
@@ -185,14 +185,14 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     k._expr,
                     v._expr,
                 ],
-                out_sinfo=[
-                    rx.TensorStructInfo((b * s, h_qo, d_v), q.dtype),
-                    rx.TensorStructInfo((b * s, h_qo), "float32"),
+                out_ty=[
+                    rx.TensorType((b * s, h_qo, d_v), q.dtype),
+                    rx.TensorType((b * s, h_qo), "float32"),
                 ],
             )
         )
-        assert isinstance(attn_results.struct_info, rx.TupleStructInfo)
-        assert len(attn_results.struct_info.fields) == 2
+        assert isinstance(attn_results.ty, rx.TupleType)
+        assert len(attn_results.ty.fields) == 2
         o = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 0))).reshape(b, s, h_qo, d_v)
         lse = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 1))).reshape(b, s, h_qo)
         return o, lse
@@ -206,7 +206,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     ) -> tuple[Tensor, Tensor]:
         """Fine-grained API that computes paged cross attention with Q and in-cache KV data."""
         # pylint: disable=protected-access
-        b, s, h_qo, d_qk = q._expr.struct_info.shape
+        b, s, h_qo, d_qk = q._expr.ty.shape
         q = q.reshape(b * s, h_qo, d_qk)
         bb = rx.BlockBuilder.current()
         attn_results = bb.emit(
@@ -218,14 +218,14 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     rx.PrimValue(sm_scale),
                     q._expr,
                 ],
-                out_sinfo=[
-                    rx.TensorStructInfo((b * s, h_qo, v_head_dim), q.dtype),
-                    rx.TensorStructInfo((b * s, h_qo), "float32"),
+                out_ty=[
+                    rx.TensorType((b * s, h_qo, v_head_dim), q.dtype),
+                    rx.TensorType((b * s, h_qo), "float32"),
                 ],
             )
         )
-        assert isinstance(attn_results.struct_info, rx.TupleStructInfo)
-        assert len(attn_results.struct_info.fields) == 2
+        assert isinstance(attn_results.ty, rx.TupleType)
+        assert len(attn_results.ty.fields) == 2
         o = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 0))).reshape(b, s, h_qo, v_head_dim)
         lse = Tensor(_expr=bb.emit(rx.TupleGetItem(attn_results, 1))).reshape(b, s, h_qo)
         return o, lse
@@ -233,7 +233,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     def append_mla_kv(self, layer_id: int, kv: Tensor) -> "PagedKVCache":
         """Fine-grained API that appends the MLA K/V data to KV cache."""
         # pylint: disable=protected-access
-        b, s, _, d_qk = kv._expr.struct_info.shape
+        b, s, _, d_qk = kv._expr.ty.shape
         kv = kv.reshape(b * s, d_qk)
         return PagedKVCache(
             _expr=rx.call_pure_packed(
@@ -241,7 +241,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 self._expr,
                 rx.PrimValue(layer_id),  # type: ignore[arg-type]
                 kv._expr,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name="paged_kv_cache",
         )
@@ -257,7 +257,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         The first two tensors will be inplace updated.
         """
         # pylint: disable=protected-access
-        b, s, h_qo, d_v = o_self_attn._expr.struct_info.shape
+        b, s, h_qo, d_v = o_self_attn._expr.ty.shape
         o_self_attn = o_self_attn.reshape(b * s, h_qo, d_v)
         lse_self_attn = lse_self_attn.reshape(b * s, h_qo)
         o_cross_attn = o_cross_attn.reshape(b * s, h_qo, d_v)
@@ -271,13 +271,13 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 lse_self_attn._expr,
                 o_cross_attn._expr,
                 lse_cross_attn._expr,
-                sinfo_args=rx.TupleStructInfo(
-                    [o_self_attn._expr.struct_info, lse_self_attn._expr.struct_info]
+                ty_args=rx.TupleType(
+                    [o_self_attn._expr.ty, lse_self_attn._expr.ty]
                 ),
             )
         )
-        assert isinstance(merge_results.struct_info, rx.TupleStructInfo)
-        assert len(merge_results.struct_info.fields) == 2
+        assert isinstance(merge_results.ty, rx.TupleType)
+        assert len(merge_results.ty.fields) == 2
         o_self_attn = Tensor(_expr=bb.emit(rx.TupleGetItem(merge_results, 0))).reshape(
             b, s, h_qo, d_v
         )
@@ -304,7 +304,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 rx.call_pure_packed(
                     "vm.builtin.attention_kv_cache_get_query_positions",
                     self._expr,
-                    sinfo_args=rx.TensorStructInfo((total_length,), "int32"),
+                    ty_args=rx.TensorType((total_length,), "int32"),
                 )
             )
         )
@@ -505,7 +505,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name=name,
         )
@@ -680,7 +680,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name=name,
         )

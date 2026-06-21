@@ -27,7 +27,7 @@ from tvm.script import relax as R
 
 class Base:
     def test_compare(self):
-        transform = relax.transform.UpdateParamStructInfo(self.update_sinfo)
+        transform = relax.transform.UpdateParamType(self.update_ty)
 
         if inspect.isclass(self.Expected) and issubclass(self.Expected, Exception):
             with pytest.raises(self.Expected):
@@ -36,15 +36,15 @@ class Base:
             after = transform(self.Before)
             tvm.ir.assert_structural_equal(self.Expected, after)
 
-    def update_sinfo(self, var: relax.Var) -> relax.StructInfo | None:
-        """The struct info update function provided to the transform"""
+    def update_ty(self, var: relax.Var) -> relax.Type | None:
+        """The parameter type update function provided to the transform"""
         raise NotImplementedError("Should be implemented in derived class")
 
 
 class TestSimple(Base):
-    def update_sinfo(self, var: relax.Var) -> relax.StructInfo | None:
+    def update_ty(self, var: relax.Var) -> relax.Type | None:
         if var.name_hint == "weight":
-            return relax.TensorStructInfo([64, 16], "float32")
+            return relax.TensorType([64, 16], "float32")
 
     @I.ir_module
     class Before:

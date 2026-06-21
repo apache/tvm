@@ -47,8 +47,8 @@ class DataflowBlockRewriteNode : public ffi::Object {
   void Add(Binding binding);
   /*! \brief Insert an expression as VarBinding with variable name. */
   void Add(ffi::String var_name, Expr expr, bool is_dfvar = false) {
-    auto var = is_dfvar ? DataflowVar(var_name, GetStructInfo(expr))  //
-                        : Var(var_name, GetStructInfo(expr));
+    auto var = is_dfvar ? DataflowVar(var_name, GetType(expr))  //
+                        : Var(var_name, GetType(expr));
     Add(VarBinding(std::move(var), std::move(expr)));
   }
   /*! \brief Insert an expression as VarBinding with automatic variable name. */

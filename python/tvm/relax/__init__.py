@@ -51,9 +51,10 @@ from .expr import (
 from .expr import const, extern, get_shape_of
 
 # Type
-from .ty import (
+from .type import (
     Type,
     ObjectType,
+    PrimType,
     ShapeType,
     TensorType,
     TupleType,
@@ -79,17 +80,6 @@ from .block_builder import BlockBuilder
 # ExprFunctor
 from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
 
-# StructInfo
-from .struct_info import (
-    StructInfo,
-    ObjectStructInfo,
-    PrimStructInfo,
-    ShapeStructInfo,
-    TensorStructInfo,
-    TupleStructInfo,
-    FuncStructInfo,
-)
-
 # pipeline
 from .pipeline import get_default_pipeline
 from .pipeline import get_pipeline
@@ -105,11 +95,11 @@ from .base_py_module import BasePyModule
 from . import exec_builder
 from . import expr
 from . import ty
+from . import type
 from . import analysis
 from . import transform
 from . import block_builder
 from . import op
-from . import struct_info
 from . import backend
 from . import training
 from . import distributed

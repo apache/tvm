@@ -67,7 +67,7 @@ def test_pipeline_with_kv_cache():
                 init_data,
                 R.shape([m, 4]),
                 0,
-                sinfo_args=[R.Object()],
+                ty_args=[R.Object()],
             )
             return kv_cache
 
@@ -83,14 +83,14 @@ def test_pipeline_with_kv_cache():
             curr_value = R.add(x, y)
             # update cache
             kv_cache = R.call_packed(
-                "vm.builtin.attention_kv_cache_append", kv_cache, curr_value, sinfo_args=[R.Object]
+                "vm.builtin.attention_kv_cache_append", kv_cache, curr_value, ty_args=[R.Object]
             )
             # return the updated cache view
             kv = R.call_packed(
                 "vm.builtin.attention_kv_cache_view",
                 kv_cache,
                 shape,
-                sinfo_args=[R.Tensor((L, 4), "float32")],
+                ty_args=[R.Tensor((L, 4), "float32")],
             )
             return (kv, kv_cache)
 

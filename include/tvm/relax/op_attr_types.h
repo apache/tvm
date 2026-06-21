@@ -24,8 +24,9 @@
 #ifndef TVM_RELAX_OP_ATTR_TYPES_H_
 #define TVM_RELAX_OP_ATTR_TYPES_H_
 
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/te/tensor.h>
 
 namespace tvm {
@@ -60,12 +61,12 @@ enum OpPatternKind {
 using FCallPacked = ffi::String;
 
 /*!
- * \brief Infer output struct info given the call
+ * \brief Infer output type given the call
  *
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  */
-using FInferStructInfo = ffi::TypedFunction<StructInfo(const Call& call, const BlockBuilder& ctx)>;
+using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief The function type of a normalization function.

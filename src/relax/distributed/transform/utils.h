@@ -24,7 +24,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr_functor.h>
 namespace tvm {
 namespace relax {
@@ -44,10 +44,10 @@ inline ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const IRModule& mod_, const E
   return std::nullopt;
 }
 /*!
- * \brief Check whether the given struct infos can appear in DistIR
- * \return Whether the given struct infos can appear in DistIR
+ * \brief Check whether the given types can appear in DistIR
+ * \return Whether the given types can appear in DistIR
  */
-bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos);
+bool TypeCompatibleWithDistIR(ffi::Array<Type> tys);
 
 /*!
  * \brief Check whether the given function is a DistIR function

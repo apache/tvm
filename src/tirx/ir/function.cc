@@ -23,7 +23,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/expr.h>
+#include <tvm/relax/type.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -37,40 +38,40 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 namespace {
-relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
-  ffi::Array<relax::StructInfo> params;
+tvm::Type InferType(const PrimFunc& prim_func) {
+  ffi::Array<tvm::Type> params;
   for (const auto& param : prim_func->params) {
-    relax::StructInfo param_sinfo = [&]() -> relax::StructInfo {
+    tvm::Type param_ty = [&]() -> tvm::Type {
       if (auto opt_buf = prim_func->buffer_map.Get(param)) {
         auto buf = opt_buf.value();
         relax::ShapeExpr shape(
             buf->shape.Map([](PrimExpr dim) { return cast(DataType::Int(64), dim); }));
-        return relax::TensorStructInfo(shape, buf->dtype);
+        return relax::TensorType(shape, buf->dtype);
       }
 
       if (auto prim_type = param->type_annotation.as<PrimTypeNode>();
           prim_type && prim_type->dtype.is_handle()) {
-        return relax::ObjectStructInfo();
+        return relax::ObjectType();
       }
 
-      return relax::PrimStructInfo(param->dtype);
+      return relax::PrimType(param->dtype);
     }();
-    params.push_back(param_sinfo);
+    params.push_back(param_ty);
   }
 
-  relax::StructInfo ret = [&]() -> relax::StructInfo {
+  tvm::Type ret = [&]() -> tvm::Type {
     if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
-      return relax::PrimStructInfo(prim->dtype);
+      return relax::PrimType(prim->dtype);
     } else if (IsVoidType(prim_func->ret_type)) {
-      return relax::TupleStructInfo(ffi::Array<relax::StructInfo>{});
+      return relax::TupleType(ffi::Array<tvm::Type>{});
     } else {
-      return relax::ObjectStructInfo();
+      return relax::ObjectType();
     }
   }();
 
   bool purity = prim_func->body.defined() ? s_tir::IsPureFunction(prim_func) : false;
 
-  return relax::FuncStructInfo(params, ret, purity);
+  return relax::FuncType(params, ret, purity);
 }
 }  // namespace
 
@@ -87,11 +88,11 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
   n->ret_type = std::move(ret_type);
   n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
-  n->struct_info_ = relax::FuncStructInfo::OpaqueFunc();
+  n->ty = relax::FuncType::OpaqueFunc();
   n->span = std::move(span);
   data_ = std::move(n);
 
-  (*this)->struct_info_ = InferStructInfo(*this);
+  (*this)->ty = InferType(*this);
 }
 
 FuncType PrimFuncNode::func_type_annotation() const {

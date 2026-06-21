@@ -62,30 +62,30 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
 }
 
-StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Resize2D expects 2 arguments, while the given number of arguments is "
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
-  if (data_sinfo == nullptr) {
+  if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize2D expects the input data to be a Tensor, while the given data is "
         << call->args[0]->GetTypeKey();
   }
-  if (size_sinfo == nullptr) {
+  if (size_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize2D expects the given output image size to be a Shape, while the given one is "
         << call->args[1]->GetTypeKey();
   }
-  if (size_sinfo->ndim != 2) {
+  if (size_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Resize2D expects the given output image size to "
                                              "be a 2-dim shape, while the given one has ndim "
-                                          << size_sinfo->ndim;
+                                          << size_ty->ndim;
   }
 
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
@@ -93,12 +93,12 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
                                                     /*tgt_layout=*/"NCHW",     //
                                                     /*tensor_name=*/"data");
 
-  DataType out_dtype = attrs->out_dtype.is_void() ? data_sinfo->dtype : attrs->out_dtype;
+  DataType out_dtype = attrs->out_dtype.is_void() ? data_ty->dtype : attrs->out_dtype;
 
-  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
-      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  ffi::Optional<ShapeExpr> data_shape =
+      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
   if (!data_shape.defined() || size_value == nullptr) {
-    return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
+    return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -107,7 +107,7 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape.Set(3, size_value->values[1]);
 
   ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
 }
 
 InferLayoutOutput InferLayoutResize2d(
@@ -145,7 +145,7 @@ TVM_REGISTER_OP("relax.image.resize2d")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("size", "Shape", "The output image shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize2D)
+    .set_attr<FInferType>("FInferType", InferTypeResize2D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -176,30 +176,30 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize3d", resize3d);
 }
 
-StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeResize3D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Resize3D expects 2 arguments, while the given number of arguments is "
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
-  if (data_sinfo == nullptr) {
+  if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize3D expects the input data to be a Tensor, while the given data is "
         << call->args[0]->GetTypeKey();
   }
-  if (size_sinfo == nullptr) {
+  if (size_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize3D expects the given output image size to be a Shape, while the given one is "
         << call->args[1]->GetTypeKey();
   }
-  if (size_sinfo->ndim != 3) {
+  if (size_ty->ndim != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Resize3D expects the given output image size to "
                                              "be a 3-dim shape, while the given one has ndim "
-                                          << size_sinfo->ndim;
+                                          << size_ty->ndim;
   }
 
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
@@ -207,12 +207,12 @@ StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
                                                      /*tgt_layout=*/"NCDHW",    //
                                                      /*tensor_name=*/"data");
 
-  DataType out_dtype = attrs->out_dtype.is_void() ? data_sinfo->dtype : attrs->out_dtype;
+  DataType out_dtype = attrs->out_dtype.is_void() ? data_ty->dtype : attrs->out_dtype;
 
-  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
-      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
+  ffi::Optional<ShapeExpr> data_shape =
+      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
   if (!data_shape.defined() || size_value == nullptr) {
-    return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
+    return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
@@ -222,7 +222,7 @@ StructInfo InferStructInfoResize3D(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape.Set(4, size_value->values[2]);
 
   ffi::Array<PrimExpr> out_shape = data2NCDHW.BackwardShape(out_NCDHW_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
 }
 
 InferLayoutOutput InferLayoutResize3d(
@@ -257,7 +257,7 @@ TVM_REGISTER_OP("relax.image.resize3d")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("size", "Shape", "The output image shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoResize3D)
+    .set_attr<FInferType>("FInferType", InferTypeResize3D)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -283,22 +283,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
 }
 
-StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "GridSample expects two arguments, while the given number of arguments is "
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* grid_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* grid_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
 
-  if (data_sinfo == nullptr) {
+  if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GridSample expects the input data to be a Tensor, while the given data is "
         << call->args[0]->GetTypeKey();
   }
-  if (grid_sinfo == nullptr) {
+  if (grid_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GridSample expects the grid to be a Tensor, while the given grid is "
         << call->args[1]->GetTypeKey();
@@ -315,14 +315,14 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
                                                    /*tgt_layout=*/is_ncdhw ? "NCDHW" : "NCHW",
                                                    /*tensor_name=*/"data");
 
-  DataType out_dtype = data_sinfo->dtype;
+  DataType out_dtype = data_ty->dtype;
 
-  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(
-      call, ctx, ffi::GetRef<TensorStructInfo>(data_sinfo), data_layout);
-  const auto* grid_shape = grid_sinfo->shape.as<ShapeExprNode>();
+  ffi::Optional<ShapeExpr> data_shape =
+      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
+  const auto* grid_shape = grid_ty->shape.as<ShapeExprNode>();
 
   if (!data_shape.defined() || grid_shape == nullptr) {
-    return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice);
+    return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 
   ffi::Array<PrimExpr> data_tgt_shape = data2tgt.ForwardShape(data_shape.value()->values);
@@ -340,7 +340,7 @@ StructInfo InferStructInfoGridSample(const Call& call, const BlockBuilder& ctx) 
   }
 
   ffi::Array<PrimExpr> out_shape = data2tgt.BackwardShape(out_tgt_shape);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.image.grid_sample")
@@ -348,7 +348,7 @@ TVM_REGISTER_OP("relax.image.grid_sample")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("grid", "Tensor", "The grid tensor for sampling.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGridSample)
+    .set_attr<FInferType>("FInferType", InferTypeGridSample)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -364,42 +364,42 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
 }
 
-StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "AffineGrid expects two arguments, while the given number of arguments is "
         << call->args.size();
   }
 
-  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  const auto* size_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
   const auto* size_value = call->args[1].as<ShapeExprNode>();
 
-  if (data_sinfo == nullptr) {
+  if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "AffineGrid expects the input data to be a Tensor, while the given data is "
         << call->args[0]->GetTypeKey();
   }
-  if (size_sinfo == nullptr) {
+  if (size_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "AffineGrid expects the target size to be a Shape, while the given one is "
         << call->args[1]->GetTypeKey();
   }
-  if (size_sinfo->ndim != 2) {
+  if (size_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "AffineGrid expects the target size to be a 2-dim shape, while the given "
            "one has ndim "
-        << size_sinfo->ndim;
+        << size_ty->ndim;
   }
 
   // data should be 3-D: [batch, 2, 3]
-  if (data_sinfo->ndim != -1 && data_sinfo->ndim != 3) {
+  if (data_ty->ndim != -1 && data_ty->ndim != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "AffineGrid expects the input data to be 3-D (batch, 2, 3), but got ndim "
-        << data_sinfo->ndim;
+        << data_ty->ndim;
   }
 
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
     // Check that the affine matrix has shape [batch, 2, 3]
     if (data_shape->values.size() >= 2) {
@@ -418,10 +418,10 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
     }
   }
 
-  DataType out_dtype = data_sinfo->dtype;
+  DataType out_dtype = data_ty->dtype;
 
   if (data_shape == nullptr || size_value == nullptr) {
-    return TensorStructInfo(out_dtype, /*ndim=*/4, data_sinfo->vdevice);
+    return TensorType(out_dtype, /*ndim=*/4, data_ty->vdevice);
   }
 
   // Output shape: [batch, 2, target_height, target_width]
@@ -431,14 +431,14 @@ StructInfo InferStructInfoAffineGrid(const Call& call, const BlockBuilder& ctx) 
   out_shape.push_back(size_value->values[0]);  // target_height
   out_shape.push_back(size_value->values[1]);  // target_width
 
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.image.affine_grid")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input affine matrix tensor.")
     .add_argument("size", "Shape", "The target output shape (H, W).")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAffineGrid)
+    .set_attr<FInferType>("FInferType", InferTypeAffineGrid)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 

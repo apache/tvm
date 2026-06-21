@@ -514,7 +514,7 @@ def test_kv_cache():
                     lv,
                     R.shape([8, 2, 4]),
                     R.prim_value(0),
-                    sinfo_args=[R.Object()],
+                    ty_args=[R.Object()],
                 )
                 lv1 = _io, cache
                 gv = lv1
@@ -532,13 +532,13 @@ def test_kv_cache():
                     cache,
                     x,
                     inplace_indices=[0],
-                    sinfo_args=[R.Object()],
+                    ty_args=[R.Object()],
                 )
                 lv3: R.Tensor((4, 2, 4), dtype="float32") = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
                     lv2,
                     R.shape([4, 2, 4]),
-                    sinfo_args=(R.Tensor((4, 2, 4), dtype="float32"),),
+                    ty_args=(R.Tensor((4, 2, 4), dtype="float32"),),
                 )
                 gv1: R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)) = (
                     lv3,

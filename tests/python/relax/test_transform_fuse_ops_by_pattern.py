@@ -591,8 +591,8 @@ def test_unmatched_calls_may_include_lambda_functions(annotate_codegen):
 
 
 def test_compare_with_merge_composite_path():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -769,7 +769,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_sinfo=R.Tensor((1, 64, 56, 56), dtype="float32"),
+                    out_ty=R.Tensor((1, 64, 56, 56), dtype="float32"),
                 )
                 R.output(relu1)
             return relu1

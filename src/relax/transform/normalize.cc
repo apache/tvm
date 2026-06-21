@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
+ * nesting and hence the AST is in ANF), and all ty of expressions are
  * available.
  */
 
@@ -28,8 +28,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
@@ -49,7 +49,7 @@ class NormalizeMutator : public ExprMutatorBase {
     if (body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
+      return Function(op->params, body, op->ret_ty, op->is_pure, op->attrs);
     }
   }
 
@@ -147,8 +147,8 @@ class NormalizeMutator : public ExprMutatorBase {
 
   void VisitBinding_(const VarBindingNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (!binding->var->struct_info_.defined()) {
-      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+    if (!binding->var->ty.defined()) {
+      UpdateType(binding->var, GetType(new_value));
     }
 
     if (new_value.same_as(binding->value)) {
@@ -165,7 +165,7 @@ class NormalizeMutator : public ExprMutatorBase {
       builder_->EmitNormalized(ffi::GetRef<MatchCast>(binding));
     } else {
       builder_->EmitNormalized(
-          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
+          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->ty));
     }
   }
 

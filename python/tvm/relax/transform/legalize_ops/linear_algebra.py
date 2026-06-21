@@ -41,14 +41,14 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         is_a_larger = len(a_shape) > len(b_shape)
         offset = len(a_shape) - len(b_shape) if is_a_larger else len(b_shape) - len(a_shape)
 
-        a_relax = relax.Var("a", relax.TensorStructInfo(a.shape))
-        b_relax = relax.Var("b", relax.TensorStructInfo(b.shape))
-        f_infer_sinfo = call.op.get_attr("FInferStructInfo")
-        output_shape = f_infer_sinfo(relax.op.matmul(a_relax, b_relax), bb).shape
+        a_relax = relax.Var("a", relax.TensorType(a.shape))
+        b_relax = relax.Var("b", relax.TensorType(b.shape))
+        f_infer_ty = call.op.get_attr("FInferType")
+        output_shape = f_infer_ty(relax.op.matmul(a_relax, b_relax), bb).shape
         if isinstance(a_shape[-1], tirx.IntImm) and a_shape[-1] == 0:
             return te.compute(
                 output_shape,
-                lambda *_: tirx.const(0, call.struct_info.dtype),
+                lambda *_: tirx.const(0, call.ty.dtype),
                 name="matmul",
             )
 
@@ -98,12 +98,12 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     lhs, rhs = call.args
-    lhs_sinfo = call.args[0].struct_info
-    rhs_sinfo = call.args[1].struct_info
-    assert lhs_sinfo.dtype and rhs_sinfo.dtype, (
+    lhs_ty = call.args[0].ty
+    rhs_ty = call.args[1].ty
+    assert lhs_ty.dtype and rhs_ty.dtype, (
         f"To legalize R.matmul into R.call_tir, the dtype of both operands must be known.  "
-        f"However, the LHS {lhs} has struct info {lhs_sinfo} (dtype='{lhs_sinfo.dtype}') "
-        f"and the RHS {rhs} has struct info {rhs_sinfo} (dtype='{rhs_sinfo.dtype}')."
+        f"However, the LHS {lhs} has type {lhs_ty} (dtype='{lhs_ty.dtype}') "
+        f"and the RHS {rhs} has type {rhs_ty} (dtype='{rhs_ty.dtype}')."
     )
     return bb.call_te(te_matmul, call.args[0], call.args[1], primfunc_name_hint="matmul")
 
@@ -111,7 +111,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.einsum")
 def _einsum(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):

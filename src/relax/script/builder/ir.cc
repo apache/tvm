@@ -19,7 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/script/builder/ir.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
 #include "./utils.h"
@@ -69,9 +69,9 @@ FunctionFrame Function(bool is_pure, bool is_private) {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const ffi::String& name, const tvm::relax::StructInfo& struct_info) {
+tvm::relax::Var Arg(const ffi::String& name, const tvm::Type& ty) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  tvm::relax::Var var(name, struct_info);
+  tvm::relax::Var var(name, ty);
   frame->params.push_back(var);
   frame->block_builder->AddDefinitionToScope(var);
 
@@ -106,13 +106,13 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   }
 }
 
-void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
-  FunctionFrame frame = FindFunctionFrame("R.func_ret_struct_info");
-  if (frame->ret_struct_info.defined()) {
-    TVM_FFI_THROW(ValueError) << "Duplicate function return struct info, previous one is:\n "
-                              << frame->ret_struct_info.value();
+void FuncRetType(const tvm::Type& ret_ty) {
+  FunctionFrame frame = FindFunctionFrame("R.func_ret_type");
+  if (frame->ret_ty.defined()) {
+    TVM_FFI_THROW(ValueError) << "Duplicate function return type, previous one is:\n "
+                              << frame->ret_ty.value();
   }
-  frame->ret_struct_info = ret_sinfo;
+  frame->ret_ty = ret_ty;
 }
 
 void FuncRetValue(const tvm::relax::Expr& value) {
@@ -153,7 +153,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.relax.Arg", Arg)
       .def("script.ir_builder.relax.FuncName", FuncName)
       .def("script.ir_builder.relax.FuncAttrs", FuncAttrs)
-      .def("script.ir_builder.relax.FuncRetStructInfo", FuncRetStructInfo)
+      .def("script.ir_builder.relax.FuncRetType", FuncRetType)
       .def("script.ir_builder.relax.FuncRetValue", FuncRetValue);
 }
 
@@ -209,20 +209,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /////////////////////////////// Bindings ///////////////////////////////
 
-tvm::relax::Var Emit(const tvm::relax::Expr& expr,
-                     const ffi::Optional<tvm::relax::StructInfo>& annotate_struct_info) {
-  using tvm::relax::GetStructInfo;
+tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type>& annotate_ty) {
+  using tvm::relax::GetType;
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-  if (annotate_struct_info.defined()) {
-    const auto& sinfo = annotate_struct_info.value();
-    if (!expr->struct_info_.defined()) {
-      UpdateStructInfo(expr, sinfo);
+  if (annotate_ty.defined()) {
+    const auto& ty = annotate_ty.value();
+    if (!expr->ty.defined()) {
+      tvm::relax::UpdateType(expr, ty);
     } else {
-      TVM_FFI_ICHECK(StructInfoBaseCheck(sinfo, GetStructInfo(expr)) !=
+      TVM_FFI_ICHECK(tvm::relax::TypeBaseCheck(ty, GetType(expr)) !=
                      tvm::relax::BaseCheckResult::kFailL0)
-          << "Invalid annotation. Got rhs value struct info: " << GetStructInfo(expr)
-          << ", given struct info: " << sinfo;
+          << "Invalid annotation. Got rhs value type: " << GetType(expr) << ", given type: " << ty;
     }
   }
   tvm::relax::Var var = block_builder->Emit(expr);
@@ -230,12 +228,11 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr,
   return var;
 }
 
-tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
-                              const tvm::relax::StructInfo& struct_info) {
+tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty) {
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
 
-  tvm::relax::Var var = block_builder->EmitMatchCast(value, struct_info);
+  tvm::relax::Var var = block_builder->EmitMatchCast(value, ty);
   block_frame->emitted_vars.push_back(var);
   return var;
 }

@@ -18,15 +18,18 @@
  */
 
 /*!
- * \file tvm/relax/distributed/struct_info.h
- * \brief Struct info for DTensor (Distributed Tensor)
+ * \file tvm/relax/distributed/type.h
+ * \brief Type definitions for DTensor (Distributed Tensor)
  */
 
-#ifndef TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
-#define TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
+#ifndef TVM_RELAX_DISTRIBUTED_TYPE_H_
+#define TVM_RELAX_DISTRIBUTED_TYPE_H_
 
 #include <tvm/relax/distributed/global_info.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
+
+#include <utility>
+
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -111,14 +114,22 @@ class Placement : public ffi::ObjectRef {
 };
 
 /*!
- * \brief StructInfo of DTensor (Distributed Tensor).
+ * \brief Type of DTensor (Distributed Tensor).
  */
-class DTensorStructInfoNode : public StructInfoNode {
+class DTensorTypeNode : public TypeNode {
  public:
+  explicit DTensorTypeNode(ffi::UnsafeInit)
+      : tensor_ty(ffi::UnsafeInit{}), device_mesh(), placement() {}
+
+  DTensorTypeNode(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement)
+      : tensor_ty(std::move(tensor_ty)),
+        device_mesh(std::move(device_mesh)),
+        placement(std::move(placement)) {}
+
   /*!
-   * \brief The struct info inherited from TensorStructInfo
+   * \brief The tensor type carried by the DTensor type.
    */
-  TensorStructInfo tensor_sinfo;
+  TensorType tensor_ty;
   /*!
    * \brief The device mesh of the tensor.
    */
@@ -130,36 +141,35 @@ class DTensorStructInfoNode : public StructInfoNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DTensorStructInfoNode>()
-        .def_ro("device_mesh", &DTensorStructInfoNode::device_mesh)
-        .def_ro("placement", &DTensorStructInfoNode::placement)
-        .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
+    refl::ObjectDef<DTensorTypeNode>()
+        .def_ro("device_mesh", &DTensorTypeNode::device_mesh)
+        .def_ro("placement", &DTensorTypeNode::placement)
+        .def_ro("tensor_ty", &DTensorTypeNode::tensor_ty);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorStructInfo", DTensorStructInfoNode,
-                                    StructInfoNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DTensorType", DTensorTypeNode, TypeNode);
 };
 
 /*!
- * \brief Managed reference to DTensorStructInfoNode.
- * \sa DTensorStructInfoNode
+ * \brief Managed reference to DTensorTypeNode.
+ * \sa DTensorTypeNode
  */
-class DTensorStructInfo : public StructInfo {
+class DTensorType : public Type {
  public:
   /*!
    * \brief Construction with device mesh and placement.
-   * \param tensor_sinfo The struct info inherited from TensorStructInfo
+   * \param tensor_ty The tensor type carried by the DTensor type.
    * \param device_mesh The device mesh of the tensor.
    * \param placement The placement of the tensor among the device mesh.
    * \param span The span of the AST.
    */
-  TVM_DLL DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
-                            Placement placement, Span span = Span());
+  TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
+                      Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DTensorType, Type, DTensorTypeNode);
 };
 
 }  // namespace distributed
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_DISTRIBUTED_STRUCT_INFO_H_
+#endif  // TVM_RELAX_DISTRIBUTED_TYPE_H_

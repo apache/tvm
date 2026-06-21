@@ -49,7 +49,7 @@ def test_vm_copy(exec_mode):
         @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
-            z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
+            z = R.call_packed("vm.builtin.copy", x, ty_args=(R.Tensor((3, 4), dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -70,7 +70,7 @@ def test_vm_to_device(exec_mode):
             R.func_attr({"global_symbol": "foo"})
             # Copy x to the first cpu: device_type=1 and device_id=0.
             z = R.call_packed(
-                "vm.builtin.to_device", x, 1, 0, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
+                "vm.builtin.to_device", x, 1, 0, ty_args=(R.Tensor((3, 4), dtype="float32"))
             )
             return z
 
@@ -116,7 +116,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
         @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
-            z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
+            z = R.call_packed("vm.builtin.copy", x, ty_args=(R.Tensor((3, 4), dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -140,9 +140,9 @@ def test_if_cond(exec_mode):
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
             R.func_attr({"global_symbol": "ife"})
             if cond:
-                w = R.call_packed("test.vm.add", x, x, sinfo_args=(R.Tensor))
+                w = R.call_packed("test.vm.add", x, x, ty_args=(R.Tensor))
             else:
-                w = R.call_packed("test.vm.mul", x, x, sinfo_args=(R.Tensor))
+                w = R.call_packed("test.vm.mul", x, x, ty_args=(R.Tensor))
             return w
 
     mod = TestVMCompileIf
@@ -193,13 +193,13 @@ def test_vm_const_as_call_arg(exec_mode):
                 "test.vm.add",
                 relax.const([1, 2]),
                 relax.const([3, 4]),
-                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
+                ty_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             b = R.call_packed(
                 "test.vm.add",
                 a,
                 x,
-                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
+                ty_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return b
 
@@ -230,10 +230,10 @@ def test_shape_check_builtin(exec_mode):
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", ty_args=[R.Tuple()]
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -245,7 +245,7 @@ def test_shape_check_builtin(exec_mode):
                 MS.STORE_TO_HEAP,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             # construct shape value for return
             s = R.call_packed(
@@ -258,7 +258,7 @@ def test_shape_check_builtin(exec_mode):
                 sindex["n"],
                 MK.USE_IMM,
                 2,
-                sinfo_args=[R.Shape(ndim=3)],
+                ty_args=[R.Shape(ndim=3)],
             )
             return s
 
@@ -345,7 +345,7 @@ def test_vm_builtin_reshape(exec_mode):
         def main(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "main"})
             y = R.call_packed(
-                "vm.builtin.reshape", x, R.shape([6, 2]), sinfo_args=R.Tensor((6, 2), "float32")
+                "vm.builtin.reshape", x, R.shape([6, 2]), ty_args=R.Tensor((6, 2), "float32")
             )
             return y
 

@@ -285,7 +285,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), GetStructInfo(free_var), free_var->span);
+      Var var = Var(free_var->name_hint(), GetType(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -298,12 +298,11 @@ class LambdaLifter : public ExprMutator {
 
     auto gvar_lifted_func = GlobalVar(lift_func_name);
     {
-      auto func_sinfo = Downcast<FuncStructInfo>(func_node->struct_info_);
+      auto func_ty = Downcast<FuncType>(func_node->ty);
       if (is_closure) {
-        func_sinfo = FuncStructInfo(lifted_func_params.Map(GetStructInfo), func_sinfo->ret,
-                                    func_sinfo->purity);
+        func_ty = FuncType(lifted_func_params.Map(GetType), func_ty->ret, func_ty->purity);
       }
-      UpdateStructInfo(gvar_lifted_func, func_sinfo);
+      UpdateType(gvar_lifted_func, func_ty);
     }
 
     Expr body = func_node->body;
@@ -321,16 +320,16 @@ class LambdaLifter : public ExprMutator {
     }
 
     body = this->VisitWithNewScope(body, lifted_func_params);
-    StructInfo ret_struct_info = GetStructInfo(body);
+    Type ret_ty = GetType(body);
     body = Bind(body, rebinding_map);
 
     Function lifted_func;
     if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
-        ret_struct_info.same_as(func_node->ret_struct_info)) {
+        ret_ty.same_as(func_node->ret_ty)) {
       lifted_func = ffi::GetRef<Function>(func_node);
     } else {
       lifted_func =
-          Function(lifted_func_params, body, ret_struct_info, func_node->is_pure, func_node->attrs);
+          Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
     }
 
     TVM_FFI_ICHECK(lifted_func.defined());
@@ -341,7 +340,7 @@ class LambdaLifter : public ExprMutator {
 
     // Add the lifted function to the module.
     lifted_func = CopyWithNewVars(lifted_func);
-    gvar_lifted_func->struct_info_ = GetStructInfo(lifted_func);
+    gvar_lifted_func->ty = GetType(lifted_func);
 
     builder_->UpdateFunction(gvar_lifted_func, lifted_func);
 
@@ -360,7 +359,7 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ffi::GetRef<Call>(call_node);
 
-    auto orig_sinfo = Downcast<StructInfo>(call->struct_info_);
+    auto orig_ty = Downcast<Type>(call->ty);
 
     if (auto opt_var = call->op.as<Var>()) {
       auto var = opt_var.value();
@@ -374,22 +373,20 @@ class LambdaLifter : public ExprMutator {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
             return purity_map.get(op.value(), false);
-          } else if (const auto* func_sinfo =
-                         orig_call->op->struct_info_.as<FuncStructInfoNode>()) {
-            return func_sinfo->purity;
+          } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
+            return func_ty->purity;
           } else {
             TVM_FFI_THROW(InternalError)
                 << "Could not determine purity of call to " << orig_call->op
                 << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
                 << "\"), "
-                << "nor is is annotated with FuncStructInfo (sinfo = "
-                << orig_call->op->struct_info_ << ")";
+                << "nor is is annotated with FuncType (ty = " << orig_call->op->ty << ")";
           }
         }();
 
         auto prev = call;
         call = Call(is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
-                    {var, Tuple(call->args)}, {}, {orig_sinfo});
+                    {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
 
@@ -404,7 +401,7 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(nested_call->op, new_args, call->attrs, call->sinfo_args);
+        call = Call(nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 

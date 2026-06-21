@@ -483,7 +483,7 @@ def test_tensorrt_layout_transform():
     # strings); the codegen translates a pure-permutation index map into a transpose. Built with the
     # BlockBuilder because the index_map lambda cannot be expressed in TVMScript.
     bb = relax.BlockBuilder()
-    data = relax.Var("data", relax.TensorStructInfo((1, 4, 8, 8), "float32"))
+    data = relax.Var("data", relax.TensorType((1, 4, 8, 8), "float32"))
     with bb.function("main", [data]):
         with bb.dataflow():
             out = bb.emit(

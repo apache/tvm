@@ -61,9 +61,8 @@ class ExternFunctionRewriter : ExprMutator {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
-      auto sinfo =
-          TensorStructInfo(ShapeExpr({IntImm::Int32(max_workspace_size_)}), DataType::UInt(8));
-      Var workspace_param(name_sup_->FreshName("workspace"), sinfo);
+      auto ty = TensorType(ShapeExpr({IntImm::Int32(max_workspace_size_)}), DataType::UInt(8));
+      Var workspace_param(name_sup_->FreshName("workspace"), ty);
 
       if (func_node->GetAttr<ffi::String>(attr::kCodegen)) {
         workspace_var_param_ = workspace_param;
@@ -72,8 +71,8 @@ class ExternFunctionRewriter : ExprMutator {
       new_params.push_back(workspace_param);
       auto new_attrs = func_node->attrs;
       new_attrs.CopyOnWrite()->dict.erase(attr::kWorkspaceSize);
-      return Function(new_params, VisitExpr(func_node->body), func_node->ret_struct_info,
-                      func_node->is_pure, new_attrs);
+      return Function(new_params, VisitExpr(func_node->body), func_node->ret_ty, func_node->is_pure,
+                      new_attrs);
     }
     return ExprMutator::VisitExpr_(func_node);
   }
@@ -89,7 +88,7 @@ class ExternFunctionRewriter : ExprMutator {
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_);
-        return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
+        return Call(new_op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -139,8 +138,8 @@ class WorkspaceProvider : ExprMutator {
         continue;
       }
       auto func = Downcast<Function>(mod_->Lookup(gvar));
-      auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
-                               func->is_pure, func->attrs);
+      auto new_func =
+          Function(func->params, VisitExpr(func->body), func->ret_ty, func->is_pure, func->attrs);
       builder_->UpdateFunction(gvar, new_func);
     }
     return builder_->GetContextIRModule();
@@ -175,7 +174,7 @@ class WorkspaceProvider : ExprMutator {
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_main_.defined());
         new_args.push_back(workspace_var_main_);
-        return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
+        return Call(new_op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
       }
     }
 
@@ -189,7 +188,7 @@ class WorkspaceProvider : ExprMutator {
   size_t max_workspace_size_ = 0;
   /*! \brief A map from old global variables representing a function with workspace requirement to
    * the new ones that are transformed to take an additional workspace parameter. This is only
-   * needed since the struct info of the global variables changes between transformation. */
+   * needed since the type of the global variables changes between transformation. */
   std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
   std::unordered_set<GlobalVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_gvars_;
 };

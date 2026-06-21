@@ -35,7 +35,7 @@ def test_multinomial_from_uniform():
                 "vm.builtin.multinomial_from_uniform",
                 x,
                 y,
-                sinfo_args=(R.Tensor((3, 1), dtype="int64")),
+                ty_args=(R.Tensor((3, 1), dtype="int64")),
             )
             return z
 

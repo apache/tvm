@@ -18,31 +18,31 @@
  */
 
 /*!
- * \file tvm/ir/type_functor.h
- * \brief A way to defined arbitrary function signature with dispatch on types.
+ * \file tvm/relax/type_functor.h
+ * \brief Functors and visitors for Relax type nodes.
  */
-#ifndef TVM_IR_TYPE_FUNCTOR_H_
-#define TVM_IR_TYPE_FUNCTOR_H_
+#ifndef TVM_RELAX_TYPE_FUNCTOR_H_
+#define TVM_RELAX_TYPE_FUNCTOR_H_
 
 #include <tvm/ir/node_functor.h>
-#include <tvm/ir/type.h>
+#include <tvm/relax/distributed/type.h>
+#include <tvm/relax/type.h>
 
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace tvm {
+namespace relax {
 
 template <typename FType>
 class TypeFunctor;
 
 // functions to be overriden.
-#define TYPE_FUNCTOR_DEFAULT                                   \
+#define RELAX_TYPE_FUNCTOR_DEFAULT                             \
   {                                                            \
     return VisitTypeDefault_(op, std::forward<Args>(args)...); \
   }
 
-#define TVM_TYPE_FUNCTOR_DISPATCH(OP)                                                       \
+#define TVM_RELAX_TYPE_FUNCTOR_DISPATCH(OP)                                                 \
   vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
     return self->VisitType_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
@@ -60,14 +60,14 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual ~TypeFunctor() {}
   /*!
    * \brief Same as call.
-   * \param n The expression node.
+   * \param n The type node.
    * \param args Additional arguments.
    * \return The result of the call
    */
   R operator()(const Type& n, Args... args) { return VisitType(n, std::forward<Args>(args)...); }
   /*!
    * \brief The functor call.
-   * \param n The expression node.
+   * \param n The type node.
    * \param args Additional arguments.
    * \return The result of the call
    */
@@ -77,10 +77,14 @@ class TypeFunctor<R(const Type& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const PointerTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const ObjectTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const PrimTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const ShapeTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TensorTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const distributed::DTensorTypeNode* op,
+                       Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TupleTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const FuncTypeNode* op, Args... args) RELAX_TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const ffi::Object* op, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
@@ -91,42 +95,58 @@ class TypeFunctor<R(const Type& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    TVM_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(PointerTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(ObjectTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(ShapeTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(distributed::DTensorTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
+    TVM_RELAX_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     vtable.Finalize();
     return vtable;
   }
 };
 
-#undef TVM_TYPE_FUNCTOR_DISPATCH
+#undef TVM_RELAX_TYPE_FUNCTOR_DISPATCH
 
 /*!
- * \brief A type visitor that recursively visit types.
+ * \brief A type visitor.
  */
 class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
  public:
-  void VisitType_(const FuncTypeNode* op) override;
-  void VisitType_(const TupleTypeNode* op) override;
+  void VisitType_(const ObjectTypeNode* op) override;
   void VisitType_(const PrimTypeNode* op) override;
-  void VisitType_(const PointerTypeNode* op) override;
+  void VisitType_(const ShapeTypeNode* op) override;
+  void VisitType_(const TensorTypeNode* op) override;
+  void VisitType_(const distributed::DTensorTypeNode* op) override;
+  void VisitType_(const TupleTypeNode* op) override;
+  void VisitType_(const FuncTypeNode* op) override;
+
+ protected:
+  // two functions to override when visit expr fields in type nodes.
+  virtual void VisitTypeExprField(const Expr& expr) {}
+  virtual void VisitTypeExprField(const PrimExpr& expr) {}
 };
 
 /*!
- * \brief TypeMutator that mutates expressions.
+ * \brief TypeMutator that mutates Relax type nodes.
  */
 class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
-  Type VisitType(const Type& t) override;
-  Type VisitType_(const FuncTypeNode* op) override;
-  Type VisitType_(const TupleTypeNode* op) override;
+  Type VisitType_(const ObjectTypeNode* op) override;
   Type VisitType_(const PrimTypeNode* op) override;
-  Type VisitType_(const PointerTypeNode* op) override;
+  Type VisitType_(const ShapeTypeNode* op) override;
+  Type VisitType_(const TensorTypeNode* op) override;
+  Type VisitType_(const distributed::DTensorTypeNode* op) override;
+  Type VisitType_(const TupleTypeNode* op) override;
+  Type VisitType_(const FuncTypeNode* op) override;
 
- private:
-  ffi::Array<Type> MutateArray(ffi::Array<Type> arr);
+ protected:
+  // two functions to override when visit expr fields in type nodes.
+  virtual Expr VisitTypeExprField(const Expr& expr) { return expr; }
+  virtual PrimExpr VisitTypeExprField(const PrimExpr& expr) { return expr; }
 };
 
+}  // namespace relax
 }  // namespace tvm
-#endif  // TVM_IR_TYPE_FUNCTOR_H_
+#endif  // TVM_RELAX_TYPE_FUNCTOR_H_

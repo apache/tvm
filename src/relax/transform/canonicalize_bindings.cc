@@ -29,8 +29,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -87,27 +87,27 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // correctly return `R.Tensor(ndim=2)`, removing all shape
     // information.
     //
-    // Since we know the StructInfo prior to replacing TIR variables,
-    // this pass can provide a better StructInfo than the generic
+    // Since we know the Type prior to replacing TIR variables,
+    // this pass can provide a better Type than the generic
     // handling in ExprMutator, by restoring the symbolic variables
     // within each branch.
-    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
+    auto new_ty = VisitExprDepTypeField(Downcast<Type>(op->ty));
 
     ffi::StructuralEqual struct_equal;
-    if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
-      auto output_var = Var("then_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetType(true_b))) {
+      auto output_var = Var("then_branch_with_dyn", new_ty);
 
       true_b = SeqExpr({BindingBlock({
-                           MatchCast(output_var, true_b, new_sinfo),
+                           MatchCast(output_var, true_b, new_ty),
                        })},
                        output_var);
     }
 
-    if (!struct_equal(new_sinfo, GetStructInfo(false_b))) {
-      auto output_var = Var("else_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetType(false_b))) {
+      auto output_var = Var("else_branch_with_dyn", new_ty);
 
       false_b = SeqExpr({BindingBlock({
-                            MatchCast(output_var, false_b, new_sinfo),
+                            MatchCast(output_var, false_b, new_ty),
                         })},
                         output_var);
     }
@@ -172,7 +172,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
+        DataflowVar new_var(var->name_hint(), GetType(var));
 
         plan.replace_binding.Set(var->vid, new_var);
         plan.replace_usage.Set(var->vid, new_var);
@@ -315,8 +315,7 @@ class CanonicalizePlanner : public ExprVisitor {
         return std::nullopt;
       }
 
-      auto earlier_tuple_size =
-          Downcast<TupleStructInfo>(GetStructInfo(first_element->tuple))->fields.size();
+      auto earlier_tuple_size = Downcast<TupleType>(GetType(first_element->tuple))->fields.size();
       if (earlier_tuple_size != expr_tuple->fields.size()) {
         return std::nullopt;
       }
@@ -349,12 +348,11 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBinding(const Binding& binding) override {
-    bool has_same_struct_info = [&]() {
+    bool has_same_ty = [&]() {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return ffi::StructuralEqual()(GetStructInfo(binding->var),
-                                      GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetType(binding->var), GetType(match_cast->value));
       } else {
         TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }
@@ -366,7 +364,7 @@ class CanonicalizePlanner : public ExprVisitor {
       value = unwrapped.value();
     }
 
-    if (auto parent = value.as<Var>(); parent && has_same_struct_info) {
+    if (auto parent = value.as<Var>(); parent && has_same_ty) {
       trivial_bindings_.Set(binding->var, parent.value());
     }
 
@@ -534,7 +532,7 @@ class BindingCanonicalizer : public ExprMutator {
         if (auto* match_binding = binding.as<MatchCastNode>()) {
           auto new_binding =
               MatchCast(binding->var, candidates.at(Downcast<DataflowVar>(match_binding->value)),
-                        match_binding->struct_info);
+                        match_binding->ty);
           new_bindings.push_back(new_binding);
         } else if (auto* var_binding = binding.as<VarBindingNode>()) {
           auto new_binding =

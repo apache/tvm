@@ -101,7 +101,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
   if (upper_bounds || lower_bounds) {
     ffi::Map<ffi::String, tirx::Var> name_lookup;
-    for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
+    for (const auto& tir_var : TIRVarsInType(GetType(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
     }
@@ -144,9 +144,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     }
 
     auto get_shape = [](Expr expr) -> ffi::Optional<ffi::Array<PrimExpr>> {
-      auto sinfo = expr->struct_info_.as<TensorStructInfoNode>();
-      if (sinfo) {
-        return sinfo->GetShape();
+      auto ty = expr->ty.as<TensorTypeNode>();
+      if (ty) {
+        return ty->GetShape();
       } else {
         return std::nullopt;
       }

@@ -64,26 +64,26 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         << "Attributes for relax.take operator should be TakeAttrs, "
         << "but were instead " << take_call->attrs << " with type " << take_call->GetTypeKey();
 
-    const auto* lhs_sinfo = lhs->struct_info_.as<TensorStructInfoNode>();
-    if (!lhs_sinfo) return expr;
+    const auto* lhs_ty = lhs->ty.as<TensorTypeNode>();
+    if (!lhs_ty) return expr;
 
-    const auto* weights_sinfo = weights->struct_info_.as<TensorStructInfoNode>();
-    if (!weights_sinfo) return expr;
+    const auto* weights_ty = weights->ty.as<TensorTypeNode>();
+    if (!weights_ty) return expr;
 
-    const auto* indices_sinfo = indices->struct_info_.as<TensorStructInfoNode>();
-    if (!indices_sinfo) return expr;
+    const auto* indices_ty = indices->ty.as<TensorTypeNode>();
+    if (!indices_ty) return expr;
 
-    const auto* matmul_sinfo = expr->struct_info_.as<TensorStructInfoNode>();
-    if (!matmul_sinfo) return expr;
+    const auto* matmul_ty = expr->ty.as<TensorTypeNode>();
+    if (!matmul_ty) return expr;
 
     if (!attrs->axis.has_value()) return expr;
     auto axis = attrs->axis.value();
 
-    if (lhs_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim() ||
-        matmul_sinfo->IsUnknownNdim() || weights_sinfo->IsUnknownNdim())
+    if (lhs_ty->IsUnknownNdim() || indices_ty->IsUnknownNdim() || matmul_ty->IsUnknownNdim() ||
+        weights_ty->IsUnknownNdim())
       return expr;
 
-    if (indices_sinfo->ndim == 1 && axis + 1 == weights_sinfo->ndim) {
+    if (indices_ty->ndim == 1 && axis + 1 == weights_ty->ndim) {
       // Simpler case.  The activations may have batch dimensions, but
       // the weights do not.
 
@@ -94,18 +94,17 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       // out_table.shape = [*batch, table_size]
       auto out_table = matmul(lhs, weights, DataType::Void());
       // new_output.shape = [*batch, outfeatures]
-      auto new_output = take(out_table, indices, matmul_sinfo->ndim - 1);
+      auto new_output = take(out_table, indices, matmul_ty->ndim - 1);
 
       return new_output;
-    } else if (lhs_sinfo->ndim == 3 && weights_sinfo->ndim == 3 && indices_sinfo->ndim == 1 &&
-               axis == 0 && weights_sinfo->GetShape().defined() &&
-               lhs_sinfo->GetShape().defined()) {
+    } else if (lhs_ty->ndim == 3 && weights_ty->ndim == 3 && indices_ty->ndim == 1 && axis == 0 &&
+               weights_ty->GetShape().defined() && lhs_ty->GetShape().defined()) {
       // More complicated case, used for batched LoRA.  The conditions
       // on the argument dimensions can probably be relaxed, but would
       // probably need to remove the use of the einsum operator.
 
-      auto lhs_shape = lhs_sinfo->GetShape().value();
-      auto weight_shape = weights_sinfo->GetShape().value();
+      auto lhs_shape = lhs_ty->GetShape().value();
+      auto weight_shape = weights_ty->GetShape().value();
 
       // lhs.shape = [batch1, batch2, infeatures]
       // weights.shape = [table_size, infeatures, outfeatures]

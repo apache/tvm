@@ -103,16 +103,16 @@ def test_mlp():
             lv0 = R.dist.call_tir(
                 cls.matmul,
                 (x, weight1),
-                out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
             )
             lv1 = R.dist.call_tir(
-                cls.gelu, (lv0,), out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
             )
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
             lv3 = R.dist.call_tir(
                 cls.matmul,
                 (lv2, weight2),
-                out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
             )
             return lv3
 
@@ -209,16 +209,16 @@ def test_mlp():
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.matmul1,
                 (x, weight1),
-                out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
             )
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
-                cls.gelu1, (lv0,), out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu1, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
             )
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
             gv: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul2,
                 (lv2, weight2),
-                out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
             )
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.ccl.allreduce(
                 gv, op_type="sum", in_group=False
@@ -664,185 +664,185 @@ def test_llama_attention():
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             lv7 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight,),
-                out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
             )
             lv8 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv7),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
             )
             lv9 = R.dist.call_tir(
                 cls.reshape,
                 (lv8,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv10 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight1,),
-                out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
             )
             lv11 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv10),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
             )
             lv12 = R.dist.call_tir(
                 cls.reshape,
                 (lv11,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv13 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight2,),
-                out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
             )
             lv14 = R.dist.call_tir(
                 cls.matmul,
                 (lv6, lv13),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
             )
             lv15 = R.dist.call_tir(
                 cls.reshape,
                 (lv14,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv16 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 tir_vars=R.shape([256]),
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 tir_vars=R.shape([256]),
             )
             lv18 = R.dist.call_tir(
                 cls.reshape1,
                 (lv17,),
-                out_sinfo=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv19 = R.dist.call_tir(
                 cls.reshape1,
                 (lv15,),
-                out_sinfo=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv20: R.Object = kv_cache[0]
             lv21: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26 = R.dist.call_tir(
                 cls.reshape2,
                 (lv24,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv27 = R.dist.call_tir(
                 cls.reshape2,
                 (lv25,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv28 = R.dist.call_tir(
                 cls.transpose1,
                 (lv16,),
-                out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv29 = R.dist.call_tir(
                 cls.transpose1,
                 (lv26,),
-                out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv30 = R.dist.call_tir(
                 cls.transpose1,
                 (lv27,),
-                out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv31 = R.dist.call_tir(
                 cls.transpose2,
                 (lv29,),
-                out_sinfo=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv32 = R.dist.call_tir(
                 cls.matmul1,
                 (lv28, lv31),
-                out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv33 = R.dist.call_tir(
                 cls.divide,
                 (lv32, div_const),
-                out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv34 = R.dist.call_tir(
                 cls.maximum,
                 (lv33, maximum_const),
-                out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv35 = R.dist.call_tir(
                 cls.minimum,
                 (lv34, mask),
-                out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv37 = R.dist.call_tir(
                 cls.softmax,
                 (lv35,),
-                out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             )
             lv39 = R.dist.call_tir(
                 cls.matmul2,
                 (lv37, lv30),
-                out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
             )
             lv40 = R.dist.call_tir(
                 cls.transpose3,
                 (lv39,),
-                out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
             )
             lv41 = R.dist.call_tir(
                 cls.reshape3,
                 (lv40,),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
             )
             lv42 = R.dist.call_tir(
                 cls.transpose,
                 (linear_weight3,),
-                out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
             )
             lv43 = R.dist.call_tir(
                 cls.matmul,
                 (lv41, lv42),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             lv44 = R.dist.call_tir(
                 cls.add,
                 (input_tokens, lv43),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv
@@ -1338,74 +1338,74 @@ def test_llama_attention():
             lv6: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.transpose4,
                 (linear_weight,),
-                out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
             )
             lv8: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv7),
-                    out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv9: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv8,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv10: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose4,
                     (linear_weight1,),
-                    out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv11: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv10),
-                    out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv12: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv11,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv13: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose4,
                     (linear_weight2,),
-                    out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv14: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul3,
                     (lv6, lv13),
-                    out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv15: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape4,
                     (lv14,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv16: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.rotary_embedding1,
                     (lv9, cos_cached, sin_cached),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                     tir_vars=R.shape([256]),
                 )
             )
@@ -1413,7 +1413,7 @@ def test_llama_attention():
                 R.dist.call_tir_local_view(
                     cls.rotary_embedding1,
                     (lv12, cos_cached, sin_cached),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                     tir_vars=R.shape([256]),
                 )
             )
@@ -1421,14 +1421,14 @@ def test_llama_attention():
                 R.dist.call_tir_local_view(
                     cls.reshape11,
                     (lv17,),
-                    out_sinfo=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv19: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape11,
                     (lv15,),
-                    out_sinfo=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv20: R.Object = kv_cache[0]
@@ -1436,136 +1436,136 @@ def test_llama_attention():
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv22: R.Object = kv_cache[1]
             lv23: R.Object = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv21,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv25: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
                 lv23,
                 R.shape([256, 32, 128]),
-                sinfo_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
+                ty_args=(R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),),
             )
             lv26: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape21,
                     (lv24,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv27: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape21,
                     (lv25,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv28: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv16,),
-                    out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv29: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv26,),
-                    out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv30: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose11,
                     (lv27,),
-                    out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv31: R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose21,
                     (lv29,),
-                    out_sinfo=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv32: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul11,
                     (lv28, lv31),
-                    out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv33: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.divide1,
                     (lv32, div_const),
-                    out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv34: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.maximum1,
                     (lv33, maximum_const),
-                    out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv35: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.minimum1,
                     (lv34, mask),
-                    out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv37: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.softmax1,
                     (lv35,),
-                    out_sinfo=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv39: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = (
                 R.dist.call_tir_local_view(
                     cls.matmul21,
                     (lv37, lv30),
-                    out_sinfo=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                    out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
             lv40: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose31,
                     (lv39,),
-                    out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv41: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = (
                 R.dist.call_tir_local_view(
                     cls.reshape31,
                     (lv40,),
-                    out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                    out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
                 )
             )
             lv42: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]") = (
                 R.dist.call_tir_local_view(
                     cls.transpose5,
                     (linear_weight3,),
-                    out_sinfo=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+                    out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
                 )
             )
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul4,
                 (lv41, lv42),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             lv43: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.ccl.allreduce(
                 gv, op_type="sum", in_group=False
@@ -1573,7 +1573,7 @@ def test_llama_attention():
             lv44: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.add,
                 (input_tokens, lv43),
-                out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             gv_1: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv_1

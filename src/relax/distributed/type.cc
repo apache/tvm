@@ -18,18 +18,18 @@
  */
 
 /*!
- * \file src/relax/distributed/struct_info.cc
- * \brief Relax dtensor struct info.
+ * \file src/relax/distributed/type.cc
+ * \brief Relax DTensor type.
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 namespace tvm {
 namespace relax {
 namespace distributed {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  DTensorStructInfoNode::RegisterReflection();
+  DTensorTypeNode::RegisterReflection();
   PlacementNode::RegisterReflection();
   PlacementSpecNode::RegisterReflection();
 }
@@ -118,19 +118,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DTensor
-DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
-                                     Placement placement, Span span) {
+DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
+                         Span span) {
+  TVM_FFI_CHECK(device_mesh.defined(), ValueError) << "device_mesh must be defined";
+  TVM_FFI_CHECK(placement.defined(), ValueError) << "placement must be defined";
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
       << "The device mesh and placement must have the same dimension size";
   for (auto spec : placement->dim_specs) {
+    TVM_FFI_CHECK(spec.defined(), ValueError) << "placement specs must be defined";
     if (spec->kind == PlacementSpecKind::kReplica) continue;
-    TVM_FFI_CHECK_LT(spec->axis, tensor_sinfo->ndim, ValueError)
+    TVM_FFI_CHECK_LT(spec->axis, tensor_ty->ndim, ValueError)
         << "Sharding dimension should be smaller than tensor ndim";
   }
-  ffi::ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
-  n->device_mesh = std::move(device_mesh);
-  n->placement = std::move(placement);
-  n->tensor_sinfo = std::move(tensor_sinfo);
+  ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>(
+      std::move(tensor_ty), std::move(device_mesh), std::move(placement));
   n->span = span;
   data_ = std::move(n);
 }
@@ -138,9 +139,9 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh d
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.distributed.DTensorStructInfo",
-      [](TensorStructInfo tensor_sinfo, DeviceMesh device_mesh, Placement placement, Span span) {
-        return DTensorStructInfo(tensor_sinfo, device_mesh, placement, span);
+      "relax.distributed.DTensorType",
+      [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
+        return DTensorType(tensor_ty, device_mesh, placement, span);
       });
 }
 

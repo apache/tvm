@@ -46,8 +46,8 @@ requires_coreml_runtime = pytest.mark.skipif(
 def test_partition_for_coreml_uses_current_relax_passes():
     from tvm.relax.backend.metal.coreml import partition_for_coreml
 
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -91,8 +91,8 @@ def verify(mod, inputs):
 
 @requires_coreml_runtime
 def test_add():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -107,7 +107,7 @@ def test_add():
 
 @requires_coreml_runtime
 def test_add_const():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
     y = relax.const(np.ones([10, 10]), "float32")
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
@@ -122,8 +122,8 @@ def test_add_const():
 
 @requires_coreml_runtime
 def test_multiply():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -139,7 +139,7 @@ def test_multiply():
 
 @requires_coreml_runtime
 def test_matmul():
-    x = relax.Var("x", relax.TensorStructInfo([8, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([8, 10], "float32"))
     y = relax.Constant(tvm.runtime.tensor(np.random.rand(10, 8).astype("float32"), dev))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
@@ -152,8 +152,8 @@ def test_matmul():
     x_data = tvm.runtime.tensor(np.random.rand(8, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
-    x = relax.Var("x", relax.TensorStructInfo([8, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 8], "float32"))
+    x = relax.Var("x", relax.TensorType([8, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 8], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -169,7 +169,7 @@ def test_matmul():
 
 @requires_coreml_runtime
 def test_clip():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
 
     with bb.function("main", [x]):
@@ -182,7 +182,7 @@ def test_clip():
     x_data = tvm.runtime.tensor(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data])
 
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
 
     with bb.function("main", [x]):
@@ -200,7 +200,7 @@ def test_clip():
 @requires_coreml_runtime
 def test_expand_dims():
     def get_mod(axis):
-        x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+        x = relax.Var("x", relax.TensorType([10, 10], "float32"))
         bb = relax.BlockBuilder()
         with bb.function("main", [x]):
             with bb.dataflow():
@@ -216,7 +216,7 @@ def test_expand_dims():
 
 @requires_coreml_runtime
 def test_relu():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -231,7 +231,7 @@ def test_relu():
 
 @requires_coreml_runtime
 def test_batch_flatten():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -246,7 +246,7 @@ def test_batch_flatten():
 
 @requires_coreml_runtime
 def test_softmax():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -261,7 +261,7 @@ def test_softmax():
 
 @requires_coreml_runtime
 def test_conv2d():
-    x = relax.Var("x", relax.TensorStructInfo([1, 3, 224, 224], "float32"))
+    x = relax.Var("x", relax.TensorType([1, 3, 224, 224], "float32"))
     w = relax.const(np.zeros((16, 3, 3, 3), dtype="float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
@@ -276,7 +276,7 @@ def test_conv2d():
 
 @requires_coreml_runtime
 def test_global_avg_pool2d():
-    x = relax.Var("x", relax.TensorStructInfo([1, 1, 10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([1, 1, 10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -290,8 +290,8 @@ def test_global_avg_pool2d():
 
 @requires_coreml_runtime
 def test_subgraph1():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -307,8 +307,8 @@ def test_subgraph1():
 
 @requires_coreml_runtime
 def test_subgraph2():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():

@@ -76,7 +76,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
     if (call_node->op != Op::Get("relax.call_tir_with_grad")) {
       return ExprMutator::VisitExpr_(call_node);
     }
-    return Call(Op::Get("relax.call_tir"), call_node->args, {}, call_node->sinfo_args,
+    return Call(Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
                 call_node->span);
   }
 };
@@ -264,7 +264,7 @@ class CheckpointGenerator : private ExprMutator {
       Expr new_arg = this->VisitExpr(arg);
       call_args.push_back(new_arg);
     }
-    return Call(new_op, call_args, call_node->attrs, call_node->sinfo_args);
+    return Call(new_op, call_args, call_node->attrs, call_node->ty_args);
   }
 
   BlockBuilder builder_;
@@ -303,8 +303,8 @@ class BackwardBindingGenerator : private ExprVisitor {
     BackwardBindingGenerator generator(builder, cp_collector, checkpoint_generator);
 
     // Initialize the adjoint of target_var as ones op. We have already checked the target.
-    auto* target_sinfo = GetStructInfoAs<TensorStructInfoNode>(target_var);
-    generator.UpdateAdjoint(target_var, ones(target_sinfo->shape.value(), target_sinfo->dtype));
+    auto* target_ty = GetTypeAs<TensorTypeNode>(target_var);
+    generator.UpdateAdjoint(target_var, ones(target_ty->shape.value(), target_ty->dtype));
 
     // Do reverse-mode ad, so visit bindings backwards
     for (auto it = forward_block->bindings.rbegin(); it != forward_block->bindings.rend(); ++it) {
@@ -374,13 +374,13 @@ class BackwardBindingGenerator : private ExprVisitor {
           grad_func(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_)
               .cast<Var>();
       Tuple args = Downcast<Tuple>(call->args[1]);
-      auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(partials);
-      if (!tuple_sinfo) {
+      auto* tuple_ty = GetTypeAs<TupleTypeNode>(partials);
+      if (!tuple_ty) {
         // result_var is a tensor
         TVM_FFI_ICHECK(args->fields.size() == 1);
         UpdateAdjoint(args->fields[0], partials);
       } else {
-        TVM_FFI_ICHECK(args->fields.size() == tuple_sinfo->fields.size());
+        TVM_FFI_ICHECK(args->fields.size() == tuple_ty->fields.size());
         for (int i = 0; i < static_cast<int>(args->fields.size()); ++i) {
           UpdateAdjoint(args->fields[i], TupleGetItem(partials, i));
         }
@@ -419,12 +419,12 @@ class BackwardBindingGenerator : private ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
     TVM_FFI_ICHECK(tuple_get_item->tuple->IsInstance<VarNode>())
         << "The tuple field of a TupleGetItem is not bound to a Var";
-    auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tuple_get_item->tuple);
-    TVM_FFI_ICHECK(tuple_sinfo) << "The tuple field of a TupleGetItem must has a TupleStructInfo";
+    auto* tuple_ty = GetTypeAs<TupleTypeNode>(tuple_get_item->tuple);
+    TVM_FFI_ICHECK(tuple_ty) << "The tuple field of a TupleGetItem must has a TupleType";
 
     const Var& tuple_var = Downcast<Var>(tuple_get_item->tuple);
     if (adjoint_var_map_.count(tuple_var) == 0) {
-      auto nested_zeros = Downcast<Tuple>(NestedZeros(ffi::GetRef<StructInfo>(tuple_sinfo)));
+      auto nested_zeros = Downcast<Tuple>(NestedZeros(ffi::GetRef<Type>(tuple_ty)));
       auto tuple_fields = nested_zeros->fields;
       tuple_fields.Set(tuple_get_item->index, adjoint_var_map_[binding->var]);
       EmitAdjoint(tuple_var, Tuple(tuple_fields), false);
@@ -496,7 +496,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       // zeros
       auto it = adjoint_var_map_.find(var);
       if (it == adjoint_var_map_.end()) {
-        UpdateAdjoint(var, NestedZeros(GetStructInfo(var)));
+        UpdateAdjoint(var, NestedZeros(GetType(var)));
       }
       Var adjoint_output_var = EmitAdjoint(var, adjoint_var_map_[var], true);
       out_adjoints.push_back(adjoint_output_var);
@@ -532,37 +532,37 @@ class BackwardBindingGenerator : private ExprVisitor {
   }
 
   static AdjointMsg ExprToAdjointMsg(Expr expr) {
-    return MapToNestedMsgBySInfo<Expr>(expr, [](Expr leaf) {
-      TVM_FFI_ICHECK(GetStructInfoAs<TensorStructInfoNode>(leaf))
-          << "The leaf of adjoint: " << leaf << " should have StructInfo and be a Tensor.";
+    return MapToNestedMsgByType<Expr>(expr, [](Expr leaf) {
+      TVM_FFI_ICHECK(GetTypeAs<TensorTypeNode>(leaf))
+          << "The leaf of adjoint: " << leaf << " should have Type and be a Tensor.";
       return AdjointMsg(leaf);
     });
   }
 
-  // Create a zeros Expr with specified struct info
-  // When sinfo is TupleStructInfo, we would create a (nested) Tuple containing zeros
-  static Expr NestedZeros(const StructInfo& sinfo) {
-    AdjointMsg msg = MapToNestedMsg<Expr>(sinfo, [](StructInfo sinfo) {
-      auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK(tensor_sinfo) << "The leaf of adjoint should be a Tensor.";
-      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Missing shape when building zeros tuple.";
-      const Expr& init = zeros(tensor_sinfo->shape.value(), tensor_sinfo->dtype);
+  // Create a zeros Expr with specified type
+  // When ty is TupleType, we would create a (nested) Tuple containing zeros
+  static Expr NestedZeros(const Type& ty) {
+    AdjointMsg msg = MapToNestedMsg<Expr>(ty, [](Type ty) {
+      auto* tensor_ty = ty.as<TensorTypeNode>();
+      TVM_FFI_ICHECK(tensor_ty) << "The leaf of adjoint should be a Tensor.";
+      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Missing shape when building zeros tuple.";
+      const Expr& init = zeros(tensor_ty->shape.value(), tensor_ty->dtype);
       return init;
     });
     return AdjointMsgToExpr(msg);
   }
 
-  // Return lhs + rhs. Requires lhs and rhs has the same StructInfo.
+  // Return lhs + rhs. Requires lhs and rhs has the same Type.
   // Use NestedMsg to handle cases when lhs and rhs are tuples.
   static Expr TupleAwareAdd(const Expr& lhs, const Expr& rhs) {
     AdjointMsg res = CombineNestedMsg(
         ExprToAdjointMsg(lhs), ExprToAdjointMsg(rhs), [](Expr l_leaf, Expr r_leaf) {
-          auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(l_leaf);
-          TVM_FFI_ICHECK(sinfo) << "The leaf of adjoint should have StructInfo and be a Tensor.";
-          TVM_FFI_ICHECK(GetStructInfoAs<TensorStructInfoNode>(r_leaf))
-              << "The leaf of adjoint should have StructInfo and be a Tensor.";
+          auto* ty = GetTypeAs<TensorTypeNode>(l_leaf);
+          TVM_FFI_ICHECK(ty) << "The leaf of adjoint should have Type and be a Tensor.";
+          TVM_FFI_ICHECK(GetTypeAs<TensorTypeNode>(r_leaf))
+              << "The leaf of adjoint should have Type and be a Tensor.";
           Expr res = add(l_leaf, r_leaf);
-          UpdateStructInfo(res, ffi::GetRef<StructInfo>(sinfo));
+          UpdateType(res, ffi::GetRef<Type>(ty));
           return res;
         });
     return AdjointMsgToExpr(res);
@@ -575,11 +575,11 @@ class BackwardBindingGenerator : private ExprVisitor {
   // Step 2）t2_new = t2 + increment (TupleAwareAdd)
   // Step 3) tuple_new = (t1, t2_new, t3)
   static Expr AddInTuple(const Expr& tuple, int index, const Expr& increment) {
-    auto* sinfo = GetStructInfoAs<TupleStructInfoNode>(tuple);
-    TVM_FFI_ICHECK(sinfo) << "The first argument of AddInTuple should have tuple struct info.";
-    TVM_FFI_ICHECK(index >= 0 && index < static_cast<int>(sinfo->fields.size()));
+    auto* ty = GetTypeAs<TupleTypeNode>(tuple);
+    TVM_FFI_ICHECK(ty) << "The first argument of AddInTuple should have tuple type.";
+    TVM_FFI_ICHECK(index >= 0 && index < static_cast<int>(ty->fields.size()));
     ffi::Array<Expr> res;
-    for (size_t i = 0; i < sinfo->fields.size(); ++i) {
+    for (size_t i = 0; i < ty->fields.size(); ++i) {
       Expr field;
       if (const auto* expr_tuple = tuple.as<TupleNode>()) {
         field = expr_tuple->fields[i];
@@ -705,14 +705,14 @@ class GradientMutator : private ExprMutator {
     return builder_->EndBlock();
   }
 
-  static bool IsFloatTensorSInfo(const StructInfo& sinfo) {
-    auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-    return tensor_sinfo && tensor_sinfo->dtype.is_float();
+  static bool IsFloatTensorType(const Type& ty) {
+    auto* tensor_ty = ty.as<TensorTypeNode>();
+    return tensor_ty && tensor_ty->dtype.is_float();
   }
 
   // When the return value is a Var, it is the target;
   // when the return value is a Tuple, the target is the target_index-th field of the return value
-  // Check that the target should be a Var of scalar tensor struct_info
+  // Check that the target should be a Var of scalar tensor ty
   void CheckAndSetTarget(const Expr& e, int target_index) {
     if (auto* var = e.as<VarNode>()) {
       TVM_FFI_ICHECK_EQ(target_index, 0)
@@ -736,11 +736,11 @@ class GradientMutator : private ExprMutator {
              "value of the given function is "
           << e;
     }
-    auto target_sinfo = GetStructInfo(target_var_);
-    TVM_FFI_ICHECK(IsScalarTensor(target_sinfo) && IsFloatTensorSInfo(target_sinfo))
-        << "The differentiation target must be a float scalar (0-dim Tensor), but the StructInfo "
+    auto target_ty = GetType(target_var_);
+    TVM_FFI_ICHECK(IsScalarTensor(target_ty) && IsFloatTensorType(target_ty))
+        << "The differentiation target must be a float scalar (0-dim Tensor), but the Type "
            "of the given target "
-        << target_var_ << " is " << GetStructInfo(target_var_);
+        << target_var_ << " is " << GetType(target_var_);
   }
 
   // Check every Var in require_grads:
@@ -761,10 +761,10 @@ class GradientMutator : private ExprMutator {
       var_set.emplace(var->vid);
       mapped_vars.push_back((*it).second);
 
-      TVM_FFI_ICHECK(IsNestedTensorConditioned(GetStructInfo(var), IsFloatTensorSInfo))
+      TVM_FFI_ICHECK(IsNestedTensorConditioned(GetType(var), IsFloatTensorType))
           << "Only Tensors of floating point dtype or Tuples of float "
-             "Tensors can require gradients, but the StructInfo of Var "
-          << var->name_hint() << " is " << GetStructInfo(var);
+             "Tensors can require gradients, but the Type of Var "
+          << var->name_hint() << " is " << GetType(var);
     }
     return mapped_vars;
   }

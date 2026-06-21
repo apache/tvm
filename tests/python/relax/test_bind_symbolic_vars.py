@@ -43,8 +43,8 @@ def test_bind_static_value(replace_by_tir_var):
         return R.matmul(A, B)
 
     if replace_by_tir_var:
-        M, K = before.params[0].struct_info.shape
-        _, N = before.params[1].struct_info.shape
+        M, K = before.params[0].ty.shape
+        _, N = before.params[1].ty.shape
         symbolic_var_map = {M: 128, K: 64, N: 32}
     else:
         symbolic_var_map = {"M": 128, "K": 64, "N": 32}
@@ -128,7 +128,7 @@ def test_error_with_multiple_definitions():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    tir_var = func.params[0].struct_info.shape[0]
+    tir_var = func.params[0].ty.shape[0]
     symbolic_var_map = {tir_var: 0, "M": 0}
 
     with pytest.raises(RuntimeError):
@@ -166,19 +166,19 @@ def test_replacements_may_produce_new_symbolic_vars():
 
 
 def test_bind_symbolic_vars_in_tensor_shape():
-    """The bound variable should be replaced when appearing in struct info"""
+    """The bound variable should be replaced when appearing in type"""
 
     @R.function(private=True)
     def before(A: R.Tensor(["M", "N"])):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M", 16])):
         M = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
@@ -192,12 +192,12 @@ def test_bind_symbolic_vars_in_shape_expr():
     def before(A: R.Tensor(["M * N"]), x: R.Shape(["M", "N"])):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
@@ -228,12 +228,12 @@ def test_bind_defining_of_symbolic_vars_in_prim_value():
     def before(A: R.Tensor(["M * N"]), x: R.Prim(value="M"), y: R.Prim(value="N")):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M * 16"]), x: R.Prim(value="M"), y: R.Prim(value=16)):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
@@ -258,12 +258,12 @@ def test_bind_usage_of_symbolic_vars_in_prim_value():
     def before(A: R.Tensor(["M", "N"]), x: R.Prim(value="M*N")):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor([16, 16]), x: R.Prim(value=256)):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([512]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([512]))
         return B
 
     after = before.bind_symbolic_vars({"M": 16, "N": 16})

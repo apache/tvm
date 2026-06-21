@@ -65,10 +65,10 @@ def _try_convert_to_scalar_const(
         if the python native flag is True.
         Or return the input itself if it is not a scalar constant.
     """
-    if isinstance(expr, Constant) and expr.struct_info.ndim == 0:
+    if isinstance(expr, Constant) and expr.ty.ndim == 0:
         # get the value of the scalar constant
         value = expr.data.numpy()[()].item()
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
         if python_native:
             return value
         # preserve the data type of the constant

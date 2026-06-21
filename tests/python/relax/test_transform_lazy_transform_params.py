@@ -56,7 +56,7 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -81,14 +81,14 @@ def test_lazy_transform_params():
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
             cls = Expected
-            lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            lv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 lv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv_m: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv_m, sinfo_args=(R.Object,))
+            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv_m, ty_args=(R.Object,))
             _1: R.Tuple = R.vm.kill_object(lv_m)
-            lv1: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            lv1: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 lv1, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -96,10 +96,10 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1_m,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1_m)
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, sinfo_args=(R.Object,))
+            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Object,))
             gv: R.Tuple = R.tuple()
             return gv
 
@@ -137,7 +137,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -165,12 +165,12 @@ def test_get_item_only():
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
             cls = Expected
-            gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), sinfo_args=(R.Object,))
+            gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), ty_args=(R.Object,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            gv2: R.Object = R.call_packed("get_item_0", R.prim_value(0), sinfo_args=(R.Object,))
+            gv2: R.Object = R.call_packed("get_item_0", R.prim_value(0), ty_args=(R.Object,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -178,7 +178,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             gv_1: R.Tuple(
@@ -220,7 +220,7 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -246,18 +246,14 @@ def test_extra_get_item_params():
         @R.function(pure=False)
         def main_transform_params(loader: R.Object) -> R.Tuple:
             cls = Expected
-            gv: R.Object = R.call_packed(
-                "get_item", loader, R.prim_value(1), sinfo_args=(R.Object,)
-            )
+            gv: R.Object = R.call_packed("get_item", loader, R.prim_value(1), ty_args=(R.Object,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
+            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Object,))
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed(
-                "get_item", loader, R.prim_value(0), sinfo_args=(R.Object,)
-            )
+            gv2: R.Object = R.call_packed("get_item", loader, R.prim_value(0), ty_args=(R.Object,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -265,17 +261,17 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv3, sinfo_args=(R.Object,))
+            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv3, ty_args=(R.Object,))
             gv_1: R.Tuple = R.tuple()
             return gv_1
 
-    after = LazyTransformParams(
-        extra_get_item_params=[relax.Var("loader", relax.ObjectStructInfo())]
-    )(Before)
+    after = LazyTransformParams(extra_get_item_params=[relax.Var("loader", relax.ObjectType())])(
+        Before
+    )
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
@@ -309,7 +305,7 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -335,16 +331,16 @@ def test_extra_set_item_params():
         @R.function(pure=False)
         def main_transform_params(setter: R.Object) -> R.Tuple:
             cls = Expected
-            gv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            gv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
             _: R.Object = R.call_packed(
-                "set_item", setter, R.prim_value(0), lv, sinfo_args=(R.Object,)
+                "set_item", setter, R.prim_value(0), lv, ty_args=(R.Object,)
             )
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -352,19 +348,19 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             _3: R.Object = R.call_packed(
-                "set_item", setter, R.prim_value(1), lv3, sinfo_args=(R.Object,)
+                "set_item", setter, R.prim_value(1), lv3, ty_args=(R.Object,)
             )
             gv_1: R.Tuple = R.tuple()
             return gv_1
 
-    after = LazyTransformParams(
-        extra_set_item_params=[relax.Var("setter", relax.ObjectStructInfo())]
-    )(Before)
+    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.ObjectType())])(
+        Before
+    )
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
@@ -392,20 +388,20 @@ def test_extra_set_item_params_with_const_output():
                 setter,
                 R.prim_value(0),
                 R.const(np.array([1, 2]).astype("float32")),
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             _ = R.call_packed(
                 "set_item",
                 setter,
                 R.prim_value(1),
                 R.const(np.array([3, 4]).astype("float32")),
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             return output
 
-    after = LazyTransformParams(
-        extra_set_item_params=[relax.Var("setter", relax.ObjectStructInfo())]
-    )(Before)
+    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.ObjectType())])(
+        Before
+    )
     tvm.ir.assert_structural_equal(after, Expected)
 
 
@@ -432,7 +428,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                 cls.slice_buffer,
                 (param,),
                 tir_vars=[slice_index],
-                out_sinfo=R.Tensor((16,), dtype="float32"),
+                out_ty=R.Tensor((16,), dtype="float32"),
             )
             output = (transformed,)
             return output
@@ -456,7 +452,7 @@ def test_lazy_transform_params_with_symbolic_vars():
 
             slice_index = T.int64()
 
-            param = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            param = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv: R.Tensor((16, 16), dtype="float32") = R.match_cast(
                 param, R.Tensor((16, 16), dtype="float32")
             )
@@ -465,12 +461,10 @@ def test_lazy_transform_params_with_symbolic_vars():
                 cls.slice_buffer,
                 (param_m,),
                 tir_vars=[slice_index],
-                out_sinfo=R.Tensor((16,), dtype="float32"),
+                out_ty=R.Tensor((16,), dtype="float32"),
             )
             unused_1_ = R.vm.kill_object(param_m)
-            unused_2_ = R.call_packed(
-                "set_item", R.prim_value(0), transformed, sinfo_args=(R.Object,)
-            )
+            unused_2_ = R.call_packed("set_item", R.prim_value(0), transformed, ty_args=(R.Object,))
 
             output = R.tuple()
             return output
@@ -523,7 +517,7 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((ic, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((ic, 3, 3, 3), dtype="float32"),
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -549,14 +543,14 @@ def test_param_shape_symbolic():
         def main_transform_params() -> R.Tuple:
             ic = T.int64()
             cls = Expected
-            gv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            gv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
+            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Object,))
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv3: R.Tensor((3, ic, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, ic, 3, 3), dtype="float32")
             )
@@ -564,10 +558,10 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_sinfo=R.Tensor((ic, 3, 3, 3), dtype="float32"),
+                out_ty=R.Tensor((ic, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, sinfo_args=(R.Object,))
+            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Object,))
             gv4: R.Tuple = R.tuple()
             return gv4
 
@@ -593,8 +587,8 @@ def test_output_with_use_site():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             x: R.Tensor((), dtype="float32") = params[0]
-            y = R.call_tir(cls.copy, (x,), out_sinfo=R.Tensor((), dtype="float32"))
-            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x,), out_ty=R.Tensor((), dtype="float32"))
+            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
             gv: R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (y, z)
             return gv
 
@@ -610,14 +604,14 @@ def test_output_with_use_site():
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
             cls = Expected
-            x: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            x: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv: R.Tensor((), dtype="float32") = R.match_cast(x, R.Tensor((), dtype="float32"))
             x_m: R.Tensor((), dtype="float32") = gv
-            y = R.call_tir(cls.copy, (x_m,), out_sinfo=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x_m,), out_ty=R.Tensor((), dtype="float32"))
             _: R.Tuple = R.vm.kill_object(x_m)
-            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
-            _1: R.Object = R.call_packed("set_item", R.prim_value(0), y, sinfo_args=(R.Object,))
-            _2: R.Object = R.call_packed("set_item", R.prim_value(1), z, sinfo_args=(R.Object,))
+            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
+            _1: R.Object = R.call_packed("set_item", R.prim_value(0), y, ty_args=(R.Object,))
+            _2: R.Object = R.call_packed("set_item", R.prim_value(1), z, ty_args=(R.Object,))
             gv: R.Tuple = R.tuple()
             return gv
 
@@ -704,26 +698,26 @@ def test_duplicate_outputs():
     class Expected:
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
-            gv: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            gv: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
             gv1: R.Tensor((16,), dtype="int32") = R.match_cast(gv, R.Tensor((16,), dtype="int32"))
             param0: R.Tensor((16,), dtype="int32") = gv1
 
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            gv2: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
             gv3: R.Tensor((16,), dtype="int32") = R.match_cast(gv2, R.Tensor((16,), dtype="int32"))
             param1: R.Tensor((16,), dtype="int32") = gv3
 
             transformed0: R.Tensor((16,), dtype="int32") = R.add(param0, R.const(1, "int32"))
             _: R.Tuple = R.vm.kill_object(param0)
             _: R.Object = R.call_packed(
-                "set_item", R.prim_value(0), transformed0, sinfo_args=(R.Object,)
+                "set_item", R.prim_value(0), transformed0, ty_args=(R.Object,)
             )
             _: R.Object = R.call_packed(
-                "set_item", R.prim_value(2), transformed0, sinfo_args=(R.Object,)
+                "set_item", R.prim_value(2), transformed0, ty_args=(R.Object,)
             )
 
             transformed1: R.Tensor((16,), dtype="int32") = R.add(param1, R.const(2, "int32"))
             _ = R.vm.kill_object(param1)
-            _ = R.call_packed("set_item", R.prim_value(1), transformed1, sinfo_args=(R.Object,))
+            _ = R.call_packed("set_item", R.prim_value(1), transformed1, ty_args=(R.Object,))
             output = R.tuple()
             return output
 
@@ -744,11 +738,11 @@ def test_params_without_tuple():
     class Expected:
         @R.function(pure=False)
         def transform_params():
-            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
             C = R.multiply(A, R.const(2, "float32"))
 
-            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Object])
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             D = R.add(C, B)
             return (D, B)
@@ -785,13 +779,13 @@ def test_retain_before_num_input():
             R.func_attr({"num_input": 1})
             rank = T.int64()
 
-            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
             A_sharded = R.strided_slice(
                 A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
             )
 
-            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Object])
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             B_sharded = R.strided_slice(
                 B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
@@ -814,7 +808,7 @@ def test_params_without_tuple_with_symbolic_var():
     class Expected:
         @R.function(pure=False)
         def transform_params():
-            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
             A = R.match_cast(A, R.Object)
 
             return (A,)

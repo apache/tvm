@@ -18,25 +18,27 @@
  */
 #include "tvm/relax/attrs/ccl.h"
 
+#include <tvm/relax/block_builder.h>
+
 #include "utils.h"
 
 namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
-  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
-  DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
-  TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
-  DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
+Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
+  TVM_FFI_ICHECK(input_dtensor_tys.size() == 1);
+  DTensorType input_dtensor_ty = input_dtensor_tys[0];
+  TensorType tensor_ty = input_dtensor_ty->tensor_ty;
+  DeviceMesh device_mesh = input_dtensor_ty->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
-  return DTensorStructInfo(tensor_sinfo, device_mesh,
-                           Placement::FromText(std::string(device_mesh->shape.size(), 'R')));
+  return DTensorType(tensor_ty, device_mesh,
+                     Placement::FromText(std::string(device_mesh->shape.size(), 'R')));
 }
 
 TVM_REGISTER_OP("relax.ccl.allreduce")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoAllReduce);
+    .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
 
 }  // namespace distributed
 }  // namespace relax

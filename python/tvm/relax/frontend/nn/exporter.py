@@ -26,7 +26,7 @@ from tvm.ir import IRModule
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
+from ...type import ObjectType, ShapeType, TupleType
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect
@@ -178,15 +178,13 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
     def _convert_input(arg):
         if isinstance(arg, tirx.Var):
-            return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
+            return rx.Var(arg.name, ty=ShapeType(values=[arg]))
         if isinstance(arg, core.Tensor | core.Object):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
                 arg.name,
-                struct_info=TupleStructInfo(
-                    [_convert_input(arg_i).struct_info for arg_i in arg.elements]
-                ),
+                ty=TupleType([_convert_input(arg_i).ty for arg_i in arg.elements]),
             )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -215,7 +213,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_params",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleType(fields=[x.ty for x in inputs]),
             )
             for i, (name, param) in enumerate(params):
                 param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
@@ -236,7 +234,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         if mode == "packed":
             input_var = rx.Var(
                 "packed_effects",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleType(fields=[x.ty for x in inputs]),
             )
             i = 0
             for effect_input, (_, effect) in zip(unflat_inputs, effects):
@@ -313,7 +311,7 @@ def _method_spec_to_inputs(
                 name=arg_name,
             )
         elif isinstance(arg_spec, _spec.Object):
-            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectType()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [

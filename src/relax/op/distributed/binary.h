@@ -19,7 +19,7 @@
 
 /*!
  * \file binary.h
- * \brief The functions to infer struct info for distributed binary operator
+ * \brief The functions to infer type for distributed binary operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_BINARY_H_
@@ -36,53 +36,50 @@ namespace relax {
 namespace distributed {
 
 template <typename FType>
-StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
-                                        FType f_compute_out_dtype) {
-  ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
-      GetInputDTensorStructInfo(call, ctx);
-  TensorStructInfo x1_sinfo, x2_sinfo;
-  x1_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
-  x2_sinfo = input_dtensor_sinfos[1]->tensor_sinfo;
+Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
+  ffi::Array<distributed::DTensorType> input_dtensor_tys = GetInputDTensorType(call, ctx);
+  TensorType x1_ty = input_dtensor_tys[0]->tensor_ty;
+  TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
   // DateType
-  DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
+  DataType output_dtype = f_compute_out_dtype(call, ctx, x1_ty, x2_ty);
 
   // ndims
-  TVM_FFI_ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
+  TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())
       << "Unknown ndim is not supported for distributed operators.";
-  int output_ndim = std::max(x1_sinfo->ndim, x2_sinfo->ndim);
+  int output_ndim = std::max(x1_ty->ndim, x2_ty->ndim);
 
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
-  TensorStructInfo output_tensor_sinfo;
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  Type output_tensor_ty;
   // Shapes and ndims
   if (x1_shape && x2_shape) {
     // If all inputs have shapes, directly infer shapes
     ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!output_shape.defined()) {
-      output_tensor_sinfo = TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+      output_tensor_ty = TensorType(output_dtype, /*ndim=*/output_ndim);
     } else {
       TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
-      output_tensor_sinfo = TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+      output_tensor_ty = TensorType(ShapeExpr(output_shape.value()), output_dtype);
     }
   } else {
     TVM_FFI_VISIT_THROW(InternalError, call) << "Cannot infer shape for binary broadcast operator.";
   }
-  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
+  return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphBinary);
 }
 
-StructInfo InferDistStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeBroadcastArith(const Call& call, const BlockBuilder& ctx);
 
-StructInfo InferDistStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx);
 
-#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                                    \
-      .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoBroadcastArith)
+#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(OpName) \
+  TVM_REGISTER_OP("relax." #OpName)                             \
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith)
 
-#define RELAX_REGISTER_CMP_DIST_INFER_STRUCT_INFO(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                       \
-      .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoBroadcastCMP)
+#define RELAX_REGISTER_CMP_DIST_INFER_TYPE(OpName) \
+  TVM_REGISTER_OP("relax." #OpName)                \
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP)
 
 }  // namespace distributed
 }  // namespace relax

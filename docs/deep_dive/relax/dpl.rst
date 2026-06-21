@@ -123,7 +123,7 @@ Any pattern can be further narrowed by attaching constraints:
 - ``.has_dtype(dtype)`` -- the matched expression must have the given data type.
 - ``.has_shape(shape)`` -- the matched expression must have the given shape.
 - ``.has_attr(attrs)`` -- the matched call must carry the given attributes.
-- ``.has_struct_info(struct_info)`` -- the matched expression must have the given struct info.
+- ``.has_ty(ty)`` -- the matched expression must have the given type.
 
 .. code:: python
 
@@ -286,7 +286,7 @@ The callback receives *variables* rather than expressions:
         ...
 
 - ``matchings[pat]`` returns the **bound variable** (``Var``) whose right-hand
-  side matched ``pat``.  The ``Var`` itself carries ``struct_info`` and can be
+  side matched ``pat``.  The ``Var`` itself carries ``ty`` and can be
   used directly in new expressions.
 - ``bindings`` maps each ``Var`` to its bound ``Expr`` (the right-hand side),
   useful when you need to inspect the original expression.
@@ -311,7 +311,7 @@ The callback receives *variables* rather than expressions:
             W1 = matchings[w1]
             W2 = matchings[w2]
             W3 = matchings[w3]
-            width = W1.struct_info.shape[1]
+            width = W1.ty.shape[1]
 
             concat_w = R.concat([W1, W2, W3], axis=1)
             merged = R.matmul(inp, concat_w)
@@ -361,7 +361,7 @@ object that can be applied directly.
                 "my_fast_add",
                 A,
                 B,
-                sinfo_args=R.Tensor([16], "float32"),
+                ty_args=R.Tensor([16], "float32"),
             )
             return C
 
@@ -440,7 +440,7 @@ structurally (dtype restrictions, shape compatibility, attribute values, etc.):
     def my_check_fn(ctx: PatternCheckContext) -> bool:
         matmul_expr = ctx.annotated_expr["matmul"]
         # Only accept float16 output
-        if matmul_expr.struct_info.dtype != "float16":
+        if matmul_expr.ty.dtype != "float16":
             return False
         return True
 
@@ -464,7 +464,7 @@ sub-function.
 
     def check(ctx):
         transpose_call = ctx.annotated_expr["wT"]
-        ndim = transpose_call.args[0].struct_info.ndim
+        ndim = transpose_call.args[0].ty.ndim
         if ndim == -1:
             return False
         if ndim == 2 and transpose_call.attrs.axes is None:
@@ -513,7 +513,7 @@ Quick Reference
      - Match ``R.call_packed``
    * - ``make_fused_bias_activation_pattern(...)``
      - Build ``op + bias + activation`` chain
-   * - ``.has_dtype()`` / ``.has_shape()`` / ``.has_attr()`` / ``.has_struct_info()``
+   * - ``.has_dtype()`` / ``.has_shape()`` / ``.has_attr()`` / ``.has_ty()``
      - Attach constraints
    * - ``|`` / ``&`` / ``~``
      - Or / And / Not combinators

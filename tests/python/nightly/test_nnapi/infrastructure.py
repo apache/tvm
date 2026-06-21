@@ -37,10 +37,10 @@ def reshape_matmul(mod: tvm.IRModule):
     def _rewriter(expr: Expr, matches: dict[DFPattern, Expr]):
         i0 = matches[input0]
         i1 = matches[input1]
-        if len(i0.struct_info.shape) == 2 and len(i1.struct_info.shape) == 2:
-            i0_shape = [1] + [*i0.struct_info.shape.values]
-            i1_shape = [1] + [*i1.struct_info.shape.values]
-            oshape = matches[pattern].struct_info.shape
+        if len(i0.ty.shape) == 2 and len(i1.ty.shape) == 2:
+            i0_shape = [1] + [*i0.ty.shape.values]
+            i1_shape = [1] + [*i1.ty.shape.values]
+            oshape = matches[pattern].ty.shape
             return R.reshape(R.matmul(R.reshape(i0, i0_shape), R.reshape(i1, i1_shape)), oshape)
         return expr
 
@@ -59,7 +59,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
     pattern = is_op("relax.clip")(input_pattern, min_pattern, max_pattern)
 
     def _rewriter(expr: Expr, matches: dict[DFPattern, Expr]) -> Expr:  # pylint: disable=unused-argument
-        dtype = matches[input_pattern].struct_info.dtype
+        dtype = matches[input_pattern].ty.dtype
         return R.minimum(
             R.maximum(
                 matches[input_pattern],

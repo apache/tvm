@@ -18,17 +18,17 @@
  */
 
 /*!
- * \file struct_info_analysis.cc
- * \brief Implementations of foundation struct info analysis
+ * \file type_analysis.cc
+ * \brief Implementations of foundational Relax type analysis.
  *
- * \note Update this file when you added a new StructInfo.
+ * \note Update this file when you added a new Type.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
@@ -39,93 +39,95 @@ namespace relax {
 //--------------------------
 // GetStaticType
 //--------------------------
-class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
+class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
  public:
-  Type VisitStructInfo_(const ObjectStructInfoNode* op) final { return ObjectType(op->span); }
+  Type VisitType_(const ObjectTypeNode* op) final { return ObjectType(op->span); }
 
-  Type VisitStructInfo_(const PrimStructInfoNode* op) final {
-    return PrimType(op->dtype, op->span);
-  }
+  Type VisitType_(const PrimTypeNode* op) final { return PrimType(op->dtype, op->span); }
 
-  Type VisitStructInfo_(const ShapeStructInfoNode* op) final {
-    return ShapeType(op->ndim, op->span);
-  }
+  Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
 
-  Type VisitStructInfo_(const TensorStructInfoNode* op) final {
-    return TensorType(op->ndim, op->dtype);
+  Type VisitType_(const TensorTypeNode* op) final {
+    return TensorType(op->dtype, op->ndim, op->vdevice, op->span);
   }
 
   // module: distributed
-  Type VisitStructInfo_(const distributed::DTensorStructInfoNode* op) final { return ObjectType(); }
+  Type VisitType_(const distributed::DTensorTypeNode* op) final { return ObjectType(); }
   // end-module: distributed
 
-  Type VisitStructInfo_(const TupleStructInfoNode* op) final {
+  Type VisitType_(const TupleTypeNode* op) final {
     ffi::Array<Type> fields =
-        op->fields.Map([this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
+        op->fields.Map([this](const Type& ty) { return this->VisitType(ty); });
     return TupleType(fields, op->span);
   }
 
-  Type VisitStructInfo_(const FuncStructInfoNode* op) final {
+  Type VisitType_(const FuncTypeNode* op) final {
     if (op->IsOpaque()) return PackedFuncType(op->span);
-    ffi::Array<Type> params = op->params.value().Map(
-        [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
-    Type ret = this->VisitStructInfo(op->ret);
-    return FuncType(params, ret, op->span);
+    ffi::Array<Type> params =
+        op->params.value().Map([this](const Type& ty) { return this->VisitType(ty); });
+    Type ret = this->VisitType(op->ret);
+    return FuncType(params, ret, op->purity, op->span);
   }
 };
 
-Type GetStaticType(const StructInfo& info) { return StaticTypeDeriver()(info); }
+Type GetStaticType(const Type& info) { return StaticTypeDeriver()(info); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.GetStaticType",
-                        [](const StructInfo& info) { return GetStaticType(info); });
+                        [](const Type& info) { return GetStaticType(info); });
 }
 
 //--------------------------
-// StructInfoFromType
+// TypeFromStaticType
 //--------------------------
 
-StructInfo StructInfoFromType(const Type& type) {
+Type TypeFromStaticType(const Type& type) {
   if (type.as<ObjectTypeNode>()) {
-    return ObjectStructInfo(type->span);
+    return ObjectType(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
-    return PrimStructInfo(prim_type->dtype, prim_type->span);
+    return PrimType(prim_type->dtype, prim_type->span);
+  } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
+    return PrimType(prim_type->dtype, prim_type->span);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
-    return ShapeStructInfo(shape_type->ndim, type->span);
+    return ShapeType(shape_type->ndim, type->span);
   } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
-    return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
+    return TensorType(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
-    ffi::Array<StructInfo> fields;
+    ffi::Array<Type> fields;
     for (const Type& field : tuple_type->fields) {
-      fields.push_back(StructInfoFromType(field));
+      fields.push_back(TypeFromStaticType(field));
     }
-    return TupleStructInfo(fields, type->span);
+    return TupleType(fields, type->span);
   } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {
-    ffi::Array<StructInfo> params =
-        func_type->arg_types.Map([](const Type& param) { return StructInfoFromType(param); });
-    StructInfo ret = StructInfoFromType(func_type->ret_type);
+    if (func_type->IsOpaque()) return FuncType::OpaqueFunc(func_type->ret, func_type->purity);
+    ffi::Array<Type> params =
+        func_type->params.value().Map([](const Type& param) { return TypeFromStaticType(param); });
+    Type ret = TypeFromStaticType(func_type->ret);
+    return FuncType(params, ret, func_type->purity, func_type->span);
+  } else if (const tvm::FuncTypeNode* func_type = type.as<tvm::FuncTypeNode>()) {
+    ffi::Array<Type> params =
+        func_type->arg_types.Map([](const Type& param) { return TypeFromStaticType(param); });
+    Type ret = TypeFromStaticType(func_type->ret_type);
     // TODO(relax-team): Maybe add purity into the type as well
-    return FuncStructInfo(params, ret, true, func_type->span);
+    return FuncType(params, ret, true, func_type->span);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
-    return StructInfo();
+    return Type();
   }
 }
 
 //--------------------------
 // EraseToWellDefined
 //--------------------------
-class WellDefinedEraser : public StructInfoMutator,
-                          public ExprMutatorBase,
-                          public tirx::ExprMutator {
+class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tirx::ExprMutator {
  public:
   WellDefinedEraser(std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
                     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
                     arith::AnalyzerObj* ana)
       : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
 
-  StructInfo VisitStructInfo_(const PrimStructInfoNode* op) final {
+  Type VisitType_(const PrimTypeNode* op) final {
     bool has_undefined = false;
     ffi::Optional<PrimExpr> value;
 
@@ -138,16 +140,16 @@ class WellDefinedEraser : public StructInfoMutator,
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
       if (value.same_as(op->value)) {
-        return ffi::GetRef<StructInfo>(op);
+        return ffi::GetRef<Type>(op);
       } else {
-        return PrimStructInfo(value.value(), op->span);
+        return PrimType(value.value(), op->span);
       }
     } else {
-      return PrimStructInfo(op->dtype, op->span);
+      return PrimType(op->dtype, op->span);
     }
   }
 
-  StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) final {
+  Type VisitType_(const ShapeTypeNode* op) final {
     bool has_undefined = false;
     ffi::Optional<ffi::Array<PrimExpr>> values;
 
@@ -159,16 +161,16 @@ class WellDefinedEraser : public StructInfoMutator,
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
       if (values.same_as(op->values)) {
-        return ffi::GetRef<StructInfo>(op);
+        return ffi::GetRef<Type>(op);
       } else {
-        return ShapeStructInfo(values.value(), op->span);
+        return ShapeType(values.value(), op->span);
       }
     } else {
-      return ShapeStructInfo(op->ndim, op->span);
+      return ShapeType(op->ndim, op->span);
     }
   }
 
-  StructInfo VisitStructInfo_(const TensorStructInfoNode* op) final {
+  Type VisitType_(const TensorTypeNode* op) final {
     bool has_undefined = false;
     ffi::Optional<Expr> shape;
 
@@ -183,25 +185,25 @@ class WellDefinedEraser : public StructInfoMutator,
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
       if (shape.same_as(op->shape)) {
-        return ffi::GetRef<StructInfo>(op);
+        return ffi::GetRef<Type>(op);
       } else {
         if (shape.defined()) {
-          return TensorStructInfo(shape.value(), op->dtype, vdev, op->span);
+          return TensorType(shape.value(), op->dtype, vdev, op->span);
         } else {
-          return TensorStructInfo(op->dtype, op->ndim, vdev, op->span);
+          return TensorType(op->dtype, op->ndim, vdev, op->span);
         }
       }
     } else {
-      return TensorStructInfo(op->dtype, op->ndim, vdev, op->span);
+      return TensorType(op->dtype, op->ndim, vdev, op->span);
     }
   }
 
-  StructInfo VisitStructInfo_(const FuncStructInfoNode* op) final {
-    // NOTE: we always require func struct info to be well-defined.
+  Type VisitType_(const FuncTypeNode* op) final {
+    // NOTE: we always require func type to be well-defined.
     //
     // All the occuring symbolic variables are defined in parameters'
-    // struct info annotations. So there is no needed to erase.
-    return ffi::GetRef<StructInfo>(op);
+    // type annotations. So there is no needed to erase.
+    return ffi::GetRef<Type>(op);
   }
 
   using relax::ExprMutatorBase::VisitExpr_;
@@ -226,7 +228,7 @@ class WellDefinedEraser : public StructInfoMutator,
     has_undefined_ = has_undefined_ || !ret.defined();
     if (ret.defined()) {
       TVM_FFI_ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
-          << "Only allow Expr in StructInfo to be ShapeExpr or Var";
+          << "Only allow Expr in Type to be ShapeExpr or Var";
     }
     return ret.value_or(ffi::GetRef<Expr>(var));
   }
@@ -258,29 +260,27 @@ class WellDefinedEraser : public StructInfoMutator,
   arith::AnalyzerObj* ana_;
 };
 
-StructInfo EraseToWellDefined(
-    const StructInfo& info,
-    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
+Type EraseToWellDefined(
+    const Type& info, std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map) {
   arith::Analyzer analyzer;
   return EraseToWellDefined(info, f_shape_var_map, f_var_map, analyzer);
 }
 
-StructInfo EraseToWellDefined(
-    const StructInfo& info,
-    std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
+Type EraseToWellDefined(
+    const Type& info, std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
     std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, const arith::Analyzer& ana) {
-  return WellDefinedEraser(f_shape_var_map, f_var_map, ana.get()).VisitStructInfo(info);
+  return WellDefinedEraser(f_shape_var_map, f_var_map, ana.get()).VisitType(info);
 }
 
-StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                              ffi::Map<Var, Expr> var_map) {
+Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                        ffi::Map<Var, Expr> var_map) {
   arith::Analyzer analyzer;
   return EraseToWellDefined(info, shape_var_map, var_map, analyzer);
 }
 
-StructInfo EraseToWellDefined(const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                              ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
+Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                        ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
   std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
@@ -307,34 +307,33 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.analysis.EraseToWellDefined",
-      [](const StructInfo& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+      [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
          ffi::Map<Var, Expr> var_map) { return EraseToWellDefined(info, shape_var_map, var_map); });
 }
 
 //--------------------------
 // IsBaseOf
 //--------------------------
-class StructInfoBaseChecker
-    : public StructInfoFunctor<BaseCheckResult(const StructInfo&, const StructInfo&)> {
+class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Type&)> {
  public:
-  explicit StructInfoBaseChecker(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeBaseChecker(arith::AnalyzerObj* ana) : analyzer_(ana) {}
 
-  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+  BaseCheckResult VisitType(const Type& lhs, const Type& other) override {
     // quick path
-    // Note: subclass may disable this quick path if we need to go over all struct info.
+    // Note: subclass may disable this quick path if we need to go over all type.
     if (lhs.same_as(other)) return BaseCheckResult::kPass;
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+    return TypeFunctor::VisitType(lhs, other);
   }
 
   // ffi::Object is base of everything
-  BaseCheckResult VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
     return BaseCheckResult::kPass;
   }
 
-  BaseCheckResult VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<PrimStructInfoNode>();
+  BaseCheckResult VisitType_(const PrimTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<PrimTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
 
@@ -348,10 +347,10 @@ class StructInfoBaseChecker
     return PrimValueMatchCheck(lhs->value.value(), rhs->value.value());
   }
 
-  BaseCheckResult VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<ShapeStructInfoNode>();
+  BaseCheckResult VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<ShapeTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     // lhs have unknown ndim
@@ -372,10 +371,10 @@ class StructInfoBaseChecker
     return ShapeMatchCheck(lhs->values.value(), rhs->values.value());
   }
 
-  BaseCheckResult VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TensorStructInfoNode>();
+  BaseCheckResult VisitType_(const TensorTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TensorTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     // dtype mismatch
@@ -415,15 +414,13 @@ class StructInfoBaseChecker
   }
 
   // module: distributed
-  BaseCheckResult VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
-                                   const StructInfo& other) final {
-    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+  BaseCheckResult VisitType_(const distributed::DTensorTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
-    BaseCheckResult tensor_sinfo_check_result =
-        this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+    BaseCheckResult tensor_ty_check_result = this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
     BaseCheckResult other_check_result;
     if (!struct_equal_(lhs->device_mesh, rhs->device_mesh) ||
         !struct_equal_(lhs->placement, rhs->placement)) {
@@ -431,24 +428,23 @@ class StructInfoBaseChecker
     } else {
       other_check_result = BaseCheckResult::kPass;
     }
-    return CombineCheck(tensor_sinfo_check_result, other_check_result);
+    return CombineCheck(tensor_ty_check_result, other_check_result);
   }
   // end-module: distributed
 
-  BaseCheckResult VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TupleStructInfoNode>();
+  BaseCheckResult VisitType_(const TupleTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TupleTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     return ArrayCheck(lhs->fields, rhs->fields);
   }
 
-  BaseCheckResult VisitStructInfo_(const FuncStructInfoNode* lhs,
-                                   const StructInfo& other) override {
-    auto* rhs = other.as<FuncStructInfoNode>();
+  BaseCheckResult VisitType_(const FuncTypeNode* lhs, const Type& other) override {
+    auto* rhs = other.as<FuncTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
 
@@ -465,7 +461,7 @@ class StructInfoBaseChecker
                                                           : BaseCheckResult::kFailL2;
       }
       // no derivation function, only depends on ret
-      return this->VisitStructInfo(lhs->ret, rhs->ret);
+      return this->VisitType(lhs->ret, rhs->ret);
     }
 
     // Function check is best effort.
@@ -486,10 +482,10 @@ class StructInfoBaseChecker
     //
     // Given we only do best effort checking in these cases, and such cases
     // are likely not a primary concern atm, we take this approach here.
-    if (struct_equal_(ffi::GetRef<StructInfo>(lhs), other)) return BaseCheckResult::kPass;
+    if (struct_equal_(ffi::GetRef<Type>(lhs), other)) return BaseCheckResult::kPass;
 
     auto param_check = FuncParamsCheck(lhs->params.value(), rhs->params.value());
-    auto ret_check = this->VisitStructInfo(lhs->ret, rhs->ret);
+    auto ret_check = this->VisitType(lhs->ret, rhs->ret);
     return CombineCheck(param_check, ret_check);
   }
 
@@ -561,8 +557,8 @@ class StructInfoBaseChecker
    * \param rhs The right hand params.
    * \return Check result.
    */
-  virtual BaseCheckResult FuncParamsCheck(const ffi::Array<StructInfo>& lhs,
-                                          const ffi::Array<StructInfo>& rhs) {
+  virtual BaseCheckResult FuncParamsCheck(const ffi::Array<Type>& lhs,
+                                          const ffi::Array<Type>& rhs) {
     auto res = ArrayCheck(lhs, rhs);
     // treat L1 failures in params checking as L2.
     if (res == BaseCheckResult::kFailL1) res = BaseCheckResult::kFailL2;
@@ -593,12 +589,12 @@ class StructInfoBaseChecker
    * \param lhs The left operand.
    * \param rhs The right operand.
    */
-  BaseCheckResult ArrayCheck(const ffi::Array<StructInfo>& lhs, const ffi::Array<StructInfo>& rhs) {
+  BaseCheckResult ArrayCheck(const ffi::Array<Type>& lhs, const ffi::Array<Type>& rhs) {
     if (lhs.size() != rhs.size()) return BaseCheckResult::kFailL0;
     BaseCheckResult ret = BaseCheckResult::kPass;
 
     for (size_t i = 0; i < lhs.size(); ++i) {
-      auto cmp_ret = this->VisitStructInfo(lhs[i], rhs[i]);
+      auto cmp_ret = this->VisitType(lhs[i], rhs[i]);
       if (ret == BaseCheckResult::kFailL0) return ret;
       ret = CombineCheck(cmp_ret, ret);
     }
@@ -606,60 +602,58 @@ class StructInfoBaseChecker
   }
 };
 
-BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived) {
+BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived) {
   arith::Analyzer analyzer;
-  return StructInfoBaseCheck(base, derived, analyzer);
+  return TypeBaseCheck(base, derived, analyzer);
 }
 
-BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived,
-                                    const arith::Analyzer& ana) {
-  return StructInfoBaseChecker(ana.get())(base, derived);
+BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+  return TypeBaseChecker(ana.get())(base, derived);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.StructInfoBaseCheck",
-                        [](const StructInfo& base, const StructInfo& derived) -> int {
-                          return static_cast<int>(StructInfoBaseCheck(base, derived));
+  refl::GlobalDef().def("relax.analysis.TypeBaseCheck",
+                        [](const Type& base, const Type& derived) -> int {
+                          return static_cast<int>(TypeBaseCheck(base, derived));
                         });
 }
 
-bool IsBaseOf(const StructInfo& base, const StructInfo& derived) {
+bool IsBaseOf(const Type& base, const Type& derived) {
   arith::Analyzer analyzer;
   return IsBaseOf(base, derived, analyzer);
 }
 
-bool IsBaseOf(const StructInfo& base, const StructInfo& derived, const arith::Analyzer& ana) {
-  return StructInfoBaseCheck(base, derived, ana) == BaseCheckResult::kPass;
+bool IsBaseOf(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+  return TypeBaseCheck(base, derived, ana) == BaseCheckResult::kPass;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.StructInfoIsBaseOf",
-      [](const StructInfo& base, const StructInfo& derived) { return IsBaseOf(base, derived); });
+  refl::GlobalDef().def("relax.TypeIsBaseOf", [](const Type& base, const Type& derived) {
+    return IsBaseOf(base, derived);
+  });
 }
 
-class StructInfoBasePreconditionCollector
-    : public StructInfoFunctor<PrimExpr(const StructInfo&, const StructInfo&)> {
+class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, const Type&)> {
  public:
-  explicit StructInfoBasePreconditionCollector() {}
+  explicit TypeBasePreconditionCollector() {}
 
-  PrimExpr VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+  PrimExpr VisitType(const Type& lhs, const Type& other) override {
     if (lhs.same_as(other)) {
-      // Early bail-out if the StructInfo has reference equality.
+      // Early bail-out if the Type has reference equality.
       return IntImm::Bool(true);
     } else {
-      return StructInfoFunctor::VisitStructInfo(lhs, other);
+      return TypeFunctor::VisitType(lhs, other);
     }
   }
 
-  PrimExpr VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+  PrimExpr VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
     return IntImm::Bool(true);
   }
 
-  PrimExpr VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<PrimStructInfoNode>();
+  PrimExpr VisitType_(const PrimTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<PrimTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
@@ -677,8 +671,8 @@ class StructInfoBasePreconditionCollector
     }
   }
 
-  PrimExpr VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<ShapeStructInfoNode>();
+  PrimExpr VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<ShapeTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
@@ -701,8 +695,8 @@ class StructInfoBasePreconditionCollector
     }
   }
 
-  PrimExpr VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TensorStructInfoNode>();
+  PrimExpr VisitType_(const TensorTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TensorTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
@@ -752,9 +746,8 @@ class StructInfoBasePreconditionCollector
     return IntImm::Bool(true);
   }
 
-  PrimExpr VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
-                            const StructInfo& other) final {
-    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+  PrimExpr VisitType_(const distributed::DTensorTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
@@ -765,19 +758,19 @@ class StructInfoBasePreconditionCollector
       return IntImm::Bool(false);
     }
 
-    return this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+    return this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
   }
 
-  PrimExpr VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TupleStructInfoNode>();
+  PrimExpr VisitType_(const TupleTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TupleTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
     return ArrayCheck(lhs->fields, rhs->fields);
   }
 
-  PrimExpr VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
-    auto* rhs = other.as<FuncStructInfoNode>();
+  PrimExpr VisitType_(const FuncTypeNode* lhs, const Type& other) override {
+    auto* rhs = other.as<FuncTypeNode>();
     if (rhs == nullptr) {
       return IntImm::Bool(false);
     }
@@ -794,7 +787,7 @@ class StructInfoBasePreconditionCollector
       return IntImm::Bool(false);
     }
 
-    PrimExpr all_match = VisitStructInfo(lhs->ret, rhs->ret);
+    PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
     PrimExpr param_check;
     if (lhs->params.defined()) {
@@ -803,7 +796,7 @@ class StructInfoBasePreconditionCollector
       param_check = IntImm::Bool(true);
     }
 
-    PrimExpr ret_check = VisitStructInfo(lhs->ret, rhs->ret);
+    PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
 
     return param_check && ret_check;
   }
@@ -821,7 +814,7 @@ class StructInfoBasePreconditionCollector
     return all_equal;
   }
 
-  PrimExpr ArrayCheck(const ffi::Array<StructInfo>& lhs, const ffi::Array<StructInfo>& rhs) {
+  PrimExpr ArrayCheck(const ffi::Array<Type>& lhs, const ffi::Array<Type>& rhs) {
     if (lhs.size() != rhs.size()) {
       return IntImm::Bool(false);
     }
@@ -829,33 +822,33 @@ class StructInfoBasePreconditionCollector
     PrimExpr all_pass = IntImm::Bool(true);
 
     for (size_t i = 0; i < lhs.size(); ++i) {
-      all_pass = all_pass && VisitStructInfo(lhs[i], rhs[i]);
+      all_pass = all_pass && VisitType(lhs[i], rhs[i]);
     }
     return all_pass;
   }
 };
 
-PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived) {
-  StructInfoBasePreconditionCollector visitor;
+PrimExpr TypeBaseCheckPrecondition(const Type& base, const Type& derived) {
+  TypeBasePreconditionCollector visitor;
   return visitor(base, derived);
 }
 
 //--------------------------
-// DeriveStructInfo
+// DeriveType
 //--------------------------
 
-// NOTE: we are reusing StructInfoBaseChecker here to populate a mapping
+// NOTE: we are reusing TypeBaseChecker here to populate a mapping
 // from the expressions in arg(rhs) to var in param.
-class CallRetStructInfoDeriver : public StructInfoBaseChecker {
+class CallRetTypeDeriver : public TypeBaseChecker {
  public:
-  explicit CallRetStructInfoDeriver(arith::AnalyzerObj* ana) : StructInfoBaseChecker(ana) {}
+  explicit CallRetTypeDeriver(arith::AnalyzerObj* ana) : TypeBaseChecker(ana) {}
 
   // No short cut, so we can recursively populate all pairs.
-  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+  BaseCheckResult VisitType(const Type& lhs, const Type& other) final {
+    return TypeFunctor::VisitType(lhs, other);
   }
 
-  StructInfo Derive(const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
+  Type Derive(const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
     // opaque derivation
     if (finfo->IsOpaque()) {
       if (finfo->derive_func.defined()) {
@@ -872,22 +865,22 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     if (params.size() != call->args.size()) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "Number of arguments and parameters mismatch:"
-          << " Function " << call->op << " has struct info " << finfo << " and accepts "
-          << params.size() << " parameters, but was called with " << call->args.size()
-          << " arguments (" << call->args << ")";
+          << " Function " << call->op << " has type " << finfo << " and accepts " << params.size()
+          << " parameters, but was called with " << call->args.size() << " arguments ("
+          << call->args << ")";
     }
     // Visit each param arg pair, check and populate the var map
     for (size_t i = 0; i < params.size(); ++i) {
       TVM_FFI_VISIT_BEGIN();
-      auto arg_sinfo = GetStructInfo(call->args[i]);
-      BaseCheckResult res = this->VisitStructInfo(params[i], arg_sinfo);
+      auto arg_ty = GetType(call->args[i]);
+      BaseCheckResult res = this->VisitType(params[i], arg_ty);
       // Report error if we find L1 level failure
       // L2 level is best effort so we don't report.
       // The behavior of L2 can be customized later.
       if (res == BaseCheckResult::kFailL0 || res == BaseCheckResult::kFailL1) {
         TVM_FFI_VISIT_THROW(ValueError, call->args[i])
             << "Argument " << i << " type mismatch:"
-            << " expected " << params[i] << ", given " << arg_sinfo;
+            << " expected " << params[i] << ", given " << arg_ty;
       }
       TVM_FFI_VISIT_END(call->args[i]);
     }
@@ -902,12 +895,12 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
   ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
   ffi::Map<Var, Expr> var_map_;
 
-  using StructInfoBaseChecker::ShapeMatchCheck;
+  using TypeBaseChecker::ShapeMatchCheck;
 
   // Match shape values in between param(lhs) and arg(rhs)
   BaseCheckResult PrimValueMatchCheck(const PrimExpr& param, const PrimExpr& arg) final {
     if (!populate_mapping_) {
-      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+      return TypeBaseChecker::PrimValueMatchCheck(param, arg);
     }
 
     if (auto* ptr = param.as<tirx::VarNode>()) {
@@ -928,13 +921,13 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
       // Do not attempt to do prove when param contains a symbolic expr.
       // such expression might depends on a later defined var in params created by dyn fusion.
       // example: f(a: Tensor[(n+1)], s: Shape[(n,)]), the (n+1) case here.
-      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+      return TypeBaseChecker::PrimValueMatchCheck(param, arg);
     }
   }
 
   BaseCheckResult ShapeMatchCheck(const Expr& lhs, const Expr& rhs) final {
     if (!populate_mapping_) {
-      return StructInfoBaseChecker::ShapeMatchCheck(lhs, rhs);
+      return TypeBaseChecker::ShapeMatchCheck(lhs, rhs);
     }
 
     if (auto* ptr = lhs.as<VarNode>()) {
@@ -960,8 +953,7 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     return ShapeMatchCheck(lhs_shape->values, rhs_shape->values);
   }
 
-  BaseCheckResult FuncParamsCheck(const ffi::Array<StructInfo>& lhs,
-                                  const ffi::Array<StructInfo>& rhs) final {
+  BaseCheckResult FuncParamsCheck(const ffi::Array<Type>& lhs, const ffi::Array<Type>& rhs) final {
     // Set populate mapping to false
     // so we do not pick up symbolic vars in params with function type.
     //
@@ -974,60 +966,58 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     // pick up n in g's signature.
     bool populate_mapping = false;
     std::swap(populate_mapping_, populate_mapping);
-    auto ret = StructInfoBaseChecker::FuncParamsCheck(lhs, rhs);
+    auto ret = TypeBaseChecker::FuncParamsCheck(lhs, rhs);
     std::swap(populate_mapping_, populate_mapping);
     return ret;
   }
 };
 
-StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
-                                   const BlockBuilder& ctx) {
+Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer analyzer;
-  return DeriveCallRetStructInfo(finfo, call, ctx, analyzer);
+  return DeriveCallRetType(finfo, call, ctx, analyzer);
 }
 
-StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
-                                   const BlockBuilder& ctx, const arith::Analyzer& ana) {
+Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx,
+                       const arith::Analyzer& ana) {
   // The deriver's TVM_FFI_VISIT_THROW seeds a VisitErrorContext on the error;
   // the outer pass wrapper catches it and enriches the message with the access
   // path. Nothing to do here but propagate.
-  return CallRetStructInfoDeriver(ana.get()).Derive(finfo, call, ctx);
+  return CallRetTypeDeriver(ana.get()).Derive(finfo, call, ctx);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.DeriveCallRetStructInfo",
-                        [](const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
-                          return DeriveCallRetStructInfo(finfo, call, ctx);
+  refl::GlobalDef().def("relax.analysis.DeriveCallRetType",
+                        [](const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
+                          return DeriveCallRetType(finfo, call, ctx);
                         });
 }
 
 //--------------------------
 // UnifyToLCA
 //--------------------------
-class StructInfoLCAFinder
-    : public StructInfoFunctor<StructInfo(const StructInfo&, const StructInfo&)> {
+class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit StructInfoLCAFinder(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeLCAFinder(arith::AnalyzerObj* ana) : analyzer_(ana) {}
 
-  StructInfo VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
+  Type VisitType(const Type& lhs, const Type& other) final {
     // quick path
     if (lhs.same_as(other)) return lhs;
-    return StructInfoFunctor::VisitStructInfo(lhs, other);
+    return TypeFunctor::VisitType(lhs, other);
   }
 
   // ffi::Object is based of everything, unify to object.
-  StructInfo VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
-    return ffi::GetRef<StructInfo>(lhs);
+  Type VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
+    return ffi::GetRef<Type>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<PrimStructInfoNode>();
-    if (rhs == nullptr) return ObjectStructInfo(lhs->span);
+  Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<PrimTypeNode>();
+    if (rhs == nullptr) return ObjectType(lhs->span);
     if (lhs->dtype != rhs->dtype) {
       // PrimType will be treated as their boxed(object) values
       // as a result we can unify to object.
-      return ObjectStructInfo(lhs->span);
+      return ObjectType(lhs->span);
     }
     if (!lhs->value.defined() || !rhs->value.defined() ||
         !analyzer_->CanProveEqual(lhs->value.value(), rhs->value.value())) {
@@ -1036,18 +1026,18 @@ class StructInfoLCAFinder
       if (!lhs->value.defined()) {
         // If the mismatch was due to extra information in the RHS,
         // prefer to avoid constructing a new object.
-        return ffi::GetRef<StructInfo>(lhs);
+        return ffi::GetRef<Type>(lhs);
       } else {
-        return PrimStructInfo(lhs->dtype, lhs->span);
+        return PrimType(lhs->dtype, lhs->span);
       }
     }
 
-    return ffi::GetRef<StructInfo>(lhs);
+    return ffi::GetRef<Type>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<ShapeStructInfoNode>();
-    if (rhs == nullptr) return ObjectStructInfo(lhs->span);
+  Type VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<ShapeTypeNode>();
+    if (rhs == nullptr) return ObjectType(lhs->span);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
@@ -1055,18 +1045,18 @@ class StructInfoLCAFinder
                             ffi::GetRef<arith::Analyzer>(analyzer_))) {
       // prefers return same when possible
       if (!lhs->values.defined() && lhs->ndim == ndim) {
-        return ffi::GetRef<StructInfo>(lhs);
+        return ffi::GetRef<Type>(lhs);
       } else {
-        return ShapeStructInfo(ndim, lhs->span);
+        return ShapeType(ndim, lhs->span);
       }
     }
     // equals to each other
-    return ffi::GetRef<StructInfo>(lhs);
+    return ffi::GetRef<Type>(lhs);
   }
 
-  StructInfo VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TensorStructInfoNode>();
-    if (rhs == nullptr) return ObjectStructInfo(lhs->span);
+  Type VisitType_(const TensorTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TensorTypeNode>();
+    if (rhs == nullptr) return ObjectType(lhs->span);
 
     // find the target dtype, ndim, and vdevice.
     DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
@@ -1084,37 +1074,37 @@ class StructInfoLCAFinder
       // reuse lhs when possible
       if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim &&
           (!lhs->vdevice.defined() || vdev.defined())) {
-        return ffi::GetRef<StructInfo>(lhs);
+        return ffi::GetRef<Type>(lhs);
       } else {
-        return TensorStructInfo(dtype, ndim, vdev, lhs->span);
+        return TensorType(dtype, ndim, vdev, lhs->span);
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
     if (lhs->dtype != dtype || (lhs->vdevice.defined() && !vdev.defined())) {
-      return TensorStructInfo(lhs->shape.value(), dtype, vdev, lhs->span);
+      return TensorType(lhs->shape.value(), dtype, vdev, lhs->span);
     } else {
-      return ffi::GetRef<StructInfo>(lhs);
+      return ffi::GetRef<Type>(lhs);
     }
   }
 
-  StructInfo VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TupleStructInfoNode>();
-    if (rhs == nullptr) return ObjectStructInfo(lhs->span);
-    ffi::Optional<ffi::Array<StructInfo>> fields = UnifyArray(lhs->fields, rhs->fields);
+  Type VisitType_(const TupleTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<TupleTypeNode>();
+    if (rhs == nullptr) return ObjectType(lhs->span);
+    ffi::Optional<ffi::Array<Type>> fields = UnifyArray(lhs->fields, rhs->fields);
     // tuple length not the same.
-    if (!fields.defined()) return ObjectStructInfo(lhs->span);
+    if (!fields.defined()) return ObjectType(lhs->span);
 
     // same length tuple.
     if (!fields.same_as(lhs->fields)) {
-      return TupleStructInfo(fields.value(), lhs->span);
+      return TupleType(fields.value(), lhs->span);
     } else {
-      return ffi::GetRef<StructInfo>(lhs);
+      return ffi::GetRef<Type>(lhs);
     }
   }
 
-  StructInfo VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<FuncStructInfoNode>();
-    if (rhs == nullptr) return ObjectStructInfo(lhs->span);
+  Type VisitType_(const FuncTypeNode* lhs, const Type& other) final {
+    auto* rhs = other.as<FuncTypeNode>();
+    if (rhs == nullptr) return ObjectType(lhs->span);
 
     // the unified function is pure only if both are pure
     bool purity = lhs->purity && rhs->purity;
@@ -1123,24 +1113,24 @@ class StructInfoLCAFinder
     if (lhs->IsOpaque()) {
       if (lhs->derive_func.defined()) {
         if (lhs->derive_func.same_as(rhs->derive_func)) {
-          return ffi::GetRef<StructInfo>(lhs);
+          return ffi::GetRef<Type>(lhs);
         } else {
           // Create a new opaque with object return
-          return FuncStructInfo::OpaqueFunc(ObjectStructInfo(), purity, lhs->span);
+          return FuncType::OpaqueFunc(ObjectType(), purity, lhs->span);
         }
       } else {
         // no derivation function, only depends on ret
-        StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
-        if (ret.same_as(lhs->ret)) return ffi::GetRef<StructInfo>(lhs);
-        return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
+        Type ret = this->VisitType(lhs->ret, rhs->ret);
+        if (ret.same_as(lhs->ret)) return ffi::GetRef<Type>(lhs);
+        return FuncType::OpaqueFunc(ret, purity, lhs->span);
       }
     }
     // rhs is opaque, lhs is not
     if (rhs->IsOpaque()) {
       // unify ret value, note that rhs's ret is context free(because it is opaque)
       // so result of the unify is also context-free.
-      StructInfo ret = this->VisitStructInfo(lhs->ret, rhs->ret);
-      return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
+      Type ret = this->VisitType(lhs->ret, rhs->ret);
+      return FuncType::OpaqueFunc(ret, purity, lhs->span);
     }
 
     // Both lhs and rhs are not opaque
@@ -1158,21 +1148,21 @@ class StructInfoLCAFinder
     //
     // Given we only do best effort checking in these cases, and such cases
     // are likely not a primary concern atm, we take this approach here.
-    if (struct_equal_(ffi::GetRef<StructInfo>(lhs), ffi::GetRef<StructInfo>(rhs))) {
-      return ffi::GetRef<StructInfo>(lhs);
+    if (struct_equal_(ffi::GetRef<Type>(lhs), ffi::GetRef<Type>(rhs))) {
+      return ffi::GetRef<Type>(lhs);
     }
 
     auto params = UnifyArray(lhs->params.value(), rhs->params.value());
-    auto ret = this->VisitStructInfo(lhs->ret, rhs->ret);
+    auto ret = this->VisitType(lhs->ret, rhs->ret);
 
     if (params.same_as(lhs->params) && ret.same_as(lhs->ret)) {
-      return ffi::GetRef<StructInfo>(lhs);
+      return ffi::GetRef<Type>(lhs);
     } else {
       // fail to unify the params
       if (!params.defined()) {
-        return FuncStructInfo::OpaqueFunc(ret, purity, lhs->span);
+        return FuncType::OpaqueFunc(ret, purity, lhs->span);
       } else {
-        return FuncStructInfo(params.value(), ret, purity, lhs->span);
+        return FuncType(params.value(), ret, purity, lhs->span);
       }
     }
   }
@@ -1184,36 +1174,35 @@ class StructInfoLCAFinder
   ffi::StructuralEqual struct_equal_;
 
   // check arrays
-  ffi::Optional<ffi::Array<StructInfo>> UnifyArray(const ffi::Array<StructInfo>& lhs,
-                                                   const ffi::Array<StructInfo>& rhs) {
+  ffi::Optional<ffi::Array<Type>> UnifyArray(const ffi::Array<Type>& lhs,
+                                             const ffi::Array<Type>& rhs) {
     if (lhs.same_as(rhs)) return lhs;
     if (lhs.size() != rhs.size()) return std::nullopt;
     size_t index = 0;
-    return lhs.Map([&](const StructInfo& a) { return this->VisitStructInfo(a, rhs[index++]); });
+    return lhs.Map([&](const Type& a) { return this->VisitType(a, rhs[index++]); });
   }
 };
 
-StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs) {
+Type TypeLCA(const Type& lhs, const Type& rhs) {
   arith::Analyzer analyzer;
-  return StructInfoLCA(lhs, rhs, analyzer);
+  return TypeLCA(lhs, rhs, analyzer);
 }
 
-StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs, const arith::Analyzer& ana) {
-  return StructInfoLCAFinder(ana.get())(lhs, rhs);
+Type TypeLCA(const Type& lhs, const Type& rhs, const arith::Analyzer& ana) {
+  return TypeLCAFinder(ana.get())(lhs, rhs);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.analysis.StructInfoLCA",
-      [](const StructInfo& lhs, const StructInfo& rhs) { return StructInfoLCA(lhs, rhs); });
+  refl::GlobalDef().def("relax.analysis.TypeLCA",
+                        [](const Type& lhs, const Type& rhs) { return TypeLCA(lhs, rhs); });
 }
 
 //--------------------------
-// TIRVarsInStructInfo
+// TIRVarsInType
 //--------------------------
 
-class TIRVarsDetector : public StructInfoVisitor {
+class TIRVarsDetector : public TypeVisitor {
  public:
   enum class VarType {
     Definition,
@@ -1245,21 +1234,21 @@ class TIRVarsDetector : public StructInfoVisitor {
     }
   }
 
-  void VisitStructInfo_(const PrimStructInfoNode* prim_sinfo) final {
-    if (prim_sinfo->value.defined()) {
-      VisitPrimExpr(prim_sinfo->value.value());
+  void VisitType_(const PrimTypeNode* prim_ty) final {
+    if (prim_ty->value.defined()) {
+      VisitPrimExpr(prim_ty->value.value());
     }
   }
 
-  void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
-    if (shape_sinfo->values.defined()) {
-      VisitShape(shape_sinfo->values.value());
+  void VisitType_(const ShapeTypeNode* shape_ty) final {
+    if (shape_ty->values.defined()) {
+      VisitShape(shape_ty->values.value());
     }
   }
 
-  void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
-    if (tensor_sinfo->shape.defined()) {
-      VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
+  void VisitType_(const TensorTypeNode* tensor_ty) final {
+    if (tensor_ty->shape.defined()) {
+      VisitType(GetType(tensor_ty->shape.value()));
     }
   }
 
@@ -1276,48 +1265,48 @@ class TIRVarsDetector : public StructInfoVisitor {
   VarType collection_type;
 };
 
-ffi::Array<tirx::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
+ffi::Array<tirx::Var> TIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Usage);
-  detector(sinfo);
+  detector(ty);
   return detector.GetTIRVars();
 }
 
-ffi::Array<tirx::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo) {
+ffi::Array<tirx::Var> DefinableTIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Definition);
-  detector(sinfo);
+  detector(ty);
   return detector.GetTIRVars();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("relax.analysis.TIRVarsInStructInfo", TIRVarsInStructInfo)
-      .def("relax.analysis.DefinableTIRVarsInStructInfo", DefinableTIRVarsInStructInfo);
+      .def("relax.analysis.TIRVarsInType", TIRVarsInType)
+      .def("relax.analysis.DefinableTIRVarsInType", DefinableTIRVarsInType);
 }
 
-class NonNegativeExpressionCollector : relax::StructInfoVisitor {
+class NonNegativeExpressionCollector : relax::TypeVisitor {
  public:
-  static ffi::Array<PrimExpr> Collect(const StructInfo& sinfo) {
+  static ffi::Array<PrimExpr> Collect(const Type& ty) {
     NonNegativeExpressionCollector visitor;
-    visitor(sinfo);
+    visitor(ty);
     return visitor.expressions_;
   }
 
  private:
-  void VisitStructInfo_(const TensorStructInfoNode* op) override {
+  void VisitType_(const TensorTypeNode* op) override {
     if (op->shape.defined()) {
-      VisitStructInfo(GetStructInfo(op->shape.value()));
+      VisitType(GetType(op->shape.value()));
     }
   }
 
-  void VisitStructInfo_(const PrimStructInfoNode* op) override {
-    // Unlike the expressions in TensorStructInfo or ShapeStructInfo,
-    // PrimStructInfo may contain negative values.  This override
-    // prevents calling VisitStructInfoExprField from the default
-    // StructInfoVisitor implementation.
+  void VisitType_(const PrimTypeNode* op) override {
+    // Unlike the expressions in TensorType or ShapeType,
+    // PrimType may contain negative values.  This override
+    // prevents calling VisitTypeExprField from the default
+    // TypeVisitor implementation.
   }
 
-  void VisitStructInfoExprField(const PrimExpr& size_expr) override {
+  void VisitTypeExprField(const PrimExpr& size_expr) override {
     if (auto size_int = size_expr.as<IntImmNode>(); size_int && size_int->value >= 0) {
       // Avoid cluttering the result with non-negative integers
       return;
@@ -1333,8 +1322,8 @@ class NonNegativeExpressionCollector : relax::StructInfoVisitor {
   std::unordered_set<PrimExpr, ffi::StructuralHash, ffi::StructuralEqual> dedup_lookup_;
 };
 
-ffi::Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {
-  return NonNegativeExpressionCollector::Collect(sinfo);
+ffi::Array<PrimExpr> CollectNonNegativeExpressions(const Type& ty) {
+  return NonNegativeExpressionCollector::Collect(ty);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1344,7 +1333,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 class SymbolicVarCollector : public relax::ExprVisitor,
-                             public relax::StructInfoVisitor,
+                             public relax::TypeVisitor,
                              public tirx::ExprVisitor {
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
@@ -1392,13 +1381,13 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   void VisitExpr_(const FunctionNode* op) final {
     WithMode(VisitMode::kProvideDefinition, [&]() {
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetType(param));
       }
     });
 
     WithMode(VisitMode::kRequireDefinition, [&]() {
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetType(param));
       }
     });
 
@@ -1407,49 +1396,47 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   void VisitBinding_(const MatchCastNode* binding) final {
     WithMode(VisitMode(VisitMode::kProvideDefinition | VisitMode::kRequireDefinition),
-             [&]() { this->VisitStructInfo(binding->struct_info); });
+             [&]() { this->VisitType(binding->ty); });
 
     relax::ExprVisitor::VisitBinding_(binding);
   }
 
-  void VisitExprDepStructInfoField(const StructInfo& struct_info) {
-    return this->VisitStructInfo(struct_info);
-  }
+  void VisitExprDepTypeField(const Type& ty) { return this->VisitType(ty); }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+  void VisitType_(const FuncTypeNode* op) final {
     if (op->params.defined()) {
       // Visit the parameters once to collect bindings, and another
       // time to collect usages.  Otherwise, a symbolic variable
       // defined by a later parameter may be treated as undefined when
       // used by an earlier parameter.
       WithMode(VisitMode::kProvideDefinition, [&]() {
-        for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+        for (Type param : op->params.value()) {
+          this->VisitType(param);
         }
       });
 
       WithMode(VisitMode::kRequireDefinition, [&]() {
-        for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+        for (Type param : op->params.value()) {
+          this->VisitType(param);
         }
       });
     }
-    this->VisitStructInfo(op->ret);
+    this->VisitType(op->ret);
   }
 
-  void VisitStructInfoExprField(const Expr& expr) final {
+  void VisitTypeExprField(const Expr& expr) final {
     relax::ExprVisitor::VisitExpr(expr);
     if (auto* shape = expr.as<relax::ShapeExprNode>()) {
       for (const auto& val : shape->values) {
-        this->VisitStructInfoExprField(val);
+        this->VisitTypeExprField(val);
       }
     }
     if (auto prim_value = expr.as<relax::PrimValue>()) {
-      this->VisitStructInfoExprField(prim_value.value()->value);
+      this->VisitTypeExprField(prim_value.value()->value);
     }
   }
 
-  void VisitStructInfoExprField(const PrimExpr& expr) final {
+  void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
       if (auto var = expr.as<tirx::Var>()) {
         defined_symbolic_var_.insert(var.value());

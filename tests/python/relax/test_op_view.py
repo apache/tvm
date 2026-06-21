@@ -27,30 +27,30 @@ from tvm.script import tirx as T
 
 def test_infer_shape_of_1d_static_view():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor) -> R.Tensor([4096]):
+    def explicit_ty(A: R.Tensor) -> R.Tensor([4096]):
         B: R.Tensor([4096]) = R.memory.view(A, R.shape([4096]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor):
+    def inferred_ty(A: R.Tensor):
         B = R.memory.view(A, R.shape([4096]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_shape_of_2d_static_view():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor) -> R.Tensor([64, 64]):
+    def explicit_ty(A: R.Tensor) -> R.Tensor([64, 64]):
         B: R.Tensor([64, 64]) = R.memory.view(A, R.shape([64, 64]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor):
+    def inferred_ty(A: R.Tensor):
         B = R.memory.view(A, R.shape([64, 64]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_error_if_shape_argument_is_not_shape():
@@ -64,44 +64,44 @@ def test_error_if_shape_argument_is_not_shape():
 
 def test_infer_shape_of_1d_static_view_smaller_than_1d_source():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([4096])) -> R.Tensor([16]):
+    def explicit_ty(A: R.Tensor([4096])) -> R.Tensor([16]):
         B: R.Tensor([16]) = R.memory.view(A, R.shape([16]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([4096])):
+    def inferred_ty(A: R.Tensor([4096])):
         B = R.memory.view(A, R.shape([16]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_shape_of_2d_static_view_smaller_than_1d_source():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([4096])) -> R.Tensor([4, 4]):
+    def explicit_ty(A: R.Tensor([4096])) -> R.Tensor([4, 4]):
         B: R.Tensor([4, 4]) = R.memory.view(A, R.shape([4, 4]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([4096])):
+    def inferred_ty(A: R.Tensor([4096])):
         B = R.memory.view(A, R.shape([4, 4]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_shape_of_2d_static_view_same_size_as_2d_source():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([64, 64])) -> R.Tensor([16, 256]):
+    def explicit_ty(A: R.Tensor([64, 64])) -> R.Tensor([16, 256]):
         B: R.Tensor([16, 256]) = R.memory.view(A, R.shape([16, 256]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([64, 64])):
+    def inferred_ty(A: R.Tensor([64, 64])):
         B = R.memory.view(A, R.shape([16, 256]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_error_if_1d_static_view_larger_than_1d_source():
@@ -124,50 +124,50 @@ def test_error_if_static_2d_view_larger_than_source():
 
 def test_infer_shape_of_1d_dynamic_view():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
+    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
         N = T.int64()
         B: R.Tensor([N // 2]) = R.memory.view(A, R.shape([N // 2]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor(["N"])):
+    def inferred_ty(A: R.Tensor(["N"])):
         N = T.int64()
         B = R.memory.view(A, R.shape([N // 2]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_shape_of_2d_dynamic_view_of_1d_source():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor(["N"])) -> R.Tensor(["N // 8", 8]):
+    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 8", 8]):
         N = T.int64()
         B: R.Tensor([N // 8, 8]) = R.memory.view(A, R.shape([N // 8, 8]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor(["N"])):
+    def inferred_ty(A: R.Tensor(["N"])):
         N = T.int64()
         B = R.memory.view(A, R.shape([N // 8, 8]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_shape_of_2d_dynamic_view():
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
+    def explicit_ty(A: R.Tensor(["N"])) -> R.Tensor(["N // 2"]):
         N = T.int64()
         B: R.Tensor([N // 2]) = R.memory.view(A, R.shape([N // 2]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor(["N"])):
+    def inferred_ty(A: R.Tensor(["N"])):
         N = T.int64()
         B = R.memory.view(A, R.shape([N // 2]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_error_if_1d_dynamic_view_larger_than_1d_source():
@@ -232,32 +232,32 @@ def test_infer_dtype_of_float32_view():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor) -> R.Tensor("float32"):
+    def explicit_ty(A: R.Tensor) -> R.Tensor("float32"):
         B: R.Tensor("float32") = R.memory.view(A, dtype=R.dtype("float32"))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor):
+    def inferred_ty(A: R.Tensor):
         B = R.memory.view(A, dtype=R.dtype("float32"))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_view_without_explicit_dtype_keeps_input_dtype():
     """If R.memory.view only specifies the shape, the dtype is unchanged"""
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([16], "float32")) -> R.Tensor([4, 4], "float32"):
+    def explicit_ty(A: R.Tensor([16], "float32")) -> R.Tensor([4, 4], "float32"):
         B: R.Tensor([4, 4], "float32") = R.memory.view(A, R.shape([4, 4]))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([16], "float32")):
+    def inferred_ty(A: R.Tensor([16], "float32")):
         B = R.memory.view(A, R.shape([4, 4]))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_dtype_of_float32_view_from_relax_var():
@@ -270,18 +270,18 @@ def test_infer_dtype_of_float32_view_from_relax_var():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor) -> R.Tensor("float32"):
+    def explicit_ty(A: R.Tensor) -> R.Tensor("float32"):
         dtype = R.dtype("float32")
         B: R.Tensor("float32") = R.memory.view(A, dtype=dtype)
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor):
+    def inferred_ty(A: R.Tensor):
         dtype = R.dtype("float32")
         B = R.memory.view(A, dtype=dtype)
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_infer_dtype_of_view_with_unknown_dtype():
@@ -293,16 +293,16 @@ def test_infer_dtype_of_view_with_unknown_dtype():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor("float32"), dtype: R.Object) -> R.Tensor:
+    def explicit_ty(A: R.Tensor("float32"), dtype: R.Object) -> R.Tensor:
         B: R.Tensor = R.memory.view(A, dtype=dtype)
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor("float32"), dtype: R.Object):
+    def inferred_ty(A: R.Tensor("float32"), dtype: R.Object):
         B = R.memory.view(A, dtype=dtype)
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_view_dtype_may_be_smaller_than_input_dtype():
@@ -315,16 +315,16 @@ def test_view_dtype_may_be_smaller_than_input_dtype():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor("uint32")) -> R.Tensor("float8"):
+    def explicit_ty(A: R.Tensor("uint32")) -> R.Tensor("float8"):
         B: R.Tensor("float8") = R.memory.view(A, dtype=R.dtype("float8"))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor("uint32")):
+    def inferred_ty(A: R.Tensor("uint32")):
         B = R.memory.view(A, dtype=R.dtype("float8"))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_error_if_view_dtype_is_larger_than_input_dtype():
@@ -348,32 +348,32 @@ def test_increase_dtype_size_while_decreasing_number_of_elements():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([16], "uint8")) -> R.Tensor([8], "float16"):
+    def explicit_ty(A: R.Tensor([16], "uint8")) -> R.Tensor([8], "float16"):
         B: R.Tensor([8], "float16") = R.memory.view(A, shape=R.shape([8]), dtype=R.dtype("float16"))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([16], "uint8")):
+    def inferred_ty(A: R.Tensor([16], "uint8")):
         B = R.memory.view(A, shape=R.shape([8]), dtype=R.dtype("float16"))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_decrease_dtype_size_while_increasing_number_of_elements():
     """R.memory.view may update both dtype and shape simultaneously"""
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor([8], "float16")) -> R.Tensor([16], "uint8"):
+    def explicit_ty(A: R.Tensor([8], "float16")) -> R.Tensor([16], "uint8"):
         B: R.Tensor([16], "uint8") = R.memory.view(A, shape=R.shape([16]), dtype=R.dtype("uint8"))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor([8], "float16")):
+    def inferred_ty(A: R.Tensor([8], "float16")):
         B = R.memory.view(A, shape=R.shape([16]), dtype=R.dtype("uint8"))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_error_if_number_of_bytes_of_view_is_larger_than_original():
@@ -419,16 +419,16 @@ def test_applying_relative_byte_offset_of_zero_is_legal():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor) -> R.Tensor:
+    def explicit_ty(A: R.Tensor) -> R.Tensor:
         B: R.Tensor = R.memory.view(A, relative_byte_offset=R.prim_value(0))
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor):
+    def inferred_ty(A: R.Tensor):
         B = R.memory.view(A, relative_byte_offset=R.prim_value(0))
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_applying_unknown_relative_byte_offset_is_legal():
@@ -442,16 +442,16 @@ def test_applying_unknown_relative_byte_offset_is_legal():
     """
 
     @R.function(private=True)
-    def explicit_sinfo(A: R.Tensor, relative_byte_offset: R.Prim("int64")) -> R.Tensor:
+    def explicit_ty(A: R.Tensor, relative_byte_offset: R.Prim("int64")) -> R.Tensor:
         B: R.Tensor = R.memory.view(A, relative_byte_offset=relative_byte_offset)
         return B
 
     @R.function(private=True)
-    def inferred_sinfo(A: R.Tensor, relative_byte_offset: R.Prim("int64")):
+    def inferred_ty(A: R.Tensor, relative_byte_offset: R.Prim("int64")):
         B = R.memory.view(A, relative_byte_offset=relative_byte_offset)
         return B
 
-    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def test_legalize_is_no_op():
@@ -485,7 +485,7 @@ def test_lower_runtime_builtin_shape_change():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -517,7 +517,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -547,7 +547,7 @@ def test_lower_runtime_builtin_dtype_change():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -577,7 +577,7 @@ def test_lower_runtime_builtin_byte_offset():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -626,7 +626,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(
@@ -638,7 +638,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
             C = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
-                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
                 ),
             )(

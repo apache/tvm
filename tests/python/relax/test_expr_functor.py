@@ -302,7 +302,7 @@ class ASTPostPrinterMutator(PyExprMutator):
             self.builder_.emit_normalized(binding)
             return
 
-        temp = self.with_struct_info(new_var, new_value.struct_info)
+        temp = self.with_type(new_var, new_value.ty)
         if not temp.same_as(new_var):
             new_var = temp
             self.set_var_remap(binding.var.vid, new_var)
@@ -314,13 +314,13 @@ class ASTPostPrinterMutator(PyExprMutator):
         new_var = self.visit_var_def(binding.var)
         new_value = self.visit_expr(binding.value)
 
-        temp = self.with_struct_info(new_var, binding.struct_info)
+        temp = self.with_type(new_var, binding.ty)
         if not temp.same_as(new_var):
             new_var = temp
             self.set_var_remap(binding.var.vid, new_var)
 
         self.log.add("MatchCast")
-        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.struct_info))
+        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.ty))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
@@ -367,7 +367,7 @@ def basic_check(expr, visitor_str, mutator_str):
 
     # check no overloading case
     basic_mutator = BasicMutator()
-    # skip normalize GlobalVar since it requires context IRModule to get the struct_info_
+    # skip normalize GlobalVar since it requires context IRModule to get ty
     if isinstance(expr, relax.Expr) and not isinstance(expr, relax.GlobalVar):
         expr = bb.normalize(expr)
         assert_structural_equal(visit(basic_mutator, expr), expr)
@@ -844,8 +844,8 @@ def test_function_parameter_mutation():
         def visit_var_def_(self, var):
             if var.name_hint in self.shape_replacements:
                 new_shape = self.shape_replacements[var.name_hint]
-                new_sinfo = relax.TensorStructInfo(new_shape, dtype=var.struct_info.dtype)
-                return relax.Var(f"{var.name_hint}_with_new_shape", new_sinfo)
+                new_ty = relax.TensorType(new_shape, dtype=var.ty.dtype)
+                return relax.Var(f"{var.name_hint}_with_new_shape", new_ty)
             else:
                 return var
 

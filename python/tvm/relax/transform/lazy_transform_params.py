@@ -177,12 +177,12 @@ class LazyTransformParamsFuncCreator:
             if leaf_outputs:
                 new_bindings = [
                     relax.VarBinding(
-                        relax.Var("_", relax.ObjectStructInfo()),
+                        relax.Var("_", relax.ObjectType()),
                         relax.Call(
                             relax.ExternFunc(self.fset_item),
                             [*self.extra_set_item_params, index, expr],
                             None,
-                            [relax.ObjectStructInfo()],
+                            [relax.ObjectType()],
                         ),
                     )
                     for expr, indices in leaf_outputs.items()
@@ -206,23 +206,23 @@ class LazyTransformParamsFuncCreator:
         symbolic_vars = relax.analysis.defined_symbolic_vars(func)
         if symbolic_vars:
 
-            def unpack_sinfo(sinfo):
-                if isinstance(sinfo, relax.TupleStructInfo):
-                    for field in sinfo.fields:
-                        yield from unpack_sinfo(field)
+            def unpack_ty(ty):
+                if isinstance(ty, relax.TupleType):
+                    for field in ty.fields:
+                        yield from unpack_ty(field)
                 else:
-                    yield sinfo
+                    yield ty
 
-            # direct iterate over the struct info annotation
+            # direct iterate over the type annotation
             for param in func.params[num_input:]:
-                for sinfo in unpack_sinfo(param.struct_info):
-                    if isinstance(sinfo, relax.PrimStructInfo | relax.ShapeStructInfo):
-                        params.append(relax.Var("symbolic_var_holder", sinfo))
+                for ty in unpack_ty(param.ty):
+                    if isinstance(ty, relax.PrimType | relax.ShapeType):
+                        params.append(relax.Var("symbolic_var_holder", ty))
 
         return relax.Function(
             params,
             new_body,
-            relax.ObjectStructInfo(),
+            relax.ObjectType(),
             attrs=func.attrs,
             is_pure=False,
         ).without_attr("relax.force_pure")
@@ -241,7 +241,7 @@ class LazyInputMutator(PyExprMutator):
             num_input = 0
 
         params = list(func.params)[num_input:]
-        if len(params) == 1 and isinstance(params[0].struct_info_, relax.TupleStructInfo):
+        if len(params) == 1 and isinstance(params[0].ty, relax.TupleType):
             self.tuple_param = params[0]
             self.params = {}
         else:
@@ -250,7 +250,7 @@ class LazyInputMutator(PyExprMutator):
         func = relax.Function(
             func.params[:num_input],
             func.body,
-            func.ret_struct_info,
+            func.ret_ty,
             is_pure=False,
             attrs=func.attrs,
             span=func.span,
@@ -268,10 +268,10 @@ class LazyInputMutator(PyExprMutator):
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.PrimValue(index)],
                     None,
-                    [relax.ObjectStructInfo()],
+                    [relax.ObjectType()],
                 )
             )
-            match_cast = relax.MatchCast(var, get_item_result, var.struct_info)
+            match_cast = relax.MatchCast(var, get_item_result, var.ty)
             self.builder_.emit_normalized(match_cast)
 
             del self.params[var]
@@ -279,7 +279,7 @@ class LazyInputMutator(PyExprMutator):
         return super().visit_var_(var)
 
     def visit_tuple_getitem_(self, node: relax.TupleGetItem) -> relax.Expr:
-        sinfo = node.struct_info
+        ty = node.ty
 
         node = super().visit_tuple_getitem_(node)
 
@@ -289,10 +289,10 @@ class LazyInputMutator(PyExprMutator):
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.PrimValue(node.index)],
                     None,
-                    [relax.ObjectStructInfo()],
+                    [relax.ObjectType()],
                 )
             )
-            return self.builder_.match_cast(get_item_result, sinfo)
+            return self.builder_.match_cast(get_item_result, ty)
         else:
             return node
 
@@ -329,7 +329,7 @@ class LazyOutputMutator(PyExprMutator):
                                 self.func_creator.extra_set_item_params
                                 + [index, super().visit_var_(var)],
                                 None,
-                                [relax.ObjectStructInfo()],
+                                [relax.ObjectType()],
                             ),
                             name_hint="_",
                         )

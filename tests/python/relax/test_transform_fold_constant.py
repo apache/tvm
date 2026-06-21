@@ -48,7 +48,7 @@ def gen_mod(mod, name, binding):
             if k.name_hint == name:
                 # rename to main
                 gv = tvm.ir.GlobalVar("main")
-                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_struct_info).with_attr(
+                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_ty).with_attr(
                     "global_symbol", "main"
                 )
         else:
@@ -469,7 +469,7 @@ def test_fold_tuple_output():
             lv0 = relax.call_tir(
                 cls.split,
                 (c0,),
-                out_sinfo=[
+                out_ty=[
                     R.Tensor((2, 4), dtype="float32"),
                     R.Tensor((2, 4), dtype="float32"),
                 ],

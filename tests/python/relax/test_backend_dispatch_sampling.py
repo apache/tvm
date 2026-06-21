@@ -70,7 +70,7 @@ def test_dispatch_multinomial_from_uniform_generic():
             cls = Expected
             with R.dataflow():
                 lv: R.Tensor((3, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="float32", exclusive=0)
-                gv = R.call_tir(cls.get_sample_index, (lv, uniform_sample, sample_indices), out_sinfo=R.Tensor((6, 1), dtype="int64"))
+                gv = R.call_tir(cls.get_sample_index, (lv, uniform_sample, sample_indices), out_ty=R.Tensor((6, 1), dtype="int64"))
                 R.output(gv)
             return gv
     # fmt: on
@@ -188,7 +188,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
         def foo(prob: R.Tensor((3, 5), dtype="float32"), uniform_sample: R.Tensor((6, 1), dtype="float32"), sample_indices: R.Tensor((6, 1), dtype="int64")) -> R.Tensor((6, 1), dtype="int64"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.parallel_sampling_from_prob, (prob, uniform_sample, sample_indices), out_sinfo=R.Tensor((6, 1), dtype="int64"))
+                gv = R.call_tir(cls.parallel_sampling_from_prob, (prob, uniform_sample, sample_indices), out_ty=R.Tensor((6, 1), dtype="int64"))
                 R.output(gv)
             return gv
     # fmt: on

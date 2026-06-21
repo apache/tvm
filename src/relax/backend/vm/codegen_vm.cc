@@ -142,7 +142,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // allocate dst register.
-    RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
+    RegName dst_reg = HasVoidType(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
       if (call_node->op == call_builtin_with_ctx_op_) {
         // TODO(relax-team) migrate most handling of op to
@@ -220,9 +220,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const ConstantNode* op) final {
     auto arg = builder_->ConvertConstant(op->data);
 
-    if (auto tsinfo = op->struct_info_.as<TensorStructInfoNode>()) {
-      if (tsinfo->vdevice.defined()) {
-        VDevice vdev = tsinfo->vdevice.value();
+    if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
+      if (tensor_ty->vdevice.defined()) {
+        VDevice vdev = tensor_ty->vdevice.value();
         builder_->SaveMemoryScope(arg, vdev->memory_scope);
       }
     }

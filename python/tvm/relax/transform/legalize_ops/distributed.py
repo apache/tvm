@@ -22,7 +22,7 @@ from tvm import relax, tirx
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import call_pure_packed
-from ...struct_info import ShapeStructInfo
+from ...type import ShapeType
 from .common import register_legalize
 
 
@@ -31,12 +31,10 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     num_workers = call.attrs.num_workers
     axis = call.attrs.axis
     worker_id_symbol = tirx.Var("worker_id", "int64")
-    worker_id_var = _bb.emit(
-        call_pure_packed("runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)])
-    )
-    _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
+    worker_id_var = _bb.emit(call_pure_packed("runtime.disco.worker_id", ty_args=[ShapeType(None)]))
+    _bb.match_cast(worker_id_var, ShapeType([worker_id_symbol]))
 
-    split_axis_size = call.args[0].struct_info.shape[axis]
+    split_axis_size = call.args[0].ty.shape[axis]
     return relax.op.strided_slice(
         call.args[0],
         axes=[axis],

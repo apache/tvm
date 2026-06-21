@@ -21,8 +21,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -592,7 +592,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // Buffer is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, PrimType(DataType::Handle()));
+        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType(DataType::Handle()));
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       }
@@ -637,7 +637,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
 
       tirx::Var param =
-          tirx::Var("p_output" + std::to_string(out_idx), PrimType(DataType::Handle()));
+          tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType(DataType::Handle()));
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -733,12 +733,11 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleStructInfo& tuple_sinfo =
-          Downcast<TupleStructInfo>(tuple_get_item->tuple->struct_info_);
+      const TupleType& tuple_ty = Downcast<TupleType>(tuple_get_item->tuple->ty);
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTotalTensorSize(tuple_sinfo->fields[i]);
+        begin_buf_idx += GetTotalTensorSize(tuple_ty->fields[i]);
       }
-      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_sinfo->fields[tuple_get_item->index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_ty->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           ffi::GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -771,32 +770,30 @@ class FusedTIRConstructor : public ExprVisitor {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_));
-    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     auto get_tensor_shape =
-        [](const TensorStructInfoNode* sinfo) {
-          const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+        [](const TensorTypeNode* ty) {
+          const auto* shape_expr = ty->shape.as<ShapeExprNode>();
           TVM_FFI_ICHECK(shape_expr)
               << "FuseTIR expects all parameters are Tensors with symbolic shape.";
           return shape_expr->values;
         };
-    if (const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+    if (const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>()) {
       ffi::Array<ffi::Array<PrimExpr>> shapes;
-      for (const StructInfo& field : tuple_sinfo->fields) {
-        const auto* tensor_sinfo = field.as<TensorStructInfoNode>();
-        TVM_FFI_ICHECK(tensor_sinfo)
-            << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
-               "TensorStructInfo, but got "
-            << call->sinfo_args[0];
-        shapes.push_back(get_tensor_shape(tensor_sinfo));
+      for (const Type& field : tuple_ty->fields) {
+        const auto* tensor_ty = field.as<TensorTypeNode>();
+        TVM_FFI_ICHECK(tensor_ty) << "CallTIR ty_args are expected to be TensorType or Tuple of "
+                                     "TensorType, but got "
+                                  << call->ty_args[0];
+        shapes.push_back(get_tensor_shape(tensor_ty));
       }
       return shapes;
-    } else if (const auto* tensor_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>()) {
-      return {get_tensor_shape(tensor_sinfo)};
+    } else if (const auto* tensor_ty = call->ty_args[0].as<TensorTypeNode>()) {
+      return {get_tensor_shape(tensor_ty)};
     } else {
-      TVM_FFI_ICHECK(tensor_sinfo)
-          << "CallTIR sinfo_args are expected to be TensorStructInfo or Tuple of "
-             "TensorStructInfo, but got "
-          << call->sinfo_args[0];
+      TVM_FFI_ICHECK(tensor_ty) << "CallTIR ty_args are expected to be TensorType or Tuple of "
+                                   "TensorType, but got "
+                                << call->ty_args[0];
       throw;
     }
   }
@@ -933,7 +930,7 @@ class FusedTIRConstructor : public ExprVisitor {
         }
         return unique_name;
       };
-      // Update buffer with new symbolic shape according to the sinfo
+      // Update buffer with new symbolic shape according to the ty
       auto n = ffi::make_object<tirx::BufferNode>(*buffer.get());
       n->shape = output_shapes[i];
       n->name = unify_name_hints();
@@ -951,22 +948,22 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*!
    * \brief Collect TIR func params and buffers with specified relax type and shape
-   * \param struct_info The struct info
+   * \param ty The type
    * \param name_hint The name hint for params and buffers
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
                                     std::vector<ffi::Variant<tirx::Var, tirx::Buffer>>* out,
                                     const ffi::Optional<tirx::Buffer>& tir_buffer_param) {
-    auto struct_info = GetStructInfo(relax_param);
+    auto ty = GetType(relax_param);
 
-    TVM_FFI_CHECK(!struct_info.as<TupleStructInfoNode>(), InternalError)
+    TVM_FFI_CHECK(!ty.as<TupleTypeNode>(), InternalError)
         << "All tuple parameters should be expanded before this point in FuseTIR.  "
-        << "However, parameter " << relax_param << " has struct info " << struct_info;
+        << "However, parameter " << relax_param << " has type " << ty;
 
     auto name_hint = relax_param->name_hint();
 
-    if (const auto* tensor = struct_info.as<TensorStructInfoNode>()) {
+    if (const auto* tensor = ty.as<TensorTypeNode>()) {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
@@ -981,12 +978,12 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       out->push_back(std::move(buffer));
 
-    } else if (const auto* prim_value = struct_info.as<PrimStructInfoNode>()) {
+    } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
       // Case 2. The relax param is a scalar, we directly create a tirx var
       TVM_FFI_ICHECK(prim_value->value->IsInstance<tirx::VarNode>());
       out->push_back(Downcast<tirx::Var>(prim_value->value));
 
-    } else if (const auto* shape_expr = struct_info.as<ShapeStructInfoNode>()) {
+    } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
         TVM_FFI_ICHECK(var->IsInstance<tirx::VarNode>());
@@ -995,7 +992,7 @@ class FusedTIRConstructor : public ExprVisitor {
     } else {
       TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
                                << "Tensor, PrimValue, or ShapeExpr, "
-                               << "but got " << struct_info->GetTypeKey();
+                               << "but got " << ty->GetTypeKey();
     }
   }
 
@@ -1029,17 +1026,17 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
-  static size_t GetTotalTensorSize(const StructInfo& sinfo) {
-    if (sinfo.as<TensorStructInfoNode>()) {
+  static size_t GetTotalTensorSize(const Type& ty) {
+    if (ty.as<TensorTypeNode>()) {
       return 1;
-    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
+    } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
       size_t num = 0;
-      for (const StructInfo& sinfo : tuple_sinfo->fields) {
-        num += GetTotalTensorSize(sinfo);
+      for (const Type& ty : tuple_ty->fields) {
+        num += GetTotalTensorSize(ty);
       }
       return num;
     } else {
-      TVM_FFI_THROW(InternalError) << "TensorType and TupleType are expect, but got: " << sinfo;
+      TVM_FFI_THROW(InternalError) << "TensorType and TupleType are expect, but got: " << ty;
       return 0;
     }
   }
@@ -1153,7 +1150,7 @@ class TIRFuseMutator : public ExprMutator {
       const auto& [prim_func, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
 
       GlobalVar new_gvar(old_gvar->name_hint);
-      UpdateStructInfo(new_gvar, GetStructInfo(prim_func));
+      UpdateType(new_gvar, GetType(prim_func));
 
       mod->Remove(old_gvar);
       updates->Add(new_gvar, prim_func);
@@ -1194,12 +1191,12 @@ class TIRFuseMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   // Get shape from call tirx
-  static Expr GetCallTIRShape(StructInfo sinfo) {
-    if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-      ffi::Array<Expr> fields = tuple->fields.Map([&](StructInfo x) { return GetCallTIRShape(x); });
+  static Expr GetCallTIRShape(Type ty) {
+    if (auto* tuple = ty.as<TupleTypeNode>()) {
+      ffi::Array<Expr> fields = tuple->fields.Map([&](Type x) { return GetCallTIRShape(x); });
       return Tuple(fields);
     } else {
-      auto* tensor = sinfo.as<TensorStructInfoNode>();
+      auto* tensor = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor) << "FuseTIR can only take tensor or tuple type";
       auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR requires all intermediate values have shape";
@@ -1240,26 +1237,24 @@ class TIRFuseMutator : public ExprMutator {
     ffi::Array<PrimExpr> tir_vars;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto arg = call->args[i];
-      auto sinfo = GetStructInfo(arg);
+      auto ty = GetType(arg);
 
-      TVM_FFI_CHECK(!relax_func->params[i]->struct_info_->IsInstance<TupleStructInfoNode>() &&
-                        !sinfo.as<TupleStructInfoNode>(),
-                    InternalError)
+      TVM_FFI_CHECK(
+          !relax_func->params[i]->ty->IsInstance<TupleTypeNode>() && !ty.as<TupleTypeNode>(),
+          InternalError)
           << "All tuple parameters should be expanded before this point in FuseTIR.  "
-          << "However, argument " << arg << " with struct info " << arg->struct_info_
-          << " is passed as argument " << i << " to Primitive Relax function " << old_gvar
-          << ", which expects parameter " << relax_func->params[i] << " to have struct info "
-          << relax_func->params[i]->struct_info_;
+          << "However, argument " << arg << " with type " << arg->ty << " is passed as argument "
+          << i << " to Primitive Relax function " << old_gvar << ", which expects parameter "
+          << relax_func->params[i] << " to have type " << relax_func->params[i]->ty;
 
-      if (const auto* shape = sinfo.as<ShapeStructInfoNode>()) {
-        TVM_FFI_ICHECK(shape->values.defined())
-            << "FuseTIR requires all shape input has struct_info value.";
+      if (const auto* shape = ty.as<ShapeTypeNode>()) {
+        TVM_FFI_ICHECK(shape->values.defined()) << "FuseTIR requires all shape input has ty value.";
         for (const PrimExpr& prim_value : shape->values.value()) {
           TVM_FFI_ICHECK(prim_value->IsInstance<tirx::VarNode>())
               << "All shape inputs are expected to be single tirx var.";
           tir_vars.push_back(prim_value);
         }
-      } else if (const auto* prim_value = sinfo.as<PrimStructInfoNode>()) {
+      } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
         TVM_FFI_ICHECK(prim_value->value.defined())
             << "FuseTIR requires all R.Prim arguments to have a known value.";
         PrimExpr expr = prim_value->value.value();
@@ -1286,7 +1281,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(call_op, call_args, call_attrs, {GetStructInfo(call)});
+    return Call(call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

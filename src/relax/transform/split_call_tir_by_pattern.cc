@@ -754,7 +754,7 @@ class SplitMutator : public ExprMutator {
     tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
     DataType dtype = intermediate_buffer->dtype;
     Call call1(call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
-               {TensorStructInfo(ShapeExpr(intermediate_buffer->shape), dtype)});
+               {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
     ffi::Array<Expr> args2;
@@ -763,7 +763,7 @@ class SplitMutator : public ExprMutator {
       args2.push_back(GetCallTIRArgs(call->args[1])[p]);
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
-    Call call2(call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->sinfo_args);
+    Call call2(call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
     builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
     return call2;
   }

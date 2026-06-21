@@ -25,29 +25,27 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
-  if (call->sinfo_args.size() != 1) {
-    TVM_FFI_VISIT_THROW(InternalError, call)
-        << "sinfo_args should have exact 1 output struct info.";
+Type InferDistTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
+  if (call->ty_args.size() != 1) {
+    TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
       << "However, gets " << call->args[0];
-  return call->sinfo_args[0];
+  return call->ty_args[0];
 }
 
-TVM_REGISTER_OP("relax.call_tir")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoCallTIR);
+TVM_REGISTER_OP("relax.call_tir").set_attr<FInferType>("dist.FInferType", InferDistTypeCallTIR);
 
-StructInfo InferDistStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
+Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "stop_lift_params should have exact 1 arg.";
   }
-  return Downcast<StructInfo>(call->args[0]->struct_info_.value());
+  return Downcast<Type>(call->args[0]->ty);
 }
 
 TVM_REGISTER_OP("relax.builtin.stop_lift_params")
-    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoStopLiftParams);
+    .set_attr<FInferType>("dist.FInferType", InferDistTypeStopLiftParams);
 
 }  // namespace distributed
 }  // namespace relax

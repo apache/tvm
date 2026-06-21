@@ -6663,8 +6663,8 @@ def test_keep_params():
 
     assert len(params) == len(func.params) - 1
     for param_var, param_tensor in zip(func.params[1:], params):
-        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_tensor.shape
-        assert param_var.struct_info.dtype == param_tensor.dtype
+        assert tuple(x.value for x in param_var.ty.shape.values) == param_tensor.shape
+        assert param_var.ty.dtype == param_tensor.dtype
 
     tvm.testing.assert_allclose(params[0].numpy(), model.conv.weight.detach().detach().numpy())
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.bias.detach().detach().numpy())
@@ -6923,10 +6923,10 @@ def test_randn():
     exported_program = export(Randn(), args=example_args)
     mod = from_exported_program(exported_program)
     func = mod["main"]
-    ret_sinfo = func.ret_struct_info
-    assert ret_sinfo.fields[0].shape[0] == 5
-    assert ret_sinfo.fields[0].shape[1] == 3
-    assert ret_sinfo.fields[0].dtype == "float32"
+    ret_ty = func.ret_ty
+    assert ret_ty.fields[0].shape[0] == 5
+    assert ret_ty.fields[0].shape[1] == 3
+    assert ret_ty.fields[0].dtype == "float32"
 
 
 def test_randn_like():
@@ -6938,10 +6938,10 @@ def test_randn_like():
     exported_program = export(RandnLike(), args=example_args)
     mod = from_exported_program(exported_program)
     func = mod["main"]
-    ret_sinfo = func.ret_struct_info
-    assert ret_sinfo.fields[0].shape[0] == 4
-    assert ret_sinfo.fields[0].shape[1] == 6
-    assert ret_sinfo.fields[0].dtype == "float32"
+    ret_ty = func.ret_ty
+    assert ret_ty.fields[0].shape[0] == 4
+    assert ret_ty.fields[0].shape[1] == 6
+    assert ret_ty.fields[0].dtype == "float32"
 
 
 def test_type_as():
@@ -7439,10 +7439,10 @@ def test_index_put_with_tuple_output():
     exported_program = export(IndexPutTupleOutput(), args=example_args)
     mod = from_exported_program(exported_program)
 
-    ret_sinfo = mod["main"].ret_struct_info
-    assert isinstance(ret_sinfo, relax.TupleStructInfo)
+    ret_ty = mod["main"].ret_ty
+    assert isinstance(ret_ty, relax.TupleType)
 
-    tensor_fields = [f for f in ret_sinfo.fields if isinstance(f, relax.TensorStructInfo)]
+    tensor_fields = [f for f in ret_ty.fields if isinstance(f, relax.TensorType)]
     assert len(tensor_fields) >= 2
 
     assert any(
@@ -7471,10 +7471,10 @@ def test_m4d_diag_index_put_tuple_output_regression():
 
     # Regression focus: importing this graph should not segfault at Tuple construction.
     mod = from_exported_program(exported_program)
-    ret_sinfo = mod["main"].ret_struct_info
-    assert isinstance(ret_sinfo, relax.TupleStructInfo)
+    ret_ty = mod["main"].ret_ty
+    assert isinstance(ret_ty, relax.TupleType)
 
-    tensor_fields = [f for f in ret_sinfo.fields if isinstance(f, relax.TensorStructInfo)]
+    tensor_fields = [f for f in ret_ty.fields if isinstance(f, relax.TensorType)]
     assert len(tensor_fields) >= 2
     # x: (2, 3, 5) → x[..., :1]: (2, 3, 1)
     assert any(len(f.shape) == 3 and int(f.shape[-1]) == 1 for f in tensor_fields)

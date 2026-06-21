@@ -155,10 +155,8 @@ def test_function_pattern():
     assert isinstance(f.body.args[1], WildcardPattern)
     x = rx.Var("x", R.Tensor("float32"))
     y = rx.Var("y", R.Tensor("float32"))
-    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_struct_info=R.Tensor("float32")))
-    assert not f.match(
-        rx.Function([x, y], rx.op.multiply(x, y), ret_struct_info=R.Tensor("float32"))
-    )
+    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_ty=R.Tensor("float32")))
+    assert not f.match(rx.Function([x, y], rx.op.multiply(x, y), ret_ty=R.Tensor("float32")))
 
 
 def test_tuple_pattern():
@@ -286,7 +284,7 @@ def test_op_attr():
 def test_match_call_attr():
     x = rx.Var("x", R.Tensor("float32"))
     y = rx.Var("y", R.Tensor("float32"))
-    fn = rx.Function([x, y], rx.op.add(x, y), ret_struct_info=R.Tensor("float32"))
+    fn = rx.Function([x, y], rx.op.add(x, y), ret_ty=R.Tensor("float32"))
     annotated_fn = fn.with_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"})
     xp = is_var("x")
     yp = is_var("y")
@@ -314,7 +312,7 @@ def test_is_call_tir():
 def simple_call_packed(
     x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
 ) -> R.Tensor:
-    gv0 = R.call_packed("test.vm.mul", x, w, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
+    gv0 = R.call_packed("test.vm.mul", x, w, ty_args=(R.Tensor(ndim=2, dtype="float32")))
     return gv0
 
 
@@ -1065,7 +1063,7 @@ def get_qkv_proj_rewriter():
         Q_weight = matchings[Q_weight_pat]
         K_weight = matchings[K_weight_pat]
         V_weight = matchings[V_weight_pat]
-        width = Q_weight.struct_info.shape[1]
+        width = Q_weight.ty.shape[1]
 
         concat = R.concat([Q_weight, K_weight, V_weight], axis=1)
         matmul = R.matmul(inp, concat)
@@ -1315,7 +1313,7 @@ def test_combine_transposed_matmul_twice():
 
             concat = R.concat([w1, w2], axis=0)
             matmul = R.matmul(inp, R.permute_dims(concat))
-            sections = [w1.struct_info.shape[0]]
+            sections = [w1.ty.shape[0]]
 
             chunks = R.split(matmul, sections, -1)
 
@@ -1479,7 +1477,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         arg = matches[pattern_arg]
         shape_expr = matches[pattern_shape_expr]
 
-        if tvm_ffi.structural_equal(arg.struct_info.shape, shape_expr):
+        if tvm_ffi.structural_equal(arg.ty.shape, shape_expr):
             return arg
         else:
             return expr
@@ -1614,7 +1612,7 @@ def test_iterative_rewrite_without_trivial_binding():
         strides = matches[pattern_strides]
         strided_slice = matches[pattern]
 
-        if arg.struct_info.shape is None:
+        if arg.ty.shape is None:
             return expr
 
         if len(axes) != 1:
@@ -1628,7 +1626,7 @@ def test_iterative_rewrite_without_trivial_binding():
         if stride != 1:
             return expr
 
-        size = arg.struct_info.shape[0]
+        size = arg.ty.shape[0]
         if (
             isinstance(size, tirx.IntImm)
             and isinstance(begin, tirx.IntImm)
@@ -1756,9 +1754,7 @@ def test_iterative_rewrite_with_removed_intermediates():
         if pat_unwrap_concat_split in matches:
             args = matches[pat_args]
 
-            if len(args) == 2 and tvm_ffi.structural_equal(
-                args[0].struct_info, args[1].struct_info
-            ):
+            if len(args) == 2 and tvm_ffi.structural_equal(args[0].ty, args[1].ty):
                 return args
 
         elif pat_add_self in matches:
@@ -1771,11 +1767,11 @@ def test_iterative_rewrite_with_removed_intermediates():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_wildcard_with_struct_info_updates_when_matching():
-    """A DFPattern may be restricted to a specific StructInfo"""
+def test_wildcard_with_ty_updates_when_matching():
+    """A DFPattern may be restricted to a specific Type"""
 
-    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
-    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_lhs = wildcard().has_ty(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_ty(R.Tensor([2, 3]))
     pat = is_op("relax.add")(pat_lhs, pat_rhs)
 
     def rewriter(expr, matches):
@@ -1807,15 +1803,15 @@ def test_wildcard_with_struct_info_updates_when_matching():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_wildcard_with_struct_info_is_no_op_when_not_matching():
-    """StructInfoPattern requires the StructInfo provided
+def test_wildcard_with_ty_is_no_op_when_not_matching():
+    """TypePattern requires the Type provided
 
     Here, the pattern would match, expect that the function has
     `R.Tensor([16,32])`, and the pattern requires `R.Tensor([2,3])`.
     """
 
-    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
-    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_lhs = wildcard().has_ty(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_ty(R.Tensor([2, 3]))
     pat = is_op("relax.add")(pat_lhs, pat_rhs)
 
     def rewriter(expr, matches):
@@ -1841,11 +1837,11 @@ def test_wildcard_with_struct_info_is_no_op_when_not_matching():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_wildcard_struct_info_for_unknown_dtype():
-    """TensorStructInfo with unknown dtype allows any dtype"""
+def test_wildcard_ty_for_unknown_dtype():
+    """TensorType with unknown dtype allows any dtype"""
 
-    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
-    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_lhs = wildcard().has_ty(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_ty(R.Tensor([2, 3]))
     pat = is_op("relax.add")(pat_lhs, pat_rhs)
 
     def rewriter(expr, matches):
@@ -1887,8 +1883,8 @@ def test_wildcard_struct_info_for_unknown_dtype():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_wildcard_struct_info_with_symbolic_vars():
-    """StructInfoPattern may define symbolic vars
+def test_wildcard_ty_with_symbolic_vars():
+    """TypePattern may define symbolic vars
 
     This test finds an elementwise `R.add`, while ignoring a
     broadcasted `R.add`.
@@ -1897,8 +1893,8 @@ def test_wildcard_struct_info_with_symbolic_vars():
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
 
-    pat_lhs = wildcard().has_struct_info(R.Tensor([m, n]))
-    pat_rhs = wildcard().has_struct_info(R.Tensor([m, n]))
+    pat_lhs = wildcard().has_ty(R.Tensor([m, n]))
+    pat_rhs = wildcard().has_ty(R.Tensor([m, n]))
     pat = is_op("relax.add")(pat_lhs, pat_rhs)
 
     def rewriter(expr, matches):

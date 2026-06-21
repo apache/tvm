@@ -36,9 +36,9 @@ ffi::Optional<Function> ExpandParams(Function func) {
   bool is_exposed = func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return std::nullopt;
 
-  bool has_tuple_param = std::any_of(
-      func->params.begin(), func->params.end(),
-      [](const Var& param) -> bool { return param->struct_info_.as<TupleStructInfoNode>(); });
+  bool has_tuple_param =
+      std::any_of(func->params.begin(), func->params.end(),
+                  [](const Var& param) -> bool { return param->ty.as<TupleTypeNode>(); });
 
   if (!has_tuple_param) return std::nullopt;
 
@@ -46,13 +46,13 @@ ffi::Optional<Function> ExpandParams(Function func) {
   ffi::Array<Binding> bindings;
 
   std::function<void(const Var&)> expand_param = [&](const Var& param) {
-    if (auto sinfo = param->struct_info_.as<TupleStructInfoNode>()) {
+    if (auto ty = param->ty.as<TupleTypeNode>()) {
       ffi::Array<Expr> internal_tuple;
-      for (size_t i = 0; i < sinfo->fields.size(); i++) {
+      for (size_t i = 0; i < ty->fields.size(); i++) {
         auto name = static_cast<const std::stringstream&>(std::stringstream()
                                                           << param->name_hint() << "_" << i)
                         .str();
-        Var new_param(name, sinfo->fields[i]);
+        Var new_param(name, ty->fields[i]);
         internal_tuple.push_back(new_param);
         expand_param(new_param);
       }
@@ -66,14 +66,13 @@ ffi::Optional<Function> ExpandParams(Function func) {
     expand_param(param);
   }
 
-  FuncStructInfo new_sinfo(params.Map([](const auto& var) { return GetStructInfo(var); }),
-                           func->ret_struct_info,
-                           Downcast<FuncStructInfo>(func->struct_info_)->purity);
+  FuncType new_ty(params.Map([](const auto& var) { return GetType(var); }), func->ret_ty,
+                  Downcast<FuncType>(func->ty)->purity);
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
   write_ptr->body = SeqExpr({BindingBlock(bindings)}, func->body);
-  write_ptr->struct_info_ = new_sinfo;
+  write_ptr->ty = new_ty;
 
   return func;
 }
@@ -92,8 +91,8 @@ class TupleExpander : public ExprMutator {
         ffi::Array<Expr> new_args;
 
         std::function<void(const Expr&)> expand_arg = [&](const Expr& arg) {
-          if (auto sinfo = arg->struct_info_.as<TupleStructInfoNode>()) {
-            for (size_t i = 0; i < sinfo->fields.size(); i++) {
+          if (auto ty = arg->ty.as<TupleTypeNode>()) {
+            for (size_t i = 0; i < ty->fields.size(); i++) {
               expand_arg(TupleGetItem(arg, i));
             }
           } else {
@@ -133,7 +132,7 @@ Pass ExpandTupleArguments() {
           if (auto opt = ExpandParams(func.value())) {
             auto new_func = opt.value();
             GlobalVar new_gvar(gvar->name_hint);
-            new_gvar->struct_info_ = new_func->struct_info_;
+            new_gvar->ty = new_func->ty;
             gvar_replacements[gvar] = new_gvar;
             new_callees[new_gvar] = new_func;
           }

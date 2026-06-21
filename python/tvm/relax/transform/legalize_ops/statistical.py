@@ -40,7 +40,7 @@ def _normalize_reduction_axes(axis: list[int] | None, ndim: int) -> list[int]:
 
 
 def _has_const_zero_reduction_dim(call: Call) -> bool:
-    input_shape = call.args[0].struct_info.shape
+    input_shape = call.args[0].ty.shape
     if not isinstance(input_shape, ShapeExpr):
         return False
 
@@ -58,14 +58,14 @@ def _statistical(
     def statistical_call_te(bb: BlockBuilder, call: Call) -> Expr:
         if zero_dim_identity is not None and _has_const_zero_reduction_dim(call):
             fill_value = (
-                zero_dim_identity(call.struct_info.dtype)
+                zero_dim_identity(call.ty.dtype)
                 if callable(zero_dim_identity)
                 else zero_dim_identity
             )
             return bb.call_te(
                 topi.full,
-                call.struct_info.shape.values,
-                call.struct_info.dtype,
+                call.ty.shape.values,
+                call.ty.dtype,
                 fill_value,
             )
         return bb.call_te(te_func, call.args[0], call.attrs.axis, call.attrs.keepdims)

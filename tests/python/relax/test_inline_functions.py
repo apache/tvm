@@ -350,7 +350,7 @@ def test_error_when_inlining_recursive_function():
         @R.function(private=True)
         def subroutine() -> R.Tensor([], "int64"):
             R.func_attr({"relax.force_pure": True})
-            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            cond = R.call_packed("dummy_function", ty_args=R.Tensor([], "bool"))
             if cond:
                 Out = Before.subroutine()
             else:
@@ -375,7 +375,7 @@ def test_error_when_inlining_mutually_recursive_functions():
         @R.function(private=True)
         def subroutine_a() -> R.Tensor([], "int64"):
             R.func_attr({"relax.force_pure": True})
-            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            cond = R.call_packed("dummy_function", ty_args=R.Tensor([], "bool"))
             if cond:
                 Out = Before.subroutine_b()
             else:
@@ -386,7 +386,7 @@ def test_error_when_inlining_mutually_recursive_functions():
         @R.function(private=True)
         def subroutine_b() -> R.Tensor([], "int64"):
             R.func_attr({"relax.force_pure": True})
-            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            cond = R.call_packed("dummy_function", ty_args=R.Tensor([], "bool"))
             if cond:
                 Out = Before.subroutine_a()
             else:

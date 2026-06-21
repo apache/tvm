@@ -27,9 +27,9 @@ class WellFormedInstrument:
 
     Parameters
     ----------
-    check_struct_info: bool
+    check_ty: bool
 
-        If True, validate the struct info in the module.  If False,
+        If True, validate the type in the module.  If False,
         skip these checks.
 
     validate_before_transform: bool
@@ -39,9 +39,9 @@ class WellFormedInstrument:
         after running a transform.
     """
 
-    def __init__(self, check_struct_info: bool = True, validate_before_transform: bool = True):
+    def __init__(self, check_ty: bool = True, validate_before_transform: bool = True):
         self.skip_pass_name = ["Normalize", "NormalizeGlobalVar", "ResolveGlobals"]
-        self.check_struct_info = check_struct_info
+        self.check_ty = check_ty
         self.validate_before_transform = validate_before_transform
 
     def run_before_pass(self, mod, pass_info):
@@ -53,7 +53,7 @@ class WellFormedInstrument:
 
     def _check(self, mod, pass_name, name_prefix):
         if pass_name not in self.skip_pass_name:
-            is_well_formed = relax.analysis.check_well_formed(mod, self.check_struct_info)
+            is_well_formed = relax.analysis.check_well_formed(mod, self.check_ty)
             if not is_well_formed:
                 mod.show(name=f"{name_prefix}{pass_name}")
             assert is_well_formed

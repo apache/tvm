@@ -479,7 +479,7 @@ def test_checkpoint_api():
         return relax.op.sum(y)
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = bb.emit(nn.checkpoint(func1, x))
@@ -516,11 +516,11 @@ def test_checkpoint_tree():
         return x * y, z * w
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
-    y = relax.Var("y", relax.TensorStructInfo((3, 3), "float32"))
-    z = relax.Var("z", relax.TensorStructInfo((3, 3), "float32"))
-    u = relax.Var("u", relax.TensorStructInfo((3, 3), "float32"))
-    v = relax.Var("v", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
+    y = relax.Var("y", relax.TensorType((3, 3), "float32"))
+    z = relax.Var("z", relax.TensorType((3, 3), "float32"))
+    u = relax.Var("u", relax.TensorType((3, 3), "float32"))
+    v = relax.Var("v", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x, y, z, u, v]):
         with bb.dataflow():
             lv1 = bb.emit(x * y)
@@ -564,7 +564,7 @@ def test_checkpoint_dag():
         return x * relax.const(2, "float32") * relax.const(2, "float32")
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = bb.emit(nn.checkpoint(func, x))
@@ -610,7 +610,7 @@ def test_checkpoint_sequential():
         return x + x
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = nn.emit_checkpoint_sequential([func] * 5, 2, x)
@@ -652,7 +652,7 @@ def test_checkpoint_sequential_checkpoint_last():
         return x + x
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = nn.emit_checkpoint_sequential([func] * 5, 2, x, checkpoint_last=True)
@@ -702,7 +702,7 @@ def test_checkpoint_dag():
         return x * relax.const(2, "float32") * relax.const(2, "float32")
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = bb.emit(nn.checkpoint(func, x))
@@ -720,7 +720,7 @@ def test_checkpoint_with_intermediate_require_grads():
         return x * x * x
 
     bb = BlockBuilder()
-    x = relax.Var("x", relax.TensorStructInfo((3, 3), "float32"))
+    x = relax.Var("x", relax.TensorType((3, 3), "float32"))
     with bb.function("main", [x]):
         with bb.dataflow():
             lv1 = nn.emit_checkpoint(func, x)

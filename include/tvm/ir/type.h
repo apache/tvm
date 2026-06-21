@@ -52,54 +52,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>
 
 namespace tvm {
-
-/*!
- * \brief Type is the base type of all types.
- *
- * TVM's type system contains following subclasses:
- *
- * - PrimType: type of primitive type values used in the low-level IR.
- * - FuncType: type of a function.
- * - TensorType: type of certain Tensor values in the expression.
- *
- * There are also advanced types to support generic(polymorphic types).
- * \sa Type
- */
-class TypeNode : public ffi::Object {
- public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
-                                       refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to TypeNode.
- * \sa TypeNode
- */
-class Type : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
-};
 
 /*!
  * \brief Primitive data types used in the low-level IR.
@@ -136,7 +95,7 @@ class PrimType : public Type {
    */
   TVM_DLL explicit PrimType(runtime::DataType dtype, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimType, Type, PrimTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimType, Type, PrimTypeNode);
 };
 
 /*!
@@ -182,7 +141,7 @@ class PointerType : public Type {
    */
   TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PointerType, Type, PointerTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
 };
 
 /*!
@@ -222,7 +181,7 @@ class TupleType : public Type {
    */
   TVM_DLL TupleType static Empty();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleType, Type, TupleTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
 };
 
 /*!
@@ -278,7 +237,7 @@ class FuncType : public Type {
    */
   TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FuncType, Type, FuncTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };
 
 /*!
@@ -302,16 +261,7 @@ class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());
 
-  explicit TensorMapType(::tvm::ffi::ObjectPtr<TensorMapTypeNode> n) : Type(n) {}
-  TensorMapType(const TensorMapType&) = default;
-  TensorMapType(TensorMapType&&) = default;
-  TensorMapType& operator=(const TensorMapType&) = default;
-  TensorMapType& operator=(TensorMapType&&) = default;
-  const TensorMapTypeNode* operator->() const {
-    return static_cast<const TensorMapTypeNode*>(data_.get());
-  }
-  const TensorMapTypeNode* get() const { return operator->(); }
-  using ContainerType = TensorMapTypeNode;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };
 
 }  // namespace tvm

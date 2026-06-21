@@ -133,13 +133,11 @@ class FuncBuilder : public ExprMutator {
         tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var);
         tir_vars.push_back(new_var);
       }
-      shape_expr = Var("shape_expr", ShapeStructInfo(tir_vars));
+      shape_expr = Var("shape_expr", ShapeType(tir_vars));
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(),
-                         VisitExprDepStructInfoField(
-                             Downcast<ffi::Optional<StructInfo>>(input->struct_info_).value()));
+      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(Downcast<Type>(input->ty)));
       var_remap_[input->vid] = new_var;
       params.push_back(new_var);
     }
@@ -161,7 +159,7 @@ class FuncBuilder : public ExprMutator {
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
     attrs.Set(relax::attr::kForcePure, true);
-    auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
+    auto func = Function(params, body, Downcast<Type>(output->ty),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
   }
@@ -241,18 +239,18 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (pair.second->IsInstance<FunctionNode>()) {
         // If a function has the num_input attribute, the last func->params.size() - num_inputs
         // inputs are assumed to be fixed and thus they can be captured into a cuda graph.
-        // The symbolic variables in the struct info of the fixed inputs (weights) are also allowed
+        // The symbolic variables in the type of the fixed inputs (weights) are also allowed
         // to be captured.
         // If the hints for capturing symbolic variables via
         // 'relax.rewrite_cuda_graph.capture_symbolic_vars' annotation, the actual variables with
-        // these names are extracted from the struct info for the capturing.
+        // these names are extracted from the type for the capturing.
         const auto& func = Downcast<Function>(pair.second);
         int64_t num_inputs =
             func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
-          ffi::Array<tirx::Var> symbolic_vars = DefinableTIRVarsInStructInfo(
-              Downcast<StructInfo>(func->params[i]->struct_info_.value()));
+          ffi::Array<tirx::Var> symbolic_vars =
+              DefinableTIRVarsInType(Downcast<Type>(func->params[i]->ty));
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
               if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {
@@ -513,9 +511,9 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (vars_collector != nullptr) {
         vars_collector->push_back(var);
       }
-      // recursively check the struct info to collect the symbolic TIR vars
-      return static_vars_.count(var) && IsStatic(Downcast<StructInfo>(var->struct_info_.value()),
-                                                 vars_collector, tir_vars_collector);
+      // recursively check the type to collect the symbolic TIR vars
+      return static_vars_.count(var) &&
+             IsStatic(Downcast<Type>(var->ty), vars_collector, tir_vars_collector);
     }
 
     if (const auto* shape = expr.as<ShapeExprNode>()) {
@@ -542,19 +540,19 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     return result;
   }
 
-  bool IsStatic(const StructInfo& sinfo, std::vector<const VarNode*>* vars_collector = nullptr,
+  bool IsStatic(const Type& ty, std::vector<const VarNode*>* vars_collector = nullptr,
                 std::vector<const tirx::VarNode*>* tir_vars_collector = nullptr) {
-    if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-      if (auto shape = tensor_sinfo->GetShape()) {
+    if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+      if (auto shape = tensor_ty->GetShape()) {
         return IsStatic(shape.value(), vars_collector, tir_vars_collector);
       }
-    } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
-      if (shape_sinfo->values) {
-        return IsStatic(shape_sinfo->values.value(), vars_collector, tir_vars_collector);
+    } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
+      if (shape_ty->values) {
+        return IsStatic(shape_ty->values.value(), vars_collector, tir_vars_collector);
       }
-    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      return IsStatic(tuple_sinfo->fields, vars_collector, tir_vars_collector);
-    } else if (sinfo.as<ObjectStructInfoNode>() || sinfo.as<PrimStructInfoNode>()) {
+    } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+      return IsStatic(tuple_ty->fields, vars_collector, tir_vars_collector);
+    } else if (ty.as<ObjectTypeNode>() || ty.as<PrimTypeNode>()) {
       return true;
     }
     return false;
@@ -784,15 +782,15 @@ class CUDAGraphRewriter : public ExprMutator {
       TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
-      auto ret_struct_info = Downcast<FuncStructInfo>(gv_alloc->struct_info_.value())->ret;
+      auto ret_ty = Downcast<FuncType>(gv_alloc->ty)->ret;
       launch_subgraph =
           Call(call_builtin_with_ctx_op,
                {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm::Int64(0))})}, Attrs(),
-               {ret_struct_info});
+               {ret_ty});
     } else {
       auto gv_func = builder_->AddFunction(
           plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
-      StructInfo call_sinfo = plan->func->ret_struct_info;
+      Type call_ty = plan->func->ret_ty;
       // Arguments of the lifted function
       ffi::Array<Expr> args;
       for (const auto& arg : plan->inputs) {
@@ -801,18 +799,17 @@ class CUDAGraphRewriter : public ExprMutator {
       if (plan->propogated_tir_vars.defined()) {
         ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
         args.push_back(propogated_tir_vars);
-        // The ret_struct_info of the lifted function can contain symbolic variables. We need to
+        // The ret_ty of the lifted function can contain symbolic variables. We need to
         // bind the symbolic parameters to the actual values.
         const auto& shape_expr = plan->func->params.back();
-        auto symbolic_params =
-            Downcast<ShapeStructInfo>(shape_expr->struct_info_.value())->values.value();
+        auto symbolic_params = Downcast<ShapeType>(shape_expr->ty)->values.value();
         ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
         TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
           tir_var_remap.Set(Downcast<tirx::Var>(symbolic_params[i]),
                             propogated_tir_vars->values[i]);
         }
-        call_sinfo = Bind(call_sinfo, tir_var_remap);
+        call_ty = Bind(call_ty, tir_var_remap);
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
@@ -823,9 +820,8 @@ class CUDAGraphRewriter : public ExprMutator {
         // passing it twice simplifies the handling during the capture phase.
         tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
       }
-      launch_subgraph =
-          Call(call_builtin_with_ctx_op, {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
-               {call_sinfo});
+      launch_subgraph = Call(call_builtin_with_ctx_op,
+                             {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (const auto& [var, tuple_index] : plan->outputs) {

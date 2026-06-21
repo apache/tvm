@@ -69,26 +69,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full", full);
 }
 
-StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
   }
-  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  const auto* fill_value_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  if (shape_sinfo == nullptr) {
+  const auto* shape_ty = GetTypeAs<ShapeTypeNode>(call->args[0]);
+  const auto* fill_value_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
+  if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Full requires the input shape to be a Shape. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
-  if (fill_value_sinfo == nullptr || fill_value_sinfo->ndim != 0) {
+  if (fill_value_ty == nullptr || fill_value_ty->ndim != 0) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Full requires the input fill value to be zero rank Tensor. However, the given one is "
-        << call->args[1]->struct_info_;
+        << call->args[1]->ty;
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  DataType out_dtype = attrs->dtype.is_void() ? fill_value_sinfo->dtype : attrs->dtype;
-  return TensorStructInfo(/*shape=*/call->args[0], out_dtype, fill_value_sinfo->vdevice);
+  DataType out_dtype = attrs->dtype.is_void() ? fill_value_ty->dtype : attrs->dtype;
+  return TensorType(/*shape=*/call->args[0], out_dtype, fill_value_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.full")
@@ -96,7 +96,7 @@ TVM_REGISTER_OP("relax.full")
     .set_num_inputs(2)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
     .add_argument("fill_value", "Tensor", "The scalar tensor, denoting the value to fill.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFull)
+    .set_attr<FInferType>("FInferType", InferTypeFull)
     .set_attr<bool>("RequiresArgumentShapes", false)
     .set_attr<bool>("FDataDependent", true)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -115,23 +115,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full_like", full_like);
 }
 
-StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo fill_value_sinfo = input_sinfo[1];
-  if (fill_value_sinfo->ndim != 0) {
+Type InferTypeFullLike(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType data_ty = input_ty[0];
+  TensorType fill_value_ty = input_ty[1];
+  if (fill_value_ty->ndim != 0) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "FullLike requires the input fill value to be zero "
                                              "rank Tensor. However, the given one has ndim"
-                                          << fill_value_sinfo->ndim;
+                                          << fill_value_ty->ndim;
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
   if (attrs->dtype.is_void()) {
-    return data_sinfo;
+    return data_ty;
   } else {
-    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
-    output_sinfo->dtype = attrs->dtype;
-    return TensorStructInfo(output_sinfo);
+    auto output_ty = ffi::make_object<TensorTypeNode>(*data_ty.get());
+    output_ty->dtype = attrs->dtype;
+    return TensorType(output_ty);
   }
 }
 
@@ -140,36 +140,36 @@ TVM_REGISTER_OP("relax.full_like")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("fill_value", "Tensor", "The scalar value to fill.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFullLike)
+    .set_attr<FInferType>("FInferType", InferTypeFullLike)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
 // Structure info inference for ones and zeros
-StructInfo InferStructInfoOnesZeros(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeOnesZeros(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
   }
 
-  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  if (shape_sinfo == nullptr) {
+  const auto* shape_ty = GetTypeAs<ShapeTypeNode>(call->args[0]);
+  if (shape_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Ones/Zeros requires the input shape to be a Shape. However, the given one is "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
   const auto* attrs = call->attrs.as<InitAttrs>();
-  return TensorStructInfo(/*shape=*/call->args[0], attrs->dtype);
+  return TensorType(/*shape=*/call->args[0], attrs->dtype);
 }
 
 // Structure info inference for ones_like and zeros_like
-StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<InitAttrs>();
   if (attrs->dtype.is_void()) {
-    return data_sinfo;
+    return data_ty;
   } else {
-    auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*data_sinfo.get());
-    output_sinfo->dtype = attrs->dtype;
-    return TensorStructInfo(output_sinfo);
+    auto output_ty = ffi::make_object<TensorTypeNode>(*data_ty.get());
+    output_ty->dtype = attrs->dtype;
+    return TensorType(output_ty);
   }
 }
 
@@ -199,7 +199,7 @@ TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
+    .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -207,7 +207,7 @@ TVM_REGISTER_OP("relax.ones_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike)
+    .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
     .set_attr<bool>("FPurity", true);
 
 /* relax.zeros & relax.zeros_like */
@@ -236,7 +236,7 @@ TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Shape", "The shape of the created tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesZeros)
+    .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -244,7 +244,7 @@ TVM_REGISTER_OP("relax.zeros_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike)
+    .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
     .set_attr<bool>("FPurity", true);
 
 /* relax.eye & relax.eye_like */
@@ -267,7 +267,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.eye", eye).def("relax.op.eye_like", eye_like);
 }
 
-StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Eye op should have 3 arguments: n, m, and k, but got "
                                           << call->args.size() << " arguments";
@@ -285,32 +285,32 @@ StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
   PrimExpr m = get_prim_value(call->args[1], "m");
 
   DataType dtype = call->attrs.as<InitAttrs>()->dtype;
-  return TensorStructInfo(ShapeExpr({n, m}), dtype);
+  return TensorType(ShapeExpr({n, m}), dtype);
 }
 
-StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEyeLike(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Eye_like op should have 2 arguments: x and k, but got " << call->args.size()
         << " arguments";
   }
 
-  const auto* x_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  if (x_sinfo == nullptr) {
+  const auto* x_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
+  if (x_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Eye_like expects the input `x` to be a Tensor, but got "
-        << call->args[0]->struct_info_->GetTypeKey();
+        << call->args[0]->ty->GetTypeKey();
   }
-  if (x_sinfo->ndim != 2 && x_sinfo->ndim != kUnknownNDim) {
+  if (x_ty->ndim != 2 && x_ty->ndim != kUnknownNDim) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "Eye_like expects the input tensor to be 2-dimensional, but got " << x_sinfo->ndim
+        << "Eye_like expects the input tensor to be 2-dimensional, but got " << x_ty->ndim
         << " dimensions";
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  DataType out_dtype = attrs->dtype.is_void() ? x_sinfo->dtype : attrs->dtype;
+  DataType out_dtype = attrs->dtype.is_void() ? x_ty->dtype : attrs->dtype;
 
-  return TensorStructInfo(x_sinfo->shape.value(), out_dtype, x_sinfo->vdevice);
+  return TensorType(x_ty->shape.value(), out_dtype, x_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.eye")
@@ -319,7 +319,7 @@ TVM_REGISTER_OP("relax.eye")
     .add_argument("n", "PrimValue", "Number of rows in the output.")
     .add_argument("m", "PrimValue", "Number of columns in the output.")
     .add_argument("k", "PrimValue", "Index of the diagonal.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEye)
+    .set_attr<FInferType>("FInferType", InferTypeEye)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -328,7 +328,7 @@ TVM_REGISTER_OP("relax.eye_like")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("k", "PrimValue", "Index of the diagonal.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEyeLike)
+    .set_attr<FInferType>("FInferType", InferTypeEyeLike)
     .set_attr<bool>("FPurity", true);
 
 /* relax.arange */
@@ -344,7 +344,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.arange", arange);
 }
 
-StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Arange should have 3 arguments, which are `start`, `end` and `step`, but got "
@@ -371,7 +371,7 @@ StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
   }
   arith::Analyzer analyzer;
   num_elem = analyzer->Simplify(num_elem);
-  return TensorStructInfo(ShapeExpr({num_elem}), dtype);
+  return TensorType(ShapeExpr({num_elem}), dtype);
 }
 
 TVM_REGISTER_OP("relax.arange")
@@ -380,7 +380,7 @@ TVM_REGISTER_OP("relax.arange")
     .add_argument("start", "PrimValue", "The starting value for the set of points.")
     .add_argument("end", "PrimValue", "The ending value for the set of points.")
     .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArange)
+    .set_attr<FInferType>("FInferType", InferTypeArange)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -399,7 +399,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.hamming_window", hamming_window);
 }
 
-StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
   DataType dtype = call->attrs.as<InitAttrs>()->dtype;
   if (dtype.is_int() || dtype.is_uint() || dtype.is_uint()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -421,7 +421,7 @@ StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ct
         << window_size;
   }
   window_size = analyzer->Simplify(window_size);
-  return TensorStructInfo(ShapeExpr({window_size}), dtype);
+  return TensorType(ShapeExpr({window_size}), dtype);
 }
 
 TVM_REGISTER_OP("relax.hamming_window")
@@ -433,7 +433,7 @@ TVM_REGISTER_OP("relax.hamming_window")
                   "symmetric window")
     .add_argument("alpha", "PrimValue", "The coefficient alpha")
     .add_argument("beta", "PrimValue", "The coefficient beta")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoHammingWindow)
+    .set_attr<FInferType>("FInferType", InferTypeHammingWindow)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
@@ -460,30 +460,30 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.op.triu", static_cast<Expr (*)(Expr, Expr)>(triu));
 }
 
-StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
-  auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);
+Type InferTypeTrilTriu(const Call& call, const BlockBuilder& ctx) {
+  auto [data_ty, offset] = GetArgType<TensorType, PrimType>(call, ctx);
 
-  if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim < 2) {
+  if (!data_ty->IsUnknownNdim() && data_ty->ndim < 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << call->op
                                           << " requires the input tensor to have at least two "
                                              "dimensions. However, the given input has "
-                                          << data_sinfo->ndim << " dimension(s).";
+                                          << data_ty->ndim << " dimension(s).";
   }
-  return data_sinfo;
+  return data_ty;
 }
 
 TVM_REGISTER_OP("relax.tril")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("k", "PrimValue", "The offset of the diagonal.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
+    .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
     .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.triu")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("k", "PrimValue", "The offset of the diagonal.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
+    .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

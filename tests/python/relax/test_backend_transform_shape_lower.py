@@ -49,8 +49,8 @@ def test_const_shape_arg():
         def main(x: R.Shape([1, 2]), y: R.Shape):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.null_value()
-            _ = R.call_packed("vm.builtin.check_shape_info", x, 2, "", sinfo_args=[R.Tuple()])
-            _ = R.call_packed("vm.builtin.check_shape_info", y, -1, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_shape_info", x, 2, "", ty_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_shape_info", y, -1, "", ty_args=[R.Tuple()])
             _ = R.call_packed(
                 "vm.builtin.match_shape",
                 x,
@@ -61,7 +61,7 @@ def test_const_shape_arg():
                 MS.ASSERT_EQUAL_TO_IMM,
                 2,
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             return x
 
@@ -92,8 +92,8 @@ def test_static_fn_check():
         def main(f: R.Callable([R.Object], R.Object), y: R.Shape([1, 2])):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.null_value()
-            _ = R.call_packed("vm.builtin.check_func_info", f, "", sinfo_args=[R.Tuple()])
-            _ = R.call_packed("vm.builtin.check_shape_info", y, 2, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_func_info", f, "", ty_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_shape_info", y, 2, "", ty_args=[R.Tuple()])
             _ = R.call_packed(
                 "vm.builtin.match_shape",
                 y,
@@ -104,7 +104,7 @@ def test_static_fn_check():
                 MS.ASSERT_EQUAL_TO_IMM,
                 2,
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             return y
 
@@ -137,7 +137,7 @@ def test_simple_symbolic_shape():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -145,7 +145,7 @@ def test_simple_symbolic_shape():
                 3,
                 R.dtype("float32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -159,7 +159,7 @@ def test_simple_symbolic_shape():
                 MS.STORE_TO_HEAP,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             return x
 
@@ -208,7 +208,7 @@ def test_symbolic_compute():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(4)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -216,10 +216,10 @@ def test_symbolic_compute():
                 2,
                 R.dtype("float32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", y, 3, R.dtype(""), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info", y, 3, R.dtype(""), "", ty_args=[R.Tuple()]
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -231,7 +231,7 @@ def test_symbolic_compute():
                 MS.STORE_TO_HEAP,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -245,7 +245,7 @@ def test_symbolic_compute():
                 MS.NO_OP,
                 0,
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = cls.shape_func(shape_heap)
             # extra assertion on y's shape after shape computation
@@ -261,7 +261,7 @@ def test_symbolic_compute():
                 MS.ASSERT_EQUAL_TO_LOAD,
                 sindex["k+1"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             z = R.match_cast(y, R.Tensor([k, m, k + 1], dtype=None))
             # construct shape value for return
@@ -275,7 +275,7 @@ def test_symbolic_compute():
                 sindex["m"],
                 MK.USE_IMM,
                 2,
-                sinfo_args=[R.Shape(ndim=3)],
+                ty_args=[R.Shape(ndim=3)],
             )
             return s
 
@@ -314,10 +314,10 @@ def test_tuple_handling():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             # recursively unpack tuple for static info check
-            _ = R.call_packed("vm.builtin.check_tuple_info", x, 2, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_tuple_info", x, 2, "", ty_args=[R.Tuple()])
             t0 = x[0]
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -325,12 +325,12 @@ def test_tuple_handling():
                 2,
                 R.dtype("float32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             t1 = x[1]
-            _ = R.call_packed("vm.builtin.check_tuple_info", t1, 2, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_tuple_info", t1, 2, "", ty_args=[R.Tuple()])
             t1x0 = t1[0]
-            _ = R.call_packed("vm.builtin.check_shape_info", t1x0, -1, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_shape_info", t1x0, -1, "", ty_args=[R.Tuple()])
             t1x1 = t1[1]
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -338,7 +338,7 @@ def test_tuple_handling():
                 2,
                 R.dtype("int32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             # match shape checks.
             _ = R.call_packed(
@@ -351,7 +351,7 @@ def test_tuple_handling():
                 MS.STORE_TO_HEAP,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -363,7 +363,7 @@ def test_tuple_handling():
                 MS.STORE_TO_HEAP,
                 sindex["k"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             return x
 
@@ -374,7 +374,7 @@ def test_tuple_handling():
 
 
 def test_return_match_check():
-    """Test when return body is not same as ret_struct_info, runtime match check needed."""
+    """Test when return body is not same as ret_ty, runtime match check needed."""
     MS = MatchShapeCode
 
     @tvm.script.ir_module
@@ -402,10 +402,10 @@ def test_return_match_check():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", ty_args=[R.Tuple()]
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -417,11 +417,11 @@ def test_return_match_check():
                 MS.STORE_TO_HEAP,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
-            _ = R.call_packed("vm.builtin.check_tuple_info", y, 1, "", sinfo_args=[R.Tuple()])
+            _ = R.call_packed("vm.builtin.check_tuple_info", y, 1, "", ty_args=[R.Tuple()])
             # emit runtime function call since y do not have the right type.
-            y1 = R.call_packed("vm.builtin.tuple_getitem", y, 0, sinfo_args=[R.Object])
+            y1 = R.call_packed("vm.builtin.tuple_getitem", y, 0, ty_args=[R.Object])
             # run check
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -429,7 +429,7 @@ def test_return_match_check():
                 2,
                 R.dtype("float32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             # shape check
             _ = R.call_packed(
@@ -442,7 +442,7 @@ def test_return_match_check():
                 MS.ASSERT_EQUAL_TO_LOAD,
                 sindex["m"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
 
             return y
@@ -456,7 +456,7 @@ def test_return_match_check():
 def test_return_match_check_with_new_expr():
     """Like test_return_match_check, but requires a computation
 
-    When return body is not same as ret_struct_info, a runtime match
+    When return body is not same as ret_ty, a runtime match
     check is required.  This match check may require a symbolic
     expression to be computed.
     """
@@ -467,7 +467,7 @@ def test_return_match_check_with_new_expr():
         @R.function
         def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
             R.func_attr({"relax.force_pure": True})
-            out = R.call_packed("flatten_matrix", x, sinfo_args=R.Object)
+            out = R.call_packed("flatten_matrix", x, ty_args=R.Object)
             return out
 
     # slot assignment:
@@ -484,10 +484,10 @@ def test_return_match_check_with_new_expr():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
-                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+                ty_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", ty_args=[R.Tuple()]
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -499,19 +499,19 @@ def test_return_match_check_with_new_expr():
                 MS.ASSERT_EQUAL_TO_LOAD,
                 sindex["n"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
 
             _ = Expected.shape_func(shape_heap)
 
-            out = R.call_packed("flatten_matrix", x, sinfo_args=R.Object)
+            out = R.call_packed("flatten_matrix", x, ty_args=R.Object)
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
                 out,
                 1,
                 R.dtype("float32"),
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -521,7 +521,7 @@ def test_return_match_check_with_new_expr():
                 MS.ASSERT_EQUAL_TO_LOAD,
                 sindex["n * n"],
                 "",
-                sinfo_args=[R.Tuple()],
+                ty_args=[R.Tuple()],
             )
             return out
 
@@ -577,7 +577,7 @@ def test_symbolic_shape_multiple_function():
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(2),),
-                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+                ty_args=(R.Tensor(dtype="int64", ndim=1),),
             )
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -585,7 +585,7 @@ def test_symbolic_shape_multiple_function():
                 R.prim_value(2),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _1: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -597,7 +597,7 @@ def test_symbolic_shape_multiple_function():
                 MS.STORE_TO_HEAP,
                 sindex_fn1["n"],
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             return A
 
@@ -609,7 +609,7 @@ def test_symbolic_shape_multiple_function():
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(2),),
-                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+                ty_args=(R.Tensor(dtype="int64", ndim=1),),
             )
             _2: R.Tuple = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -617,7 +617,7 @@ def test_symbolic_shape_multiple_function():
                 R.prim_value(2),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _3: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -629,7 +629,7 @@ def test_symbolic_shape_multiple_function():
                 MS.STORE_TO_HEAP,
                 sindex_fn2["m"],
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             return A
 
@@ -669,7 +669,7 @@ def test_check_lifted_weights():
                 params,
                 R.prim_value(1),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             gv: R.Tensor((16, 16), dtype="float32") = params[0]
             _1: R.Tuple = R.call_packed(
@@ -678,7 +678,7 @@ def test_check_lifted_weights():
                 R.prim_value(2),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _2: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -690,7 +690,7 @@ def test_check_lifted_weights():
                 MS.ASSERT_EQUAL_TO_IMM,
                 R.prim_value(16),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             return params
 
@@ -706,7 +706,7 @@ def test_check_lifted_weights():
                 R.prim_value(2),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _1: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -718,7 +718,7 @@ def test_check_lifted_weights():
                 MS.ASSERT_EQUAL_TO_IMM,
                 R.prim_value(16),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             return (x, param_0)
 
@@ -756,7 +756,7 @@ def test_check_weights_with_dynamic_shape():
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(1),),
-                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+                ty_args=(R.Tensor(dtype="int64", ndim=1),),
             )
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -764,14 +764,14 @@ def test_check_weights_with_dynamic_shape():
                 R.prim_value(2),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _1: R.Tuple = R.call_packed(
                 "vm.builtin.check_tuple_info",
                 params,
                 R.prim_value(2),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _param_1: R.Tensor((n,), dtype="float32") = params[1]
             _2: R.Tuple = R.call_packed(
@@ -780,7 +780,7 @@ def test_check_weights_with_dynamic_shape():
                 R.prim_value(1),
                 R.dtype("float32"),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _3: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -792,7 +792,7 @@ def test_check_weights_with_dynamic_shape():
                 MS.ASSERT_EQUAL_TO_IMM,
                 R.prim_value(16),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
             _4: R.Tuple = R.call_packed(
                 "vm.builtin.match_shape",
@@ -802,7 +802,7 @@ def test_check_weights_with_dynamic_shape():
                 R.prim_value(1),
                 R.prim_value(0),
                 R.str(""),
-                sinfo_args=(R.Tuple,),
+                ty_args=(R.Tuple,),
             )
 
             param_0 = params[0]
@@ -842,14 +842,14 @@ def test_update_symbolic_vars_in_match_cast_rhs():
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [2],
-                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+                ty_args=(R.Tensor(dtype="int64", ndim=1),),
             )
             _ = R.call_packed(
                 "vm.builtin.check_prim_value_info",
                 arg_prim_value,
                 R.dtype("int64"),
                 "",
-                sinfo_args=[R.Tuple],
+                ty_args=[R.Tuple],
             )
             _ = R.call_packed(
                 "vm.builtin.match_prim_value",
@@ -858,7 +858,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
                 MatchShapeCode.STORE_TO_HEAP,
                 0,
                 "",
-                sinfo_args=[R.Tuple],
+                ty_args=[R.Tuple],
             )
             shape = R.call_packed(
                 "vm.builtin.make_shape",
@@ -866,7 +866,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
                 1,
                 MakeShapeCode.LOAD_SHAPE,
                 0,
-                sinfo_args=[R.Shape(ndim=1)],
+                ty_args=[R.Shape(ndim=1)],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -876,7 +876,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
                 MatchShapeCode.STORE_TO_HEAP,
                 1,
                 "",
-                sinfo_args=[R.Tuple],
+                ty_args=[R.Tuple],
             )
 
             m = T.int64()
@@ -886,7 +886,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
                 shape_heap,
                 MakeShapeCode.LOAD_SHAPE,
                 1,
-                sinfo_args=[R.Prim(value=m)],
+                ty_args=[R.Prim(value=m)],
             )
             return gv
 

@@ -90,10 +90,10 @@ def test_bind_params_symbolic_vars():
             n = T.Var("n", "int64")
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "linear0", (x, w0, b0), out_sinfo=R.Tensor((batch, n), dtype="float32")
+                    "linear0", (x, w0, b0), out_ty=R.Tensor((batch, n), dtype="float32")
                 )
                 out = R.call_dps_packed(
-                    "linear1", (lv0, w1, b1), out_sinfo=R.Tensor((batch, k), dtype="float32")
+                    "linear1", (lv0, w1, b1), out_ty=R.Tensor((batch, k), dtype="float32")
                 )
                 R.output(out)
             return out
@@ -109,20 +109,12 @@ def test_bind_params_symbolic_vars():
     # Since it contains ConstantNode, it's hard to check with structural equality.
     func = mod["main"]
     assert len(func.params) == 1
-    batch = func.params[0].struct_info.shape[0]
-    tvm.ir.assert_structural_equal(
-        func.params[0].struct_info, relax.TensorStructInfo((batch, 4), "float32")
-    )
-    tvm.ir.assert_structural_equal(
-        func.ret_struct_info, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    batch = func.params[0].ty.shape[0]
+    tvm.ir.assert_structural_equal(func.params[0].ty, relax.TensorType((batch, 4), "float32"))
+    tvm.ir.assert_structural_equal(func.ret_ty, relax.TensorType((batch, 8), "float32"))
     bindings = func.body.blocks[0].bindings
-    tvm.ir.assert_structural_equal(
-        bindings[0].var.struct_info, relax.TensorStructInfo((batch, 6), "float32")
-    )
-    tvm.ir.assert_structural_equal(
-        bindings[1].var.struct_info, relax.TensorStructInfo((batch, 8), "float32")
-    )
+    tvm.ir.assert_structural_equal(bindings[0].var.ty, relax.TensorType((batch, 6), "float32"))
+    tvm.ir.assert_structural_equal(bindings[1].var.ty, relax.TensorType((batch, 8), "float32"))
 
 
 param_specification = tvm.testing.parameter("by_string", "by_var")

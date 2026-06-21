@@ -53,13 +53,13 @@ namespace relax {
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
       .set_attr<bool>("FPurity", true)
 
-#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)             \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \
-      "FInferStructInfo", InferStructInfoBroadcastArith)
+#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)                    \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferType>("FInferType", \
+                                                                 InferTypeBroadcastArith)
 
-#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName)                          \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \
-      "FInferStructInfo", InferStructInfoBroadcastCMP)
+#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName)                                 \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferType>("FInferType", \
+                                                                 InferTypeBroadcastCMP)
 
 /***************** Arithmetic operators *****************/
 

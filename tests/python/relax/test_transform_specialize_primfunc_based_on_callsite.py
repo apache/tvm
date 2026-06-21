@@ -50,34 +50,30 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
                     )
             else:
                 for idx, arg in enumerate(call.args[1]):
-                    arg_sinfo = arg.struct_info
-                    assert isinstance(arg_sinfo, relax.TensorStructInfo), (
-                        f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                    arg_ty = arg.ty
+                    assert isinstance(arg_ty, relax.TensorType), (
+                        f"Expected TensorType but git {type(arg_ty)}"
                     )
                     buf = pfunc.buffer_map[pfunc.params[idx]]
-                    assert (
-                        arg_sinfo.vdevice.memory_scope == buf.data.type_annotation.storage_scope
-                    ), (
-                        f"scope mismatched after specialization {arg_sinfo.vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
+                    assert arg_ty.vdevice.memory_scope == buf.data.type_annotation.storage_scope, (
+                        f"scope mismatched after specialization {arg_ty.vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
                     )
-                if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
+                if isinstance(call.ty_args[0], relax.TensorType):
                     buf = pfunc.buffer_map[pfunc.params[-1]]
                     assert (
-                        call.sinfo_args[0].vdevice.memory_scope
+                        call.ty_args[0].vdevice.memory_scope
                         == buf.data.type_annotation.storage_scope
                     ), (
-                        f"scope mismatched after specialization {call.sinfo_args[0].vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
+                        f"scope mismatched after specialization {call.ty_args[0].vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
                     )
                 else:
-                    assert isinstance(call.sinfo_args[0], relax.TupleStructInfo), (
-                        f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
+                    assert isinstance(call.ty_args[0], relax.TupleType), (
+                        f"Expected TupleType but git {type(call.ty_args[0])}"
                     )
-                    for idx, sinfo in enumerate(call.sinfo_args[0].fields):
+                    for idx, ty in enumerate(call.ty_args[0].fields):
                         buf = pfunc.buffer_map[pfunc.params[len(call.args[1]) + idx]]
-                        assert (
-                            sinfo.vdevice.memory_scope == buf.data.type_annotation.storage_scope
-                        ), (
-                            f"scope mismatched after specialization {sinfo.vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
+                        assert ty.vdevice.memory_scope == buf.data.type_annotation.storage_scope, (
+                            f"scope mismatched after specialization {ty.vdevice.memory_scope} vs {buf.data.type_annotation.storage_scope}"
                         )
 
 
@@ -191,14 +187,14 @@ def test_single_arg_return():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 lv2 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
@@ -208,7 +204,7 @@ def test_single_arg_return():
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_sinfo=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
                 )
                 R.output(gv2)
             return gv2
@@ -293,28 +289,28 @@ def test_multi_arg_return():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 4, 28, 28, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 lv1 = R.call_tir(
                     cls.te_layout_transform1,
                     (w,),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (1, 16, 3, 3, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 gv = R.call_tir(
                     cls.conv2d_NCHWc_OIHWo_opencl,
                     (lv, lv1),
-                    out_sinfo=R.Tensor(
+                    out_ty=R.Tensor(
                         (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
                 lv_1 = R.call_tir(
                     cls.fused_relu_concatenate_split,
                     (gv,),
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"),
                         R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"),
                     ],
@@ -325,7 +321,7 @@ def test_multi_arg_return():
                 lv4 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv3,),
-                    out_sinfo=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+                    out_ty=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
                 )
                 lv5: R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global") = lv_1[
                     1
@@ -333,7 +329,7 @@ def test_multi_arg_return():
                 lv6 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_sinfo=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+                    out_ty=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
                 )
                 gv4: R.Tuple(
                     R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),

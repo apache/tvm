@@ -36,8 +36,6 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelaxExpr;
-using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *
@@ -77,64 +75,6 @@ class Id : public ffi::ObjectRef {
 };
 
 /*!
- * \brief Base type of all structure information.
- *
- * StructInfo stores possible structure information
- * deduced during compile-time. It encapsulates
- * both static type and runtime information such
- * as shape.
- *
- * StructInfo of each non-primitive Expr can be
- * deduced during compilation in a "best-effort" manner.
- *
- * When struct_info appears in function parameter and return
- * signatures. They will imply a runtime check that matches
- * the structure information with the value.
- *
- * When it appears in Expr, they follow "assume-semantics",
- * which means the compiler will take the deduced information as it is
- * and only do best effort prove and checks.
- *
- * Each struct info can be uniquely erased to a static-type.
- * The compiler will still compile the code(with less information)
- * when we erase to the static type.
- *
- * If an StructInfo contains an Expr field, then that field
- * must be normalized already through NormalizeArg.
- * This invariant will be checked in constructors
- * and help us to simplify our assumption
- * during struct info deduction.
- */
-class StructInfoNode : public ffi::Object {
- public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StructInfoNode>().def_ro("span", &StructInfoNode::span,
-                                             refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.StructInfo", StructInfoNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to StructInfoNode.
- * \sa StructInfoNode
- */
-class StructInfo : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StructInfo, ffi::ObjectRef, StructInfoNode);
-};
-
-/*!
  * \brief Call corresponds to callable invocation.
  *  Corresponds to operation in computational graph terminology.
  */
@@ -155,16 +95,16 @@ class CallNode : public ExprNode {
   Attrs attrs;
 
   /*!
-   * \brief The structure info arguments of a CallNode.
-   * sinfo_args is by default designed to be non-empty only for intrinsic op (e.g.,
+   * \brief The type information arguments of a CallNode.
+   * ty_args is by default designed to be non-empty only for intrinsic op (e.g.,
    * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-   * usage of structure info inference.
+   * usage of type information inference.
    *
-   * Regular ops also at times may have sinfo_args defined to specialize partial
-   * or complete structure info. Like VDevice customization with mixed input memory_scopes.
+   * Regular ops also at times may have ty_args defined to specialize partial
+   * or complete type information. Like VDevice customization with mixed input memory_scopes.
    * The customized pass can set this info and operator specific inference will respect it.
    */
-  ffi::Array<StructInfo> sinfo_args;
+  ffi::Array<Type> ty_args;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -172,7 +112,7 @@ class CallNode : public ExprNode {
         .def_ro("op", &CallNode::op)
         .def_ro("args", &CallNode::args)
         .def_ro("attrs", &CallNode::attrs)
-        .def_ro("sinfo_args", &CallNode::sinfo_args);
+        .def_ro("ty_args", &CallNode::ty_args);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
 };
@@ -184,11 +124,11 @@ class Call : public Expr {
    * \param op The operator to be invoked.
    * \param args The arguments of the call.
    * \param attrs The attributes of the call node.
-   * \param sinfo_args The structure info arguments passed to a function.
+   * \param ty_args The type information arguments passed to a function.
    * \param span The source span of the expression.
    */
   TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
-               ffi::Array<StructInfo> sinfo_args = ffi::Array<StructInfo>(), Span span = Span());
+               ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
@@ -199,12 +139,11 @@ class Call : public Expr {
  * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-Call WithFields(
-    Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
-    ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
-    ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
-    ffi::Optional<ffi::Array<StructInfo>> opt_sinfo_args = ffi::Optional<ffi::Array<StructInfo>>(),
-    ffi::Optional<Span> opt_span = ffi::Optional<Span>());
+Call WithFields(Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
+                ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
+                ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
+                ffi::Optional<ffi::Array<Type>> opt_ty_args = ffi::Optional<ffi::Array<Type>>(),
+                ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
@@ -353,7 +292,7 @@ class VarNode : public LeafExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
-    // customize structural equal and hash to include struct_info_
+    // customize structural equal and hash to include ty
     refl::TypeAttrDef<VarNode>()
         .def("__s_equal__", &VarNode::SEqual)
         .def("__s_hash__", &VarNode::SHash);
@@ -361,14 +300,13 @@ class VarNode : public LeafExprNode {
 
   bool SEqual(const VarNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    return equal(vid, other->vid, false, "vid") &&
-           equal(struct_info_, other->struct_info_, false, "struct_info_");
+    return equal(vid, other->vid, false, "vid") && equal(ty, other->ty, false, "ty");
   }
 
   int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
     int64_t hash_value = init_hash;
     hash_value = hash(vid, hash_value, false);
-    hash_value = hash(struct_info_, hash_value, false);
+    hash_value = hash(ty, hash_value, false);
     return hash_value;
   }
 
@@ -379,12 +317,10 @@ class VarNode : public LeafExprNode {
 
 class Var : public LeafExpr {
  public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<StructInfo> struct_info_annotation,
-                       Span span = Span())
-      : Var(Id(name_hint), struct_info_annotation, span) {}
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span = Span())
+      : Var(Id(name_hint), ty_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
-                       Span span = Span());
+  TVM_DLL explicit Var(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
 
   VarNode* CopyOnWrite();
@@ -406,12 +342,11 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint,
-                               ffi::Optional<StructInfo> struct_info_annotation, Span span = Span())
-      : DataflowVar(Id(name_hint), struct_info_annotation, span) {}
+  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
+                               Span span = Span())
+      : DataflowVar(Id(name_hint), ty_annotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<StructInfo> struct_info_annotation,
-                               Span span = Span());
+  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
@@ -445,12 +380,11 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param struct_info_annotation The struct info of the constant tensor.
+   * \param ty_annotation The type of the constant tensor.
    *        If not specified, infer it from data.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::Tensor data,
-                            ffi::Optional<StructInfo> struct_info_annotation = std::nullopt,
+  TVM_DLL explicit Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
                             Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);
@@ -600,26 +534,25 @@ class Binding : public ffi::ObjectRef {
 };
 
 /*!
- * \brief Runtime-match the value to the struct info.
+ * \brief Runtime-match the value to the type.
  *
  * This operation does runtime check, populates the un-defined symbolic shape vars
- * and vars in struct_info in first occurance, and insert equality assertions in
+ * and vars in ty in first occurance, and insert equality assertions in
  * other cases.
  */
 class MatchCastNode : public BindingNode {
  public:
   /*! \brief The input value to match cast. */
   Expr value;
-  /*! \brief The struct info pattern to match to. */
-  StructInfo struct_info;
+  /*! \brief The type pattern to match to. */
+  Type ty;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchCastNode>()
         .def_ro("value", &MatchCastNode::value)
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
-        .def_ro("struct_info", &MatchCastNode::struct_info,
-                refl::AttachFieldFlag::SEqHashDefRecursive());
+        .def_ro("ty", &MatchCastNode::ty, refl::AttachFieldFlag::SEqHashDefRecursive());
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.MatchCast", MatchCastNode, BindingNode);
 };
@@ -630,7 +563,7 @@ class MatchCastNode : public BindingNode {
  */
 class MatchCast : public Binding {
  public:
-  TVM_DLL explicit MatchCast(Var var, Expr value, StructInfo struct_info, Span span = Span());
+  TVM_DLL explicit MatchCast(Var var, Expr value, Type ty, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
@@ -818,7 +751,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The body of the function. */
   SeqExpr body;
   /*! \brief The return type of the function. */
-  StructInfo ret_struct_info;
+  Type ret_ty;
   /*! \brief Whether the function is annotated as pure or not. */
   bool is_pure;
 
@@ -827,7 +760,7 @@ class FunctionNode : public BaseFuncNode {
     refl::ObjectDef<FunctionNode>()
         .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("body", &FunctionNode::body)
-        .def_ro("ret_struct_info", &FunctionNode::ret_struct_info)
+        .def_ro("ret_ty", &FunctionNode::ret_ty)
         .def_ro("is_pure", &FunctionNode::is_pure);
   }
 
@@ -847,8 +780,8 @@ class Function : public BaseFunc {
    *     Relax IR requirement that all scopes be contained in a
    *     SeqExpr.
    *
-   * \param ret_struct_info The StructInfo returned by the function.
-   *     If std::nullopt, will be inferred from the StructInfo of the
+   * \param ret_ty The Type returned by the function.
+   *     If std::nullopt, will be inferred from the Type of the
    *     function's body.
    *
    * \param is_pure The purity of the function.
@@ -858,17 +791,15 @@ class Function : public BaseFunc {
    *
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Function(ffi::Array<Var> params, Expr body,
-                            ffi::Optional<StructInfo> ret_struct_info, bool is_pure = true,
-                            DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_DLL explicit Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty,
+                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
-   * \note ret_struct_info is required, since it can not deduced by the body.
+   * \note ret_ty is required, since it can not deduced by the body.
    */
-  TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = DictAttrs(),
-                                      Span span = Span());
+  TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure = true,
+                                      DictAttrs attrs = DictAttrs(), Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
@@ -921,7 +852,7 @@ class ExternFuncNode : public BaseFuncNode {
 class ExternFunc : public BaseFunc {
  public:
   TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
-  TVM_DLL ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Type ty, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
@@ -933,7 +864,7 @@ class ExternFunc : public BaseFunc {
  * \return The corresonding shape.
  *
  * \note This function requires expr to be normalized.
- *       The function will report an error if expr's StructInfo is not TensorStructInfo.
+ *       The function will report an error if expr's Type is not TensorType.
  *       It will try to return symbolic function when possible. If the tensor do not
  *       have a compile-time symbolic shape, the function will then choose to return
  *       Call(relax.op.shape_of, [expr]).

@@ -89,7 +89,7 @@ def test_tir_triton_integration():
         def main(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
             m = T.int64()
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorStructInfo((m,), "float32"))
+                output = R.call_tir(Module.add, [x, y], relax.TensorType((m,), "float32"))
                 R.output(output)
             return output
 

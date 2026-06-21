@@ -19,40 +19,39 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/script/builder/ir.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace relax {
-Expr MakeCallTIRDist(Expr func, Tuple args,
-                     ffi::Array<distributed::DTensorStructInfo> out_sinfo_list,
+Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
                      ffi::Optional<Expr> packed_ints) {
-  for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
-    const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
+  for (const distributed::DTensorType& ty : out_ty_list) {
+    const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
-        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-           "However, one given structure info is "
-        << sinfo;
+        << "out_ty of call_tir should have defined ShapeExpr as shape. "
+           "However, one given type information is "
+        << ty;
   }
 
-  StructInfo out_sinfo{nullptr};
-  if (out_sinfo_list.size() == 1) {
-    out_sinfo = out_sinfo_list[0];
+  Type out_ty{nullptr};
+  if (out_ty_list.size() == 1) {
+    out_ty = out_ty_list[0];
   } else {
-    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+    out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_sinfo});
+    call = Call(op, {func, args}, {}, {out_ty});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
+    call = Call(op, {func, args, packed_ints.value()}, {}, {out_ty});
   }
   return call;
 }

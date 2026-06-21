@@ -367,7 +367,7 @@ def test_preserve_indirectly_used_prim_func():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_sinfo=R.Tensor((16, 16), "float32"),
+                out_ty=R.Tensor((16, 16), "float32"),
             )
             return gv0
 
@@ -595,7 +595,7 @@ def test_recursively_defined_lambda():
                 (2, 3), "float32"
             ):
                 cond = R.call_pure_packed(
-                    "test.vm.less", i, R.const(10), sinfo_args=R.Tensor((), dtype="bool")
+                    "test.vm.less", i, R.const(10), ty_args=R.Tensor((), dtype="bool")
                 )
                 c = R.const(1, dtype="int32")
                 if cond:
@@ -634,7 +634,7 @@ def test_recursively_defined_closure():
                 (2, 3), "float32"
             ):
                 cond = R.call_pure_packed(
-                    "test.vm.less", i, threshold, sinfo_args=R.Tensor((), dtype="bool")
+                    "test.vm.less", i, threshold, ty_args=R.Tensor((), dtype="bool")
                 )
                 c = R.const(1, dtype="int32")
                 if cond:

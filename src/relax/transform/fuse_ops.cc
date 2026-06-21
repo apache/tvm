@@ -33,8 +33,8 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
@@ -414,7 +414,7 @@ class FunctionCreator : public ExprMutator {
           const Tuple& args = Downcast<Tuple>(call->args[1]);
           for (const Expr& arg : args->fields) {
             CheckDefAndUpdateParam(arg);
-            TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
+            TVM_FFI_ICHECK(GetTypeAs<TupleTypeNode>(arg) == nullptr);
           }
           // TODO(tvm-team): handle shape expr
         } else {
@@ -433,12 +433,12 @@ class FunctionCreator : public ExprMutator {
             if (auto tuple = arg.as<TupleNode>()) {
               for (const Expr& tup_arg : tuple->fields) {
                 CheckDefAndUpdateParam(tup_arg);
-                TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
+                TVM_FFI_ICHECK(GetTypeAs<TupleTypeNode>(tup_arg) == nullptr);
               }
             } else {
               CheckDefAndUpdateParam(arg);
             }
-            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
+            if (GetTypeAs<TupleTypeNode>(arg) != nullptr) {
               // The argument is fully referenced. Thus we remove it from the mapping.
               partially_used_tuple_params_.erase(arg.get());
             }
@@ -497,14 +497,14 @@ class FunctionCreator : public ExprMutator {
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
       ffi::String param_name = params_[param_idx]->name_hint();
-      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
+      TupleType param_ty = Downcast<TupleType>(tuple_arg->ty);
 
       ffi::Array<Expr> item_args;
       ffi::Array<Var> item_params;
       item_args.reserve(item_indices.size());
       item_params.reserve(item_indices.size());
       for (int item_idx : item_indices) {
-        Var item_param(param_name + "_" + std::to_string(item_idx), param_sinfo->fields[item_idx]);
+        Var item_param(param_name + "_" + std::to_string(item_idx), param_ty->fields[item_idx]);
         item_args.push_back(TupleGetItem(ffi::GetRef<Expr>(tuple_arg), item_idx));
         item_params.push_back(item_param);
         tuple_get_item_remap[tuple_arg][item_idx] = item_param;
@@ -559,20 +559,20 @@ class FunctionCreator : public ExprMutator {
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
       group_attrs.Set(tvm::relax::attr::kPrimitive, true);
-      Function function = Function(/*params=*/params_,                //
-                                   /*body=*/body,                     //
-                                   /*ret_struct_info=*/std::nullopt,  //
-                                   /*is_pure=*/true,                  //
+      Function function = Function(/*params=*/params_,       //
+                                   /*body=*/body,            //
+                                   /*ret_ty=*/std::nullopt,  //
+                                   /*is_pure=*/true,         //
                                    /*attrs=*/DictAttrs(group_attrs));
       ffi::Array<PrimExpr> free_vars =
           FreeSymbolicVars(function).Map([](const tirx::Var& var) -> PrimExpr { return var; });
       if (!free_vars.empty()) {
-        params_.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
+        params_.push_back(Var("tir_vars", ShapeType(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));
-        function = Function(/*params=*/params_,                //
-                            /*body=*/body,                     //
-                            /*ret_struct_info=*/std::nullopt,  //
-                            /*is_pure=*/true,                  //
+        function = Function(/*params=*/params_,       //
+                            /*body=*/body,            //
+                            /*ret_ty=*/std::nullopt,  //
+                            /*is_pure=*/true,         //
                             /*attrs=*/DictAttrs(group_attrs));
       }
       function_ = SymbolicVarRenewMutator::Renew(function);
@@ -618,16 +618,16 @@ class FunctionCreator : public ExprMutator {
       ffi::String name = var != nullptr
                              ? var->name_hint()
                              : ffi::String("param_" + std::to_string(n_param_for_const_++));
-      StructInfo param_sinfo = GetStructInfo(expr);
+      Type param_ty = GetType(expr);
       if (!IsInlinableConstants(expr)) {
-        Var param(std::move(name), GetStructInfo(expr));
+        Var param(std::move(name), GetType(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
       }
 
       // Mark the tuple parameter is partially referenced in the beginning.
       // We will remove it from the mapping once we find it is fully referenced.
-      if (param_sinfo->IsInstance<TupleStructInfoNode>()) {
+      if (param_ty->IsInstance<TupleTypeNode>()) {
         partially_used_tuple_params_[expr.get()] = {};
         tuple_param_idx_[expr.get()] = static_cast<int>(arguments_.size()) - 1;
       }
@@ -759,17 +759,17 @@ class OperatorFusor : public ExprMutator {
   }
 
   bool IsTupleOutput(Function f) {
-    auto sinfo = GetStructInfo(f).as<FuncStructInfoNode>();
-    TVM_FFI_ICHECK(sinfo);
-    return sinfo->ret->IsInstance<TupleStructInfoNode>();
+    auto ty = GetType(f).as<FuncTypeNode>();
+    TVM_FFI_ICHECK(ty);
+    return ty->ret->IsInstance<TupleTypeNode>();
   }
 
   bool IsNestedTupleOutput(Function f) {
     if (!IsTupleOutput(f)) return false;
 
-    auto tup = GetStructInfo(f).as<FuncStructInfoNode>()->ret.as<TupleStructInfoNode>();
+    auto tup = GetType(f).as<FuncTypeNode>()->ret.as<TupleTypeNode>();
     for (const auto& field : tup->fields) {
-      if (field->IsInstance<TupleStructInfoNode>()) return true;
+      if (field->IsInstance<TupleTypeNode>()) return true;
     }
     return false;
   }
@@ -829,8 +829,7 @@ class OperatorFusor : public ExprMutator {
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
       if (IsTupleOutput(func) && tuple_get_indices_.count(binding->var.get())) {
-        if (!GetStructInfo(binding->var)->IsInstance<TupleStructInfoNode>() ||
-            IsNestedTupleOutput(func)) {
+        if (!GetType(binding->var)->IsInstance<TupleTypeNode>() || IsNestedTupleOutput(func)) {
           // When binding->var itself is a tuple, we do not need to remap this variable to the
           // output of TupleGetItem unless the output is a nested tuple.
           pending_tuple_get[group].push_back(binding->var);
@@ -1276,8 +1275,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
         auto new_body = VisitWithNewScope(func->body, func->params);
         if (!new_body.same_as(func->body)) {
-          auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
-                                   func->attrs, func->span);
+          auto new_func = Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs,
+                                   func->span);
           builder_->UpdateFunction(gv, new_func);
         }
       }
@@ -1322,7 +1321,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     ffi::Array<Expr> params;
 
     for (auto v : func_node->params) {
-      Var new_v(v->name_hint(), GetStructInfo(v));
+      Var new_v(v->name_hint(), GetType(v));
       param_vars.push_back(new_v);
       params.push_back(new_v);
     }
@@ -1330,8 +1329,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
     // We cannot delegate to `ExprMutator::VisitExpr_(const FunctionNode*)` at this point, as it
     // would recursively visit the Call node.  However, we are still required to generate
     // well-formed Relax IR.  As a result, we need to build the SeqExpr ourselves.
-    Var local_func_var("local_func", GetStructInfo(f_inner));
-    Var output_var("output", f_inner->ret_struct_info);
+    Var local_func_var("local_func", GetType(f_inner));
+    Var output_var("output", f_inner->ret_ty);
     SeqExpr new_body({BindingBlock({
                          VarBinding(local_func_var, f_inner),
                          VarBinding(output_var, Call(local_func_var, params)),
@@ -1339,7 +1338,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
                      output_var);
 
     // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
-    return Function(param_vars, new_body, func_node->ret_struct_info, f_inner->is_pure);
+    return Function(param_vars, new_body, func_node->ret_ty, f_inner->is_pure);
   }
 
  private:

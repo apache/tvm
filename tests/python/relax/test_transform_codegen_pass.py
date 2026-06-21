@@ -253,12 +253,12 @@ class Conv2dx2_after:
             lv = R.call_dps_packed(
                 "fused_relax_nn_conv2d_tensorrt",
                 (data, weight1),
-                out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),
+                out_ty=R.Tensor((16, 32, 32, 16), dtype="float16"),
             )
             gv = R.call_dps_packed(
                 "fused_relax_nn_conv2d_tensorrt",
                 (lv, weight2),
-                out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),
+                out_ty=R.Tensor((16, 32, 32, 16), dtype="float16"),
             )
             R.output(gv)
         return gv
@@ -349,12 +349,12 @@ def test_dynamic_shape():
                 lv = R.call_dps_packed(
                     "fused_relax_matmul_cublas",
                     (x, w1),
-                    out_sinfo=R.Tensor((1, r1), dtype="float16"),
+                    out_ty=R.Tensor((1, r1), dtype="float16"),
                 )
                 lv1 = R.call_dps_packed(
                     "fused_relax_matmul_cublas",
                     (x, w2),
-                    out_sinfo=R.Tensor((1, r2), dtype="float16"),
+                    out_ty=R.Tensor((1, r2), dtype="float16"),
                 )
                 gv: R.Tuple(
                     R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")

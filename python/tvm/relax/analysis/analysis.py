@@ -26,44 +26,44 @@ from enum import IntEnum
 
 import tvm
 from tvm import IRModule, tirx
+from tvm.ir import Type
 from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
-from tvm.relax.struct_info import FuncStructInfo, StructInfo
-from tvm.relax.ty import Type
+from tvm.relax.type import FuncType
 from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
 
 from . import _ffi_api
 
 
-def get_static_type(sinfo: StructInfo) -> Type:
-    """Get the corresponding static type from a StructInfo.
+def get_static_type(ty: Type) -> Type:
+    """Get the corresponding static type from a Type.
 
     Parameters
     ----------
-    sinfo : StructInfo
-        The input struct info.
+    ty : Type
+        The input type.
 
     Returns
     -------
     ret : Type
         The corresponding static type.
     """
-    return _ffi_api.GetStaticType(sinfo)  # type: ignore
+    return _ffi_api.GetStaticType(ty)  # type: ignore
 
 
 def erase_to_well_defined(
-    sinfo: StructInfo,
+    ty: Type,
     shape_var_map: dict[tirx.Var, tirx.PrimExpr] | None = None,
     var_map: dict[Var, Expr] | None = None,
-) -> StructInfo:
-    """Erase sinfo into a well defined form.
+) -> Type:
+    """Erase ty into a well defined form.
 
-    This function removes the StructInfo's dependencies on shape and vars that
+    This function removes the Type's dependencies on shape and vars that
     are not defined in given maps.
 
     Parameters
     ----------
-    sinfo : StructInfo
-        The input struct info.
+    ty : Type
+        The input type.
 
     shape_var_map : Dict[tirx.Var, tirx.PrimExpr]
         Specifies the defined shape vars and the values they should map to.
@@ -73,13 +73,13 @@ def erase_to_well_defined(
 
     Returns
     -------
-    ret : StructInfo
-        The corresponding erased struct info.
+    ret : Type
+        The corresponding erased type.
     """
     shape_var_map = {} if shape_var_map is None else shape_var_map
     var_map = {} if var_map is None else var_map
 
-    return _ffi_api.EraseToWellDefined(sinfo, shape_var_map, var_map)  # type: ignore
+    return _ffi_api.EraseToWellDefined(ty, shape_var_map, var_map)  # type: ignore
 
 
 class BaseCheckResult(IntEnum):
@@ -100,33 +100,31 @@ class BaseCheckResult(IntEnum):
     PASS = 3
 
 
-def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckResult:
+def type_base_check(base: Type, derived: Type) -> BaseCheckResult:
     """Run a base check to see if base subsumes derived.
 
     Parameters
     ----------
-    base: StructInfo
-        The base struct info.
+    base: Type
+        The base type.
 
-    derived: StructInfo
-        The derived struct info.
+    derived: Type
+        The derived type.
 
     Returns
     -------
-    ret : StructInfo
-        The derived return value struct info.
+    ret : Type
+        The derived return value type.
     """
-    return _ffi_api.StructInfoBaseCheck(base, derived)  # type: ignore
+    return _ffi_api.TypeBaseCheck(base, derived)  # type: ignore
 
 
-def derive_call_ret_struct_info(
-    func_sinfo: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
-) -> StructInfo:
-    """Derive the call's ret value struct info from inputs.
+def derive_call_ret_type(func_ty: FuncType, call: Call, ctx: "tvm.relax.BlockBuilder") -> Type:
+    """Derive the call's ret value type from inputs.
 
     Parameters
     ----------
-    func_sinfo: FuncStructInfo
+    func_ty: FuncType
         The call's function signature.
 
     call: Call
@@ -137,96 +135,96 @@ def derive_call_ret_struct_info(
 
     Returns
     -------
-    ret : StructInfo
-        The derived return value struct info.
+    ret : Type
+        The derived return value type.
 
     Note
     ----
     This is an internal derivation function, call.op field is
-    ignored in this case and the derivation only depends on func_sinfo.
+    ignored in this case and the derivation only depends on func_ty.
     """
-    return _ffi_api.DeriveCallRetStructInfo(func_sinfo, call, ctx)  # type: ignore
+    return _ffi_api.DeriveCallRetType(func_ty, call, ctx)  # type: ignore
 
 
-def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
-    """Unify the two struct info to their least common ancestor.
+def type_lca(lhs: Type, rhs: Type) -> Type:
+    """Unify the two type to their least common ancestor.
 
     Parameters
     ----------
-    lhs: StructInfo
+    lhs: Type
         The left operand.
 
-    rhs: StructInfo
+    rhs: Type
         The right operand.
 
     Returns
     -------
-    ret : StructInfo
+    ret : Type
         The corresponding lca result.
     """
-    return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
+    return _ffi_api.TypeLCA(lhs, rhs)  # type: ignore
 
 
-def tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
-    """Get the TIR variables that appear in the input struct info.
+def tir_vars_in_type(ty: Type) -> list[tirx.Var]:
+    """Get the TIR variables that appear in the input type.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
     Parameters
     ----------
-    sinfo : StructInfo
-        The struct info object to be analyzed.
+    ty : Type
+        The type object to be analyzed.
 
     Returns
     -------
     ret : List[tirx.Var]
-        The list of TIR variables that appear in the input struct info.
+        The list of TIR variables that appear in the input type.
     """
-    return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
+    return _ffi_api.TIRVarsInType(ty)  # type: ignore
 
 
-def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> list[tirx.Var]:
-    """Get the TIR variables that may be defined from input struct info.
+def definable_tir_vars_in_type(ty: Type) -> list[tirx.Var]:
+    """Get the TIR variables that may be defined from input type.
     The returned list is deduplicated - each TIR variable will appear at most once.
 
     Parameters
     ----------
-    sinfo : StructInfo
-        The struct info object to be analyzed.
+    ty : Type
+        The type object to be analyzed.
 
     Returns
     -------
     ret : List[tirx.Var]
 
-        The list of TIR variables that can be defined from the StructInfo
+        The list of TIR variables that can be defined from the Type
     """
-    return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
+    return _ffi_api.DefinableTIRVarsInType(ty)  # type: ignore
 
 
-def collect_non_negative_expressions(sinfo: StructInfo) -> list[tirx.PrimExpr]:
+def collect_non_negative_expressions(ty: Type) -> list[tirx.PrimExpr]:
     """Collect TIR expressions used in non-negative contexts
 
     Get TIR variables that are non-negative within the context where
-    the struct info is used.  For example, any expression used as a
+    the type is used.  For example, any expression used as a
     tensor shape.
 
     The returned list is deduplicated - each TIR expression will
     appear at most once.  The order of the list is in the order of
-    occurrence within the struct info.
+    occurrence within the type.
 
     Parameters
     ----------
-    sinfo : StructInfo
-        The struct info object to be analyzed.
+    ty : Type
+        The type object to be analyzed.
 
     Returns
     -------
     ret : List[tirx.Var]
 
-        The list of TIR variables that can be defined from the StructInfo
+        The list of TIR variables that can be defined from the Type
 
     """
 
-    return _ffi_api.CollectNonNegativeExpressions(sinfo)  # type: ignore
+    return _ffi_api.CollectNonNegativeExpressions(ty)  # type: ignore
 
 
 def defined_symbolic_vars(func: Function) -> list[Var]:
@@ -413,7 +411,7 @@ def contains_impure_call(expr: Expr, own_name: Var | GlobalVar | None = None) ->
 
     Notes
     -----
-    Relies on StructInfo annotations, so ensure that the module has been normalized first.
+    Relies on Type annotations, so ensure that the module has been normalized first.
     Also, an impure call in a *nested* function does *not* mean that the outer expression contains
     an impure call--it only does if the nested function is *later called*.
     """
@@ -481,7 +479,7 @@ def remove_all_unused(func: Function) -> Function:
     return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
-def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> None:
+def well_formed(obj: IRModule | Function, check_ty: bool = True) -> None:
     """Check if the IRModule is well formed, raising on the first violation.
 
     Raises an error (seeded with the offending node so a pass runner can report a
@@ -493,20 +491,20 @@ def well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> Non
     obj : Union[tvm.IRModule, Function]
         The input IRModule or relax.Function.
 
-    check_struct_info : bool
+    check_ty : bool
         A boolean flag indicating if the property "every Expr must
-        have defined structure info" will be checked.
+        have defined type information" will be checked.
 
     Note
     ----
-    By default the structure info is always checked. It is only in test cases
-    where `check_struct_info` might be false, so that other well-formed requirements
-    will be well tested and will not be blocked by not having structure info.
+    By default the type information is always checked. It is only in test cases
+    where `check_ty` might be false, so that other well-formed requirements
+    will be well tested and will not be blocked by not having type information.
     """
-    _ffi_api.well_formed(obj, check_struct_info)  # type: ignore
+    _ffi_api.well_formed(obj, check_ty)  # type: ignore
 
 
-def check_well_formed(obj: IRModule | Function, check_struct_info: bool = True) -> bool:
+def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
     """Return whether the IRModule or Function is well formed.
 
     Wraps :func:`well_formed`, returning False instead of raising on the first violation.
@@ -516,16 +514,16 @@ def check_well_formed(obj: IRModule | Function, check_struct_info: bool = True) 
     obj : Union[tvm.IRModule, Function]
         The input IRModule or relax.Function.
 
-    check_struct_info : bool
+    check_ty : bool
         A boolean flag indicating if the property "every Expr must
-        have defined structure info" will be checked.
+        have defined type information" will be checked.
 
     Returns
     -------
     ret: bool
         True if the IRModule is well formed, False if not.
     """
-    return _ffi_api.check_well_formed(obj, check_struct_info)  # type: ignore
+    return _ffi_api.check_well_formed(obj, check_ty)  # type: ignore
 
 
 def _get_prim_func_default_dtype(func: PrimFunc):

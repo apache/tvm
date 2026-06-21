@@ -54,18 +54,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.unique", unique);
 }
 
-StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
+Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = Downcast<TensorType>(call->args[0]->ty);
   PrimValue axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
     if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
       axis = ffi::GetRef<PrimValue>(prim_value_node);
     }
   }
-  if (!data_sinfo->IsUnknownNdim() && axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
     if (const auto* axis_int = axis->value.as<IntImmNode>()) {
-      NormalizeAxis(call, ctx, data_sinfo->ndim, axis_int->value);
+      NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value);
     }
   }
   TVM_FFI_ICHECK(call->args[2]->IsInstance<PrimValueNode>());
@@ -88,61 +88,54 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
                          f_convert_to_int64(return_inverse->value) +
                          f_convert_to_int64(return_counts->value);
 
-  std::vector<StructInfo> output_sinfo;
-  output_sinfo.reserve(1 + n_int_return);
+  std::vector<Type> output_ty;
+  output_ty.reserve(1 + n_int_return);
 
   // unique values
-  if (data_sinfo->ndim == 0) {
-    output_sinfo.push_back(TensorStructInfo(ShapeExpr({IntImm::Int64(/*value=*/1)}),
-                                            data_sinfo->dtype, data_sinfo->vdevice));
+  if (data_ty->ndim == 0) {
+    output_ty.push_back(
+        TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), data_ty->dtype, data_ty->vdevice));
   } else if (axis.defined()) {
-    output_sinfo.push_back(
-        TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice));
+    output_ty.push_back(TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice));
   } else {
-    output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, /*ndim=*/1, data_sinfo->vdevice));
+    output_ty.push_back(TensorType(data_ty->dtype, /*ndim=*/1, data_ty->vdevice));
   }
 
   // index, inverse_indices, and counts
   // index: always 1D
   if (f_convert_to_int64(return_index->value)) {
-    TensorStructInfo index_sinfo{nullptr};
-    if (data_sinfo->ndim == 0) {
-      index_sinfo = TensorStructInfo(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64),
-                                     data_sinfo->vdevice);
+    if (data_ty->ndim == 0) {
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      index_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_sinfo.push_back(index_sinfo);
   }
 
   // inverse_indices: always 1D per ONNX spec
   if (f_convert_to_int64(return_inverse->value)) {
-    TensorStructInfo inverse_sinfo{nullptr};
-    if (data_sinfo->ndim == 0) {
-      inverse_sinfo = TensorStructInfo(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64),
-                                       data_sinfo->vdevice);
+    if (data_ty->ndim == 0) {
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      inverse_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_sinfo.push_back(inverse_sinfo);
   }
 
   // counts: always 1D
   if (f_convert_to_int64(return_counts->value)) {
-    TensorStructInfo counts_sinfo{nullptr};
-    if (data_sinfo->ndim == 0) {
-      counts_sinfo = TensorStructInfo(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64),
-                                      data_sinfo->vdevice);
+    if (data_ty->ndim == 0) {
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      counts_sinfo = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_sinfo.push_back(counts_sinfo);
   }
 
-  if (output_sinfo.size() == 1) {
-    return output_sinfo[0];
+  if (output_ty.size() == 1) {
+    return output_ty[0];
   } else {
-    return TupleStructInfo(output_sinfo);
+    return TupleType(output_ty);
   }
 }
 
@@ -165,7 +158,7 @@ TVM_REGISTER_OP("relax.unique")
                   "The dimension to apply unique. If it is std::nullopt, the unique values of the "
                   "flattened input "
                   "are returned.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
+    .set_attr<FInferType>("FInferType", InferTypeUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
     .set_attr<bool>("FPurity", true);
 
@@ -180,15 +173,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nonzero", nonzero);
 }
 
-StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
-  return TensorStructInfo(DataType::Int(64), 2, data_sinfo->vdevice);
+Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetInputTensorType(call, 0, ctx);
+  return TensorType(DataType::Int(64), 2, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.nonzero")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
+    .set_attr<FInferType>("FInferType", InferTypeNonzero)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
     .set_attr<bool>("FPurity", true);
 

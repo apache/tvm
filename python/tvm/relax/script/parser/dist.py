@@ -20,8 +20,8 @@
 from typing import Any, Optional, Union
 
 from tvm.ir import Range
-from tvm.relax import TensorStructInfo
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement, device_mesh
+from tvm.relax import TensorType
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement, device_mesh
 from tvm.relax.script.builder.distributed import (
     annotate_sharding,
     call_tir,
@@ -34,33 +34,33 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.ir import IRModuleFrame
 from tvm.tirx import PrimExpr
 
-from .entry import StructInfoProxy, TensorProxy
+from .entry import TensorProxy, TypeProxy
 
 ############################### R.DTensor ###############################
 
 
-class DTensorProxy(StructInfoProxy):
-    tensor_sinfo_proxy: TensorProxy
+class DTensorProxy(TypeProxy):
+    tensor_ty_proxy: TensorProxy
     device_mesh: DeviceMesh
     placement: Placement
 
     def __init__(
         self,
-        tensor_sinfo_proxy: TensorProxy,
+        tensor_ty_proxy: TensorProxy,
         device_mesh: DeviceMesh,
         placement: Placement,
     ) -> None:
         self.device_mesh = device_mesh
         self.placement = placement
-        self.tensor_sinfo_proxy = tensor_sinfo_proxy
+        self.tensor_ty_proxy = tensor_ty_proxy
         super().__init__()
 
     def get_symbolic_vars(self) -> set[str]:
-        return self.tensor_sinfo_proxy.get_symbolic_vars()
+        return self.tensor_ty_proxy.get_symbolic_vars()
 
-    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TensorStructInfo:
-        return DTensorStructInfo(
-            self.tensor_sinfo_proxy.as_struct_info(dict_globals),
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> DTensorType:
+        return DTensorType(
+            self.tensor_ty_proxy.as_ty(dict_globals),
             self.device_mesh,
             self.placement,
         )

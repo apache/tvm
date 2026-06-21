@@ -21,7 +21,7 @@
 #define TVM_RELAX_DISTRIBUTED_AXIS_GROUP_GRAPH_H_
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/relax/distributed/struct_info.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>

@@ -110,19 +110,18 @@ class CodeGenRunner : ExprMutator {
     if (auto const* gvar_node = call_node->op.as<GlobalVarNode>()) {
       const GlobalVar gvar = ffi::GetRef<GlobalVar>(gvar_node);
 
-      auto create_call_dps_packed = [call_node, this](Expr extern_func,
-                                                      StructInfo ret_struct_info) {
+      auto create_call_dps_packed = [call_node, this](Expr extern_func, Type ret_ty) {
         ffi::Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
         static const Op& call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
+        return Call(call_op, new_args, tvm::Attrs(), {ret_ty});
       };
 
-      auto ret_sinfo = GetStructInfo(call);
+      auto ret_ty = GetType(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
-        return create_call_dps_packed(it->second, ret_sinfo);
+        return create_call_dps_packed(it->second, ret_ty);
       } else if (auto opt_func = builder_->GetContextIRModule()->Lookup(gvar).as<Function>()) {
         // TODO(@sunggg): Is there any better way to get this func?
         Function func = opt_func.value();
@@ -137,7 +136,7 @@ class CodeGenRunner : ExprMutator {
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
           builder_->UpdateFunction(gvar, func);
-          return create_call_dps_packed(new_func, ret_sinfo);
+          return create_call_dps_packed(new_func, ret_ty);
         }
       }
     }
@@ -146,7 +145,7 @@ class CodeGenRunner : ExprMutator {
       new_args.push_back(VisitExpr(arg));
     }
 
-    return Call(call_node->op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
+    return Call(call_node->op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {

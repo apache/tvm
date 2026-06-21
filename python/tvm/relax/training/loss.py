@@ -24,20 +24,20 @@ from typing import Literal
 # isort: on
 
 from ..block_builder import BlockBuilder
-from ..expr import Expr, Function, StructInfo, Var
+from ..expr import Expr, Function, Type, Var
 from ..op import abs, argmax, mean, multiply, reshape, subtract, sum
 from ..op.nn import log_softmax, nll_loss
 
 
-def _create_param_var(param: Var | StructInfo, param_name: str) -> Var:
-    """If param is a StructInfo, create a Var with the given StructInfo and name.
+def _create_param_var(param: Var | Type, param_name: str) -> Var:
+    """If param is a Type, create a Var with the given Type and name.
 
-    If param is a Var, create a Var with the same StructInfo and name as the given param Var."""
-    if isinstance(param, StructInfo):
+    If param is a Var, create a Var with the same Type and name as the given param Var."""
+    if isinstance(param, Type):
         param = Var(param_name, param)
     if not isinstance(param, Var):
-        raise TypeError("The type of param should be Var or StructInfo, but got " + type(param))
-    return Var(param.name_hint, param.struct_info)
+        raise TypeError("The type of param should be Var or Type, but got " + type(param))
+    return Var(param.name_hint, param.ty)
 
 
 class Loss:
@@ -138,17 +138,17 @@ class L1Loss(Loss):
 
     def __call__(
         self,
-        predictions: Var | StructInfo,
-        targets: Var | StructInfo,
+        predictions: Var | Type,
+        targets: Var | Type,
     ) -> Function:
         """Get the relax function of L1Loss. If the parameters are
-        struct info, it will create corresponding variables.
+        type, it will create corresponding variables.
 
         Parameters
         ----------
-        predictions : Union[Var, StructInfo]
+        predictions : Union[Var, Type]
             The predictions of the model in the calculation of loss.
-        targets : Union[Var, StructInfo]
+        targets : Union[Var, Type]
             The ground truth in the calculation of loss.
 
         Returns
@@ -187,17 +187,17 @@ class MSELoss(Loss):
 
     def __call__(
         self,
-        predictions: Var | StructInfo,
-        targets: Var | StructInfo,
+        predictions: Var | Type,
+        targets: Var | Type,
     ) -> Function:
         """Get the relax function of MSELoss. If the parameters are
-        struct info, it will create corresponding variables.
+        type, it will create corresponding variables.
 
         Parameters
         ----------
-        predictions : Union[Var, StructInfo]
+        predictions : Union[Var, Type]
             The predictions of the model in the calculation of loss.
-        targets : Union[Var, StructInfo]
+        targets : Union[Var, Type]
             The ground truth in the calculation of loss.
 
         Returns
@@ -247,22 +247,22 @@ class CrossEntropyLoss(Loss):
 
     def __call__(
         self,
-        predictions: Var | StructInfo,
-        targets: Var | StructInfo,
-        weights: Var | StructInfo | None = None,
+        predictions: Var | Type,
+        targets: Var | Type,
+        weights: Var | Type | None = None,
     ) -> Function:
         """Get the relax function of CrossEntropyLoss. If the parameters are
-        struct info, it will create corresponding variables.
+        type, it will create corresponding variables.
 
         Parameters
         ----------
-        predictions : Union[Var, StructInfo]
+        predictions : Union[Var, Type]
             The predictions of the model in the calculation of loss.
 
-        targets : Union[Var, StructInfo]
+        targets : Union[Var, Type]
             The ground truth in the calculation of loss.
 
-        weights : Optional[Union[Var, StructInfo]]
+        weights : Optional[Union[Var, Type]]
             a manual rescaling weight given to each class. It has to be a Tensor of size C.
 
         Returns
@@ -320,22 +320,22 @@ class CategoricalCrossEntropyLoss(Loss):
 
     def __call__(
         self,
-        predictions: Var | StructInfo,
-        targets: Var | StructInfo,
-        weights: Var | StructInfo | None = None,
+        predictions: Var | Type,
+        targets: Var | Type,
+        weights: Var | Type | None = None,
     ) -> Function:
         """Get the relax function of CategoricalCrossEntropyLoss. If the parameters are
-        struct info, it will create corresponding variables.
+        type, it will create corresponding variables.
 
         Parameters
         ----------
-        predictions : Union[Var, StructInfo]
+        predictions : Union[Var, Type]
             The predictions of the model in the calculation of loss.
 
-        targets : Union[Var, StructInfo]
+        targets : Union[Var, Type]
             The ground truth in the calculation of loss.
 
-        weights : Optional[Union[Var, StructInfo]]
+        weights : Optional[Union[Var, Type]]
             a manual rescaling weight given to each class. It has to be a Tensor of size C.
 
         Returns
@@ -367,7 +367,7 @@ class CategoricalCrossEntropyLoss(Loss):
                 logits = bb.emit(log_softmax(predictions))
                 if self.ignore_index >= 0:
                     targets = bb.emit(
-                        reshape(argmax(targets, axis=1), shape=(targets.struct_info.shape[0],))
+                        reshape(argmax(targets, axis=1), shape=(targets.ty.shape[0],))
                     )
                     loss = bb.emit_output(
                         nll_loss(logits, targets, weights, self._reduction, self.ignore_index)

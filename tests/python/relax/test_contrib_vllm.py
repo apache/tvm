@@ -95,7 +95,7 @@ def test_attention():
                         16,
                         max_len,
                     ],
-                    out_sinfo=query.struct_info,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out
@@ -140,7 +140,7 @@ def test_attention():
                         max_logits,
                         tmp_out,
                     ],
-                    out_sinfo=query.struct_info,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out
@@ -367,7 +367,7 @@ def test_cache():
                     key_cache,
                     value_cache,
                     slot_mapping,
-                    sinfo_args=[key_cache.struct_info, value_cache.struct_info],
+                    ty_args=[key_cache.ty, value_cache.ty],
                 )
                 out = (kv[0], kv[1])
                 R.output(out)

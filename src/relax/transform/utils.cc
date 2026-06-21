@@ -24,34 +24,34 @@
 namespace tvm {
 namespace relax {
 
-bool IsScalarTensor(const StructInfo& sinfo) {
-  if (!sinfo->IsInstance<TensorStructInfoNode>()) {
+bool IsScalarTensor(const Type& ty) {
+  if (!ty->IsInstance<TensorTypeNode>()) {
     return false;
   }
-  TensorStructInfo tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
-  if (!tensor_sinfo->shape.defined() || !tensor_sinfo->shape->IsInstance<ShapeExprNode>()) {
+  TensorType tensor_ty = Downcast<TensorType>(ty);
+  if (!tensor_ty->shape.defined() || !tensor_ty->shape->IsInstance<ShapeExprNode>()) {
     return false;
   }
-  return tensor_sinfo->shape.as<ShapeExprNode>()->values.size() == 0;
+  return tensor_ty->shape.as<ShapeExprNode>()->values.size() == 0;
 }
 
-bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetStructInfo(expr)); }
+bool IsScalarTensor(const Expr& expr) { return IsScalarTensor(GetType(expr)); }
 
-bool IsNestedTensor(const StructInfo& sinfo) {
-  return IsNestedTensorConditioned(sinfo, [](const TensorStructInfo& sinfo) { return true; });
+bool IsNestedTensor(const Type& ty) {
+  return IsNestedTensorConditioned(ty, [](const TensorType& ty) { return true; });
 }
 
-bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetStructInfo(expr)); }
+bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetType(expr)); }
 
 Function ComposeFunctions(Function func_a, Function func_b) {
   ffi::Array<Binding> bindings;
 
-  Var func_a_output("func_a_output", func_a->ret_struct_info);
+  Var func_a_output("func_a_output", func_a->ret_ty);
 
   bindings.push_back(VarBinding(func_a_output, func_a->body));
 
   auto func_a_outputs = [&]() -> ffi::Array<Expr> {
-    if (auto func_a_output_tuple = func_a->ret_struct_info.as<TupleStructInfoNode>()) {
+    if (auto func_a_output_tuple = func_a->ret_ty.as<TupleTypeNode>()) {
       ffi::Array<Expr> outputs;
       for (size_t i = 0; i < func_a_output_tuple->fields.size(); i++) {
         outputs.push_back(TupleGetItem(func_a_output, i));
@@ -62,12 +62,12 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     }
   }();
 
-  if (func_b->params.size() == 1 && func_b->params[0]->struct_info_.as<TupleStructInfoNode>()) {
+  if (func_b->params.size() == 1 && func_b->params[0]->ty.as<TupleTypeNode>()) {
     // Special case where the output of the first function is a tuple
     // that should be provided as-is to the second function, and
     // should not be unpacked into individual elements.
     auto param = func_b->params[0];
-    bindings.push_back(MatchCast(param, func_a_output, GetStructInfo(param)));
+    bindings.push_back(MatchCast(param, func_a_output, GetType(param)));
   } else {
     TVM_FFI_CHECK_EQ(func_a_outputs.size(), func_b->params.size(), ValueError)
         << "Cannot compose functions together.  "
@@ -75,13 +75,13 @@ Function ComposeFunctions(Function func_a, Function func_b) {
         << "but second function expects " << func_b->params.size() << " parameters as input";
     for (size_t i = 0; i < func_a_outputs.size(); i++) {
       auto param = func_b->params[i];
-      bindings.push_back(MatchCast(param, func_a_outputs[i], GetStructInfo(param)));
+      bindings.push_back(MatchCast(param, func_a_outputs[i], GetType(param)));
     }
   }
 
   auto new_body = SeqExpr({BindingBlock(bindings)}, func_b->body);
 
-  auto new_function = Function(func_a->params, new_body, func_b->ret_struct_info,
+  auto new_function = Function(func_a->params, new_body, func_b->ret_ty,
                                func_a->is_pure && func_b->is_pure, func_a->attrs);
 
   new_function = CopyWithNewVars(new_function);

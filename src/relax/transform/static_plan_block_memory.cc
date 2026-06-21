@@ -436,7 +436,7 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
-  ffi::Array<tirx::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
+  ffi::Array<tirx::Var> var_in_signature = TIRVarsInType(GetType(func));
   for (const tirx::Var& tir_var : var_in_signature) {
     auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
     auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
@@ -631,12 +631,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - the shape of the tensor is known, in the form of ShapeExpr;
     // - the tensor has known dtype;
     // - no storage token was created for this call before.
-    const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK_NOTNULL(sinfo);
-    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    const auto* ty = call->ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK_NOTNULL(ty);
+    const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
-    TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
-    TVM_FFI_ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
+    TVM_FFI_ICHECK(!ty->IsUnknownDtype());
+    TVM_FFI_ICHECK(ty->dtype == Downcast<DataTypeImm>(call->args[1])->value);
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -653,7 +653,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value, vdevice);
+    StorageToken token(upper_bounded_shape, ty->dtype, storage_scope->value, vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -925,9 +925,9 @@ class StorageAllocationRewriter : public ExprMutator {
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.
       TVM_FFI_ICHECK_EQ(call->op, alloc_tensor_op);
-      const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK_NOTNULL(sinfo);
-      TVM_FFI_ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
+      const auto* ty = call->ty.as<TensorTypeNode>();
+      TVM_FFI_ICHECK_NOTNULL(ty);
+      TVM_FFI_ICHECK_NOTNULL(ty->shape.as<ShapeExprNode>());
       PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
 
       // If the token is visited for the first time, create a storage variable using
@@ -951,9 +951,9 @@ class StorageAllocationRewriter : public ExprMutator {
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimValue offset = PrimValue::Int64(0);
-      DataType dtype = sinfo->dtype;
+      DataType dtype = ty->dtype;
       return Call(mem_alloc_tensor,
-                  {storage_var, offset, sinfo->shape.value(), DataTypeImm(dtype), call->args[2]},
+                  {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
     } else if (plan_dynamic_output_ && call->op == alloc_tensor_op) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
@@ -962,30 +962,30 @@ class StorageAllocationRewriter : public ExprMutator {
       // estimation, we allocate a storage to its upper bound size, and
       // allocate a tensor out from it with the actual symbolic shape.
 
-      const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      TVM_FFI_ICHECK_NOTNULL(sinfo);
-      const auto* shape = sinfo->shape.as<ShapeExprNode>();
+      const auto* ty = call->ty.as<TensorTypeNode>();
+      TVM_FFI_ICHECK_NOTNULL(ty);
+      const auto* shape = ty->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK_NOTNULL(shape);
       ffi::Array<PrimExpr> upper_bounded_shape =
           GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
-        TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
-        TVM_FFI_ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
+        TVM_FFI_ICHECK(!ty->IsUnknownDtype());
+        TVM_FFI_ICHECK_EQ(ty->dtype, Downcast<DataTypeImm>(call->args[1])->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
         }
-        bytes *= sinfo->dtype.bytes() * sinfo->dtype.lanes();
+        bytes *= ty->dtype.bytes() * ty->dtype.lanes();
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/Downcast<PrimValue>(call->args[2]),
                             /*storage_scope=*/Downcast<StringImm>(call->args[3]),  //
-                            /*dtype=*/DataTypeImm(sinfo->dtype)});
+                            /*dtype=*/DataTypeImm(ty->dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
                                        /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(sinfo->dtype),
+                                       /*dtype=*/DataTypeImm(ty->dtype),
                                        /*vdevice_index=*/call->args[2]});
       }
     }

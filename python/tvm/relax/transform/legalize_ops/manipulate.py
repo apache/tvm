@@ -21,7 +21,7 @@
 import tvm
 from tvm import relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
-from tvm.relax.struct_info import TensorStructInfo
+from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tirx.expr import IntImm
 
@@ -34,7 +34,7 @@ def _reshape(
     te_func: TEFunc, primfunc_name: str, is_collapse_sum_like: bool = False
 ) -> LegalizeFunc:
     def reshape_call_te(bb: BlockBuilder, call: Call):
-        tgt_shape = call.args[1].struct_info.shape if is_collapse_sum_like else call.args[1]
+        tgt_shape = call.args[1].ty.shape if is_collapse_sum_like else call.args[1]
         # If target shape is Var, pass its bound expr only when it is ShapeExpr
         if isinstance(tgt_shape, Var):
             tgt_shape = bb.lookup_binding(tgt_shape)
@@ -57,7 +57,7 @@ register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse
 @register_legalize("relax.concat")
 def _concat(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):
@@ -76,9 +76,9 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.expand_dims")
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
-        data_relax = relax.Var("data", relax.TensorStructInfo(data.shape))
-        f_infer_sinfo = call.op.get_attr("FInferStructInfo")
-        output_shape = f_infer_sinfo(relax.op.expand_dims(data_relax, axis), bb).shape
+        data_relax = relax.Var("data", relax.TensorType(data.shape))
+        f_infer_ty = call.op.get_attr("FInferType")
+        output_shape = f_infer_ty(relax.op.expand_dims(data_relax, axis), bb).shape
         output_ndim = len(output_shape)
 
         data_dims = []
@@ -98,7 +98,7 @@ def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.flatten")
 def _flatten(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)
+    return bb.call_te(topi.reshape, call.args[0], call.ty.shape.values)
 
 
 @register_legalize("relax.permute_dims")
@@ -123,7 +123,7 @@ def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.stack")
 def _stack(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
 
     # Follow bindings to find the actual tuple
     while isinstance(t, Var):
@@ -189,7 +189,7 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.index_tensor")
 def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[1]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     fields = [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     return bb.call_te(topi.index_tensor, call.args[0], fields)
 
@@ -219,7 +219,7 @@ def _index_put(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.meshgrid")
 def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
-    n_field = len(t.struct_info.fields)
+    n_field = len(t.ty.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
         if not isinstance(binding, Tuple | Var):
@@ -325,7 +325,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     if pad_value is not None:
         pad_value = pad_value.value
     else:
-        if "int" in call.args[0].struct_info.dtype:
+        if "int" in call.args[0].ty.dtype:
             pad_value = 0
         else:
             pad_value = 0.0
@@ -336,7 +336,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     # Convert to list from array
     axis_separators = [int(sep) for sep in axis_separators]
     primfunc_name = "te_layout_transform"
-    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
+    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].ty.shape)
     if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
@@ -351,7 +351,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     if input_axis_separators is not None:
         set_axis_sep(input_axis_separators, sch, "read")
     gvar = bb.add_func(sch.mod["main"], primfunc_name)
-    output_shape = index_map.map_shape(list(call_args[0].struct_info.shape))
-    output_dtype = call_args[0].struct_info.dtype
-    output_sinfo = [TensorStructInfo(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_sinfo, tir_vars)
+    output_shape = index_map.map_shape(list(call_args[0].ty.shape))
+    output_dtype = call_args[0].ty.dtype
+    output_ty = [TensorType(output_shape, output_dtype)]
+    return call_tir(gvar, call_args, output_ty, tir_vars)

@@ -508,7 +508,7 @@ def test_matmulinteger16_ir():
     call_ops = collect_relax_call_ops(tvm_model["main"])
     assert call_ops.count("relax.astype") == 2
     assert "relax.matmul" in call_ops
-    assert tvm_model["main"].ret_struct_info.dtype == "uint32"
+    assert tvm_model["main"].ret_ty.dtype == "uint32"
 
 
 def test_matmulinteger16_invalid_dtype_raises():
@@ -4636,7 +4636,7 @@ def test_optional_get_element_tensor_ir():
     tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
 
     assert collect_relax_call_ops(tvm_model["main"]) == []
-    assert tvm_model["main"].ret_struct_info.dtype == "float32"
+    assert tvm_model["main"].ret_ty.dtype == "float32"
 
 
 def test_optional_get_element_sequence():
@@ -5724,7 +5724,7 @@ def test_grid_sample_4d_non_square_output_shape():
 
     model = helper.make_model(graph, producer_name="grid_sample_4d_non_square_output_shape_test")
     tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
-    inferred_shape = tuple(dim.value for dim in tvm_model["main"].ret_struct_info.shape.values)
+    inferred_shape = tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values)
     assert inferred_shape == tuple(out_shape)
 
 

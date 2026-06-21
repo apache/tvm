@@ -116,7 +116,7 @@ These can be composed:
                 y: R.Tensor((128,), "float32")) -> R.Tensor((128,), "float32"):
            with R.dataflow():
                out = R.call_tir(cls.add_kernel, (x, y),
-                                out_sinfo=R.Tensor((128,), "float32"))
+                                out_ty=R.Tensor((128,), "float32"))
                R.output(out)
            return out
 
@@ -268,18 +268,18 @@ The Relax builder (``ir_builder/relax/ir.py``) provides:
 **Emit**:
 
 - ``R.emit(value)`` → emit a binding, returns a ``Var``
-- ``R.emit_match_cast(value, struct_info)`` → emit with type assertion
+- ``R.emit_match_cast(value, ty)`` → emit with type assertion
 
 **Type annotations**:
 
-- ``R.Tensor(shape, dtype)`` — tensor struct info
-- ``R.Tuple(*fields)`` — tuple struct info
-- ``R.Shape(values)`` — shape struct info
-- ``R.Object()`` — opaque object struct info
+- ``R.Tensor(shape, dtype)`` — tensor type
+- ``R.Tuple(*fields)`` — tuple type
+- ``R.Shape(values)`` — shape type
+- ``R.Object()`` — opaque object type
 
 **Calling conventions**:
 
-- ``R.call_tir(func, args, out_sinfo)`` — call a TIR function
+- ``R.call_tir(func, args, out_ty)`` — call a TIR function
 - ``R.call_packed(name, *args)`` — call a PackedFunc
 - ``R.call_dps_packed(func, *args)`` — call using destination-passing style
 
@@ -326,7 +326,7 @@ It maintains:
 Each IR dialect registers its own converters:
 
 - ``src/script/printer/tirx/`` — converts PrimFunc, Buffer, SBlock, loops, expressions.
-- ``src/script/printer/relax/`` — converts relax.Function, bindings, struct info, operators.
+- ``src/script/printer/relax/`` — converts relax.Function, bindings, types, operators.
 - ``src/script/printer/ir/`` — converts IRModule, shared types.
 
 The final step calls ``DocToPythonScript()`` (``src/script/printer/doc_printer/python_doc_printer.cc``)
@@ -491,8 +491,8 @@ Function definition
        # function body
        return result
 
-- ``R.Tensor(shape, dtype)`` — tensor type annotation (struct info).
-- ``R.Tuple(...)``, ``R.Shape(...)``, ``R.Object()`` — other struct info types.
+- ``R.Tensor(shape, dtype)`` — tensor type annotation.
+- ``R.Tuple(...)``, ``R.Shape(...)``, ``R.Object()`` — other Relax type annotations.
 - ``R.function(private=True)`` — marks the function as module-private.
 - ``R.function(pure=False)`` — marks the function as having side effects.
 
@@ -514,10 +514,10 @@ Calling TIR functions
 
 .. code-block:: python
 
-   out = R.call_tir(cls.my_kernel, (x, y), out_sinfo=R.Tensor((128,), "float32"))
+   out = R.call_tir(cls.my_kernel, (x, y), out_ty=R.Tensor((128,), "float32"))
 
 - ``cls.my_kernel`` — references a TIR ``PrimFunc`` in the same module.
-- ``out_sinfo`` — the struct info (shape and dtype) of the output tensor.
+- ``out_ty`` — the type (shape and dtype) of the output tensor.
 
 Control flow
 ~~~~~~~~~~~~

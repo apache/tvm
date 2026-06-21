@@ -23,7 +23,7 @@
 #include "./emit_te.h"
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -54,18 +54,17 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);
   }
-  TVM_FFI_ICHECK(value->struct_info_.defined())
-      << "value must be normalized and contain StructInfo";
-  auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(value);
-  TVM_FFI_ICHECK(tensor_sinfo) << "Value must be a tensor";
-  auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
+  TVM_FFI_ICHECK(value->ty.defined()) << "value must be normalized and contain Type";
+  auto* tensor_ty = GetTypeAs<TensorTypeNode>(value);
+  TVM_FFI_ICHECK(tensor_ty) << "Value must be a tensor";
+  auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
   TVM_FFI_CHECK(shape_expr, ValueError)
       << "Expression does not have an known symbolic shape, please consider use "
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
   n->shape = shape_expr->values.Map(
       [&tir_var_map](const PrimExpr& e) { return tirx::Substitute(e, tir_var_map); });
-  n->dtype = tensor_sinfo->dtype;
+  n->dtype = tensor_ty->dtype;
   return te::PlaceholderOp(n).output(0);
 }
 

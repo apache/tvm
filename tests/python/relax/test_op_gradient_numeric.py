@@ -27,8 +27,8 @@ import tvm.testing
 from tvm import relax
 from tvm.ir.op import Op
 from tvm.relax.expr import Call
-from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 from tvm.relax.transform import LegalizeOps
+from tvm.relax.type import TensorType, TupleType
 from tvm.testing.utils import check_numerical_grads
 
 
@@ -80,10 +80,10 @@ def relax_check_gradients(
     func_name = "main"
 
     # Helper functions
-    def _numpy_to_sinfo(data):
+    def _numpy_to_ty(data):
         if isinstance(data, list):
-            return relax.TupleStructInfo([_numpy_to_sinfo(d) for d in data])
-        return relax.TensorStructInfo(data.shape, str(data.dtype))
+            return relax.TupleType([_numpy_to_ty(d) for d in data])
+        return relax.TensorType(data.shape, str(data.dtype))
 
     def _numpy_to_tvm(data):
         if isinstance(data, list):
@@ -97,19 +97,19 @@ def relax_check_gradients(
             return data.numpy()
         return data
 
-    def _gen_weights(out_sinfo):
-        if isinstance(out_sinfo, TupleStructInfo):
-            return [_gen_weights(sinfo) for sinfo in out_sinfo.fields]
+    def _gen_weights(out_ty):
+        if isinstance(out_ty, TupleType):
+            return [_gen_weights(ty) for ty in out_ty.fields]
         else:
-            assert isinstance(out_sinfo, TensorStructInfo)
-            return np.random.uniform(size=[int(i) for i in out_sinfo.shape]).astype(out_sinfo.dtype)
+            assert isinstance(out_ty, TensorType)
+            return np.random.uniform(size=[int(i) for i in out_ty.shape]).astype(out_ty.dtype)
 
     def _is_call_no_grad(expr):
         return isinstance(expr, Call) and expr.op == Op.get("relax.grad.no_grad")
 
     # Generate parameter relax Vars
     param_vars = [
-        relax.Var("x_" + str(i), _numpy_to_sinfo(data)) for i, data in enumerate(inputs_numpy)
+        relax.Var("x_" + str(i), _numpy_to_ty(data)) for i, data in enumerate(inputs_numpy)
     ]
 
     # Generate the forward call
@@ -135,8 +135,8 @@ def relax_check_gradients(
     # If the result is a tuple, weights will be a list, and the weighted result will be
     # sum(i * j for i, j in zip(weights, result))
     # In the gradient process, weights is the output gradient, i.e. the gradient w.r.t. the result.
-    out_sinfo = forward_mod[func_name].body.body.struct_info
-    weights = _gen_weights(out_sinfo)
+    out_ty = forward_mod[func_name].body.body.ty
+    weights = _gen_weights(out_ty)
 
     # The inputs of the forward function are inputs_filtered below.
     def forward(*inputs):
@@ -163,7 +163,7 @@ def relax_check_gradients(
     op_grad_func = call.op.get_attr("FPrimalGradient")
 
     # The parameter Var for gradient
-    grad_var = relax.Var("grad", _numpy_to_sinfo(weights))
+    grad_var = relax.Var("grad", _numpy_to_ty(weights))
 
     # Gradient mod
     grad_bb = relax.BlockBuilder()

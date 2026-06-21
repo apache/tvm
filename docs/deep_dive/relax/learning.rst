@@ -170,9 +170,9 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             cls = Module
             n = T.int64()
             with R.dataflow():
-                lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
+                lv = R.call_tir(cls.linear, (x, w0, b0), out_ty=R.Tensor((n, 256), dtype="float32"))
+                lv1 = R.call_tir(cls.relu, (lv,), out_ty=R.Tensor((n, 256), dtype="float32"))
+                lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_ty=R.Tensor((n, 10), dtype="float32"))
                 R.output(lv2)
             return lv2
 
@@ -194,10 +194,10 @@ Key Elements of Relax
 This section will introduce the key elements of Relax abstraction and how it enables optimization
 in ML compilers.
 
-Structure Info
-~~~~~~~~~~~~~~
-Structure info is a new concept in Relax that represents the type of relax expressions. It can
-be ``TensorStructInfo``, ``TupleStructInfo``, etc. In the above example, we use ``TensorStructInfo``
+Type
+~~~~
+Type is the Relax representation of expression type information. It can
+be ``TensorType``, ``TupleType``, etc. In the above example, we use ``TensorType``
 (short in ``R.Tensor`` in TVMScript) to represent the shape and dtype of the tensor of the inputs,
 outputs, and intermediate results.
 
@@ -210,7 +210,7 @@ Taking one line from the above code as an example:
 
 .. code:: python
 
-    lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
+    lv = R.call_tir(cls.linear, (x, w0, b0), out_ty=R.Tensor((n, 256), dtype="float32"))
 
 To explain what does ``R.call_tir`` work, let us review an equivalent low-level numpy
 implementation of the operation, as follows:
@@ -238,9 +238,9 @@ Another important element in a relax function is the R.dataflow() scope annotati
 .. code:: python
 
     with R.dataflow():
-        lv = R.call_tir(cls.linear, (x, w0, b0), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv1 = R.call_tir(cls.relu, (lv,), out_sinfo=R.Tensor((n, 256), dtype="float32"))
-        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_sinfo=R.Tensor((n, 10), dtype="float32"))
+        lv = R.call_tir(cls.linear, (x, w0, b0), out_ty=R.Tensor((n, 256), dtype="float32"))
+        lv1 = R.call_tir(cls.relu, (lv,), out_ty=R.Tensor((n, 256), dtype="float32"))
+        lv2 = R.call_tir(cls.linear, (lv1, w1, b1), out_ty=R.Tensor((n, 10), dtype="float32"))
         R.output(lv2)
 
 Before we talk about the dataflow block, let us first introduce the concept of **pure** and

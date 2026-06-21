@@ -205,11 +205,11 @@ def test_alias_call_tir():
         def main(x: R.Tensor((10, 10), "int32")) -> R.Tensor((10, 10), "int32"):
             with R.dataflow():
                 cls = AliasCallTir
-                y = R.call_tir(cls.tir_id, (x,), out_sinfo=R.Tensor((10, 10), "int32"))
+                y = R.call_tir(cls.tir_id, (x,), out_ty=R.Tensor((10, 10), "int32"))
                 t = R.call_tir(
                     cls.tir_id2,
                     (y,),
-                    out_sinfo=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
+                    out_ty=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
                 )
                 z = y
                 p = t[0]
@@ -260,7 +260,7 @@ def test_mystery_calls():
                 n = R.const(2, dtype="int32")
                 t = (m, n)
                 a = R.call_pure_packed(
-                    "chaos", t, sinfo_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
+                    "chaos", t, ty_args=R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32"))
                 )
                 b = a[0]
                 c = a[1]
@@ -496,7 +496,7 @@ def test_insert_inplace_calls():
                     cls.add_inplace,
                     (z, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -504,7 +504,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (a, y),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -513,7 +513,7 @@ def test_insert_inplace_calls():
                     cls.subtract_inplace,
                     (r, r),
                     inplace_indices=[1],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((1, 3), dtype="float32"),
                     ],
                 )
@@ -521,7 +521,7 @@ def test_insert_inplace_calls():
                     cls.multiply_inplace,
                     (q, s),
                     inplace_indices=[0],
-                    out_sinfo=[
+                    out_ty=[
                         R.Tensor((2, 3), dtype="float32"),
                     ],
                 )
@@ -602,13 +602,13 @@ def test_dynamic():
                 a_1 = R.call_tir_inplace(
                     cls.add_inplace,
                     (z, y),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[0],
                 )
                 s = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (a_1, a_1),
-                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    out_ty=R.Tensor((a, b), dtype="float32"),
                     inplace_indices=[1],
                 )
                 R.output(s)
@@ -911,24 +911,24 @@ class TestViewOpSharedStorageAndNoInplace:
     @classmethod
     def _build_module(cls, op):
         if op == "relax.expand_dims":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.squeeze":
-            x_sinfo = relax.TensorStructInfo((1, 4, 1), "float32")
+            x_ty = relax.TensorType((1, 4, 1), "float32")
         elif op == "relax.reshape":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.permute_dims":
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         elif op == "relax.memory.view":
-            x_sinfo = relax.TensorStructInfo((4,), "float32")
+            x_ty = relax.TensorType((4,), "float32")
         elif op == "relax.memory.ensure_zero_offset":
-            x_sinfo = relax.TensorStructInfo((4, 1), "float32")
+            x_ty = relax.TensorType((4, 1), "float32")
         elif op in ("relax.flatten", "relax.nn.batch_flatten"):
-            x_sinfo = relax.TensorStructInfo((1, 4), "float32")
+            x_ty = relax.TensorType((1, 4), "float32")
         else:
             raise ValueError(op)
 
         bb = relax.BlockBuilder()
-        x = relax.Var("x", x_sinfo)
+        x = relax.Var("x", x_ty)
         concat_axis = cls._concat_axis_for_view_op(op)
         with bb.function("main", [x]):
             with bb.dataflow():

@@ -48,7 +48,7 @@ def test_alloc_storage():
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),
                 R.dtype("float16"),
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             alloc: R.Tensor((m, n), dtype="float16") = R.memory.alloc_tensor(  # type: ignore
                 storage, R.prim_value(0), R.shape([m, n]), R.dtype("float16")
@@ -81,7 +81,7 @@ def test_builtin_alloc_tensor():
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),
                 R.dtype("float16"),
-                sinfo_args=(R.Object,),
+                ty_args=(R.Object,),
             )
             tensor: R.Tensor((m, n), dtype="float16") = R.memory.alloc_tensor(  # type: ignore
                 gv, R.prim_value(0), R.shape([m, n]), R.dtype("float16")

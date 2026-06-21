@@ -297,13 +297,13 @@ def test_fuse_with_tuple_as_param():
 
 
 def test_fuse_with_nested_tuple_as_param():
-    tuple_struct_info = R.Tuple(
+    tuple_ty = R.Tuple(
         [R.Tensor([10], "float32"), R.Tuple([R.Tensor([10], "float32"), R.Tensor([10], "float32")])]
     )
 
     def before():
         bb = relax.BlockBuilder()
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("fused_exp_add_add", [x], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))
@@ -317,7 +317,7 @@ def test_fuse_with_nested_tuple_as_param():
         mod = bb.get()
 
         func_gv = mod.get_global_var("fused_exp_add_add")
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(relax.Call(func_gv, [x]))
@@ -331,7 +331,7 @@ def test_fuse_with_nested_tuple_as_param():
             return topi.add(exp, add)
 
         bb = relax.BlockBuilder()
-        x = relax.Var("x", tuple_struct_info)
+        x = relax.Var("x", tuple_ty)
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))
@@ -615,7 +615,7 @@ def test_multiple_relax_functions():
                 gv2 = R.call_tir(
                     Expected.fused_add_exp_squeeze,
                     (x, R.const(1, "float32")),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv2)
             return gv2
@@ -626,7 +626,7 @@ def test_multiple_relax_functions():
                 gv3 = R.call_tir(
                     Expected.fused_add1_exp1_squeeze1,
                     (x, R.const(1, "float32")),
-                    out_sinfo=R.Tensor((20, 10), dtype="float32"),
+                    out_ty=R.Tensor((20, 10), dtype="float32"),
                 )
                 R.output(gv3)
             return gv3
@@ -762,8 +762,8 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
             R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
-                y = R.call_tir(cls.dynamic_tir_kernel, [x], out_sinfo=R.Tensor([16, 32], "float32"))
-                z = R.call_tir(cls.dynamic_tir_kernel, [y], out_sinfo=R.Tensor([16, 32], "float32"))
+                y = R.call_tir(cls.dynamic_tir_kernel, [x], out_ty=R.Tensor([16, 32], "float32"))
+                z = R.call_tir(cls.dynamic_tir_kernel, [y], out_ty=R.Tensor([16, 32], "float32"))
                 R.output(z)
             return z
 
@@ -798,7 +798,7 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
         def main(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused_function, [x], out_sinfo=R.Tensor([16, 32], "float32"))
+                gv = R.call_tir(cls.fused_function, [x], out_ty=R.Tensor([16, 32], "float32"))
                 R.output(gv)
             return gv
 
@@ -837,10 +837,10 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             cls = Before
             with R.dataflow():
                 y = R.call_tir(
-                    cls.dynamic_tir_kernel, [x, B, C], out_sinfo=R.Tensor([16 * 32], "float32")
+                    cls.dynamic_tir_kernel, [x, B, C], out_ty=R.Tensor([16 * 32], "float32")
                 )
                 z = R.call_tir(
-                    cls.dynamic_tir_kernel, [y, B, C], out_sinfo=R.Tensor([16 * 32], "float32")
+                    cls.dynamic_tir_kernel, [y, B, C], out_ty=R.Tensor([16 * 32], "float32")
                 )
                 R.output(z)
             return z
@@ -887,7 +887,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(
-                    cls.fused_function, (x, B, C), out_sinfo=R.Tensor((512,), dtype="float32")
+                    cls.fused_function, (x, B, C), out_ty=R.Tensor((512,), dtype="float32")
                 )
                 R.output(gv)
             return gv
@@ -981,7 +981,7 @@ def test_symbolic_var_in_call_tir_args():
                 gv = R.call_tir(
                     cls.foo,
                     [lv1, y],
-                    out_sinfo=R.Tensor((1, 1, 32, 128), dtype="float32"),
+                    out_ty=R.Tensor((1, 1, 32, 128), dtype="float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
@@ -1033,7 +1033,7 @@ def test_symbolic_var_in_call_tir_args():
                 gv = R.call_tir(
                     cls.fused,
                     (x, y),
-                    out_sinfo=R.Tensor([1, 1, 32, 128], "float32"),
+                    out_ty=R.Tensor([1, 1, 32, 128], "float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
@@ -1093,10 +1093,10 @@ def test_same_buffer_multiple_read():
                 lv = R.call_tir(
                     cls.concatenate,
                     (inp_0, inp_0),
-                    out_sinfo=R.Tensor((2, 4, 64, 64), dtype="float32"),
+                    out_ty=R.Tensor((2, 4, 64, 64), dtype="float32"),
                 )
                 gv = R.call_tir(
-                    cls.transpose2, (lv,), out_sinfo=R.Tensor((2, 64, 64, 4), dtype="float32")
+                    cls.transpose2, (lv,), out_ty=R.Tensor((2, 64, 64, 4), dtype="float32")
                 )
                 R.output(gv)
             return gv
@@ -1154,7 +1154,7 @@ def test_same_buffer_multiple_read():
                 lv = R.call_tir(
                     cls.fused_concatenate_transpose2,
                     (inp_0,),
-                    out_sinfo=R.Tensor((2, 64, 64, 4), dtype="float32"),
+                    out_ty=R.Tensor((2, 64, 64, 4), dtype="float32"),
                 )
                 R.output(lv)
             return lv
@@ -1229,7 +1229,7 @@ def test_tir_expression_in_shape():
                 lv = R.call_tir(
                     cls.fused_transpose_matmul,
                     (x, y),
-                    out_sinfo=R.Tensor((n - 1, 3), dtype="float32"),
+                    out_ty=R.Tensor((n - 1, 3), dtype="float32"),
                     tir_vars=R.shape([n]),
                 )
                 R.output(lv)
@@ -1285,7 +1285,7 @@ def test_tuple_input_unused_field():
             with R.dataflow():
                 lv1: R.Tensor((4, 8, 2048), dtype="float32") = lv[0]
                 gv = R.call_tir(
-                    cls.reshape, (lv1,), out_sinfo=R.Tensor((4, 8, 32, 64), dtype="float32")
+                    cls.reshape, (lv1,), out_ty=R.Tensor((4, 8, 32, 64), dtype="float32")
                 )
                 R.output(gv)
             return gv
@@ -1349,7 +1349,7 @@ def test_tuple_input_unused_field():
             with R.dataflow():
                 lv: R.Tensor((4, 8, 2048), dtype="float32") = tup[0]
                 lv_1 = R.call_tir(
-                    cls.fused_reshape, (lv,), out_sinfo=R.Tensor((4, 8, 32, 64), dtype="float32")
+                    cls.fused_reshape, (lv,), out_ty=R.Tensor((4, 8, 32, 64), dtype="float32")
                 )
                 R.output(lv_1)
             return lv_1
@@ -1398,9 +1398,9 @@ def test_unique_duplicated_buffer_allocation():
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
                 )
-                gv = R.call_tir(cls.add1, (lv,), out_sinfo=R.Tensor((4096, 4096), dtype="float16"))
+                gv = R.call_tir(cls.add1, (lv,), out_ty=R.Tensor((4096, 4096), dtype="float16"))
                 R.output(gv)
             return gv
 
@@ -1435,7 +1435,7 @@ def test_unique_duplicated_buffer_allocation():
                 gv = R.call_tir(
                     cls.fused_func,
                     (input_embeds,),
-                    out_sinfo=R.Tensor((4096, 4096), dtype="float16"),
+                    out_ty=R.Tensor((4096, 4096), dtype="float16"),
                 )
                 R.output(gv)
             return gv
@@ -1498,7 +1498,7 @@ def test_symbolic_var_in_buffer_shape():
                 gv = R.call_tir(
                     cls.foo,
                     [lv1, y],
-                    out_sinfo=R.Tensor((1, sequence_length, 32, 128), dtype="float32"),
+                    out_ty=R.Tensor((1, sequence_length, 32, 128), dtype="float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
@@ -1563,7 +1563,7 @@ def test_symbolic_var_in_buffer_shape():
                 gv = R.call_tir(
                     cls.fused,
                     (x, y),
-                    out_sinfo=R.Tensor([1, sequence_length, 32, 128], "float32"),
+                    out_ty=R.Tensor([1, sequence_length, 32, 128], "float32"),
                     tir_vars=R.shape([m]),
                 )
                 R.output(gv)
@@ -1603,7 +1603,7 @@ def test_symbolic_var_called_with_static_shape():
                 gv = R.call_tir(
                     cls.sum_1d,
                     [x],
-                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    out_ty=R.Tensor([1], dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -1640,7 +1640,7 @@ def test_symbolic_var_called_with_static_shape():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x,), out_sinfo=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x,), out_ty=R.Tensor((1,), dtype="float32"))
                 R.output(gv)
             return gv
 
@@ -1690,17 +1690,17 @@ def test_symbolic_var_called_with_multiple_static_shapes():
                 x_sum = R.call_tir(
                     cls.sum_1d,
                     [x],
-                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    out_ty=R.Tensor([1], dtype="float32"),
                 )
                 y_sum = R.call_tir(
                     cls.sum_1d,
                     [y],
-                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    out_ty=R.Tensor([1], dtype="float32"),
                 )
                 gv = R.call_tir(
                     cls.sum_scalar,
                     [x_sum, y_sum],
-                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    out_ty=R.Tensor([1], dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -1755,7 +1755,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x, y), out_sinfo=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x, y), out_ty=R.Tensor((1,), dtype="float32"))
                 R.output(gv)
             return gv
 
@@ -1802,7 +1802,7 @@ def test_symbolic_var_called_with_static_argument():
                 gv = R.call_tir(
                     cls.sum_1d,
                     [x],
-                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    out_ty=R.Tensor([1], dtype="float32"),
                     tir_vars=R.shape([64]),
                 )
                 R.output(gv)
@@ -1840,7 +1840,7 @@ def test_symbolic_var_called_with_static_argument():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x,), out_sinfo=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x,), out_ty=R.Tensor((1,), dtype="float32"))
                 R.output(gv)
             return gv
 
@@ -1891,10 +1891,10 @@ def test_gather():
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
                 )
                 gv = R.call_tir(
-                    cls.take, (lv, input_ids), out_sinfo=R.Tensor((1, 4096), dtype="float16")
+                    cls.take, (lv, input_ids), out_ty=R.Tensor((1, 4096), dtype="float16")
                 )
                 R.output(gv)
             return gv
@@ -1930,7 +1930,7 @@ def test_gather():
                 gv = R.call_tir(
                     cls.fused_func,
                     (input_ids, input_embeds),
-                    out_sinfo=R.Tensor((1, 4096), dtype="float16"),
+                    out_ty=R.Tensor((1, 4096), dtype="float16"),
                 )
                 R.output(gv)
             return gv
@@ -1991,19 +1991,19 @@ def test_inplace_simple():
                     cls.add_inplace,
                     (x, p0),
                     inplace_indices=[0],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 lv1 = R.call_tir_inplace(
                     cls.exp_inplace,
                     (lv,),
                     inplace_indices=[0],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 gv = R.call_tir_inplace(
                     cls.squeeze_inplace,
                     (lv1,),
                     inplace_indices=[0],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -2050,7 +2050,7 @@ def test_inplace_simple():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir_inplace(
                     cls.fused_add_exp_squeeze,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                     inplace_indices=[0],
                 )
                 R.output(gv1)
@@ -2102,19 +2102,19 @@ def test_fuse_inplace_and_non_inplace():
                 lv = R.call_tir(
                     cls.add,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 lv1 = R.call_tir_inplace(
                     cls.exp_inplace,
                     (lv,),
                     inplace_indices=[0],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 gv = R.call_tir_inplace(
                     cls.squeeze_inplace,
                     (lv1,),
                     inplace_indices=[0],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv)
             return gv
@@ -2162,7 +2162,7 @@ def test_fuse_inplace_and_non_inplace():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
                     cls.fused_add_exp_squeeze,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv1)
             return gv1
@@ -2196,19 +2196,19 @@ def test_use_as_inplace_and_dps():
                 lv = R.call_tir(
                     cls.add,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 lv1 = R.call_tir_inplace(
                     cls.add,
                     (x, p0, lv),
                     inplace_indices=[2],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 lv2 = R.call_tir_inplace(
                     cls.add,
                     (x, p0, lv1),
                     inplace_indices=[2],
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(lv2)
             return lv2
@@ -2254,7 +2254,7 @@ def test_use_as_inplace_and_dps():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
                     cls.fused_sums,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    out_ty=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv1)
             return gv1
@@ -2290,10 +2290,10 @@ def test_private_nonprimitive_func():
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
                 )
                 gv = R.call_tir(
-                    cls.take, (lv, input_ids), out_sinfo=R.Tensor((1, 4096), dtype="float16")
+                    cls.take, (lv, input_ids), out_ty=R.Tensor((1, 4096), dtype="float16")
                 )
                 R.output(gv)
             return gv
@@ -2346,10 +2346,10 @@ def test_fuse_with_axis_separators():
             cls = Before
             with R.dataflow():
                 w = R.call_tir(
-                    cls.add, [x, y], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                    cls.add, [x, y], out_ty=R.Tensor([T.int64(16), T.int64(32)], "float32")
                 )
                 out = R.call_tir(
-                    cls.add, [w, z], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                    cls.add, [w, z], out_ty=R.Tensor([T.int64(16), T.int64(32)], "float32")
                 )
                 R.output(out)
             return out
@@ -2397,7 +2397,7 @@ def test_fuse_with_axis_separators():
                 gv = R.call_tir(
                     cls.fused_function,
                     [x, y, z],
-                    out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32"),
+                    out_ty=R.Tensor([T.int64(16), T.int64(32)], "float32"),
                 )
                 R.output(gv)
             return gv
@@ -2427,7 +2427,7 @@ def test_fuse_with_axis_separators_inconsistent_buffer_mapping():
             cls = Before
             with R.dataflow():
                 out = R.call_tir(
-                    cls.mul, [x, x], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                    cls.mul, [x, x], out_ty=R.Tensor([T.int64(16), T.int64(32)], "float32")
                 )
                 R.output(out)
             return out
@@ -2472,8 +2472,8 @@ def test_block_name_numeric_suffix_deduplication():
             R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
-                lv1 = R.call_tir(cls.add1, (x,), out_sinfo=R.Tensor((10,), dtype="float32"))
-                lv2 = R.call_tir(cls.mul1, (lv1,), out_sinfo=R.Tensor((10,), dtype="float32"))
+                lv1 = R.call_tir(cls.add1, (x,), out_ty=R.Tensor((10,), dtype="float32"))
+                lv2 = R.call_tir(cls.mul1, (lv1,), out_ty=R.Tensor((10,), dtype="float32"))
                 R.output(lv2)
             return lv2
 
@@ -2513,7 +2513,7 @@ def test_block_name_numeric_suffix_deduplication():
         def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused_add_mul, (x,), out_sinfo=R.Tensor((10,), dtype="float32"))
+                gv = R.call_tir(cls.fused_add_mul, (x,), out_ty=R.Tensor((10,), dtype="float32"))
                 R.output(gv)
             return gv
 

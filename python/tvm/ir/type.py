@@ -81,8 +81,8 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
+    def __init__(self, fields, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
 
 
 @tvm_ffi.register_object("ir.FuncType")

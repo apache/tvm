@@ -46,11 +46,11 @@ class ASTPrinter(ExprFunctor):
     def __init__(
         self,
         indent_str="    ",
-        include_struct_info_annotations=True,
+        include_ty_annotations=True,
         include_call_attrs=True,
     ):
         self.indent_str = indent_str
-        self.include_struct_info_annotations = include_struct_info_annotations
+        self.include_ty_annotations = include_ty_annotations
         self.include_call_attrs = include_call_attrs
 
     def visit_expr(self, expr: relax.Expr) -> str:
@@ -88,11 +88,11 @@ class ASTPrinter(ExprFunctor):
     def build_expr(self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str):
         """
         Renders a Relax expression as a string using `build_ast_node`.
-        Handles whether to include the struct_info fields.
+        Handles whether to include the ty fields.
         """
         fields = kwargs.copy()
-        if node.struct_info_ and self.include_struct_info_annotations:
-            fields["struct_info"] = self.visit_struct_info_(node.struct_info)
+        if node.ty and self.include_ty_annotations:
+            fields["ty"] = self.visit_ty_(node.ty)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 
     def build_list(
@@ -134,7 +134,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
         # ExternFunc does not inherit from relax.Expr either,
-        # so it doesn't have struct_info fields and we don't use build_expr
+        # so it doesn't have ty fields and we don't use build_expr
         return self.build_ast_node("ExternFunc", global_symbol=wrap_quotes(op.global_symbol))
 
     def visit_global_var_(self, op: relax.GlobalVar) -> str:
@@ -144,7 +144,7 @@ class ASTPrinter(ExprFunctor):
         fields = {
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
-            "ret_struct_info": self.visit_struct_info_(op.ret_struct_info),
+            "ret_ty": self.visit_ty_(op.ret_ty),
             "is_pure": op.is_pure,
         }
         if op.attrs:
@@ -163,8 +163,8 @@ class ASTPrinter(ExprFunctor):
             "op": self.visit_expr(op.op),
             "args": self.build_list(map(self.visit_expr, op.args)),
         }
-        if op.sinfo_args:
-            fields["sinfo_args"] = self.build_list(map(self.visit_struct_info_, op.sinfo_args))
+        if op.ty_args:
+            fields["ty_args"] = self.build_list(map(self.visit_ty_, op.ty_args))
         if op.attrs and self.include_call_attrs:
 
             def display_attrs(attr_key):
@@ -219,7 +219,7 @@ class ASTPrinter(ExprFunctor):
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
         # op is not actually a Relax expr and does not have
-        # struct_info fields, so we don't use build_expr here
+        # ty fields, so we don't use build_expr here
         return self.build_ast_node("Op", name=wrap_quotes(op.name))
 
     def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
@@ -258,55 +258,53 @@ class ASTPrinter(ExprFunctor):
                 "TupleType", fields=self.build_list(map(self.visit_type_, type_node.fields))
             )
         if isinstance(type_node, relax.FuncType):
+            fields = {}
+            if type_node.params is not None:
+                fields["params"] = self.build_list(map(self.visit_type_, type_node.params))
+            fields["ret"] = self.visit_type_(type_node.ret)
+            fields["purity"] = bool(type_node.purity)
             return self.build_ast_node(
                 "FuncType",
-                arg_types=self.build_list(map(self.visit_type_, type_node.arg_types)),
-                ret_type=self.visit_type_(type_node.ret_type),
+                **fields,
             )
         raise ValueError(f"Invalid Relax Type {type_node} ({type(type_node)})")
 
-    def visit_struct_info_(self, struct_info_node: relax.StructInfo) -> str:
+    def visit_ty_(self, ty_node: relax.Type) -> str:
         """
-        Recurse down struct info and print their ASTs too
+        Recurse down type and print their ASTs too
         """
-        if isinstance(struct_info_node, relax.ShapeStructInfo):
+        if isinstance(ty_node, relax.ShapeType):
             fields = {}
-            fields["ndim"] = str(struct_info_node.ndim)
-            if struct_info_node.values is not None:
-                fields["values"] = self.build_list(
-                    map(self.visit_prim_expr_, struct_info_node.values)
-                )
-            return self.build_ast_node("ShapeStructInfo", **fields)
-        elif isinstance(struct_info_node, relax.ObjectStructInfo):
-            return self.build_ast_node("ObjectStructInfo")
-        elif isinstance(struct_info_node, relax.PrimStructInfo):
-            return self.build_ast_node("PrimStructInfo", dtype=struct_info_node.dtype)
-        elif isinstance(struct_info_node, relax.TensorStructInfo):
+            fields["ndim"] = str(ty_node.ndim)
+            if ty_node.values is not None:
+                fields["values"] = self.build_list(map(self.visit_prim_expr_, ty_node.values))
+            return self.build_ast_node("ShapeType", **fields)
+        elif isinstance(ty_node, relax.ObjectType):
+            return self.build_ast_node("ObjectType")
+        elif isinstance(ty_node, relax.PrimType):
+            return self.build_ast_node("PrimType", dtype=ty_node.dtype)
+        elif isinstance(ty_node, relax.TensorType):
             fields = {}
-            fields["dtype"] = struct_info_node.dtype
-            if struct_info_node.shape:
-                fields["shape"] = self.visit_expr(struct_info_node.shape)
+            fields["dtype"] = ty_node.dtype
+            if ty_node.shape:
+                fields["shape"] = self.visit_expr(ty_node.shape)
             else:
-                fields["ndim"] = str(struct_info_node.ndim)
-            return self.build_ast_node("TensorStructInfo", **fields)
-        elif isinstance(struct_info_node, relax.TupleStructInfo):
+                fields["ndim"] = str(ty_node.ndim)
+            return self.build_ast_node("TensorType", **fields)
+        elif isinstance(ty_node, relax.TupleType):
             return self.build_ast_node(
-                "TupleStructInfo",
-                fields=self.build_list(map(self.visit_struct_info_, struct_info_node.fields)),
+                "TupleType",
+                fields=self.build_list(map(self.visit_ty_, ty_node.fields)),
             )
-        elif isinstance(struct_info_node, relax.FuncStructInfo):
+        elif isinstance(ty_node, relax.FuncType):
             fields = {}
-            if struct_info_node.params is not None:
-                fields["params"] = self.build_list(
-                    map(self.visit_struct_info_, struct_info_node.params)
-                )
-            fields["ret"] = self.visit_struct_info_(struct_info_node.ret)
-            fields["purity"] = bool(struct_info_node.purity)
-            return self.build_ast_node("FuncStructInfo", **fields)
+            if ty_node.params is not None:
+                fields["params"] = self.build_list(map(self.visit_ty_, ty_node.params))
+            fields["ret"] = self.visit_ty_(ty_node.ret)
+            fields["purity"] = bool(ty_node.purity)
+            return self.build_ast_node("FuncType", **fields)
         else:
-            raise ValueError(
-                f"Invalid Relax StructInfo {struct_info_node} ({type(struct_info_node)})"
-            )
+            raise ValueError(f"Invalid Relax Type {ty_node} ({type(ty_node)})")
 
     def visit_binding_block_(self, block: relax.BindingBlock) -> str:
         """
@@ -343,7 +341,7 @@ class ASTPrinter(ExprFunctor):
         fields = {
             "var": self.visit_expr(match_cast.var),
             "value": self.visit_expr(match_cast.value),
-            "struct_info": self.visit_struct_info_(match_cast.struct_info),
+            "ty": self.visit_ty_(match_cast.ty),
         }
         return self.build_ast_node("MatchCast", **fields)
 
@@ -361,7 +359,7 @@ class ASTPrinter(ExprFunctor):
 def dump_ast(
     exp: relax.Expr,
     indent_str="    ",
-    include_struct_info_annotations=True,
+    include_ty_annotations=True,
     include_call_attrs=True,
 ) -> str:
     """
@@ -371,7 +369,7 @@ def dump_ast(
     """
     printer = ASTPrinter(
         indent_str=indent_str,
-        include_struct_info_annotations=include_struct_info_annotations,
+        include_ty_annotations=include_ty_annotations,
         include_call_attrs=include_call_attrs,
     )
     return printer.visit_expr(exp)

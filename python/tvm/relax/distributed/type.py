@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
-"""Struct Info for distributed tensor."""
+"""Types for distributed tensor."""
 
 import enum
 
 import tvm_ffi
 
 from tvm.ir import Span
-from tvm.relax.struct_info import StructInfo, TensorStructInfo
+from tvm.relax.type import TensorType, Type
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -111,14 +111,14 @@ class Placement(Object):
         return _ffi_api.PlacementFromText(text)
 
 
-@tvm_ffi.register_object("relax.DTensorStructInfo")
-class DTensorStructInfo(StructInfo):
-    """StructInfo of a Distributed Tensor value.
+@tvm_ffi.register_object("relax.DTensorType")
+class DTensorType(Type):
+    """Type of a Distributed Tensor value.
 
     Parameters
     ----------
-    tensor_sinfo: TensorStructInfo
-        The struct info inherited from TensorStructInfo
+    tensor_ty: TensorType
+        The tensor type carried by the distributed tensor.
     device_mesh: DeviceMesh
         The device mesh of the tensor.
     placement: Placement
@@ -126,20 +126,20 @@ class DTensorStructInfo(StructInfo):
 
     """
 
-    tensor_sinfo: TensorStructInfo
+    tensor_ty: TensorType
     device_mesh: DeviceMesh
     placement: Placement
 
     def __init__(
         self,
-        tensor_sinfo: TensorStructInfo,
+        tensor_ty: TensorType,
         device_mesh: DeviceMesh,
         placement: Placement,
         span: Span = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.DTensorStructInfo,
-            tensor_sinfo,
+            _ffi_api.DTensorType,
+            tensor_ty,
             device_mesh,
             placement,
             span,  # type: ignore

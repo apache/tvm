@@ -279,11 +279,11 @@ class ShapeToTensorTest:
 
 
 def test_op_shape_to_tensor(exec_mode):
-    # Check struct info
-    isinstance(ShapeToTensorTest["const_shape"].body.struct_info, tvm.relax.TensorStructInfo)
-    assert ShapeToTensorTest["const_shape"].body.struct_info.ndim == 1
-    isinstance(ShapeToTensorTest["symbolic_shape"].body.struct_info, tvm.relax.TensorStructInfo)
-    assert ShapeToTensorTest["symbolic_shape"].body.struct_info.ndim == 1
+    # Check type
+    isinstance(ShapeToTensorTest["const_shape"].body.ty, tvm.relax.TensorType)
+    assert ShapeToTensorTest["const_shape"].body.ty.ndim == 1
+    isinstance(ShapeToTensorTest["symbolic_shape"].body.ty, tvm.relax.TensorType)
+    assert ShapeToTensorTest["symbolic_shape"].body.ty.ndim == 1
 
     # Check its functionality
     out2d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 2]), exec_mode=exec_mode)
@@ -311,7 +311,7 @@ def test_op_call_pure_packed(exec_mode):
         @R.function
         def pure_copy(x: R.Tensor((3, 4), "float32")):
             z = R.call_pure_packed(
-                "vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
+                "vm.builtin.copy", x, ty_args=(R.Tensor((3, 4), dtype="float32"))
             )
             return z
 
@@ -331,7 +331,7 @@ def test_op_call_inplace_packed(exec_mode):
                 "vm.builtin.copy",
                 x,
                 inplace_indices=0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -354,7 +354,7 @@ def test_op_call_inplace_packed(exec_mode):
                 x,
                 y,
                 inplace_indices=0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -389,7 +389,7 @@ def test_op_call_inplace_packed(exec_mode):
                 x,
                 y,
                 inplace_indices=[0, -1],
-                sinfo_args=(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32"), R.Tensor((3, 4), dtype="float32")),
             )
             return z
 
@@ -454,13 +454,13 @@ def test_op_call_py_func(exec_mode):
     class CallPyFuncTest:
         @R.function
         def simple_call(x: R.Tensor((3,), "float32")):
-            result = R.call_py_func(R.str("torch_relu"), (x,), out_sinfo=R.Tensor((3,), "float32"))
+            result = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((3,), "float32"))
             return result
 
         @R.function
         def multiple_calls(x: R.Tensor((2,), "float32")):
-            y = R.call_py_func(R.str("torch_relu"), (x,), out_sinfo=R.Tensor((2,), "float32"))
-            z = R.call_py_func(R.str("torch_sigmoid"), (y,), out_sinfo=R.Tensor((2,), "float32"))
+            y = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((2,), "float32"))
+            z = R.call_py_func(R.str("torch_sigmoid"), (y,), out_ty=R.Tensor((2,), "float32"))
             return z
 
     np.random.seed(0)
@@ -492,7 +492,7 @@ def test_op_to_device(exec_mode):
                 x,
                 1,
                 0,
-                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+                ty_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
 

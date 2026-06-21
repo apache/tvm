@@ -322,7 +322,7 @@ def _kernel_compile(compile_mode):
                     my_pe = R.call_tir(
                         cls.query_pe,
                         (),
-                        out_sinfo=[
+                        out_ty=[
                             R.Tensor((1,), "int32"),
                             R.Tensor((1,), "int32"),
                         ],

@@ -22,37 +22,37 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-bool SinfoCompatibleWithDistIR(ffi::Array<StructInfo> sinfos) {
+bool TypeCompatibleWithDistIR(ffi::Array<Type> tys) {
   bool compatible = true;
-  for (const auto& sinfo : sinfos) {
-    if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      compatible &= SinfoCompatibleWithDistIR(tuple_sinfo->fields);
+  for (const auto& ty : tys) {
+    if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+      compatible &= TypeCompatibleWithDistIR(tuple_ty->fields);
     } else {
-      compatible &= !sinfo->IsInstance<TensorStructInfoNode>();
+      compatible &= !ty->IsInstance<TensorTypeNode>();
     }
   }
   return compatible;
 }
 
-bool SinfoCompatibleWithRelax(ffi::Array<StructInfo> sinfos) {
+bool TypeCompatibleWithRelax(ffi::Array<Type> tys) {
   bool compatible = true;
-  for (const auto& sinfo : sinfos) {
-    if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-      compatible &= SinfoCompatibleWithRelax(tuple_sinfo->fields);
+  for (const auto& ty : tys) {
+    if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+      compatible &= TypeCompatibleWithRelax(tuple_ty->fields);
     } else {
-      compatible &= !sinfo->IsInstance<DTensorStructInfoNode>();
+      compatible &= !ty->IsInstance<DTensorTypeNode>();
     }
   }
   return compatible;
 }
 bool IsDistIRFunc(Function func) {
-  ffi::Array<StructInfo> param_sinfos;
+  ffi::Array<Type> param_tys;
   for (const auto& param : func->params) {
-    TVM_FFI_ICHECK(param->struct_info_);
-    param_sinfos.push_back(Downcast<StructInfo>(param->struct_info_.value()));
+    TVM_FFI_ICHECK(param->ty.defined());
+    param_tys.push_back(Downcast<Type>(param->ty));
   }
-  bool compatible_with_dist_ir = SinfoCompatibleWithDistIR(param_sinfos);
-  bool compatible_with_relax = SinfoCompatibleWithRelax(param_sinfos);
+  bool compatible_with_dist_ir = TypeCompatibleWithDistIR(param_tys);
+  bool compatible_with_relax = TypeCompatibleWithRelax(param_tys);
   if (compatible_with_relax) {
     return false;
   } else if (compatible_with_dist_ir && !compatible_with_relax) {

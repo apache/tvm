@@ -165,11 +165,11 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     std::vector<std::string> arg_types, arg_names;
 
     for (const auto& arg : ext_func_args_) {
-      auto sinfo = GetStructInfo(arg);
-      if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-        arg_types.emplace_back(backend::DType2String(tensor_sinfo->dtype));
-      } else if (const auto* shape_sinfo = sinfo.as<ShapeStructInfoNode>()) {
-        arg_types.emplace_back(backend::DType2String(shape_sinfo->values.value()[0]->dtype));
+      auto ty = GetType(arg);
+      if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+        arg_types.emplace_back(backend::DType2String(tensor_ty->dtype));
+      } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
+        arg_types.emplace_back(backend::DType2String(shape_ty->values.value()[0]->dtype));
       } else {
         TVM_FFI_THROW(InternalError) << "Unimplemented";
       }
@@ -298,13 +298,13 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
                                   const ffi::Map<ffi::String, ffi::Any>& attrs) {
     auto func_args = GetArgumentNames(call);
-    auto struct_info = GetStructInfo(ffi::GetRef<Call>(call));
+    auto ty = GetType(ffi::GetRef<Call>(call));
 
     std::vector<std::string> out_types;
-    if (const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>()) {
-      out_types.emplace_back(backend::DType2String(tensor_sinfo->dtype));
+    if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+      out_types.emplace_back(backend::DType2String(tensor_ty->dtype));
     } else {
-      TVM_FFI_THROW(InternalError) << "Unimplemented sinfo type: " << struct_info;
+      TVM_FFI_THROW(InternalError) << "Unimplemented ty type: " << ty;
     }
 
     return contrib::GenerateBody(func_name, ext_func_id_, out_types, func_args, attrs, &buf_idx_);

@@ -51,11 +51,10 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
                   const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map = {});
 
 /*!
- * \brief Bind the symbolic variables to a StructInfo. This is a helper function usually called by
+ * \brief Bind the symbolic variables to a Type. This is a helper function usually called by
  * other pass functions to help optimizations.
  */
-TVM_DLL StructInfo Bind(const StructInfo& sinfo,
-                        const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map);
+TVM_DLL Type Bind(const Type& ty, const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map);
 
 /*!
  * \brief Infer a binding map for symbolic variables
@@ -78,10 +77,10 @@ TVM_DLL tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::ffi::Map<relax::Var, relax::Expr>& binds, const arith::Analyzer& analyzer);
 
 /*!
- * \brief Check if the given StructInfo is for a boolean scalar (tensor of rank 0 with a boolean
+ * \brief Check if the given Type is for a boolean scalar (tensor of rank 0 with a boolean
  * dtype).
  *
- * \param sinfo The input StructInfo.
+ * \param ty The input Type.
  * \param permit_unknown_rank If true, it will permit the input type to have unknown rank
  *   (ndim of -1), which will require a dynamic check.
  * \param permit_unknown_dtype If true, it will permit the input type to have an unknown dtype
@@ -90,8 +89,8 @@ TVM_DLL tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
  * \return True iff the input type is a boolean scalar type (or, depending on options, has unknown
  *   rank or dtype)
  */
-TVM_DLL bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank = true,
-                              bool permit_unknown_dtype = true);
+TVM_DLL bool IsBoolType(const Type& ty, bool permit_unknown_rank = true,
+                        bool permit_unknown_dtype = true);
 
 /*!
  * \brief Check if the given expression is a "leaf" node or tuple node for normalization purposes.
@@ -112,7 +111,7 @@ TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 
 /*!
  * \brief Check if the given Call node is an impure operation. If the callee is a general
- * expression, this simply requires checking the purity field of the FuncStructInfo. If it is an Op,
+ * expression, this simply requires checking the purity field of the FuncType. If it is an Op,
  * then this checks the `fPurity` field.
  *
  * \param call The input call

@@ -38,7 +38,7 @@ def test_add():
         @R.function(pure=False)
         def foo(x: R.Tensor):
             R.func_attr({"global_symbol": "foo"})
-            z = R.call_packed("test.vm.add", x, x, sinfo_args=(R.Tensor))
+            z = R.call_packed("test.vm.add", x, x, ty_args=(R.Tensor))
             return z
 
     @tvm.script.ir_module
@@ -107,9 +107,9 @@ def test_if_cond():
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor) -> R.Tensor:
             R.func_attr({"global_symbol": "ife"})
             if cond:
-                w = R.call_packed("test.vm.add", x, x, sinfo_args=(R.Tensor))
+                w = R.call_packed("test.vm.add", x, x, ty_args=(R.Tensor))
             else:
-                w = R.call_packed("test.vm.mul", x, x, sinfo_args=(R.Tensor))
+                w = R.call_packed("test.vm.mul", x, x, ty_args=(R.Tensor))
             return w
 
     @tvm.script.ir_module
@@ -195,7 +195,7 @@ def test_const_call():
         def main(x: R.Tensor):
             R.func_attr({"global_symbol": "main"})
             y = R.const([1, 2])
-            z = R.call_packed("test.vm.add", x, y, sinfo_args=(R.Tensor))
+            z = R.call_packed("test.vm.add", x, y, ty_args=(R.Tensor))
             return z
 
     @tvm.script.ir_module

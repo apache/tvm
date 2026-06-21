@@ -528,7 +528,7 @@ class OperatorConverter:
         return relax.Tuple(relax.Tuple(ret), selections)
 
     def _infer_shape(self, arg):
-        return self.bb.normalize(arg).struct_info.shape
+        return self.bb.normalize(arg).ty.shape
 
     def convert_op_to_relax(self):
         """Convert TFLite ops to relax ops"""
@@ -1120,13 +1120,11 @@ class OperatorConverter:
             dims_expr = self.get_expr(shape_tensor.tensor_idx)
             dims_ndim = int(self.get_tensor_shape(shape_tensor)[0])
             dims_dtype = self.get_tensor_type_str(shape_tensor.tensor.Type())
-            dims_expr = self.bb.match_cast(
-                dims_expr, relax.TensorStructInfo([dims_ndim], dims_dtype)
-            )
+            dims_expr = self.bb.match_cast(dims_expr, relax.TensorType([dims_ndim], dims_dtype))
             dims_expr = self.bb.normalize(relax.op.astype(dims_expr, "int64"))
             shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(dims_expr))
             shape_vars = [tirx.Var(f"{prefix}_{i}", "int64") for i in range(dims_ndim)]
-            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
+            self.bb.match_cast(shape_dataflow_var, relax.ShapeType(shape_vars))
             return relax.ShapeExpr(shape_vars), shape_vars
 
         dims = to_int_list(self.get_tensor_value(shape_tensor))
@@ -1134,7 +1132,7 @@ class OperatorConverter:
 
     def flatten_to_nd(self, x, nd=3):
         """Flatten input tensor to nd rank"""
-        shape = x.struct_info.shape
+        shape = x.ty.shape
         ndims = len(shape)
         if ndims == nd:
             return x
@@ -1899,7 +1897,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.struct_info.dtype
+        dtype = lhs.ty.dtype
         if dtype == "bool":
             op_fn = _op.logical_and
         elif dtype.startswith(("int", "uint")):
@@ -1917,7 +1915,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.struct_info.dtype
+        dtype = lhs.ty.dtype
         if dtype == "bool":
             op_fn = _op.logical_or
         elif dtype.startswith(("int", "uint")):
@@ -1987,7 +1985,7 @@ class OperatorConverter:
 
     def _ensure_stablehlo_float_dtype(self, expr, op_name):
         """Return expr dtype if the StableHLO subset supports it."""
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
         if not dtype.startswith("float"):
             raise tvm.error.OpNotImplemented(f"{op_name} with dtype {dtype} is not supported")
         return dtype
@@ -2473,8 +2471,8 @@ class OperatorConverter:
             gv,
             [state_expr],
             [
-                relax.TensorStructInfo(tuple(state_shape), "uint64"),
-                relax.TensorStructInfo(out_shape, out_dtype),
+                relax.TensorType(tuple(state_shape), "uint64"),
+                relax.TensorType(out_shape, out_dtype),
             ],
         )
         return self.bb.normalize(call)
@@ -2617,7 +2615,7 @@ class OperatorConverter:
             input_name = get_tensor_name(subgraph, int(input_index))
             shape = self._get_relax_tensor_shape(tensor)
             dtype = self._get_relax_tensor_dtype(tensor)
-            param = relax.Var(input_name, relax.TensorStructInfo(shape=shape, dtype=dtype))
+            param = relax.Var(input_name, relax.TensorType(shape=shape, dtype=dtype))
             exp_tab.set_expr(input_name, param)
             params.append(param)
         return params, exp_tab
@@ -2627,7 +2625,7 @@ class OperatorConverter:
         name = get_tensor_name(self.subgraph, tensor_wrapper.tensor_idx)
         shape = self._get_relax_tensor_shape(tensor_wrapper)
         dtype = self._get_relax_tensor_dtype(tensor_wrapper)
-        return relax.Var(name, relax.TensorStructInfo(shape=shape, dtype=dtype))
+        return relax.Var(name, relax.TensorType(shape=shape, dtype=dtype))
 
     def _lower_subgraph_to_function(self, subgraph_index, function_name_hint, op_name="CALL"):
         """Lower a TFLite subgraph into a private Relax function."""
@@ -3852,7 +3850,7 @@ class OperatorConverter:
         stride = [int(i) for i in stride]
         axes = list(range(len(begin)))
         out = relax.op.strided_slice(data_expr, axes=axes, begin=begin, end=end, strides=stride)
-        out_shape = self.bb.normalize(out).struct_info.shape
+        out_shape = self.bb.normalize(out).ty.shape
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -3941,7 +3939,7 @@ class OperatorConverter:
         return relax.op.call_dps_packed(
             "tvm.contrib.random.uniform",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+            out_ty=relax.TensorType(out_shape, output_dtype),
         )
 
     def convert_random_standard_normal(self, op):
@@ -3962,7 +3960,7 @@ class OperatorConverter:
         return relax.op.call_dps_packed(
             "tvm.contrib.random.normal",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo(out_shape, output_dtype),
+            out_ty=relax.TensorType(out_shape, output_dtype),
         )
 
     def convert_multinomial(self, op):
@@ -3976,12 +3974,12 @@ class OperatorConverter:
         if self.has_expr(num_samples_tensor.tensor_idx):
             scalar_expr = self.get_expr(num_samples_tensor.tensor_idx)
             scalar_dtype = self.get_tensor_type_str(num_samples_tensor.tensor.Type())
-            scalar_expr = self.bb.match_cast(scalar_expr, relax.TensorStructInfo([], scalar_dtype))
+            scalar_expr = self.bb.match_cast(scalar_expr, relax.TensorType([], scalar_dtype))
             scalar_expr = self.bb.normalize(relax.op.astype(scalar_expr, "int64"))
             scalar_expr = self.bb.normalize(relax.op.reshape(scalar_expr, [1]))
             shape_dataflow_var = self.bb.emit(relax.op.tensor_to_shape(scalar_expr))
             num_samples = tirx.Var("multinomial_num_samples", "int64")
-            self.bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo([num_samples]))
+            self.bb.match_cast(shape_dataflow_var, relax.ShapeType([num_samples]))
         else:
             value = self.get_tensor_value(num_samples_tensor)
             assert value.size == 1, (
@@ -4001,7 +3999,7 @@ class OperatorConverter:
         uniform_sample = relax.op.call_dps_packed(
             "tvm.contrib.random.uniform",
             (seed, seed2, 0.0, 1.0),
-            out_sinfo=relax.TensorStructInfo([output_batch, 1], "float32"),
+            out_ty=relax.TensorType([output_batch, 1], "float32"),
         )
         sample_indices = relax.op.reshape(
             relax.op.broadcast_to(
@@ -4879,7 +4877,7 @@ class OperatorConverter:
             # TFLite fixes the tuple arity in the graph, even when the split
             # sizes themselves are supplied at runtime.
             num_splits = len(output_tensors)
-            rank = len(in_expr.struct_info.shape)
+            rank = len(in_expr.ty.shape)
 
             # end_base is the full input shape; only split_axis changes per slice.
             end_base = relax.op.shape_to_tensor(relax.op.shape_of(in_expr))
@@ -5256,7 +5254,7 @@ class OperatorConverter:
         call = relax.call_tir(
             gv,
             [data_expr],
-            relax.TensorStructInfo(relax_output_shape, "float32"),
+            relax.TensorType(relax_output_shape, "float32"),
         )
         return self.bb.normalize(call)
 
@@ -6543,7 +6541,7 @@ class OperatorConverter:
                 relax.ShapeExpr(crop_begin),
                 relax.ShapeExpr(crop_end),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorType(output_shape, output_dtype),
         )
 
         return out
@@ -6711,8 +6709,8 @@ class OperatorConverter:
         input_a = self.get_expr(input_tensors[0].tensor_idx)
         input_b = self.get_expr(input_tensors[1].tensor_idx)
 
-        shape_a = list(input_a.struct_info.shape)
-        shape_b = list(input_b.struct_info.shape)
+        shape_a = list(input_a.ty.shape)
+        shape_b = list(input_b.ty.shape)
         rank_a = len(shape_a)
         rank_b = len(shape_b)
 
@@ -6787,7 +6785,7 @@ class OperatorConverter:
                 relax.ShapeExpr(pad_after),
                 0.0,
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorType(output_shape, output_dtype),
         )
 
         return out
@@ -6882,7 +6880,7 @@ class OperatorConverter:
         out = relax.op.call_dps_packed(
             "topi.sparse_to_dense",
             (indices_expr, output_shape_expr, values_expr, default_value_expr),
-            out_sinfo=relax.TensorStructInfo(output_shape_val, output_dtype),
+            out_ty=relax.TensorType(output_shape_val, output_dtype),
         )
 
         return out
@@ -7134,13 +7132,11 @@ class OperatorConverter:
         # per-axis math.
         if self.has_expr(dilations_tensor.tensor_idx):
             dilations_expr = self.get_expr(dilations_tensor.tensor_idx)
-            dilations_expr = self.bb.match_cast(
-                dilations_expr, relax.TensorStructInfo([n_dims], "int32")
-            )
+            dilations_expr = self.bb.match_cast(dilations_expr, relax.TensorType([n_dims], "int32"))
             dilations_int64 = self.bb.normalize(relax.op.astype(dilations_expr, "int64"))
             shape_var = self.bb.emit(relax.op.tensor_to_shape(dilations_int64))
             stride_vars = [tirx.Var(f"dilate_stride_{i}", "int64") for i in range(n_dims)]
-            self.bb.match_cast(shape_var, relax.ShapeStructInfo(stride_vars))
+            self.bb.match_cast(shape_var, relax.ShapeType(stride_vars))
             strides = stride_vars
         else:
             strides = to_int_list(self.get_tensor_value(dilations_tensor))
@@ -7328,7 +7324,7 @@ class OperatorConverter:
             num_detections = self.bb.emit(relax.TupleGetItem(nms_out, 2))
             class_id_from_score = relax.op.squeeze(class_id_from_score, axis=[1])
 
-        selected_score_slots = selected_scores.struct_info.shape.values[1]
+        selected_score_slots = selected_scores.ty.shape.values[1]
         selected_detection_positions = relax.op.expand_dims(
             relax.op.arange(selected_score_slots, dtype="int64"), axis=0
         )
@@ -7693,7 +7689,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorType(output_shape, output_dtype),
         )
         return out
 
@@ -7734,7 +7730,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_sinfo=relax.TensorStructInfo(output_shape, output_dtype),
+            out_ty=relax.TensorType(output_shape, output_dtype),
         )
         return out
 
@@ -8776,7 +8772,7 @@ def from_tflite(
                         shape = tuple(shape) + (2,)
                 input_var = relax.Var(
                     name_hint=model_input_name,
-                    struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype),
+                    ty=relax.TensorType(shape=shape, dtype=dtype),
                 )
                 exp_tab.set_expr(model_input_name, input_var)
                 input_list.append(input_var)

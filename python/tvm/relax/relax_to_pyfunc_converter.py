@@ -426,8 +426,8 @@ class RelaxExpressionConverter:
                 return self.variable_map[var_name]
 
             # Try to infer shape from var's type annotation
-            if hasattr(var, "struct_info") and hasattr(var.struct_info, "shape"):
-                shape = var.struct_info.shape
+            if hasattr(var, "ty") and hasattr(var.ty, "shape"):
+                shape = var.ty.shape
                 if shape and len(shape) > 0:
                     # Convert symbolic shapes to concrete values
                     concrete_shape = []
@@ -599,7 +599,7 @@ class RelaxExpressionConverter:
         # Extract TIR function name and arguments
         tir_func = call.args[0]
         tir_args = call.args[1] if len(call.args) > 1 else []
-        out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
+        out_ty = call.attrs.get("out_ty") if call.attrs else None
 
         # Get function name
         if isinstance(tir_func, relax.GlobalVar):
@@ -660,8 +660,8 @@ class RelaxExpressionConverter:
 
             # For call_tir, we need to allocate output tensor
             output_shape = None
-            if out_sinfo and hasattr(out_sinfo, "shape"):
-                output_shape = out_sinfo.shape
+            if out_ty and hasattr(out_ty, "shape"):
+                output_shape = out_ty.shape
             elif converted_args:
                 # Use the shape of the first input tensor
                 first_arg = converted_args[0]
@@ -713,7 +713,7 @@ class RelaxExpressionConverter:
         # Extract packed function name and arguments
         packed_func = call.args[0]
         packed_args = call.args[1] if len(call.args) > 1 else []
-        _out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
+        _out_ty = call.attrs.get("out_ty") if call.attrs else None
 
         # Get function name
         if isinstance(packed_func, relax.GlobalVar):

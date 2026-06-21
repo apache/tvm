@@ -171,7 +171,7 @@ class AliasAnalyzer {
     for (auto input : inputs) {
       int curr_idx = get_fresh_idx();
       alias_map_[input] = {curr_idx};
-      if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(input)) {
+      if (auto* tup_info = GetTypeAs<TupleTypeNode>(input)) {
         InsertFreshTuple(curr_idx, tup_info);
       }
     }
@@ -193,12 +193,12 @@ class AliasAnalyzer {
   }
 
   // Fresh tuple = each element is assumed to be a unique allocation
-  void InsertFreshTuple(int tup_idx, const TupleStructInfoNode* tup_info) {
+  void InsertFreshTuple(int tup_idx, const TupleTypeNode* tup_info) {
     std::vector<std::unordered_set<int>> tuple_set;
     for (int i = 0; i < static_cast<int>(tup_info->fields.size()); i++) {
       int curr_field = get_fresh_idx();
       tuple_set.push_back({curr_field});
-      if (auto* nested_tup_info = tup_info->fields[i].as<TupleStructInfoNode>()) {
+      if (auto* nested_tup_info = tup_info->fields[i].as<TupleTypeNode>()) {
         InsertFreshTuple(curr_field, nested_tup_info);
       }
     }
@@ -251,7 +251,7 @@ class AliasAnalyzer {
     std::unordered_set<int> ret;
     int res_idx = get_fresh_idx();
     // the result may be a tuple
-    if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+    if (auto* tup_info_node = GetTypeAs<TupleTypeNode>(bound_var)) {
       InsertFreshTuple(res_idx, tup_info_node);
     }
     AddCapturedIndices(&ret, res_idx);
@@ -270,7 +270,7 @@ class AliasAnalyzer {
   }
 
   // given the expression value, return the set of memory locations corresponding to it
-  // (the var the expression is being bound to is needed for struct info)
+  // (the var the expression is being bound to is needed for type)
   std::unordered_set<int> GetAliasSet(const Expr& value, const Var& bound_var) {
     std::unordered_set<int> ret;
 
@@ -328,10 +328,10 @@ class AliasAnalyzer {
           return HandleMysteryCall(call_node, bound_var, true);
         } else if (op_node->name == "relax.call_tir") {
           // call_tir: can potentially return a tuple
-          if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
+          if (auto* tuple_ty = call_node->ty_args[0].as<TupleTypeNode>()) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
-            InsertFreshTuple(tup_idx, tuple_struct_info);
+            InsertFreshTuple(tup_idx, tuple_ty);
           } else {
             ret.insert(get_fresh_idx());
           }
@@ -344,7 +344,7 @@ class AliasAnalyzer {
 
           // If the returned value is a tuple, we'll assume it's a fresh tuple
           // (there may be exceptions to this too)
-          if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+          if (auto* tup_info = GetTypeAs<TupleTypeNode>(bound_var)) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
             InsertFreshTuple(tup_idx, tup_info);
@@ -375,13 +375,13 @@ PrimExpr NumElements(const ShapeExpr& shape) {
   return ret;
 }
 
-// Given the struct info of the result, return any struct info nested in it
+// Given the type of the result, return any type nested in it
 // that is eleigible to be used for in-place computations (tensors are eligible
 // only if all their dimensions are integer constants, tuples are eligible if
 // all members are eligible though we can consider only individual members separately)
-std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateSinfo(
-    const StructInfo& result_sinfo) {
-  if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
+std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateType(
+    const Type& result_ty) {
+  if (auto* tensor_info = result_ty.as<TensorTypeNode>()) {
     // don't consider void dtype (don't know the size at compile time)
     if (tensor_info->dtype.is_void()) {
       return {};
@@ -389,20 +389,20 @@ std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCa
     // don't consider cases where we don't know the shape at compile time
     // (we will use the analyzer to do best-effort analysis where there are vars)
     if (tensor_info->shape.as<ShapeExprNode>()) {
-      return {ffi::GetRef<TensorStructInfo>(tensor_info)};
+      return {ffi::GetRef<TensorType>(tensor_info)};
     } else {
       return {};
     }
-  } else if (auto* tuple_info = result_sinfo.as<TupleStructInfoNode>()) {
+  } else if (auto* tuple_info = result_ty.as<TupleTypeNode>()) {
     // we can see if the whole tuple matches or go for any of the components
-    std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
+    std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
     for (auto field : tuple_info->fields) {
-      auto field_candidates = GatherCandidateSinfo(field);
+      auto field_candidates = GatherCandidateType(field);
       ret.insert(field_candidates.begin(), field_candidates.end());
     }
     // at least one field should be eligible to be done in-place
     if (!ret.empty()) {
-      ret.insert(ffi::GetRef<StructInfo>(tuple_info));
+      ret.insert(ffi::GetRef<Type>(tuple_info));
     }
     return ret;
   } else {
@@ -411,16 +411,16 @@ std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCa
   }
 }
 
-// Given the two struct info, return a pair of bools where the first element is true if
-// the two struct info have the same number of elements and dtype and the second element is true
+// Given the two type, return a pair of bools where the first element is true if
+// the two type have the same number of elements and dtype and the second element is true
 // if the shapes match _exactly_. Performs this check recursively and ensures the
-// stated condition is true for all tensor members of the struct info (return false
+// stated condition is true for all tensor members of the type (return false
 // if a single pair of corresponding tensors does not meet the condition).
-std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInfo& arg_info,
+std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
                                   const BlockBuilder& ctx) {
-  if (target_info.as<TensorStructInfoNode>() && arg_info.as<TensorStructInfoNode>()) {
-    auto target_tensor = Downcast<TensorStructInfo>(target_info);
-    auto arg_tensor = Downcast<TensorStructInfo>(arg_info);
+  if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
+    auto target_tensor = Downcast<TensorType>(target_info);
+    auto arg_tensor = Downcast<TensorType>(arg_info);
     if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
         arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
@@ -446,9 +446,9 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
     } else {
       return {false, false};
     }
-  } else if (target_info.as<TupleStructInfoNode>() && arg_info.as<TupleStructInfoNode>()) {
-    auto target_tup = Downcast<TupleStructInfo>(target_info);
-    auto arg_tup = Downcast<TupleStructInfo>(arg_info);
+  } else if (target_info.as<TupleTypeNode>() && arg_info.as<TupleTypeNode>()) {
+    auto target_tup = Downcast<TupleType>(target_info);
+    auto arg_tup = Downcast<TupleType>(arg_info);
     if (target_tup->fields.size() != arg_tup->fields.size()) {
       return {false, false};
     }
@@ -456,10 +456,9 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
     for (size_t i = 0; i < target_tup->fields.size(); i++) {
       // if members aren't either tuples or tensors, simply skip them,
       // since they don't matter for in-place computations
-      if (!(target_tup->fields[i].as<TensorStructInfoNode>() ||
-            target_tup->fields[i].as<TupleStructInfoNode>()) &&
-          !(arg_tup->fields[i].as<TensorStructInfoNode>() ||
-            arg_tup->fields[i].as<TupleStructInfoNode>())) {
+      if (!(target_tup->fields[i].as<TensorTypeNode>() ||
+            target_tup->fields[i].as<TupleTypeNode>()) &&
+          !(arg_tup->fields[i].as<TensorTypeNode>() || arg_tup->fields[i].as<TupleTypeNode>())) {
         continue;
       }
       auto [field_size_match, field_exact_match] =
@@ -690,17 +689,17 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         std::unordered_set<int> candidates;
         std::unordered_set<int> exact_match_candidates;
 
-        auto target_sinfo = GatherCandidateSinfo(GetStructInfo(defined_var));
+        auto target_ty = GatherCandidateType(GetType(defined_var));
         // can't be done in-place, ignore
-        if (target_sinfo.empty()) {
+        if (target_ty.empty()) {
           continue;
         }
 
         // Check that at least one argument matches size with the result
         for (size_t j = 0; j < call_node->args.size(); j++) {
           auto arg = call_node->args[j];
-          for (auto target : target_sinfo) {
-            auto [matches_size, matches_exactly] = SizeMatches(target, GetStructInfo(arg), ctx);
+          for (auto target : target_ty) {
+            auto [matches_size, matches_exactly] = SizeMatches(target, GetType(arg), ctx);
             if (matches_size) {
               candidates.insert(static_cast<int>(j));
               if (matches_exactly) {
@@ -921,8 +920,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(
-        MatchCast(binding->var, new_value, binding->struct_info, binding->span));
+    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->span));
   }
 
   // Given the call and indices of arguments that could be done in-place,

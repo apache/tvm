@@ -53,10 +53,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.bucketize", bucketize);
 }
 
-StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo input_tensor_info = input_sinfo[0];
-  TensorStructInfo boundaries_info = input_sinfo[1];
+Type InferTypeBucketize(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType input_tensor_info = input_ty[0];
+  TensorType boundaries_info = input_ty[1];
 
   if (!boundaries_info->IsUnknownNdim() && boundaries_info->ndim != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -72,9 +72,9 @@ StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
 
   const auto* data_shape = input_tensor_info->shape.as<ShapeExprNode>();
   if (data_shape) {
-    return TensorStructInfo(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
+    return TensorType(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
   }
-  return TensorStructInfo(out_dtype, input_tensor_info->ndim, input_tensor_info->vdevice);
+  return TensorType(out_dtype, input_tensor_info->ndim, input_tensor_info->vdevice);
 }
 
 TVM_REGISTER_OP("relax.bucketize")
@@ -84,7 +84,7 @@ TVM_REGISTER_OP("relax.bucketize")
     .add_argument("boundaries", "Tensor",
                   "1-D tensor, must contain a strictly increasing sequence, or the return value is "
                   "undefined.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBucketize)
+    .set_attr<FInferType>("FInferType", InferTypeBucketize)
     .set_attr<bool>("FPurity", true);
 
 /* relax.where */
@@ -98,20 +98,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.where", where);
 }
 
-StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo cond_sinfo = input_sinfo[0];
-  TensorStructInfo x1_sinfo = input_sinfo[1];
-  TensorStructInfo x2_sinfo = input_sinfo[2];
+Type InferTypeWhere(const Call& call, const BlockBuilder& ctx) {
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  TensorType cond_ty = input_ty[0];
+  TensorType x1_ty = input_ty[1];
+  TensorType x2_ty = input_ty[2];
 
   VDevice vdev = VDevice();
   for (int i = 0; i < 3; ++i) {
-    if (input_sinfo[i]->vdevice.defined()) {
+    if (input_ty[i]->vdevice.defined()) {
       if (!vdev.defined()) {
-        vdev = input_sinfo[i]->vdevice.value();
-      } else if (input_sinfo[i]->vdevice.value()->target.defined()) {
+        vdev = input_ty[i]->vdevice.value();
+      } else if (input_ty[i]->vdevice.value()->target.defined()) {
         // mismatch
-        if (input_sinfo[i]->vdevice.value() != vdev) {
+        if (input_ty[i]->vdevice.value() != vdev) {
           vdev = VDevice();
           break;
         }
@@ -119,62 +119,62 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (!cond_sinfo->dtype.is_bool()) {
+  if (!cond_ty->dtype.is_bool()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Where requires the input condition tensor to have boolean dtype. However, "
            "the given condition dtype is "
-        << cond_sinfo->dtype;
+        << cond_ty->dtype;
   }
-  DataType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_sinfo, x2_sinfo);
+  DataType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
 
   int output_ndim;
-  if (cond_sinfo->IsUnknownNdim() || x1_sinfo->IsUnknownNdim() || x2_sinfo->IsUnknownNdim()) {
+  if (cond_ty->IsUnknownNdim() || x1_ty->IsUnknownNdim() || x2_ty->IsUnknownNdim()) {
     output_ndim = kUnknownNDim;
   } else {
-    output_ndim = std::max(cond_sinfo->ndim, std::max(x1_sinfo->ndim, x2_sinfo->ndim));
+    output_ndim = std::max(cond_ty->ndim, std::max(x1_ty->ndim, x2_ty->ndim));
   }
 
-  const auto* cond_shape = cond_sinfo->shape.as<ShapeExprNode>();
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
+  const auto* cond_shape = cond_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   if (cond_shape && x1_shape && x2_shape) {
     // Step 1. Compute the broadcasted shape of x1's and x2's
     ffi::Optional<ffi::Array<PrimExpr>> broadcasted_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!broadcasted_shape.defined()) {
       if (vdev.defined()) {
-        return TensorStructInfo(output_dtype, output_ndim, vdev);
+        return TensorType(output_dtype, output_ndim, vdev);
       }
-      return TensorStructInfo(output_dtype, output_ndim);
+      return TensorType(output_dtype, output_ndim);
     }
     // Step 2. Compute the broadcasted shape of cond's and the previous broadcasted shape.
     broadcasted_shape =
         InferBinaryBroadcastShape(call, ctx, cond_shape->values, broadcasted_shape.value());
     if (!broadcasted_shape.defined()) {
       if (vdev.defined()) {
-        return TensorStructInfo(output_dtype, output_ndim, vdev);
+        return TensorType(output_dtype, output_ndim, vdev);
       }
-      return TensorStructInfo(output_dtype, output_ndim);
+      return TensorType(output_dtype, output_ndim);
     }
     TVM_FFI_ICHECK_EQ(static_cast<int>(broadcasted_shape.value().size()), output_ndim);
     if (vdev.defined()) {
-      return TensorStructInfo(ShapeExpr(broadcasted_shape.value()), output_dtype, vdev);
+      return TensorType(ShapeExpr(broadcasted_shape.value()), output_dtype, vdev);
     }
-    return TensorStructInfo(ShapeExpr(broadcasted_shape.value()), output_dtype);
-  } else if (cond_sinfo->shape.defined() &&                 //
-             x1_sinfo->shape.defined() &&                   //
-             x2_sinfo->shape.defined() &&                   //
-             cond_sinfo->shape.same_as(x1_sinfo->shape) &&  //
-             cond_sinfo->shape.same_as(x2_sinfo->shape)) {
+    return TensorType(ShapeExpr(broadcasted_shape.value()), output_dtype);
+  } else if (cond_ty->shape.defined() &&              //
+             x1_ty->shape.defined() &&                //
+             x2_ty->shape.defined() &&                //
+             cond_ty->shape.same_as(x1_ty->shape) &&  //
+             cond_ty->shape.same_as(x2_ty->shape)) {
     if (vdev.defined()) {
-      return TensorStructInfo(cond_sinfo->shape.value(), output_dtype, vdev);
+      return TensorType(cond_ty->shape.value(), output_dtype, vdev);
     }
-    return TensorStructInfo(cond_sinfo->shape.value(), output_dtype);
+    return TensorType(cond_ty->shape.value(), output_dtype);
   } else {
     if (vdev.defined()) {
-      return TensorStructInfo(output_dtype, output_ndim, vdev);
+      return TensorType(output_dtype, output_ndim, vdev);
     }
-    return TensorStructInfo(output_dtype, output_ndim);
+    return TensorType(output_dtype, output_ndim);
   }
 }
 
@@ -183,29 +183,29 @@ TVM_REGISTER_OP("relax.where")
     .add_argument("condition", "Tensor", "When True, yield `x1`; otherwise, yield `x2`.")
     .add_argument("x1", "Tensor", "The first input tensor.")
     .add_argument("x2", "Tensor", "The second input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere)
+    .set_attr<FInferType>("FInferType", InferTypeWhere)
     .set_attr<bool>("FPurity", true);
 
 /* relax.argmax & relax.argmin */
 
-StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
+  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
 
   int axis = -1;
-  if (!data_sinfo->IsUnknownNdim() && attrs->axis.has_value()) {
-    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
+    axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
-    out_ndim = data_sinfo->ndim;
+    out_ndim = data_ty->ndim;
   } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
-  } else if (data_sinfo->IsUnknownNdim()) {
+  } else if (data_ty->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
   } else {
-    out_ndim = data_sinfo->ndim - 1;
+    out_ndim = data_ty->ndim - 1;
     TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
@@ -217,26 +217,25 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   // - axes is not None, keepdims is false -> the returned shape does not contain the input axes.
   // - axes is not None, keepdims is true -> the returned shape has value 1 at the positions of the
   // input axes
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      return TensorStructInfo(
-          ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))), out_dtype,
-          data_sinfo->vdevice);
+      return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
+                        out_dtype, data_ty->vdevice);
     } else {
-      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>()), out_dtype,
-                                              data_sinfo->vdevice)
-                           : TensorStructInfo(out_dtype, out_ndim, data_sinfo->vdevice);
+      return out_ndim == 0
+                 ? TensorType(ShapeExpr(ffi::Array<PrimExpr>()), out_dtype, data_ty->vdevice)
+                 : TensorType(out_dtype, out_ndim, data_ty->vdevice);
     }
   }
 
-  if (data_sinfo->ndim > 0) {
+  if (data_ty->ndim > 0) {
     out_dtype = data_shape->values[0]->dtype;
   }
 
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
-  for (int i = 0; i < data_sinfo->ndim; ++i) {
+  for (int i = 0; i < data_ty->ndim; ++i) {
     if (attrs->axis.has_value() && i != axis) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
@@ -244,7 +243,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     }
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice);
+  return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
 }
 
 #define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                      \
@@ -261,7 +260,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   TVM_REGISTER_OP("relax." #OpName)                                                  \
       .set_num_inputs(1)                                                             \
       .add_argument("x", "Tensor", "The input data tensor")                          \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin)   \
+      .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)                     \
       .set_attr<bool>("FPurity", true);
 
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmax);

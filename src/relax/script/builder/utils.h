@@ -21,7 +21,7 @@
 
 #include <tvm/relax/script/builder/frame.h>
 #include <tvm/relax/script/builder/ir.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 
 #include <string>
@@ -108,7 +108,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
                                                       last_block->bindings.end() - 1);
 
   tvm::relax::Var new_var = tvm::relax::Var(last_binding->var->name_hint() + output_var_suffix,
-                                            GetStructInfo(last_binding->var));
+                                            GetType(last_binding->var));
   tvm::relax::Expr body;
 
   const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();
@@ -120,7 +120,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
     body = new_var;
   } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
     last_block_bindings.push_back(
-        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->struct_info));
+        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->ty));
     body = new_var;
   } else {
     TVM_FFI_CHECK(false, TypeError) << "Unsupported binding type: " << last_binding->GetTypeKey();

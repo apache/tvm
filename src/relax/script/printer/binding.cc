@@ -45,15 +45,15 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::MatchCast>(
         "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
-          using relax::StructInfo;
-          using relax::MatchStructInfo;
+          using tvm::Type;
+          using relax::MatchType;
           ffi::Optional<ExprDoc> ann = std::nullopt;
-          if (d->cfg->GetExtraConfig<bool>("relax.show_all_struct_info", true)) {
-            ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+          if (d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true)) {
+            ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
           }
           ExprDoc rhs = Relax(d, "match_cast")
                             ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
-                                    d->AsDoc<ExprDoc>(n->struct_info, n_p->Attr("struct_info_"))});
+                                    d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"))});
           ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
           return AssignDoc(lhs, rhs, ann);
         });
@@ -62,7 +62,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::VarBinding>(  //
         "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (const auto if_ = n->value.as<relax::IfNode>()) {
-            ffi::Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
             ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
             return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
           } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
@@ -72,13 +72,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
             d->cfg->binding_names.pop_back();
             return ret;
-          } else if (d->cfg->syntax_sugar && relax::HasVoidStructInfo(n->value) &&
-                     relax::HasVoidStructInfo(n->var)) {
+          } else if (d->cfg->syntax_sugar && relax::HasVoidType(n->value) &&
+                     relax::HasVoidType(n->var)) {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
             return ExprStmtDoc(rhs);
           } else {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-            ffi::Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
             ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
             return AssignDoc(lhs, rhs, ann);
           }

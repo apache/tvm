@@ -23,42 +23,42 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx) {
-  return InferDistStructInfoUnary<false>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return DataType::Bool(); });
+Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
+  return InferDistTypeUnary<false>(call, ctx,
+                                   [](const TensorType& input_ty) { return DataType::Bool(); });
 }
 
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(abs, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(acos, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(acosh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(asin, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(asinh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(atan, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(atanh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(bitwise_not, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(ceil, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(cos, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(cosh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(exp, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(floor, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(log, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(logical_not, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(negative, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(round, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(rsqrt, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(sigmoid, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(sign, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(sin, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(sinh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(square, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(sqrt, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(tan, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(tanh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_STRUCT_INFO(erf, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(abs, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(acos, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(acosh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(asin, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(asinh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(atan, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(atanh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(bitwise_not, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(ceil, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(cos, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(cosh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(exp, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(floor, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(log, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(logical_not, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(negative, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(round, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(rsqrt, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sigmoid, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sign, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sin, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sinh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(square, /*require_float_dtype=*/false);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sqrt, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(tan, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(tanh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(erf, /*require_float_dtype=*/true);
 
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_STRUCT_INFO(isfinite);
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_STRUCT_INFO(isinf);
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_STRUCT_INFO(isnan);
+RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isfinite);
+RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isinf);
+RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isnan);
 
 }  // namespace distributed
 }  // namespace relax
