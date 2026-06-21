@@ -342,7 +342,7 @@ namespace transform {
 Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
   auto pass_func = [=](Function func, IRModule, PassContext) {
     TopologicalSorter mutator(order, starting_location);
-    return Downcast<Function>(mutator(func));
+    return mutator(func).as_or_throw<Function>();
   };
   return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
 }

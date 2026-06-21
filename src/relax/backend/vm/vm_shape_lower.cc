@@ -269,7 +269,7 @@ class VMShapeLowerMutator
     }
 
     // new body.
-    auto body_seq = Downcast<SeqExpr>(this->VisitWithNewScope(func->body, func->params));
+    auto body_seq = this->VisitWithNewScope(func->body, func->params).as_or_throw<SeqExpr>();
     blocks.insert(blocks.end(), body_seq->blocks.begin(), body_seq->blocks.end());
 
     {
@@ -385,7 +385,7 @@ class VMShapeLowerMutator
     args.push_back(value_or_index);
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(builtin_make_prim_value_, args, Attrs(), {Downcast<Type>(op->ty)});
+    Call call(builtin_make_prim_value_, args, Attrs(), {op->ty.as_or_throw<Type>()});
     return call;
   }
 

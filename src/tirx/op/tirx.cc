@@ -54,7 +54,7 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
     m.Set(key, defaultValue);
     return defaultValue;
   }
-  return Downcast<Value>((*it).second);
+  return (*it).second.template as_or_throw<Value>();
 }
 
 /********************* DispatchContext **********************/

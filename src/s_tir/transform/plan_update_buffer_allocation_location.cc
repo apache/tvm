@@ -144,7 +144,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const Buffer& buf : it->second) {
       buffer_data_to_buffer_.Set(buf->data, buf);
     }
-    auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
+    auto node = StmtMutator::VisitStmt_(op).as_or_throw<For>();
 
     ffi::Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {

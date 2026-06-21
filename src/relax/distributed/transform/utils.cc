@@ -49,7 +49,7 @@ bool IsDistIRFunc(Function func) {
   ffi::Array<Type> param_tys;
   for (const auto& param : func->params) {
     TVM_FFI_ICHECK(param->ty.defined());
-    param_tys.push_back(Downcast<Type>(param->ty));
+    param_tys.push_back(param->ty.as_or_throw<Type>());
   }
   bool compatible_with_dist_ir = TypeCompatibleWithDistIR(param_tys);
   bool compatible_with_relax = TypeCompatibleWithRelax(param_tys);

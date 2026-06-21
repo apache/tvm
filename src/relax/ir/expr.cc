@@ -720,20 +720,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.FuncWithAttr",
            [](BaseFunc func, ffi::String key, ffi::ObjectRef value) -> ffi::Optional<Function> {
              if (func->IsInstance<relax::FunctionNode>()) {
-               return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
+               return WithAttr(std::move(func).as_or_throw<relax::Function>(), key, value);
              }
              return std::nullopt;
            })
       .def("relax.FuncWithAttrs",
            [](BaseFunc func, ffi::Map<ffi::String, ffi::Any> attr_map) -> ffi::Optional<Function> {
              if (func->IsInstance<relax::FunctionNode>()) {
-               return WithAttrs(Downcast<relax::Function>(std::move(func)), attr_map);
+               return WithAttrs(std::move(func).as_or_throw<relax::Function>(), attr_map);
              }
              return std::nullopt;
            })
       .def("relax.FuncWithoutAttr", [](BaseFunc func, ffi::String key) -> ffi::Optional<Function> {
         if (func->IsInstance<relax::FunctionNode>()) {
-          return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
+          return WithoutAttr(std::move(func).as_or_throw<relax::Function>(), key);
         }
         return std::nullopt;
       });

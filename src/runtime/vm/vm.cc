@@ -22,6 +22,7 @@
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>

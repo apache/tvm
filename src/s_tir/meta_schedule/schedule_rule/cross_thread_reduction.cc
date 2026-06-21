@@ -161,7 +161,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
                 inst->outputs.begin();
         TVM_FFI_CHECK(inst->inputs[1 + i] != nullptr, ValueError)
             << "Extracting an extent which needs inference is not supported so far";
-        *extent = Downcast<s_tir::ExprRV>(inst->inputs[1 + i]);
+        *extent = inst->inputs[1 + i].as_or_throw<s_tir::ExprRV>();
         return true;
       }
     }
@@ -176,8 +176,9 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   s_tir::ExprRV GetThreadIdxExtentFromTrace(const s_tir::Trace& trace) {
     s_tir::ExprRV extent{ffi::UnsafeInit()};
     for (const s_tir::Instruction& inst : trace->insts) {
-      if (inst->kind->name == "Bind" && Downcast<ffi::String>(inst->attrs[0]) == "threadIdx.x") {
-        if (GetLoopRVExtentSource(trace, Downcast<s_tir::LoopRV>(inst->inputs[0]), &extent)) {
+      if (inst->kind->name == "Bind" &&
+          inst->attrs[0].as_or_throw<ffi::String>() == "threadIdx.x") {
+        if (GetLoopRVExtentSource(trace, inst->inputs[0].as_or_throw<s_tir::LoopRV>(), &extent)) {
           return extent;
         }
       }

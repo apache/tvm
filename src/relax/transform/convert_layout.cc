@@ -131,7 +131,7 @@ class LayoutConvertMutator : public ExprMutator {
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
         ffi::Array<IntImm> axis_separator;
         ffi::Array<IntImm> input_axis_separator;
-        attrs->index_map = Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
+        attrs->index_map = ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>();
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -206,7 +206,7 @@ class LayoutConvertMutator : public ExprMutator {
       const LayoutCb& layout_cb, const VarLayoutMap& var_layout_map) {
     const OpNode* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr) return std::nullopt;
-    Op op = Downcast<Op>(ffi::GetRef<Op>(op_node));
+    Op op = ffi::GetRef<Op>(op_node).as_or_throw<Op>();
     const auto attr_map = Op::GetAttrMap<FRelaxInferLayout>("FRelaxInferLayout");
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
       // If the op has FRelaxInferLayout, and all the input tensors have known ndim
@@ -349,7 +349,7 @@ DataflowBlock ConvertLayoutPass(const DataflowBlock& df_block,
                                 ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layouts,
                                 LayoutCb layout_cb) {
   LayoutConvertMutator mutator(desired_layouts, layout_cb);
-  return Downcast<DataflowBlock>(mutator.VisitBindingBlock(df_block));
+  return mutator.VisitBindingBlock(df_block).as_or_throw<DataflowBlock>();
 }
 
 namespace transform {
@@ -358,7 +358,7 @@ Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layout
                    LayoutCb layout_cb) {
   ffi::TypedFunction<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts, layout_cb));
+        return ConvertLayoutPass(df_block, desired_layouts, layout_cb);
       };
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }

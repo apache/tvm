@@ -89,7 +89,7 @@ class LazyInputMutator : public ExprMutator {
     node = WithAttr(node, attr::kNumInput, num_input_params + 1);
 
     plan_ = FunctionPlan{std::move(param_lookup), fget_param};
-    auto output = Downcast<Function>(ExprMutator::VisitExpr_(node.get()));
+    auto output = ExprMutator::VisitExpr_(node.get()).as_or_throw<Function>();
     plan_.reset();
     return output;
   }
@@ -136,7 +136,7 @@ class LazyOutputMutator : public ExprMutator {
       }
     };
 
-    auto func_body = Downcast<SeqExpr>(func->body);
+    auto func_body = func->body.as_or_throw<SeqExpr>();
     if (auto tuple_output = func_body->body.as<TupleNode>()) {
       for (size_t i = 0; i < tuple_output->fields.size(); i++) {
         define_lookup(i, tuple_output->fields[i]);
@@ -191,7 +191,7 @@ class LazyOutputMutator : public ExprMutator {
       node = WithAttr(node, attr::kNumInput, num_input_params.value() + 1);
     }
 
-    auto output = Downcast<Function>(ExprMutator::VisitExpr_(node.get()));
+    auto output = ExprMutator::VisitExpr_(node.get()).as_or_throw<Function>();
     plan_.reset();
     return output;
   }
@@ -226,16 +226,16 @@ class LazyOutputMutator : public ExprMutator {
 Function WithLazyInputs(Function func) {
   LazyInputMutator mutator;
 
-  func = Downcast<Function>(mutator.VisitExpr(func));
-  func = Downcast<Function>(EliminateCommonSubexpr(func));
-  func = Downcast<Function>(RemoveAllUnused(func));
+  func = mutator.VisitExpr(func).as_or_throw<Function>();
+  func = EliminateCommonSubexpr(func).as_or_throw<Function>();
+  func = RemoveAllUnused(func).as_or_throw<Function>();
   return func;
 }
 
 Function WithLazyOutputs(Function func) {
   LazyOutputMutator mutator;
 
-  func = Downcast<Function>(mutator.VisitExpr(func));
+  func = mutator.VisitExpr(func).as_or_throw<Function>();
   return func;
 }
 

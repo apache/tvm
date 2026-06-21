@@ -205,7 +205,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     const Buffer& buffer = SubstituteBuffer(load->buffer);
     if (buffer.same_as(load->buffer)) {
       return load;
@@ -218,7 +218,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
     const Buffer& buffer = SubstituteBuffer(store->buffer);
     if (buffer.same_as(store->buffer)) {
       return store;
@@ -231,7 +231,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* _op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(_op));
+    SBlock block = StmtMutator::VisitStmt_(_op).as_or_throw<SBlock>();
 
     // Define the mutation functions.
 
@@ -346,7 +346,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 class SBlockNameDeduplicator : public tirx::StmtMutator {
  private:
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(tirx::StmtMutator::VisitStmt_(op));
+    SBlock block = tirx::StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
     ffi::String name = GetUniqueName(block->name_hint);
 
@@ -459,20 +459,20 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   }
 
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
-    GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-    tirx::PrimFunc prim_func_ = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+    GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
+    tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     const auto& buffer_map = prim_func_->buffer_map;
     const auto& tir_args = prim_func_->params;
 
-    const auto& relax_args = Downcast<Tuple>(call->args[1])->fields;
+    const auto& relax_args = call->args[1].as_or_throw<Tuple>()->fields;
 
     ffi::Array<Expr> relax_results;
     if (lhs_var->IsInstance<TupleNode>()) {
-      relax_results = Downcast<Tuple>(lhs_var)->fields;
+      relax_results = lhs_var.as_or_throw<Tuple>()->fields;
     } else {
       TVM_FFI_ICHECK(lhs_var->IsInstance<VarNode>())
           << "The lhs_var is expected to be either tuple or var";
-      relax_results = {Downcast<Var>(lhs_var)};
+      relax_results = {lhs_var.as_or_throw<Var>()};
     }
 
     size_t num_inputs = relax_args.size();
@@ -540,7 +540,7 @@ class FusedTIRConstructor : public ExprVisitor {
         << "Expected relax functions, but got: " << f->GetTypeKey();
     TVM_FFI_ICHECK(f->HasNonzeroAttr(relax::attr::kPrimitive))
         << "Expected a function with attr `kPrimitive`";
-    visitor(Downcast<relax::Function>(f));
+    visitor(f.as_or_throw<relax::Function>());
     ffi::Array<int64_t> inplace_indices;
     for (size_t idx : visitor.inplace_indices_) {
       inplace_indices.push_back(static_cast<int64_t>(idx));
@@ -681,8 +681,8 @@ class FusedTIRConstructor : public ExprVisitor {
         << ffi::GetRef<Expr>(call);
 
     // Step 1. Get Global var and PrimFunc
-    GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-    tirx::PrimFunc prim_func_ = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+    GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
+    tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
     tirx::PrimFunc prim_func = s_tir::RenewDefs(prim_func_);
@@ -691,7 +691,7 @@ class FusedTIRConstructor : public ExprVisitor {
     // TODO(Siyuan): support un-schedulable functions.
     TVM_FFI_ICHECK(prim_func->body->IsInstance<tirx::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
-    const tirx::SBlockRealize& root_realize = Downcast<tirx::SBlockRealize>(prim_func->body);
+    const tirx::SBlockRealize& root_realize = prim_func->body.as_or_throw<tirx::SBlockRealize>();
     const tirx::SBlock& root_block = root_realize->block;
 
     // Step 4. Add all the original alloc_buffers and body to the fused function.
@@ -733,7 +733,7 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleType& tuple_ty = Downcast<TupleType>(tuple_get_item->tuple->ty);
+      const TupleType& tuple_ty = tuple_get_item->tuple->ty.as_or_throw<TupleType>();
       for (int i = 0; i < tuple_get_item->index; ++i) {
         begin_buf_idx += GetTotalTensorSize(tuple_ty->fields[i]);
       }
@@ -886,7 +886,7 @@ class FusedTIRConstructor : public ExprVisitor {
     bool is_inplace = (call->op == Op::Get("relax.call_tir_inplace"));
 
     size_t n = func->params.size();
-    int num_inputs = Downcast<Tuple>(call->args[1])->fields.size();
+    int num_inputs = call->args[1].as_or_throw<Tuple>()->fields.size();
     size_t output_size = output_shapes.size();
     TVM_FFI_ICHECK_GE(n, output_size);
     ffi::Array<tirx::Buffer> output_buffers;
@@ -986,7 +986,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
         TVM_FFI_ICHECK(var->IsInstance<tirx::VarNode>());
-        out->push_back(Downcast<tirx::Var>(var));
+        out->push_back(var.as_or_throw<tirx::Var>());
       }
     } else {
       TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
@@ -1017,7 +1017,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, IntImm::Bool(true), Downcast<tirx::SBlock>(body));
+    body = tirx::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<tirx::SBlock>());
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                         DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
@@ -1165,7 +1165,7 @@ class TIRFuseMutator : public ExprMutator {
       if (func->IsInstance<relax::FunctionNode>()) {
         TVM_FFI_ICHECK(!func->HasNonzeroAttr(attr::kPrimitive))
             << "Module should not contain any primitive relax functions at this point";
-        relax::Function update_func = Downcast<Function>(mutator.VisitExpr(func));
+        relax::Function update_func = mutator.VisitExpr(func).as_or_throw<Function>();
         if (!update_func.same_as(func)) {
           updates->Add(gv, update_func);
         }
@@ -1207,7 +1207,7 @@ class TIRFuseMutator : public ExprMutator {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
-    Call call = Downcast<Call>(builder_->Normalize(ExprMutator::VisitExpr_(op)));
+    Call call = builder_->Normalize(ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     auto opt_gvar = call->op.as<GlobalVar>();
     if (!opt_gvar) {

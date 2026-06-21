@@ -71,7 +71,7 @@ class RenewDefMutator : public StmtExprMutator {
     for (const auto& param : func->params) {
       if (param->dtype.is_handle()) {
         const Buffer& buffer = func->buffer_map.at(param);
-        Var new_param = Downcast<Var>(generator.VisitExpr(param));
+        Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
         Buffer new_buffer = generator.DefineBuffer(buffer);
         buffer_map.Set(new_param, new_buffer);
       }
@@ -93,7 +93,7 @@ class RenewDefMutator : public StmtExprMutator {
   PrimExpr VisitExpr(const PrimExpr& expr) final {
     auto it = remap_.find(expr);
     if (it != remap_.end()) {
-      return Downcast<PrimExpr>((*it).second);
+      return (*it).second.as_or_throw<PrimExpr>();
     } else {
       return ExprMutator::VisitExpr(expr);
     }
@@ -168,13 +168,13 @@ class RenewDefMutator : public StmtExprMutator {
   Buffer DefineBuffer(const Buffer& buffer) {
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return Downcast<Buffer>((*it).second);
+      return (*it).second.as_or_throw<Buffer>();
     }
 
     auto redefine_if_is_var = [this](const PrimExpr& expr) -> PrimExpr {
       auto it = remap_.find(expr);
       if (it != remap_.end()) {
-        return Downcast<PrimExpr>((*it).second);
+        return (*it).second.as_or_throw<PrimExpr>();
       } else if (auto var = expr.as<Var>()) {
         return this->ReDefineVar(var.value());
       } else {
@@ -183,7 +183,7 @@ class RenewDefMutator : public StmtExprMutator {
     };
 
     // data is DEFINED by this buffer — needs a fresh copy
-    Var data = Downcast<Var>(redefine_if_is_var(buffer->data));
+    Var data = redefine_if_is_var(buffer->data).as_or_throw<Var>();
     // shape is USED (references existing definitions like buffer_map shape vars),
     // remap via VisitExpr to avoid creating spurious new var definitions
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitExpr(e); };
@@ -208,9 +208,9 @@ class RenewDefMutator : public StmtExprMutator {
     // remap it without creating new var definitions.
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
-      return Downcast<Buffer>((*it).second);
+      return (*it).second.as_or_throw<Buffer>();
     }
-    Var data = Downcast<Var>(VisitExpr(buffer->data));
+    Var data = VisitExpr(buffer->data).as_or_throw<Var>();
     ffi::Array<PrimExpr> shape =
         buffer->shape.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
     ffi::Array<PrimExpr> strides =
@@ -230,7 +230,7 @@ class RenewDefMutator : public StmtExprMutator {
   IterVar VisitIterVar(const IterVar& iter_var) {
     auto it = remap_.find(iter_var);
     if (it != remap_.end()) {
-      return Downcast<IterVar>((*it).second);
+      return (*it).second.as_or_throw<IterVar>();
     }
     PrimExpr min = VisitExpr(iter_var->dom->min);
     PrimExpr extent = VisitExpr(iter_var->dom->extent);

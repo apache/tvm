@@ -431,7 +431,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
     TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";
-    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
     DataType channel_type = runtime::GetChannelType(channel_size);
@@ -466,7 +466,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::texture2d_load())) {
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    const int channel_size = Downcast<IntImm>(op->args[4])->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
     const int data_lanes = channel_size / op->dtype.bits();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
@@ -519,7 +519,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-    auto func = Downcast<StringImm>(op->args[0]);
+    auto func = op->args[0].as_or_throw<StringImm>();
     // Enable atomics extension if used.
     if (func->value == "atomic_add" && op->dtype.is_float()) {
       enable_atomics_ = true;
@@ -688,7 +688,7 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
         << "CodeGenOpenCL: Can only take PrimFunc";
-    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto prim_func = base_func.as_or_throw<PrimFunc>();
     auto calling_conv = prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenOpenCL: expected kCallingConv attribute to be set.";

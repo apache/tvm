@@ -33,7 +33,6 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>
@@ -107,7 +106,7 @@ class PrinterConfigNode : public ffi::Object {
   T GetExtraConfig(const ffi::String& key, T fallback) const {
     auto it = extra_config.find(key);
     if (it == extra_config.end()) return fallback;
-    return Downcast<T>((*it).second);
+    return (*it).second.as_or_throw<T>();
   }
 
   static void RegisterReflection() {

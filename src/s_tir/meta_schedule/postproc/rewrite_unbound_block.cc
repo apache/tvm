@@ -35,7 +35,7 @@ class UnboundBlockFinder : private StmtVisitor {
       BaseFunc base_func = kv.second;
       if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
         finder.global_var_name_ = g_var->name_hint;
-        finder(Downcast<SBlockRealize>(prim_func->body)->block->body);
+        finder(prim_func->body.as_or_throw<SBlockRealize>()->block->body);
       }
     }
     return std::move(finder.blocks_);

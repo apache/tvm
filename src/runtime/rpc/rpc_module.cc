@@ -22,6 +22,7 @@
  * \brief RPC runtime module.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>

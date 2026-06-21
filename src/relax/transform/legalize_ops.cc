@@ -82,8 +82,8 @@ class LegalizeMutator : public ExprMutator {
     for (const auto& gv : mod_->GetGlobalVars()) {
       const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<FunctionNode>()) {
-        auto updated_func = Downcast<Function>(this->VisitExpr(func));
-        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
+        auto updated_func = this->VisitExpr(func).as_or_throw<Function>();
+        builder_->UpdateFunction(gv, updated_func.as_or_throw<BaseFunc>());
       }
     }
 
@@ -174,7 +174,7 @@ class LegalizeMutator : public ExprMutator {
       return expr;
     }
 
-    auto call = Downcast<Call>(expr);
+    auto call = expr.as_or_throw<Call>();
 
     auto vdevice_target = GetTarget(call->ty_args);
     if (!vdevice_target.defined()) {
@@ -233,7 +233,7 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
+    Call visited_call = this->VisitExprPostOrder_(call).as_or_throw<Call>();
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
@@ -372,7 +372,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     if (WrapPureCondition(op, legalized)) {
-      legalized = WrapPureCall(Downcast<Call>(legalized));
+      legalized = WrapPureCall(legalized.as_or_throw<Call>());
     }
 
     // Legalization may have introduced additional operations that

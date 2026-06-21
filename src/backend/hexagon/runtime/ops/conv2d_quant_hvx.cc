@@ -20,6 +20,7 @@
 #include <hexagon_types.h>
 #include <hvx_hexagon_protos.h>
 #include <inttypes.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 

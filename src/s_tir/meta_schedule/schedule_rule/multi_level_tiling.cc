@@ -338,7 +338,7 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   // therefore it matches the notation array size in the following code
   tirx::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
   const tirx::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
-  ffi::Array<tirx::Stmt> seq = Downcast<tirx::SeqStmt>(r_for_loop->body)->seq;
+  ffi::Array<tirx::Stmt> seq = r_for_loop->body.as_or_throw<tirx::SeqStmt>()->seq;
   if (seq.size() != 3) {
     return {state};
   }

@@ -139,7 +139,7 @@ inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifie
   ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
-    auto vdev = Downcast<VDevice>(vdevices[i]);
+    auto vdev = vdevices[i].as_or_throw<VDevice>();
     if (vdev.same_as(vdevice)) {
       return kind_index;
     }

@@ -163,7 +163,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw StorageAlignInvalidAnnotationError(mod, block);
       }
-      return Downcast<StorageAlignAnnotation>((*it).second);
+      return (*it).second.as_or_throw<StorageAlignAnnotation>();
     }
 
     // Create new annotation value
@@ -202,7 +202,7 @@ class StorageScopeMutator : private ReplaceBufferMutator {
     Buffer new_buffer = WithScope(old_buffer, storage_scope);
     StorageScopeMutator mutator(old_buffer, new_buffer, storage_scope, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<SBlock>(new_block);
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:
@@ -303,7 +303,7 @@ class DTypeMutator : private ReplaceBufferMutator {
     Buffer new_buffer = WithDType(old_buffer, dtype);
     DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<SBlock>(new_block);
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:
@@ -326,7 +326,7 @@ class DTypeMutator : private ReplaceBufferMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     auto it = buffer_var_map_.find(node->buffer->data.get());
     if (it != buffer_var_map_.end()) {
       node.CopyOnWrite()->buffer = it->second;
@@ -336,7 +336,7 @@ class DTypeMutator : private ReplaceBufferMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_var_map_.find(node->buffer->data.get());
     if (it != buffer_var_map_.end()) {
       return Cast(src_dtype_, BufferLoad(it->second, node->indices));

@@ -614,7 +614,7 @@ namespace transform {
 Pass ToMixedPrecision(const DataType& out_dtype,
                       ffi::Optional<ffi::Array<ffi::String>> fp16_input_names) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
+    return ToMixedPrecision(f, out_dtype, fp16_input_names).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }

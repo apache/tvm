@@ -132,7 +132,7 @@ Type InferTypeTensorDtypeCode(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
+  auto field_dtype = call->ty.as_or_throw<PrimType>()->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -170,7 +170,7 @@ Type InferTypeTensorDtypeBits(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
+  auto field_dtype = call->ty.as_or_throw<PrimType>()->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -208,7 +208,7 @@ Type InferTypeTensorDtypeLanes(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
+  auto field_dtype = call->ty.as_or_throw<PrimType>()->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -246,7 +246,7 @@ Type InferTypeTensorNDim(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
+  auto field_dtype = call->ty.as_or_throw<PrimType>()->dtype;
 
   Expr arg = call->args[0];
   tirx::PrimFunc getter =
@@ -287,7 +287,7 @@ Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
 }
 
 Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
-  auto field_dtype = Downcast<PrimType>(call->ty)->dtype;
+  auto field_dtype = call->ty.as_or_throw<PrimType>()->dtype;
 
   tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
     tirx::Var dlpack_handle("dlpack_handle", DataType::Handle());

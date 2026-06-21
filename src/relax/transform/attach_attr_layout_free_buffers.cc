@@ -38,7 +38,7 @@ class AttrAttacher : public ExprMutator {
       if (func->IsInstance<relax::FunctionNode>()) {
         // clear the layout_free_exprs_ for each function
         mutator.layout_free_exprs_.clear();
-        mutator.builder_->UpdateFunction(gvar, Downcast<BaseFunc>(mutator.VisitExpr(func)));
+        mutator.builder_->UpdateFunction(gvar, mutator.VisitExpr(func).as_or_throw<BaseFunc>());
       }
     }
     return mutator.builder_->GetContextIRModule();
@@ -67,12 +67,12 @@ class AttrAttacher : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
     if (call->op != call_tir_op_) {
       return call;
     }
-    GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-    ffi::Array<Expr> call_tir_args = Downcast<Tuple>(call->args[1])->fields;
+    GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
+    ffi::Array<Expr> call_tir_args = call->args[1].as_or_throw<Tuple>()->fields;
     // Compute the layout free buffers
     ffi::Array<int64_t> layout_free_buffers;
     for (size_t i = 0; i < call_tir_args.size(); i++) {
@@ -81,7 +81,7 @@ class AttrAttacher : public ExprMutator {
       }
     }
     // Attach the layout free buffers to the tirx::PrimFunc
-    tirx::PrimFunc func = WithAttr(Downcast<tirx::PrimFunc>(mod_->Lookup(gv)),
+    tirx::PrimFunc func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>(),
                                    "layout_free_buffers", layout_free_buffers);
     // Renew defs
     func = s_tir::RenewDefs(func);

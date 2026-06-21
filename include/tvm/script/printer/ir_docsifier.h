@@ -21,7 +21,6 @@
 
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/module.h>
 #include <tvm/script/printer/config.h>
 #include <tvm/script/printer/doc.h>
@@ -285,7 +284,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj, con
       }
     } else {
       LOG(WARNING) << "Expect StmtDoc to be annotated for object " << obj << ", but got "
-                   << Downcast<TDoc>(d)->_type_key;
+                   << d.as_or_throw<TDoc>()->_type_key;
     }
   }
   for (const ffi::ObjectRef& o : cfg->obj_to_underline) {
@@ -305,7 +304,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj, con
         }
       } else {
         LOG(WARNING) << "Expect StmtDoc to be annotated at object path " << p << ", but got "
-                     << Downcast<TDoc>(d)->_type_key;
+                     << d.as_or_throw<TDoc>()->_type_key;
       }
     }
   }
@@ -315,13 +314,13 @@ template <class TDoc>
 inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) const {
   switch (value.type_index()) {
     case ffi::TypeIndex::kTVMFFINone:
-      return Downcast<TDoc>(LiteralDoc::None(path));
+      return LiteralDoc::None(path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFIBool:
-      return Downcast<TDoc>(LiteralDoc::Boolean(value.as<bool>().value(), path));
+      return LiteralDoc::Boolean(value.as<bool>().value(), path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFIInt:
-      return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
+      return LiteralDoc::Int(value.as<int64_t>().value(), path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFIFloat:
-      return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
+      return LiteralDoc::Float(value.as<double>().value(), path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFISmallStr:
     case ffi::TypeIndex::kTVMFFIStr: {
       std::string string_value = value.cast<std::string>();
@@ -329,14 +328,14 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
       if (has_multiple_lines) {
         Doc d = const_cast<IRDocsifierNode*>(this)->AddMetadata(string_value);
         // TODO(tqchen): cross check AddDocDecoration
-        return Downcast<TDoc>(d);
+        return d.as_or_throw<TDoc>();
       }
-      return Downcast<TDoc>(LiteralDoc::Str(string_value, path));
+      return LiteralDoc::Str(string_value, path).as_or_throw<TDoc>();
     }
     case ffi::TypeIndex::kTVMFFIDataType:
-      return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
+      return LiteralDoc::DataType(value.as<runtime::DataType>().value(), path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFIDevice:
-      return Downcast<TDoc>(LiteralDoc::Device(value.as<DLDevice>().value(), path));
+      return LiteralDoc::Device(value.as<DLDevice>().value(), path).as_or_throw<TDoc>();
     default: {
       if (auto opt_obj = value.as<ffi::ObjectRef>()) {
         ffi::ObjectRef obj = opt_obj.value();
@@ -344,7 +343,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
                                       ffi::GetRef<IRDocsifier>(this));
         d->source_paths.push_back(path);
         AddDocDecoration<TDoc>(d, obj, path, cfg);
-        return Downcast<TDoc>(d);
+        return d.as_or_throw<TDoc>();
       } else {
         TVM_FFI_THROW(TypeError) << "Cannot handle Any type: `" << value.GetTypeKey() << "`";
         TVM_FFI_UNREACHABLE();

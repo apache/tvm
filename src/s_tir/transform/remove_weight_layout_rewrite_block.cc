@@ -51,10 +51,10 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
 
  private:
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
     auto it = block->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
-    if (it == block->annotations.end() || !is_one(Downcast<PrimExpr>((*it).second))) {
+    if (it == block->annotations.end() || !is_one((*it).second.as_or_throw<PrimExpr>())) {
       // The block is not a weight layout block
       // Remove allocates if needed
       ffi::Array<Buffer> alloc_buffers;
@@ -97,7 +97,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     ffi::Array<Var> load_indices;
     for (auto ind : load->indices) {
       TVM_FFI_ICHECK(ind->IsInstance<VarNode>());
-      load_indices.push_back(Downcast<Var>(ind));
+      load_indices.push_back(ind.as_or_throw<Var>());
     }
     buffer_var_to_index_map_[load->buffer->data.get()] = IndexMap(load_indices, store->indices);
 

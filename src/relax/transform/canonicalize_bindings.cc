@@ -91,7 +91,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // this pass can provide a better Type than the generic
     // handling in ExprMutator, by restoring the symbolic variables
     // within each branch.
-    auto new_ty = VisitExprDepTypeField(Downcast<Type>(op->ty));
+    auto new_ty = VisitExprDepTypeField(op->ty.as_or_throw<Type>());
 
     ffi::StructuralEqual struct_equal;
     if (!struct_equal(new_ty, GetType(true_b))) {
@@ -315,7 +315,8 @@ class CanonicalizePlanner : public ExprVisitor {
         return std::nullopt;
       }
 
-      auto earlier_tuple_size = Downcast<TupleType>(GetType(first_element->tuple))->fields.size();
+      auto earlier_tuple_size =
+          GetType(first_element->tuple).as_or_throw<TupleType>()->fields.size();
       if (earlier_tuple_size != expr_tuple->fields.size()) {
         return std::nullopt;
       }
@@ -455,7 +456,7 @@ class BindingCanonicalizer : public ExprMutator {
   // to be bound to the output. In this case, we will get rid of those bindings and
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
-    auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
+    auto new_block = ExprMutator::VisitBindingBlock_(block).as_or_throw<DataflowBlock>();
     std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> disqualified_set;
     std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> output_vars;
 
@@ -466,7 +467,7 @@ class BindingCanonicalizer : public ExprMutator {
       auto value = GetBoundValue(binding);
 
       if (var->IsInstance<DataflowVarNode>()) {
-        auto df_var = Downcast<DataflowVar>(var);
+        auto df_var = var.as_or_throw<DataflowVar>();
 
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
@@ -479,7 +480,7 @@ class BindingCanonicalizer : public ExprMutator {
 
         for (auto rhs_var : rhs_vars) {
           if (rhs_var->IsInstance<DataflowVarNode>()) {
-            disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
+            disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
           }
         }
 
@@ -509,7 +510,7 @@ class BindingCanonicalizer : public ExprMutator {
 
           for (auto rhs_var : disqualified) {
             if (rhs_var->IsInstance<DataflowVarNode>()) {
-              disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
+              disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
             }
           }
         }
@@ -522,21 +523,21 @@ class BindingCanonicalizer : public ExprMutator {
     bool changed = false;
     for (auto binding : new_block->bindings) {
       if (binding->var->IsInstance<DataflowVarNode>() &&
-          candidates.count(Downcast<DataflowVar>(binding->var))) {
+          candidates.count(binding->var.as_or_throw<DataflowVar>())) {
         changed = true;
         continue;
       } else if (!binding->var->IsInstance<DataflowVarNode>() &&
                  GetBoundValue(binding)->IsInstance<DataflowVarNode>() &&
-                 candidates.count(Downcast<DataflowVar>(GetBoundValue(binding)))) {
+                 candidates.count(GetBoundValue(binding).as_or_throw<DataflowVar>())) {
         changed = true;
         if (auto* match_binding = binding.as<MatchCastNode>()) {
-          auto new_binding =
-              MatchCast(binding->var, candidates.at(Downcast<DataflowVar>(match_binding->value)),
-                        match_binding->ty);
+          auto new_binding = MatchCast(
+              binding->var, candidates.at(match_binding->value.as_or_throw<DataflowVar>()),
+              match_binding->ty);
           new_bindings.push_back(new_binding);
         } else if (auto* var_binding = binding.as<VarBindingNode>()) {
-          auto new_binding =
-              VarBinding(binding->var, candidates.at(Downcast<DataflowVar>(var_binding->value)));
+          auto new_binding = VarBinding(
+              binding->var, candidates.at(var_binding->value.as_or_throw<DataflowVar>()));
           new_bindings.push_back(new_binding);
         } else {
           TVM_FFI_ICHECK(false) << "Invalid binding";  // never happens
@@ -571,14 +572,14 @@ namespace transform {
 
 Pass CanonicalizeTIRVariables() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeTIRVariables(f));
+    return CanonicalizeTIRVariables(f).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
 }
 
 Pass CanonicalizeRelaxBindings() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeBindings(f));
+    return CanonicalizeBindings(f).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
 }

@@ -67,7 +67,7 @@ ffi::Optional<Function> ExpandParams(Function func) {
   }
 
   FuncType new_ty(params.Map([](const auto& var) { return GetType(var); }), func->ret_ty,
-                  Downcast<FuncType>(func->ty)->purity);
+                  func->ty.as_or_throw<FuncType>()->purity);
 
   auto write_ptr = func.CopyOnWrite();
   write_ptr->params = params;
@@ -84,7 +84,7 @@ class TupleExpander : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto node = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     if (auto gvar = node->op.as<GlobalVar>()) {
       if (auto it = replacements_.find(gvar.value()); it != replacements_.end()) {
@@ -155,7 +155,7 @@ Pass ExpandTupleArguments() {
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto mutated = Downcast<Function>(mutator.VisitExpr(func.value()));
+        auto mutated = mutator.VisitExpr(func.value()).as_or_throw<Function>();
         if (!mutated.same_as(base_func)) {
           caller_updates->Add(gvar, mutated);
         }

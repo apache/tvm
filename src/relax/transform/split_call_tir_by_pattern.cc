@@ -518,7 +518,7 @@ class BlockRemover : public StmtExprMutator {
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
@@ -580,9 +580,9 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
-  ffi::String library_code = Downcast<ffi::String>(codegen_result[0]);
-  int num_matched_ops = Downcast<IntImm>(codegen_result[1])->value;
-  ffi::Array<Buffer> func1_args = Downcast<ffi::Array<Buffer>>(codegen_result[2]);
+  ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
+  int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value;
+  ffi::Array<Buffer> func1_args = codegen_result[2].as_or_throw<ffi::Array<Buffer>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
@@ -692,7 +692,7 @@ class SplitMutator : public ExprMutator {
     SplitMutator mutator(mod, patterns, fcodegen);
     for (auto& kv : mod->functions) {
       if (auto* func = kv.second.as<FunctionNode>()) {
-        Function new_func = Downcast<Function>(mutator(ffi::GetRef<Function>(func)));
+        Function new_func = mutator(ffi::GetRef<Function>(func)).as_or_throw<Function>();
         mutator.builder_->UpdateFunction(kv.first, new_func);
       }
     }
@@ -711,7 +711,7 @@ class SplitMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
     if (!call->op.same_as(call_tir_op_)) return call;
@@ -720,7 +720,7 @@ class SplitMutator : public ExprMutator {
     if (gv_ptr == nullptr) return call;
     GlobalVar gv = ffi::GetRef<GlobalVar>(gv_ptr);
     // retrieve the function from the module and split it
-    tirx::PrimFunc func = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+    tirx::PrimFunc func = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     std::vector<std::vector<int>> arg_partition;
     // split the function into two functions, one for the library kernel and one for the rest.
     std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =

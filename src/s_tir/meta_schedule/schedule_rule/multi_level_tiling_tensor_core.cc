@@ -264,28 +264,28 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
 
 std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) {
-    return TransformForTensorization(Downcast<TensorCoreState>(state));
+    return TransformForTensorization(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = Downcast<TensorCoreState>(state);
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMATileLoopNest(tc_state) : TileLoopNest(state, 2);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return TransformIntermediateOutputLayout(Downcast<TensorCoreState>(state));
+    return TransformIntermediateOutputLayout(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) {
-    return AddWriteReuseTensorCore(Downcast<TensorCoreState>(state));
+    return AddWriteReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = Downcast<TensorCoreState>(state);
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMAAddReadReuse(tc_state) : AddReadReuse(state);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddReadReuseTensorCore(Downcast<TensorCoreState>(state));
+    return AddReadReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddSoftwarePipeline(Downcast<TensorCoreState>(state));
+    return AddSoftwarePipeline(state.as_or_throw<TensorCoreState>());
   });
   return states;
 }
@@ -445,12 +445,12 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    tirx::SBlock intrin_block =
-        Downcast<tirx::SBlockRealize>(
-            tirx::TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc->body)
-            ->block;
-    tirx::For loop_m = Downcast<tirx::For>(intrin_block->body);
-    tirx::For loop_n = Downcast<tirx::For>(loop_m->body);
+    tirx::SBlock intrin_block = tirx::TensorIntrin::Get(state->intrin_group.init_intrin)
+                                    .value()
+                                    ->desc->body.as_or_throw<tirx::SBlockRealize>()
+                                    ->block;
+    tirx::For loop_m = intrin_block->body.as_or_throw<tirx::For>();
+    tirx::For loop_n = loop_m->body.as_or_throw<tirx::For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
   }();
 

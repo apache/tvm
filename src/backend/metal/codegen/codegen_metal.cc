@@ -390,7 +390,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
 
   if (op->op.same_as(make_filled_simdgroup_matrix_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);
-    Var var = Downcast<Var>(op->args[0]);
+    Var var = op->args[0].as_or_throw<Var>();
     // Get the data type of the simdgroup matrix
     auto it = simdgroup_dtype_.find(var.get());
     TVM_FFI_ICHECK(it != simdgroup_dtype_.end())
@@ -473,7 +473,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     source_maker << "// Function: " << func_name << "\n";
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = kv.second.as_or_throw<PrimFunc>();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenMetal: expected kCallingConv attribute to be set.";

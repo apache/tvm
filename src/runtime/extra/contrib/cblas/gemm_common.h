@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 #define TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 

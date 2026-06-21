@@ -118,7 +118,7 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
 
   // rewrite block and blockrealize
   BlockIterVarRewriter rewriter(block_n, std::move(new_order_vec));
-  SBlock new_parent_block = Downcast<SBlock>(rewriter(parent_block));
+  SBlock new_parent_block = rewriter(parent_block).as_or_throw<SBlock>();
   rewriter.block_map.Set(parent_block, new_parent_block);
   self->Replace(parent_block_sref, new_parent_block, rewriter.block_map);
 }

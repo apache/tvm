@@ -53,7 +53,7 @@ std::unordered_map<size_t, std::vector<size_t>> GroupShapes(
   return indices_map;
 }
 
-inline TensorType GetTensorType(Expr e) { return Downcast<TensorType>(GetType(e)); }
+inline TensorType GetTensorType(Expr e) { return GetType(e).as_or_throw<TensorType>(); }
 
 struct BranchInfo {
   int num_branches;
@@ -285,8 +285,8 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
       auto match = ExtractMatchedExpr(pat, e, bindings);
       if (!match) return;
 
-      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
-      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+      auto matmul_call = match.value()[matmul_pat].as_or_throw<Call>();
+      auto matmul_lhs = matmul_call->args[0].as_or_throw<Var>();
 
       std::optional<int> bias_dim = std::nullopt;
       std::optional<std::string> activation = std::nullopt;

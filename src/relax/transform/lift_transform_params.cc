@@ -124,8 +124,8 @@ struct BaseCollectInfo {
     func = WithAttr(func, attr::kNumInput, 0);
     func = CopyWithNewVars(func);
     func = BundleModelParams(func);
-    func = Downcast<Function>(CanonicalizeBindings(func));
-    func = Downcast<Function>(RemoveAllUnused(func));
+    func = CanonicalizeBindings(func).as_or_throw<Function>();
+    func = RemoveAllUnused(func).as_or_throw<Function>();
 
     return func;
   }
@@ -233,13 +233,13 @@ struct LocalCollectInfo : public BaseCollectInfo {
       for (const auto& var : local_tir_vars) {
         if (auto it = global_info->tir_var_remap.find(var);
             it != global_info->tir_var_remap.end()) {
-          reverse_map.Set(Downcast<tirx::Var>((*it).second), var);
+          reverse_map.Set((*it).second.as_or_throw<tirx::Var>(), var);
         }
       }
       ffi::Array<tirx::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
       global_tir_vars = global_tir_vars.Map([&](const tirx::Var& var) {
         if (auto it = reverse_map.find(var); it != reverse_map.end()) {
-          return Downcast<tirx::Var>((*it).second);
+          return (*it).second.as_or_throw<tirx::Var>();
         } else {
           // This is the case when the some of the outputs of the shared transform is not used in
           // this function.
@@ -263,13 +263,13 @@ struct LocalCollectInfo : public BaseCollectInfo {
       ffi::Map<Var, Var> reverse_map;
       for (const auto& var : local_outputs) {
         if (auto it = global_info->var_remap.find(var); it != global_info->var_remap.end()) {
-          reverse_map.Set(Downcast<Var>((*it).second), var);
+          reverse_map.Set((*it).second.as_or_throw<Var>(), var);
         }
       }
       ffi::Array<Var> global_outputs = global_info->GetCompileTimeOutputs();
       global_outputs = global_outputs.Map([&](const Var& var) {
         if (auto it = reverse_map.find(var); it != reverse_map.end()) {
-          return Downcast<Var>((*it).second);
+          return (*it).second.as_or_throw<Var>();
         } else {
           // This is the case when the some of the outputs of the shared transform is not used in
           // this function.
@@ -322,7 +322,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
     Function func(params, body, orig_func->ret_ty, orig_func->is_pure, orig_func->attrs);
     func = CopyWithNewVars(func);
-    func = Downcast<Function>(CanonicalizeBindings(func));
+    func = CanonicalizeBindings(func).as_or_throw<Function>();
     return func;
   }
 };
@@ -398,18 +398,18 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
             if (relax_or_tir_var.as<relax::VarNode>()) {
-              if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var));
+              if (auto it = var_remap.find(relax_or_tir_var.as_or_throw<Var>());
                   it != var_remap.end()) {
-                target_set.insert(Downcast<relax::Var>((*it).second));
+                target_set.insert((*it).second.as_or_throw<relax::Var>());
               } else {
-                target_set.insert(Downcast<relax::Var>(relax_or_tir_var));
+                target_set.insert(relax_or_tir_var.as_or_throw<relax::Var>());
               }
             } else {
-              if (auto it = tir_var_remap.find(Downcast<tirx::Var>(relax_or_tir_var));
+              if (auto it = tir_var_remap.find(relax_or_tir_var.as_or_throw<tirx::Var>());
                   it != tir_var_remap.end()) {
-                target_set.insert(Downcast<tirx::Var>((*it).second));
+                target_set.insert((*it).second.as_or_throw<tirx::Var>());
               } else {
-                target_set.insert(Downcast<tirx::Var>(relax_or_tir_var));
+                target_set.insert(relax_or_tir_var.as_or_throw<tirx::Var>());
               }
             }
           }
@@ -533,7 +533,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
 
  private:
   void VisitExpr_(const VarNode* lhs_var, const Expr& rhs_expr) final {
-    auto rhs_var = Downcast<Var>(rhs_expr);
+    auto rhs_var = rhs_expr.as_or_throw<Var>();
     if (auto it = var_remap_.find(ffi::GetRef<Var>(lhs_var)); it != var_remap_.end()) {
       TVM_FFI_ICHECK((*it).second.same_as(rhs_var));
     } else {
@@ -736,7 +736,7 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
       if (func->IsInstance<FunctionNode>()) {
         auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
         if (opt_num_input && !ends_with(gvar->name_hint, "transform_params")) {
-          target_functions.emplace_back(gvar, Downcast<Function>(func));
+          target_functions.emplace_back(gvar, func.as_or_throw<Function>());
         }
       }
     }
@@ -802,7 +802,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
       for (auto [name, transform] : lifted_transform_functions) {
         if (auto opt = write_ptr->global_var_map_.Get(name)) {
           auto old_gvar = opt.value();
-          auto old_transform = Downcast<Function>(write_ptr->Lookup(old_gvar));
+          auto old_transform = write_ptr->Lookup(old_gvar).as_or_throw<Function>();
           write_ptr->Remove(old_gvar);
 
           transform = ComposeFunctions(old_transform, transform);
@@ -839,7 +839,7 @@ Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_tran
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
           if (pc->GetConfig<bool>(kLiftTransformConsumeParams).value_or(false)) {
-            func = Downcast<Function>(ConsumeBundledParams()(func));
+            func = ConsumeBundledParams()(func).as_or_throw<Function>();
           }
           to_add[gvar] = func;
         }

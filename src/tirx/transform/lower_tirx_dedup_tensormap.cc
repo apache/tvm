@@ -269,7 +269,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     // Default mutation
-    Evaluate eval = Downcast<Evaluate>(StmtExprMutator::VisitStmt_(op));
+    Evaluate eval = StmtExprMutator::VisitStmt_(op).as_or_throw<Evaluate>();
     if (const CallNode* call = AsCuTensorMapEncode(eval.get())) {
       // Build key after var remapping
       auto [maybe_var, key] = ExtractEncodeKey(call);

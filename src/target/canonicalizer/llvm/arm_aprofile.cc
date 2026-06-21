@@ -74,9 +74,9 @@ bool IsAArch64(ffi::Optional<ffi::String> mtriple) {
 
 bool IsArch(ffi::Map<ffi::String, ffi::Any> attrs) {
   ffi::Optional<ffi::String> mtriple =
-      Downcast<ffi::Optional<ffi::String>>(attrs.Get("mtriple").value_or(nullptr));
+      attrs.Get("mtriple").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
   ffi::Optional<ffi::String> mcpu =
-      Downcast<ffi::Optional<ffi::String>>(attrs.Get("mcpu").value_or(nullptr));
+      attrs.Get("mcpu").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
 
   return IsAArch32(mtriple, mcpu) || IsAArch64(mtriple);
 }
@@ -87,13 +87,13 @@ bool CheckContains(ffi::Array<ffi::String> array, ffi::String predicate) {
 
 static ffi::Map<ffi::String, ffi::Any> GetFeatures(ffi::Map<ffi::String, ffi::Any> target) {
 #ifdef TVM_LLVM_VERSION
-  ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
+  ffi::String kind = target.Get("kind").value().as_or_throw<ffi::String>();
   TVM_FFI_ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
 
   ffi::Optional<ffi::String> mtriple =
-      Downcast<ffi::Optional<ffi::String>>(target.Get("mtriple").value_or(nullptr));
+      target.Get("mtriple").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
   ffi::Optional<ffi::String> mcpu =
-      Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu").value_or(nullptr));
+      target.Get("mcpu").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
 
   // Check that LLVM has been compiled with the correct target support
   auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
@@ -148,8 +148,9 @@ ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> tar
   for (const auto& kv : features) {
     target.Set(kv.first, kv.second);
   }
-  target.Set("keys",
-             MergeKeys(Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("keys"))));
+  target.Set("keys", MergeKeys((target.Get("keys"))
+                                   .value_or(nullptr)
+                                   .as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>()));
 
   return target;
 }

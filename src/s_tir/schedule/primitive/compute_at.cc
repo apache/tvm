@@ -436,7 +436,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
           if (var_expr->IsInstance<VarNode>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
-            var = Downcast<Var>(var_expr);
+            var = var_expr.as_or_throw<Var>();
             var_dom = arith::IntSet::Interval(required_min * fac,
                                               analyzer->Simplify(required_max * fac + fac - 1));
             var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
@@ -451,7 +451,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         PrimExpr var_expr = p_f1.Eval();
         if (var_expr->IsInstance<VarNode>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
-          Var var_mod = Downcast<Var>(var_expr);
+          Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
         } else {
           PrimExpr mod_1 = p_f1.Eval();
@@ -753,7 +753,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 6. Create the new scope according to the iteration domain
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
-  SBlock new_scope_root = Downcast<SBlock>(reconstructor(scope_root));
+  SBlock new_scope_root = reconstructor(scope_root).as_or_throw<SBlock>();
 
   // Step 7. Do the actual replacement
   if (check_only) {

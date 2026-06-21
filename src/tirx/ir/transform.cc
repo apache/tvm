@@ -123,7 +123,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
       func = pass_func(std::move(func), mod, pass_ctx);
       kv.second = Any(std::move(func));
       if (kv.second == nullptr) {
-        deleted_list.push_back(Downcast<GlobalVar>(kv.first));
+        deleted_list.push_back(kv.first.as_or_throw<GlobalVar>());
       }
     }
   }

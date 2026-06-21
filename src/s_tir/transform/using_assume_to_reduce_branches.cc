@@ -217,7 +217,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {

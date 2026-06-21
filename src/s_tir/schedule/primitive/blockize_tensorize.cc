@@ -42,7 +42,7 @@ Range RangeFromExtent(const PrimExpr& extent) {
 
 template <class T>
 T DeepCopy(const T& stmt) {
-  return Downcast<T>(ffi::FromJSONGraph(ffi::ToJSONGraph(stmt)));
+  return ffi::FromJSONGraph(ffi::ToJSONGraph(stmt)).template as_or_throw<T>();
 }
 
 /*!
@@ -228,8 +228,8 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
     const IterVar& iter_var = iter_vars[i];
     arith::IterMark outer_mark = division[i][0];
     arith::IterMark inner_mark = division[i][1];
-    IterMapExpr outer_binding = Downcast<IterMapExpr>(outer_mark->source);
-    IterMapExpr inner_binding = Downcast<IterMapExpr>(inner_mark->source);
+    IterMapExpr outer_binding = outer_mark->source.as_or_throw<IterMapExpr>();
+    IterMapExpr inner_binding = inner_mark->source.as_or_throw<IterMapExpr>();
     // After computing the subspace division, bindings[i] can be written as
     // outer_binding * inner_binding->extent + inner_binding
     // The outer block will have binding: iter_outer -> outer_binding
@@ -405,7 +405,7 @@ Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
 
     Stmt VisitStmt_(const SBlockNode* op) final {
       SBlock src = ffi::GetRef<SBlock>(op);
-      SBlock tgt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+      SBlock tgt = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
       }
@@ -525,7 +525,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
     analyzer->Bind(iter->var, iter->dom);
   }
   SBlock block_subst =
-      Downcast<SBlock>(Substitute(block, block_var_subst, block_sref_reuse, analyzer));
+      Substitute(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
   // Step 5: Generate the inner block. The write regions of the inner blocks will be reduction if
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
@@ -610,7 +610,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     // Step 3: Do var substitution to adjust to the new block bindings
     for (size_t i = 0; i < outer_iter_vars.size(); ++i) {
       if (outer_bindings[i].as<Var>()) {
-        loop_var_subst.Set(Downcast<Var>(outer_bindings[i]), outer_iter_vars[i]->var);
+        loop_var_subst.Set(outer_bindings[i].as_or_throw<Var>(), outer_iter_vars[i]->var);
       }
     }
     ffi::Map<Var, arith::IntSet> inner_iter_dom;
@@ -620,7 +620,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
       analyzer->Bind(iter->var, dom);
     }
     SBlock block_subst =
-        Downcast<SBlock>(Substitute(block, block_var_subst, block_sref_reuse, analyzer.get()));
+        Substitute(block, block_var_subst, block_sref_reuse, analyzer.get()).as_or_throw<SBlock>();
     auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
     auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
     read_regions.insert(read_regions.end(), reads.begin(), reads.end());
@@ -807,7 +807,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   std::unordered_map<Buffer, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
-  SBlock impl_block = Downcast<SBlockRealize>(intrin_impl->body)->block;
+  SBlock impl_block = intrin_impl->body.as_or_throw<SBlockRealize>()->block;
   for (const BufferRegion& read : impl_block->reads) {
     impl2region.emplace(read->buffer, read->region);
   }

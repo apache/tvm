@@ -347,8 +347,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
                                MakeValue(op->args[0]));
   } else if (op->op.same_as(builtin::large_uint_imm())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
-    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t low = static_cast<uint64_t>(op->args[0].as_or_throw<IntImm>()->value);
+    uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
     uint64_t val = (high << 32U) | low;
     return builder_->UIntImm(builder_->GetSType(op->dtype), val);
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
@@ -392,14 +392,14 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     } else {
       TVM_FFI_THROW(InternalError)
           << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
-          << Downcast<StringImm>(op->args[0]) << "\"";
+          << op->args[0].as_or_throw<StringImm>() << "\"";
       return spirv::Value();
     }
   } else if (op->op.same_as(builtin::call_extern())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 1U);
     TVM_FFI_THROW(InternalError)
         << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
-        << Downcast<StringImm>(op->args[0]) << "\"";
+        << op->args[0].as_or_throw<StringImm>() << "\"";
     return spirv::Value();
   }
 
@@ -416,7 +416,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     TVM_FFI_ICHECK(ele_dtype.is_float()) << "Only floating point fragment accumulator is supported";
     spirv::SType ele_stype = builder_->GetSType(ele_dtype);
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
-    double init = static_cast<uint64_t>(Downcast<FloatImm>(op->args[5])->value);
+    double init = static_cast<uint64_t>(op->args[5].as_or_throw<FloatImm>()->value);
     PrimExpr prim_index = op->args[4];
     spirv::Value init_val = builder_->GetCompositeConst(ele_stype, fragment_type, init);
     spirv::SType ptr_type =
@@ -434,7 +434,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     PrimExpr dst_index = op->args[4];
     PrimExpr src_ptr_expr = op->args[5];
-    int stride = static_cast<int>(Downcast<IntImm>(op->args[6])->value);
+    int stride = static_cast<int>(op->args[6].as_or_throw<IntImm>()->value);
     auto type_int = builder_->GetSType(DataType::Int(32));
     spirv::Value stride_val = builder_->IntImm(type_int, stride);
     std::string layout = (op->args[7].as<StringImmNode>())->value;
@@ -493,7 +493,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     const VarNode* buffer_node = op->args[0].as<VarNode>();
     PrimExpr index = op->args[4];
     PrimExpr buffer_ptr = op->args[5];
-    int stride = static_cast<int>(Downcast<IntImm>(op->args[6])->value);
+    int stride = static_cast<int>(op->args[6].as_or_throw<IntImm>()->value);
     auto type_int = builder_->GetSType(DataType::Int(32));
     spirv::Value stride_val = builder_->IntImm(type_int, stride);
     std::string layout = (op->args[7].as<StringImmNode>())->value;
@@ -634,7 +634,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
       << "SPIR-V codegen only supports shuffle "
       << "of one vector with one index";
   spirv::Value vector = MakeValue(op->vectors[0]);
-  int index = Downcast<IntImm>(op->indices[0])->value;
+  int index = op->indices[0].as_or_throw<IntImm>()->value;
   spirv::SType etype = builder_->GetSType(op->dtype);
   spirv::Value element = builder_->MakeValue(spv::OpCompositeExtract, etype, vector, index);
   return element;
@@ -875,7 +875,7 @@ void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = Downcast<IterVar>(op->node);
+    IterVar iv = op->node.as_or_throw<IterVar>();
     if (iv->thread_tag.length() != 0) {
       // Will throw error if rebinding same local variable to a different extent.
       analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
