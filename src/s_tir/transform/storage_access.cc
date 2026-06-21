@@ -128,7 +128,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
     }
     double_buffer_write_ = nullptr;
   } else if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = Downcast<IterVar>(op->node);
+    IterVar iv = (op->node).as_or_throw<IterVar>();
     env_threads_.push_back(iv);
     if (!in_device_env_) {
       in_device_env_ = true;
@@ -260,7 +260,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = Downcast<Var>(op->args[1]);
+      e.buffer = (op->args[1]).as_or_throw<Var>();
       e.touched = {arith::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
       e.scope = scope;
       if (flag->value & 1) {

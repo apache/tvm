@@ -37,7 +37,7 @@ class ConstantFolder : public ExprMutator {
  public:
   static Function Fold(Function func, IRModule ctx_module) {
     ConstantFolder folder(std::move(ctx_module));
-    func = Downcast<Function>(RemoveAllUnused(folder(func)));
+    func = (RemoveAllUnused(folder(func))).as_or_throw<Function>();
     return func;
   }
 
@@ -90,7 +90,7 @@ class ConstantFolder : public ExprMutator {
    * \return The TIR function, or nullopt if pattern match fails.
    */
   ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const Expr& op) {
-    const GlobalVar& global_var = Downcast<GlobalVar>(op);
+    const GlobalVar& global_var = (op).as_or_throw<GlobalVar>();
     // NOTE: as check works for nullptr(returns null)
     ffi::Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
     if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {
@@ -241,7 +241,7 @@ class ConstantFolder : public ExprMutator {
     for (size_t i = 0; i < num_outputs; ++i) {
       ffi::Optional<ffi::Shape> shape = MatchConstShape(tuple_ty->fields[i]);
       if (!shape) return std::nullopt;
-      auto tensor_ty = Downcast<TensorType>(tuple_ty->fields[i]);
+      auto tensor_ty = (tuple_ty->fields[i]).as_or_throw<TensorType>();
       if (tensor_ty->IsUnknownDtype()) return std::nullopt;
       ret_tensors.push_back(runtime::Tensor::Empty(shape.value(), tensor_ty->dtype, cpu_dev));
     }
@@ -287,7 +287,7 @@ class ConstantFolder : public ExprMutator {
     // Handle single tensor output.
     ffi::Optional<ffi::Shape> shape = MatchConstShape(call->ty_args[0]);
     if (shape) {
-      TensorType ret_ty = Downcast<TensorType>(call->ty);
+      TensorType ret_ty = (call->ty).as_or_throw<TensorType>();
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_ty->dtype)
           .value_or({});
     }
@@ -302,7 +302,7 @@ class ConstantFolder : public ExprMutator {
   // this pass to fold `tensor_to_shape` op.
   Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation
-    Call post_call = Downcast<Call>(VisitExprPostOrder_(call));
+    Call post_call = (VisitExprPostOrder_(call)).as_or_throw<Call>();
 
     // Check if it is useful to fold this call
     if (!ShouldBeFolded(post_call)) return post_call;
@@ -332,7 +332,7 @@ class ConstantFolder : public ExprMutator {
     ffi::Array<Expr> new_args;
     for (auto arg : post_call->args) {
       if (arg->IsInstance<VarNode>()) {
-        ffi::Optional<Expr> val = LookupBinding(Downcast<Var>(arg));
+        ffi::Optional<Expr> val = LookupBinding((arg).as_or_throw<Var>());
         if (val.defined() && val.value()->IsInstance<ShapeExprNode>()) {
           new_args.push_back(val.value());
           continue;
@@ -348,7 +348,7 @@ class ConstantFolder : public ExprMutator {
       // Check if we can them to call_tir
       if (legalize_map.count(op)) {
         // Get the legalized expression
-        Call post_call_normalized = Downcast<Call>(builder_->Normalize(post_call));
+        Call post_call_normalized = (builder_->Normalize(post_call)).as_or_throw<Call>();
         Expr legalized_expr = builder_->Normalize(legalize_map[op](builder_, post_call_normalized));
         // If the legalized expression is call_tir, try to fold it.
         const CallNode* call = legalized_expr.as<CallNode>();
@@ -366,7 +366,7 @@ class ConstantFolder : public ExprMutator {
         TVM_FFI_ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
         if (arg->IsInstance<ConstantNode>()) {
-          Constant constant = Downcast<Constant>(arg);
+          Constant constant = (arg).as_or_throw<Constant>();
           runtime::Tensor ndarray = constant->data;
           TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
           TVM_FFI_ICHECK(ndarray.IsContiguous());
@@ -384,7 +384,7 @@ class ConstantFolder : public ExprMutator {
         // Special handling for "relax.shape_to_tensor" since it is implemented in ffi::Function.
         // TODO(sunggg): revisit this when we extend ConstantFolding to fold ffi::Function.
         Expr arg = post_call->args[0];
-        ShapeExpr shape = Downcast<ShapeExpr>(arg);
+        ShapeExpr shape = (arg).as_or_throw<ShapeExpr>();
         ffi::Array<PrimExpr> values = shape->values;
         ffi::Array<int64_t> arr;
         bool is_known = true;

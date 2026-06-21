@@ -93,15 +93,15 @@ struct ReuseConfig {
 
   /*! \brief Construct from a configuration dictionary */
   explicit ReuseConfig(const ffi::Map<ffi::String, ffi::Any>& config)
-      : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
+      : req(Str2ReuseType((config.at("req")).as_or_throw<ffi::String>())),
         levels([&]() {
-          auto arr = Downcast<ffi::Array<int64_t>>(config.at("levels"));
+          auto arr = (config.at("levels")).as_or_throw<ffi::Array<int64_t>>();
           std::vector<int> r;
           r.reserve(arr.size());
           for (int64_t v : arr) r.push_back(static_cast<int>(v));
           return r;
         }()),
-        scope(Downcast<ffi::String>(config.at("scope"))) {
+        scope((config.at("scope")).as_or_throw<ffi::String>()) {
     TVM_FFI_ICHECK_EQ(config.size(), 3);
   }
 };

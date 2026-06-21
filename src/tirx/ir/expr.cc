@@ -636,7 +636,7 @@ static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
       }
       prim_expr_args.push_back(BufferLoad(br->buffer, indices));
     } else {
-      prim_expr_args.push_back(Downcast<PrimExpr>(it));
+      prim_expr_args.push_back(it.get<PrimExpr>());
     }
   }
   return prim_expr_args;

@@ -254,7 +254,8 @@ class InThreadReducerMaker : private StmtMutator {
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
-    if (ffi::Optional<For> opt_res = Downcast<ffi::Optional<For>>(StmtMutator::VisitStmt_(loop))) {
+    if (ffi::Optional<For> opt_res =
+            (StmtMutator::VisitStmt_(loop)).as_or_throw<ffi::Optional<For>>()) {
       For res = opt_res.value();
       if (res->thread_binding.defined()) {
         UnderLoopReductionBlockVarCollector collector;
@@ -783,7 +784,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     block_stack_.push_back(block);
     std::swap(old_loop_range_map, loop_range_map_);
-    SBlock new_block = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    SBlock new_block = (StmtMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     block_stack_.pop_back();
     std::swap(old_loop_range_map, loop_range_map_);
 

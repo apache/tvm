@@ -262,7 +262,7 @@ namespace transform {
 
 Pass KillAfterLastUse() {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
-    return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
+    return (relax::KillAfterLastUse(std::move(func))).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }

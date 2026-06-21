@@ -86,8 +86,9 @@ class DataflowReshapeRewriter : public ExprMutator {
     // relax.reshape op, which will be lowered to calls of the ExternFunc
     // vm.builtin.reshape in the VMBuiltinLower pass.
 
-    auto prim_fn = Downcast<tirx::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
-    auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
+    auto prim_fn =
+        (mod_->Lookup((call->args[0]).as_or_throw<GlobalVar>())).as_or_throw<tirx::PrimFunc>();
+    auto arg_tuple = (call->args[1]).as_or_throw<Tuple>()->fields;
     auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
     // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
@@ -104,12 +105,12 @@ class DataflowReshapeRewriter : public ExprMutator {
       return ffi::GetRef<Call>(call);
     }
 
-    TensorType res_ty = Downcast<TensorType>(call->ty);
+    TensorType res_ty = (call->ty).as_or_throw<TensorType>();
     return reshape(arg, res_ty->shape.value());
   }
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
-    const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
+    const GlobalVar& global_var = (call->args[0]).as_or_throw<GlobalVar>();
     const auto* func = mod_->functions.Get(global_var).value().as<tirx::PrimFuncNode>();
     TVM_FFI_ICHECK_NOTNULL(func);
     if (!HasReshapePattern(ffi::GetRef<tirx::PrimFunc>(func))) {
@@ -121,8 +122,8 @@ class DataflowReshapeRewriter : public ExprMutator {
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
     TVM_FFI_ICHECK(inp->ty.defined() && call->ty.defined());
-    TensorType inp_ty = Downcast<TensorType>(inp->ty);
-    TensorType res_ty = Downcast<TensorType>(call->ty);
+    TensorType inp_ty = (inp->ty).as_or_throw<TensorType>();
+    TensorType res_ty = (call->ty).as_or_throw<TensorType>();
 
     if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;
@@ -162,7 +163,7 @@ namespace transform {
 
 Pass RewriteDataflowReshape() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(RewriteDataflowReshape(f, m));
+    return (RewriteDataflowReshape(f, m)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
 }

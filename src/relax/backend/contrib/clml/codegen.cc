@@ -134,7 +134,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
 
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
@@ -187,7 +187,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     const auto* fn_var = cn->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
 
@@ -216,7 +216,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     const auto* fn_var = cn->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();

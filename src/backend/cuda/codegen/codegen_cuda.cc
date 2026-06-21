@@ -177,7 +177,7 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
  private:
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = (op->node).as_or_throw<IterVar>();
       if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
         threadIdx_x_ext = op->value;
       }
@@ -1046,20 +1046,20 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 12: saturate
     // arg 13: (optional) 1-bit operator (xor or and)
     TVM_FFI_ICHECK(op->args.size() == 13U || op->args.size() == 14U);
-    std::string shape = Downcast<StringImm>(op->args[0])->value;
-    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
-    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
-    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
-    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
-    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string shape = (op->args[0]).as_or_throw<StringImm>()->value;
+    std::string A_layout = (op->args[1]).as_or_throw<StringImm>()->value;
+    std::string B_layout = (op->args[2]).as_or_throw<StringImm>()->value;
+    std::string A_dtype = (op->args[3]).as_or_throw<StringImm>()->value;
+    std::string B_dtype = (op->args[4]).as_or_throw<StringImm>()->value;
+    std::string C_dtype = (op->args[5]).as_or_throw<StringImm>()->value;
     std::string a_ref = this->PrintExpr(op->args[6]);
     std::string a_bias = this->PrintExpr(op->args[7]);
     std::string b_ref = this->PrintExpr(op->args[8]);
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = Downcast<IntImm>(op->args[12])->value;
-    std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
+    bool saturate = (op->args[12]).as_or_throw<IntImm>()->value;
+    std::string bit_op = op->args.size() > 13 ? (op->args[13]).as_or_throw<StringImm>()->value : "";
     std::string asm_code =
         PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_bias, b_ref,
                          b_bias, c_ref, c_bias, "", "", "", bit_op, false, saturate);
@@ -1083,12 +1083,12 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 14: sparse_selector
     // arg 15: saturate
     TVM_FFI_ICHECK_EQ(op->args.size(), 16U);
-    std::string shape = Downcast<StringImm>(op->args[0])->value;
-    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
-    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
-    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
-    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
-    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string shape = (op->args[0]).as_or_throw<StringImm>()->value;
+    std::string A_layout = (op->args[1]).as_or_throw<StringImm>()->value;
+    std::string B_layout = (op->args[2]).as_or_throw<StringImm>()->value;
+    std::string A_dtype = (op->args[3]).as_or_throw<StringImm>()->value;
+    std::string B_dtype = (op->args[4]).as_or_throw<StringImm>()->value;
+    std::string C_dtype = (op->args[5]).as_or_throw<StringImm>()->value;
     std::string a_ref = this->PrintExpr(op->args[6]);
     std::string a_offset = this->PrintExpr(op->args[7]);
     std::string b_ref = this->PrintExpr(op->args[8]);
@@ -1098,14 +1098,14 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string metadata = this->PrintExpr(op->args[12]);
     std::string metadata_offset = this->PrintExpr(op->args[13]);
     std::string sparse_selector = this->PrintExpr(op->args[14]);
-    bool saturate = Downcast<IntImm>(op->args[15])->value;
+    bool saturate = (op->args[15]).as_or_throw<IntImm>()->value;
     std::string asm_code = PrintMMAAssembly(
         shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
         c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
   } else if (op->op.same_as(mma_store_op)) {
-    int m = Downcast<IntImm>(op->args[0])->value;
-    int n = Downcast<IntImm>(op->args[1])->value;
+    int m = (op->args[0]).as_or_throw<IntImm>()->value;
+    int n = (op->args[1]).as_or_throw<IntImm>()->value;
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1167,20 +1167,20 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     //       c_ptr_var, c_offset, saturate, [bit_op]
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK(op->args.size() == 13U || op->args.size() == 14U);
-    std::string shape = Downcast<StringImm>(op->args[0])->value;
-    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
-    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
-    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
-    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
-    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string shape = (op->args[0]).as_or_throw<StringImm>()->value;
+    std::string A_layout = (op->args[1]).as_or_throw<StringImm>()->value;
+    std::string B_layout = (op->args[2]).as_or_throw<StringImm>()->value;
+    std::string A_dtype = (op->args[3]).as_or_throw<StringImm>()->value;
+    std::string B_dtype = (op->args[4]).as_or_throw<StringImm>()->value;
+    std::string C_dtype = (op->args[5]).as_or_throw<StringImm>()->value;
     std::string a_ref = this->PrintExpr(op->args[6]);
     std::string a_bias = this->PrintExpr(op->args[7]);
     std::string b_ref = this->PrintExpr(op->args[8]);
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = Downcast<IntImm>(op->args[12])->value;
-    std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
+    bool saturate = (op->args[12]).as_or_throw<IntImm>()->value;
+    std::string bit_op = op->args.size() > 13 ? (op->args[13]).as_or_throw<StringImm>()->value : "";
     this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
                                      a_bias, b_ref, b_bias, c_ref, c_bias, "", "", "", bit_op,
                                      false, saturate);
@@ -1190,9 +1190,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7U);
     // `trans` and `num` may arrive as Bool/IntImm; both Downcastable
     // to PrimExpr whose IntImmNode value tells us the literal.
-    bool trans = Downcast<IntImm>(op->args[0])->value != 0;
-    int num = Downcast<IntImm>(op->args[1])->value;
-    std::string type_str = Downcast<StringImm>(op->args[2])->value;
+    bool trans = (op->args[0]).as_or_throw<IntImm>()->value != 0;
+    int num = (op->args[1]).as_or_throw<IntImm>()->value;
+    std::string type_str = (op->args[2]).as_or_throw<StringImm>()->value;
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
     std::string smem_ptr = this->PrintExpr(op->args[5]);
@@ -1216,8 +1216,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
     // (dst_ptr is typically an access_ptr Call that already encodes
     // dst.elem_offset and the global pointer cast.)
-    int m = Downcast<IntImm>(op->args[0])->value;
-    int n = Downcast<IntImm>(op->args[1])->value;
+    int m = (op->args[0]).as_or_throw<IntImm>()->value;
+    int n = (op->args[1]).as_or_throw<IntImm>()->value;
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
@@ -1268,8 +1268,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
-    int barrier_arr_id = Downcast<IntImm>(op->args[5])->value;
-    int barrier_id = Downcast<IntImm>(op->args[6])->value;
+    int barrier_arr_id = (op->args[5]).as_or_throw<IntImm>()->value;
+    int barrier_id = (op->args[6]).as_or_throw<IntImm>()->value;
     auto it = barrier_count_.find(barrier_arr_id);
     TVM_FFI_ICHECK(it != barrier_count_.end()) << "Barrier array does not exist";
     std::string barrier_arr = barrier_name_ + "_" + std::to_string(barrier_arr_id);
@@ -1277,8 +1277,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
   } else if (IsOp(op, ptx_cp_async_mbarrier_arrive_op, "tirx.ptx.cp_async_mbarrier_arrive")) {
     codegen_tags_.insert("cast_smem_ptr_to_int");
-    int barrier_arr_id = Downcast<IntImm>(op->args[0])->value;
-    int barrier_id = Downcast<IntImm>(op->args[1])->value;
+    int barrier_arr_id = (op->args[0]).as_or_throw<IntImm>()->value;
+    int barrier_id = (op->args[1]).as_or_throw<IntImm>()->value;
     auto it = barrier_count_.find(barrier_arr_id);
     TVM_FFI_ICHECK(it != barrier_count_.end()) << "Barrier array does not exist";
     TVM_FFI_ICHECK(barrier_id < it->second) << "Barrier id out of bounds";
@@ -2105,7 +2105,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
-    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto prim_func = (base_func).as_or_throw<PrimFunc>();
     CallingConv calling_conv =
         prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
     TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||

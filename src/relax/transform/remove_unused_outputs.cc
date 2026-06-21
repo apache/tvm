@@ -183,7 +183,7 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   BindingBlock binding_block({binding});
   SeqExpr new_body({binding_block}, new_output);
 
-  auto old_ty = Downcast<FuncType>(func->ty);
+  auto old_ty = (func->ty).as_or_throw<FuncType>();
   FuncType new_ty(old_func_ty->params.value(), new_return_ty, old_func_ty->purity);
 
   auto write_ptr = func.CopyOnWrite();
@@ -201,7 +201,7 @@ class CallSiteMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto node = (ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     if (auto gvar = node->op.as<GlobalVar>()) {
       if (auto it = callsite_updaters_.find(gvar.value()); it != callsite_updaters_.end()) {
@@ -312,7 +312,7 @@ Pass RemoveUnusedOutputs() {
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto mutated = Downcast<Function>(mutator.VisitExpr(func.value()));
+        auto mutated = (mutator.VisitExpr(func.value())).as_or_throw<Function>();
         if (!mutated.same_as(base_func)) {
           caller_updates->Add(gvar, mutated);
         }

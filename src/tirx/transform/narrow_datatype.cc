@@ -85,8 +85,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
         analyzer_->const_int_bound(e, &bound_);
       }
       ConstIntBound bound = bound_[e];
-      int64_t ubound = Downcast<IntImm>(max_value(DataType::Int(target_bits_)))->value;
-      int64_t lbound = Downcast<IntImm>(min_value(DataType::Int(target_bits_)))->value;
+      int64_t ubound = (max_value(DataType::Int(target_bits_))).as_or_throw<IntImm>()->value;
+      int64_t lbound = (min_value(DataType::Int(target_bits_))).as_or_throw<IntImm>()->value;
       if (e.dtype().bits() <= target_bits_ ||
           (bound->max_value <= ubound && bound->min_value >= lbound)) {
         bits = target_bits_;
@@ -123,7 +123,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = (op->node).as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();

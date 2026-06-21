@@ -129,7 +129,7 @@ TVM_REGISTER_OP("tirx.tvm_access_ptr")
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
       DataType dtype = call->args[0].dtype();
-      Var buffer_var = Downcast<Var>(call->args[1]);
+      Var buffer_var = (call->args[1]).as_or_throw<Var>();
       PrimExpr offset = call->args[2];
       TVM_FFI_ICHECK(call->dtype.is_handle());
       if (dtype.lanes() != 1) {

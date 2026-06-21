@@ -38,7 +38,7 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
     return false;
   }
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = (inst->attrs[0]).as_or_throw<ffi::String>();
   return ann_key == s_tir::attr::meta_schedule_unroll_explicit ||
          ann_key == s_tir::attr::meta_schedule_unroll_implicit;
 }
@@ -124,8 +124,8 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   candidate->inst = ffi::GetRef<Instruction>(sample_inst);
   // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
   candidate->decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
-  candidate->probs =
-      support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
+  candidate->probs = support::AsVector<FloatImm, double>(
+      (sample_inst->attrs[1]).as_or_throw<ffi::Array<FloatImm>>());
   return true;
 }
 

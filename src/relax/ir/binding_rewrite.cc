@@ -80,7 +80,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
 
     BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
       BindingBlock res = ExprMutator::VisitBindingBlock_(op);
-      if (op == to_catch) caught = Downcast<DataflowBlock>(res);
+      if (op == to_catch) caught = (res).as_or_throw<DataflowBlock>();
       return res;
     }
   };
@@ -91,10 +91,10 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   // replace uses inside the DataflowBlock.
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
   if (root_fn_) {
-    root_fn_ = Downcast<Function>(replacer.VisitExpr(root_fn_.value()));
+    root_fn_ = (replacer.VisitExpr(root_fn_.value())).as_or_throw<Function>();
     dfb_ = replacer.caught;
   } else {
-    dfb_ = Downcast<DataflowBlock>(replacer.VisitBindingBlock(dfb_));
+    dfb_ = (replacer.VisitBindingBlock(dfb_)).as_or_throw<DataflowBlock>();
   }
 
   // update udchain
@@ -164,7 +164,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
 
   if (root_fn_) {
     auto updater = UpdateDFB(old_dfb, dfb_);
-    root_fn_ = Downcast<Function>(updater.VisitExpr(root_fn_.value()));
+    root_fn_ = (updater.VisitExpr(root_fn_.value())).as_or_throw<Function>();
   }
 
   for (const VarNode* v : used_vars) {
@@ -259,7 +259,7 @@ class RemoveUnusedVars : public ExprMutator {
     in_dataflow_block_ = cache;
 
     if (capture_output) {
-      caught_rewrite = Downcast<DataflowBlock>(output);
+      caught_rewrite = (output).as_or_throw<DataflowBlock>();
     }
 
     return output;
@@ -283,11 +283,11 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   auto old_dfb = dfb_;
 
   RemoveUnusedVars remover({unused});
-  dfb_ = Downcast<DataflowBlock>(remover.VisitBindingBlock(old_dfb));
+  dfb_ = (remover.VisitBindingBlock(old_dfb)).as_or_throw<DataflowBlock>();
 
   if (root_fn_) {
     auto updater = UpdateDFB(old_dfb, dfb_);
-    root_fn_ = Downcast<Function>(updater.VisitExpr(root_fn_.value()));
+    root_fn_ = (updater.VisitExpr(root_fn_.value())).as_or_throw<Function>();
   }
 
   to_users_.erase(unused);  // update use-def chain.
@@ -307,11 +307,11 @@ void DataflowBlockRewriteNode::RemoveAllUnused() {
 
   if (root_fn_) {
     // this could also clean unused variables in other DataflowBlock.
-    root_fn_ = Downcast<Function>(remover.VisitExpr(root_fn_.value()));
+    root_fn_ = (remover.VisitExpr(root_fn_.value())).as_or_throw<Function>();
     // DataflowBlock could be None.
     dfb_ = remover.caught_rewrite.value();
   } else {
-    dfb_ = Downcast<DataflowBlock>(remover.VisitBindingBlock(dfb_));
+    dfb_ = (remover.VisitBindingBlock(dfb_)).as_or_throw<DataflowBlock>();
   }
 
   // clean up use-def chain.

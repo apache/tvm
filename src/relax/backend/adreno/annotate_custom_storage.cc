@@ -342,11 +342,11 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     Tuple func_args;
 
     if (call->op == call_tir_op) {
-      gv = Downcast<GlobalVar>(call->args[0]);
-      tirx::PrimFunc pfunc = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+      gv = (call->args[0]).as_or_throw<GlobalVar>();
+      tirx::PrimFunc pfunc = (mod_->Lookup(gv)).as_or_throw<tirx::PrimFunc>();
       op_attrs = ExtractAttrs<tirx::PrimFunc>(pfunc);
       op_pattern = ExtractPattern<tirx::PrimFunc>(pfunc);
-      func_args = Downcast<Tuple>(call->args[1]);
+      func_args = (call->args[1]).as_or_throw<Tuple>();
     } else {
       op_attrs = {call->attrs};
       op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
@@ -514,7 +514,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
     auto arg_var = binding->var.as<VarNode>();
     if (scope_info_.find(ffi::GetRef<Expr>(arg_var)) != scope_info_.end()) {
       for (const auto& val : scope_info_[ffi::GetRef<Expr>(arg_var)]) {
-        auto call_node = Downcast<Call>(val.first);
+        auto call_node = (val.first).as_or_throw<Call>();
         if (scope_count.find(val.second[0]) == scope_count.end()) {
           scope_count.insert({val.second[0], 1});
         } else {
@@ -539,7 +539,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
  private:
   Type UpdateOutputType(const Type& out_ty, ffi::Array<ffi::String> scope) {
     if (out_ty->IsInstance<TensorTypeNode>()) {
-      auto tensor_ty = Downcast<TensorType>(out_ty);
+      auto tensor_ty = (out_ty).as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(tensor_ty);
       return TensorType(ShapeExpr(shape_arr), tensor_ty->dtype, VDevice(target_, 0, scope[0]));
     }
@@ -549,14 +549,14 @@ class CollectProducerScopeInfo : public ExprVisitor {
            "TensorType, but got "
         << out_ty;
 
-    const auto& tuple_ty = Downcast<TupleType>(out_ty);
+    const auto& tuple_ty = (out_ty).as_or_throw<TupleType>();
     ffi::Array<Type> ty_fields;
     for (const auto& si : tuple_ty->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
           << "Fields of TupleType must be TensorType for call_tir "
              "output structinfo, but got "
           << si;
-      auto ty = Downcast<TensorType>(si);
+      auto ty = (si).as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(ty);
       ty_fields.push_back(
           TensorType(ShapeExpr(shape_arr), ty->dtype, VDevice(target_, 0, scope[0])));
@@ -591,12 +591,13 @@ class DefineVDevice : ExprMutator {
         if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
           continue;
         }
-        auto info = CollectConsumerScopeInfo().Collect(mod_, Downcast<Function>(func), target_);
+        auto info =
+            CollectConsumerScopeInfo().Collect(mod_, (func).as_or_throw<Function>(), target_);
         call_scope_info_ = info.first;
         scope_info_ = info.second;
-        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, Downcast<Function>(func),
+        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, (func).as_or_throw<Function>(),
                                                           scope_info_, target_, builder_);
-        relax::Function update_func = Downcast<Function>(VisitExpr(func));
+        relax::Function update_func = (VisitExpr(func)).as_or_throw<Function>();
         updates_->Add(gv, update_func);
       }
     }
@@ -618,7 +619,7 @@ class DefineVDevice : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    auto call = (ExprMutator::VisitExpr_(call_node)).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
 
     GlobalVar gv;
@@ -627,8 +628,8 @@ class DefineVDevice : ExprMutator {
     Type out_ty;
 
     if (call->op == call_tir_op) {
-      gv = Downcast<GlobalVar>(call->args[0]);
-      func_args = Downcast<Tuple>(call->args[1]);
+      gv = (call->args[0]).as_or_throw<GlobalVar>();
+      func_args = (call->args[1]).as_or_throw<Tuple>();
     } else {
       func_args = Tuple(call->args);
     }
@@ -637,7 +638,7 @@ class DefineVDevice : ExprMutator {
     Type updated_ret_ty = producer_ty_[ffi::GetRef<Expr>(call_node)];
 
     if (updated_ret_ty->IsInstance<TensorTypeNode>()) {
-      auto tensor_ty = Downcast<TensorType>(updated_ret_ty);
+      auto tensor_ty = (updated_ret_ty).as_or_throw<TensorType>();
       auto shape = tensor_ty->shape.value();
       auto dtype = tensor_ty->dtype;
       if (tensor_ty->vdevice.defined()) {
@@ -651,14 +652,14 @@ class DefineVDevice : ExprMutator {
              "TensorType, but got "
           << updated_ret_ty;
 
-      const auto& tuple_ty = Downcast<TupleType>(updated_ret_ty);
+      const auto& tuple_ty = (updated_ret_ty).as_or_throw<TupleType>();
       ffi::Array<Type> ty_fields;
       for (const auto& si : tuple_ty->fields) {
         TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
             << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto ty = Downcast<TensorType>(si);
+        auto ty = (si).as_or_throw<TensorType>();
 
         auto shape_arr = GetShapeFromTensorType(ty);
 

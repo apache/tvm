@@ -55,12 +55,12 @@ static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) 
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensor(const Expr& expr) {
-  const auto& tensor_ty = Downcast<TensorType>(expr->ty);
+  const auto& tensor_ty = (expr->ty).as_or_throw<TensorType>();
   return GetShapeFromTensorType(tensor_ty);
 }
 
 static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
-  return Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
+  return (ffi::FromJSONGraph(ffi::ToJSONGraph(index_map))).as_or_throw<IndexMap>();
 }
 
 /*! \brief Checks if the \p transform is bijective on the shape of \p expr */
@@ -98,7 +98,7 @@ class AlterOpImplMutator : public ExprMutator {
     for (const auto& gv : mod_->GetGlobalVars()) {
       const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<relax::FunctionNode>()) {
-        relax::Function update_func = Downcast<Function>(VisitExpr(func));
+        relax::Function update_func = (VisitExpr(func)).as_or_throw<Function>();
         builder_->UpdateFunction(gv, update_func);
       }
     }
@@ -109,7 +109,7 @@ class AlterOpImplMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) final {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto call = (ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     // TODO(@tvm-team): When we differentiate the call for tirx function and packed function,
     // this logic should be changed accordingly.
@@ -121,7 +121,7 @@ class AlterOpImplMutator : public ExprMutator {
     // Get operator name from callee
     TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
     const tirx::PrimFunc& old_func =
-        Downcast<tirx::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
+        (mod_->Lookup((call->args[0]).as_or_throw<GlobalVar>())).as_or_throw<tirx::PrimFunc>();
     ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
@@ -262,7 +262,7 @@ class AlterOpImplMutator : public ExprMutator {
     } else {
       auto padded_expr = builder_->Normalize(
           TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
-      const auto& tensor_ty = Downcast<TensorType>(padded_expr->ty);
+      const auto& tensor_ty = (padded_expr->ty).as_or_throw<TensorType>();
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype);
       return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_ty});
@@ -322,7 +322,7 @@ class AlterOpImplMutator : public ExprMutator {
     if (buffer_transforms.empty()) return out_ty;
 
     if (out_ty->IsInstance<TensorTypeNode>())
-      return UpdateOutputType(Downcast<TensorType>(out_ty),
+      return UpdateOutputType((out_ty).as_or_throw<TensorType>(),
                               buffer_transforms[buffer_transforms.size() - 1]);
 
     TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -330,7 +330,7 @@ class AlterOpImplMutator : public ExprMutator {
            "TensorType, but got "
         << out_ty;
 
-    const auto& tuple_ty = Downcast<TupleType>(out_ty);
+    const auto& tuple_ty = (out_ty).as_or_throw<TupleType>();
     ffi::Array<Type> ty_fields;
     size_t first_output_index = buffer_transforms.size() - tuple_ty->fields.size();
     size_t i = 0;
@@ -339,8 +339,8 @@ class AlterOpImplMutator : public ExprMutator {
           << "Fields of TupleType must be TensorType for call_tir "
              "output structinfo, but got "
           << si;
-      ty_fields.push_back(
-          UpdateOutputType(Downcast<TensorType>(si), buffer_transforms[first_output_index + i++]));
+      ty_fields.push_back(UpdateOutputType((si).as_or_throw<TensorType>(),
+                                           buffer_transforms[first_output_index + i++]));
     }
     return TupleType(ty_fields);
   }

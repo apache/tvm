@@ -298,7 +298,7 @@ class LambdaLifter : public ExprMutator {
 
     auto gvar_lifted_func = GlobalVar(lift_func_name);
     {
-      auto func_ty = Downcast<FuncType>(func_node->ty);
+      auto func_ty = (func_node->ty).as_or_throw<FuncType>();
       if (is_closure) {
         func_ty = FuncType(lifted_func_params.Map(GetType), func_ty->ret, func_ty->purity);
       }
@@ -359,7 +359,7 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = ffi::GetRef<Call>(call_node);
 
-    auto orig_ty = Downcast<Type>(call->ty);
+    auto orig_ty = (call->ty).as_or_throw<Type>();
 
     if (auto opt_var = call->op.as<Var>()) {
       auto var = opt_var.value();
@@ -368,7 +368,7 @@ class LambdaLifter : public ExprMutator {
 
       if (IsClosure(var) && builder_->LookupBinding(var).as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = Downcast<Call>(builder_->LookupBinding(var));
+        Call orig_call = (builder_->LookupBinding(var)).as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
@@ -469,7 +469,7 @@ class LambdaLifter : public ExprMutator {
         // Must visit the function itself, and not just the function
         // body, to ensure that EraseToWellDefined recognized symbolic
         // variables that are exposed by the function signature.
-        auto func = Downcast<Function>(VisitExpr(opt.value()));
+        auto func = (VisitExpr(opt.value())).as_or_throw<Function>();
         builder_->UpdateFunction(gvar, func);
       }
     }

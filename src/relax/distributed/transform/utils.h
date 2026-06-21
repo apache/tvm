@@ -35,7 +35,7 @@ namespace distributed {
  * \return The TIR function, or nullopt if pattern match fails.
  */
 inline ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
-  const GlobalVar& global_var = Downcast<GlobalVar>(op);
+  const GlobalVar& global_var = (op).as_or_throw<GlobalVar>();
   // NOTE: as check works for nullptr(returns null)
   ffi::Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
   if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {

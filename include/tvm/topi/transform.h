@@ -976,7 +976,7 @@ inline Tensor strided_slice(const Tensor& x, const ffi::Array<ffi::Optional<IntI
       (begin.size() > 0 && begin[0].defined()) ? begin[0].value()->dtype : DataType::Int(64);
   const IntImm one = IntImm(index_dtype, 1);
   const IntImm zero = IntImm(index_dtype, 0);
-  const IntImm max_range = Downcast<IntImm>(max_value(index_dtype));
+  const IntImm max_range = (max_value(index_dtype)).as_or_throw<IntImm>();
 
   for (size_t i = strides.size(); i < src_tensor_dim; ++i) {
     strides_full.push_back(one);

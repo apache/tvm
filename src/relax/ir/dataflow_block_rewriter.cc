@@ -453,7 +453,7 @@ Function RewriteBindings(
     ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)> rewriter,
     Function func) {
   // return BlockPatternRewriter::Run(ctx, rewriter, func);
-  return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
+  return (PatternContextRewriter(ctx, rewriter)(func)).as_or_throw<Function>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

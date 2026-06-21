@@ -105,7 +105,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     if (inst->inputs.size() != 3 || inst->inputs[1] != nullptr) return false;
     TVM_FFI_ICHECK(inst->inputs[2] != nullptr);
 
-    return sample_insts.find(Downcast<PrimExpr>(inst->inputs[2]).get()) != sample_insts.end();
+    return sample_insts.find((inst->inputs[2]).as_or_throw<PrimExpr>().get()) != sample_insts.end();
   };
 
   auto is_thread_binding_by_sample = [&sampled_split_insts](const Instruction& inst) -> bool {
@@ -114,9 +114,9 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     }
     TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
     TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-    if (Downcast<ffi::String>(inst->attrs[0]) != "threadIdx.x") return false;
+    if ((inst->attrs[0]).as_or_throw<ffi::String>() != "threadIdx.x") return false;
 
-    return sampled_split_insts.find(Downcast<s_tir::LoopRV>(inst->inputs[0]).get()) !=
+    return sampled_split_insts.find((inst->inputs[0]).as_or_throw<s_tir::LoopRV>().get()) !=
            sampled_split_insts.end();
   };
 
@@ -149,8 +149,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     // SampleCategorical decision is Optional<int64_t> after the Integer phase-out.
     int decision = trace->decisions[ffi::GetRef<Instruction>(sample_inst)].cast<int64_t>();
 
-    std::vector<double> probs =
-        support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(sample_inst->attrs[1]));
+    std::vector<double> probs = support::AsVector<FloatImm, double>(
+        (sample_inst->attrs[1]).as_or_throw<ffi::Array<FloatImm>>());
 
     candidates.emplace_back(ffi::GetRef<Instruction>(sample_inst), probs, decision);
   }

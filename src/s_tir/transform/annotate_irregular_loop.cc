@@ -41,7 +41,7 @@ class IrregularLoopAnnotator : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    For res = Downcast<For>(StmtMutator::VisitStmt_(op));
+    For res = (StmtMutator::VisitStmt_(op)).as_or_throw<For>();
     if (has_jump_) {
       TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;

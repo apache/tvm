@@ -370,7 +370,7 @@ TVM_REGISTER_OP("relax.nn.pixel_shuffle")
 /* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const ffi::Array<TensorType>& input_ty, ffi::Array<int64_t> axes) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   int n_input = op->arguments.size();
 
   TensorType data_ty = input_ty[0];
@@ -604,7 +604,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeGroupNorm(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<GroupNormAttrs>();
 
@@ -715,7 +715,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeInstanceNorm(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";

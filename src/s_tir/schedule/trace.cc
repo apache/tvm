@@ -138,13 +138,13 @@ ffi::Array<Any> TranslateInputRVs(
       results.push_back(input);
     } else if (input.as<ffi::ArrayObj>()) {
       // Case 4: array
-      results.push_back(TranslateInputRVs(Downcast<ffi::Array<Any>>(Any(input)), rv_names));
+      results.push_back(TranslateInputRVs((Any(input)).as_or_throw<ffi::Array<Any>>(), rv_names));
     } else if (input.as<ffi::MapObj>()) {
       // Case 5: dict
       results.push_back(input);
     } else if (input.as<IndexMapNode>()) {
       // // Case 6: IndexMap
-      IndexMap index_map = Downcast<IndexMap>(input);
+      IndexMap index_map = (input).as_or_throw<IndexMap>();
       index_map =
           index_map.RenameVariables([&rv_names](const Var& var) -> ffi::Optional<ffi::String> {
             if (auto it = rv_names.find(var); it != rv_names.end()) {
@@ -179,7 +179,7 @@ ffi::Array<Any> TranslateInputRVs(
     }
     // Case 4. array
     if (input.as<ffi::ArrayObj>()) {
-      results.push_back(TranslateInputRVs(Downcast<ffi::Array<Any>>(input), named_rvs));
+      results.push_back(TranslateInputRVs((input).as_or_throw<ffi::Array<Any>>(), named_rvs));
       continue;
     }
     // Case 5. dict
@@ -197,11 +197,11 @@ ffi::Array<Any> TranslateInputRVs(
       Any obj = ffi::FromJSONGraph(ffi::json::Parse(name));
       // Case 6. IndexMap
       if (obj.as<IndexMapNode>()) {
-        IndexMap index_map = Downcast<IndexMap>(obj);
+        IndexMap index_map = (obj).as_or_throw<IndexMap>();
         index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
           auto it = named_rvs.find(var->name_hint);
           if (it != named_rvs.end()) {
-            return Downcast<Var>(it->second);
+            return (it->second).as_or_throw<Var>();
           }
           return std::nullopt;
         });
@@ -325,8 +325,7 @@ void TranslateAddOutputRVs(const ffi::Array<ffi::String>& old_outputs,
   TVM_FFI_ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
-    named_rvs->emplace(Downcast<ffi::String>(old_outputs[i]),
-                       new_outputs[i].cast<ffi::ObjectRef>());
+    named_rvs->emplace(old_outputs[i], new_outputs[i].cast<ffi::ObjectRef>());
   }
 }
 
@@ -453,8 +452,8 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
     const auto* arr0 = arr->at(0).as<ffi::ArrayObj>();
     const auto* arr1 = arr->at(1).as<ffi::ArrayObj>();
     TVM_FFI_ICHECK(arr0 && arr1);
-    json_insts = ffi::GetRef<ffi::Array<Any>>(arr0);
-    json_decisions = ffi::GetRef<ffi::Array<Any>>(arr1);
+    json_insts = (ffi::GetRef<ffi::ObjectRef>(arr0)).as_or_throw<ffi::Array<Any>>();
+    json_decisions = (ffi::GetRef<ffi::ObjectRef>(arr1)).as_or_throw<ffi::Array<Any>>();
   } catch (const tvm::ffi::Error& e) {
     TVM_FFI_THROW(ValueError) << "The json entry of a trace should contain two arrays, an array of "
                                  "instructions and an array of decisions, but gets: "

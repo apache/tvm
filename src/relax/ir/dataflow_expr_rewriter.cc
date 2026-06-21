@@ -669,7 +669,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
         << "Expected module to contain 'pattern', "
         << "a Relax function defining the pattern to be matched, "
         << "but the 'pattern' function was of type " << base_func->GetTypeKey() << ".";
-    return Downcast<Function>(base_func);
+    return (base_func).as_or_throw<Function>();
   }();
   Function func_replacement = [&]() {
     TVM_FFI_CHECK(mod->ContainGlobalVar("replacement"), KeyError)
@@ -681,7 +681,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be made on a successful match, "
         << "but the 'replacement' function was of type " << base_func->GetTypeKey() << ".";
-    return Downcast<Function>(base_func);
+    return (base_func).as_or_throw<Function>();
   }();
 
   ffi::Map<GlobalVar, BaseFunc> new_subroutines;
@@ -831,12 +831,12 @@ class PatternMatchingMutator : public ExprMutator {
   ffi::Map<GlobalVar, BaseFunc> GetNewSubroutines() const { return new_subroutines_; }
 
   Expr VisitExpr_(const SeqExprNode* seq) override {
-    SeqExpr prev = Downcast<SeqExpr>(ExprMutator::VisitExpr_(seq));
+    SeqExpr prev = (ExprMutator::VisitExpr_(seq)).as_or_throw<SeqExpr>();
 
     ffi::StructuralEqual struct_equal;
 
     while (auto opt = TryRewriteSeqExpr(prev)) {
-      SeqExpr next = Downcast<SeqExpr>(builder_->Normalize(opt.value()));
+      SeqExpr next = (builder_->Normalize(opt.value())).as_or_throw<SeqExpr>();
       if (struct_equal(prev, next)) {
         break;
       }
@@ -848,9 +848,9 @@ class PatternMatchingMutator : public ExprMutator {
       // simplification steps until converged.
       while (true) {
         auto start_of_loop = next;
-        next = Downcast<SeqExpr>(CanonicalizeBindings(next));
-        next = Downcast<SeqExpr>(EliminateCommonSubexpr(next));
-        next = Downcast<SeqExpr>(RemoveAllUnused(next));
+        next = (CanonicalizeBindings(next)).as_or_throw<SeqExpr>();
+        next = (EliminateCommonSubexpr(next)).as_or_throw<SeqExpr>();
+        next = (RemoveAllUnused(next)).as_or_throw<SeqExpr>();
         if (struct_equal(start_of_loop, next)) {
           break;
         }
@@ -956,7 +956,7 @@ class PatternMatchingMutator : public ExprMutator {
       for (const auto& binding : block->bindings) {
         auto value = GetBoundValue(binding);
         bool is_dataflow = (!value.as<IfNode>()) &&
-                           (!(value.as<CallNode>() && IsImpureCall(Downcast<Call>(value))));
+                           (!(value.as<CallNode>() && IsImpureCall((value).as_or_throw<Call>())));
         if (is_dataflow) {
           // This binding satisfies the dataflow constraints.
           collected_bindings.push_back(binding);
@@ -1065,7 +1065,7 @@ IRModule PatternMatchingRewriterNode::operator()(
   IRModule updates;
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto func = base_func.as<Function>()) {
-      auto rewritten = Downcast<Function>(mutator(func.value()));
+      auto rewritten = (mutator(func.value())).as_or_throw<Function>();
       if (!rewritten.same_as(base_func)) {
         updates->Add(gvar, rewritten);
       }
@@ -1087,7 +1087,7 @@ tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
 Function RewriteCall(const DFPattern& pat,
                      ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)> rewriter,
                      Function func) {
-  return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
+  return (PatternMatchingRewriter::FromPattern(pat, rewriter)(func)).as_or_throw<Function>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

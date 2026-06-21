@@ -24,7 +24,6 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
@@ -629,7 +628,7 @@ class SBlockCollector : public tirx::StmtVisitor {
 
     if (sch_->func_working_on().defined()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tirx::PrimFunc func = Downcast<tirx::PrimFunc>(sch_->mod()->functions[gv]);
+      tirx::PrimFunc func = (sch_->mod()->functions[gv]).as_or_throw<tirx::PrimFunc>();
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {

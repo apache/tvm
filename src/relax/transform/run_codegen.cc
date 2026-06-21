@@ -75,7 +75,7 @@ class CodeGenRunner : ExprMutator {
     }
 
     for (const auto& gvar : entry_functions) {
-      builder_->UpdateFunction(gvar, Downcast<BaseFunc>(VisitExpr(mod->Lookup(gvar))));
+      builder_->UpdateFunction(gvar, (VisitExpr(mod->Lookup(gvar))).as_or_throw<BaseFunc>());
     }
 
     auto ext_mods = InvokeCodegen(mod, target_options.value_or({}));
@@ -106,7 +106,7 @@ class CodeGenRunner : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    auto call = (ExprMutator::VisitExpr_(call_node)).as_or_throw<Call>();
     if (auto const* gvar_node = call_node->op.as<GlobalVarNode>()) {
       const GlobalVar gvar = ffi::GetRef<GlobalVar>(gvar_node);
 
@@ -158,7 +158,7 @@ class CodeGenRunner : ExprMutator {
         if (e->IsInstance<ConstantNode>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
-          auto constant = Downcast<Constant>(e);
+          auto constant = (e).as_or_throw<Constant>();
           constant_names.Set(constant, name);
         }
       });
@@ -179,7 +179,7 @@ class CodeGenRunner : ExprMutator {
       }
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
-          auto f = Downcast<Function>(e);
+          auto f = (e).as_or_throw<Function>();
           if (auto target_opt = f->GetAttr<ffi::String>(attr::kCodegen)) {
             ffi::String target = target_opt.value();
             target_functions[target].push_back(f);

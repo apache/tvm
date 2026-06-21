@@ -220,7 +220,7 @@ namespace transform {
 
 Pass EliminateCommonSubexpr(bool call_only) {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
-    return Downcast<Function>(EliminateCommonSubexpr(func, call_only));
+    return (EliminateCommonSubexpr(func, call_only)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }

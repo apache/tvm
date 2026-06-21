@@ -109,7 +109,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<AllocBuffer>();
 
     auto new_buf = GetFlattenedBuffer(node->buffer);
     // TODO(Lunderberg): Move the handling of boolean into a dedicated pass.
@@ -125,7 +125,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<DeclBuffer>();
 
     auto new_buf = GetFlattenedBuffer(node->buffer);
     if (!node->buffer.same_as(new_buf)) {
@@ -159,7 +159,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     bool store_returns_bool = (op->value.dtype() == DataType::Bool());
     store = VisitBufferAccess(store);
 
@@ -179,7 +179,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     bool load_returns_bool = (op->dtype == DataType::Bool());
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad load = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     // Handle casts from dtype of the backing array to value's dtype.
     // TODO(Lunderberg): Move the handling of boolean into a

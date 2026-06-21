@@ -119,7 +119,7 @@ class DistIRSharder : public ExprMutator {
       Var new_param(var->name_hint(), new_ty);
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
-      for (const auto& spec : Downcast<DTensorType>(old_ty)->placement->dim_specs) {
+      for (const auto& spec : (old_ty).as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
       Constant new_constant(constant->data, new_ty);
@@ -139,7 +139,7 @@ class DistIRSharder : public ExprMutator {
       if (const auto* var = old_expr.as<VarNode>()) {
         var_remap_[var->vid] = new_var;
       } else {
-        tuple_getitem_remap_[Downcast<TupleGetItem>(old_expr)] = new_var;
+        tuple_getitem_remap_[(old_expr).as_or_throw<TupleGetItem>()] = new_var;
       }
     } else if (sharding_spec->kind == PlacementSpecKind::kSharding) {
       Var scatter_var = builder_->Emit(
@@ -147,7 +147,7 @@ class DistIRSharder : public ExprMutator {
       if (const auto* var = old_expr.as<VarNode>()) {
         var_remap_[var->vid] = scatter_var;
       } else {
-        tuple_getitem_remap_[Downcast<TupleGetItem>(old_expr)] = scatter_var;
+        tuple_getitem_remap_[(old_expr).as_or_throw<TupleGetItem>()] = scatter_var;
       }
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported placement spec";
@@ -173,7 +173,7 @@ class DistIRSharder : public ExprMutator {
   Function RewriteFunction(Function func) {
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
-      Var new_param = Downcast<Var>(ShardInputParamTensorAndConstant(var));
+      Var new_param = (ShardInputParamTensorAndConstant(var)).as_or_throw<Var>();
       var_remap_[var->vid] = new_param;
       new_params.push_back(new_param);
     }
@@ -219,8 +219,8 @@ class DistIRSharder : public ExprMutator {
       const auto* out_ty = GetTypeAs<DTensorTypeNode>(binding_var);
       TVM_FFI_ICHECK(out_ty);
       auto new_call_node = ffi::make_object<CallNode>(*call);
-      new_call_node->args.Set(1, ShardShape(Downcast<ShapeExpr>(call->args[1]), out_ty->device_mesh,
-                                            out_ty->placement));
+      new_call_node->args.Set(1, ShardShape((call->args[1]).as_or_throw<ShapeExpr>(),
+                                            out_ty->device_mesh, out_ty->placement));
       return Call(new_call_node);
     } else if (call->op.same_as(call_tir_local_view_op)) {
       auto new_call_node = ffi::make_object<CallNode>(*call);
@@ -236,7 +236,7 @@ class DistIRSharder : public ExprMutator {
         new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_append");
       } else if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
         new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_view");
-        auto orig_shape = Downcast<ShapeExpr>(call->args[1]);
+        auto orig_shape = (call->args[1]).as_or_throw<ShapeExpr>();
         const auto* out_ty = GetTypeAs<DTensorTypeNode>(binding_var);
         TVM_FFI_ICHECK(out_ty);
         ShapeExpr new_shape = ShardShape(orig_shape, out_ty->device_mesh, out_ty->placement);
@@ -249,8 +249,8 @@ class DistIRSharder : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    Call new_call =
-        Downcast<Call>(this->VisitExpr(HandleSpecialCaseinDTensorLowering(val, binding->var)));
+    Call new_call = (this->VisitExpr(HandleSpecialCaseinDTensorLowering(val, binding->var)))
+                        .as_or_throw<Call>();
     ReEmitBinding(binding, builder_->Normalize(new_call));
   }
 

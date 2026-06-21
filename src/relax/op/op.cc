@@ -513,7 +513,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     // example, if a relax function accepted a tuple as an parameter,
     // then provided that same tuple as an argument to call_tir.
     ffi::Array<Expr> tuple_elements;
-    size_t num_fields = Downcast<TupleType>(arg_tuple->ty)->fields.size();
+    size_t num_fields = (arg_tuple->ty).as_or_throw<TupleType>()->fields.size();
     for (size_t i = 0; i < num_fields; i++) {
       tuple_elements.push_back(TupleGetItem(arg_tuple, i));
     }
@@ -668,9 +668,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   // Apply normalization before error checks.  This allows the error
-  // checks to safely apply `Downcast<Tuple>(call->args[1])`, which
+  // checks to safely require `call->args[1]` to be a Tuple, which
   // may result in an error if performed before normalization.
-  call = Downcast<Call>(NormalizeCallTIR(ctx, std::move(call)));
+  call = (NormalizeCallTIR(ctx, std::move(call))).as_or_throw<Call>();
 
   ffi::Array<Type> ty_outputs = [&]() -> ffi::Array<Type> {
     auto out_ty = call->ty_args[0];
@@ -690,7 +690,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   }
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
-  size_t num_args = Downcast<Tuple>(call->args[1])->fields.size();
+  size_t num_args = (call->args[1]).as_or_throw<Tuple>()->fields.size();
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
     int index = attrs->inplace_indices[i];
@@ -715,7 +715,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
   // for safety, we will make sure the output shape for each in-place argument exactly matches the
   // input shape
   // TODO(@slyubomirsky): eventually we will want to handle cases where that is not true
-  Tuple call_args = Downcast<Tuple>(call->args[1]);
+  Tuple call_args = (call->args[1]).as_or_throw<Tuple>();
 
   for (size_t i_output = 0; i_output < attrs->inplace_indices.size(); i_output++) {
     auto i_input = attrs->inplace_indices[i_output];
@@ -1150,7 +1150,7 @@ Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
       << "but " << call << " has argument " << call->args[0] << " with type " << call->args[0]->ty;
 
   if (tensor_ty->shape.defined()) {
-    ShapeExpr shape_expr = Downcast<ShapeExpr>(tensor_ty->shape.value());
+    ShapeExpr shape_expr = (tensor_ty->shape.value()).as_or_throw<ShapeExpr>();
     const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
     if (ndim) {
       return ShapeType(ndim->value);

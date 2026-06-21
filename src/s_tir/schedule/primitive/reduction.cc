@@ -43,7 +43,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
                                            Stmt decomposed_body, SBlock old_reduction_block) {
     DecomposeReductionBlockReplacer replacer(std::move(target_loop), std::move(decomposed_body),
                                              std::move(old_reduction_block));
-    return std::make_pair(Downcast<SBlock>(replacer(std::move(old_scope_root))),
+    return std::make_pair((replacer(std::move(old_scope_root))).as_or_throw<SBlock>(),
                           replacer.new_reduction_block_);
   }
 
@@ -1074,7 +1074,7 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   Stmt rf_body = rf_block_realize;
   for (int i = n_loops - 1; i >= 0; --i) {
     ffi::ObjectPtr<ForNode> p_loop = ffi::make_object<ForNode>(*loops[i].get());
-    p_loop->loop_var = Downcast<Var>(new_loop_var_map[loops[i]->loop_var.get()]);
+    p_loop->loop_var = (new_loop_var_map[loops[i]->loop_var.get()]).as_or_throw<Var>();
     p_loop->body = rf_body;
     rf_body = For(std::move(p_loop));
   }
@@ -1115,7 +1115,7 @@ class BlockReplacer : public StmtMutator {
                            std::move(wb_block_realize), std::move(old_block_realize),
                            std::move(rf_loop), std::move(reduce_loop_vars),
                            std::move(loop_vars2loop));
-    SBlock new_scope_root = Downcast<SBlock>(replacer(std::move(scope_root_block)));
+    SBlock new_scope_root = (replacer(std::move(scope_root_block))).as_or_throw<SBlock>();
     SBlockNode* p = new_scope_root.CopyOnWrite();
     for (const Buffer& rf_buffer : rf_buffers) {
       p->alloc_buffers.push_back(rf_buffer);

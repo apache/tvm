@@ -41,7 +41,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
     return false;
   }
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = (inst->attrs[0]).as_or_throw<ffi::String>();
   return ann_key == s_tir::attr::meta_schedule_parallel;
 }
 
@@ -245,12 +245,12 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
   const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
   TVM_FFI_ICHECK_EQ(ann_inst->inputs.size(), 2);
   const InstructionNode* get_sblock_inst =
-      get_sblock_insts.at(Downcast<s_tir::SBlockRV>(ann_inst->inputs[0]).get());
+      get_sblock_insts.at((ann_inst->inputs[0]).as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = Downcast<IntImm>(ann_inst->inputs[1])->value;
-  candidate->block_name = Downcast<ffi::String>(get_sblock_inst->attrs[0]);
-  candidate->func_name = Downcast<ffi::String>(get_sblock_inst->attrs[1]);
+  candidate->parallel_extent = (ann_inst->inputs[1]).as_or_throw<IntImm>()->value;
+  candidate->block_name = (get_sblock_inst->attrs[0]).as_or_throw<ffi::String>();
+  candidate->func_name = (get_sblock_inst->attrs[1]).as_or_throw<ffi::String>();
   return true;
 }
 

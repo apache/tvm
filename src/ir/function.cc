@@ -39,11 +39,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key, Any value) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tirx::PrimFuncNode>()) {
-               return WithAttr(Downcast<tirx::PrimFunc>(std::move(func)), key, value);
+               return WithAttr((std::move(func)).as_or_throw<tirx::PrimFunc>(), key, value);
              } else if (func->IsInstance<relax::FunctionNode>()) {
-               return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
+               return WithAttr((std::move(func)).as_or_throw<relax::Function>(), key, value);
              } else if (func->IsInstance<relax::ExternFuncNode>()) {
-               return WithAttr(Downcast<relax::ExternFunc>(std::move(func)), key, value);
+               return WithAttr((std::move(func)).as_or_throw<relax::ExternFunc>(), key, value);
              } else {
                TVM_FFI_THROW(InternalError)
                    << "Do not support function type " << func->GetTypeKey();
@@ -54,7 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Map<ffi::String, ffi::Any> attr_map) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tirx::PrimFuncNode>()) {
-               return WithAttrs(Downcast<tirx::PrimFunc>(std::move(func)), attr_map);
+               return WithAttrs((std::move(func)).as_or_throw<tirx::PrimFunc>(), attr_map);
              }
              if (const auto f = tvm::ffi::Function::GetGlobal("relax.FuncWithAttrs")) {
                if (auto ret = (*f)(func, attr_map).cast<ffi::Optional<BaseFunc>>()) {
@@ -62,7 +62,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                }
              }
              if (func->IsInstance<relax::ExternFuncNode>()) {
-               return WithAttrs(Downcast<relax::ExternFunc>(std::move(func)), attr_map);
+               return WithAttrs((std::move(func)).as_or_throw<relax::ExternFunc>(), attr_map);
              }
              TVM_FFI_THROW(InternalError) << "Do not support function type " << func->GetTypeKey();
              TVM_FFI_UNREACHABLE();
@@ -71,9 +71,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key) -> BaseFunc {
              BaseFunc func = *std::move(func_ref);
              if (func->IsInstance<tirx::PrimFuncNode>()) {
-               return WithoutAttr(Downcast<tirx::PrimFunc>(std::move(func)), key);
+               return WithoutAttr((std::move(func)).as_or_throw<tirx::PrimFunc>(), key);
              } else if (func->IsInstance<relax::FunctionNode>()) {
-               return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
+               return WithoutAttr((std::move(func)).as_or_throw<relax::Function>(), key);
              } else {
                TVM_FFI_THROW(InternalError)
                    << "Do not support function type " << func->GetTypeKey();

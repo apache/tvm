@@ -204,7 +204,7 @@ class GlobalVarNormalizer : private ExprMutator {
       if (!func->IsInstance<FunctionNode>()) {
         continue;
       }
-      auto new_func = Downcast<BaseFunc>(this->VisitExpr(func));
+      auto new_func = (this->VisitExpr(func)).as_or_throw<BaseFunc>();
       builder_->UpdateFunction(gvar_map_[gvar], new_func);
     }
 
@@ -276,7 +276,7 @@ namespace transform {
 
 Pass Normalize() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(Normalize(f));
+    return (Normalize(f)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }

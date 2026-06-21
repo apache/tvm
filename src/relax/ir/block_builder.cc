@@ -388,7 +388,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     Var var = CreateVar(is_dataflow, name_hint);
 
     // set the values
-    UpdateType(var, Downcast<Type>(expr->ty));
+    UpdateType(var, (expr->ty).as_or_throw<Type>());
 
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 

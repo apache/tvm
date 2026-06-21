@@ -105,7 +105,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   }
 
   FuncType new_ty(params.Map([](const auto& var) { return GetType(var); }), func->ret_ty,
-                  Downcast<FuncType>(func->ty)->purity);
+                  (func->ty).as_or_throw<FuncType>()->purity);
 
   auto arg_updater = [parameter_mask, old_relax_params = func->params,
                       free_tir_vars](ffi::Array<Expr> old_args) -> ffi::Array<Expr> {
@@ -164,7 +164,7 @@ class CallSiteMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto node = (ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     if (auto gvar = node->op.as<GlobalVar>()) {
       if (auto it = callsite_updaters_.find(gvar.value()); it != callsite_updaters_.end()) {
@@ -234,7 +234,7 @@ Pass RemoveUnusedParameters() {
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto mutated = Downcast<Function>(mutator.VisitExpr(func.value()));
+        auto mutated = (mutator.VisitExpr(func.value())).as_or_throw<Function>();
         if (!mutated.same_as(base_func)) {
           caller_updates->Add(gvar, mutated);
         }

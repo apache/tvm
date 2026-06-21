@@ -241,12 +241,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
   // BufferStore
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     trigger_base_inject_ = !allow_share_;
     return VisitBufferAccess(std::move(node));
   }
@@ -520,7 +520,7 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
     if (op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = (op->node).as_or_throw<IterVar>();
       bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;

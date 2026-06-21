@@ -195,19 +195,21 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target)
 
 LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
                                const ffi::Map<ffi::String, ffi::Any>& target) {
-  triple_ = Downcast<ffi::String>(target.Get("mtriple").value_or(ffi::String("default")));
+  triple_ = (target.Get("mtriple").value_or(ffi::String("default"))).as_or_throw<ffi::String>();
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
   }
-  cpu_ = Downcast<ffi::String>(target.Get("mcpu").value_or(ffi::String(defaults::cpu)));
+  cpu_ = (target.Get("mcpu").value_or(ffi::String(defaults::cpu))).as_or_throw<ffi::String>();
 
-  if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("mattr"))) {
+  if (const auto& v = (target.Get("mattr"))
+                          .value_or(nullptr)
+                          .as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>()) {
     for (const ffi::String& s : v.value()) {
       attrs_.push_back(s);
     }
   }
   // llvm module target
-  if (Downcast<ffi::String>(target.Get("kind").value()) == "llvm") {
+  if ((target.Get("kind").value()).as_or_throw<ffi::String>() == "llvm") {
     // legalize -mcpu with the target -mtriple
     bool has_arch = IsValidCPU(cpu_);
     if (!has_arch) {
@@ -221,7 +223,9 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     }
   }
 
-  if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("cl-opt"))) {
+  if (const auto& v = (target.Get("cl-opt"))
+                          .value_or(nullptr)
+                          .as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>()) {
     auto& options = llvm::cl::getRegisteredOptions();
     bool parse_error = false;
     for (const ffi::String& s : v.value()) {
@@ -246,7 +250,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
-  if (const auto& v = Downcast<ffi::Optional<ffi::String>>(target.Get("mfloat-abi"))) {
+  if (const auto& v =
+          (target.Get("mfloat-abi")).value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>()) {
     ffi::String value = v.value();
     if (value == "hard") {
       float_abi = llvm::FloatABI::Hard;
@@ -258,7 +263,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   }
 
   // LLVM JIT engine options
-  if (const auto& v = Downcast<ffi::Optional<ffi::String>>(target.Get("jit").value_or(nullptr))) {
+  if (const auto& v =
+          (target.Get("jit").value_or(nullptr)).as_or_throw<ffi::Optional<ffi::String>>()) {
     ffi::String value = v.value();
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
@@ -270,7 +276,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
 
   // TVM & LLVM vector width options
   if (const auto& w =
-          Downcast<ffi::Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
+          (target.Get("vector-width").value_or(nullptr)).as_or_throw<ffi::Optional<int64_t>>()) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
       TVM_FFI_THROW(InternalError) << "Invalid -vector-width value: " << vector_width_;
@@ -313,7 +319,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
   if (target.find("mabi") != target.end()) {
-    target_options_.MCOptions.ABIName = Downcast<ffi::String>(target.Get("mabi").value());
+    target_options_.MCOptions.ABIName = (target.Get("mabi").value()).as_or_throw<ffi::String>();
   }
 
   auto maybe_level = target.Get("opt-level");

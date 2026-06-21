@@ -128,7 +128,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     if (buffer_map_.count(store->buffer)) {
       auto* n = store.CopyOnWrite();
       if (store->buffer.scope() == "m16n8k8.matrixC") {
@@ -147,7 +147,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad load = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       auto* n = load.CopyOnWrite();
       if (load->buffer.scope() == "m16n8k8.matrixC") {

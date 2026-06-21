@@ -173,7 +173,7 @@ class IndexInfoCollector : public StmtExprVisitor {
       // In order to make the result stable, sort it by post order and then by complexity
       PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ffi::ObjectRef& node) {
         if (node->IsInstance<PrimExprNode>()) {
-          PrimExpr this_expr = Downcast<PrimExpr>(node);
+          PrimExpr this_expr = (node).as_or_throw<PrimExpr>();
           for (auto& it : semantic_comp_done_by_stmt) {
             if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
               auto find_result =
@@ -236,7 +236,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     info->origin_block_vars.push_back({});
     PostOrderVisit(index_expr, [&info, &expr_index](const ffi::ObjectRef& node) {
       if (node->IsInstance<VarNode>()) {
-        Var iter_var = Downcast<Var>(node);
+        Var iter_var = (node).as_or_throw<Var>();
         const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
         auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
                                         [&](Var it) { return it.get() == iter_var.get(); });
@@ -252,7 +252,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     for (const Var& it : info->origin_block_vars[expr_index]) {
       PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ffi::ObjectRef& node) {
         if (node->IsInstance<VarNode>()) {
-          Var iter_var = Downcast<Var>(node);
+          Var iter_var = (node).as_or_throw<Var>();
           if (std::find_if(iter_vars.begin(), iter_vars.end(),
                            [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
             iter_vars.push_back(iter_var);
@@ -391,7 +391,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
     visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
-    SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    SBlock stmt = (StmtMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     visiting_target_sblock = false;
 
     // Check if it is the block corresponding to the parent scope

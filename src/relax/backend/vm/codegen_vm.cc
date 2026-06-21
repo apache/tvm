@@ -381,7 +381,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
 
     auto func = this->VisitExpr(call_node->args[0]);
-    auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
+    auto tuple_arg = (call_node->args[1]).as_or_throw<Tuple>();
 
     // Handle args of the call
     for (Expr arg : tuple_arg->fields) {

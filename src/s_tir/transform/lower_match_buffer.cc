@@ -258,7 +258,7 @@ class MatchBufferLower : public StmtExprMutator {
     // Handle recursive case
     value = Substitute(std::move(value), var_map_);
     if (arg->IsInstance<VarNode>()) {
-      Var v = Downcast<Var>(arg);
+      Var v = (arg).as_or_throw<Var>();
       auto it = var_map_.find(v);
       if (it == var_map_.end()) {
         var_map_.Set(v, value);

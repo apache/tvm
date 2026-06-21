@@ -875,7 +875,7 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   if (block_sref->parent == nullptr) {
     const PrimFuncNode* func = GetRootPrimFunc(self->mod, block, nullptr);
-    return Downcast<SBlockRealize>(func->body);
+    return (func->body).as_or_throw<SBlockRealize>();
   } else {
     BlockRealizeFinder finder(block);
     finder(ffi::GetRef<Stmt>(block_sref->parent->stmt));

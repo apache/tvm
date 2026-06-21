@@ -241,7 +241,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocBufferNode>();
     if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (Downcast<IntImm>(op->annotations[transform::kDisableLowerTVMBuiltin])->value) {
+      if ((op->annotations[transform::kDisableLowerTVMBuiltin]).as_or_throw<IntImm>()->value) {
         return stmt;
       }
     }
@@ -251,9 +251,10 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;
+      auto storage_scope =
+          (op->buffer->data->type_annotation).as_or_throw<PointerType>()->storage_scope;
       if (storage_scope == "global") {
-        auto constant_size = Downcast<AllocBuffer>(stmt).ConstantAllocationSize();
+        auto constant_size = (stmt).as_or_throw<AllocBuffer>().ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
             static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;

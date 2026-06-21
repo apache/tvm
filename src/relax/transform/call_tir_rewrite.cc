@@ -50,8 +50,8 @@ class CallTIRMutator : public ExprMutator {
   IRModule Run() {
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        auto updated_func = Downcast<Function>(this->VisitExpr(func));
-        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
+        auto updated_func = (this->VisitExpr(func)).as_or_throw<Function>();
+        builder_->UpdateFunction(gv, (updated_func).as_or_throw<BaseFunc>());
       }
     }
     return builder_->GetContextIRModule();
@@ -92,8 +92,8 @@ class CallTIRMutator : public ExprMutator {
         if (!is_inplace) {
           outs.push_back(builder_->Emit(
               Call(alloc_tensor_op,
-                   {Downcast<ShapeExpr>(output_ty->shape.value()), DataTypeImm(output_ty->dtype),
-                    PrimValue::Int64(dev_index), StringImm(scope)},
+                   {(output_ty->shape.value()).as_or_throw<ShapeExpr>(),
+                    DataTypeImm(output_ty->dtype), PrimValue::Int64(dev_index), StringImm(scope)},
                    Attrs(), {output_ty}),
               "alloc"));
         } else {
@@ -101,7 +101,8 @@ class CallTIRMutator : public ExprMutator {
           TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0] != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
-          outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
+          outs.push_back(
+              (call->args[1]).as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[0]]);
         }
       } else if (const auto& tuple_ty = MatchType<TupleType>(expr)) {
         // multiple output case
@@ -112,7 +113,7 @@ class CallTIRMutator : public ExprMutator {
           TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
               << "call_tir expects Tuple of TensorType, but got " << field
               << " as an element of TupleType";
-          const auto& field_tensor = Downcast<TensorType>(field);
+          const auto& field_tensor = (field).as_or_throw<TensorType>();
           TVM_FFI_ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorType has shape, but got " << field_tensor
               << " as an element of TupleType";
@@ -125,15 +126,16 @@ class CallTIRMutator : public ExprMutator {
           }
 
           if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
-            outs.push_back(builder_->Emit(Call(alloc_tensor_op,
-                                               {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                                                DataTypeImm(field_tensor->dtype),
-                                                PrimValue::Int64(dev_index), StringImm(scope)},
-                                               Attrs(), {field_tensor}),
-                                          "alloc"));
+            outs.push_back(
+                builder_->Emit(Call(alloc_tensor_op,
+                                    {(field_tensor->shape.value()).as_or_throw<ShapeExpr>(),
+                                     DataTypeImm(field_tensor->dtype), PrimValue::Int64(dev_index),
+                                     StringImm(scope)},
+                                    Attrs(), {field_tensor}),
+                               "alloc"));
           } else {
             outs.push_back(
-                Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[i]]);
+                (call->args[1]).as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[i]]);
           }
         }
       } else {
@@ -144,7 +146,7 @@ class CallTIRMutator : public ExprMutator {
 
       ffi::Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[1])->fields;
+        args = (call->args[1]).as_or_throw<Tuple>()->fields;
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
         if (!is_inplace) {
           args.insert(args.end(), outs.begin(), outs.end());

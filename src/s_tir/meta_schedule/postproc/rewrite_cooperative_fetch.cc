@@ -41,11 +41,11 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String thread_axis = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String thread_axis = (inst->attrs[0]).as_or_throw<ffi::String>();
   if (thread_axis != axis) {
     return std::nullopt;
   }
-  return Downcast<IntImm>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent)->value;
+  return (sch->Get((inst->inputs[0]).as_or_throw<LoopRV>())->extent).as_or_throw<IntImm>()->value;
 }
 
 /*!
@@ -63,12 +63,12 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = (inst->attrs[0]).as_or_throw<ffi::String>();
   if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
-  *vector_lane = Downcast<IntImm>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
-  return Downcast<SBlockRV>(inst->inputs[0]);
+  *vector_lane = (sch->Get((inst->inputs[1]).as_or_throw<ExprRV>())).as_or_throw<IntImm>()->value;
+  return (inst->inputs[0]).as_or_throw<SBlockRV>();
 }
 
 /*!
@@ -84,7 +84,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = (inst->attrs[0]).as_or_throw<ffi::String>();
   return ann_key == s_tir::attr::warp_execution;
 }
 

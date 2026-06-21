@@ -165,7 +165,7 @@ class BoundChecker : public StmtExprMutator {
         if (!lanes_int) {
           return false;
         }
-        int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+        int lanes = static_cast<int>((ramp_index->lanes).as_or_throw<IntImm>()->value);
         if (lanes <= 0) {
           return false;
         }

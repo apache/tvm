@@ -51,7 +51,8 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = ffi::GetRef<Expr>(expr);
   } else if (const auto* _array = shape.as<ffi::ArrayObj>()) {
-    shape_in_expr = ShapeExpr(ffi::GetRef<ffi::Array<PrimExpr>>(_array));
+    shape_in_expr =
+        ShapeExpr((ffi::GetRef<ffi::ObjectRef>(_array)).as_or_throw<ffi::Array<PrimExpr>>());
   } else {
     TVM_FFI_THROW(InternalError)
         << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";

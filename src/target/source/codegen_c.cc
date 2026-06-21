@@ -648,7 +648,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-      auto func = Downcast<StringImm>(op->args[0]);
+      auto func = (op->args[0]).as_or_throw<StringImm>();
       this->PrintCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), func->value, op->args, true, os);
 
       // If the call_extern refers to an function within the IRModule, then
@@ -669,8 +669,8 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintBinaryIntrinsic(op, " & ", os, this);
     } else if (op->op.same_as(builtin::large_uint_imm())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-      uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
-      uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+      uint64_t low = static_cast<uint64_t>((op->args[0]).as_or_throw<IntImm>()->value);
+      uint64_t high = static_cast<uint64_t>((op->args[1]).as_or_throw<IntImm>()->value);
       uint64_t val = (high << 32U) | low;
       PrintUIntConst(op->dtype, val, os, this);
     } else if (op->op.same_as(builtin::bitwise_xor())) {
@@ -1065,7 +1065,7 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
         << "a non-constant index is " << op->indices[0]
         << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
         << "vectorize.";
-    int64_t idx = Downcast<IntImm>(op->indices[0])->value;
+    int64_t idx = (op->indices[0]).as_or_throw<IntImm>()->value;
     TVM_FFI_ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
   } else {
@@ -1080,7 +1080,7 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
           << "a non-constant index is " << op->indices[i]
           << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
           << "vectorize.";
-      os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
+      os << concat_vec[(op->indices[i]).as_or_throw<IntImm>()->value];
     }
     os << ')';
   }
@@ -1149,7 +1149,7 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = Downcast<IterVar>(op->node);
+    IterVar iv = (op->node).as_or_throw<IterVar>();
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
         BindThreadIndex(iv);

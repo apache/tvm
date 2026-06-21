@@ -211,7 +211,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   OutputType VisitExpr_(const CallNode* call) final {
     const auto* fn_var = call->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto func = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto func = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
     const auto pattern_name_opt = func->GetAttr<ffi::String>(attr::kComposite);
     TVM_FFI_ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
     auto ret = GenerateBody(call, pattern_name_opt.value(), func->attrs->dict);

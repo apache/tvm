@@ -525,7 +525,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
       if (op->lanes->IsInstance<IntImmNode>()) {
-        int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+        int lanes = static_cast<int>((op->lanes).as_or_throw<IntImm>()->value);
         if (vstride > 0) {
           PrimExpr stride_expr = MakeConst(t, vstride * (lanes - 1));
           auto add_op = tirx::Add(op->base, stride_expr);

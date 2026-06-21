@@ -137,7 +137,7 @@ class CollectConsumerDetails : public ExprVisitor {
     Tuple func_args;
 
     if (call->op == call_tir_op) {
-      func_args = Downcast<Tuple>(call->args[1]);
+      func_args = (call->args[1]).as_or_throw<Tuple>();
     } else {
       func_args = Tuple(call->args);
     }
@@ -172,7 +172,7 @@ Pass FoldVDeviceScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the consumers we use only to find multiple consumers */
     auto consumers =
-        CollectConsumerDetails().Collect(mod, Downcast<Function>(func), Target("opencl"));
+        CollectConsumerDetails().Collect(mod, (func).as_or_throw<Function>(), Target("opencl"));
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };

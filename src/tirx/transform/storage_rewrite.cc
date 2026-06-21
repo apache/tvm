@@ -459,12 +459,12 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(node));
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -557,7 +557,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         !all_buffers_accessed_.count(op->buffer.get())) {
       return Evaluate(0);
     }
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<DeclBuffer>();
 
     if (auto it = alloc_map_.find(op->buffer->data.get()); it != alloc_map_.end()) {
       Buffer buf = RemapBuffer(op->buffer, it->second->alloc_var);
@@ -1247,7 +1247,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         OnArrayAccess(dtype, buffer, {index}, false);
       }
     } else if (op->op.same_as(builtin::address_of())) {
-      BufferLoad load = Downcast<BufferLoad>(op->args[0]);
+      BufferLoad load = (op->args[0]).as_or_throw<BufferLoad>();
       OnArrayAccess(load->dtype, load->buffer->data.get(), load->indices, /*is_buffer_load=*/false);
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -1388,7 +1388,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
-          int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+          int lanes = static_cast<int>((ramp_index->lanes).as_or_throw<IntImm>()->value);
           arith::ModularSet me = analyzer_->modular_set(ramp_index->base);
           if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
             lanes_used = lanes;
@@ -1530,7 +1530,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
-      int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+      int lanes = static_cast<int>((ramp_index->lanes).as_or_throw<IntImm>()->value);
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.dtype(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
@@ -1553,7 +1553,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
     // Not needed for BufferStoreNode, so we can't just call
@@ -1572,7 +1572,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;

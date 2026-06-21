@@ -165,7 +165,7 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   for (auto& e : body) {
     tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
       if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
-        Tensor t = Downcast<Tensor>(pload->producer);
+        Tensor t = (pload->producer).as_or_throw<Tensor>();
         if (!visited.count(t)) {
           ret.push_back(t);
           visited.insert(t);

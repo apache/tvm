@@ -138,7 +138,7 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
                                  d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R")));
     }
     stmts.push_back(CommentDoc(""));
-    stmts.push_back(Downcast<StmtDoc>(doc));
+    stmts.push_back((doc).as_or_throw<StmtDoc>());
     return StmtBlockDoc(stmts);
   }
   return doc;

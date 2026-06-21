@@ -135,7 +135,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto prev_permute = permute_;
     permute_ = true;
 
-    SBlock block = Downcast<SBlock>(IRMutatorWithAnalyzer::VisitStmt_(op));
+    SBlock block = (IRMutatorWithAnalyzer::VisitStmt_(op)).as_or_throw<SBlock>();
 
     permute_ = prev_permute;
 
@@ -184,7 +184,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
-    auto store = Downcast<BufferStore>(IRMutatorWithAnalyzer::VisitStmt_(op));
+    auto store = (IRMutatorWithAnalyzer::VisitStmt_(op)).as_or_throw<BufferStore>();
 
     if (!permute_ || store->buffer->shape.size() < 2) {
       return store;
@@ -202,7 +202,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     // Rewrite load from shared or shared.dyn to global
-    auto load = Downcast<BufferLoad>(IRMutatorWithAnalyzer::VisitExpr_(op));
+    auto load = (IRMutatorWithAnalyzer::VisitExpr_(op)).as_or_throw<BufferLoad>();
 
     if (!permute_ || load->buffer->shape.size() < 2) {
       return load;
@@ -224,11 +224,11 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
-    auto access_ptr_call = Downcast<Call>(access_ptr);
+    auto access_ptr_call = (access_ptr).as_or_throw<Call>();
     TVM_FFI_ICHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
-    auto buffer_map_iter = buffer_map_.find(Downcast<Var>(access_ptr_call->args[1]));
+    auto buffer_map_iter = buffer_map_.find((access_ptr_call->args[1]).as_or_throw<Var>());
     TVM_FFI_ICHECK(buffer_map_iter != buffer_map_.end())
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
@@ -249,7 +249,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     // Rewrite from/to shared or shared.dyn to/from local
-    auto call = Downcast<Call>(IRMutatorWithAnalyzer::VisitExpr_(op));
+    auto call = (IRMutatorWithAnalyzer::VisitExpr_(op)).as_or_throw<Call>();
 
     if (!permute_) {
       return call;

@@ -48,7 +48,7 @@ class DistBufferReplacer : public StmtExprMutator {
   explicit DistBufferReplacer(ffi::Map<Buffer, Buffer> buffer_map) : buffer_map_(buffer_map) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
+    BufferStore store = (StmtExprMutator::VisitStmt_(_store)).as_or_throw<BufferStore>();
     if (buffer_map_.count(store->buffer)) {
       ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = buffer_map_[store->buffer];
@@ -58,7 +58,7 @@ class DistBufferReplacer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+    BufferLoad load = (StmtExprMutator::VisitExpr_(_load)).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
       new_load->buffer = buffer_map_[load->buffer];
@@ -69,7 +69,7 @@ class DistBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* _block) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(_block));
+    SBlock block = (StmtExprMutator::VisitStmt_(_block)).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, buffer_map_);
     new_block->writes = ReplaceBuffer(new_block->writes, buffer_map_);
@@ -277,7 +277,7 @@ class DistributedBufferCompactor : StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = (StmtExprMutator::VisitStmt_(op)).as_or_throw<SBlock>();
     DistSBlockInfoCollector collector;
     collector(block);
     ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector.buffer_access_indices);
@@ -314,7 +314,7 @@ class DistributedBufferCompactor : StmtExprMutator {
   void AddAllReduceBlock(std::string reduce_kind) { add_allreduce_kind_ = reduce_kind; }
 
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-    SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
+    SBlockRealize realize = (StmtExprMutator::VisitStmt_(op)).as_or_throw<SBlockRealize>();
 
     for (int i = 0; i < static_cast<int>(realize->iter_values.size()); i++) {
       PrimExpr iter_value = realize->iter_values[i];
@@ -323,13 +323,13 @@ class DistributedBufferCompactor : StmtExprMutator {
         continue;
       }
       TVM_FFI_ICHECK(iter_value.as<VarNode>());
-      loop_var_shards_[Downcast<Var>(iter_value)] = iter_var_shards_[iter_var->var];
+      loop_var_shards_[(iter_value).as_or_throw<Var>()] = iter_var_shards_[iter_var->var];
     }
     return realize;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    For new_loop = Downcast<For>(StmtExprMutator::VisitStmt_(op));
+    For new_loop = (StmtExprMutator::VisitStmt_(op)).as_or_throw<For>();
     if (loop_var_shards_.count(op->loop_var)) {
       int shard = loop_var_shards_[op->loop_var];
       if (shard > 1) {
@@ -384,7 +384,7 @@ class LowerTIRToLocalView : public ExprMutator {
     } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(var)) {
       ffi::Array<DTensorType> ret;
       for (const auto& field : tuple_ty->fields) {
-        ret.push_back(Downcast<DTensorType>(field));
+        ret.push_back((field).as_or_throw<DTensorType>());
       }
       return ret;
     } else {
@@ -400,7 +400,7 @@ class LowerTIRToLocalView : public ExprMutator {
       return;
     }
     std::vector<ShardingSpec> sharding_specs;
-    ffi::Array<Expr> args = Downcast<Tuple>(val->args[1])->fields;
+    ffi::Array<Expr> args = (val->args[1]).as_or_throw<Tuple>()->fields;
     for (const auto& arg : args) {
       const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
       TVM_FFI_ICHECK(ty);
@@ -411,14 +411,14 @@ class LowerTIRToLocalView : public ExprMutator {
     for (const auto& ty : output_tys) {
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
-    GlobalVar gvar = Downcast<GlobalVar>(val->args[0]);
+    GlobalVar gvar = (val->args[0]).as_or_throw<GlobalVar>();
     tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
     tirx::PrimFunc new_prim_func;
     std::string allreduce_kind;
     std::tie(new_prim_func, allreduce_kind) =
         tirx::DistributedBufferCompactor::DistBufferCompact(sharding_specs, prim_func);
     auto new_gvar = builder_->AddFunction(new_prim_func, gvar->name_hint);
-    Call call = Downcast<Call>(this->VisitExpr(binding->value));
+    Call call = (this->VisitExpr(binding->value)).as_or_throw<Call>();
     ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
     new_call_node->op = Op::Get("relax.dist.call_tir_local_view");
     new_call_node->args.Set(0, new_gvar);

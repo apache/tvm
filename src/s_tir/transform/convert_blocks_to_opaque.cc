@@ -62,7 +62,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* block) final {
     TVM_FFI_ICHECK(!block->init.defined())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
-    SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+    SBlock new_block = (StmtExprMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     if (!new_block->iter_vars.empty()) {
       new_block.CopyOnWrite()->iter_vars.clear();
     }
@@ -88,7 +88,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
       var_substitutes_.emplace(block_var->var.get(), v);
     }
     // Step 3. Visit recursively.
-    SBlock new_block = Downcast<SBlock>(VisitStmt(realize->block));
+    SBlock new_block = (VisitStmt(realize->block)).as_or_throw<SBlock>();
 
     // Step 4. Clear the variable bindings
     for (const auto& block_var : block_op->iter_vars) {

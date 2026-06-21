@@ -37,7 +37,7 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool v
 
 void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
-    IterVar iv = Downcast<IterVar>(op->node);
+    IterVar iv = (op->node).as_or_throw<IterVar>();
     TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
     // thread_extent can appear multiple times
     // use the first appearance as def.

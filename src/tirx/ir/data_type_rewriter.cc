@@ -47,7 +47,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
   PrimExpr e = VisitExpr(op->loop_var);
-  Var var = Downcast<Var>(e);
+  Var var = (e).as_or_throw<Var>();
   auto n = CopyOnWrite(op);
   n->min = cast(var.dtype(), op->min);
   n->extent = cast(var.dtype(), op->extent);
@@ -58,7 +58,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
-  SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
+  SBlockRealize realize = (StmtExprMutator::VisitStmt_(op)).as_or_throw<SBlockRealize>();
   ffi::Array<PrimExpr> new_iter_values;
   bool changed = false;
   for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
@@ -77,7 +77,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
-  SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+  SBlock new_block = (StmtExprMutator::VisitStmt_(op)).as_or_throw<SBlock>();
   ffi::Array<IterVar> new_iter_vars =
       MutateArray(new_block->iter_vars, [/*this*/](const IterVar& iter) {
         auto dtype = iter->var.dtype();
@@ -106,7 +106,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
-    Var var = Downcast<Var>(e);
+    Var var = (e).as_or_throw<Var>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
@@ -302,7 +302,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
   auto new_iter_values =
       op->iter_values.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
   is_enabled_ = is_enabled;
-  SBlock new_body = Downcast<SBlock>(this->VisitStmt(op->block));
+  SBlock new_body = (this->VisitStmt(op->block)).as_or_throw<SBlock>();
   if (!new_predicate.same_as(op->predicate) || !new_iter_values.same_as(op->iter_values) ||
       !new_body.same_as(op->block)) {
     SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
@@ -373,12 +373,12 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
       return obj;
     }
     if (obj.as<BufferNode>()) {
-      Buffer buffer = Downcast<Buffer>(obj);
+      Buffer buffer = (obj).as_or_throw<Buffer>();
       if (Buffer new_buffer = VisitBufferUse(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
     } else if (obj.as<ffi::ArrayObj>()) {
-      return Downcast<ffi::Array<Any>>(obj).Map(f_mutate_obj);
+      return (obj).as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
     }
     return obj;
   };
@@ -396,7 +396,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
 IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_var = Downcast<Var>(VisitExpr(iter_var->var));
+  Var new_var = (VisitExpr(iter_var->var)).as_or_throw<Var>();
   PrimExpr min = VisitExpr(iter_var->dom->min);
   PrimExpr extent = VisitExpr(iter_var->dom->extent);
   is_enabled_ = is_enabled;
@@ -502,7 +502,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
 Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_loop_var = Downcast<Var>(VisitExpr(op->loop_var));
+  Var new_loop_var = (VisitExpr(op->loop_var)).as_or_throw<Var>();
   PrimExpr min = VisitExpr(op->min);
   PrimExpr extent = VisitExpr(op->extent);
   is_enabled_ = is_enabled;
@@ -531,7 +531,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
-  Bind bind_stmt = Downcast<Bind>(DataTypeLegalizer::VisitStmt_(op));
+  Bind bind_stmt = (DataTypeLegalizer::VisitStmt_(op)).as_or_throw<Bind>();
   if (var_remap_.find(bind_stmt->var.get()) == var_remap_.end()) {
     return bind_stmt;
   }
@@ -613,7 +613,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
     if (param.dtype().is_int()) {
-      return Downcast<Var>(this->VisitExpr(param));
+      return (this->VisitExpr(param)).as_or_throw<Var>();
     } else {
       return param;
     }
@@ -633,7 +633,7 @@ bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
   if (is_enabled_ && CanRewriteDType(op->dtype)) {
-    TVM_FFI_ICHECK_LE(op->value, Downcast<IntImm>(max_value(target_data_type_))->value);
+    TVM_FFI_ICHECK_LE(op->value, (max_value(target_data_type_)).as_or_throw<IntImm>()->value);
     return cast(target_data_type_, ffi::GetRef<IntImm>(op));
   }
   return ffi::GetRef<IntImm>(op);

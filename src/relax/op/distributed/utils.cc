@@ -28,7 +28,7 @@ namespace distributed {
 
 ffi::Array<distributed::DTensorType> GetInputDTensorType(const Call& call,
                                                          const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   ffi::Array<Expr> args = GetCallArgs(call);
   ffi::Array<distributed::DTensorType> input_tensor_ty;
   input_tensor_ty.reserve(args.size());
@@ -74,7 +74,7 @@ Type InferShardingSpec(const Call& call, const BlockBuilder& ctx, const Type& or
     const auto* tuple_ty = orig_output_ty.as<TupleTypeNode>();
     TVM_FFI_ICHECK(tuple_ty);
     for (const auto& ty : tuple_ty->fields) {
-      orig_output_tensor_tys.push_back(Downcast<TensorType>(ty));
+      orig_output_tensor_tys.push_back((ty).as_or_throw<TensorType>());
     }
   }
   ffi::Array<Type> new_output_dtensor_tys;

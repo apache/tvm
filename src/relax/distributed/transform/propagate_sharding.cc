@@ -120,7 +120,7 @@ void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
-    args = Downcast<Tuple>(call->args[1])->fields;
+    args = (call->args[1]).as_or_throw<Tuple>()->fields;
   } else {
     args = call->args;
   }
@@ -191,7 +191,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     } else if (const auto* tuple_ty = binding->var->ty.as<TupleTypeNode>()) {
       TVM_FFI_ICHECK(tuple_ty);
       for (const auto& field_ty : tuple_ty->fields) {
-        tensor_tys.push_back(Downcast<TensorType>(field_ty));
+        tensor_tys.push_back((field_ty).as_or_throw<TensorType>());
       }
     } else {
       ExprVisitor::VisitBinding_(binding, val);
@@ -323,7 +323,7 @@ class ShardingConflictHandler : public ExprVisitor {
     ffi::Array<Expr> args = GetCallArgs(ffi::GetRef<Call>(op));
     for (const auto& arg : args) {
       if (arg.as<ConstantNode>()) {
-        CheckConstantNoSharding(Downcast<Constant>(arg));
+        CheckConstantNoSharding((arg).as_or_throw<Constant>());
       }
     }
     ExprVisitor::VisitExpr_(op);
@@ -386,13 +386,13 @@ class DistributedIRBuilder : public ExprMutator {
   Expr RewriteInputTensorAndConstant(Expr tensor) {
     Type new_ty;
     if (tensor->ty.as<TensorTypeNode>()) {
-      new_ty = ConvertToDTensorType(Downcast<TensorType>(tensor->ty), tensor);
+      new_ty = ConvertToDTensorType((tensor->ty).as_or_throw<TensorType>(), tensor);
     } else if (const auto* tuple = tensor->ty.as<TupleTypeNode>()) {
       ffi::Array<Type> tuple_ty_fields;
       for (int i = 0; i < static_cast<int>(tuple->fields.size()); i++) {
         if (tuple->fields[i].as<TensorTypeNode>()) {
           tuple_ty_fields.push_back(
-              ConvertToDTensorType(Downcast<TensorType>(tuple->fields[i]), tensor, i));
+              ConvertToDTensorType((tuple->fields[i]).as_or_throw<TensorType>(), tensor, i));
         } else {
           tuple_ty_fields.push_back(tuple->fields[i]);
         }
@@ -423,7 +423,7 @@ class DistributedIRBuilder : public ExprMutator {
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
       if (GetTypeAs<TensorTypeNode>(var) || GetTypeAs<TupleTypeNode>(var)) {
-        Var new_param = Downcast<Var>(RewriteInputTensorAndConstant(var));
+        Var new_param = (RewriteInputTensorAndConstant(var)).as_or_throw<Var>();
         input_tensor_remap_.Set(var, new_param);
         new_params.push_back(new_param);
       } else {
@@ -443,7 +443,7 @@ class DistributedIRBuilder : public ExprMutator {
       TVM_FFI_ICHECK(prim_func);
       return BuildAxisGraphCallTIR(var, call, prim_func.value(), axis_group_graph);
     };
-    Call new_call = Downcast<Call>(ExprMutator::VisitExpr_(call));
+    Call new_call = (ExprMutator::VisitExpr_(call)).as_or_throw<Call>();
     ffi::Array<Expr> args = GetCallArgs(new_call);
     for (int i = 0; i < static_cast<int>(args.size()); i++) {
       if (args[i].as<ConstantNode>()) {
@@ -493,7 +493,7 @@ class DistributedIRBuilder : public ExprMutator {
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
         ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         Type new_dtensor_ty =
-            DTensorType(Downcast<TensorType>(call->ty_args[0]), device_mesh, placements[0]);
+            DTensorType((call->ty_args[0]).as_or_throw<TensorType>(), device_mesh, placements[0]);
         new_call_node->ty_args = {new_dtensor_ty};
         new_call = Call(new_call_node);
         new_call->ty = new_dtensor_ty;
@@ -503,15 +503,15 @@ class DistributedIRBuilder : public ExprMutator {
       if (!TypeCompatibleWithDistIR(call->ty_args)) {
         ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         if (placements.size() == 1) {
-          new_call_node->ty_args = {
-              DTensorType(Downcast<TensorType>(call->ty_args[0]), device_mesh, placements[0])};
+          new_call_node->ty_args = {DTensorType((call->ty_args[0]).as_or_throw<TensorType>(),
+                                                device_mesh, placements[0])};
         } else {
           const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>();
           TVM_FFI_ICHECK(placements.size() == tuple_ty->fields.size());
           ffi::Array<Type> new_tuple_ty_fields;
           for (int i = 0; i < static_cast<int>(placements.size()); i++) {
-            new_tuple_ty_fields.push_back(
-                DTensorType(Downcast<TensorType>(tuple_ty->fields[i]), device_mesh, placements[i]));
+            new_tuple_ty_fields.push_back(DTensorType(
+                (tuple_ty->fields[i]).as_or_throw<TensorType>(), device_mesh, placements[i]));
           }
           new_call_node->ty_args = {TupleType(new_tuple_ty_fields)};
         }
@@ -528,7 +528,7 @@ class DistributedIRBuilder : public ExprMutator {
       orig_output_tys.push_back(ffi::GetRef<TensorType>(tensor_ty));
     } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(binding->var)) {
       for (const auto& field_ty : tuple_ty->fields) {
-        orig_output_tys.push_back(Downcast<TensorType>(field_ty));
+        orig_output_tys.push_back((field_ty).as_or_throw<TensorType>());
       }
     } else {
       ExprMutator::VisitBinding_(binding, val);
@@ -554,9 +554,9 @@ class DistributedIRBuilder : public ExprMutator {
       placements.push_back(Placement(placement_specs));
     }
     // get inferred output type from type deduction
-    Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
-    new_call =
-        Downcast<Call>(builder_->Normalize(RewriteOutType(new_call, device_mesh, placements)));
+    Call new_call = (this->VisitExpr(binding->value)).as_or_throw<Call>();
+    new_call = (builder_->Normalize(RewriteOutType(new_call, device_mesh, placements)))
+                   .as_or_throw<Call>();
 
     if (const auto* inferred_dtensor_ty = new_call->ty.as<DTensorTypeNode>()) {
       Expr new_value = RemoveAnnotateSharding(new_call);
@@ -577,7 +577,7 @@ class DistributedIRBuilder : public ExprMutator {
       var_remap_[binding->var->vid] = new_var;
       for (int i = 0; i < static_cast<int>(inferred_tuple_ty->fields.size()); i++) {
         if (!ffi::StructuralEqual()(
-                DTensorType(Downcast<DTensorType>(inferred_tuple_ty->fields[i])->tensor_ty,
+                DTensorType((inferred_tuple_ty->fields[i]).as_or_throw<DTensorType>()->tensor_ty,
                             device_mesh, placements[i]),
                 inferred_tuple_ty->fields[i])) {
           Var redistribute_var = builder_->Emit(

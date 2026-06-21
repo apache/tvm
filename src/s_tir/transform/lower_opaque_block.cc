@@ -51,7 +51,7 @@ class OpaqueBlockLower : public StmtExprMutator {
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    SBlock new_block = Downcast<SBlock>(this->VisitStmt(op->block));
+    SBlock new_block = (this->VisitStmt(op->block)).as_or_throw<SBlock>();
     PrimExpr predicate = this->VisitExpr(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;

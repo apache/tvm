@@ -44,7 +44,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     static const auto& lower_builtin_fmap = Op::GetAttrMap<FLowerBuiltin>("FLowerBuiltin");
     // post-order mutation
-    Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
+    Call call = (VisitExprPostOrder_(call_node)).as_or_throw<Call>();
 
     if (call->op == call_tir_dyn_op_) {
       return CallTIRDyn(call);
@@ -83,16 +83,16 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
-    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[1]);
-    StringImm storage_scope = Downcast<StringImm>(call->args[2]);
+    PrimValue runtime_device_index = (call->args[1]).as_or_throw<PrimValue>();
+    StringImm storage_scope = (call->args[2]).as_or_throw<StringImm>();
     DataTypeImm output_dtype = DataTypeImm(DataType::UInt(8));
     return Call(vm_alloc_storage_op_,
                 {call->args[0], runtime_device_index, output_dtype, storage_scope}, Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
-    PrimValue offset = Downcast<PrimValue>(call->args[1]);
-    DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
+    PrimValue offset = (call->args[1]).as_or_throw<PrimValue>();
+    DataTypeImm dtype = (call->args[3]).as_or_throw<DataTypeImm>();
 
     ffi::Array<Expr> call_args = {call->args[0], offset, call->args[2], dtype};
     if (5 == call->args.size()) {
@@ -113,7 +113,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     TVM_FFI_ICHECK(call_node->args[1]->IsInstance<TupleNode>());
     ffi::Array<Expr> args;
 
-    auto tir_args = Downcast<Tuple>(call_node->args[1]);
+    auto tir_args = (call_node->args[1]).as_or_throw<Tuple>();
     args.push_back(call_node->args[0]);
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
@@ -188,7 +188,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
     ffi::Array<Expr> args;
     auto func = call_node->args[0];
-    auto closure_args = Downcast<Tuple>(call_node->args[1]);
+    auto closure_args = (call_node->args[1]).as_or_throw<Tuple>();
 
     args.push_back(func);
     for (Expr arg : closure_args->fields) {
@@ -208,7 +208,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     args.push_back(call_node->args[0]);
 
     // args for the invoke_closure
-    auto invoke_closure_args = Downcast<Tuple>(call_node->args[1]);
+    auto invoke_closure_args = (call_node->args[1]).as_or_throw<Tuple>();
     for (Expr arg : invoke_closure_args->fields) {
       args.push_back(arg);
     }
@@ -255,7 +255,7 @@ namespace transform {
 
 Pass LowerRuntimeBuiltin() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(LowerRuntimeBuiltin(f));
+    return (LowerRuntimeBuiltin(f)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }

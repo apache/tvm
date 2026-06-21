@@ -478,7 +478,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = (kv.second).as_or_throw<PrimFunc>();
     if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
@@ -559,7 +559,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   ffi::Array<PrimExpr> o_names = {StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
-    std::string mcpu = Downcast<ffi::String>(target->attrs.at("mcpu"));
+    std::string mcpu = (target->attrs.at("mcpu")).as_or_throw<ffi::String>();
 #if TVM_LLVM_VERSION >= 180
     TVM_FFI_ICHECK(llvm::StringRef(mcpu).starts_with("hexagon"))
 #else

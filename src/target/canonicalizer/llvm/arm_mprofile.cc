@@ -79,7 +79,8 @@ static inline bool HasFlag(ffi::Optional<ffi::Array<ffi::String>> attr, std::str
 }
 
 bool IsArch(ffi::Map<ffi::String, ffi::Any> attrs) {
-  ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(attrs.Get("mcpu"));
+  ffi::Optional<ffi::String> mcpu =
+      (attrs.Get("mcpu")).value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
   if (mcpu) {
     bool matches_base = MatchesCpu(mcpu, baseCPUs);
     bool matches_dsp = MatchesCpu(mcpu, dspCPUs);
@@ -90,9 +91,10 @@ bool IsArch(ffi::Map<ffi::String, ffi::Any> attrs) {
 }
 
 static ffi::Map<ffi::String, ffi::Any> GetFeatures(ffi::Map<ffi::String, ffi::Any> target) {
-  ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu"));
+  ffi::Optional<ffi::String> mcpu =
+      (target.Get("mcpu")).value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
   ffi::Optional<ffi::Array<ffi::String>> mattr =
-      Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("mattr"));
+      (target.Get("mattr")).value_or(nullptr).as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>();
 
   bool nomve = HasFlag(mcpu, "+nomve") || HasFlag(mattr, "+nomve");
   bool nodsp = HasFlag(mcpu, "+nodsp") || HasFlag(mattr, "+nodsp");
@@ -131,8 +133,9 @@ ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> tar
   for (const auto& kv : features) {
     target.Set(kv.first, kv.second);
   }
-  target.Set("keys",
-             MergeKeys(Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("keys"))));
+  target.Set("keys", MergeKeys((target.Get("keys"))
+                                   .value_or(nullptr)
+                                   .as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>()));
 
   return target;
 }

@@ -56,14 +56,14 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   PrimExpr VisitExpr_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
     if (op->dtype == DataType::Int(64)) {
-      TVM_FFI_ICHECK_LE(op->value, Downcast<IntImm>(max_value(target_data_type_))->value);
+      TVM_FFI_ICHECK_LE(op->value, (max_value(target_data_type_)).as_or_throw<IntImm>()->value);
       return IntImm::Int32(op->value);
     }
     return ffi::GetRef<IntImm>(op);
   }
 
   Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = Downcast<SBlock>(IndexDataTypeNormalizer::VisitStmt_(block));
+    SBlock block_ = (IndexDataTypeNormalizer::VisitStmt_(block)).as_or_throw<SBlock>();
     // Check if the allocated integer buffers have dtype other than int32.
     for (const Buffer& buf : block_->alloc_buffers) {
       if (buf->dtype.is_int() && buf->dtype.bits() > 32) {

@@ -199,7 +199,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   // eliminate useless stores
   Stmt VisitStmt_(const BufferStoreNode* op) override {
-    BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    BufferStore store = (Parent::VisitStmt_(op)).as_or_throw<BufferStore>();
     if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
       if (load->buffer->data.same_as(store->buffer->data) &&
           ArrayDeepEqual(load->indices, store->indices) &&

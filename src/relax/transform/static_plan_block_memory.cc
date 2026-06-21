@@ -568,7 +568,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
         call->op == call_tir_dyn_op) {
       ffi::Array<Expr> args =
-          call->op == call_tir_dyn_op ? Downcast<Tuple>(call->args[1])->fields : call->args;
+          call->op == call_tir_dyn_op ? (call->args[1]).as_or_throw<Tuple>()->fields : call->args;
       TVM_FFI_ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
@@ -636,7 +636,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-    TVM_FFI_ICHECK(ty->dtype == Downcast<DataTypeImm>(call->args[1])->value);
+    TVM_FFI_ICHECK(ty->dtype == (call->args[1]).as_or_throw<DataTypeImm>()->value);
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -645,7 +645,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
         GetUpperBoundShape(shape->values, analyzer_, dom_map_);
 
     // Create and set token.
-    StringImm storage_scope = Downcast<StringImm>(call->args[3]);
+    StringImm storage_scope = (call->args[3]).as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
     if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
@@ -905,7 +905,7 @@ class StorageAllocationRewriter : public ExprMutator {
         SetTIRVarRangeConstraints(ffi::GetRef<Function>(func_), ana_.get(), &dom_map_);
       }
       token2storage_var_.clear();
-      Function func = Downcast<Function>(this->VisitExpr_(func_));
+      Function func = (this->VisitExpr_(func_)).as_or_throw<Function>();
       if (plan_dynamic_output_) {
         func = WithoutAttr(func, plan_dyn_attr_);
       }
@@ -928,7 +928,7 @@ class StorageAllocationRewriter : public ExprMutator {
       const auto* ty = call->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK_NOTNULL(ty);
       TVM_FFI_ICHECK_NOTNULL(ty->shape.as<ShapeExprNode>());
-      PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
+      PrimValue runtime_device_index = (call->args[2]).as_or_throw<PrimValue>();
 
       // If the token is visited for the first time, create a storage variable using
       // `memory.alloc_storage` for it.
@@ -970,7 +970,7 @@ class StorageAllocationRewriter : public ExprMutator {
           GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-        TVM_FFI_ICHECK_EQ(ty->dtype, Downcast<DataTypeImm>(call->args[1])->value);
+        TVM_FFI_ICHECK_EQ(ty->dtype, (call->args[1]).as_or_throw<DataTypeImm>()->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
@@ -978,8 +978,8 @@ class StorageAllocationRewriter : public ExprMutator {
         bytes *= ty->dtype.bytes() * ty->dtype.lanes();
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
-                            /*virtual_device_index=*/Downcast<PrimValue>(call->args[2]),
-                            /*storage_scope=*/Downcast<StringImm>(call->args[3]),  //
+                            /*virtual_device_index=*/(call->args[2]).as_or_throw<PrimValue>(),
+                            /*storage_scope=*/(call->args[3]).as_or_throw<StringImm>(),  //
                             /*dtype=*/DataTypeImm(ty->dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //

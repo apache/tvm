@@ -308,7 +308,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = (kv.second).as_or_throw<PrimFunc>();
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
 

@@ -508,7 +508,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
  private:
   PrimExpr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(Parent::VisitExpr_(op));
+    auto node = (Parent::VisitExpr_(op)).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
     if (!gvar) return node;

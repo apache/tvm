@@ -470,7 +470,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Collect the loop variables
-    auto loop_var = Downcast<Var>(op->loop_var);
+    auto loop_var = (op->loop_var).as_or_throw<Var>();
     TVM_FFI_ICHECK(!var_range_map_.count(loop_var)) << "Internal Error: Duplicate loop variable";
     var_range_map_.Set(loop_var, Range::FromMinExtent(op->min, op->extent));
     return StmtExprMutator::VisitStmt_(op);
@@ -570,7 +570,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
     if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostBufferDefStmt)) {
-      auto map = Downcast<ffi::Map<Buffer, Array<Stmt>>>(mapping.value());
+      auto map = (mapping.value()).as_or_throw<ffi::Map<Buffer, Array<Stmt>>>();
       for (const auto& [buffer, stmts] : map) {
         auto& vec = post_buffer_def_stmts_[buffer];
         vec.insert(vec.end(), stmts.begin(), stmts.end());

@@ -178,7 +178,7 @@ bool DetectClipBound(const PrimExpr& cond,
     if (const VarNode* v = n.as<VarNode>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
-          var = Downcast<Var>(n);
+          var = (n).as_or_throw<Var>();
           flag = 1;
         } else if (flag == 1) {
           if (!var.same_as(n)) {

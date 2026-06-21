@@ -35,7 +35,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         buffer_index_type_(buffer_index_type) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = (StmtExprMutator::VisitStmt_(op)).as_or_throw<SBlock>();
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
@@ -58,7 +58,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
                                      : s_tir::attr::explicit_read_region;
     if (new_annotations.count(annotation_key)) {
       ffi::Array<int64_t> buffer_indices =
-          Downcast<ffi::Array<int64_t>>(new_annotations[annotation_key]);
+          (new_annotations[annotation_key]).as_or_throw<ffi::Array<int64_t>>();
       bool found = false;
       for (int64_t index : buffer_indices) {
         if (index == buffer_index_) {
@@ -110,7 +110,8 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   AnnotateRegionRewriter mutator(buffer, buffer_index, new_region, buffer_index_type);
   Stmt new_stmt = mutator(ffi::GetRef<Stmt>(block_sref->stmt));
 
-  self->Replace(block_sref, new_stmt, {{ffi::GetRef<SBlock>(block), Downcast<SBlock>(new_stmt)}});
+  self->Replace(block_sref, new_stmt,
+                {{ffi::GetRef<SBlock>(block), (new_stmt).as_or_throw<SBlock>()}});
 }
 
 struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAccessTraits> {

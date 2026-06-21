@@ -32,7 +32,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
-    args = Downcast<Tuple>(call->args[1])->fields;
+    args = (call->args[1]).as_or_throw<Tuple>()->fields;
   } else {
     args = call->args;
   }
@@ -40,7 +40,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
 }
 
 void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   int expected_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != expected_input) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -50,7 +50,7 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
 }
 
 TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
 
   TVM_FFI_ICHECK_EQ(op->arguments.size(), call->args.size())
       << "Failure caught by this check "
@@ -74,7 +74,7 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
 ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
 
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   ffi::Array<TensorType> input_tensor_ty;
   for (size_t i = 0; i < call->args.size(); ++i) {
     input_tensor_ty.push_back(GetInputTensorType(call, i, ctx));

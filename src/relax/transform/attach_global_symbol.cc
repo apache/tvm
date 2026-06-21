@@ -58,7 +58,7 @@ struct TirxGvarMutator : tirx::StmtExprMutator {
       : replacements(replacements) {}
 
   PrimExpr VisitExpr_(const tirx::CallNode* node) override {
-    auto call = Downcast<tirx::Call>(tirx::StmtExprMutator::VisitExpr_(node));
+    auto call = (tirx::StmtExprMutator::VisitExpr_(node)).as_or_throw<tirx::Call>();
     if (auto old_gvar = call->op.as<GlobalVar>()) {
       if (auto new_gvar = replacements.Get(old_gvar.value())) {
         call.CopyOnWrite()->op = new_gvar.value();
@@ -100,7 +100,8 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
     } else if (auto* relax_func_node = old_func.as<FunctionNode>()) {
       RelaxGvarMutator mutator(replacements);
       auto new_relax_func =
-          Downcast<Function>(mutator(Downcast<Function>(ffi::GetRef<Function>(relax_func_node))));
+          (mutator((ffi::GetRef<Function>(relax_func_node)).as_or_throw<Function>()))
+              .as_or_throw<Function>();
       // Update kGlobalSymbol if the function is externally exposed and being renamed.
       if (new_relax_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
         if (new_gvar->name_hint != old_gvar->name_hint) {

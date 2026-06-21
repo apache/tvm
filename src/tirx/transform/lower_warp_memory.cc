@@ -216,7 +216,7 @@ class WarpIndexFinder : private StmtVisitor {
   /// Visitor implementation
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = (op->node).as_or_throw<IterVar>();
       if (iv->thread_tag == "threadIdx.x") {
         auto* value_as_int = op->value.as<IntImmNode>();
         TVM_FFI_ICHECK(value_as_int && value_as_int->value <= warp_size_ &&
@@ -350,7 +350,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
-    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto store = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
 
     if (store->buffer->data.get() == buffer_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -367,7 +367,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
-    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto load = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
 
     if (load->buffer->data.get() != buffer_) {
       return load;
@@ -456,7 +456,7 @@ class BindVarBoundInfo : public StmtVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = (op->node).as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
         Range dom = Range::FromMinExtent(0, op->value);

@@ -50,7 +50,7 @@ class CublasJSONSerializer : public JSONSerializer {
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
@@ -84,7 +84,7 @@ class CublasJSONSerializer : public JSONSerializer {
       const CallNode* dequantize_call = backend::GetOpInFunction(fn, "relax.dequantize");
       if (dequantize_call->args[1]->IsInstance<ConstantNode>()) {
         const auto* const_expr = dequantize_call->args[1].as<ConstantNode>();
-        auto ty = Downcast<TensorType>(const_expr->ty);
+        auto ty = (const_expr->ty).as_or_throw<TensorType>();
         float alpha = 1.0;
         if (ty->dtype == DataType::Float(16)) {
           alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(

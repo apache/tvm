@@ -63,7 +63,7 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = (StmtMutator::VisitStmt_(op)).as_or_throw<SBlock>();
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -79,7 +79,7 @@ class ScriptCompleter : public StmtMutator {
     int mask = 0;
     auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
     if (it != op->annotations.end()) {
-      mask = Downcast<IntImm>((*it).second)->value;
+      mask = ((*it).second).as_or_throw<IntImm>()->value;
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0 && s_tir_) {

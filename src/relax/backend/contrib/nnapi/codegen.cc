@@ -152,7 +152,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = (bindings_[ffi::GetRef<Var>(fn_var)]).as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);

@@ -312,8 +312,8 @@ TEST(NestedMsg, TransformTupleLeaf) {
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
-    int lhs = Downcast<IntImm>(msgs[0].LeafValue())->value;
-    int rhs = Downcast<IntImm>(msgs[1].LeafValue())->value;
+    int lhs = (msgs[0].LeafValue()).as_or_throw<IntImm>()->value;
+    int rhs = (msgs[1].LeafValue()).as_or_throw<IntImm>()->value;
     if (lhs > rhs)
       return z;
     else if (lhs == rhs)

@@ -227,7 +227,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
  public:
   static Function Renew(const Function& function) {
     SymbolicVarRenewMutator mutator;
-    return Downcast<Function>(mutator.VisitExpr(function));
+    return (mutator.VisitExpr(function)).as_or_throw<Function>();
   }
   SymbolicVarRenewMutator() = default;
 
@@ -286,7 +286,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
 class FunctionCopier : public SymbolicVarRenewMutator {
  public:
   FunctionCopier() = default;
-  Function Copy(Function func) { return Downcast<Function>(VisitExpr(func)); }
+  Function Copy(Function func) { return (VisitExpr(func)).as_or_throw<Function>(); }
   ffi::Map<Var, Var> GetVarMap() { return relax_var_map_; }
 
  private:

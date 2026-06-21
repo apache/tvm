@@ -140,7 +140,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
       : packed_func_methods(packed_func_methods) {}
 
   PrimExpr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);

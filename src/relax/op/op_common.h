@@ -139,7 +139,7 @@ std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op, const B
  */
 template <typename... ArgTypes>
 std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   size_t n_input = op->arguments.size();
 
   // Unfortunately, because the `.add_argument()` calls in
@@ -229,7 +229,7 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
  */
 template <int arg_index>
 Type ReturnTypeFromArg(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   int n_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != n_input) {
     TVM_FFI_VISIT_THROW(ValueError, call) << op << " op should have " << n_input << " arguments";
@@ -468,7 +468,8 @@ bool IsIdentityPermutation(const std::vector<int>& permutation);
  * \return The conversion result, where every IntImm has dtype int64
  */
 inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imms) {
-  return int_imms.Map([](const IntImm& i) { return Downcast<IntImm>(cast(DataType::Int(64), i)); });
+  return int_imms.Map(
+      [](const IntImm& i) { return (cast(DataType::Int(64), i)).as_or_throw<IntImm>(); });
 }
 
 /************ Utilities for NN operators ************/

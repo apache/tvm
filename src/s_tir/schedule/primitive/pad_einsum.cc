@@ -148,7 +148,7 @@ struct BufferPadding {
       TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos->dtype, 1));
-      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
+      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get((pos).as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
         shape.push_back(buffer_region->buffer->shape[i]);
@@ -302,7 +302,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(old_block_ptr));
+    SBlock block = (StmtMutator::VisitStmt_(old_block_ptr)).as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
@@ -341,7 +341,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* old_for_ptr) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = Downcast<For>(StmtMutator::VisitStmt_(old_for_ptr));
+    For new_for = (StmtMutator::VisitStmt_(old_for_ptr)).as_or_throw<For>();
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
@@ -351,7 +351,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
-    BufferStore store = Downcast<BufferStore>(StmtMutator::VisitStmt_(old_store_ptr));
+    BufferStore store = (StmtMutator::VisitStmt_(old_store_ptr)).as_or_throw<BufferStore>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
@@ -360,7 +360,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
-    BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(old_load_ptr));
+    BufferLoad load = (ExprMutator::VisitExpr_(old_load_ptr)).as_or_throw<BufferLoad>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);
     } else {

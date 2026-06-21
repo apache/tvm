@@ -101,7 +101,7 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   if (!data_ty->shape.defined()) {
     return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
   }
-  ShapeType shape_ty = Downcast<ShapeType>(data_ty->shape.value()->ty);
+  ShapeType shape_ty = (data_ty->shape.value()->ty).as_or_throw<ShapeType>();
   if (!shape_ty->values.defined() || !tgt_shape_ty->values.defined()) {
     return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
   }
@@ -277,7 +277,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
       continue;
     }
     // Keep the shape value for equality check.
-    ShapeType shape_ty = Downcast<ShapeType>(ty->shape.value()->ty);
+    ShapeType shape_ty = (ty->shape.value()->ty).as_or_throw<ShapeType>();
     if (shape_ty->values.defined()) {
       shape_values.push_back(shape_ty->values.value());
     }
@@ -748,7 +748,7 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
     return TensorType(data_ty->dtype, /*ndim=*/index_map->final_indices.size(), data_ty->vdevice);
   }
 
-  ShapeType shape_ty = Downcast<ShapeType>(data_ty->shape.value()->ty);
+  ShapeType shape_ty = (data_ty->shape.value()->ty).as_or_throw<ShapeType>();
   if (!shape_ty->values.defined()) {
     return TensorType(data_ty->dtype, /*ndim=*/index_map->final_indices.size(), data_ty->vdevice);
   }
@@ -936,7 +936,8 @@ Expr ConvertNewShapeToExpr(const Expr& data,
     }
   }
 
-  ffi::Array<PrimExpr> array_ref = ffi::GetRef<ffi::Array<PrimExpr>>(array);
+  ffi::Array<PrimExpr> array_ref =
+      (ffi::GetRef<ffi::ObjectRef>(array)).as_or_throw<ffi::Array<PrimExpr>>();
   // When there is no dimension to infer, just return the input array as ShapeExpr.
   if (dim_to_infer == -1 && zero_dims.empty()) {
     return ShapeExpr(array_ref);
@@ -1061,7 +1062,8 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
              "However, the given indices "
           << indices_or_sections << " contains some non-integer.";
     }
-    indices_or_sections_obj = ConvertIntImmToInt64(ffi::GetRef<ffi::Array<IntImm>>(indices));
+    indices_or_sections_obj = ConvertIntImmToInt64(
+        (ffi::GetRef<ffi::ObjectRef>(indices)).as_or_throw<ffi::Array<IntImm>>());
   } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
     TVM_FFI_ICHECK_GT(n_section->value, 0)
         << "Split op expects the input number of sections to be a "
@@ -1192,7 +1194,7 @@ InferLayoutOutput InferLayoutSplit(
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>()) << "Fields of TupleType must be TensorType"
                                                           "output structinfo, but got "
                                                        << si;
-      auto ty = Downcast<TensorType>(si);
+      auto ty = (si).as_or_throw<TensorType>();
       ffi::Optional<ShapeExpr> shape_expr = ffi::GetRef<ShapeExpr>(ty->shape.as<ShapeExprNode>());
       TVM_FFI_ICHECK(shape_expr.defined());
       auto shape_arr = shape_expr.value();
@@ -1248,7 +1250,7 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> shape_value;
   if (data_ty->shape.defined()) {
-    shape_value = Downcast<ShapeType>(data_ty->shape.value()->ty)->values;
+    shape_value = (data_ty->shape.value()->ty).as_or_throw<ShapeType>()->values;
   }
 
   std::vector<bool> axis_removal_mask;
@@ -1533,7 +1535,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
     shape_unknown = true;
 
     if (!ty->shape.defined()) continue;
-    ShapeType shape_ty = Downcast<ShapeType>(ty->shape.value()->ty);
+    ShapeType shape_ty = (ty->shape.value()->ty).as_or_throw<ShapeType>();
     if (shape_ty->values.defined()) {
       shape_values.push_back(shape_ty->values.value());
     }
@@ -3012,8 +3014,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeOneHot(const Call& call, const BlockBuilder& ctx) {
   TensorType indices_ty = GetInputTensorType(call, 0, ctx);
   const auto* attrs = call->attrs.as<OneHotAttrs>();
-  PrimValue on_value = Downcast<PrimValue>(call->args[1]);
-  PrimValue off_value = Downcast<PrimValue>(call->args[2]);
+  PrimValue on_value = (call->args[1]).as_or_throw<PrimValue>();
+  PrimValue off_value = (call->args[2]).as_or_throw<PrimValue>();
   // Check if on_value and off_value have the same dtype
   TVM_FFI_ICHECK(on_value->value->dtype == off_value->value->dtype)
       << "one_hot: on_value and off_value must have the same dtype, "

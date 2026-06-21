@@ -221,19 +221,19 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    DeclBuffer decl = (StmtExprMutator::VisitStmt_(op)).as_or_throw<DeclBuffer>();
     Buffer new_buffer = GetRemappedBuffer(decl->buffer);
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
@@ -271,7 +271,7 @@ class IRConvertSSA final : public StmtExprMutator {
         write_ptr->iter_vars = iter_vars;
       }
 
-      return Downcast<SBlock>(StmtExprMutator::VisitStmt_(block.get()));
+      return (StmtExprMutator::VisitStmt_(block.get())).as_or_throw<SBlock>();
     });
   }
 
@@ -428,7 +428,7 @@ class IRConvertSSA final : public StmtExprMutator {
       // object as the one used by BufferStore/BufferLoad in subsequent siblings.
       Buffer new_buf = GetRemappedBuffer(op->buffer);
       if (!new_buf.same_as(op->buffer)) {
-        auto node = Downcast<AllocBuffer>(stmt);
+        auto node = (stmt).as_or_throw<AllocBuffer>();
         node.CopyOnWrite()->buffer = std::move(new_buf);
         return node;
       }
@@ -766,14 +766,14 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
             vars.push_back(new_var);
           }
         }
-        equations.push_back(Downcast<PrimExpr>(e));
+        equations.push_back((e).as_or_throw<PrimExpr>());
       }
     } else if (e->IsInstance<AndNode>()) {
-      And op = Downcast<And>(e);
+      And op = (e).as_or_throw<And>();
       fvisit(op->a);
       fvisit(op->b);
     } else if (e->IsInstance<CallNode>()) {
-      Call op = Downcast<Call>(e);
+      Call op = (e).as_or_throw<Call>();
       if (op->op.same_as(builtin::likely())) {
         fvisit(op->args[0]);
       }
@@ -887,7 +887,7 @@ class StorageAlignCollector : public StmtVisitor {
   void VisitStmt_(const SBlockNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
-      auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
+      auto storage_align_annotation = ((*it).second).as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
         const Buffer& buffer = op->writes[buffer_index]->buffer;
@@ -901,7 +901,7 @@ class StorageAlignCollector : public StmtVisitor {
   void VisitStmt_(const AllocBufferNode* op) final {
     auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
-      auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
+      auto storage_align_annotation = ((*it).second).as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
         // the first buffer idx info is meaningless for alloc

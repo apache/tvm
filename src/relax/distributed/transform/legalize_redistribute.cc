@@ -63,7 +63,7 @@ class RedistributeLegalizer : public ExprMutator {
   }
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* op) final {
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = (ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
     static Op redistribute_op = Op::Get("relax.dist.redistribute");
     if (call->op.same_as(redistribute_op)) {
       const auto* attrs = call->attrs.as<DistributionAttrs>();

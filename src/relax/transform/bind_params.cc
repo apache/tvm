@@ -164,7 +164,7 @@ Function FunctionBindParams(Function func, const ffi::Map<Any, ffi::ObjectRef>& 
   auto [bind_dict, symbolic_var_map] = NormalizeBindings(func, untyped_params);
 
   Expr bound_expr = Bind(func, bind_dict, symbolic_var_map);
-  return Downcast<Function>(bound_expr);
+  return (bound_expr).as_or_throw<Function>();
 }
 
 /*!

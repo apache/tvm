@@ -90,7 +90,7 @@ Type GetType(const PrimExpr& expr) {
     if (access->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK(access->args.size())
           << "Builtin tvm_access_ptr() may not have empty arguments";
-      auto type_annotation = Downcast<Call>(access->args[0]);
+      auto type_annotation = (access->args[0]).as_or_throw<Call>();
       TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
           << "Expected the first argument of builtin tvm_access_ptr() "
           << "to be a type annotation, but found " << type_annotation->op;
@@ -98,7 +98,7 @@ Type GetType(const PrimExpr& expr) {
     }
     if (access->op.same_as(builtin::ptr_byte_offset())) {
       TVM_FFI_ICHECK_EQ(access->args.size(), 3U);
-      auto type_annotation = Downcast<Call>(access->args[2]);
+      auto type_annotation = (access->args[2]).as_or_throw<Call>();
       TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
           << "Expected the third argument of builtin ptr_byte_offset() "
           << "to be a type annotation, but found " << type_annotation->op;

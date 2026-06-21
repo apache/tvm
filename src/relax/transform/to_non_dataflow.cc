@@ -56,7 +56,7 @@ namespace transform {
 
 Pass ToNonDataflow() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(ToNonDataflow(f));
+    return (ToNonDataflow(f)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 0, "ToNonDataflow", {});
 }

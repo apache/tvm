@@ -425,7 +425,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<DeclBuffer>();
     if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
@@ -433,12 +433,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -491,7 +491,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
-      Var buffer = Downcast<Var>(op->args[1]);
+      Var buffer = (op->args[1]).as_or_throw<Var>();
       if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
           !scope_stack_.back().shmem_allocs.count(buffer.get())) {
         return StmtExprMutator::VisitExpr_(op);
@@ -505,7 +505,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
                    op->args[4]});
     } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
-      Var buffer = Downcast<Var>(op->args[0]);
+      Var buffer = (op->args[0]).as_or_throw<Var>();
       const auto* ptr_type = buffer->type_annotation.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr_type) << "The buffer should be a pointer type.";
       const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();

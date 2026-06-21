@@ -111,12 +111,12 @@ class DataflowBlockExtractor : public ExprMutator {
       }
 
       // for a binding block, attempt to extract dataflow blocks inside
-      auto binding_block = Downcast<BindingBlock>(new_block);
+      auto binding_block = (new_block).as_or_throw<BindingBlock>();
       for (const auto& binding : binding_block->bindings) {
         Expr value = GetBoundValue(binding);
         // dataflow values: not an if node and not an impure call
         bool is_dataflow = (!value.as<IfNode>()) &&
-                           (!(value.as<CallNode>() && IsImpureCall(Downcast<Call>(value))));
+                           (!(value.as<CallNode>() && IsImpureCall((value).as_or_throw<Call>())));
         if (is_dataflow) {
           // extend the streak
           dataflow_bindings.push_back(binding);
@@ -152,7 +152,7 @@ namespace transform {
 
 Pass ConvertToDataflow(int min_size) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(ConvertToDataflow(f, min_size));
+    return (ConvertToDataflow(f, min_size)).as_or_throw<Function>();
   };
   auto pass = CreateFunctionPass(pass_func, 0, "ConvertToDataflow", {});
   // Canonicalize bindings is included afterwards in order to transform any

@@ -176,10 +176,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ffi::Array<IdDoc> vars;
             vars.reserve(n_vars + n_vars);
             for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(Downcast<IdDoc>(DefineVar(r->lhs[i], *f, d)));
+              vars.push_back((DefineVar(r->lhs[i], *f, d)).as_or_throw<IdDoc>());
             }
             for (int i = 0; i < n_vars; ++i) {
-              vars.push_back(Downcast<IdDoc>(DefineVar(r->rhs[i], *f, d)));
+              vars.push_back((DefineVar(r->rhs[i], *f, d)).as_or_throw<IdDoc>());
             }
             int n_results = r->result.size();
             ffi::Array<ExprDoc> results;
@@ -203,7 +203,7 @@ LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& 
   With<TIRFrame> f(d, map);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(Downcast<IdDoc>(DefineVar(vs[i], *f, d)));
+    vars.push_back((DefineVar(vs[i], *f, d)).as_or_throw<IdDoc>());
   }
   ffi::Array<ExprDoc> exprs;
   for (int i = 0, l = es.size(); i < l; ++i) {
@@ -218,7 +218,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
                                         m->final_indices, m_p->Attr("final_indices"), d);
           if (m->inverse_index_map.defined()) {
-            tirx::IndexMap inverse = Downcast<tirx::IndexMap>(m->inverse_index_map);
+            tirx::IndexMap inverse = (m->inverse_index_map).as_or_throw<tirx::IndexMap>();
             LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
                                           m_p->Attr("inverse_index_map")->Attr("initial_indices"),
                                           inverse->final_indices,
@@ -235,7 +235,7 @@ LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>
   With<TIRFrame> f(d, pred);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(Downcast<IdDoc>(DefineVar(vs[i], *f, d)));
+    vars.push_back((DefineVar(vs[i], *f, d)).as_or_throw<IdDoc>());
   }
   ExprDoc pred_doc = d->AsDoc<ExprDoc>(p, p_p);
   return LambdaDoc(vars, pred_doc);

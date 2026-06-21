@@ -51,7 +51,7 @@ class AppendLossMutator : private ExprMutator {
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
     auto new_func_transformed =
-        WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)), tvm::attr::kGlobalSymbol,
+        WithAttr((mutator.VisitExpr(new_func)).as_or_throw<Function>(), tvm::attr::kGlobalSymbol,
                  new_func_name.value_or(func_name + "_loss"));
 
     auto new_module = ffi::GetRef<IRModule>(mod.CopyOnWrite());
@@ -113,7 +113,7 @@ class AppendLossMutator : private ExprMutator {
    * \brief Using VisitExpr to remap the defined variable. This is different from the standard
    * behaviour of VisitVarDef.
    */
-  Var VisitVarDef(const Var& var) final { return Downcast<Var>(this->VisitExpr(var)); }
+  Var VisitVarDef(const Var& var) final { return (this->VisitExpr(var)).as_or_throw<Var>(); }
 
   /*! \brief Checks the loss function have only one DataflowBlock, and returns a scalar Var. */
   void CheckLossBody() {

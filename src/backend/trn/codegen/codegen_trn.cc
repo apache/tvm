@@ -228,7 +228,7 @@ void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   }
   Array<PrimExpr> addr;
   if (auto allocated_addr = op->annotations.Get(tirx::attr::buffer_allocated_addr)) {
-    addr = Downcast<Array<PrimExpr>>(allocated_addr.value());
+    addr = (allocated_addr.value()).as_or_throw<Array<PrimExpr>>();
   } else {
     // AllocBuffer is a leaf stmt after rebase; in that path allocated_addr is carried by Buffer.
     addr = op->buffer->allocated_addr;
@@ -242,15 +242,15 @@ void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
           << "allocated_addr[0] must be a constant integer, got: " << addr[0];
       TVM_FFI_ICHECK(addr[1]->IsInstance<IntImmNode>())
           << "allocated_addr[1] must be a constant integer, got: " << addr[1];
-      int64_t base_bank = Downcast<IntImm>(addr[0])->value;
-      int64_t base_addr = Downcast<IntImm>(addr[1])->value;
+      int64_t base_bank = (addr[0]).as_or_throw<IntImm>()->value;
+      int64_t base_addr = (addr[1]).as_or_throw<IntImm>()->value;
       stream << "ncc.psum.mod_alloc(base_bank=" << base_bank << ", base_addr=" << base_addr;
       stream << ", num_bank_tiles=(" << op->buffer->shape[0] << ",)))\n";
     } else {
       TVM_FFI_ICHECK(addr.size() == 1);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
           << "allocated_addr[0] must be a constant integer, got: " << addr[0];
-      int64_t base_addr = Downcast<IntImm>(addr[0])->value;
+      int64_t base_addr = (addr[0]).as_or_throw<IntImm>()->value;
       stream << "ncc.sbuf.mod_alloc(base_addr=" << base_addr << "))\n";
     }
   }
@@ -279,7 +279,8 @@ void CodeGenTrainium::VisitStmt_(const ForNode* op) {
   if (ctx_.tensorizing) {
     stream << vid << " = nl.arange(" << extent << ")\n";
     if (op->annotations.count("nki_dim")) {
-      ctx_.loopvar2dim[op->loop_var.get()] = Downcast<ffi::String>(op->annotations["nki_dim"]);
+      ctx_.loopvar2dim[op->loop_var.get()] =
+          (op->annotations["nki_dim"]).as_or_throw<ffi::String>();
     }
     ctx_.tensorized_loop_vars.insert(op->loop_var.get());
     TVM_FFI_ICHECK(ctx_.loopvar2dim.empty() ||
@@ -642,7 +643,7 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
     source_maker << "# Function: " << func_name << "\n";
     CodeGenTrainium cg(target);
     cg.Init(output_ssa);
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = (kv.second).as_or_throw<PrimFunc>();
     cg.AddFunction(kv.first, f);
 
     std::string fsource = cg.Finish();

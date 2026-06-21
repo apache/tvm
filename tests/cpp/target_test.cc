@@ -34,7 +34,7 @@ TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .add_attr_option<ffi::Map<ffi::String, int64_t>>("her_maps");
 
 ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any> target) {
-  ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
+  ffi::String mcpu = (target.at("mcpu")).as_or_throw<ffi::String>();
   target.Set("mcpu", ffi::String("super_") + mcpu);
   target.Set("keys", ffi::Array<ffi::String>({"super"}));
   target.Set("feature.test", true);

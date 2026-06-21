@@ -79,7 +79,7 @@ Pass UpdateParamType(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func) {
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto updated = Downcast<Function>(mutator(func.value()));
+        auto updated = (mutator(func.value())).as_or_throw<Function>();
         if (!updated.same_as(base_func)) {
           GlobalVar new_gvar(gvar->name_hint);
           UpdateType(new_gvar, GetType(updated));

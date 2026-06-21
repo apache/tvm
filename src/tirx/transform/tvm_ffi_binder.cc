@@ -165,7 +165,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
                                   const ffi::reflection::AccessPath& path, bool with_lets) {
   TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype());
   if (arg.as<VarNode>()) {
-    Var v_arg = Downcast<Var>(arg);
+    Var v_arg = (arg).as_or_throw<Var>();
     auto it = var_defs_.find(v_arg.get());
     if (it == var_defs_.end()) {
       // First bind: define the variable

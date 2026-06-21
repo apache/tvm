@@ -76,7 +76,7 @@ class GradientSimplifier : private ExprMutator {
    * VarIdSet containing all checkpointed vars.
    */
   static Function Transform(const Function& func) {
-    return Downcast<Function>(RemoveAllUnused(GradientSimplifier().VisitExpr(func)));
+    return (RemoveAllUnused(GradientSimplifier().VisitExpr(func))).as_or_throw<Function>();
   }
 
  private:
@@ -129,7 +129,7 @@ class GradientSimplifier : private ExprMutator {
     if (!expr->IsInstance<VarNode>()) {
       return GetTransposeOf(expr);
     }
-    auto prev_expr = builder_->LookupBinding(Downcast<Var>(expr));
+    auto prev_expr = builder_->LookupBinding((expr).as_or_throw<Var>());
     if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
@@ -157,7 +157,7 @@ class GradientSimplifier : private ExprMutator {
       return reemit_and_return();
     }
 
-    auto prev_expr = builder_->LookupBinding(Downcast<Var>(arg));
+    auto prev_expr = builder_->LookupBinding((arg).as_or_throw<Var>());
     if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
       return reemit_and_return();
     }
@@ -166,7 +166,7 @@ class GradientSimplifier : private ExprMutator {
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
-        var_remap_[binding->var->vid] = Downcast<Var>(prev_call_node->args[0]);
+        var_remap_[binding->var->vid] = (prev_call_node->args[0]).as_or_throw<Var>();
         return;
       } else {
         return reemit_and_return();

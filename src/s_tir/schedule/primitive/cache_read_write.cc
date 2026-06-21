@@ -980,7 +980,7 @@ class CacheReadRewriter : public StmtExprMutator {
       return old_stmt;
     }
     // Mutate the body
-    SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    SBlock stmt = (StmtMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     // Check the insertion point
     if (block == info_->loc_sref->stmt) {
       // Insert cache stage into the block if it is the right place
@@ -1251,7 +1251,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     // Mutate the body
     bool under_scope = under_writer_block_ || block == writer_block_sref_->stmt;
     std::swap(under_scope, under_writer_block_);
-    SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    SBlock stmt = (StmtMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     std::swap(under_scope, under_writer_block_);
 
     // Find the insertion point
@@ -1295,7 +1295,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* store) override {
-    BufferStore stmt = Downcast<BufferStore>(StmtMutator::VisitStmt_(store));
+    BufferStore stmt = (StmtMutator::VisitStmt_(store)).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->write_buffer)) {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
@@ -1407,7 +1407,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* store) final {
-    BufferStore stmt = Downcast<BufferStore>(StmtMutator::VisitStmt_(store));
+    BufferStore stmt = (StmtMutator::VisitStmt_(store)).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->write_buffer)) {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
@@ -1604,7 +1604,7 @@ class ReIndexRewriter : public StmtExprMutator {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     if (is_scope_) {
       is_scope_ = false;
-      SBlock stmt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+      SBlock stmt = (StmtExprMutator::VisitStmt_(block)).as_or_throw<SBlock>();
       // Insert cache stage into the loop
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
@@ -1623,7 +1623,7 @@ class ReIndexRewriter : public StmtExprMutator {
           region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var->dtype, 1)));
         }
       }
-      SBlock stmt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+      SBlock stmt = (StmtExprMutator::VisitStmt_(block)).as_or_throw<SBlock>();
       // Update block reads/writes to use the intermediate reindex buffer
       auto writes =
           ReplaceBufferRegion(block->writes, old_buffer_, BufferRegion{new_buffer_, region_});
@@ -1655,12 +1655,12 @@ class ReIndexRewriter : public StmtExprMutator {
     return node;
   }
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore buffer_store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore buffer_store = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(buffer_store));
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad buffer_load = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }
 

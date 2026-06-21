@@ -55,7 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = Downcast<TensorType>(call->args[0]->ty);
+  TensorType data_ty = (call->args[0]->ty).as_or_throw<TensorType>();
   PrimValue axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
     if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
@@ -72,9 +72,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args[3]->IsInstance<PrimValueNode>());
   TVM_FFI_ICHECK(call->args[4]->IsInstance<PrimValueNode>());
 
-  return_index = Downcast<PrimValue>(call->args[2]);
-  return_inverse = Downcast<PrimValue>(call->args[3]);
-  return_counts = Downcast<PrimValue>(call->args[4]);
+  return_index = (call->args[2]).as_or_throw<PrimValue>();
+  return_inverse = (call->args[3]).as_or_throw<PrimValue>();
+  return_counts = (call->args[4]).as_or_throw<PrimValue>();
 
   auto f_convert_to_int64 = [](const PrimExpr& value) {
     TVM_FFI_ICHECK(value->IsInstance<IntImmNode>())

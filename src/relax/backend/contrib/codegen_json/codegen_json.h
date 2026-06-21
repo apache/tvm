@@ -279,7 +279,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
         TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: ."
                                   << tuple_ty->fields[i]->GetTypeKey();
         TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
-        ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_ty->shape.value());
+        ShapeExpr output_shape = (tensor_ty->shape.value()).as_or_throw<ShapeExpr>();
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
         dtype.emplace_back(DType2String(tensor_ty->dtype));
@@ -289,7 +289,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       const auto* tensor_ty = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: " << ty->GetTypeKey();
       TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
-      ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_ty->shape.value());
+      ShapeExpr output_shape = (tensor_ty->shape.value()).as_or_throw<ShapeExpr>();
 
       shape.emplace_back(GetIntShape(output_shape->values));
       dtype.emplace_back(DType2String(tensor_ty->dtype));

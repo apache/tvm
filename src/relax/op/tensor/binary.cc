@@ -34,7 +34,7 @@ namespace relax {
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  Op op = Downcast<Op>(call->op);
+  Op op = (call->op).as_or_throw<Op>();
   size_t n_input = op->arguments.size();
   if (call->args.size() != n_input) {
     TVM_FFI_VISIT_THROW(ValueError, call)

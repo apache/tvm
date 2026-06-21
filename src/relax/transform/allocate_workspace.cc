@@ -46,7 +46,7 @@ class ExternFunctionRewriter : ExprMutator {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
       if (f->GetAttr<int64_t>(attr::kWorkspaceSize)) {
-        ret[gvar.get()] = Downcast<Function>(VisitExpr(f));
+        ret[gvar.get()] = (VisitExpr(f)).as_or_throw<Function>();
       }
     }
     return ret;
@@ -82,7 +82,7 @@ class ExternFunctionRewriter : ExprMutator {
     if (auto var = new_op.as<Var>()) {
       if (auto callee = builder_->LookupBinding(var.value());
           callee && callee->IsInstance<FunctionNode>() &&
-          Downcast<Function>(callee.value())->GetAttr<ffi::String>(attr::kComposite)) {
+          (callee.value()).as_or_throw<Function>()->GetAttr<ffi::String>(attr::kComposite)) {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
@@ -137,7 +137,7 @@ class WorkspaceProvider : ExprMutator {
           f->GetAttr<ffi::String>(attr::kComposite)) {
         continue;
       }
-      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      auto func = (mod_->Lookup(gvar)).as_or_throw<Function>();
       auto new_func =
           Function(func->params, VisitExpr(func->body), func->ret_ty, func->is_pure, func->attrs);
       builder_->UpdateFunction(gvar, new_func);

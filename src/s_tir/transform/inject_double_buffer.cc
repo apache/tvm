@@ -197,7 +197,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
 
     auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
@@ -217,7 +217,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
 
     auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
@@ -265,7 +265,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
-    const Var buffer = Downcast<Var>(op->node);
+    const Var buffer = (op->node).as_or_throw<Var>();
     TVM_FFI_ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {

@@ -178,7 +178,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
       } else {
-        f->stmts.push_back(Downcast<StmtDoc>(doc));
+        f->stmts.push_back((doc).as_or_throw<StmtDoc>());
       }
       i += consumed;
     }
@@ -188,7 +188,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
     if (const auto* block = doc.as<StmtBlockDocNode>()) {
       f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
     } else {
-      f->stmts.push_back(Downcast<StmtDoc>(doc));
+      f->stmts.push_back((doc).as_or_throw<StmtDoc>());
     }
   }
 }

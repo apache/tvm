@@ -335,7 +335,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       return std::nullopt;
     }
     const int64_t max_value_of_dtype =
-        Downcast<IntImm>(tvm::max_value(a->dtype.element_of()))->value;
+        (tvm::max_value(a->dtype.element_of())).as_or_throw<IntImm>()->value;
 
     // NOTE: ensures that (b-1) - a_min does not overflow
     // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow

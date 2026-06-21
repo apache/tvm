@@ -227,7 +227,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
       }));
 
   // create block to fill const pad values
-  BufferStore store = Downcast<BufferStore>(block->body);
+  BufferStore store = (block->body).as_or_throw<BufferStore>();
   store.CopyOnWrite()->value = info.pad_value;
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
@@ -330,7 +330,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   }
 
   // create new block realize node
-  BufferStore store = Downcast<BufferStore>(block->body);
+  BufferStore store = (block->body).as_or_throw<BufferStore>();
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,
@@ -377,7 +377,7 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
 
   static SBlock Replace(SBlock scope_root, const ReplaceDesc& desc) {
     DecomposePaddingBlockReplacer replacer(desc);
-    return Downcast<SBlock>(replacer(std::move(scope_root)));
+    return (replacer(std::move(scope_root))).as_or_throw<SBlock>();
   }
 
  private:

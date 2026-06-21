@@ -115,7 +115,7 @@ Type TypeMutator::VisitType_(const TensorTypeNode* op) {
 }
 
 Type TypeMutator::VisitType_(const distributed::DTensorTypeNode* op) {
-  TensorType tensor_ty = Downcast<TensorType>(this->VisitType(op->tensor_ty));
+  TensorType tensor_ty = (this->VisitType(op->tensor_ty)).as_or_throw<TensorType>();
   return distributed::DTensorType(tensor_ty, op->device_mesh, op->placement);
 }
 

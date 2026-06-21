@@ -326,7 +326,7 @@ class BaseInliner : public StmtExprMutator {
       block = tgt_stmt.as<SBlockNode>();
       TVM_FFI_ICHECK(block != nullptr);
     }
-    SBlock tgt_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+    SBlock tgt_block = (StmtExprMutator::VisitStmt_(block)).as_or_throw<SBlock>();
     bool is_scope_root = src_block.get() == scope_root_sref_->stmt;
     tgt_block = UpdateBuffersInBlockSignature(std::move(tgt_block), is_scope_root);
     block_reuse.Set(src_block, tgt_block);
@@ -532,7 +532,7 @@ class ComputeInliner : public BaseInliner {
   using BaseInliner::VisitStmt_;
 
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+    BufferLoad load = (StmtExprMutator::VisitExpr_(_load)).as_or_throw<BufferLoad>();
     if (!load->buffer.same_as(inlined_buffer_)) {
       return load;
     }
@@ -586,7 +586,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
 
     PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-      BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+      BufferLoad load = (StmtExprMutator::VisitExpr_(_load)).as_or_throw<BufferLoad>();
       return load->buffer.same_as(self_->inlined_buffer_) ? self_->producer_rhs_ : load;
     }
 
@@ -607,7 +607,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
 
     PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-      BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+      BufferLoad load = (StmtExprMutator::VisitExpr_(_load)).as_or_throw<BufferLoad>();
       return load->buffer.same_as(self_->inlined_buffer_)
                  ? StmtExprMutator::VisitExpr(
                        BufferLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices))
@@ -760,7 +760,7 @@ class ReverseComputeInliner : public BaseInliner {
 
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     SBlock src_block = op->block;
-    SBlockRealize tgt_block_realize = Downcast<SBlockRealize>(StmtMutator::VisitStmt_(op));
+    SBlockRealize tgt_block_realize = (StmtMutator::VisitStmt_(op)).as_or_throw<SBlockRealize>();
     if (src_block.get() == producer_block_) {
       tgt_block_realize = BuildInlinedConsumerPredicate(tgt_block_realize);
       block_reuse.Set(src_block, tgt_block_realize->block);
@@ -769,7 +769,7 @@ class ReverseComputeInliner : public BaseInliner {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
+    BufferStore store = (StmtExprMutator::VisitStmt_(_store)).as_or_throw<BufferStore>();
     if (!store->buffer.same_as(inlined_buffer_)) {
       return store;
     }
@@ -1275,7 +1275,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         : target_buffer_(target_buffer), identity_elem_(identity_elem) {}
 
     PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-      BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+      BufferLoad load = (ExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
       if (load->buffer.same_as(target_buffer_)) {
         return identity_elem_;
       }
@@ -1319,7 +1319,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           var_map_(var_map) {}
 
     Stmt VisitStmt_(const BufferStoreNode* op) final {
-      BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+      BufferStore store = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
       if (store->buffer.same_as(old_buffer_)) {
         // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update
         // expression This ensures store->value references new_buffer_ instead of old_buffer_
@@ -1329,7 +1329,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
               : old_buffer_(old_buf), new_buffer_(new_buf) {}
 
           PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-            BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+            BufferLoad load = (ExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
             if (load->buffer.same_as(old_buffer_)) {
               return BufferLoad(new_buffer_, load->indices);
             }
@@ -1357,7 +1357,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 found_target_load_(false) {}
 
           PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-            BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(op));
+            BufferLoad load = (ExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
             if (load->buffer.same_as(target_buffer_)) {
               found_target_load_ = true;
               // Check if parent is Add (will be checked in VisitExpr_(const AddNode*))
@@ -1430,7 +1430,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     }
 
     PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-      BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+      BufferLoad load = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
       if (load->buffer.same_as(old_buffer_)) {
         return BufferLoad(new_buffer_, load->indices);
       }
@@ -1577,7 +1577,7 @@ class SingleBlockFusionReplacer : public StmtMutator {
                         SBlock old_epilogue_block, Buffer reduction_buffer) {
     SingleBlockFusionReplacer replacer(std::move(new_fused_block), std::move(old_reduction_block),
                                        std::move(old_epilogue_block), std::move(reduction_buffer));
-    SBlock result = Downcast<SBlock>(replacer(std::move(old_scope_root)));
+    SBlock result = (replacer(std::move(old_scope_root))).as_or_throw<SBlock>();
 
     // Check if reduction_buffer is still referenced by other blocks
     bool buffer_still_used = CheckBufferStillUsed(result, reduction_buffer);

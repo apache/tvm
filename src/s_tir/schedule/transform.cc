@@ -149,12 +149,12 @@ PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
 }
 
 Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+  auto node = (StmtExprMutator::VisitStmt_(op)).as_or_throw<BufferStore>();
   return VisitBufferAccess(std::move(node));
 }
 
 PrimExpr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  auto node = (StmtExprMutator::VisitExpr_(op)).as_or_throw<BufferLoad>();
   return VisitBufferAccess(std::move(node));
 }
 
@@ -216,7 +216,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
   ffi::Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
-  SBlock mutated_block = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+  SBlock mutated_block = (StmtMutator::VisitStmt_(block)).as_or_throw<SBlock>();
 
   if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
       writes.same_as(mutated_block->writes) &&
@@ -463,7 +463,7 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
-  SBlock block = Downcast<SBlock>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  SBlock block = (arith::IRMutatorWithAnalyzer::VisitStmt_(op)).as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
@@ -471,13 +471,13 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  BufferStore node = (arith::IRMutatorWithAnalyzer::VisitStmt_(op)).as_or_throw<BufferStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
 
 PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
-  BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+  BufferLoad node = (arith::IRMutatorWithAnalyzer::VisitExpr_(op)).as_or_throw<BufferLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

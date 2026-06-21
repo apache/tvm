@@ -198,7 +198,7 @@ class AutoPadder {
 
      private:
       PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-        BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+        BufferLoad load = (StmtExprMutator::VisitExpr_(_op)).as_or_throw<BufferLoad>();
         BufferLoadNode* op = load.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {
           op->buffer = buffer_map_[op->buffer];
@@ -207,7 +207,7 @@ class AutoPadder {
       }
 
       Stmt VisitStmt_(const BufferStoreNode* _op) final {
-        BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+        BufferStore store = (StmtExprMutator::VisitStmt_(_op)).as_or_throw<BufferStore>();
         BufferStoreNode* op = store.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {
           op->buffer = buffer_map_[op->buffer];
@@ -667,7 +667,7 @@ class AutoCopyMutator : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = (StmtMutator::VisitStmt_(op)).as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();

@@ -127,7 +127,7 @@ class ThreadBindingLifter : public StmtExprMutator {
         SetKernelRoot(_op);
       }
     }
-    For new_op = Downcast<For>(StmtExprMutator::VisitStmt_(_op));
+    For new_op = (StmtExprMutator::VisitStmt_(_op)).as_or_throw<For>();
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {

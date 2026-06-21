@@ -19,7 +19,6 @@
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/script/printer/printer.h>
 
@@ -59,25 +58,25 @@ bool IsIdentifier(const std::string& name) {
 PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
-    n->binding_names.push_back(Downcast<ffi::String>(v.value()));
+    n->binding_names.push_back((v.value()).as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("show_meta")) {
     n->show_meta = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("ir_prefix")) {
-    n->ir_prefix = Downcast<ffi::String>(v.value());
+    n->ir_prefix = (v.value()).as_or_throw<ffi::String>();
   }
   if (auto v = config_dict.Get("module_alias")) {
-    n->module_alias = Downcast<ffi::String>(v.value());
+    n->module_alias = (v.value()).as_or_throw<ffi::String>();
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->buffer_dtype = DataType(ffi::StringToDLDataType((v.value()).as_or_throw<ffi::String>()));
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->int_dtype = DataType(ffi::StringToDLDataType((v.value()).as_or_throw<ffi::String>()));
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->float_dtype = DataType(ffi::StringToDLDataType((v.value()).as_or_throw<ffi::String>()));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();
@@ -93,21 +92,24 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline =
-        Downcast<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>(v).value_or(
+        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>().value_or(
             ffi::Array<ffi::reflection::AccessPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
     n->path_to_annotate =
-        Downcast<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>(v).value_or(
-            ffi::Map<ffi::reflection::AccessPath, ffi::String>());
+        v.value()
+            .as_or_throw<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>()
+            .value_or(ffi::Map<ffi::reflection::AccessPath, ffi::String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline = Downcast<ffi::Optional<ffi::Array<ffi::ObjectRef>>>(v).value_or(
-        ffi::Array<ffi::ObjectRef>());
+    n->obj_to_underline =
+        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::ObjectRef>>>().value_or(
+            ffi::Array<ffi::ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate = Downcast<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>(v).value_or(
-        ffi::Map<ffi::ObjectRef, ffi::String>());
+    n->obj_to_annotate =
+        v.value().as_or_throw<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>().value_or(
+            ffi::Map<ffi::ObjectRef, ffi::String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = v.value().cast<bool>();
@@ -127,7 +129,7 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     n->extra_config.Set(ffi::String("relax.show_all_ty"), v.value());
   }
   if (auto v = config_dict.Get("extra_config")) {
-    auto extra = Downcast<ffi::Map<ffi::String, ffi::Any>>(v.value());
+    auto extra = (v.value()).as_or_throw<ffi::Map<ffi::String, ffi::Any>>();
     for (auto kv : extra) {
       n->extra_config.Set(kv.first, kv.second);
     }

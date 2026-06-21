@@ -30,7 +30,7 @@ class EmptyCppMutator : public relax::ExprMutator {};
 tvm::transform::Pass ApplyEmptyCppMutator() {
   auto pass_func = [](Function func, IRModule, tvm::transform::PassContext) -> Function {
     EmptyCppMutator mutator;
-    return Downcast<Function>(mutator.VisitExpr(std::move(func)));
+    return (mutator.VisitExpr(std::move(func))).as_or_throw<Function>();
   };
   return tvm::relax::transform::CreateFunctionPass(pass_func, 0,
                                                    "relax.testing.ApplyEmptyCppMutator", {});

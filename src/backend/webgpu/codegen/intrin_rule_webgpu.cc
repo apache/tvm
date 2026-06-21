@@ -57,7 +57,7 @@ static PrimExpr DispatchWebGPUShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   PrimExpr lane_or_delta = Cast(DataType::UInt(32, call->args[2].dtype().lanes()), call->args[2]);
   ffi::Array<PrimExpr> webgpu_args{{call->args[1], lane_or_delta}};
-  return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), webgpu_args);
+  return Call(call->dtype, T()(call->dtype, (call->op).as_or_throw<Op>()), webgpu_args);
 }
 
 void RegisterWebGPUIntrinRules() {

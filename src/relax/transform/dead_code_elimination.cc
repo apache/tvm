@@ -174,7 +174,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod,
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<Function>()) {
-        auto new_func = Downcast<Function>(RemoveAllUnused(opt.value()));
+        auto new_func = (RemoveAllUnused(opt.value())).as_or_throw<Function>();
         if (!new_func.same_as(base_func)) {
           updates->Add(gvar, new_func);
         }

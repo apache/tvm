@@ -53,7 +53,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (op->attr_key != tirx::attr::thread_extent && op->attr_key != s_tir::attr::virtual_thread) {
       return StmtMutator::VisitStmt_(op);
     }
-    IterVar old_iter_var = Downcast<IterVar>(op->node);
+    IterVar old_iter_var = (op->node).as_or_throw<IterVar>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
                                   Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
   }

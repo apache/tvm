@@ -331,7 +331,7 @@ class VDeviceTypeUpdater : ExprMutator {
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto updated = Downcast<Function>(mutator(func.value()));
+        auto updated = (mutator(func.value())).as_or_throw<Function>();
         if (!updated.same_as(base_func)) {
           updates->Add(gvar, updated);
         }
@@ -376,7 +376,7 @@ class VDeviceTypeUpdater : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto call = (ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
     if (call->op != hint_on_device_op_) {
       return call;
@@ -384,7 +384,7 @@ class VDeviceTypeUpdater : ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     auto arg = call->args[0];
-    auto input_vdevice = Downcast<TensorType>(arg->ty)->vdevice;
+    auto input_vdevice = (arg->ty).as_or_throw<TensorType>()->vdevice;
     auto output_vdevice = vdevice_lookup_(call->attrs);
 
     if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
