@@ -29,7 +29,7 @@ class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
 
     def __eq__(self, other):
-        """Compare two struct info for structural equivalence."""
+        """Compare two global info objects for structural equivalence."""
         return tvm_ffi.structural_equal(self, other)
 
     def __ne__(self, other):

@@ -356,7 +356,7 @@ class BaseFP8E4M3QuantScaleOnly:
             assert NotImplementedError()
 
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-        weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, model_dtype))
+        weight_var = relax.Var("weight", relax.TensorType(weight_shape, model_dtype))
         compute_scale, compute_quantize, compute_transpose = quantize_func(
             weight_shape,
             model_dtype,
@@ -401,9 +401,9 @@ class BaseFP8E4M3QuantScaleOnly:
 
         bb = relax.BlockBuilder()  # pylint: disable=invalid-name
         packed_weight_var = relax.Var(
-            "weight", relax.TensorStructInfo(packed_weight_shape, storage_dtype)
+            "weight", relax.TensorType(packed_weight_shape, storage_dtype)
         )
-        scale_var = relax.Var("scale", relax.TensorStructInfo(scale_shape, model_dtype))
+        scale_var = relax.Var("scale", relax.TensorType(scale_shape, model_dtype))
         compute_dequantize = dequantize_func(
             packed_weight_shape,
             scale_shape,
@@ -488,9 +488,7 @@ class BaseFP8E4M3QuantScaleOnly:
 
             global_var = bb.add_func(quant, "quantized_weight")
             lv_quantized_weight = bb.emit(
-                relax.call_tir(
-                    global_var, args, relax.TensorStructInfo(packed_shape, storage_dtype)
-                )
+                relax.call_tir(global_var, args, relax.TensorType(packed_shape, storage_dtype))
             )
             return lv_quantized_weight
 
@@ -539,7 +537,7 @@ class BaseFP8E4M3QuantScaleOnly:
 
             global_var = bb.add_func(dequant, "dequantize_weight")
             lv_dequantized_weight = bb.emit(
-                relax.call_tir(global_var, args, relax.TensorStructInfo(dequant_shape, model_dtype))
+                relax.call_tir(global_var, args, relax.TensorType(dequant_shape, model_dtype))
             )
             return lv_dequantized_weight
 
@@ -927,7 +925,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                 lv = R.call_tir(
                     cls.moe_dequantize_gemv,
                     (x, weight, astype, indptr),
-                    out_sinfo=R.Tensor((2, spatial_size), dtype="float16"),
+                    out_ty=R.Tensor((2, spatial_size), dtype="float16"),
                 )
                 gv: R.Tensor((2, spatial_size), dtype="float16") = lv
                 R.output(gv)

@@ -30,7 +30,7 @@
 #include <tvm/ir/cast.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/ir/type.h>
+#include <tvm/runtime/data_type.h>
 
 #include <algorithm>
 #include <functional>
@@ -44,6 +44,48 @@ namespace tvm {
 class VirtualDevice;
 
 /*!
+ * \brief Type is the base type of all types.
+ *
+ * TVM's type system contains following subclasses:
+ *
+ * - PrimType: type of primitive type values used in the low-level IR.
+ * - FuncType: type of a function.
+ * - TensorType: type of certain Tensor values in the expression.
+ *
+ * There are also advanced types to support generic(polymorphic types).
+ * \sa Type
+ */
+class TypeNode : public ffi::Object {
+ public:
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
+                                       refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
+  static constexpr const uint32_t _type_child_slots = 14;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to TypeNode.
+ * \sa TypeNode
+ */
+class Type : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
+};
+
+/*!
  * \brief Base type of all the expressions.
  * \sa Expr
  */
@@ -55,11 +97,23 @@ class BaseExprNode : public ffi::Object {
    */
   mutable Span span;
 
+  /*!
+   * \brief The deduced or annotated type of the expression.
+   *
+   * This field is intentionally nullable because type information may
+   * be populated by later analysis passes instead of expression
+   * constructors.
+   */
+  mutable Type ty;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
-                                           refl::AttachFieldFlag::SEqHashIgnore());
+    // span and ty do not participate in structural equal and hash.
+    refl::ObjectDef<BaseExprNode>()
+        .def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+                refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("ty", &BaseExprNode::ty, refl::DefaultValue(Type()),
+                refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -414,17 +468,9 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
  */
 class RelaxExprNode : public BaseExprNode {
  public:
-  /*!
-   * \brief Stores the result of structure information of the
-   *        expression that encapsulate both static shape and
-   *        runtime information such as shape.
-   */
-  mutable ffi::Optional<ffi::ObjectRef> struct_info_ = ffi::Optional<ffi::ObjectRef>();
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_,
-                                            refl::AttachFieldFlag::SEqHashIgnore());
+    refl::ObjectDef<RelaxExprNode>();
   }
 
   static constexpr const uint32_t _type_child_slots = 22;

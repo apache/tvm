@@ -95,8 +95,6 @@ class OpNode : public RelaxExprNode {
  public:
   /*! \brief name of the operator */
   ffi::String name;
-  /*! \brief the type of the operator */
-  mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
@@ -130,7 +128,6 @@ class OpNode : public RelaxExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OpNode>()
         .def_ro("name", &OpNode::name)
-        .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
