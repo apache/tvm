@@ -468,11 +468,11 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
     ffi::Array<Expr> relax_results;
     if (lhs_var->IsInstance<TupleNode>()) {
-      relax_results = (lhs_var).as_or_throw<Tuple>()->fields;
+      relax_results = lhs_var.as_or_throw<Tuple>()->fields;
     } else {
       TVM_FFI_ICHECK(lhs_var->IsInstance<VarNode>())
           << "The lhs_var is expected to be either tuple or var";
-      relax_results = {(lhs_var).as_or_throw<Var>()};
+      relax_results = {lhs_var.as_or_throw<Var>()};
     }
 
     size_t num_inputs = relax_args.size();
@@ -540,7 +540,7 @@ class FusedTIRConstructor : public ExprVisitor {
         << "Expected relax functions, but got: " << f->GetTypeKey();
     TVM_FFI_ICHECK(f->HasNonzeroAttr(relax::attr::kPrimitive))
         << "Expected a function with attr `kPrimitive`";
-    visitor((f).as_or_throw<relax::Function>());
+    visitor(f.as_or_throw<relax::Function>());
     ffi::Array<int64_t> inplace_indices;
     for (size_t idx : visitor.inplace_indices_) {
       inplace_indices.push_back(static_cast<int64_t>(idx));
@@ -987,7 +987,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
         TVM_FFI_ICHECK(var->IsInstance<tirx::VarNode>());
-        out->push_back((var).as_or_throw<tirx::Var>());
+        out->push_back(var.as_or_throw<tirx::Var>());
       }
     } else {
       TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
@@ -1018,7 +1018,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     body = subst.Substitute(body);
     body = tirx::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tirx::SBlockRealize({}, IntImm::Bool(true), (body).as_or_throw<tirx::SBlock>());
+    body = tirx::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<tirx::SBlock>());
     tirx::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                         DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions

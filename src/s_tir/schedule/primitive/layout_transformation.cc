@@ -1214,7 +1214,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,
                                        index_map, opt_inverse, padding_predicate, pad_value);
-  SBlock new_scope_block = (new_stmt).as_or_throw<SBlock>();
+  SBlock new_scope_block = new_stmt.as_or_throw<SBlock>();
 
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
   if (!defining_site_sref.defined()) {
@@ -1624,7 +1624,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = (attrs_record_).as_or_throw<ffi::Array<Any>>();
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
@@ -1674,7 +1674,7 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = (attrs_record_).as_or_throw<ffi::Array<Any>>();
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
     attrs.push_back(
         ffi::FromJSONGraph(ffi::json::Parse((attrs_record[0]).as_or_throw<ffi::String>())));

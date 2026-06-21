@@ -83,7 +83,7 @@ class LegalizeMutator : public ExprMutator {
       const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<FunctionNode>()) {
         auto updated_func = (this->VisitExpr(func)).as_or_throw<Function>();
-        builder_->UpdateFunction(gv, (updated_func).as_or_throw<BaseFunc>());
+        builder_->UpdateFunction(gv, updated_func.as_or_throw<BaseFunc>());
       }
     }
 
@@ -174,7 +174,7 @@ class LegalizeMutator : public ExprMutator {
       return expr;
     }
 
-    auto call = (expr).as_or_throw<Call>();
+    auto call = expr.as_or_throw<Call>();
 
     auto vdevice_target = GetTarget(call->ty_args);
     if (!vdevice_target.defined()) {
@@ -372,7 +372,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     if (WrapPureCondition(op, legalized)) {
-      legalized = WrapPureCall((legalized).as_or_throw<Call>());
+      legalized = WrapPureCall(legalized.as_or_throw<Call>());
     }
 
     // Legalization may have introduced additional operations that

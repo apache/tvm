@@ -88,7 +88,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
-        dict.Set(key, (original_value).as_or_throw<ffi::String>() + "_weight_prepack");
+        dict.Set(key, original_value.as_or_throw<ffi::String>() + "_weight_prepack");
       } else if (key != "layout_free_buffers") {
         dict.Set(key, original_value);
       }
@@ -134,7 +134,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
-        dict.Set(key, (original_value).as_or_throw<ffi::String>() + "_prepacked");
+        dict.Set(key, original_value.as_or_throw<ffi::String>() + "_prepacked");
       } else if (key != "layout_free_buffers") {
         dict.Set(key, original_value);
       }
@@ -247,9 +247,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     // Step 1: Split the primfunc into preproc and compute
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<tirx::PrimFuncNode>()) {
-        tirx::SplitPrimFuncLayoutRewrite tir_rewriter((func).as_or_throw<tirx::PrimFunc>());
+        tirx::SplitPrimFuncLayoutRewrite tir_rewriter(func.as_or_throw<tirx::PrimFunc>());
         auto [preproc_func, compute_func] =
-            tir_rewriter.Transform((func).as_or_throw<tirx::PrimFunc>());
+            tir_rewriter.Transform(func.as_or_throw<tirx::PrimFunc>());
         if (preproc_func.defined()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
@@ -260,7 +260,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
 
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>()) {
-        auto relax_func = (func).as_or_throw<relax::Function>();
+        auto relax_func = func.as_or_throw<relax::Function>();
         mutator.builder_->UpdateFunction(gv, (mutator(relax_func)).as_or_throw<relax::Function>());
       }
     }

@@ -47,7 +47,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
   PrimExpr e = VisitExpr(op->loop_var);
-  Var var = (e).as_or_throw<Var>();
+  Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
   n->min = cast(var.dtype(), op->min);
   n->extent = cast(var.dtype(), op->extent);
@@ -106,7 +106,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
-    Var var = (e).as_or_throw<Var>();
+    Var var = e.as_or_throw<Var>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
@@ -373,12 +373,12 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
       return obj;
     }
     if (obj.as<BufferNode>()) {
-      Buffer buffer = (obj).as_or_throw<Buffer>();
+      Buffer buffer = obj.as_or_throw<Buffer>();
       if (Buffer new_buffer = VisitBufferUse(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
     } else if (obj.as<ffi::ArrayObj>()) {
-      return (obj).as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
+      return obj.as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
     }
     return obj;
   };

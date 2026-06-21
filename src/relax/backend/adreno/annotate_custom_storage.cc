@@ -539,7 +539,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
  private:
   Type UpdateOutputType(const Type& out_ty, ffi::Array<ffi::String> scope) {
     if (out_ty->IsInstance<TensorTypeNode>()) {
-      auto tensor_ty = (out_ty).as_or_throw<TensorType>();
+      auto tensor_ty = out_ty.as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(tensor_ty);
       return TensorType(ShapeExpr(shape_arr), tensor_ty->dtype, VDevice(target_, 0, scope[0]));
     }
@@ -549,14 +549,14 @@ class CollectProducerScopeInfo : public ExprVisitor {
            "TensorType, but got "
         << out_ty;
 
-    const auto& tuple_ty = (out_ty).as_or_throw<TupleType>();
+    const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
     ffi::Array<Type> ty_fields;
     for (const auto& si : tuple_ty->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
           << "Fields of TupleType must be TensorType for call_tir "
              "output structinfo, but got "
           << si;
-      auto ty = (si).as_or_throw<TensorType>();
+      auto ty = si.as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(ty);
       ty_fields.push_back(
           TensorType(ShapeExpr(shape_arr), ty->dtype, VDevice(target_, 0, scope[0])));
@@ -591,11 +591,10 @@ class DefineVDevice : ExprMutator {
         if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
           continue;
         }
-        auto info =
-            CollectConsumerScopeInfo().Collect(mod_, (func).as_or_throw<Function>(), target_);
+        auto info = CollectConsumerScopeInfo().Collect(mod_, func.as_or_throw<Function>(), target_);
         call_scope_info_ = info.first;
         scope_info_ = info.second;
-        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, (func).as_or_throw<Function>(),
+        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, func.as_or_throw<Function>(),
                                                           scope_info_, target_, builder_);
         relax::Function update_func = (VisitExpr(func)).as_or_throw<Function>();
         updates_->Add(gv, update_func);
@@ -638,7 +637,7 @@ class DefineVDevice : ExprMutator {
     Type updated_ret_ty = producer_ty_[ffi::GetRef<Expr>(call_node)];
 
     if (updated_ret_ty->IsInstance<TensorTypeNode>()) {
-      auto tensor_ty = (updated_ret_ty).as_or_throw<TensorType>();
+      auto tensor_ty = updated_ret_ty.as_or_throw<TensorType>();
       auto shape = tensor_ty->shape.value();
       auto dtype = tensor_ty->dtype;
       if (tensor_ty->vdevice.defined()) {
@@ -652,14 +651,14 @@ class DefineVDevice : ExprMutator {
              "TensorType, but got "
           << updated_ret_ty;
 
-      const auto& tuple_ty = (updated_ret_ty).as_or_throw<TupleType>();
+      const auto& tuple_ty = updated_ret_ty.as_or_throw<TupleType>();
       ffi::Array<Type> ty_fields;
       for (const auto& si : tuple_ty->fields) {
         TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
             << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto ty = (si).as_or_throw<TensorType>();
+        auto ty = si.as_or_throw<TensorType>();
 
         auto shape_arr = GetShapeFromTensorType(ty);
 

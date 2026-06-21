@@ -323,7 +323,7 @@ class DistributedBufferCompactor : StmtExprMutator {
         continue;
       }
       TVM_FFI_ICHECK(iter_value.as<VarNode>());
-      loop_var_shards_[(iter_value).as_or_throw<Var>()] = iter_var_shards_[iter_var->var];
+      loop_var_shards_[iter_value.as_or_throw<Var>()] = iter_var_shards_[iter_var->var];
     }
     return realize;
   }
@@ -384,7 +384,7 @@ class LowerTIRToLocalView : public ExprMutator {
     } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(var)) {
       ffi::Array<DTensorType> ret;
       for (const auto& field : tuple_ty->fields) {
-        ret.push_back((field).as_or_throw<DTensorType>());
+        ret.push_back(field.as_or_throw<DTensorType>());
       }
       return ret;
     } else {

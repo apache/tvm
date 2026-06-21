@@ -669,7 +669,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
         << "Expected module to contain 'pattern', "
         << "a Relax function defining the pattern to be matched, "
         << "but the 'pattern' function was of type " << base_func->GetTypeKey() << ".";
-    return (base_func).as_or_throw<Function>();
+    return base_func.as_or_throw<Function>();
   }();
   Function func_replacement = [&]() {
     TVM_FFI_CHECK(mod->ContainGlobalVar("replacement"), KeyError)
@@ -681,7 +681,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be made on a successful match, "
         << "but the 'replacement' function was of type " << base_func->GetTypeKey() << ".";
-    return (base_func).as_or_throw<Function>();
+    return base_func.as_or_throw<Function>();
   }();
 
   ffi::Map<GlobalVar, BaseFunc> new_subroutines;
@@ -956,7 +956,7 @@ class PatternMatchingMutator : public ExprMutator {
       for (const auto& binding : block->bindings) {
         auto value = GetBoundValue(binding);
         bool is_dataflow = (!value.as<IfNode>()) &&
-                           (!(value.as<CallNode>() && IsImpureCall((value).as_or_throw<Call>())));
+                           (!(value.as<CallNode>() && IsImpureCall(value.as_or_throw<Call>())));
         if (is_dataflow) {
           // This binding satisfies the dataflow constraints.
           collected_bindings.push_back(binding);

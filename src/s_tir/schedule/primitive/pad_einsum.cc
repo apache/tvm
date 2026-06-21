@@ -148,7 +148,7 @@ struct BufferPadding {
       TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos->dtype, 1));
-      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get((pos).as_or_throw<Var>())) {
+      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
         shape.push_back(buffer_region->buffer->shape[i]);

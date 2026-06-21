@@ -1676,10 +1676,10 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 
 IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr original_dividend) {
   if (dividend->IsInstance<IterSplitExprNode>()) {
-    auto split = (dividend).as_or_throw<IterSplitExpr>();
+    auto split = dividend.as_or_throw<IterSplitExpr>();
     return IterSumExpr({split}, IntImm(split.dtype(), 0));
   } else if (dividend->IsInstance<IterSumExprNode>()) {
-    auto sum = (dividend).as_or_throw<IterSumExpr>();
+    auto sum = dividend.as_or_throw<IterSumExpr>();
     if (sum->args.empty()) {
       return IterSumExpr();
     } else if (sum->args.size() == 1) {
@@ -1970,7 +1970,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend((a).as_or_throw<IterMapExpr>(), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }
@@ -2054,7 +2054,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend((a).as_or_throw<IterMapExpr>(), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }

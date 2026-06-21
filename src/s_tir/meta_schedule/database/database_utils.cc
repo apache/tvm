@@ -381,7 +381,7 @@ class JSONParser {
         TVM_FFI_CHECK(token.type == TokenType::kColon, ValueError)
             << "Unexpected token before: " << tokenizer_.cur_;
         Any value = ParseObject(tokenizer_.Next());
-        results.Set((key).as_or_throw<ffi::String>(), value);
+        results.Set(key.as_or_throw<ffi::String>(), value);
         continue;
       } else {
         TVM_FFI_THROW(ValueError) << "Unexpected token before: " << tokenizer_.cur_;

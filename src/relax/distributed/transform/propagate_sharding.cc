@@ -191,7 +191,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     } else if (const auto* tuple_ty = binding->var->ty.as<TupleTypeNode>()) {
       TVM_FFI_ICHECK(tuple_ty);
       for (const auto& field_ty : tuple_ty->fields) {
-        tensor_tys.push_back((field_ty).as_or_throw<TensorType>());
+        tensor_tys.push_back(field_ty.as_or_throw<TensorType>());
       }
     } else {
       ExprVisitor::VisitBinding_(binding, val);
@@ -323,7 +323,7 @@ class ShardingConflictHandler : public ExprVisitor {
     ffi::Array<Expr> args = GetCallArgs(ffi::GetRef<Call>(op));
     for (const auto& arg : args) {
       if (arg.as<ConstantNode>()) {
-        CheckConstantNoSharding((arg).as_or_throw<Constant>());
+        CheckConstantNoSharding(arg.as_or_throw<Constant>());
       }
     }
     ExprVisitor::VisitExpr_(op);
@@ -528,7 +528,7 @@ class DistributedIRBuilder : public ExprMutator {
       orig_output_tys.push_back(ffi::GetRef<TensorType>(tensor_ty));
     } else if (const auto* tuple_ty = GetTypeAs<TupleTypeNode>(binding->var)) {
       for (const auto& field_ty : tuple_ty->fields) {
-        orig_output_tys.push_back((field_ty).as_or_throw<TensorType>());
+        orig_output_tys.push_back(field_ty.as_or_throw<TensorType>());
       }
     } else {
       ExprMutator::VisitBinding_(binding, val);

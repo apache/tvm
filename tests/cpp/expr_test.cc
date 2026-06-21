@@ -29,7 +29,7 @@ TEST(Expr, Basic) {
   Var x("x");
   auto z = max(x + 1 + 2, 100);
   ffi::ObjectRef tmp = z;
-  PrimExpr zz = (tmp).as_or_throw<PrimExpr>();
+  PrimExpr zz = tmp.as_or_throw<PrimExpr>();
   std::ostringstream os;
   os << z;
   TVM_FFI_ICHECK(zz.same_as(z));

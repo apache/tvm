@@ -51,7 +51,7 @@ class CallTIRMutator : public ExprMutator {
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<FunctionNode>()) {
         auto updated_func = (this->VisitExpr(func)).as_or_throw<Function>();
-        builder_->UpdateFunction(gv, (updated_func).as_or_throw<BaseFunc>());
+        builder_->UpdateFunction(gv, updated_func.as_or_throw<BaseFunc>());
       }
     }
     return builder_->GetContextIRModule();
@@ -113,7 +113,7 @@ class CallTIRMutator : public ExprMutator {
           TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
               << "call_tir expects Tuple of TensorType, but got " << field
               << " as an element of TupleType";
-          const auto& field_tensor = (field).as_or_throw<TensorType>();
+          const auto& field_tensor = field.as_or_throw<TensorType>();
           TVM_FFI_ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorType has shape, but got " << field_tensor
               << " as an element of TupleType";

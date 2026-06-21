@@ -671,7 +671,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   }
   bool cond_value = opt_cond_value.value();
 
-  IntervalSet middle_interval_i = (middle_interval).as_or_throw<IntervalSet>();
+  IntervalSet middle_interval_i = middle_interval.as_or_throw<IntervalSet>();
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that

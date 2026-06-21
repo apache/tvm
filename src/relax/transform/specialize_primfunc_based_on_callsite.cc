@@ -86,7 +86,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       auto ty = GetType(args[i]);
       TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
-      auto tensor_ty = (ty).as_or_throw<TensorType>();
+      auto tensor_ty = ty.as_or_throw<TensorType>();
       TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
       if (tensor_ty->vdevice.defined()) {
@@ -106,7 +106,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     ffi::String scope = "global";
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
-      auto ty = (out_ty).as_or_throw<TensorType>();
+      auto ty = out_ty.as_or_throw<TensorType>();
       if (ty->vdevice.defined()) {
         scope = ty->vdevice.value()->memory_scope;
       }
@@ -119,7 +119,7 @@ class SpecializeTIRCallArgs : ExprMutator {
              "TensorType, but got "
           << out_ty;
 
-      const auto& tuple_ty = (out_ty).as_or_throw<TupleType>();
+      const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
       ffi::Array<Type> ty_fields;
       int index = 0;
       for (const auto& si : tuple_ty->fields) {
@@ -127,7 +127,7 @@ class SpecializeTIRCallArgs : ExprMutator {
             << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto ty = (si).as_or_throw<TensorType>();
+        auto ty = si.as_or_throw<TensorType>();
         if (ty->vdevice.defined()) {
           scope = ty->vdevice.value()->memory_scope;
         }

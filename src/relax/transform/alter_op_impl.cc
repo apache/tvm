@@ -322,7 +322,7 @@ class AlterOpImplMutator : public ExprMutator {
     if (buffer_transforms.empty()) return out_ty;
 
     if (out_ty->IsInstance<TensorTypeNode>())
-      return UpdateOutputType((out_ty).as_or_throw<TensorType>(),
+      return UpdateOutputType(out_ty.as_or_throw<TensorType>(),
                               buffer_transforms[buffer_transforms.size() - 1]);
 
     TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -330,7 +330,7 @@ class AlterOpImplMutator : public ExprMutator {
            "TensorType, but got "
         << out_ty;
 
-    const auto& tuple_ty = (out_ty).as_or_throw<TupleType>();
+    const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
     ffi::Array<Type> ty_fields;
     size_t first_output_index = buffer_transforms.size() - tuple_ty->fields.size();
     size_t i = 0;
@@ -339,7 +339,7 @@ class AlterOpImplMutator : public ExprMutator {
           << "Fields of TupleType must be TensorType for call_tir "
              "output structinfo, but got "
           << si;
-      ty_fields.push_back(UpdateOutputType((si).as_or_throw<TensorType>(),
+      ty_fields.push_back(UpdateOutputType(si.as_or_throw<TensorType>(),
                                            buffer_transforms[first_output_index + i++]));
     }
     return TupleType(ty_fields);

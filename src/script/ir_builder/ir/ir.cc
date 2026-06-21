@@ -156,7 +156,7 @@ VDevice LookupVDevice(ffi::String target_kind, int device_index) {
     }
     int count = 0;
     for (auto vdevice : vdevices) {
-      auto vdev = (vdevice).as_or_throw<VDevice>();
+      auto vdev = vdevice.as_or_throw<VDevice>();
       if (vdev->target->kind->name == target_kind) {
         if (count == device_index) {
           return vdev;

@@ -837,14 +837,14 @@ class PipelineRewriter : public StmtExprMutator {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
-      analyzer_->Bind((new_loop_var).as_or_throw<Var>(), Range(start, end));
+      analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
     arith::Analyzer ana_normalized;
     if (!is_unit_loop) {
-      ana_normalized->Bind((new_loop_var).as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
+      ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
     }
 
     std::vector<RewrittenSBlockInfo> new_blocks;
@@ -878,7 +878,7 @@ class PipelineRewriter : public StmtExprMutator {
       // Adjust the block predicate and the body according to the final loop bound
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
-        Var loop_iter = (new_loop_var).as_or_throw<Var>();
+        Var loop_iter = new_loop_var.as_or_throw<Var>();
         inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
       }
 
@@ -954,7 +954,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     if (!is_unit_loop) {
-      new_loop = For((new_loop_var).as_or_throw<Var>(), pipeline_loop_->min, extent,
+      new_loop = For(new_loop_var.as_or_throw<Var>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
                      std::nullopt, preserved_annotations_, std::nullopt);
     }

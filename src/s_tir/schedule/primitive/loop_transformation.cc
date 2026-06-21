@@ -1173,7 +1173,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     self->Replace(parent_sref, std::move(new_stmt), {});
   } else {
     SBlock old_parent_block = ffi::GetRef<SBlock>(parent_sref->StmtAs<SBlockNode>());
-    SBlock new_parent_block = (new_stmt).as_or_throw<SBlock>();
+    SBlock new_parent_block = new_stmt.as_or_throw<SBlock>();
     self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
   }
   return self->stmt2ref.at(creator.new_loop_.get());

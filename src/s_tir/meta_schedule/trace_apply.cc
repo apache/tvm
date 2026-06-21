@@ -131,8 +131,8 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
       if (input == nullptr) continue;
-      if ((input.as<SBlockRVNode>() && foreign_blocks.count((input).as_or_throw<SBlockRV>())) ||
-          (input.as<LoopRVNode>() && foreign_loops.count((input).as_or_throw<LoopRV>()))) {
+      if ((input.as<SBlockRVNode>() && foreign_blocks.count(input.as_or_throw<SBlockRV>())) ||
+          (input.as<LoopRVNode>() && foreign_loops.count(input.as_or_throw<LoopRV>()))) {
         return false;
       }
     }
@@ -145,9 +145,9 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // to the target schedule.
       for (auto output : inst->outputs) {
         if (output.as<SBlockRVNode>()) {
-          foreign_blocks.insert((output).as_or_throw<SBlockRV>());
+          foreign_blocks.insert(output.as_or_throw<SBlockRV>());
         } else if (output.as<LoopRVNode>()) {
-          foreign_loops.insert((output).as_or_throw<LoopRV>());
+          foreign_loops.insert(output.as_or_throw<LoopRV>());
         }
       }
       continue;

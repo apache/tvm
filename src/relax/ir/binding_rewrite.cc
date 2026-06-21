@@ -80,7 +80,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
 
     BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
       BindingBlock res = ExprMutator::VisitBindingBlock_(op);
-      if (op == to_catch) caught = (res).as_or_throw<DataflowBlock>();
+      if (op == to_catch) caught = res.as_or_throw<DataflowBlock>();
       return res;
     }
   };
@@ -259,7 +259,7 @@ class RemoveUnusedVars : public ExprMutator {
     in_dataflow_block_ = cache;
 
     if (capture_output) {
-      caught_rewrite = (output).as_or_throw<DataflowBlock>();
+      caught_rewrite = output.as_or_throw<DataflowBlock>();
     }
 
     return output;

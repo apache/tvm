@@ -96,7 +96,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     if (auto opt_axes = get_permute_dims_optional_axes(expr)) {
       return opt_axes.value();
     } else {
-      auto call = (expr).as_or_throw<Call>();
+      auto call = expr.as_or_throw<Call>();
       ffi::Array<int64_t> permutation;
       auto arg_ty = call->args[0]->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(arg_ty) << "Expected permute_dims to have a single tensor argument, "

@@ -1194,7 +1194,7 @@ InferLayoutOutput InferLayoutSplit(
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>()) << "Fields of TupleType must be TensorType"
                                                           "output structinfo, but got "
                                                        << si;
-      auto ty = (si).as_or_throw<TensorType>();
+      auto ty = si.as_or_throw<TensorType>();
       ffi::Optional<ShapeExpr> shape_expr = ffi::GetRef<ShapeExpr>(ty->shape.as<ShapeExprNode>());
       TVM_FFI_ICHECK(shape_expr.defined());
       auto shape_arr = shape_expr.value();

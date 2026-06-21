@@ -144,7 +144,7 @@ ffi::Array<Any> TranslateInputRVs(
       results.push_back(input);
     } else if (input.as<IndexMapNode>()) {
       // // Case 6: IndexMap
-      IndexMap index_map = (input).as_or_throw<IndexMap>();
+      IndexMap index_map = input.as_or_throw<IndexMap>();
       index_map =
           index_map.RenameVariables([&rv_names](const Var& var) -> ffi::Optional<ffi::String> {
             if (auto it = rv_names.find(var); it != rv_names.end()) {
@@ -179,7 +179,7 @@ ffi::Array<Any> TranslateInputRVs(
     }
     // Case 4. array
     if (input.as<ffi::ArrayObj>()) {
-      results.push_back(TranslateInputRVs((input).as_or_throw<ffi::Array<Any>>(), named_rvs));
+      results.push_back(TranslateInputRVs(input.as_or_throw<ffi::Array<Any>>(), named_rvs));
       continue;
     }
     // Case 5. dict
@@ -197,7 +197,7 @@ ffi::Array<Any> TranslateInputRVs(
       Any obj = ffi::FromJSONGraph(ffi::json::Parse(name));
       // Case 6. IndexMap
       if (obj.as<IndexMapNode>()) {
-        IndexMap index_map = (obj).as_or_throw<IndexMap>();
+        IndexMap index_map = obj.as_or_throw<IndexMap>();
         index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
           auto it = named_rvs.find(var->name_hint);
           if (it != named_rvs.end()) {

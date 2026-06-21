@@ -398,18 +398,18 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
             if (relax_or_tir_var.as<relax::VarNode>()) {
-              if (auto it = var_remap.find((relax_or_tir_var).as_or_throw<Var>());
+              if (auto it = var_remap.find(relax_or_tir_var.as_or_throw<Var>());
                   it != var_remap.end()) {
                 target_set.insert(((*it).second).as_or_throw<relax::Var>());
               } else {
-                target_set.insert((relax_or_tir_var).as_or_throw<relax::Var>());
+                target_set.insert(relax_or_tir_var.as_or_throw<relax::Var>());
               }
             } else {
-              if (auto it = tir_var_remap.find((relax_or_tir_var).as_or_throw<tirx::Var>());
+              if (auto it = tir_var_remap.find(relax_or_tir_var.as_or_throw<tirx::Var>());
                   it != tir_var_remap.end()) {
                 target_set.insert(((*it).second).as_or_throw<tirx::Var>());
               } else {
-                target_set.insert((relax_or_tir_var).as_or_throw<tirx::Var>());
+                target_set.insert(relax_or_tir_var.as_or_throw<tirx::Var>());
               }
             }
           }
@@ -533,7 +533,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
 
  private:
   void VisitExpr_(const VarNode* lhs_var, const Expr& rhs_expr) final {
-    auto rhs_var = (rhs_expr).as_or_throw<Var>();
+    auto rhs_var = rhs_expr.as_or_throw<Var>();
     if (auto it = var_remap_.find(ffi::GetRef<Var>(lhs_var)); it != var_remap_.end()) {
       TVM_FFI_ICHECK((*it).second.same_as(rhs_var));
     } else {
@@ -736,7 +736,7 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
       if (func->IsInstance<FunctionNode>()) {
         auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
         if (opt_num_input && !ends_with(gvar->name_hint, "transform_params")) {
-          target_functions.emplace_back(gvar, (func).as_or_throw<Function>());
+          target_functions.emplace_back(gvar, func.as_or_throw<Function>());
         }
       }
     }

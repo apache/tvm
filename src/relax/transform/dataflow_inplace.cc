@@ -419,8 +419,8 @@ std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidat
 std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
                                   const BlockBuilder& ctx) {
   if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
-    auto target_tensor = (target_info).as_or_throw<TensorType>();
-    auto arg_tensor = (arg_info).as_or_throw<TensorType>();
+    auto target_tensor = target_info.as_or_throw<TensorType>();
+    auto arg_tensor = arg_info.as_or_throw<TensorType>();
     if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
         arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
@@ -447,8 +447,8 @@ std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
       return {false, false};
     }
   } else if (target_info.as<TupleTypeNode>() && arg_info.as<TupleTypeNode>()) {
-    auto target_tup = (target_info).as_or_throw<TupleType>();
-    auto arg_tup = (arg_info).as_or_throw<TupleType>();
+    auto target_tup = target_info.as_or_throw<TupleType>();
+    auto arg_tup = arg_info.as_or_throw<TupleType>();
     if (target_tup->fields.size() != arg_tup->fields.size()) {
       return {false, false};
     }

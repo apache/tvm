@@ -224,7 +224,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
-    auto access_ptr_call = (access_ptr).as_or_throw<Call>();
+    auto access_ptr_call = access_ptr.as_or_throw<Call>();
     TVM_FFI_ICHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 

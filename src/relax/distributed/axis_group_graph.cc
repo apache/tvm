@@ -33,7 +33,7 @@ namespace tirx {
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
                             const arith::Analyzer& analyzer) {
   if (index.as<VarNode>()) {
-    return (index).as_or_throw<Var>();
+    return index.as_or_throw<Var>();
   }
   arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, var_range, analyzer);
   if (!is_zero(iter_sum->base)) {

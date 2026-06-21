@@ -90,7 +90,7 @@ class ConstantFolder : public ExprMutator {
    * \return The TIR function, or nullopt if pattern match fails.
    */
   ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const Expr& op) {
-    const GlobalVar& global_var = (op).as_or_throw<GlobalVar>();
+    const GlobalVar& global_var = op.as_or_throw<GlobalVar>();
     // NOTE: as check works for nullptr(returns null)
     ffi::Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
     if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {
@@ -332,7 +332,7 @@ class ConstantFolder : public ExprMutator {
     ffi::Array<Expr> new_args;
     for (auto arg : post_call->args) {
       if (arg->IsInstance<VarNode>()) {
-        ffi::Optional<Expr> val = LookupBinding((arg).as_or_throw<Var>());
+        ffi::Optional<Expr> val = LookupBinding(arg.as_or_throw<Var>());
         if (val.defined() && val.value()->IsInstance<ShapeExprNode>()) {
           new_args.push_back(val.value());
           continue;
@@ -366,7 +366,7 @@ class ConstantFolder : public ExprMutator {
         TVM_FFI_ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
         if (arg->IsInstance<ConstantNode>()) {
-          Constant constant = (arg).as_or_throw<Constant>();
+          Constant constant = arg.as_or_throw<Constant>();
           runtime::Tensor ndarray = constant->data;
           TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
           TVM_FFI_ICHECK(ndarray.IsContiguous());
@@ -384,7 +384,7 @@ class ConstantFolder : public ExprMutator {
         // Special handling for "relax.shape_to_tensor" since it is implemented in ffi::Function.
         // TODO(sunggg): revisit this when we extend ConstantFolding to fold ffi::Function.
         Expr arg = post_call->args[0];
-        ShapeExpr shape = (arg).as_or_throw<ShapeExpr>();
+        ShapeExpr shape = arg.as_or_throw<ShapeExpr>();
         ffi::Array<PrimExpr> values = shape->values;
         ffi::Array<int64_t> arr;
         bool is_known = true;

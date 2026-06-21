@@ -160,7 +160,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       return {false, stmt};
     }
 
-    LT lt = (condition).as_or_throw<LT>();
+    LT lt = condition.as_or_throw<LT>();
 
     // Check the form of the vectorized condition, we're expecting
     // Ramp(...) < Broadcast(...)
@@ -715,7 +715,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return ffi::GetRef<PrimExpr>(op);
     }
 
-    int new_vec_length = (var_lanes_).as_or_throw<IntImm>()->value / op->vectors[0].dtype().lanes();
+    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].dtype().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
@@ -726,8 +726,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
             ramp->stride->IsInstance<IntImmNode>() &&
             (ramp->stride).as_or_throw<IntImm>()->value == 1 &&
             ramp->lanes->IsInstance<IntImmNode>() &&
-            (ramp->lanes).as_or_throw<IntImm>()->value ==
-                (var_lanes_).as_or_throw<IntImm>()->value) {
+            (ramp->lanes).as_or_throw<IntImm>()->value == var_lanes_.as_or_throw<IntImm>()->value) {
           return true;
         }
       }
@@ -741,12 +740,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
                 (ramp->stride).as_or_throw<IntImm>()->value == 1 &&
                 ramp->lanes->IsInstance<IntImmNode>() &&
                 (ramp->lanes).as_or_throw<IntImm>()->value ==
-                    (var_lanes_).as_or_throw<IntImm>()->value &&
+                    var_lanes_.as_or_throw<IntImm>()->value &&
                 broadcast->value->IsInstance<IntImmNode>() &&
                 (broadcast->value).as_or_throw<IntImm>()->value == op->vectors[0]->dtype.lanes() &&
                 broadcast->lanes->IsInstance<IntImmNode>() &&
                 (broadcast->lanes).as_or_throw<IntImm>()->value ==
-                    (var_lanes_).as_or_throw<IntImm>()->value) {
+                    var_lanes_.as_or_throw<IntImm>()->value) {
               return true;
             }
           }

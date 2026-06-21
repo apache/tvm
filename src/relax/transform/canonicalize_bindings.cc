@@ -467,7 +467,7 @@ class BindingCanonicalizer : public ExprMutator {
       auto value = GetBoundValue(binding);
 
       if (var->IsInstance<DataflowVarNode>()) {
-        auto df_var = (var).as_or_throw<DataflowVar>();
+        auto df_var = var.as_or_throw<DataflowVar>();
 
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
@@ -480,7 +480,7 @@ class BindingCanonicalizer : public ExprMutator {
 
         for (auto rhs_var : rhs_vars) {
           if (rhs_var->IsInstance<DataflowVarNode>()) {
-            disqualified_set.insert((rhs_var).as_or_throw<DataflowVar>());
+            disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
           }
         }
 
@@ -510,7 +510,7 @@ class BindingCanonicalizer : public ExprMutator {
 
           for (auto rhs_var : disqualified) {
             if (rhs_var->IsInstance<DataflowVarNode>()) {
-              disqualified_set.insert((rhs_var).as_or_throw<DataflowVar>());
+              disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
             }
           }
         }

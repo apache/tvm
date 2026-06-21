@@ -158,7 +158,7 @@ class CodeGenRunner : ExprMutator {
         if (e->IsInstance<ConstantNode>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
-          auto constant = (e).as_or_throw<Constant>();
+          auto constant = e.as_or_throw<Constant>();
           constant_names.Set(constant, name);
         }
       });
@@ -179,7 +179,7 @@ class CodeGenRunner : ExprMutator {
       }
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
-          auto f = (e).as_or_throw<Function>();
+          auto f = e.as_or_throw<Function>();
           if (auto target_opt = f->GetAttr<ffi::String>(attr::kCodegen)) {
             ffi::String target = target_opt.value();
             target_functions[target].push_back(f);

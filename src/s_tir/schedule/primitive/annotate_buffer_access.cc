@@ -111,7 +111,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   Stmt new_stmt = mutator(ffi::GetRef<Stmt>(block_sref->stmt));
 
   self->Replace(block_sref, new_stmt,
-                {{ffi::GetRef<SBlock>(block), (new_stmt).as_or_throw<SBlock>()}});
+                {{ffi::GetRef<SBlock>(block), new_stmt.as_or_throw<SBlock>()}});
 }
 
 struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAccessTraits> {

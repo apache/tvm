@@ -264,28 +264,28 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
 
 std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) {
-    return TransformForTensorization((state).as_or_throw<TensorCoreState>());
+    return TransformForTensorization(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = (state).as_or_throw<TensorCoreState>();
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMATileLoopNest(tc_state) : TileLoopNest(state, 2);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return TransformIntermediateOutputLayout((state).as_or_throw<TensorCoreState>());
+    return TransformIntermediateOutputLayout(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) {
-    return AddWriteReuseTensorCore((state).as_or_throw<TensorCoreState>());
+    return AddWriteReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = (state).as_or_throw<TensorCoreState>();
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMAAddReadReuse(tc_state) : AddReadReuse(state);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddReadReuseTensorCore((state).as_or_throw<TensorCoreState>());
+    return AddReadReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddSoftwarePipeline((state).as_or_throw<TensorCoreState>());
+    return AddSoftwarePipeline(state.as_or_throw<TensorCoreState>());
   });
   return states;
 }

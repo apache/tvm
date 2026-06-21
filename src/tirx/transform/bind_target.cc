@@ -350,7 +350,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
           prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
-        PrimFunc new_func = substitutor.Substitute((func).as_or_throw<PrimFunc>());
+        PrimFunc new_func = substitutor.Substitute(func.as_or_throw<PrimFunc>());
         new_mod->Update(gvar, new_func);
       }
     }

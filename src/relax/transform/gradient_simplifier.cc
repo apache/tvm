@@ -129,7 +129,7 @@ class GradientSimplifier : private ExprMutator {
     if (!expr->IsInstance<VarNode>()) {
       return GetTransposeOf(expr);
     }
-    auto prev_expr = builder_->LookupBinding((expr).as_or_throw<Var>());
+    auto prev_expr = builder_->LookupBinding(expr.as_or_throw<Var>());
     if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
@@ -157,7 +157,7 @@ class GradientSimplifier : private ExprMutator {
       return reemit_and_return();
     }
 
-    auto prev_expr = builder_->LookupBinding((arg).as_or_throw<Var>());
+    auto prev_expr = builder_->LookupBinding(arg.as_or_throw<Var>());
     if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
       return reemit_and_return();
     }

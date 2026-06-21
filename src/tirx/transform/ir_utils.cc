@@ -428,7 +428,7 @@ class IRConvertSSA final : public StmtExprMutator {
       // object as the one used by BufferStore/BufferLoad in subsequent siblings.
       Buffer new_buf = GetRemappedBuffer(op->buffer);
       if (!new_buf.same_as(op->buffer)) {
-        auto node = (stmt).as_or_throw<AllocBuffer>();
+        auto node = stmt.as_or_throw<AllocBuffer>();
         node.CopyOnWrite()->buffer = std::move(new_buf);
         return node;
       }
@@ -766,14 +766,14 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
             vars.push_back(new_var);
           }
         }
-        equations.push_back((e).as_or_throw<PrimExpr>());
+        equations.push_back(e.as_or_throw<PrimExpr>());
       }
     } else if (e->IsInstance<AndNode>()) {
-      And op = (e).as_or_throw<And>();
+      And op = e.as_or_throw<And>();
       fvisit(op->a);
       fvisit(op->b);
     } else if (e->IsInstance<CallNode>()) {
-      Call op = (e).as_or_throw<Call>();
+      Call op = e.as_or_throw<Call>();
       if (op->op.same_as(builtin::likely())) {
         fvisit(op->args[0]);
       }

@@ -390,7 +390,7 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   std::vector<std::pair<GlobalVar, PrimFunc>> funcs;
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
-    auto prim_func = (base_func).as_or_throw<PrimFunc>();
+    auto prim_func = base_func.as_or_throw<PrimFunc>();
     funcs.push_back({gvar, prim_func});
   }
 

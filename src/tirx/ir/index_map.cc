@@ -361,7 +361,7 @@ IndexMap IndexMap::RenameVariables(
           return;
         }
         visited.emplace(obj.get());
-        Var var = (obj).as_or_throw<Var>();
+        Var var = obj.as_or_throw<Var>();
         if (ffi::Optional<ffi::String> opt_name = f_name_map(var); opt_name.has_value()) {
           ffi::String name = opt_name.value();
           TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));

@@ -137,7 +137,7 @@ class IntermediateStageRewriter {
     local_stage = SBlockRealize(
         /*iter_values=*/{},
         /*predicate=*/ancestor_loop_or_blocks_.back().as<SBlockRealizeNode>()->predicate,
-        (local_stage).as_or_throw<SBlock>());
+        local_stage.as_or_throw<SBlock>());
 
     // Step 2: Add outer loops
     ffi::Map<Var, Var> subst_map;

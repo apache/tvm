@@ -2105,7 +2105,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
-    auto prim_func = (base_func).as_or_throw<PrimFunc>();
+    auto prim_func = base_func.as_or_throw<PrimFunc>();
     CallingConv calling_conv =
         prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
     TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||

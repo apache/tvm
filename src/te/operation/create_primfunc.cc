@@ -312,7 +312,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
     if (value.as<ffi::ArrayObj>()) {
-      const auto array_value = (value).as_or_throw<ffi::Array<ffi::Any>>();
+      const auto array_value = value.as_or_throw<ffi::Array<ffi::Any>>();
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));

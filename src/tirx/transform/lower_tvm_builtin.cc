@@ -254,7 +254,7 @@ class BuiltinLower : public StmtExprMutator {
       auto storage_scope =
           (op->buffer->data->type_annotation).as_or_throw<PointerType>()->storage_scope;
       if (storage_scope == "global") {
-        auto constant_size = (stmt).as_or_throw<AllocBuffer>().ConstantAllocationSize();
+        auto constant_size = stmt.as_or_throw<AllocBuffer>().ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
             static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;

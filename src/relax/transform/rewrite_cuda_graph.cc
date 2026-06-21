@@ -745,7 +745,7 @@ class CUDAGraphRewriter : public ExprMutator {
     std::vector<std::pair<GlobalVar, Function>> target_functions;
     for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        target_functions.emplace_back(gv, (func).as_or_throw<Function>());
+        target_functions.emplace_back(gv, func.as_or_throw<Function>());
       }
     }
 

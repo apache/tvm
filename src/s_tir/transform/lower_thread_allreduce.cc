@@ -197,7 +197,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (auto cast = arg.as<CastNode>()) {
         arg = cast->value;
       }
-      buffers[idx] = (arg).as_or_throw<BufferLoad>()->buffer;
+      buffers[idx] = arg.as_or_throw<BufferLoad>()->buffer;
     }
 
     std::unordered_set<const VarNode*> reduce_set;

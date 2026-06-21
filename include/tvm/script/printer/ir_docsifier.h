@@ -284,7 +284,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj, con
       }
     } else {
       LOG(WARNING) << "Expect StmtDoc to be annotated for object " << obj << ", but got "
-                   << (d).as_or_throw<TDoc>()->_type_key;
+                   << d.as_or_throw<TDoc>()->_type_key;
     }
   }
   for (const ffi::ObjectRef& o : cfg->obj_to_underline) {
@@ -304,7 +304,7 @@ inline static void AddDocDecoration(const Doc& d, const ffi::ObjectRef& obj, con
         }
       } else {
         LOG(WARNING) << "Expect StmtDoc to be annotated at object path " << p << ", but got "
-                     << (d).as_or_throw<TDoc>()->_type_key;
+                     << d.as_or_throw<TDoc>()->_type_key;
       }
     }
   }
@@ -328,7 +328,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
       if (has_multiple_lines) {
         Doc d = const_cast<IRDocsifierNode*>(this)->AddMetadata(string_value);
         // TODO(tqchen): cross check AddDocDecoration
-        return (d).as_or_throw<TDoc>();
+        return d.as_or_throw<TDoc>();
       }
       return (LiteralDoc::Str(string_value, path)).as_or_throw<TDoc>();
     }
@@ -344,7 +344,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
                                       ffi::GetRef<IRDocsifier>(this));
         d->source_paths.push_back(path);
         AddDocDecoration<TDoc>(d, obj, path, cfg);
-        return (d).as_or_throw<TDoc>();
+        return d.as_or_throw<TDoc>();
       } else {
         TVM_FFI_THROW(TypeError) << "Cannot handle Any type: `" << value.GetTypeKey() << "`";
         TVM_FFI_UNREACHABLE();

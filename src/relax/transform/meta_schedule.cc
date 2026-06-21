@@ -129,7 +129,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
           TVM_FFI_ICHECK_EQ(new_mod->functions.size(), 1);
           BaseFunc new_base_func = (*new_mod->functions.begin()).second;
           TVM_FFI_ICHECK(new_base_func->IsInstance<tirx::PrimFuncNode>());
-          tirx::PrimFunc tuned_prim_func = (new_base_func).as_or_throw<tirx::PrimFunc>();
+          tirx::PrimFunc tuned_prim_func = new_base_func.as_or_throw<tirx::PrimFunc>();
           // maintain the original attributes
           tirx::PrimFunc new_prim_func = tirx::PrimFunc(/*params=*/tuned_prim_func->params,
                                                         /*body=*/tuned_prim_func->body,

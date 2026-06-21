@@ -688,7 +688,7 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
         << "CodeGenOpenCL: Can only take PrimFunc";
-    auto prim_func = (base_func).as_or_throw<PrimFunc>();
+    auto prim_func = base_func.as_or_throw<PrimFunc>();
     auto calling_conv = prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenOpenCL: expected kCallingConv attribute to be set.";

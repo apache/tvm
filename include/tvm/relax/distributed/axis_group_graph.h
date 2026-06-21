@@ -133,7 +133,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     if (!a.as<VarNode>()) {
       return false;
     }
-    Var var = (a).as_or_throw<Var>();
+    Var var = a.as_or_throw<Var>();
     analyzer->Bind(iter_var_range_);
     b = analyzer->Simplify(b);
     // index var `a` must access whole range of a specific buffer dimension

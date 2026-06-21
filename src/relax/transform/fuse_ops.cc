@@ -913,7 +913,7 @@ class OperatorFusor : public ExprMutator {
       //   another group. Mark it to be the group output.
       auto update_boundary = [this, binding, &cur_group](const Expr& e) {
         if (e->IsInstance<VarNode>()) {
-          const Var& used_var = (e).as_or_throw<Var>();
+          const Var& used_var = e.as_or_throw<Var>();
           Group* producer_group = GetGroupFromVar(used_var);
           // Only check those group defined before.
           // Skip the vars from input or groups with single binding.
@@ -1359,7 +1359,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
         auto func = mod->Lookup(gv);
         TVM_FFI_ICHECK(func->IsInstance<FunctionNode>())
             << "Entry function must be a relax function";
-        entry_functions.push_back((func).as_or_throw<Function>());
+        entry_functions.push_back(func.as_or_throw<Function>());
       }
     } else {
       for (const auto& gv : mod->GetGlobalVars()) {
@@ -1373,7 +1373,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
             function->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
           continue;
         }
-        entry_functions.push_back((base_func).as_or_throw<Function>());
+        entry_functions.push_back(base_func.as_or_throw<Function>());
       }
     }
     OperatorFusor::GroupMap group_map;

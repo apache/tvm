@@ -356,7 +356,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
           << "The signature of target buffer exprected an independent Var, but got " << old_expr
           << ".";
-      const Var& var = (old_expr).as_or_throw<Var>();
+      const Var& var = old_expr.as_or_throw<Var>();
       auto it = var_map->find(var);
       if (it != var_map->end()) {
         TVM_FFI_CHECK(equal(it->second, new_expr), ValueError)

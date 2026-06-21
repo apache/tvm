@@ -1169,7 +1169,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 && cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr = (a).as_or_throw<SumExpr>();
+        SumExpr sum_expr = a.as_or_throw<SumExpr>();
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
@@ -1369,14 +1369,14 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   PrimExpr value = this->CanonicalMutate(op->value);
   // PushCastToChildren
   if (value.as<SumExprNode>()) {
-    SumExpr se = (value).as_or_throw<SumExpr>();
+    SumExpr se = value.as_or_throw<SumExpr>();
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
       return se;
     }
   }
   if (value.as<SplitExprNode>()) {
-    SplitExpr se = (value).as_or_throw<SplitExpr>();
+    SplitExpr se = value.as_or_throw<SplitExpr>();
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
       return se;

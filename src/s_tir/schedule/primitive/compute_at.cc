@@ -436,7 +436,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
           if (var_expr->IsInstance<VarNode>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
-            var = (var_expr).as_or_throw<Var>();
+            var = var_expr.as_or_throw<Var>();
             var_dom = arith::IntSet::Interval(required_min * fac,
                                               analyzer->Simplify(required_max * fac + fac - 1));
             var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
@@ -451,7 +451,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         PrimExpr var_expr = p_f1.Eval();
         if (var_expr->IsInstance<VarNode>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
-          Var var_mod = (var_expr).as_or_throw<Var>();
+          Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
         } else {
           PrimExpr mod_1 = p_f1.Eval();

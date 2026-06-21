@@ -604,7 +604,7 @@ Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
     auto n = CopyOnWrite(op);
     n->iter_values = std::move(v);
     n->predicate = std::move(pred);
-    n->block = (block).as_or_throw<SBlock>();
+    n->block = block.as_or_throw<SBlock>();
     return Stmt(n);
   }
 }
@@ -703,10 +703,10 @@ class IRApplyVisit : public StmtExprVisitor {
 void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::ObjectRef&)> fvisit) {
   if (node.as<StmtNode>()) {
     IRApplyVisit visitor(fvisit);
-    visitor((node).as_or_throw<Stmt>());
+    visitor(node.as_or_throw<Stmt>());
   } else {
     IRApplyVisit visitor(fvisit);
-    visitor((node).as_or_throw<PrimExpr>());
+    visitor(node.as_or_throw<PrimExpr>());
   }
 }
 
@@ -796,7 +796,7 @@ class IRSubstitute : public StmtExprMutator {
         << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
         << ", which was substituted into the expression " << new_data_expr
         << " and the backing allocation must be a tirx::Var";
-    Var data = (new_data_expr).as_or_throw<Var>();
+    Var data = new_data_expr.as_or_throw<Var>();
     if (!data.same_as(new_buf->data)) {
       auto* n = new_buf.CopyOnWrite();
       n->data = std::move(data);
@@ -932,9 +932,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.Substitute",
            [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
              if (node->IsInstance<StmtNode>()) {
-               return Substitute((node).as_or_throw<Stmt>(), vmap);
+               return Substitute(node.as_or_throw<Stmt>(), vmap);
              } else {
-               return Substitute((node).as_or_throw<PrimExpr>(), vmap);
+               return Substitute(node.as_or_throw<PrimExpr>(), vmap);
              }
            });
 }

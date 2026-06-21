@@ -371,7 +371,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       const auto grad_func =
           tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);
       Var partials =
-          grad_func(checkpoint_var, (checkpoint_call).as_or_throw<Call>(), adjoint_var, builder_)
+          grad_func(checkpoint_var, checkpoint_call.as_or_throw<Call>(), adjoint_var, builder_)
               .cast<Var>();
       Tuple args = (call->args[1]).as_or_throw<Tuple>();
       auto* tuple_ty = GetTypeAs<TupleTypeNode>(partials);
@@ -387,7 +387,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       }
     } else {
       const ffi::Array<Expr>& partials = gradient_op_map[call_op](
-          checkpoint_var, (checkpoint_call).as_or_throw<Call>(), adjoint_var, builder_);
+          checkpoint_var, checkpoint_call.as_or_throw<Call>(), adjoint_var, builder_);
       TVM_FFI_ICHECK(partials.size() == call->args.size()) << "partials number != inputs number";
       for (size_t i = 0; i < partials.size(); ++i) {
         Expr partial = partials[i];
@@ -458,7 +458,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     AdjointMsg partial_msg = ExprToAdjointMsg(builder_->Normalize(partial));
     DecomposeNestedMsg(expr, partial_msg, [&](Expr leaf, AdjointMsg msg) {
       if (leaf->IsInstance<VarNode>()) {
-        const Var& v = (leaf).as_or_throw<Var>();
+        const Var& v = leaf.as_or_throw<Var>();
         Expr updated_adjoint_expr = builder_->Normalize(AdjointMsgToExpr(msg));
         auto it = adjoint_var_map_.find(v);
         if (it != adjoint_var_map_.end()) {
@@ -519,7 +519,7 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   static bool IsCallNoGrad(const Expr& expr) {
     return expr->IsInstance<CallNode>() &&
-           (expr).as_or_throw<Call>()->op == Op::Get("relax.grad.no_grad");
+           expr.as_or_throw<Call>()->op == Op::Get("relax.grad.no_grad");
   }
 
   static Expr AdjointMsgToExpr(AdjointMsg msg) {

@@ -202,7 +202,7 @@ class StorageScopeMutator : private ReplaceBufferMutator {
     Buffer new_buffer = WithScope(old_buffer, storage_scope);
     StorageScopeMutator mutator(old_buffer, new_buffer, storage_scope, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return (new_block).as_or_throw<SBlock>();
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:
@@ -303,7 +303,7 @@ class DTypeMutator : private ReplaceBufferMutator {
     Buffer new_buffer = WithDType(old_buffer, dtype);
     DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return (new_block).as_or_throw<SBlock>();
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:

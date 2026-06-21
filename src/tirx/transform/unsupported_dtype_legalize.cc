@@ -414,7 +414,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      auto node = (ret).as_or_throw<AllocBuffer>();
+      auto node = ret.as_or_throw<AllocBuffer>();
       node.CopyOnWrite()->buffer = new_buf;
       return node;
     }

@@ -119,7 +119,7 @@ class DistIRSharder : public ExprMutator {
       Var new_param(var->name_hint(), new_ty);
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
-      for (const auto& spec : (old_ty).as_or_throw<DTensorType>()->placement->dim_specs) {
+      for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
       Constant new_constant(constant->data, new_ty);
@@ -139,7 +139,7 @@ class DistIRSharder : public ExprMutator {
       if (const auto* var = old_expr.as<VarNode>()) {
         var_remap_[var->vid] = new_var;
       } else {
-        tuple_getitem_remap_[(old_expr).as_or_throw<TupleGetItem>()] = new_var;
+        tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = new_var;
       }
     } else if (sharding_spec->kind == PlacementSpecKind::kSharding) {
       Var scatter_var = builder_->Emit(
@@ -147,7 +147,7 @@ class DistIRSharder : public ExprMutator {
       if (const auto* var = old_expr.as<VarNode>()) {
         var_remap_[var->vid] = scatter_var;
       } else {
-        tuple_getitem_remap_[(old_expr).as_or_throw<TupleGetItem>()] = scatter_var;
+        tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = scatter_var;
       }
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported placement spec";

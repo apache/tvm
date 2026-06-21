@@ -376,7 +376,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
           // rename the function.
           ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run((func).as_or_throw<Function>());
+          Function new_func = inliner.Run(func.as_or_throw<Function>());
           new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
           new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
           // add a function with a new name.

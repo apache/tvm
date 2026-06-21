@@ -550,7 +550,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     }
     return e->IsInstance<CallNode>() || e->IsInstance<BufferLoadNode>() ||
            e->IsInstance<ProducerLoadNode>() || e->IsInstance<ReduceNode>() ||
-           (e->IsInstance<CastNode>() && !IsValidDType((e).as_or_throw<Cast>()->value->dtype));
+           (e->IsInstance<CastNode>() && !IsValidDType(e.as_or_throw<Cast>()->value->dtype));
   }
 
   /// @brief Check if the dtype is valid for z3 integer operations

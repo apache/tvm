@@ -269,7 +269,7 @@ class Namer {
 template <class TObjectRef>
 inline TObjectRef IRBuilder::Name(ffi::String name, TObjectRef obj) {
   details::Namer::Name(obj, name);
-  return (obj).template as_or_throw<TObjectRef>();
+  return obj.template as_or_throw<TObjectRef>();
 }
 
 template <typename TFrame>

@@ -172,7 +172,7 @@ Pass FoldVDeviceScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the consumers we use only to find multiple consumers */
     auto consumers =
-        CollectConsumerDetails().Collect(mod, (func).as_or_throw<Function>(), Target("opencl"));
+        CollectConsumerDetails().Collect(mod, func.as_or_throw<Function>(), Target("opencl"));
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };

@@ -72,7 +72,7 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
     body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
   }
-  For compute_location = (body).as_or_throw<For>();
+  For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(body);
@@ -402,7 +402,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
     body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
   }
-  For compute_location = (body).as_or_throw<For>();
+  For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(body);
