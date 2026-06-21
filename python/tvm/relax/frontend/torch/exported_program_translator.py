@@ -1603,6 +1603,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add.Scalar": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
+            "atan2.default": self._binary_op(relax.op.atan2, torch.atan2),
             "bitwise_and.Tensor": self._binary_op(relax.op.bitwise_and, operator.and_),
             "bitwise_and.Scalar": self._binary_op(relax.op.bitwise_and, operator.and_),
             "bitwise_or_.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),

@@ -791,6 +791,7 @@ class TorchFXImporter(BaseFXGraphImporter):
     ) -> dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]]:
         import operator
 
+        import torch  # type: ignore
         from torch import nn
 
         return {
@@ -909,6 +910,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             # binary
             "add": self._binary_op(relax.op.add, operator.add),
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
+            "atan2": self._binary_op(relax.op.atan2, torch.atan2),
             "bitwise_or_": self._binary_op_inplace(relax.op.bitwise_or, operator.or_),
             "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div": self._div,
