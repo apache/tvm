@@ -22,7 +22,7 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
-from tvm.ir import EnvFunc, Span, VDevice
+from tvm.ir import EnvFunc, Span, TupleType, VDevice
 from tvm.runtime import DataType
 from tvm.tirx import PrimExpr
 
@@ -184,23 +184,6 @@ class TensorType(Type):
             vdevice,
             span,  # type: ignore
         )
-
-
-@tvm_ffi.register_object("relax.TupleType")
-class TupleType(Type):
-    """Type of a Tuple value.
-
-    Parameters
-    ----------
-    fields: List[Type]
-        The type of the fields.
-    """
-
-    fields: list[Type]
-    span: Span
-
-    def __init__(self, fields: list[Type], span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.FuncType")

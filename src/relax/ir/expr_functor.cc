@@ -110,6 +110,14 @@ void ExprVisitor::DefaultTypeFieldVisitor::VisitType_(const FuncTypeNode* op) {
   // as they won't contain ref to values in current scope.
 }
 
+void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
+  if (auto* ty_node = ty.as<DependentTypeNode>()) {
+    visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
+  } else if (auto* ty_node = ty.as<TupleTypeNode>()) {
+    visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
+  }
+}
+
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
 void ExprVisitor::VisitExpr_(const ConstantNode* op) {
@@ -127,17 +135,13 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   for (Expr field : op->fields) {
     this->VisitExpr(field);
   }
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 // Visit the use-site of a defined Var
 void ExprVisitor::VisitExpr_(const VarNode* op) {
   this->VisitSpan(op->span);
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 // Visit the use-site of a defined DataflowVar
@@ -167,9 +171,7 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
     this->VisitExpr(arg);
   }
 
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
@@ -178,9 +180,7 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitExpr(op->true_branch);
   this->VisitExpr(op->false_branch);
 
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 void ExprVisitor::VisitExpr_(const OpNode* op) { this->VisitSpan(op->span); }
@@ -189,9 +189,7 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->tuple);
 
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
@@ -200,9 +198,7 @@ void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
   }
   this->VisitSpan(op->span);
 
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 void ExprVisitor::VisitExpr_(const ExternFuncNode* op) {
@@ -217,16 +213,12 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   }
   this->VisitExpr(op->body);
 
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
 void ExprVisitor::VisitExpr_(const PrimValueNode* op) {
   this->VisitPrimExpr(op->value);
-  if (auto* ty = op->ty.as<DependentTypeNode>()) {
-    this->VisitExprDepTypeField(ffi::GetRef<Type>(ty));
-  }
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
   this->VisitSpan(op->span);
 }
 
@@ -742,6 +734,13 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {
   if (auto* ty_node = var->ty.as<DependentTypeNode>()) {
+    Type ty = this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
+    if (ty.same_as(var->ty)) {
+      return ffi::GetRef<Var>(var);
+    } else {
+      return Var(var->vid, ty, var->span);
+    }
+  } else if (auto* ty_node = var->ty.as<TupleTypeNode>()) {
     Type ty = this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
     if (ty.same_as(var->ty)) {
       return ffi::GetRef<Var>(var);

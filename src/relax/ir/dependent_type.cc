@@ -36,7 +36,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   PrimTypeNode::RegisterReflection();
   ShapeTypeNode::RegisterReflection();
   TensorTypeNode::RegisterReflection();
-  TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
 }
 
@@ -154,20 +153,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           return TensorType(dtype.value_or(DataType::Void()), ndim, vdevice, span);
         }
       });
-}
-
-// Tuple
-TupleType::TupleType(ffi::Array<Type> fields, Span span) {
-  ffi::ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
-  n->fields = std::move(fields);
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.TupleType",
-                        [](ffi::Array<Type> fields, Span span) { return TupleType(fields, span); });
 }
 
 // Func

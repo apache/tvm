@@ -217,7 +217,7 @@ R.Tensor((1, a, 3), dtype="float32")
 
 def test_tuple_ty_empty():
     obj = relax.TupleType([])
-    _assert_print(obj, "R.Tuple")
+    _assert_print(obj._relax_script(), "R.Tuple")  # pylint: disable=protected-access
 
 
 def test_tuple_ty():
@@ -229,9 +229,8 @@ def test_tuple_ty():
         ]
     )
     _assert_print(
-        obj,
+        obj._relax_script(),  # pylint: disable=protected-access
         """
-a = T.int64()
 R.Tuple(R.Prim("float32"), R.Object, R.Shape([1, a, 3]))
 """,
     )

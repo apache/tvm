@@ -137,20 +137,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::TupleType>(  //
-        "", [](relax::TupleType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (n->fields.empty()) {
-            return Relax(d, "Tuple");
-          }
-          ffi::Array<ExprDoc> fields_doc;
-          AccessPath fields_p = n_p->Attr("fields");
-          for (int i = 0, l = n->fields.size(); i < l; ++i) {
-            fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
-          }
-          return Relax(d, "Tuple")->Call(fields_doc);
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::FuncType>(  //
         "", [](relax::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
           auto ret_doc = d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"));
@@ -189,7 +175,6 @@ TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncTypeNode, ReprPrintRelax);
 
 }  // namespace printer

@@ -207,7 +207,9 @@ def test_tuple_ty():
 
     assert t0 == t1
 
-    assert isinstance(t0, rx.TupleType)
+    assert rx.TupleType is tvm.ir.TupleType
+    assert isinstance(t0, tvm.ir.TupleType)
+    assert t0.__class__ is tvm.ir.TupleType
     t0 = _check_json_roundtrip(t0)
     t1 = _check_json_roundtrip(t1)
     t2 = _check_json_roundtrip(t2)

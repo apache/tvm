@@ -48,6 +48,9 @@ class Call;
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
 static constexpr int kUnknownNDim = -1;
 
+using tvm::TupleType;
+using tvm::TupleTypeNode;
+
 class PackedFuncTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
@@ -97,7 +100,7 @@ class DependentTypeNode : public TypeNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  static constexpr const uint32_t _type_child_slots = 7;
+  static constexpr const uint32_t _type_child_slots = 6;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.DependentType", DependentTypeNode, TypeNode);
 };
 
@@ -284,37 +287,6 @@ class TensorType : public Type {
 };
 
 /*!
- * \brief Type of Tuple.
- */
-class TupleTypeNode : public DependentTypeNode {
- public:
-  /*! \brief The type of tuple fields. */
-  ffi::Array<Type> fields;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TupleTypeNode>().def_ro("fields", &TupleTypeNode::fields);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.TupleType", TupleTypeNode, DependentTypeNode);
-};
-
-/*!
- * \brief Managed reference to TupleTypeNode.
- * \sa TupleTypeNode
- */
-class TupleType : public Type {
- public:
-  /*!
-   * \brief Constructor
-   * \param fields Type of tuple fields.
-   * \param span The span of the AST.
-   */
-  TVM_DLL TupleType(ffi::Array<Type> fields, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
-};
-
-/*!
  * \brief custom-defined Type derivation function.
  * \param call The call expression to be derived.
  * \param ctx The builder context.
@@ -461,9 +433,9 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \return underlying Relax type.
  */
 inline Type GetType(const Expr& expr) {
-  auto* ptr = expr->ty.as<DependentTypeNode>();
-  TVM_FFI_ICHECK(ptr) << "The type is not populated, check if you have normalized the expr";
-  return ffi::GetRef<Type>(ptr);
+  TVM_FFI_ICHECK(expr->ty.defined())
+      << "The type is not populated, check if you have normalized the expr";
+  return expr->ty;
 }
 
 /*!

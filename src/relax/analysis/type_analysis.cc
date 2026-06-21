@@ -99,12 +99,6 @@ Type TypeFromStaticType(const Type& type) {
       fields.push_back(TypeFromStaticType(field));
     }
     return TupleType(fields, type->span);
-  } else if (const tvm::TupleTypeNode* tuple_type = type.as<tvm::TupleTypeNode>()) {
-    ffi::Array<Type> fields;
-    for (const Type& field : tuple_type->fields) {
-      fields.push_back(TypeFromStaticType(field));
-    }
-    return TupleType(fields, type->span);
   } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {
     if (func_type->IsOpaque()) return FuncType::OpaqueFunc(func_type->ret, func_type->purity);
     ffi::Array<Type> params =

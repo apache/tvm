@@ -383,6 +383,8 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   bool VisitAndCheckTypeFieldUnchanged(const ffi::ObjectRef& ty) {
     if (const DependentTypeNode* ty_node = ty.as<DependentTypeNode>()) {
       return this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node)).same_as(ty);
+    } else if (const TupleTypeNode* ty_node = ty.as<TupleTypeNode>()) {
+      return this->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node)).same_as(ty);
     } else {
       return true;
     }
