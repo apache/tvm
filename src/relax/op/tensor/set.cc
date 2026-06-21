@@ -104,38 +104,32 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   // index, inverse_indices, and counts
   // index: always 1D
   if (f_convert_to_int64(return_index->value)) {
-    TensorType index_ty{nullptr};
     if (data_ty->ndim == 0) {
-      index_ty =
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice);
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      index_ty = TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_ty.push_back(index_ty);
   }
 
   // inverse_indices: always 1D per ONNX spec
   if (f_convert_to_int64(return_inverse->value)) {
-    TensorType inverse_ty{nullptr};
     if (data_ty->ndim == 0) {
-      inverse_ty =
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice);
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      inverse_ty = TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_ty.push_back(inverse_ty);
   }
 
   // counts: always 1D
   if (f_convert_to_int64(return_counts->value)) {
-    TensorType counts_ty{nullptr};
     if (data_ty->ndim == 0) {
-      counts_ty =
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice);
+      output_ty.push_back(
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
     } else {
-      counts_ty = TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice);
+      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
-    output_ty.push_back(counts_ty);
   }
 
   if (output_ty.size() == 1) {
