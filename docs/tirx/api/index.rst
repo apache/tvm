@@ -15,9 +15,16 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx
---------
-.. automodule:: tvm.tirx
-   :members:
-   :imported-members:
-   :exclude-members: PrimExpr, const
+API Reference
+=============
+
+Python API for the ``tvm.tirx`` namespace.
+
+.. toctree::
+   :maxdepth: 1
+
+   tirx
+   analysis
+   stmt_functor
+   transform
+   backend

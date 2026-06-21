@@ -319,6 +319,11 @@ language = None
 # directories to ignore when looking for source files.
 exclude_patterns = ["_build", "_staging"]
 
+# The TIRx API pages autodoc modules (tvm.tirx, tvm.backend.cuda) that re-export
+# common IR types (PrimExpr, Op, ...) from several modules, which makes a handful
+# of autodoc'd cross references ambiguous. Silence that specific, benign category.
+suppress_warnings = ["ref.python"]
+
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
 # default_role = None

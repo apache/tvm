@@ -20,5 +20,5 @@ tvm.tirx.transform
 ------------------
 .. automodule:: tvm.tirx.transform
    :members:
-   :exclude-members: Attrs
+   :exclude-members: Attrs, PrimExpr, Op, Call
    :imported-members:
