@@ -149,6 +149,19 @@ struct GridSampleAttrs : public AttrsNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GridSampleAttrs", GridSampleAttrs, AttrsNode);
 };  // struct GridSampleAttrs
 
+/*! \brief Attributes used in image affine_grid operator */
+struct AffineGridAttrs : public AttrsNode {
+  bool align_corners;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AffineGridAttrs>().def_ro(
+        "align_corners", &AffineGridAttrs::align_corners,
+        "If True, normalized grid coordinates map to corner pixels; otherwise to pixel centers.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AffineGridAttrs", AffineGridAttrs, AttrsNode);
+};  // struct AffineGridAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

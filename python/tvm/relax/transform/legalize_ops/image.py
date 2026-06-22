@@ -66,6 +66,7 @@ def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
         topi.image.affine_grid,
         call.args[0],
         target_shape=target_shape,
+        align_corners=call.attrs.align_corners,
     )
 
 

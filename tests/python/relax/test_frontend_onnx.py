@@ -5555,13 +5555,11 @@ def test_nms_score_threshold():
         )
 
 
-def test_affine_grid():
-    affine_grid_node = helper.make_node(
-        "AffineGrid",
-        ["theta", "size"],
-        ["grid"],
-        align_corners=1,
-    )
+# align_corners=None omits the attribute, exercising the ONNX default of 0.
+@pytest.mark.parametrize("align_corners", [None, 0, 1])
+def test_affine_grid(align_corners):
+    attrs = {} if align_corners is None else {"align_corners": align_corners}
+    affine_grid_node = helper.make_node("AffineGrid", ["theta", "size"], ["grid"], **attrs)
 
     graph = helper.make_graph(
         [affine_grid_node],
