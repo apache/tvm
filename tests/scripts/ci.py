@@ -271,17 +271,17 @@ def docs(
         # These are taken from the ci-gpu image via pip freeze, consult that
         # if there are any changes: https://github.com/apache/tvm/tree/main/docs#native
         requirements = [
-            "Sphinx==4.2.0",
-            "tlcpack-sphinx-addon==0.2.1",
+            "Sphinx==8.1.3",
+            "sphinx_autodoc_annotation~=1.0",
+            "sphinx-gallery==0.20.0",
+            "sphinx-book-theme==1.1.4",
+            "pydata-sphinx-theme==0.15.4",
+            "autodocsumm==0.2.14",
             "image==1.5.33",
-            # Temporary git link until a release is published
-            "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
-            "sphinx-rtd-theme==1.0.0",
-            "matplotlib==3.3.4",
+            "matplotlib==3.10.8",
             "commonmark==0.9.1",
-            "Pillow==8.3.2",
-            "autodocsumm==0.2.7",
-            "docutils==0.16",
+            "docutils==0.21.2",
+            "Pillow==12.1.1",
         ]
 
         extra_setup = [

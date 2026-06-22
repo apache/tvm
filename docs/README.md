@@ -59,7 +59,7 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
    ```bash
    # Pillow on Ubuntu may require libjpeg-dev from apt
    ./docker/bash.sh ci_gpu -c \
-       'python3 -m pip install --quiet tlcpack-sphinx-addon==0.2.1 && python3 -m pip freeze' > frozen-requirements.txt
+       'python3 -m pip install --quiet sphinx-book-theme==1.1.4 && python3 -m pip freeze' > frozen-requirements.txt
 
    pip install -r frozen-requirements.txt
    ```
