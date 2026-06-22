@@ -212,6 +212,7 @@ class OperatorConverter:
             "COMPLEX_ABS": self.convert_complex_abs,
             "CAST": self.convert_cast,
             "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
+            "CONCAT_EMBEDDINGS": self.convert_concat_embeddings,
             "CONCATENATION": self.convert_concatenation,
             "CONV_2D": functools.partial(self.convert_conv, conv_type="conv2d"),
             "CONV_3D": self.convert_conv3d,
@@ -274,6 +275,7 @@ class OperatorConverter:
             "LOGICAL_NOT": self.convert_logical_not,
             "LOGICAL_OR": functools.partial(self._convert_logical_binary, relax_op=_op.logical_or),
             "LOGISTIC": self.convert_logistic,
+            "LSH_PROJECTION": self.convert_lsh_projection,
             "LSTM": self.convert_lstm,
             "MATRIX_DIAG": self.convert_matrix_diag,
             "MATRIX_SET_DIAG": self.convert_matrix_set_diag,
@@ -328,6 +330,7 @@ class OperatorConverter:
             "SHAPE": self.convert_shape,
             "SIGN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sign),
             "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
+            "SKIP_GRAM": self.convert_skip_gram,
             "SLICE": self.convert_slice,
             "SOFTMAX": self.convert_softmax,
             "SPACE_TO_BATCH_ND": self.convert_space_to_batch_nd,
@@ -6571,6 +6574,42 @@ class OperatorConverter:
             indices = self.get_tensor_expr(indices_tensor)
         return relax.op.take(params, indices, axis=0)
 
+    def convert_concat_embeddings(self, op):
+        """Reject legacy TFLite CONCAT_EMBEDDINGS with a targeted diagnostic."""
+        from tflite.ConcatEmbeddingsOptions import ConcatEmbeddingsOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("CONCAT_EMBEDDINGS expects one output tensor")
+
+        op_options = op.BuiltinOptions()
+        if op_options is None:
+            raise tvm.error.OpNotImplemented("CONCAT_EMBEDDINGS requires ConcatEmbeddingsOptions")
+
+        concat_options = ConcatEmbeddingsOptions()
+        concat_options.Init(op_options.Bytes, op_options.Pos)
+        num_channels = concat_options.NumChannels()
+        if num_channels <= 0:
+            raise tvm.error.OpNotImplemented("CONCAT_EMBEDDINGS requires at least one channel")
+        if concat_options.NumColumnsPerChannelLength() != num_channels:
+            raise tvm.error.OpNotImplemented(
+                "CONCAT_EMBEDDINGS num_columns_per_channel must match num_channels"
+            )
+        if concat_options.EmbeddingDimPerChannelLength() != num_channels:
+            raise tvm.error.OpNotImplemented(
+                "CONCAT_EMBEDDINGS embedding_dim_per_channel must match num_channels"
+            )
+        if len(input_tensors) < num_channels:
+            raise tvm.error.OpNotImplemented(
+                "CONCAT_EMBEDDINGS expects at least one input per channel"
+            )
+
+        raise tvm.error.OpNotImplemented(
+            "CONCAT_EMBEDDINGS legacy embedding semantics are not lowered by the "
+            "Relax TFLite frontend yet"
+        )
+
     def convert_embedding_lookup_sparse(self, op):
         """Convert TFLite EMBEDDING_LOOKUP_SPARSE."""
         from tflite.CombinerType import CombinerType
@@ -6686,6 +6725,93 @@ class OperatorConverter:
         bucket_counts = relax.op.broadcast_to(bucket_counts, output_shape)
         return relax.op.where(
             relax.op.greater(bucket_counts, relax.const(0.0, "float32")), normalized, value_base
+        )
+
+    def convert_lsh_projection(self, op):
+        """Reject TFLite LSH_PROJECTION with a targeted diagnostic."""
+        from tflite.LSHProjectionOptions import LSHProjectionOptions
+        from tflite.LSHProjectionType import LSHProjectionType
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) not in (2, 3) or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "LSH_PROJECTION expects hash and input tensors, optional weights, and one output"
+            )
+
+        hash_tensor, input_tensor = input_tensors[:2]
+        output_tensor = output_tensors[0]
+        hash_shape = to_int_list(self.get_tensor_shape(hash_tensor))
+        input_shape = to_int_list(self.get_tensor_shape(input_tensor))
+        output_shape = to_int_list(self.get_tensor_shape(output_tensor))
+        if hash_tensor.tensor.Type() != TensorType.FLOAT32:
+            raise tvm.error.OpNotImplemented("LSH_PROJECTION hash tensor must be float32")
+        if len(hash_shape) != 2 or hash_shape[0] < 1 or hash_shape[1] > 32:
+            raise tvm.error.OpNotImplemented(
+                "LSH_PROJECTION hash tensor must be rank 2 with at most 32 bits"
+            )
+        if len(input_shape) < 1 or input_shape[0] < 1:
+            raise tvm.error.OpNotImplemented("LSH_PROJECTION input tensor must be rank >= 1")
+        if len(input_tensors) == 3:
+            weight_tensor = input_tensors[2]
+            weight_shape = to_int_list(self.get_tensor_shape(weight_tensor))
+            if weight_tensor.tensor.Type() != TensorType.FLOAT32 or weight_shape != [
+                input_shape[0]
+            ]:
+                raise tvm.error.OpNotImplemented(
+                    "LSH_PROJECTION weights must be rank-1 float32 and match input dimension 0"
+                )
+        if output_tensor.tensor.Type() != TensorType.INT32:
+            raise tvm.error.OpNotImplemented("LSH_PROJECTION output must be int32")
+
+        op_options = op.BuiltinOptions()
+        if op_options is None:
+            raise tvm.error.OpNotImplemented("LSH_PROJECTION requires LSHProjectionOptions")
+        lsh_options = LSHProjectionOptions()
+        lsh_options.Init(op_options.Bytes, op_options.Pos)
+        projection_type = lsh_options.Type()
+        if projection_type == LSHProjectionType.SPARSE:
+            expected_output_shape = [hash_shape[0]]
+        elif projection_type == LSHProjectionType.DENSE:
+            expected_output_shape = [hash_shape[0] * hash_shape[1]]
+        else:
+            raise tvm.error.OpNotImplemented("LSH_PROJECTION requires SPARSE or DENSE type")
+        if output_shape != expected_output_shape:
+            raise tvm.error.OpNotImplemented(
+                "LSH_PROJECTION output shape must match the projection type"
+            )
+
+        raise tvm.error.OpNotImplemented(
+            "LSH_PROJECTION requires TFLite fingerprint hash semantics that are not lowered "
+            "by the Relax TFLite frontend yet"
+        )
+
+    def convert_skip_gram(self, op):
+        """Reject TFLite SKIP_GRAM with a targeted diagnostic."""
+        from tflite.SkipGramOptions import SkipGramOptions
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 1 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented("SKIP_GRAM expects one input and one output")
+        if not self._is_tflite_string_type(input_tensors[0].tensor.Type()):
+            raise tvm.error.OpNotImplemented("SKIP_GRAM input must be TensorType.STRING")
+        if not self._is_tflite_string_type(output_tensors[0].tensor.Type()):
+            raise tvm.error.OpNotImplemented("SKIP_GRAM output must be TensorType.STRING")
+
+        op_options = op.BuiltinOptions()
+        if op_options is None:
+            raise tvm.error.OpNotImplemented("SKIP_GRAM requires SkipGramOptions")
+        skip_gram_options = SkipGramOptions()
+        skip_gram_options.Init(op_options.Bytes, op_options.Pos)
+        if skip_gram_options.NgramSize() <= 0:
+            raise tvm.error.OpNotImplemented("SKIP_GRAM ngram_size must be positive")
+        if skip_gram_options.MaxSkipSize() < 0:
+            raise tvm.error.OpNotImplemented("SKIP_GRAM max_skip_size must be non-negative")
+
+        raise tvm.error.OpNotImplemented(
+            "SKIP_GRAM requires TensorType.STRING support in Relax TFLite frontend"
         )
 
     def convert_batch_matmul(self, op):

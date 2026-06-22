@@ -4368,6 +4368,54 @@ def _build_embedding_lookup_sparse_options(builder, combiner):
     return sparse_options.EmbeddingLookupSparseOptionsEnd(builder)
 
 
+def _build_concat_embeddings_options(builder, num_columns_per_channel, embedding_dim_per_channel):
+    try:
+        concat_options = _get_tflite_schema_module("ConcatEmbeddingsOptions")
+    except ModuleNotFoundError:
+        pytest.skip("TFLite schema does not provide ConcatEmbeddingsOptions")
+
+    num_channels = len(num_columns_per_channel)
+    num_columns_vec = _tflite_int32_vector(
+        builder,
+        concat_options.ConcatEmbeddingsOptionsStartNumColumnsPerChannelVector,
+        num_columns_per_channel,
+    )
+    embedding_dim_vec = _tflite_int32_vector(
+        builder,
+        concat_options.ConcatEmbeddingsOptionsStartEmbeddingDimPerChannelVector,
+        embedding_dim_per_channel,
+    )
+    concat_options.ConcatEmbeddingsOptionsStart(builder)
+    concat_options.ConcatEmbeddingsOptionsAddNumChannels(builder, num_channels)
+    concat_options.ConcatEmbeddingsOptionsAddNumColumnsPerChannel(builder, num_columns_vec)
+    concat_options.ConcatEmbeddingsOptionsAddEmbeddingDimPerChannel(builder, embedding_dim_vec)
+    return concat_options.ConcatEmbeddingsOptionsEnd(builder)
+
+
+def _build_lsh_projection_options(builder, projection_type):
+    try:
+        lsh_options = _get_tflite_schema_module("LSHProjectionOptions")
+    except ModuleNotFoundError:
+        pytest.skip("TFLite schema does not provide LSHProjectionOptions")
+
+    lsh_options.LSHProjectionOptionsStart(builder)
+    lsh_options.LSHProjectionOptionsAddType(builder, projection_type)
+    return lsh_options.LSHProjectionOptionsEnd(builder)
+
+
+def _build_skip_gram_options(builder, ngram_size=2, max_skip_size=1, include_all_ngrams=True):
+    try:
+        skip_gram_options = _get_tflite_schema_module("SkipGramOptions")
+    except ModuleNotFoundError:
+        pytest.skip("TFLite schema does not provide SkipGramOptions")
+
+    skip_gram_options.SkipGramOptionsStart(builder)
+    skip_gram_options.SkipGramOptionsAddNgramSize(builder, ngram_size)
+    skip_gram_options.SkipGramOptionsAddMaxSkipSize(builder, max_skip_size)
+    skip_gram_options.SkipGramOptionsAddIncludeAllNgrams(builder, include_all_ngrams)
+    return skip_gram_options.SkipGramOptionsEnd(builder)
+
+
 def _load_model_from_buffer(model_bytes):
     if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(model_bytes, 0)
@@ -6552,6 +6600,113 @@ def _build_tflite_embedding_lookup_sparse_model(
     )
 
 
+def _build_tflite_concat_embeddings_model():
+    """Build a model containing one legacy CONCAT_EMBEDDINGS operator."""
+    builder = flatbuffers.Builder(1024)
+
+    concat_options = _build_concat_embeddings_options(
+        builder, num_columns_per_channel=[1, 1], embedding_dim_per_channel=[2, 2]
+    )
+
+    input_0 = _build_tensor(builder, 0, [1, 2], tensor_type=_tfl_tensor_type.FLOAT32)
+    input_1 = _build_tensor(builder, 1, [1, 2], tensor_type=_tfl_tensor_type.FLOAT32)
+    output = _build_tensor(builder, 2, [1, 4], tensor_type=_tfl_tensor_type.FLOAT32)
+    concat_embeddings = _build_operator(
+        builder,
+        0,
+        [0, 1],
+        [2],
+        builtin_options_type=_get_builtin_options_type("ConcatEmbeddingsOptions"),
+        builtin_options=concat_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_0, input_1, output],
+        operators=[concat_embeddings],
+        inputs=[],
+        outputs=[2],
+    )
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("CONCAT_EMBEDDINGS"))]
+    buffers = [_build_buffer(builder) for _ in range(3)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_lsh_projection_model():
+    """Build a model containing one LSH_PROJECTION operator."""
+    builder = flatbuffers.Builder(1024)
+
+    lsh_projection_type = _get_tflite_schema_enum("LSHProjectionType")
+    lsh_options = _build_lsh_projection_options(builder, lsh_projection_type.SPARSE)
+
+    hash_tensor = _build_tensor(builder, 0, [2, 3], tensor_type=_tfl_tensor_type.FLOAT32)
+    input_tensor = _build_tensor(builder, 1, [4], tensor_type=_tfl_tensor_type.FLOAT32)
+    weight_tensor = _build_tensor(builder, 2, [4], tensor_type=_tfl_tensor_type.FLOAT32)
+    output_tensor = _build_tensor(builder, 3, [2], tensor_type=_tfl_tensor_type.INT32)
+    lsh_projection = _build_operator(
+        builder,
+        0,
+        [0, 1, 2],
+        [3],
+        builtin_options_type=_get_builtin_options_type("LSHProjectionOptions"),
+        builtin_options=lsh_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[hash_tensor, input_tensor, weight_tensor, output_tensor],
+        operators=[lsh_projection],
+        inputs=[],
+        outputs=[3],
+    )
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("LSH_PROJECTION"))]
+    buffers = [_build_buffer(builder) for _ in range(4)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_skip_gram_model():
+    """Build a model containing one SKIP_GRAM operator."""
+    builder = flatbuffers.Builder(1024)
+
+    string_type = _get_string_tensor_type()
+    skip_gram_options = _build_skip_gram_options(builder)
+    input_data = _build_tflite_string_buffer(["the quick brown fox"])
+
+    input_tensor = _build_tensor(builder, 0, [1], tensor_type=string_type)
+    output_tensor = _build_tensor(builder, 1, [1], tensor_type=string_type)
+    skip_gram = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_get_builtin_options_type("SkipGramOptions"),
+        builtin_options=skip_gram_options,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[skip_gram],
+        inputs=[],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _get_builtin_operator("SKIP_GRAM"))]
+    buffers = [_build_buffer(builder, input_data), _build_buffer(builder)]
+    return _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
 def _build_tflite_hashtable_lookup_model(*, value_shape, value_type=None):
     """Build a model containing one HASHTABLE_LOOKUP operator."""
     builder = flatbuffers.Builder(1024)
@@ -6580,6 +6735,24 @@ def _build_tflite_hashtable_lookup_model(*, value_shape, value_type=None):
         operator_codes=operator_codes,
         buffers=buffers,
     )
+
+
+def test_concat_embeddings_unsupported():
+    """Test CONCAT_EMBEDDINGS reports a targeted unsupported diagnostic."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="CONCAT_EMBEDDINGS legacy"):
+        _load_model_from_buffer(_build_tflite_concat_embeddings_model())
+
+
+def test_lsh_projection_unsupported():
+    """Test LSH_PROJECTION reports a targeted unsupported diagnostic."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="TFLite fingerprint hash semantics"):
+        _load_model_from_buffer(_build_tflite_lsh_projection_model())
+
+
+def test_skip_gram_unsupported():
+    """Test SKIP_GRAM reports the string tensor frontend limitation."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="TensorType.STRING support"):
+        _load_model_from_buffer(_build_tflite_skip_gram_model())
 
 
 def test_resource_variable_call_once_init_read():
