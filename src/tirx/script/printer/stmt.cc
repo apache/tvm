@@ -157,7 +157,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             With<TIRFrame> f(d, op_call);
             ffi::Array<tirx::Stmt> stmts;
             for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
-              stmts.push_back(Downcast<tirx::Stmt>(op_call->args[i]));
+              stmts.push_back(op_call->args[i].as_or_throw<tirx::Stmt>());
             }
             tirx::SeqStmt seq_stmt(stmts);
             AsDocBody(seq_stmt, p->Attr("args"), f->get(), d);
@@ -791,7 +791,7 @@ void InsertEnvThread(const tirx::IterVar& iter_var, const AccessPath& iter_var_p
 
 ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& attr_stmt_p,
                             ffi::Optional<tirx::Var>* define_var, const IRDocsifier& d) {
-  tirx::IterVar iter_var = Downcast<tirx::IterVar>(attr_stmt->node);
+  tirx::IterVar iter_var = attr_stmt->node.as_or_throw<tirx::IterVar>();
   AccessPath iter_var_p = attr_stmt_p->Attr("node");
 
   ExprDoc var_doc{ffi::UnsafeInit()};

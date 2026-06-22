@@ -81,7 +81,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     // record workgroup size
     if (op->attr_key == tirx::attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = op->node.as_or_throw<IterVar>();
       if (iv->thread_tag.length() != 0) {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
         if (ts.rank == 1) {
@@ -759,7 +759,7 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
     CodeGenWebGPU cg(target);
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>())
         << "CodeGenWebGPU: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
+    auto f = kv.second.as_or_throw<PrimFunc>();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenWebGPU: expected kCallingConv attribute to be set.";

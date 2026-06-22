@@ -103,13 +103,13 @@ class LoopUnroller : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = static_cast<int>(Downcast<IntImm>(op->value)->value);
+      int value = static_cast<int>(op->value.as_or_throw<IntImm>()->value);
       std::swap(value, auto_max_step_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = Downcast<IntImm>(op->value)->value;
+      bool explicit_unroll = op->value.as_or_throw<IntImm>()->value;
       std::swap(explicit_unroll, explicit_unroll_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(explicit_unroll, explicit_unroll_);

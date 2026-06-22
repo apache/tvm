@@ -258,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
                  return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
                } else if (attrs.as<ffi::MapObj>()) {
-                 return tvm::DictAttrs(Downcast<ffi::Map<ffi::String, Any>>(attrs));
+                 return tvm::DictAttrs(attrs.as_or_throw<ffi::Map<ffi::String, Any>>());
                } else {
                  TVM_FFI_THROW(InternalError)
                      << "Expected attrs argument to be either DictAttrs or "
@@ -277,7 +277,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ir.Module_Add",
            [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
              TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
-             mod->Add(var, Downcast<BaseFunc>(val), update);
+             mod->Add(var, val.as_or_throw<BaseFunc>(), update);
              return mod;
            })
       .def("ir.Module_Remove",

@@ -539,7 +539,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr error_kind = this->VisitExpr(op->error_kind);
   ffi::Array<StringImm> message_parts = Internal::MutateArray(
       this, op->message_parts,
-      [this](const StringImm& e) { return Downcast<StringImm>(this->VisitExpr(e)); });
+      [this](const StringImm& e) { return this->VisitExpr(e).as_or_throw<StringImm>(); });
 
   if (condition.same_as(op->condition) && error_kind.same_as(op->error_kind) &&
       message_parts.same_as(op->message_parts)) {
@@ -547,7 +547,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->error_kind = Downcast<StringImm>(std::move(error_kind));
+    n->error_kind = std::move(error_kind).as_or_throw<StringImm>();
     n->message_parts = std::move(message_parts);
     return Stmt(n);
   }
@@ -604,7 +604,7 @@ Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
     auto n = CopyOnWrite(op);
     n->iter_values = std::move(v);
     n->predicate = std::move(pred);
-    n->block = Downcast<SBlock>(block);
+    n->block = block.as_or_throw<SBlock>();
     return Stmt(n);
   }
 }
@@ -703,10 +703,10 @@ class IRApplyVisit : public StmtExprVisitor {
 void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::ObjectRef&)> fvisit) {
   if (node.as<StmtNode>()) {
     IRApplyVisit visitor(fvisit);
-    visitor(Downcast<Stmt>(node));
+    visitor(node.as_or_throw<Stmt>());
   } else {
     IRApplyVisit visitor(fvisit);
-    visitor(Downcast<PrimExpr>(node));
+    visitor(node.as_or_throw<PrimExpr>());
   }
 }
 
@@ -776,7 +776,7 @@ class IRSubstitute : public StmtExprMutator {
       // Allow substitution of void variables with any expression. The TVM script parser
       // uses void variables for lambda parameters (since exact types are not known yet).
       if (!var.dtype().is_void()) {
-        PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+        PrimExpr ret_ex = ret.value().as_or_throw<PrimExpr>();
         TVM_FFI_ICHECK(ret_ex.dtype() == var.dtype())
             << "substituting " << var << ":" << var.dtype() << " -> " << ret_ex << ":"
             << ret_ex.dtype();
@@ -796,7 +796,7 @@ class IRSubstitute : public StmtExprMutator {
         << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
         << ", which was substituted into the expression " << new_data_expr
         << " and the backing allocation must be a tirx::Var";
-    Var data = Downcast<Var>(new_data_expr);
+    Var data = new_data_expr.as_or_throw<Var>();
     if (!data.same_as(new_buf->data)) {
       auto* n = new_buf.CopyOnWrite();
       n->data = std::move(data);
@@ -932,9 +932,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.Substitute",
            [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
              if (node->IsInstance<StmtNode>()) {
-               return Substitute(Downcast<Stmt>(node), vmap);
+               return Substitute(node.as_or_throw<Stmt>(), vmap);
              } else {
-               return Substitute(Downcast<PrimExpr>(node), vmap);
+               return Substitute(node.as_or_throw<PrimExpr>(), vmap);
              }
            });
 }

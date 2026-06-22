@@ -157,8 +157,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
       if (dtype.is_uint() && dtype.bits() == 64) {
         solver.add(ctx->int_val(0) <= e && e <= ctx->int_val((uint64_t)UINT64_MAX));
       } else {
-        auto min_val = Downcast<IntImm>(min_value(dtype))->value;
-        auto max_val = Downcast<IntImm>(max_value(dtype))->value;
+        auto min_val = min_value(dtype).as_or_throw<IntImm>()->value;
+        auto max_val = max_value(dtype).as_or_throw<IntImm>()->value;
         solver.add(ctx->int_val(min_val) <= e && e <= ctx->int_val(max_val));
       }
       return e;
@@ -550,7 +550,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     }
     return e->IsInstance<CallNode>() || e->IsInstance<BufferLoadNode>() ||
            e->IsInstance<ProducerLoadNode>() || e->IsInstance<ReduceNode>() ||
-           (e->IsInstance<CastNode>() && !IsValidDType(Downcast<Cast>(e)->value->dtype));
+           (e->IsInstance<CastNode>() && !IsValidDType(e.as_or_throw<Cast>()->value->dtype));
   }
 
   /// @brief Check if the dtype is valid for z3 integer operations

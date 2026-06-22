@@ -70,7 +70,7 @@ bool StartsWith(const ffi::String& str, const char* prefix) {
 
 ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   if (target.count("arch")) {
-    ffi::String archStr = Downcast<ffi::String>(target.at("arch"));
+    ffi::String archStr = target.at("arch").as_or_throw<ffi::String>();
     TVM_FFI_CHECK(StartsWith(archStr, "sm_"), ValueError)
         << "CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
@@ -94,7 +94,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
 ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   CheckOrSetAttr(&target, "mtriple", "nvptx64-nvidia-cuda");
   if (target.count("mcpu")) {
-    ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
+    ffi::String mcpu = target.at("mcpu").as_or_throw<ffi::String>();
     TVM_FFI_CHECK(StartsWith(mcpu, "sm_"), ValueError)
         << "NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
   } else {
