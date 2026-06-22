@@ -271,7 +271,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> e
           << PrimType::ContainerType::_type_key << ", because element " << i << " has value "
           << prim_value->value;
 
-      output.push_back(Downcast<PrimType>(prim_value->value));
+      output.push_back(prim_value->value.template as_or_throw<PrimType>());
     }
     return output;
   }
