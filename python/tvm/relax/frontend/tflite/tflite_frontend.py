@@ -707,6 +707,10 @@ class OperatorConverter:
         return tuple(int(dim) for dim in tensor_wrapper.tensor.ShapeAsNumpy())
 
     @staticmethod
+    def _is_missing_tensor(tensor_wrapper):
+        return tensor_wrapper is None or tensor_wrapper.tensor_idx < 0
+
+    @staticmethod
     def _has_tensor_buffer_data(tensor_wrapper):
         return (
             tensor_wrapper.buffer is not None
@@ -6742,6 +6746,15 @@ class OperatorConverter:
 
         hash_tensor, input_tensor = input_tensors[:2]
         output_tensor = output_tensors[0]
+        if (
+            self._is_missing_tensor(hash_tensor)
+            or self._is_missing_tensor(input_tensor)
+            or self._is_missing_tensor(output_tensor)
+        ):
+            raise tvm.error.OpNotImplemented(
+                "LSH_PROJECTION expects valid hash, input, and output tensors"
+            )
+
         hash_shape = to_int_list(self.get_tensor_shape(hash_tensor))
         input_shape = to_int_list(self.get_tensor_shape(input_tensor))
         output_shape = to_int_list(self.get_tensor_shape(output_tensor))
@@ -6755,13 +6768,14 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented("LSH_PROJECTION input tensor must be rank >= 1")
         if len(input_tensors) == 3:
             weight_tensor = input_tensors[2]
-            weight_shape = to_int_list(self.get_tensor_shape(weight_tensor))
-            if weight_tensor.tensor.Type() != TensorType.FLOAT32 or weight_shape != [
-                input_shape[0]
-            ]:
-                raise tvm.error.OpNotImplemented(
-                    "LSH_PROJECTION weights must be rank-1 float32 and match input dimension 0"
-                )
+            if not self._is_missing_tensor(weight_tensor):
+                weight_shape = to_int_list(self.get_tensor_shape(weight_tensor))
+                if weight_tensor.tensor.Type() != TensorType.FLOAT32 or weight_shape != [
+                    input_shape[0]
+                ]:
+                    raise tvm.error.OpNotImplemented(
+                        "LSH_PROJECTION weights must be rank-1 float32 and match input dimension 0"
+                    )
         if output_tensor.tensor.Type() != TensorType.INT32:
             raise tvm.error.OpNotImplemented("LSH_PROJECTION output must be int32")
 
@@ -6795,6 +6809,8 @@ class OperatorConverter:
         output_tensors = self.get_output_tensors(op)
         if len(input_tensors) != 1 or len(output_tensors) != 1:
             raise tvm.error.OpNotImplemented("SKIP_GRAM expects one input and one output")
+        if self._is_missing_tensor(input_tensors[0]) or self._is_missing_tensor(output_tensors[0]):
+            raise tvm.error.OpNotImplemented("SKIP_GRAM expects valid input and output tensors")
         if not self._is_tflite_string_type(input_tensors[0].tensor.Type()):
             raise tvm.error.OpNotImplemented("SKIP_GRAM input must be TensorType.STRING")
         if not self._is_tflite_string_type(output_tensors[0].tensor.Type()):

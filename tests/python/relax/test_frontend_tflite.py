@@ -6636,7 +6636,7 @@ def _build_tflite_concat_embeddings_model():
     )
 
 
-def _build_tflite_lsh_projection_model():
+def _build_tflite_lsh_projection_model(include_weights=True):
     """Build a model containing one LSH_PROJECTION operator."""
     builder = flatbuffers.Builder(1024)
 
@@ -6645,25 +6645,35 @@ def _build_tflite_lsh_projection_model():
 
     hash_tensor = _build_tensor(builder, 0, [2, 3], tensor_type=_tfl_tensor_type.FLOAT32)
     input_tensor = _build_tensor(builder, 1, [4], tensor_type=_tfl_tensor_type.FLOAT32)
-    weight_tensor = _build_tensor(builder, 2, [4], tensor_type=_tfl_tensor_type.FLOAT32)
-    output_tensor = _build_tensor(builder, 3, [2], tensor_type=_tfl_tensor_type.INT32)
+    tensors = [hash_tensor, input_tensor]
+    operator_inputs = [0, 1]
+    output_index = 2
+    if include_weights:
+        weight_tensor = _build_tensor(builder, 2, [4], tensor_type=_tfl_tensor_type.FLOAT32)
+        tensors.append(weight_tensor)
+        operator_inputs.append(2)
+        output_index = 3
+    else:
+        operator_inputs.append(-1)
+    output_tensor = _build_tensor(builder, output_index, [2], tensor_type=_tfl_tensor_type.INT32)
+    tensors.append(output_tensor)
     lsh_projection = _build_operator(
         builder,
         0,
-        [0, 1, 2],
-        [3],
+        operator_inputs,
+        [output_index],
         builtin_options_type=_get_builtin_options_type("LSHProjectionOptions"),
         builtin_options=lsh_options,
     )
     subgraph = _build_subgraph(
         builder,
-        tensors=[hash_tensor, input_tensor, weight_tensor, output_tensor],
+        tensors=tensors,
         operators=[lsh_projection],
         inputs=[],
-        outputs=[3],
+        outputs=[output_index],
     )
     operator_codes = [_build_operator_code(builder, _get_builtin_operator("LSH_PROJECTION"))]
-    buffers = [_build_buffer(builder) for _ in range(4)]
+    buffers = [_build_buffer(builder) for _ in range(output_index + 1)]
     return _finish_tflite_model(
         builder,
         subgraph=subgraph,
@@ -6672,7 +6682,7 @@ def _build_tflite_lsh_projection_model():
     )
 
 
-def _build_tflite_skip_gram_model():
+def _build_tflite_skip_gram_model(missing_input=False):
     """Build a model containing one SKIP_GRAM operator."""
     builder = flatbuffers.Builder(1024)
 
@@ -6680,25 +6690,34 @@ def _build_tflite_skip_gram_model():
     skip_gram_options = _build_skip_gram_options(builder)
     input_data = _build_tflite_string_buffer(["the quick brown fox"])
 
-    input_tensor = _build_tensor(builder, 0, [1], tensor_type=string_type)
-    output_tensor = _build_tensor(builder, 1, [1], tensor_type=string_type)
+    if missing_input:
+        tensors = [_build_tensor(builder, 0, [1], tensor_type=string_type)]
+        operator_inputs = [-1]
+        operator_outputs = [0]
+        buffers = [_build_buffer(builder)]
+    else:
+        input_tensor = _build_tensor(builder, 0, [1], tensor_type=string_type)
+        output_tensor = _build_tensor(builder, 1, [1], tensor_type=string_type)
+        tensors = [input_tensor, output_tensor]
+        operator_inputs = [0]
+        operator_outputs = [1]
+        buffers = [_build_buffer(builder, input_data), _build_buffer(builder)]
     skip_gram = _build_operator(
         builder,
         0,
-        [0],
-        [1],
+        operator_inputs,
+        operator_outputs,
         builtin_options_type=_get_builtin_options_type("SkipGramOptions"),
         builtin_options=skip_gram_options,
     )
     subgraph = _build_subgraph(
         builder,
-        tensors=[input_tensor, output_tensor],
+        tensors=tensors,
         operators=[skip_gram],
         inputs=[],
-        outputs=[1],
+        outputs=operator_outputs,
     )
     operator_codes = [_build_operator_code(builder, _get_builtin_operator("SKIP_GRAM"))]
-    buffers = [_build_buffer(builder, input_data), _build_buffer(builder)]
     return _finish_tflite_model(
         builder,
         subgraph=subgraph,
@@ -6749,10 +6768,22 @@ def test_lsh_projection_unsupported():
         _load_model_from_buffer(_build_tflite_lsh_projection_model())
 
 
+def test_lsh_projection_without_weights_unsupported():
+    """Test LSH_PROJECTION accepts an absent optional weights slot before rejecting."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="TFLite fingerprint hash semantics"):
+        _load_model_from_buffer(_build_tflite_lsh_projection_model(include_weights=False))
+
+
 def test_skip_gram_unsupported():
     """Test SKIP_GRAM reports the string tensor frontend limitation."""
     with pytest.raises(tvm.error.OpNotImplemented, match="TensorType.STRING support"):
         _load_model_from_buffer(_build_tflite_skip_gram_model())
+
+
+def test_skip_gram_missing_input_unsupported():
+    """Test SKIP_GRAM reports a targeted diagnostic for a missing input tensor."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="valid input and output"):
+        _load_model_from_buffer(_build_tflite_skip_gram_model(missing_input=True))
 
 
 def test_resource_variable_call_once_init_read():
