@@ -347,10 +347,10 @@ def test_specialization_updates_ty():
     def expected() -> T.int32:
         T.ret(50)
 
-    ty_before = tvm.relax.FuncType([tvm.relax.PrimType("int32")], tvm.relax.PrimType("int32"))
+    ty_before = tvm.relax.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(before.ty, ty_before)
 
-    ty_expected = tvm.relax.FuncType([], tvm.relax.PrimType("int32"))
+    ty_expected = tvm.relax.FuncType([], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(expected.ty, ty_expected)
 
     n = before.params[0]

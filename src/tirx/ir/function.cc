@@ -54,14 +54,14 @@ tvm::Type InferType(const PrimFunc& prim_func) {
         return relax::ObjectType();
       }
 
-      return relax::PrimType(param->dtype);
+      return PrimType(param->dtype);
     }();
     params.push_back(param_ty);
   }
 
   tvm::Type ret = [&]() -> tvm::Type {
     if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
-      return relax::PrimType(prim->dtype);
+      return PrimType(prim->dtype);
     } else if (IsVoidType(prim_func->ret_type)) {
       return relax::TupleType(ffi::Array<tvm::Type>{});
     } else {
