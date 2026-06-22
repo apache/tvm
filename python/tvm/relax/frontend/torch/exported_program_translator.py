@@ -991,6 +991,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
         input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
 
+        if not isinstance(seq_len, int):
+            raise NotImplementedError("Dynamic sequence length is not supported for rnn_tanh")
+
         # params per direction: weight_ih, weight_hh, [bias_ih, bias_hh]
         params_per_direction = 4 if has_biases else 2
 
@@ -1107,7 +1110,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if batch_first:
             output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
 
-        return self.block_builder.emit(relax.op.Tuple([output, h_n]))
+        return self.block_builder.emit(relax.Tuple([output, h_n]))
 
     ########## Manipulation ##########
 

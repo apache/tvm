@@ -8537,6 +8537,7 @@ def test_gru():
     tvm.testing.assert_allclose(pytorch_output4.numpy(), tvm_output4_np, rtol=1e-4, atol=1e-5)
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rnn_tanh():
     target = tvm.target.Target("llvm")
 
