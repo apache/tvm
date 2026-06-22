@@ -717,22 +717,47 @@ def test_range(start, limit, delta, dtype):
     verify(Range)
 
 
-def test_range_dynamic_scalar_inputs_not_supported():
-    """RANGE conversion currently rejects dynamic scalar inputs."""
+@pytest.mark.parametrize(
+    "start, limit, delta, dtype",
+    [
+        (2, 13, 3, tf.int32),
+        (8, 0, -2, tf.int32),
+        (0.0, 1.0, 0.25, tf.float32),
+        (1.0, -1.0, -0.5, tf.float32),
+    ],
+)
+def test_range_dynamic_scalar_inputs(start, limit, delta, dtype):
+    """RANGE lowers dynamic (runtime) scalar bounds for both int and float dtypes."""
 
     class RangeDynamic(tf.Module):
         @tf.function(
             input_signature=[
-                tf.TensorSpec(shape=(), dtype=tf.int32),
-                tf.TensorSpec(shape=(), dtype=tf.int32),
-                tf.TensorSpec(shape=(), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=dtype),
+                tf.TensorSpec(shape=(), dtype=dtype),
+                tf.TensorSpec(shape=(), dtype=dtype),
             ]
         )
         def func(self, start, limit, delta):
-            return tf.range(start, limit, delta, dtype=tf.int32)
+            return tf.range(start, limit, delta)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic scalar inputs"):
-        verify(RangeDynamic)
+    cf = RangeDynamic().func.get_concrete_function()
+    mod = _get_mod_from_cfunc(cf)
+
+    np_dtype = np.int32 if dtype == tf.int32 else np.float32
+    inputs = [
+        np.array(start, np_dtype),
+        np.array(limit, np_dtype),
+        np.array(delta, np_dtype),
+    ]
+
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm.set_input("main", *inputs)
+    vm.invoke_stateful("main")
+    tvm_out = vm.get_outputs("main").numpy()
+
+    expected = np.arange(start, limit, delta, dtype=np_dtype)
+    np.testing.assert_allclose(tvm_out, expected, rtol=1e-5, atol=1e-5)
 
 
 def test_tile_ir():

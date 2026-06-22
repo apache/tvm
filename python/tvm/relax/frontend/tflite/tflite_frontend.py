@@ -1542,7 +1542,13 @@ class OperatorConverter:
         return out
 
     def convert_range(self, op):
-        """Convert TFLite Range"""
+        """Convert TFLite Range.
+
+        Constant bounds lower directly to ``relax.op.arange``. Runtime (dynamic)
+        scalar bounds are handled by computing the element count in-graph,
+        lifting it to a symbolic output dimension, and rebuilding the values as
+        ``arange(0, count) * delta + start`` (see ``_convert_dynamic_range``).
+        """
 
         from tflite.TensorType import TensorType
 
@@ -1551,38 +1557,86 @@ class OperatorConverter:
 
         start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
 
-        def get_scalar_value(tensor):
-            if self.has_expr(tensor.tensor_idx):
-                expr = self.get_expr(tensor.tensor_idx)
-                if isinstance(expr, relax.Constant):
-                    value = expr.data.numpy()
-                else:
-                    # relax.op.arange currently expects scalar-like values here.
-                    # Keep dynamic scalar RANGE explicit until frontend support is added.
-                    raise tvm.error.OpNotImplemented(
-                        "TFLite RANGE with dynamic scalar inputs is not supported in"
-                        "Relax frontend yet."
-                    )
-            else:
-                value = self.get_tensor_value(tensor)
-
-            # TFLite RANGE operands are scalar tensors in the flatbuffer.
-            assert value.size == 1, "RANGE scalar input must have exactly one element"
-            return value.item()
-
-        start_value = get_scalar_value(start)
-        limit_value = get_scalar_value(limit)
-        delta_value = get_scalar_value(delta)
-
         # out type inference
         if delta.tensor.Type() == TensorType.FLOAT32:
             out_type = self.get_tensor_type_str(delta.tensor.Type())
         else:
             out_type = self.get_tensor_type_str(start.tensor.Type())
 
-        out = relax.op.arange(start_value, limit_value, delta_value, out_type)
+        def is_dynamic(tensor):
+            return self.has_expr(tensor.tensor_idx) and not isinstance(
+                self.get_expr(tensor.tensor_idx), relax.Constant
+            )
 
-        return out
+        def static_scalar(tensor):
+            if self.has_expr(tensor.tensor_idx):
+                value = self.get_expr(tensor.tensor_idx).data.numpy()
+            else:
+                value = self.get_tensor_value(tensor)
+            # TFLite RANGE operands are scalar tensors in the flatbuffer.
+            assert value.size == 1, "RANGE scalar input must have exactly one element"
+            return value.item()
+
+        if not (is_dynamic(start) or is_dynamic(limit) or is_dynamic(delta)):
+            return relax.op.arange(
+                static_scalar(start), static_scalar(limit), static_scalar(delta), out_type
+            )
+
+        return self._convert_dynamic_range(start, limit, delta, out_type)
+
+    def _scalar_tensor_to_dim(self, expr, name):
+        """Lift a runtime scalar Relax expr to a symbolic ``tirx.Var`` dimension.
+
+        Mirrors the ``tensor_to_shape`` + ``match_cast`` bridge used by
+        ``_get_shape_expr_from_tensor`` so a data-dependent scalar can be used as
+        a ``PrimExpr`` (e.g. an output length). The scalar is cast to int64 first.
+        """
+        expr = self.bb.normalize(relax.op.astype(expr, "int64"))
+        expr = self.bb.normalize(relax.op.reshape(expr, (1,)))
+        expr = self.bb.match_cast(expr, relax.TensorType([1], "int64"))
+        shape_var = self.bb.emit(relax.op.tensor_to_shape(expr))
+        dim = tirx.Var(name, "int64")
+        self.bb.match_cast(shape_var, relax.ShapeType([dim]))
+        return dim
+
+    def _convert_dynamic_range(self, start, limit, delta, out_type):
+        """RANGE with dynamic (runtime) scalar bounds, for int and float dtypes.
+
+        ``relax.op.arange`` only accepts compile-time ``PrimExpr`` bounds, and its
+        struct-info length formula lacks a negative-step branch, so feeding
+        symbolic bounds directly would mis-declare descending ranges. Instead the
+        element count ``max(0, ceil((limit - start) / delta))`` is computed
+        in-graph and lifted to one symbolic dimension ``L`` (so the declared and
+        runtime lengths match by construction); values are rebuilt as
+        ``arange(0, L) * delta + start``.
+        """
+        # int ranges work in int64 for an exact, sign-agnostic count; float
+        # ranges work in the output float dtype.
+        work_type = out_type if out_type.startswith("float") else "int64"
+
+        def scalar_expr(tensor):
+            return self.bb.normalize(relax.op.astype(self.get_tensor_expr(tensor), work_type))
+
+        start_e = scalar_expr(start)
+        limit_e = scalar_expr(limit)
+        delta_e = scalar_expr(delta)
+
+        if work_type.startswith("float"):
+            count = relax.op.ceil(relax.op.divide(relax.op.subtract(limit_e, start_e), delta_e))
+        else:
+            # ceil((limit - start) / delta) == -floordiv(start - limit, delta),
+            # which stays exact and handles negative delta without a float cast.
+            count = relax.op.negative(
+                relax.op.floor_divide(relax.op.subtract(start_e, limit_e), delta_e)
+            )
+        count = relax.op.maximum(count, relax.const(0, work_type))
+        dim = self._scalar_tensor_to_dim(count, "range_len")
+
+        positions = self.bb.normalize(
+            relax.op.astype(relax.op.arange(0, dim, 1, "int64"), work_type)
+        )
+        out = relax.op.add(relax.op.multiply(positions, delta_e), start_e)
+        return out if work_type == out_type else relax.op.astype(out, out_type)
 
     def convert_rank(self, op):
         """Convert TFLite RANK."""
