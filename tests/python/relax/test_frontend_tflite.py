@@ -9851,16 +9851,33 @@ def test_stablehlo_dynamic_update_slice():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_stablehlo_dynamic_update_slice_dynamic_starts_unsupported():
-    """TFLite StableHLO DYNAMIC_UPDATE_SLICE with runtime starts is unsupported."""
+def test_stablehlo_dynamic_update_slice_dynamic_starts():
+    """TFLite StableHLO DYNAMIC_UPDATE_SLICE with runtime starts lowers and runs."""
     buf = _build_stablehlo_dynamic_update_slice_model([0, 0], dynamic_starts=True)
     if hasattr(tflite.Model, "Model"):
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic start"):
-        from_tflite(tflite_model)
+    ex = tvm.compile(mod, tvm.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    operand = np.arange(12, dtype="float32").reshape(3, 4)
+    update = np.full((2, 2), -1.0, dtype="float32")
+
+    # The second start is out of range and must be clamped per StableHLO.
+    for s0, s1 in ([1, 1], [2, 3]):
+        vm.set_input("main", operand, update, np.array(s0, "int32"), np.array(s1, "int32"))
+        vm.invoke_stateful("main")
+        tvm_out = vm.get_outputs("main").numpy()
+
+        cs0 = min(max(s0, 0), 3 - 2)
+        cs1 = min(max(s1, 0), 4 - 2)
+        expected = operand.copy()
+        expected[cs0 : cs0 + 2, cs1 : cs1 + 2] = update
+        np.testing.assert_allclose(tvm_out, expected)
 
 
 def test_stablehlo_dynamic_update_slice_out_of_bounds_unsupported():
