@@ -221,6 +221,7 @@ class OperatorConverter:
             "DENSIFY": self.convert_densify,
             "DEPTH_TO_SPACE": self.convert_depth_to_space,
             "DEPTHWISE_CONV_2D": functools.partial(self.convert_conv, conv_type="depthwise"),
+            "DELEGATE": functools.partial(self.convert_operator_marker, op_name="DELEGATE"),
             "DEQUANTIZE": self.convert_dequantize,
             "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
             "DILATE": self.convert_dilate,
@@ -292,6 +293,9 @@ class OperatorConverter:
             "PACK": self.convert_pack,
             "PAD": self.convert_pad,
             "PADV2": self.convert_pad,
+            "PLACEHOLDER_FOR_GREATER_OP_CODES": functools.partial(
+                self.convert_operator_marker, op_name="PLACEHOLDER_FOR_GREATER_OP_CODES"
+            ),
             "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
@@ -491,6 +495,12 @@ class OperatorConverter:
 
         if len(raise_msg) > 0:
             raise tvm.error.OpNotImplemented(raise_msg)
+
+    def convert_operator_marker(self, op, op_name):
+        """Reject TFLite marker builtins with an explicit diagnostic."""
+        raise tvm.error.OpNotImplemented(
+            f"TFLite operator marker {op_name} is not a Relax tensor operator"
+        )
 
     def unbind(self, data, axis=1):
         """
