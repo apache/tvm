@@ -15,11 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tirx.backend
-================
-
-tvm.tirx.backend
-*****************
-.. automodule:: tvm.tirx.backend
+tvm.tirx
+--------
+.. automodule:: tvm.tirx
    :members:
    :imported-members:
+   :exclude-members: PrimExpr, Op, Call, const
