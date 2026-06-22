@@ -184,10 +184,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
- * function, as a function argument, etc.  The Type of the tuple
- * tracks the known values of any `PrimValue` elements, but it can be
- * tedious to extract.  This utility extracts the `PrimExpr` contents
- * of a `relax::Tuple`.
+ * function, as a function argument, etc.  This overload validates that
+ * the Type could contain a tuple of `PrimValue` elements.  Without a
+ * concrete tuple expression, the values are not statically known.
  *
  * If the Type cannot contain a tuple of the type specified,
  * this function will throw an exception.  (e.g. Attempting to extract
@@ -198,7 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * \param ty The Type to inspect
  *
- * \returns An array of the `PrimType`, if it can be extracted.
+ * \returns An empty array for an empty tuple, if it can be extracted.
  *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
@@ -227,12 +226,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
         << "The type " << ty << " cannot contain a tuple whose elements are "
         << PrimType::ContainerType::_type_key << ", because element " << i << " has type " << field;
 
-    if (!prim_ty->value.defined()) return std::nullopt;
-
-    ffi::Optional<PrimType> element = prim_ty->value.as<PrimType>();
-    if (!element) return std::nullopt;
-
-    output.push_back(element.value());
+    return std::nullopt;
   }
   return output;
 }
@@ -241,10 +235,9 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
  *
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
- * function, as a function argument, etc.  The Type of the tuple
- * tracks the known values of any `PrimValue` elements, but it can be
- * tedious to extract.  This utility extracts the `PrimExpr` contents
- * of a `relax::Tuple`.
+ * function, as a function argument, etc.  This utility extracts
+ * `PrimValue` contents only when the concrete tuple expression is
+ * available.
  *
  * If the Type cannot contain a tuple of the type specified,
  * this function will throw an exception.  (e.g. Attempting to extract
@@ -261,11 +254,29 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
 ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> expr) {
-  if (expr) {
-    return UnpackTupleOfPrimValue<PrimType>(GetType(expr.value()));
-  } else {
-    return std::nullopt;
+  if (!expr) return std::nullopt;
+
+  const Expr& value = expr.value();
+  if (const auto* tuple = value.as<TupleNode>()) {
+    ffi::Array<PrimType> output;
+    for (size_t i = 0; i < tuple->fields.size(); i++) {
+      const Expr& field = tuple->fields[i];
+      auto prim_value = field.as<PrimValueNode>();
+      TVM_FFI_CHECK(prim_value, TypeError)
+          << "The expression " << value << " cannot contain a tuple whose elements are "
+          << PrimType::ContainerType::_type_key << ", because element " << i << " is " << field;
+
+      TVM_FFI_CHECK(prim_value->value.template as<typename PrimType::ContainerType>(), TypeError)
+          << "The expression " << value << " cannot contain a tuple whose elements are "
+          << PrimType::ContainerType::_type_key << ", because element " << i << " has value "
+          << prim_value->value;
+
+      output.push_back(Downcast<PrimType>(prim_value->value));
+    }
+    return output;
   }
+
+  return UnpackTupleOfPrimValue<PrimType>(GetType(value));
 }
 
 Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
@@ -315,7 +326,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     if (!tuple) return false;
 
     return std::all_of(tuple->fields.begin(), tuple->fields.end(), [](const Type& field) {
-      return IsBaseOf(relax::PrimType(DataType::Int(64)), field);
+      return IsBaseOf(tvm::PrimType(DataType::Int(64)), field);
     });
   };
   auto check_tuple = [&](const char* name, Expr expr) {
@@ -454,7 +465,7 @@ InferLayoutOutput InferLayoutStridedSlice(
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
-  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(GetType(call->args[1]));
+  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(call->args[1]);
   TVM_FFI_ICHECK(opt_axes_tuple) << "Layout inference of " << call->op
                                  << " requires slices to be along static axes.  "
                                  << "However, expression " << call

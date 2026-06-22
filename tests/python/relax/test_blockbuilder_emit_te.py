@@ -75,7 +75,7 @@ def test_emit_te_with_symbolic_arg():
 
 
 def test_symbolic_shape_in_prim_value():
-    """Symbolic vars may be provided to TE in R.Prim"""
+    """Scalar Relax vars may be provided to TE as PrimFunc parameters."""
 
     def te_slice(tensor, i):
         return tvm.te.compute([tensor.shape[1]], lambda j: tensor[i, j], name="slice")
@@ -83,8 +83,7 @@ def test_symbolic_shape_in_prim_value():
     def from_builder():
         bb = rx.BlockBuilder()
         A = rx.Var("A", R.Tensor([16, 16], "float32"))
-        tir_i = tvm.tirx.Var("tir_i", "int64")
-        relax_i = rx.Var("relax_i", R.Prim(value=tir_i))
+        relax_i = rx.Var("relax_i", tvm.ir.PrimType("int64"))
 
         with bb.function("main", params=[A, relax_i]):
             A_sliced = bb.emit_te(te_slice, A, relax_i)
@@ -97,8 +96,8 @@ def test_symbolic_shape_in_prim_value():
         @T.prim_func(private=True, s_tir=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
-            Output: T.Buffer(T.int64(16), "float32"),
             row_index: T.int64,
+            Output: T.Buffer(T.int64(16), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -110,16 +109,13 @@ def test_symbolic_shape_in_prim_value():
         @R.function
         def main(
             A: R.Tensor([16, 16], "float32"),
-            arg_row_index: R.Prim(value="row_index"),
+            arg_row_index: R.Prim("int64"),
         ):
             cls = Expected
 
-            row_index = T.int64()
-
             gv = R.call_tir(
                 cls.te_slice,
-                A,
-                tir_vars=[row_index],
+                (A, arg_row_index),
                 out_ty=R.Tensor([16], "float32"),
             )
             return gv

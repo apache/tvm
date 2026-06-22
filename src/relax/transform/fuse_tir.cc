@@ -980,8 +980,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
       // Case 2. The relax param is a scalar, we directly create a tirx var
-      TVM_FFI_ICHECK(prim_value->value->IsInstance<tirx::VarNode>());
-      out->push_back(Downcast<tirx::Var>(prim_value->value));
+      out->push_back(tirx::Var(name_hint, prim_value->dtype));
 
     } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
@@ -1255,13 +1254,14 @@ class TIRFuseMutator : public ExprMutator {
           tir_vars.push_back(prim_value);
         }
       } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-        TVM_FFI_ICHECK(prim_value->value.defined())
-            << "FuseTIR requires all R.Prim arguments to have a known value.";
-        PrimExpr expr = prim_value->value.value();
-        TVM_FFI_ICHECK(expr->IsInstance<tirx::VarNode>())
-            << "FuseTIR currently requires all R.Prim "
-               "arguments to provide a single tirx::Var.";
-        tir_vars.push_back(expr);
+        if (const auto* literal = arg.as<PrimValueNode>()) {
+          tir_vars.push_back(literal->value);
+        } else if (const auto* var = arg.as<VarNode>()) {
+          tir_vars.push_back(tirx::Var(var->name_hint(), prim_value->dtype));
+        } else {
+          TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimValue or Var, "
+                                   << "but received " << arg;
+        }
 
       } else {
         arg_list.push_back(arg);

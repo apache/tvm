@@ -67,9 +67,9 @@ def test_dyn_tensor_type():
 
 
 def test_prim_ty():
-    s0 = rx.PrimType("float32")
-    s1 = rx.PrimType("float32")
-    s2 = rx.PrimType("int32")
+    s0 = tvm.ir.PrimType("float32")
+    s1 = tvm.ir.PrimType("float32")
+    s2 = tvm.ir.PrimType("int32")
 
     _check_equal(s0, s1)
 
@@ -79,7 +79,7 @@ def test_prim_ty():
     assert s0 == s1
     assert s0 != s2
 
-    assert isinstance(s0, rx.PrimType)
+    assert isinstance(s0, tvm.ir.PrimType)
     _check_json_roundtrip(s0)
     _check_json_roundtrip(s1)
 
@@ -88,23 +88,7 @@ def test_prim_ty():
 
     # wrong API constructors
     with pytest.raises((RuntimeError, TypeError)):
-        rx.PrimType([1])
-
-
-def test_prim_ty_with_expr():
-    n = tirx.Var("n", "int64")
-    ty = rx.PrimType(value=n + 1)
-
-    _check_equal(ty, rx.PrimType(value=n + 1))
-    assert not tvm_ffi.structural_equal(ty, rx.PrimType(dtype=n.dtype))
-
-    # can turn into str
-    str(ty)
-
-    assert isinstance(ty, rx.PrimType)
-    _check_json_roundtrip(ty)
-
-    assert ty.dtype == "int64"
+        tvm.ir.PrimType([1])
 
 
 def test_shape_ty():

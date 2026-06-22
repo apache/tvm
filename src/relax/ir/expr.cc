@@ -363,7 +363,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ffi::ObjectPtr<PrimValueNode> n = ffi::make_object<PrimValueNode>();
-  n->ty = PrimType(value);
+  n->ty = PrimType(value.dtype());
   n->value = std::move(value);
   n->span = std::move(span);
   data_ = std::move(n);

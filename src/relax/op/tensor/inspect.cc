@@ -51,7 +51,7 @@ TensorType GetTensorArgInfo(const Call& call) {
   return tensor_ty.value();
 }
 
-std::tuple<TensorType, PrimType> GetTensorArgInfoWithIndex(const Call& call) {
+std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const Call& call) {
   TVM_FFI_CHECK_EQ(call->args.size(), 2, TypeError)
       << "Operator " << call->op << " expects two arguments, "
       << "but received " << call->args.size() << " arguments: " << call->args;
@@ -68,19 +68,24 @@ std::tuple<TensorType, PrimType> GetTensorArgInfoWithIndex(const Call& call) {
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the second argument " << arg << " in expression " << call << " has type " << axis->ty;
 
-  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
+  ffi::Optional<int64_t> int_imm_axis = std::nullopt;
+  if (const auto* prim_value = axis.as<PrimValueNode>()) {
+    if (const auto* int_imm = prim_value->value.as<IntImmNode>()) {
+      int_imm_axis = int_imm->value;
+    }
+  }
 
   if (int_imm_axis) {
-    TVM_FFI_ICHECK_GE(int_imm_axis->value, 0);
+    TVM_FFI_ICHECK_GE(int_imm_axis.value(), 0);
   }
   if (int_imm_axis && !tensor_ty->IsUnknownNdim()) {
-    TVM_FFI_CHECK_LT(int_imm_axis->value, tensor_ty->ndim, ValueError)
+    TVM_FFI_CHECK_LT(int_imm_axis.value(), tensor_ty->ndim, ValueError)
         << "Expression " << call << " attempts to access " << arg << ".shape["
-        << int_imm_axis->value << "]"
+        << int_imm_axis.value() << "]"
         << ", but " << arg << ".shape only has " << tensor_ty->ndim << " elements";
   }
 
-  return {ffi::GetRef<TensorType>(tensor_ty), ffi::GetRef<PrimType>(axis_ty)};
+  return {ffi::GetRef<TensorType>(tensor_ty), int_imm_axis};
 }
 
 DataType GetTensorDataType(const Call& call) { return GetTensorArgInfo(call)->dtype; }
@@ -106,14 +111,7 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, DataTyp
   return func;
 }
 
-Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) {
-  if (auto prim_ty = call->ty.as<PrimTypeNode>()) {
-    if (prim_ty->value.defined()) {
-      return PrimValue(prim_ty->value.value());
-    }
-  }
-  return call;
-}
+Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) { return call; }
 
 //// relax.tensor_dtype_code
 
@@ -129,7 +127,7 @@ Type InferTypeTensorDtypeCode(const Call& call, const BlockBuilder&) {
   if (dtype.is_void()) {
     return PrimType(dlpack_type);
   } else {
-    return PrimType(IntImm(dlpack_type, dtype.code()));
+    return PrimType(dlpack_type);
   }
 }
 
@@ -167,7 +165,7 @@ Type InferTypeTensorDtypeBits(const Call& call, const BlockBuilder&) {
   if (dtype.is_void()) {
     return PrimType(dlpack_type);
   } else {
-    return PrimType(IntImm(dlpack_type, dtype.bits()));
+    return PrimType(dlpack_type);
   }
 }
 
@@ -205,7 +203,7 @@ Type InferTypeTensorDtypeLanes(const Call& call, const BlockBuilder&) {
   if (dtype.is_void()) {
     return PrimType(dlpack_type);
   } else {
-    return PrimType(IntImm(dlpack_type, dtype.lanes()));
+    return PrimType(dlpack_type);
   }
 }
 
@@ -243,7 +241,7 @@ Type InferTypeTensorNDim(const Call& call, const BlockBuilder&) {
   if (ty->IsUnknownNdim()) {
     return PrimType(dlpack_type);
   } else {
-    return PrimType(IntImm(dlpack_type, ty->ndim));
+    return PrimType(dlpack_type);
   }
 }
 
@@ -277,13 +275,12 @@ Expr tensor_shape_i(Expr expr) {
 Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
-  auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
+  auto [tensor_ty, int_imm_axis] = GetTensorArgInfoWithIndex(call);
 
   auto tensor_shape = tensor_ty->GetShape();
-  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis && tensor_shape.defined()) {
-    return PrimType(tensor_shape.value()[int_imm_axis->value]);
+    return PrimType(tensor_shape.value()[int_imm_axis.value()].dtype());
   } else {
     return PrimType(dlpack_type);
   }
@@ -354,10 +351,9 @@ Expr tensor_stride_i(Expr expr) {
 Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
-  auto [tensor_ty, axis_ty] = GetTensorArgInfoWithIndex(call);
+  auto [tensor_ty, int_imm_axis] = GetTensorArgInfoWithIndex(call);
 
   auto opt_tensor_shape = tensor_ty->GetShape();
-  auto int_imm_axis = axis_ty->value.as<IntImmNode>();
 
   if (int_imm_axis && opt_tensor_shape.defined()) {
     // As of 2024-03-14, Relax does not have an explicit
@@ -374,10 +370,10 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
     // for any legalizable Tensor.
     auto tensor_shape = opt_tensor_shape.value();
     PrimExpr stride = IntImm::Int64(1);
-    for (size_t axis = int_imm_axis->value + 1; axis < tensor_shape.size(); axis++) {
+    for (size_t axis = int_imm_axis.value() + 1; axis < tensor_shape.size(); axis++) {
       stride = stride * tensor_shape[axis];
     }
-    return PrimType(stride);
+    return PrimType(stride.dtype());
   } else {
     return PrimType(dlpack_type);
   }
@@ -409,7 +405,7 @@ Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
     // Relax implicitly requires that the byte offset is zero for any
     // legalizable tensor.  See InferTypeTensorStride for full
     // explanation.
-    return PrimType(IntImm(dlpack_type, 0));
+    return PrimType(dlpack_type);
   } else {
     return PrimType(dlpack_type);
   }
@@ -440,7 +436,7 @@ Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
     // Relax implicitly requires that the element offset is zero for
     // any legalizable tensor.  See InferTypeTensorStride for
     // full explanation.
-    return PrimType(IntImm(dlpack_type, 0));
+    return PrimType(dlpack_type);
   } else {
     return PrimType(dlpack_type);
   }

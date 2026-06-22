@@ -29,11 +29,7 @@ namespace relax {
 
 void TypeVisitor::VisitType_(const ObjectTypeNode* op) {}
 
-void TypeVisitor::VisitType_(const PrimTypeNode* op) {
-  if (op->value.defined()) {
-    this->VisitTypeExprField(op->value.value());
-  }
-}
+void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const ShapeTypeNode* op) {
   if (op->values.defined()) {
@@ -70,18 +66,7 @@ void TypeVisitor::VisitType_(const FuncTypeNode* op) {
 
 Type TypeMutator::VisitType_(const ObjectTypeNode* op) { return ffi::GetRef<Type>(op); }
 
-Type TypeMutator::VisitType_(const PrimTypeNode* op) {
-  if (!op->value.defined()) {
-    return ffi::GetRef<Type>(op);
-  }
-
-  auto new_expr = VisitTypeExprField(op->value.value());
-  if (new_expr.same_as(op->value)) {
-    return ffi::GetRef<Type>(op);
-  } else {
-    return PrimType(new_expr);
-  }
-}
+Type TypeMutator::VisitType_(const PrimTypeNode* op) { return ffi::GetRef<Type>(op); }
 
 Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
   if (!op->values.defined()) {

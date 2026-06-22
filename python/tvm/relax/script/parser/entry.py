@@ -20,12 +20,12 @@ from collections.abc import Callable as _Callable
 from typing import Any, TypeVar
 
 import tvm
+from tvm.ir import PrimType
 from tvm.relax import (
     Expr,
     Function,
     FuncType,
     ObjectType,
-    PrimType,
     SeqExpr,
     ShapeExpr,
     ShapeType,
@@ -444,7 +444,6 @@ def Shape(values: list[PrimExpr] | None = None, ndim: int = -1) -> ShapeProxy:
 
 class PrimProxy(TypeProxy):
     dtype: str | None
-    value: int | float | str | PrimExpr | None
 
     """The type of TIR-representable values.
 
@@ -453,8 +452,6 @@ class PrimProxy(TypeProxy):
     dtype : Optional[str]
        The data type.
 
-    value: Optional[Union[int, float, str, PrimExpr]]
-       The known value
     """
 
     def __init__(
@@ -462,26 +459,23 @@ class PrimProxy(TypeProxy):
         dtype: str | None = None,
         value: int | float | str | PrimExpr | None = None,
     ) -> None:
-        if dtype is None and value is None:
-            raise TypeError(
-                "R.Prim missing required argument.  Must provide either 'dtype' or 'value'"
-            )
+        if dtype is None:
+            if isinstance(value, PrimExpr):
+                dtype = value.dtype
+            elif isinstance(value, float):
+                dtype = "float32"
+            elif value is not None:
+                dtype = "int64"
+            else:
+                raise TypeError("R.Prim missing required argument 'dtype'")
 
         self.dtype = dtype
-        self.value = value
 
     def get_symbolic_vars(self) -> set[str]:
-        if isinstance(self.value, str) and self.value.isidentifier():
-            return {self.value}
-        else:
-            return set()
+        return set()
 
     def as_ty(self, dict_globals: dict[str, Any] | None = None) -> PrimType:
-        if self.value is None:
-            return PrimType(dtype=self.dtype)
-        else:
-            value = _eval_shape(self.value, dict_globals)
-            return PrimType(dtype=self.dtype, value=value)
+        return PrimType(self.dtype)
 
 
 def Prim(
@@ -515,7 +509,10 @@ def _normalize_ty_proxy(annotation) -> TypeProxy:
     if annotation is None:
         return TupleProxy([])
     elif callable(annotation):
-        return annotation()
+        annotation = annotation()
+        if isinstance(annotation, PrimExpr):
+            return PrimProxy(annotation.dtype)
+        return annotation
     elif isinstance(annotation, TypeProxy):
         return annotation
     else:

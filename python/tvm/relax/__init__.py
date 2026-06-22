@@ -54,7 +54,6 @@ from .expr import const, extern, get_shape_of
 from .type import (
     Type,
     ObjectType,
-    PrimType,
     ShapeType,
     TensorType,
     TupleType,

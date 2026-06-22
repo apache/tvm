@@ -177,8 +177,8 @@ def test_object_ty():
 
 
 def test_prim_ty():
-    obj = relax.PrimType("float32")
-    _assert_print(obj, 'R.Prim("float32")')
+    obj = tvm.ir.PrimType("float32")
+    _assert_print(obj, "T.float32")
 
 
 def test_shape_ty_0():
@@ -223,7 +223,7 @@ def test_tuple_ty_empty():
 def test_tuple_ty():
     obj = relax.TupleType(
         [
-            relax.PrimType("float32"),
+            tvm.ir.PrimType("float32"),
             relax.ObjectType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
         ]
@@ -231,7 +231,7 @@ def test_tuple_ty():
     _assert_print(
         obj._relax_script(),  # pylint: disable=protected-access
         """
-R.Tuple(R.Prim("float32"), R.Object, R.Shape([1, a, 3]))
+R.Tuple(T.float32, R.Object, R.Shape([1, a, 3]))
 """,
     )
 
@@ -239,10 +239,10 @@ R.Tuple(R.Prim("float32"), R.Object, R.Shape([1, a, 3]))
 def test_func_ty():
     obj = relax.FuncType(
         params=[
-            relax.PrimType("float32"),
+            tvm.ir.PrimType("float32"),
             relax.ObjectType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
-            relax.PrimType(value=tirx.Var("b", "int64")),
+            tvm.ir.PrimType("int64"),
         ],
         ret=relax.TensorType(
             shape=relax.ShapeExpr([1, 2, 3]),
@@ -252,8 +252,7 @@ def test_func_ty():
     _assert_print(
         obj,
         "a = T.int64()\n"
-        "b = T.int64()\n"
-        'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3]), R.Prim(value=b)), '
+        "R.Callable((T.float32, R.Object, R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 

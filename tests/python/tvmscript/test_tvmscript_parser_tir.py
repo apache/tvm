@@ -413,10 +413,10 @@ def test_inferred_ty_with_prim_args():
 
     expected = tvm.relax.FuncType(
         [
-            tvm.relax.PrimType("int32"),
-            tvm.relax.PrimType("int32"),
+            tvm.ir.PrimType("int32"),
+            tvm.ir.PrimType("int32"),
         ],
-        tvm.relax.PrimType("int32"),
+        tvm.ir.PrimType("int32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
@@ -434,7 +434,7 @@ def test_inferred_ty_with_buffer_args():
             tvm.relax.TensorType([16, 16], "float32"),
             tvm.relax.TensorType([256], "int32"),
         ],
-        tvm.relax.PrimType("float32"),
+        tvm.ir.PrimType("float32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
@@ -460,7 +460,7 @@ def test_inferred_ty_with_internal_allocation():
         [
             tvm.relax.TensorType([16, 16], "float32"),
         ],
-        tvm.relax.PrimType("float32"),
+        tvm.ir.PrimType("float32"),
         purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)

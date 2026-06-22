@@ -736,7 +736,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       return ExternFuncPattern(func->global_symbol);
 
     } else if (auto prim = expr.as<PrimValueNode>()) {
-      return TypePattern(WildcardPattern(), PrimType(prim->value));
+      return TypePattern(WildcardPattern(), PrimType(prim->value.dtype()));
 
     } else {
       TVM_FFI_THROW(TypeError) << "Cannot convert Relax expression of type " << expr->GetTypeKey()

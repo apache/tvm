@@ -216,7 +216,7 @@ class LazyTransformParamsFuncCreator:
             # direct iterate over the type annotation
             for param in func.params[num_input:]:
                 for ty in unpack_ty(param.ty):
-                    if isinstance(ty, relax.PrimType | relax.ShapeType):
+                    if isinstance(ty, tvm.ir.PrimType | relax.ShapeType):
                         params.append(relax.Var("symbolic_var_holder", ty))
 
         return relax.Function(

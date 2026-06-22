@@ -289,7 +289,7 @@ def test_reshape_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     ns = relax.Var("ns", relax.TensorType((120,), "float32"))
-    pv = relax.Var("pv", relax.PrimType("int64"))
+    pv = relax.Var("pv", tvm.ir.PrimType("int64"))
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.reshape(x0, (2, 3, 4, 5)))
@@ -2222,7 +2222,7 @@ def test_split_infer_ty_axis_out_of_range():
 def test_split_infer_invalid_ty_indices():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
-    v = relax.Var("v", relax.PrimType("int64"))
+    v = relax.Var("v", tvm.ir.PrimType("int64"))
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.split(x0, [v], axis=1))

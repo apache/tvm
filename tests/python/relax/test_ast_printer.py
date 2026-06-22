@@ -289,7 +289,7 @@ def test_ty():
 
     assert printer.visit_ty_(rx.ObjectType()) == "ObjectType()"
 
-    assert printer.visit_ty_(rx.PrimType("int32")) == "PrimType(dtype=int32)"
+    assert printer.visit_ty_(tvm.ir.PrimType("int32")) == "PrimType(dtype=int32)"
 
     # empty shape
     empty_ssi = rx.ShapeType()

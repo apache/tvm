@@ -204,6 +204,7 @@ def test_bind_symbolic_vars_in_shape_expr():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_bind_defining_of_symbolic_vars_in_prim_value():
     """R.Prim may define symbolic variables
 

@@ -556,6 +556,7 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
         func(R.prim_value(2))
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations are erased to dtype-only PrimType")
 def test_vm_relax_symbolic_prim_value(exec_mode):
     @I.ir_module(s_tir=True)
     class mod:
@@ -576,6 +577,7 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
         func(Shape([2]))
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations are erased to dtype-only PrimType")
 def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
     """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
 

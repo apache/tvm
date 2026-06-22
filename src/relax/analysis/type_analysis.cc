@@ -87,8 +87,6 @@ Type TypeFromStaticType(const Type& type) {
     return ObjectType(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return PrimType(prim_type->dtype, prim_type->span);
-  } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
-    return PrimType(prim_type->dtype, prim_type->span);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
     return ShapeType(shape_type->ndim, type->span);
   } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
@@ -127,27 +125,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
                     arith::AnalyzerObj* ana)
       : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
 
-  Type VisitType_(const PrimTypeNode* op) final {
-    bool has_undefined = false;
-    ffi::Optional<PrimExpr> value;
-
-    if (op->value.defined()) {
-      std::swap(has_undefined_, has_undefined);
-      value = VisitPrimExpr(op->value.value());
-      std::swap(has_undefined_, has_undefined);
-    }
-
-    // erase symbolic shape if we have undefined.
-    if (!has_undefined) {
-      if (value.same_as(op->value)) {
-        return ffi::GetRef<Type>(op);
-      } else {
-        return PrimType(value.value(), op->span);
-      }
-    } else {
-      return PrimType(op->dtype, op->span);
-    }
-  }
+  Type VisitType_(const PrimTypeNode* op) final { return ffi::GetRef<Type>(op); }
 
   Type VisitType_(const ShapeTypeNode* op) final {
     bool has_undefined = false;
@@ -341,10 +319,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
       return BaseCheckResult::kFailL0;
     }
 
-    if (!lhs->value.defined()) return BaseCheckResult::kPass;
-    if (!rhs->value.defined()) return BaseCheckResult::kFailL2;
-
-    return PrimValueMatchCheck(lhs->value.value(), rhs->value.value());
+    return BaseCheckResult::kPass;
   }
 
   BaseCheckResult VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
@@ -662,13 +637,7 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
       return IntImm::Bool(false);
     }
 
-    if (lhs->value.defined() && rhs->value.defined()) {
-      return lhs->value.value() == rhs->value.value();
-    } else if (lhs->value.defined() && !rhs->value.defined()) {
-      return IntImm::Bool(false);
-    } else {
-      return IntImm::Bool(true);
-    }
+    return IntImm::Bool(true);
   }
 
   PrimExpr VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
@@ -1019,19 +988,6 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       // as a result we can unify to object.
       return ObjectType(lhs->span);
     }
-    if (!lhs->value.defined() || !rhs->value.defined() ||
-        !analyzer_->CanProveEqual(lhs->value.value(), rhs->value.value())) {
-      // The two values are known to contain the same dtype, but may
-      // contain different values.
-      if (!lhs->value.defined()) {
-        // If the mismatch was due to extra information in the RHS,
-        // prefer to avoid constructing a new object.
-        return ffi::GetRef<Type>(lhs);
-      } else {
-        return PrimType(lhs->dtype, lhs->span);
-      }
-    }
-
     return ffi::GetRef<Type>(lhs);
   }
 
@@ -1234,11 +1190,7 @@ class TIRVarsDetector : public TypeVisitor {
     }
   }
 
-  void VisitType_(const PrimTypeNode* prim_ty) final {
-    if (prim_ty->value.defined()) {
-      VisitPrimExpr(prim_ty->value.value());
-    }
-  }
+  void VisitType_(const PrimTypeNode* prim_ty) final {}
 
   void VisitType_(const ShapeTypeNode* shape_ty) final {
     if (shape_ty->values.defined()) {

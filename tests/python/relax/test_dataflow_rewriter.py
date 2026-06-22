@@ -366,6 +366,7 @@ def test_recursive_rewrite_rules():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim match-cast semantics were removed")
 def test_rewrite_of_arbitrary_dtype():
     """A pattern-match may apply to a tensor with unknown dtype
 
