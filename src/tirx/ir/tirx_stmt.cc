@@ -36,17 +36,13 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
                                      ffi::Map<ffi::String, Buffer> workspace,
                                      ffi::Map<ffi::String, ffi::Any> config,
                                      ffi::Optional<ffi::String> dispatch, ExecScope scope) {
+  TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
       << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
-  // Construct the TilePrimitiveCall.
-  ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>();
-  n->op = std::move(op);
-  n->args = std::move(args);
-  n->workspace = std::move(workspace);
-  n->config = std::move(config);
-  n->dispatch = std::move(dispatch);
-  n->scope = std::move(scope);
+  ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>(
+      std::move(op), std::move(args), std::move(workspace), std::move(config), std::move(dispatch),
+      std::move(scope));
   data_ = std::move(n);
 }
 

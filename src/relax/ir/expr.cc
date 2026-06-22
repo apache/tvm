@@ -57,6 +57,7 @@ Id::Id(ffi::String name_hint) {
 }
 
 Call::Call(Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args, Span span) {
+  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
   TVM_FFI_CHECK(!op->ty.defined() || op->ty->IsInstance<FuncTypeNode>(), ValueError)
       << "Call expects its operator to have FuncType, "
       << "but operator " << op << ", which was called with arguments " << args << ", has type "
@@ -80,6 +81,8 @@ Call WithFields(Call call, ffi::Optional<Expr> opt_op, ffi::Optional<ffi::Array<
   Attrs attrs = opt_attrs.value_or(call->attrs);
   ffi::Array<Type> ty_args = opt_ty_args.value_or(call->ty_args);
   Span span = opt_span.value_or(call->span);
+
+  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
 
   // Check if anything changed.
   bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
