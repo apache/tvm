@@ -958,7 +958,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             outputs = outputs[::-1]
 
         output = self.block_builder.emit(relax.op.stack(outputs, axis=0))
-        return output
+        # 'h_prev' is the hidden state after the final processed time step (this direction' s h_n)
+        # independent of the output-sequence ordering above.
+        return output, h_prev
 
     def _rnn_tanh(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1067,7 +1069,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
         # Process forward direction
-        output_fwd = self._rnn_tanh_cell_unroll(
+        output_fwd, h_n_fwd = self._rnn_tanh_cell_unroll(
             input_reshaped,
             weight_ih_fwd,
             weight_hh_fwd,
@@ -1080,7 +1082,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Process backward direction if bidirectional
         if bidirectional:
-            output_bwd = self._rnn_tanh_cell_unroll(
+            output_bwd, h_n_bwd = self._rnn_tanh_cell_unroll(
                 input_reshaped,
                 weight_ih_bwd,
                 weight_hh_bwd,
@@ -1090,16 +1092,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 seq_len,
                 reverse=True,
             )
-            # Concatenate forward and backward outputs along feature dimension
+            # Concatenate forward and backward outputs along the feature dimension
             output = self.block_builder.emit(relax.op.concat([output_fwd, output_bwd], axis=2))
+            h_n = self.block_builder.emit(relax.op.stack([h_n_fwd, h_n_bwd], axis=0))
         else:
             output = output_fwd
+            h_n = self.block_builder.emit(relax.op.expand_dims(h_n_fwd, axis=0))
 
-        # Reshape back to batch_first if needed
+        # Reshape the output back to batch_first if needed (h_n is layout-independent).
         if batch_first:
             output = self.block_builder.emit(relax.op.permute_dims(output, axes=[1, 0, 2]))
 
-        return output
+        return self.block_builder.emit(relax.op.Tuple([output, h_n]))
 
     ########## Manipulation ##########
 

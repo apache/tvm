@@ -8538,112 +8538,59 @@ def test_gru():
 
 
 def test_rnn_tanh():
-    class BasicRNN(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.rnn = nn.RNN(
-                input_size=4,
-                hidden_size=8,
-                num_layers=1,
-                nonlinearity="tanh",
-                batch_first=True,
-                bidirectional=False,
-            )
-
-        def forward(self, x):
-            y, _ = self.rnn(x)
-            return y
-
-    torch.manual_seed(42)
-    x = torch.randn(2, 3, 4, dtype=torch.float32)
-    model = BasicRNN()
-    with torch.no_grad():
-        pytorch_output = model(x)
-    exported_program = export(model, args=(x,))
-    mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
-    ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_tvm = tvm.runtime.tensor(x.numpy())
-    tvm_output = vm["main"](x_tvm)
-    if hasattr(tvm_output, "numpy"):
-        tvm_output_np = tvm_output.numpy()
-    else:
-        tvm_output_np = tvm_output[0].numpy()
-    assert pytorch_output.shape == tvm_output_np.shape, (
-        f"Shape mismatch: PyTorch {pytorch_output.shape} vs TVM {tvm_output_np.shape}"
+
+    def _check(rnn_kwargs, x_shape, seed):
+        class RNNWithState(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.rnn = nn.RNN(nonlinearity="tanh", num_layers=1, **rnn_kwargs)
+
+            def forward(self, x):
+                output, h_n = self.rnn(x)
+                return output, h_n
+
+        torch.manual_seed(seed)
+        x = torch.randn(*x_shape, dtype=torch.float32)
+        model = RNNWithState()
+        with torch.no_grad():
+            pt_out, pt_hn = model(x)
+
+        exported_program = export(model, args=(x,))
+        mod = from_exported_program(exported_program, run_ep_decomposition=False)
+        ex = relax.build(mod, target)
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        tvm_outputs = vm["main"](tvm.runtime.tensor(x.numpy()))
+        tvm_out_np = tvm_outputs[0].numpy()
+        tvm_hn_np = tvm_outputs[1].numpy()
+
+        assert pt_out.shape == tvm_out_np.shape, (
+            f"output shape mismatch: PyTorch {tuple(pt_out.shape)} vs TVM {tvm_out_np.shape}"
+        )
+        assert pt_hn.shape == tvm_hn_np.shape, (
+            f"h_n shape mismatch: PyTorch {tuple(pt_hn.shape)} vs TVM {tvm_hn_np.shape}"
+        )
+        tvm.testing.assert_allclose(pt_out.numpy(), tvm_out_np, rtol=1e-4, atol=1e-5)
+        tvm.testing.assert_allclose(pt_hn.numpy(), tvm_hn_np, rtol=1e-4, atol=1e-5)
+
+    # batch_first, unidirectional
+    _check(
+        {"input_size": 4, "hidden_size": 8, "batch_first": True, "bidirectional": False},
+        (2, 3, 4),
+        seed=42,
     )
-    tvm.testing.assert_allclose(pytorch_output.numpy(), tvm_output_np, rtol=1e-4, atol=1e-5)
-
-    # seq-first (batch_first=False)
-    class SeqFirstRNN(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.rnn = nn.RNN(
-                input_size=3,
-                hidden_size=6,
-                num_layers=1,
-                nonlinearity="tanh",
-                batch_first=False,
-                bidirectional=False,
-            )
-
-        def forward(self, x):
-            y, _ = self.rnn(x)
-            return y
-
-    torch.manual_seed(43)
-    x2 = torch.randn(4, 2, 3, dtype=torch.float32)
-    model2 = SeqFirstRNN()
-    with torch.no_grad():
-        pytorch_output2 = model2(x2)
-    exported_program2 = export(model2, args=(x2,))
-    mod2 = from_exported_program(exported_program2)
-    ex2 = relax.build(mod2, target)
-    vm2 = relax.VirtualMachine(ex2, tvm.cpu())
-    x2_tvm = tvm.runtime.tensor(x2.numpy())
-    tvm_output2 = vm2["main"](x2_tvm)
-    if hasattr(tvm_output2, "numpy"):
-        tvm_output2_np = tvm_output2.numpy()
-    else:
-        tvm_output2_np = tvm_output2[0].numpy()
-    assert pytorch_output2.shape == tvm_output2_np.shape
-    tvm.testing.assert_allclose(pytorch_output2.numpy(), tvm_output2_np, rtol=1e-4, atol=1e-5)
-
-    # bidirectional
-    class BidirectionalRNN(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.rnn = nn.RNN(
-                input_size=4,
-                hidden_size=8,
-                num_layers=1,
-                nonlinearity="tanh",
-                batch_first=True,
-                bidirectional=True,
-            )
-
-        def forward(self, x):
-            y, _ = self.rnn(x)
-            return y
-
-    torch.manual_seed(44)
-    x3 = torch.randn(2, 3, 4, dtype=torch.float32)
-    model3 = BidirectionalRNN()
-    with torch.no_grad():
-        pytorch_output3 = model3(x3)
-    exported_program3 = export(model3, args=(x3,))
-    mod3 = from_exported_program(exported_program3)
-    ex3 = relax.build(mod3, target)
-    vm3 = relax.VirtualMachine(ex3, tvm.cpu())
-    x3_tvm = tvm.runtime.tensor(x3.numpy())
-    tvm_output3 = vm3["main"](x3_tvm)
-    if hasattr(tvm_output3, "numpy"):
-        tvm_output3_np = tvm_output3.numpy()
-    else:
-        tvm_output3_np = tvm_output3[0].numpy()
-    assert pytorch_output3.shape == tvm_output3_np.shape
-    tvm.testing.assert_allclose(pytorch_output3.numpy(), tvm_output3_np, rtol=1e-4, atol=1e-5)
+    # seq-first (batch_first=False), unidirectional
+    _check(
+        {"input_size": 3, "hidden_size": 6, "batch_first": False, "bidirectional": False},
+        (4, 2, 3),
+        seed=43,
+    )
+    # bidirectional, batch_first
+    _check(
+        {"input_size": 4, "hidden_size": 8, "batch_first": True, "bidirectional": True},
+        (2, 3, 4),
+        seed=44,
+    )
 
 
 def test_dynamic_shape_with_range_constraints():
