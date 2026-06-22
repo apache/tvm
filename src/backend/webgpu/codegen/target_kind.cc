@@ -35,11 +35,11 @@ namespace webgpu {
 ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   bool subgroups = false;
   if (target.count("supports_subgroups")) {
-    subgroups = target.at("supports_subgroups").as_or_throw<IntImm>()->value != 0;
+    subgroups = target.at("supports_subgroups").cast<bool>();
   }
 
   if (target.count("thread_warp_size")) {
-    int64_t thread_warp_size = target.at("thread_warp_size").as_or_throw<IntImm>()->value;
+    int64_t thread_warp_size = target.at("thread_warp_size").cast<int64_t>();
     TVM_FFI_ICHECK(subgroups || thread_warp_size <= 1)
         << "WebGPU target with thread_warp_size=" << thread_warp_size
         << " requires supports_subgroups=true";

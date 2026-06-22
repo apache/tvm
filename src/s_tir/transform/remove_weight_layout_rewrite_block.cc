@@ -54,7 +54,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
     auto it = block->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
-    if (it == block->annotations.end() || !is_one((*it).second.as_or_throw<PrimExpr>())) {
+    if (it == block->annotations.end() || !is_one((*it).second.cast<PrimExpr>())) {
       // The block is not a weight layout block
       // Remove allocates if needed
       ffi::Array<Buffer> alloc_buffers;
