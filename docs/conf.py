@@ -354,7 +354,7 @@ todo_include_todos = False
 # -- Options for HTML output ----------------------------------------------
 
 # The theme is set by the make target
-html_theme = os.environ.get("TVM_THEME", "rtd")
+html_theme = os.environ.get("TVM_THEME", "sphinx_book_theme")
 
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 # only import rtd theme and set it if want to build docs locally
@@ -366,9 +366,25 @@ if not on_rtd and html_theme == "rtd":
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-html_theme_options = {
-    "logo_only": True,
-}
+if html_theme == "sphinx_book_theme":
+    html_theme_options = {
+        "repository_url": "https://github.com/apache/tvm",
+        "repository_branch": "main",
+        "path_to_docs": "docs/",
+        "use_repository_button": True,
+        "use_issues_button": True,
+        "use_edit_page_button": False,
+        "home_page_in_toc": False,
+        "show_navbar_depth": 1,
+        "show_toc_level": 2,
+    }
+else:
+    html_theme_options = {
+        "logo_only": True,
+    }
+
+if html_theme == "sphinx_book_theme":
+    html_css_files = ["css/tirx_theme.css"]
 
 html_logo = "_static/img/tvm-logo-small.png"
 
@@ -561,9 +577,12 @@ html_context = {
     "edit_link_hook_fn": fixup_tutorials,
 }
 
-# add additional overrides
-templates_path += [tlcpack_sphinx_addon.get_templates_path()]
-html_static_path += [tlcpack_sphinx_addon.get_static_path()]
+# add additional overrides. The tlcpack templates override layout.html for the
+# RTD theme (and assume its header/footer html_context); only apply them when the
+# RTD theme is active so they don't clobber another theme's own layout.
+if html_theme == "sphinx_rtd_theme":
+    templates_path += [tlcpack_sphinx_addon.get_templates_path()]
+    html_static_path += [tlcpack_sphinx_addon.get_static_path()]
 
 
 def update_alias_docstring(name, obj, lines):

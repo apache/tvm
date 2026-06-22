@@ -26,6 +26,11 @@ export OMP_NUM_THREADS=1
 IS_LOCAL=${IS_LOCAL:-0}
 PYTHON_DOCS_ONLY=${PYTHON_DOCS_ONLY:-0}
 
+# sphinx-book-theme is declared in docker/install/ubuntu_install_sphinx.sh, but the
+# currently-published ci-gpu image predates that dependency. Install it here so the
+# docs build can use the book theme until the CI image is refreshed.
+uv pip install "sphinx-book-theme==1.1.4"
+
 cleanup()
 {
     rm -rf /tmp/$$.log.txt
