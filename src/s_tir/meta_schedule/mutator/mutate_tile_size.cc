@@ -36,12 +36,16 @@ using s_tir::Trace;
 /*!
  * \brief Cast the decision of Sample-Perfect-Tile to an array of integers
  * \param decision The decision of Sample-Perfect-Tile
- * \return The result of downcast
+ * \return The converted tile sizes
  */
-std::vector<int64_t> DowncastTilingDecision(const ffi::ObjectRef& decision) {
-  const auto* arr = TVM_TYPE_AS(decision, ffi::ArrayObj);
+std::vector<int64_t> CastTilingDecision(const ffi::ObjectRef& decision) {
+  Any decision_any;
+  decision_any = decision;
+  if (auto int_array = decision_any.try_cast<ffi::Array<int64_t>>()) {
+    return std::vector<int64_t>(int_array->begin(), int_array->end());
+  }
   return support::AsVector<ffi::ObjectRef, int64_t>(
-      ffi::GetRef<ffi::ObjectRef>(arr).as_or_throw<ffi::Array<ffi::ObjectRef>>());
+      decision_any.cast<ffi::Array<ffi::ObjectRef>>());
 }
 
 /*!
@@ -98,7 +102,7 @@ void FindSamplePerfectTile(const Trace& trace, std::vector<Instruction>* inst,
   for (const auto& kv : trace->decisions) {
     const Instruction& inst = kv.first;
     if (inst->kind.same_as(inst_sample_perfect_tile)) {
-      std::vector<int64_t> tiles = DowncastTilingDecision(kv.second.cast<ffi::ObjectRef>());
+      std::vector<int64_t> tiles = CastTilingDecision(kv.second.cast<ffi::ObjectRef>());
       if (tiles.size() >= 2 && Product(tiles) >= 2) {
         instructions.push_back(inst);
         decisions.push_back(tiles);
