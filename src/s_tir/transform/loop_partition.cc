@@ -498,7 +498,7 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
 
   for (const auto& kv : partitions) {
     if (kv.first.second == cond_value) {
-      arith::IntervalSet interval = Downcast<arith::IntervalSet>(kv.second);
+      arith::IntervalSet interval = kv.second.as_or_throw<arith::IntervalSet>();
       arith::IntervalSet intersection = arith::Intersect(analyzer_.get(), interval, for_interval);
 
       if (!intersection->IsEmpty()) {
@@ -517,7 +517,7 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
 
     for (const auto& kv : partitions) {
       if (kv.first.second == cond_value) {
-        arith::IntervalSet cond_interval = Downcast<arith::IntervalSet>(kv.second);
+        arith::IntervalSet cond_interval = kv.second.as_or_throw<arith::IntervalSet>();
         arith::IntervalSet intersection =
             arith::Intersect(analyzer_.get(), cond_interval, for_interval);
         if (!intersection->IsEmpty()) {
@@ -671,7 +671,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   }
   bool cond_value = opt_cond_value.value();
 
-  IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
+  IntervalSet middle_interval_i = middle_interval.as_or_throw<IntervalSet>();
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that

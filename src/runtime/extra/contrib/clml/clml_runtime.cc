@@ -23,6 +23,7 @@
  */
 #include "clml_runtime.h"
 
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/support/io.h>

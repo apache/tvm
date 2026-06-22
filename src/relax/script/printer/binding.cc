@@ -35,7 +35,7 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
   };
   if (var.defined()) {
     for (ffi::Array<StmtDoc>& stmts : branches) {
-      ExprDoc ret = Downcast<ExprStmtDoc>(stmts.back())->expr;
+      ExprDoc ret = stmts.back().as_or_throw<ExprStmtDoc>()->expr;
       stmts.Set(stmts.size() - 1, AssignDoc(var.value(), ret, ann));
     }
   }

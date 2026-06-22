@@ -109,10 +109,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // Add lower bound constraints
     if (lower_bounds) {
       for (const auto& [key, obj_bound] : lower_bounds.value()) {
-        auto tir_var_name = Downcast<ffi::String>(key);
+        auto tir_var_name = key;
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
-          auto expr_bound = Downcast<PrimExpr>(obj_bound);
+          auto expr_bound = obj_bound.cast<PrimExpr>();
           symbolic_var_constraints = symbolic_var_constraints && (expr_bound <= var);
         }
       }
@@ -121,10 +121,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // Add upper bound constraints
     if (upper_bounds) {
       for (const auto& [key, obj_bound] : upper_bounds.value()) {
-        auto tir_var_name = Downcast<ffi::String>(key);
+        auto tir_var_name = key;
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
-          auto expr_bound = Downcast<PrimExpr>(obj_bound);
+          auto expr_bound = obj_bound.cast<PrimExpr>();
           symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
         }
       }

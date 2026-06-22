@@ -159,7 +159,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
 }
 
 Call InferMixedPrecisionMatmul(const Call& call, const DataType& out_dtype) {
-  return Downcast<Call>(matmul(call->args[0], call->args[1], out_dtype));
+  return matmul(call->args[0], call->args[1], out_dtype).as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.matmul")

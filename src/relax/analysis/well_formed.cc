@@ -401,7 +401,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
       if (normalized.defined()) {
         auto inferred_ty = GetType(normalized.value());
-        auto current_ty = Downcast<Type>(call->ty);
+        auto current_ty = call->ty.as_or_throw<Type>();
 
         // An error should be raised if the annotated Type is
         // provably incorrect.  This check is done using

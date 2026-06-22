@@ -775,7 +775,7 @@ void PythonDocPrinter::PrintTypedDoc(const OpCallDoc& doc) {
       int n = dict->keys.size();
       for (int i = 0; i < n; ++i) {
         const auto* lit = dict->keys[i].as<LiteralDocNode>();
-        std::string key = Downcast<ffi::String>(lit->value);
+        std::string key = lit->value.as_or_throw<ffi::String>();
         if (wrote_any) output_ << ", ";
         wrote_any = true;
         output_ << key << "=";

@@ -320,6 +320,12 @@ def test_call_raises_error_for_invalid_function():
         rx.Call(func, [arg])
 
 
+def test_call_raises_error_for_missing_operator():
+    """relax::Call requires a defined operator."""
+    with pytest.raises(ValueError, match="defined operator"):
+        rx.Call(None, [])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
 

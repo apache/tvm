@@ -172,7 +172,7 @@ class CallSubstitutor : public StmtExprMutator {
   using StmtExprMutator::VisitStmt_;
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+    auto call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     // Only substitute calls when not under GPU scope
     if (!is_under_gpu_scope_) {
@@ -237,7 +237,7 @@ class CallSubstitutor : public StmtExprMutator {
  */
 IRModule BindTarget(IRModule mod, const Target& target) {
   // Extract host and device targets
-  auto target_host = Downcast<Target>(target->host.value_or(Target("llvm")));
+  auto target_host = target->host.value_or(Target("llvm")).as_or_throw<Target>();
   auto target_without_host = target.WithoutHost();
 
   auto mod_copy_on_write = mod.CopyOnWrite();
@@ -350,7 +350,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
           prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
-        PrimFunc new_func = substitutor.Substitute(Downcast<PrimFunc>(func));
+        PrimFunc new_func = substitutor.Substitute(func.as_or_throw<PrimFunc>());
         new_mod->Update(gvar, new_func);
       }
     }

@@ -36,7 +36,7 @@ class VDeviceMutator : public ExprMutator {
   VDeviceMutator(const IRModule& mod, VDevice new_vdevice, int64_t index)
       : ExprMutator(mod), mod_(mod), new_vdevice_(new_vdevice) {
     ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
-    old_vdevice_ = Downcast<VDevice>(vdevices[index]);
+    old_vdevice_ = vdevices[index].as_or_throw<VDevice>();
   }
 
   using ExprMutator::VisitExpr_;
@@ -69,7 +69,7 @@ class VDeviceMutator : public ExprMutator {
   IRModule Run() {
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<relax::FunctionNode>()) {
-        relax::Function update_func = Downcast<Function>(VisitExpr(func));
+        relax::Function update_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, update_func);
       }
     }

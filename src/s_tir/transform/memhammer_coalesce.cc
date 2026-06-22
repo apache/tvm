@@ -67,7 +67,7 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = Downcast<IntImm>(loop->extent)->value;
+  int loop_extent = loop->extent.as_or_throw<IntImm>()->value;
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -206,9 +206,9 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     if (is_one(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
-      Var var = Downcast<Var>(loop_vars[j]).copy_with_suffix("_inverse");
+      Var var = loop_vars[j].as_or_throw<Var>().copy_with_suffix("_inverse");
       new_loop_vars.push_back(var);
-      substitute_map.Set(Downcast<Var>(loop_vars[j++]), var);
+      substitute_map.Set(loop_vars[j++].as_or_throw<Var>(), var);
       write_index.push_back(write_region->region[i]->min + var);
     }
   }
@@ -219,7 +219,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     } else {
       read_index.push_back(
           read_region->region[i]->min +
-          Substitute(inverse_mapping[Downcast<Var>(loop_vars[j++])], substitute_map));
+          Substitute(inverse_mapping[loop_vars[j++].as_or_throw<Var>()], substitute_map));
     }
   }
   BufferLoad new_buf_load = BufferLoad(read_region->buffer, read_index);

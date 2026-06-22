@@ -259,7 +259,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     auto record_explicit_region = [&](const ffi::String& attr_key, BufferIndexType index_type) {
       auto it = op->annotations.find(attr_key);
       if (it != op->annotations.end()) {
-        ffi::Array<int64_t> buffer_indices = Downcast<ffi::Array<int64_t>>((*it).second);
+        ffi::Array<int64_t> buffer_indices = (*it).second.as_or_throw<ffi::Array<int64_t>>();
         for (int64_t index : buffer_indices) {
           int buffer_index = static_cast<int>(index);
           if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
@@ -318,7 +318,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iter = Downcast<IterVar>(op->node);
+      IterVar iter = op->node.as_or_throw<IterVar>();
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;
       if (!dom.defined()) {  // dom is empty for legacy te schedule
@@ -568,14 +568,14 @@ class BufferCompactor : public StmtExprMutator {
       : buffer_info_(std::move(buffer_info)) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
     return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     BufferLoadNode* op = load.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
     return load;
@@ -588,7 +588,7 @@ class BufferCompactor : public StmtExprMutator {
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
     // Step 2. Recursively rewrite BufferLoad/BufferStore.
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
     // Step 3. Update block signature.
     SBlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
@@ -609,7 +609,7 @@ class BufferCompactor : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    AllocBuffer alloc_buf = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    AllocBuffer alloc_buf = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
     auto it = buffer_info_.find(alloc_buf->buffer->data);
     if (it == buffer_info_.end()) {
       return alloc_buf;

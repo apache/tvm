@@ -1029,7 +1029,7 @@ void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto opt_expr = symbol_table_.Get(var)) {
-      return Downcast<PrimExpr>(opt_expr.value());
+      return opt_expr.value().as_or_throw<PrimExpr>();
     } else {
       return std::nullopt;
     }

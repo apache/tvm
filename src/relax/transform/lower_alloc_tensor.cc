@@ -48,9 +48,9 @@ class Mutator : public ExprMutator {
           << "However, received " << ffi::GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
-      auto dtype = Downcast<DataTypeImm>(op->args[1]);
-      PrimValue runtime_device_index = Downcast<PrimValue>(op->args[2]);
-      StringImm storage_scope = Downcast<StringImm>(op->args[3]);
+      auto dtype = op->args[1].as_or_throw<DataTypeImm>();
+      PrimValue runtime_device_index = op->args[2].as_or_throw<PrimValue>();
+      StringImm storage_scope = op->args[3].as_or_throw<StringImm>();
 
       auto shape = [&]() -> ffi::Array<PrimExpr> {
         if (auto ptr = shape_arg.as<ShapeExprNode>()) {
@@ -136,7 +136,7 @@ namespace transform {
 
 Pass LowerAllocTensor() {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
-    return Downcast<Function>(relax::LowerAllocTensor(m, std::move(func)));
+    return relax::LowerAllocTensor(m, std::move(func)).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor", {});
 }

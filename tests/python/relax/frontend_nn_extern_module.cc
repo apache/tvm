@@ -21,6 +21,7 @@
  * \brief Testing code to be compiled by Relax nn.SourceModule
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 

@@ -41,7 +41,7 @@ Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "stop_lift_params should have exact 1 arg.";
   }
-  return Downcast<Type>(call->args[0]->ty);
+  return call->args[0]->ty.as_or_throw<Type>();
 }
 
 TVM_REGISTER_OP("relax.builtin.stop_lift_params")

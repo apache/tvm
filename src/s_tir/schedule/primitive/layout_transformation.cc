@@ -19,7 +19,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -326,7 +325,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
       TVM_FFI_ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
       for (size_t i = 0; i < old_indices.size(); i++) {
-        Var var = Downcast<Var>(old_indices[i]);
+        Var var = old_indices[i].as_or_throw<Var>();
         PrimExpr expr = Substitute(inverse->final_indices[i], loop_var_to_virtual_var);
         var_remap.Set(var, expr);
       }
@@ -371,7 +370,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     }
 
     Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-      SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
+      SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
 
       if (op == info.innermost_block_realize.get()) {
         SBlock block = realize->block;
@@ -393,7 +392,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
     Stmt VisitStmt_(const SBlockNode* op) final {
       SBlock orig = ffi::GetRef<SBlock>(op);
-      SBlock mutated = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+      SBlock mutated = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
       RecordReplacement(orig, mutated);
       return mutated;
@@ -766,7 +765,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
                     : TransformLayoutPlanner::NoPaddingRequired();
 
     TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, analyzer);
-    SBlock result = Downcast<SBlock>(rewriter(scope_stmt));
+    SBlock result = rewriter(scope_stmt).as_or_throw<SBlock>();
     if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ProloguePlan>(&plan)) {
       auto write_ptr = result.CopyOnWrite();
       write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
@@ -830,7 +829,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = Downcast<BufferLoad>(Parent::VisitExpr_(op));
+    BufferLoad buffer_load = Parent::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (buffer_load->buffer.same_as(old_buffer_)) {
       auto* n = buffer_load.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -839,7 +838,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore buffer_store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    BufferStore buffer_store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (buffer_store->buffer.same_as(old_buffer_)) {
       auto* n = buffer_store.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -879,7 +878,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       return block;
     }();
 
-    SBlock block = Downcast<SBlock>(Parent::VisitStmt_(op));
+    SBlock block = Parent::VisitStmt_(op).as_or_throw<SBlock>();
 
     auto infered_access_regions = GetSBlockReadWriteRegion(block, buffer_data_to_buffer_);
     auto* n = block.CopyOnWrite();
@@ -1148,7 +1147,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
       }
     });
     ffi::Optional<IndexMap> opt_inverse_index_map =
-        Downcast<ffi::Optional<IndexMap>>(index_map->inverse_index_map);
+        index_map->inverse_index_map.as_or_throw<ffi::Optional<IndexMap>>();
     if (opt_inverse_index_map.defined()) {
       opt_inverse_index_map = LegalizeIndexMapDType(opt_inverse_index_map.value(), final_indices);
     }
@@ -1215,7 +1214,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,
                                        index_map, opt_inverse, padding_predicate, pad_value);
-  SBlock new_scope_block = Downcast<SBlock>(new_stmt);
+  SBlock new_scope_block = new_stmt.as_or_throw<SBlock>();
 
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
   if (!defining_site_sref.defined()) {
@@ -1450,13 +1449,13 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     ffi::Array<PrimExpr> inversed_new_block_vars =
         inverse_index_map->MapIndices(new_block_vars, analyzer);
     for (int i = 0, n = block_vars.size(); i < n; ++i) {
-      inverse_subst_map.Set(Downcast<Var>(block_vars[i]), inversed_new_block_vars[i]);
+      inverse_subst_map.Set(block_vars[i].as_or_throw<Var>(), inversed_new_block_vars[i]);
     }
   }
   SBlock new_block =
-      Downcast<SBlock>(Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map));
+      Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map).as_or_throw<SBlock>();
   new_block.CopyOnWrite()->iter_vars = new_block_iters;
-  new_block = Downcast<SBlock>(BlockBufferAccessSimplifier::Simplify(new_block, analyzer));
+  new_block = BlockBufferAccessSimplifier::Simplify(new_block, analyzer).as_or_throw<SBlock>();
 
   // Step 5.3: Create outer loops for each new block iter.
 
@@ -1474,7 +1473,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Generate outer loops
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
-    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial,
+    body = For(new_loop_vars[i].as_or_throw<Var>(), 0, new_block_iter_range[i], ForKind::kSerial,
                std::move(body));
   }
 
@@ -1491,7 +1490,7 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
   static SBlock Mutate(const SBlock& scope_block, const Buffer& old_buffer, Buffer new_buffer,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     BufferAxisSeparatorMutator mutator(old_buffer, std::move(new_buffer), block_sref_reuse);
-    return Downcast<SBlock>(mutator.VisitStmt(scope_block));
+    return mutator.VisitStmt(scope_block).as_or_throw<SBlock>();
   }
 
  private:
@@ -1554,7 +1553,7 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
     GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
-    PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
+    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
     PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
     ffi::MapObj* new_buffer_map = new_func->buffer_map.CopyOnWrite();
     for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
@@ -1625,12 +1624,13 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
     if (attrs_record[2] != nullptr) {
-      attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[2]))));
+      attrs.push_back(
+          ffi::FromJSONGraph(ffi::json::Parse(attrs_record[2].as_or_throw<ffi::String>())));
     } else {
       attrs.push_back(attrs_record[2]);
     }
@@ -1674,9 +1674,10 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
-    attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[0]))));
+    attrs.push_back(
+        ffi::FromJSONGraph(ffi::json::Parse(attrs_record[0].as_or_throw<ffi::String>())));
     return attrs;
   }
 

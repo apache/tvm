@@ -334,7 +334,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
       // currently-processed function.
       Function updated_func;
       try {
-        updated_func = Downcast<Function>(dataflow_block_mutator.VisitExpr(func));
+        updated_func = dataflow_block_mutator.VisitExpr(func).as_or_throw<Function>();
       } catch (ffi::Error& err) {
         throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
                                                          it.first);

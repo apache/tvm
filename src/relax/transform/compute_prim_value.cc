@@ -37,7 +37,7 @@ class PrimValueComputeInjector : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const PrimValueNode* op) override {
-    auto node = Downcast<PrimValue>(ExprMutator::VisitExpr_(op));
+    auto node = ExprMutator::VisitExpr_(op).as_or_throw<PrimValue>();
 
     if (node->value->IsInstance<tirx::IntImmNode>() || node->value->IsInstance<tirx::VarNode>()) {
       return node;
@@ -70,7 +70,7 @@ Pass ComputePrimValue() {
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto updated = Downcast<Function>(mutator(func.value()));
+        auto updated = mutator(func.value()).as_or_throw<Function>();
         if (!updates.same_as(base_func)) {
           updates->Add(gvar, updated);
         }

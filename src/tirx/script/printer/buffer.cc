@@ -65,7 +65,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     TVM_FFI_ICHECK(is_new_var(e));
-    Var var = Downcast<Var>(e);
+    Var var = e.as_or_throw<Var>();
     if (use_count[var.get()] == 1) {
       d->Define(e, frame, inline_f);
       return true;
@@ -85,7 +85,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
       if (is_new_var(e)) {
-        add_out_of_line_var_def(Downcast<Var>(e), e_p);
+        add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
       results.push_back(d->AsDoc<ExprDoc>(e, e_p));
     }
@@ -134,7 +134,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
                   ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
             })) {
-          results.push_back(LiteralDoc::Str(Downcast<Var>(e)->name_hint, e_p));
+          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name_hint, e_p));
           continue;
         }
       }

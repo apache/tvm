@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>

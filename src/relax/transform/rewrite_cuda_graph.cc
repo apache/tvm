@@ -137,7 +137,7 @@ class FuncBuilder : public ExprMutator {
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(Downcast<Type>(input->ty)));
+      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
       var_remap_[input->vid] = new_var;
       params.push_back(new_var);
     }
@@ -159,7 +159,7 @@ class FuncBuilder : public ExprMutator {
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
     attrs.Set(relax::attr::kForcePure, true);
-    auto func = Function(params, body, Downcast<Type>(output->ty),
+    auto func = Function(params, body, output->ty.as_or_throw<Type>(),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
   }
@@ -244,13 +244,13 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         // If the hints for capturing symbolic variables via
         // 'relax.rewrite_cuda_graph.capture_symbolic_vars' annotation, the actual variables with
         // these names are extracted from the type for the capturing.
-        const auto& func = Downcast<Function>(pair.second);
+        const auto& func = pair.second.as_or_throw<Function>();
         int64_t num_inputs =
             func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
           ffi::Array<tirx::Var> symbolic_vars =
-              DefinableTIRVarsInType(Downcast<Type>(func->params[i]->ty));
+              DefinableTIRVarsInType(func->params[i]->ty.as_or_throw<Type>());
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
               if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {
@@ -513,7 +513,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       }
       // recursively check the type to collect the symbolic TIR vars
       return static_vars_.count(var) &&
-             IsStatic(Downcast<Type>(var->ty), vars_collector, tir_vars_collector);
+             IsStatic(var->ty.as_or_throw<Type>(), vars_collector, tir_vars_collector);
     }
 
     if (const auto* shape = expr.as<ShapeExprNode>()) {
@@ -565,7 +565,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     }
     // Check if the allocation has constant shape
     const auto* alloc_storage_call = binding->value.as<CallNode>();
-    auto shape = Downcast<ShapeExpr>(alloc_storage_call->args[0]);
+    auto shape = alloc_storage_call->args[0].as_or_throw<ShapeExpr>();
     return std::all_of(shape->values.begin(), shape->values.end(),
                        [](const PrimExpr& expr) { return expr.as<IntImmNode>() != nullptr; });
   }
@@ -668,15 +668,15 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
     TVM_FFI_ICHECK(plan->is_alloc);
     for (const VarBindingNode* binding : plan->lifted_bindings) {
       // Extract the stroage record from the Call expr.
-      Call alloc_storage = Downcast<Call>(binding->value);
+      Call alloc_storage = binding->value.as_or_throw<Call>();
       TVM_FFI_ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
-      auto storage_shape = Downcast<ShapeExpr>(alloc_storage->args[0]);
+      auto storage_shape = alloc_storage->args[0].as_or_throw<ShapeExpr>();
       TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
-      int64_t size = Downcast<IntImm>(storage_shape->values[0])->value;
+      int64_t size = storage_shape->values[0].as_or_throw<IntImm>()->value;
       int64_t virtual_device_id =
-          Downcast<IntImm>(Downcast<PrimValue>(alloc_storage->args[1])->value)->value;
+          alloc_storage->args[1].as_or_throw<PrimValue>()->value.as_or_throw<IntImm>()->value;
       TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
-      ffi::String storage_scope = Downcast<StringImm>(alloc_storage->args[2])->value;
+      ffi::String storage_scope = alloc_storage->args[2].as_or_throw<StringImm>()->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());
       it->second[plan_id].emplace_back(StorageRecord{size, binding, plan});
     }
@@ -744,7 +744,7 @@ class CUDAGraphRewriter : public ExprMutator {
     std::vector<std::pair<GlobalVar, Function>> target_functions;
     for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        target_functions.emplace_back(gv, Downcast<Function>(func));
+        target_functions.emplace_back(gv, func.as_or_throw<Function>());
       }
     }
 
@@ -762,7 +762,7 @@ class CUDAGraphRewriter : public ExprMutator {
 
     for (const auto& [gv, func] : target_functions) {
       current_func_ = gv;
-      auto new_func = Downcast<Function>(VisitExpr(func));
+      auto new_func = VisitExpr(func).as_or_throw<Function>();
       if (!new_func.same_as(func)) {
         builder_->UpdateFunction(gv, new_func);
       }
@@ -782,7 +782,7 @@ class CUDAGraphRewriter : public ExprMutator {
       TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
-      auto ret_ty = Downcast<FuncType>(gv_alloc->ty)->ret;
+      auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
       launch_subgraph =
           Call(call_builtin_with_ctx_op,
                {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm::Int64(0))})}, Attrs(),
@@ -802,11 +802,11 @@ class CUDAGraphRewriter : public ExprMutator {
         // The ret_ty of the lifted function can contain symbolic variables. We need to
         // bind the symbolic parameters to the actual values.
         const auto& shape_expr = plan->func->params.back();
-        auto symbolic_params = Downcast<ShapeType>(shape_expr->ty)->values.value();
+        auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
         ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
         TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
-          tir_var_remap.Set(Downcast<tirx::Var>(symbolic_params[i]),
+          tir_var_remap.Set(symbolic_params[i].as_or_throw<tirx::Var>(),
                             propogated_tir_vars->values[i]);
         }
         call_ty = Bind(call_ty, tir_var_remap);

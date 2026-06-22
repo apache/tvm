@@ -90,7 +90,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
+    BufferStore store = StmtExprMutator::VisitStmt_(_store).as_or_throw<BufferStore>();
     if (store->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
       new_store->buffer = dst_;
@@ -100,7 +100,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+    BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (load->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
       new_load->buffer = dst_;
@@ -111,7 +111,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* _block) final {
     SBlock old_block = ffi::GetRef<SBlock>(_block);
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(_block));
+    SBlock block = StmtExprMutator::VisitStmt_(_block).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, src_, dst_);
     new_block->writes = ReplaceBuffer(new_block->writes, src_, dst_);

@@ -33,7 +33,7 @@ namespace tirx {
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
                             const arith::Analyzer& analyzer) {
   if (index.as<VarNode>()) {
-    return Downcast<Var>(index);
+    return index.as_or_throw<Var>();
   }
   arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, var_range, analyzer);
   if (!is_zero(iter_sum->base)) {
@@ -350,7 +350,7 @@ void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tirx::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
   ffi::Map<tirx::Var, Expr> input_var_to_relax_expr;
-  ffi::Array<Expr> input_list = Downcast<Tuple>(call->args[1])->fields;
+  ffi::Array<Expr> input_list = call->args[1].as_or_throw<Tuple>()->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {
     if (func->buffer_map.count(func->params[i])) {

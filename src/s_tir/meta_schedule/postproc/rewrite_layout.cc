@@ -111,7 +111,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
   void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
     if (auto ann = block->annotations.Get("layout_free_placeholders")) {
-      for (Buffer buffer : Downcast<ffi::Array<Buffer>>(ann.value())) {
+      for (Buffer buffer : ann.value().as_or_throw<ffi::Array<Buffer>>()) {
         buffers.insert(buffer);
       }
     }

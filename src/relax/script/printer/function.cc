@@ -90,7 +90,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         // For a function without an IR module whose global symbol
         // doesn't match the function name, we should still print the global symbol attribute.
         if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<ffi::String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
+            n->attrs->dict.at(tvm::attr::kGlobalSymbol).as_or_throw<ffi::String>() ==
+                func_name->name) {
           ffi::Map<ffi::String, Any> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {

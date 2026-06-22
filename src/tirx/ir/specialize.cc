@@ -148,7 +148,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Var old_buffer_var = op->buffer->data;
     Buffer new_buf = MutateAllocBuffer(op->buffer);
 
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
 
     if (!new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
@@ -356,7 +356,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
           << "The signature of target buffer exprected an independent Var, but got " << old_expr
           << ".";
-      const Var& var = Downcast<Var>(old_expr);
+      const Var& var = old_expr.as_or_throw<Var>();
       auto it = var_map->find(var);
       if (it != var_map->end()) {
         TVM_FFI_CHECK(equal(it->second, new_expr), ValueError)

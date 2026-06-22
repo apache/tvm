@@ -24,6 +24,7 @@
 #include <tvm/relax/transform.h>
 
 #include <utility>
+#include <vector>
 
 #include "../../support/ordered_set.h"
 #include "utils.h"
@@ -51,7 +52,7 @@ class FunctionInliner : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto node = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     if (auto opt = node->op.as<GlobalVar>()) {
       auto gvar = opt.value();
@@ -162,7 +163,7 @@ Function FunctionInlineFunctions(
   }
 
   FunctionInliner mutator(replacements);
-  return Downcast<Function>(mutator(std::move(func)));
+  return mutator(std::move(func)).as_or_throw<Function>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -213,9 +214,16 @@ Pass InlinePrivateFunctions() {
       }
     }
 
+    std::vector<GlobalVar> funcs_to_remove;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (replacements.count(gvar)) {
+        funcs_to_remove.push_back(gvar);
+      }
+    }
+
     auto write_ptr = mod.CopyOnWrite();
-    for (const auto& [key, func] : replacements) {
-      write_ptr->Remove(Downcast<GlobalVar>(key));
+    for (const GlobalVar& gvar : funcs_to_remove) {
+      write_ptr->Remove(gvar);
     }
     write_ptr->Update(updates);
     return mod;

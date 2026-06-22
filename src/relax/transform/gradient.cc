@@ -66,7 +66,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
    * VarIdSet containing all checkpointed vars.
    */
   static Function Transform(const Function& func) {
-    return Downcast<Function>(CallTIRWithGradEliminator().VisitExpr(func));
+    return CallTIRWithGradEliminator().VisitExpr(func).as_or_throw<Function>();
   }
 
  private:
@@ -105,7 +105,7 @@ class CheckpointCollector : private ExprMutator {
    */
   Function Transform(const Function& func) {
     auto collector = CheckpointCollector();
-    return Downcast<Function>(this->VisitExpr(func));
+    return this->VisitExpr(func).as_or_throw<Function>();
   }
 
   // checkpointed vars
@@ -161,7 +161,7 @@ class CheckpointCollector : private ExprMutator {
       TVM_FFI_ICHECK(var) << "The first argument of relax.grad.start_checkpoint and "
                              "relax.grad.end_checkpoint should be a Var";
       // var might already be remapped. Find the original var
-      auto orig_var = Downcast<Var>(ExprMutator::VisitExpr(ffi::GetRef<Var>(var)));
+      auto orig_var = ExprMutator::VisitExpr(ffi::GetRef<Var>(var)).as_or_throw<Var>();
       // Add remapping from binding->var to new_var
       if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
         // For output binding, emit a dummy binding
@@ -355,7 +355,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     static const constexpr char* te_grad_func_prefix = "tvm.relax.te_grad._register.";
 
     Var adjoint_var = adjoint_var_map_[binding->var];
-    const Op& call_op = Downcast<Op>(call->op);
+    const Op& call_op = call->op.as_or_throw<Op>();
 
     // Support for checkpointing
     auto [checkpoint_var, checkpoint_call] =
@@ -371,9 +371,9 @@ class BackwardBindingGenerator : private ExprVisitor {
       const auto grad_func =
           tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);
       Var partials =
-          grad_func(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_)
+          grad_func(checkpoint_var, checkpoint_call.as_or_throw<Call>(), adjoint_var, builder_)
               .cast<Var>();
-      Tuple args = Downcast<Tuple>(call->args[1]);
+      Tuple args = call->args[1].as_or_throw<Tuple>();
       auto* tuple_ty = GetTypeAs<TupleTypeNode>(partials);
       if (!tuple_ty) {
         // result_var is a tensor
@@ -387,7 +387,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       }
     } else {
       const ffi::Array<Expr>& partials = gradient_op_map[call_op](
-          checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
+          checkpoint_var, checkpoint_call.as_or_throw<Call>(), adjoint_var, builder_);
       TVM_FFI_ICHECK(partials.size() == call->args.size()) << "partials number != inputs number";
       for (size_t i = 0; i < partials.size(); ++i) {
         Expr partial = partials[i];
@@ -422,9 +422,9 @@ class BackwardBindingGenerator : private ExprVisitor {
     auto* tuple_ty = GetTypeAs<TupleTypeNode>(tuple_get_item->tuple);
     TVM_FFI_ICHECK(tuple_ty) << "The tuple field of a TupleGetItem must has a TupleType";
 
-    const Var& tuple_var = Downcast<Var>(tuple_get_item->tuple);
+    const Var& tuple_var = tuple_get_item->tuple.as_or_throw<Var>();
     if (adjoint_var_map_.count(tuple_var) == 0) {
-      auto nested_zeros = Downcast<Tuple>(NestedZeros(ffi::GetRef<Type>(tuple_ty)));
+      auto nested_zeros = NestedZeros(ffi::GetRef<Type>(tuple_ty)).as_or_throw<Tuple>();
       auto tuple_fields = nested_zeros->fields;
       tuple_fields.Set(tuple_get_item->index, adjoint_var_map_[binding->var]);
       EmitAdjoint(tuple_var, Tuple(tuple_fields), false);
@@ -458,7 +458,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     AdjointMsg partial_msg = ExprToAdjointMsg(builder_->Normalize(partial));
     DecomposeNestedMsg(expr, partial_msg, [&](Expr leaf, AdjointMsg msg) {
       if (leaf->IsInstance<VarNode>()) {
-        const Var& v = Downcast<Var>(leaf);
+        const Var& v = leaf.as_or_throw<Var>();
         Expr updated_adjoint_expr = builder_->Normalize(AdjointMsgToExpr(msg));
         auto it = adjoint_var_map_.find(v);
         if (it != adjoint_var_map_.end()) {
@@ -519,7 +519,7 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   static bool IsCallNoGrad(const Expr& expr) {
     return expr->IsInstance<CallNode>() &&
-           Downcast<Call>(expr)->op == Op::Get("relax.grad.no_grad");
+           expr.as_or_throw<Call>()->op == Op::Get("relax.grad.no_grad");
   }
 
   static Expr AdjointMsgToExpr(AdjointMsg msg) {
@@ -644,14 +644,14 @@ class GradientMutator : private ExprMutator {
   IRModule AddAdjointFunction(const Function& func, const ffi::String& func_name,
                               bool remove_all_unused = true) {
     // Step 4.1 forward -> forward + backward
-    auto new_func = Downcast<Function>(VisitExpr(func));
+    auto new_func = VisitExpr(func).as_or_throw<Function>();
 
     // Step 4.2 Convert call_tir_with_grad nodes into call_tir nodes
     // because call_tir_with_grad nodes is not actually implemented
     new_func = CallTIRWithGradEliminator::Transform(new_func);
 
     if (remove_all_unused) {
-      new_func = Downcast<Function>(RemoveAllUnused(new_func));
+      new_func = RemoveAllUnused(new_func).as_or_throw<Function>();
     }
 
     // Step 4.3 Simplify specific patterns generated by the gradient pass. Especially, simplify

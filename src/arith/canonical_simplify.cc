@@ -88,8 +88,8 @@ bool CastIsSafe(DataType dtype, PrimExpr value, AnalyzerObj* analyzer) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
-  int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
-  int64_t lbound = Downcast<IntImm>(min_value(dtype))->value;
+  int64_t ubound = max_value(dtype).as_or_throw<IntImm>()->value;
+  int64_t lbound = min_value(dtype).as_or_throw<IntImm>()->value;
   if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
       (bound->max_value <= ubound && bound->min_value >= lbound)) {
     return true;
@@ -763,7 +763,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
   }
   if (const auto* bconst = b.as<IntImmNode>()) {
     if (a.as<SumExprNode>()) {
-      SumExpr ret = Downcast<SumExpr>(std::move(a));
+      SumExpr ret = std::move(a).as_or_throw<SumExpr>();
       ret.CopyOnWrite()->MulToSelf(bconst->value);
       return ret;
 
@@ -1169,7 +1169,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 && cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr = Downcast<SumExpr>(a);
+        SumExpr sum_expr = a.as_or_throw<SumExpr>();
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
@@ -1235,7 +1235,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       // Simplify the offset constant if necessary.
       // floormod(x - 5, 3) => floormod(x + 1, 3)
       int64_t new_base = floormod(psum->base, cval);
-      SumExpr sum_expr = Downcast<SumExpr>(std::move(a));
+      SumExpr sum_expr = std::move(a).as_or_throw<SumExpr>();
       sum_expr.CopyOnWrite()->base = new_base;
       return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
     } else {
@@ -1369,14 +1369,14 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   PrimExpr value = this->CanonicalMutate(op->value);
   // PushCastToChildren
   if (value.as<SumExprNode>()) {
-    SumExpr se = Downcast<SumExpr>(value);
+    SumExpr se = value.as_or_throw<SumExpr>();
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
       return se;
     }
   }
   if (value.as<SplitExprNode>()) {
-    SplitExpr se = Downcast<SplitExpr>(value);
+    SplitExpr se = value.as_or_throw<SplitExpr>();
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
       return se;

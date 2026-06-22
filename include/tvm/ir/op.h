@@ -162,6 +162,10 @@ class OpNode : public RelaxExprNode {
  */
 class Op : public RelaxExpr {
  public:
+  explicit Op(ffi::ObjectPtr<OpNode> n) : RelaxExpr(std::move(n)) {
+    TVM_FFI_CHECK(defined(), ValueError) << "Op expects a defined OpNode";
+  }
+
   /*!
    * \brief Get additional registered attribute about operators.
    *  If nothing has been registered, an empty OpAttrMap will be returned.
@@ -185,7 +189,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Op, RelaxExpr, OpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -289,6 +293,8 @@ class OpRegEntry {
   std::string name;
   /*! \brief The operator */
   Op op_;
+  /*! \brief Construct the non-null Op for this registry entry. */
+  static Op MakeOp(uint32_t reg_index);
   // private constructor
   TVM_DLL OpRegEntry(uint32_t reg_index);
   // return internal pointer to op.

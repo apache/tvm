@@ -49,7 +49,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
@@ -106,9 +106,12 @@ class cuDNNJSONSerializer : public JSONSerializer {
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.nn.attention");
-    auto q_shape = Downcast<ShapeExpr>(Downcast<TensorType>(root_call->args[0]->ty)->shape.value());
-    auto k_shape = Downcast<ShapeExpr>(Downcast<TensorType>(root_call->args[1]->ty)->shape.value());
-    auto v_shape = Downcast<ShapeExpr>(Downcast<TensorType>(root_call->args[2]->ty)->shape.value());
+    auto q_shape =
+        root_call->args[0]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
+    auto k_shape =
+        root_call->args[1]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
+    auto v_shape =
+        root_call->args[2]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
     int num_heads = q_shape->values[2].as<IntImmNode>()->value;
     int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value;
     int head_size = q_shape->values[3].as<IntImmNode>()->value;

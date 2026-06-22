@@ -1696,7 +1696,7 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
-  EQ ret = Downcast<EQ>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  EQ ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<EQ>();
   op = ret.get();
 
   if (auto const_res = TryConstFold<EQ>(op->a, op->b)) {
@@ -1840,7 +1840,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const GENode* op) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
-  LT node = Downcast<LT>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  LT node = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<LT>();
   op = node.get();
 
   if (auto const_res = TryConstFold<LT>(op->a, op->b)) return const_res.value();
@@ -2013,7 +2013,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
-  Not ret = Downcast<Not>(IRMutatorWithAnalyzer::VisitExpr_(op));
+  Not ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Not>();
   if (auto const_res = TryConstFold<Not>(ret->a)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 

@@ -205,11 +205,11 @@ class GraphCreator : public ExprVisitor {
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get() || op == call_tir_inplace_op_.get()) {
-      const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-      tirx::PrimFunc func = Downcast<tirx::PrimFunc>(mod_->Lookup(global_var));
+      const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
+      tirx::PrimFunc func = mod_->Lookup(global_var).as_or_throw<tirx::PrimFunc>();
 
       // Override args for call_tir
-      args = Downcast<Tuple>(call->args[1])->fields;
+      args = call->args[1].as_or_throw<Tuple>()->fields;
 
       ffi::Optional<int64_t> opt_pattern = func->GetAttr<int64_t>("op_pattern");
       if (opt_pattern.has_value()) {
@@ -409,9 +409,9 @@ class FunctionCreator : public ExprMutator {
         if (call->op == Op::Get("relax.call_tir") ||
             call->op == Op::Get("relax.call_tir_inplace")) {
           // Update the name of the function.
-          name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
+          name_hint_ = name_hint_ + "_" + call->args[0].as_or_throw<GlobalVar>()->name_hint;
 
-          const Tuple& args = Downcast<Tuple>(call->args[1]);
+          const Tuple& args = call->args[1].as_or_throw<Tuple>();
           for (const Expr& arg : args->fields) {
             CheckDefAndUpdateParam(arg);
             TVM_FFI_ICHECK(GetTypeAs<TupleTypeNode>(arg) == nullptr);
@@ -419,9 +419,9 @@ class FunctionCreator : public ExprMutator {
           // TODO(tvm-team): handle shape expr
         } else {
           if (call->op->IsInstance<OpNode>()) {
-            name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
+            name_hint_ = name_hint_ + "_" + call->op.as_or_throw<Op>()->name;
           } else if (call->op->IsInstance<GlobalVarNode>()) {
-            std::string gvar_name = Downcast<GlobalVar>(call->op)->name_hint;
+            std::string gvar_name = call->op.as_or_throw<GlobalVar>()->name_hint;
             if (auto pos = gvar_name.find("fused_"); pos == 0) {
               name_hint_ = name_hint_ + "_" + gvar_name.substr(std::string("fused_").size());
             } else {
@@ -497,7 +497,7 @@ class FunctionCreator : public ExprMutator {
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
       ffi::String param_name = params_[param_idx]->name_hint();
-      TupleType param_ty = Downcast<TupleType>(tuple_arg->ty);
+      TupleType param_ty = tuple_arg->ty.as_or_throw<TupleType>();
 
       ffi::Array<Expr> item_args;
       ffi::Array<Var> item_params;
@@ -738,7 +738,7 @@ class OperatorFusor : public ExprMutator {
       // attr::kCodegen.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
           !func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
-        auto updated_func = Downcast<Function>(VisitExpr(func));
+        auto updated_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
       }
     }
@@ -913,7 +913,7 @@ class OperatorFusor : public ExprMutator {
       //   another group. Mark it to be the group output.
       auto update_boundary = [this, binding, &cur_group](const Expr& e) {
         if (e->IsInstance<VarNode>()) {
-          const Var& used_var = Downcast<Var>(e);
+          const Var& used_var = e.as_or_throw<Var>();
           Group* producer_group = GetGroupFromVar(used_var);
           // Only check those group defined before.
           // Skip the vars from input or groups with single binding.
@@ -1291,7 +1291,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
       }
       auto func = builder_->GetContextIRModule()->Lookup(ffi::GetRef<GlobalVar>(gvar));
       if (auto composite_name = func->GetAttr<ffi::String>(attr::kComposite)) {
-        auto new_func = Downcast<Function>(VisitExpr(func));
+        auto new_func = VisitExpr(func).as_or_throw<Function>();
         auto codegen_name = GetCodegenName(composite_name.value());
         auto gsymbol = gvar->name_hint + "_" + codegen_name;
         new_func = WithAttrs(new_func,
@@ -1307,7 +1307,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
-    Function f_inner = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
+    Function f_inner = ExprMutator::VisitExpr_(func_node).as_or_throw<Function>();
 
     if (!func_node->GetAttr<ffi::String>(attr::kComposite)) {
       // This lambda function doesn't have `attr::kComposite`, so it
@@ -1359,7 +1359,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
         auto func = mod->Lookup(gv);
         TVM_FFI_ICHECK(func->IsInstance<FunctionNode>())
             << "Entry function must be a relax function";
-        entry_functions.push_back(Downcast<Function>(func));
+        entry_functions.push_back(func.as_or_throw<Function>());
       }
     } else {
       for (const auto& gv : mod->GetGlobalVars()) {
@@ -1373,7 +1373,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
             function->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
           continue;
         }
-        entry_functions.push_back(Downcast<Function>(base_func));
+        entry_functions.push_back(base_func.as_or_throw<Function>());
       }
     }
     OperatorFusor::GroupMap group_map;

@@ -201,7 +201,7 @@ class RollingBufferInfoCollector {
       }
       auto bound_overlap = 0;
       if (iter_var.defined()) {
-        auto extent = Downcast<IntImm>(bound->extent)->value;
+        auto extent = bound->extent.as_or_throw<IntImm>()->value;
         bound_overlap = extent - stride;
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
         // allocation region, there is no need to roll over the axis where the overlap is not
@@ -296,7 +296,7 @@ class RollingBufferRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* block) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
-    SBlock stmt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+    SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
     SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
       ffi::Array<Buffer> new_alloc_buffers;
@@ -338,7 +338,7 @@ class RollingBufferRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
-    SBlockRealize stmt = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(realize));
+    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
     // Append block predicate to avoid recomputing elements.
     if (rewrite_block_predicate_) {
       rewrite_block_predicate_ = false;
@@ -363,7 +363,7 @@ class RollingBufferRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore stmt = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore stmt = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
       BufferStoreNode* n = stmt.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -374,7 +374,7 @@ class RollingBufferRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad stmt = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
       BufferLoadNode* n = stmt.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);

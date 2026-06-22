@@ -53,7 +53,7 @@ inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
   if (auto fn = tvm::ffi::Function::GetGlobal(key)) {
     ffi::Optional<ffi::ObjectRef> result = (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
     if (result.defined()) {
-      return Downcast<Type>(result.value());
+      return result.value().as_or_throw<Type>();
     }
   }
   return std::nullopt;
@@ -152,11 +152,11 @@ VDevice LookupVDevice(ffi::String target_kind, int device_index) {
       TVM_FFI_THROW(ValueError) << "The target VDevice in the GlobalInfos was not found.";
     }
     if (target_kind == "vdevice") {
-      return Downcast<VDevice>(vdevices[device_index]);
+      return vdevices[device_index].as_or_throw<VDevice>();
     }
     int count = 0;
     for (auto vdevice : vdevices) {
-      auto vdev = Downcast<VDevice>(vdevice);
+      auto vdev = vdevice.as_or_throw<VDevice>();
       if (vdev->target->kind->name == target_kind) {
         if (count == device_index) {
           return vdev;

@@ -380,7 +380,7 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<ffi::String, ffi::An
   }
   // handle expr values
   if (lhs.second.as<PrimExpr>() && rhs.second.as<PrimExpr>()) {
-    return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+    return VisitExpr(lhs.second.as_or_throw<PrimExpr>(), rhs.second.as_or_throw<PrimExpr>());
   }
   // handle any other values via any equal
   if (!ffi::AnyEqual()(lhs.second, rhs.second)) {

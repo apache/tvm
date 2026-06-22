@@ -419,15 +419,15 @@ std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidat
 std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
                                   const BlockBuilder& ctx) {
   if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
-    auto target_tensor = Downcast<TensorType>(target_info);
-    auto arg_tensor = Downcast<TensorType>(arg_info);
+    auto target_tensor = target_info.as_or_throw<TensorType>();
+    auto arg_tensor = arg_info.as_or_throw<TensorType>();
     if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
         arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
         return {false, false};
       }
-      auto target_shape = Downcast<ShapeExpr>(target_tensor->shape);
-      auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
+      auto target_shape = target_tensor->shape.as_or_throw<ShapeExpr>();
+      auto arg_shape = arg_tensor->shape.as_or_throw<ShapeExpr>();
       PrimExpr target_size = NumElements(target_shape);
       PrimExpr arg_size = NumElements(arg_shape);
       if (!ctx->GetAnalyzer()->CanProve(arg_size >= target_size)) {
@@ -447,8 +447,8 @@ std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
       return {false, false};
     }
   } else if (target_info.as<TupleTypeNode>() && arg_info.as<TupleTypeNode>()) {
-    auto target_tup = Downcast<TupleType>(target_info);
-    auto arg_tup = Downcast<TupleType>(arg_info);
+    auto target_tup = target_info.as_or_throw<TupleType>();
+    auto arg_tup = arg_info.as_or_throw<TupleType>();
     if (target_tup->fields.size() != arg_tup->fields.size()) {
       return {false, false};
     }
@@ -770,35 +770,35 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
     PrimExpr VisitExpr_(const tirx::BufferLoadNode* op) final {
-      auto node = Downcast<tirx::BufferLoad>(tirx::StmtExprMutator::VisitExpr_(op));
+      auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<tirx::BufferLoad>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::BufferStoreNode* op) final {
-      auto node = Downcast<tirx::BufferStore>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::BufferStore>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::DeclBufferNode* op) final {
-      auto node = Downcast<tirx::DeclBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::DeclBuffer>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::AllocBufferNode* op) final {
-      auto node = Downcast<tirx::AllocBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::AllocBuffer>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) final {
-      auto node = Downcast<tirx::SBlock>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::SBlock>();
       auto* node_cow = node.CopyOnWrite();
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =
@@ -852,7 +852,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       if (auto* func_node = kv.second.as<FunctionNode>()) {
         auto gv = kv.first;
         auto func_params = func_node->params;
-        auto function = Downcast<Function>(VisitExpr(ffi::GetRef<Function>(func_node)));
+        auto function = VisitExpr(ffi::GetRef<Function>(func_node)).as_or_throw<Function>();
         builder_->UpdateFunction(gv, function);
       }
     }
@@ -898,7 +898,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // can just pick the first index arbitrarily (only using one output for now too)
     // now replace the binding appropriately
     auto arg_idxs = inplace_idxs.at(binding);
-    auto target = Downcast<Call>(GetBoundValue(binding));
+    auto target = GetBoundValue(binding).as_or_throw<Call>();
     auto new_call = CreateInplaceCall(target, {arg_idxs[0]});
     return builder_->Normalize(new_call);
   }
@@ -930,18 +930,18 @@ class ModuleInplaceTransformer : public ExprMutator {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
-    auto op = Downcast<Op>(call->op);
-    auto legalized_call = Downcast<Call>(legalize_map[op](builder_, call));
+    auto op = call->op.as_or_throw<Op>();
+    auto legalized_call = legalize_map[op](builder_, call).as_or_throw<Call>();
     auto* legalized_call_cow = legalized_call.CopyOnWrite();
 
     // The legalized call should be call_tir. We will replace it with call_tir_inplace
     // and replace the called PrimFunc with an inplace version
-    auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
+    auto legal_op = legalized_call->args[0].as_or_throw<GlobalVar>();
     legalizers_added.push_back(legal_op);
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto old_primfunc = Downcast<tirx::PrimFunc>(mod->Lookup(legal_op));
+    auto old_primfunc = mod->Lookup(legal_op).as_or_throw<tirx::PrimFunc>();
 
     tirx::Stmt new_body = old_primfunc->body;
 

@@ -114,7 +114,7 @@ class PipelineOpaqueAccessRewriter {
     static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& ptx_mma_legacy = Op::Get("tirx.ptx.mma_legacy");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
-      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
+      const Buffer& buffer = buffer_data_to_buffer_.at(call->args[0].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         ffi::Array<PrimExpr> new_args = call->args;
@@ -125,7 +125,7 @@ class PipelineOpaqueAccessRewriter {
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<PrimExpr> new_args = call->args;
       for (int i = 0; i < 4; i++) {
-        const Var& buffer_var = Downcast<Var>(call->args[i * 2]);
+        const Var& buffer_var = call->args[i * 2].as_or_throw<Var>();
         const PrimExpr& index = call->args[i * 2 + 1];
         const Buffer& buffer = buffer_data_to_buffer_.at(buffer_var);
         auto it = buffer_remap_.find(buffer);
@@ -174,7 +174,7 @@ class PipelineOpaqueAccessRewriter {
     };
     ffi::Array<PrimExpr> new_args = call->args;
     for (int i : arg_indices) {
-      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[i]));
+      const Buffer& buffer = buffer_data_to_buffer_.at(call->args[i].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         const Buffer& new_buffer = (*it).second;
@@ -188,7 +188,7 @@ class PipelineOpaqueAccessRewriter {
         if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
           // mma scope size will shrink by warp size
           // @see transform_mma_buffer_layout
-          TVM_FFI_ICHECK_EQ(Downcast<IntImm>(floormod(offset, 32))->value, 0)
+          TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<IntImm>()->value, 0)
               << "mma scope size should be multiple of warp size";
           offset = floordiv(offset, 32);
         }
@@ -258,7 +258,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     for (const Buffer& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(alloc_buffer->data, alloc_buffer);
     }
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
     SBlockNode* n = block.CopyOnWrite();
     n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
       return RewritePipelineBufferRegion(buffer_region);
@@ -273,7 +273,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     auto it = buffer_remap_.find(store->buffer);
     if (it == buffer_remap_.end()) {
       return store;
@@ -288,7 +288,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_remap_.find(load->buffer);
     if (it == buffer_remap_.end()) {
       return load;
@@ -303,7 +303,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    Call call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+    Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
     return opaque_access_rewriter_.Rewrite(call);
   }
 
@@ -837,14 +837,14 @@ class PipelineRewriter : public StmtExprMutator {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
-      analyzer_->Bind(Downcast<Var>(new_loop_var), Range(start, end));
+      analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
     // the "normalized" range, [pipeline_loop_->min, extent).
     arith::Analyzer ana_normalized;
     if (!is_unit_loop) {
-      ana_normalized->Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
+      ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
     }
 
     std::vector<RewrittenSBlockInfo> new_blocks;
@@ -864,9 +864,9 @@ class PipelineRewriter : public StmtExprMutator {
       if (analyzer_->CanProve(!inbound)) {
         continue;
       }
-      SBlock new_block = Downcast<SBlock>(
-          PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
-                               max_stage_ != 1, fragment_info_)(block));
+      SBlock new_block = PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
+                                              max_stage_ != 1, fragment_info_)(block)
+                             .as_or_throw<SBlock>();
 
       PrimExpr delta = start - pipeline_loop_->min;
       // This variable corresponds to
@@ -877,12 +877,12 @@ class PipelineRewriter : public StmtExprMutator {
       // Adjust the block predicate and the body according to the final loop bound
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
-        Var loop_iter = Downcast<Var>(new_loop_var);
+        Var loop_iter = new_loop_var.as_or_throw<Var>();
         inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
       }
 
-      new_block = Downcast<SBlock>(
-          Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}}));
+      new_block = Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}})
+                      .as_or_throw<SBlock>();
 
       if (pipeline_info_[block].async) {
         auto& local_state = async_states_local[stage];
@@ -953,7 +953,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     if (!is_unit_loop) {
-      new_loop = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
+      new_loop = For(new_loop_var.as_or_throw<Var>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
                      std::nullopt, preserved_annotations_, std::nullopt);
     }
@@ -1092,7 +1092,7 @@ class PipelineInjector : private StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1: Recursively rewrite the children first.
-    For for_node = Downcast<For>(StmtExprMutator::VisitStmt_(op));
+    For for_node = StmtExprMutator::VisitStmt_(op).as_or_throw<For>();
     if (!HasPipelineAnnotation(op)) {
       return for_node;
     }
@@ -1147,9 +1147,9 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     auto pipeline_stages =
-        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
+        op->annotations.at(s_tir::attr::software_pipeline_stage).as_or_throw<ffi::Array<int64_t>>();
     auto pipeline_orders =
-        Downcast<ffi::Array<int64_t>>(op->annotations.at(s_tir::attr::software_pipeline_order));
+        op->annotations.at(s_tir::attr::software_pipeline_order).as_or_throw<ffi::Array<int64_t>>();
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
@@ -1161,7 +1161,7 @@ class PipelineInjector : private StmtExprMutator {
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(s_tir::attr::software_pipeline_async_stages)) {
-      for (int64_t s : Downcast<ffi::Array<int64_t>>(annot.value())) {
+      for (int64_t s : annot.value().as_or_throw<ffi::Array<int64_t>>()) {
         pipeline_async_stages.insert(static_cast<int>(s));
       }
     }
@@ -1224,14 +1224,14 @@ class PipelineInjector : private StmtExprMutator {
 
     auto it = op->annotations.find(s_tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = static_cast<int>(Downcast<IntImm>((*it).second)->value);
+      int buffer_index = static_cast<int>((*it).second.cast<IntImm>()->value);
       TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),
                     ValueError)
           << "Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[buffer_index]->buffer);
     }
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(buffer->data);

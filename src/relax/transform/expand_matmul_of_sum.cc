@@ -78,7 +78,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     }
 
     if (matches.count(pat_rhs_permute_dims)) {
-      auto call_permute = Downcast<Call>(matches[pat_rhs_permute_dims]);
+      auto call_permute = matches[pat_rhs_permute_dims].as_or_throw<Call>();
       auto attrs = call_permute->attrs.as<PermuteDimsAttrs>();
       TVM_FFI_ICHECK(attrs) << "Operator permute_dims should have PermuteDimsAttrs, "
                             << "but " << call_permute << " has attributes " << call_permute->attrs;

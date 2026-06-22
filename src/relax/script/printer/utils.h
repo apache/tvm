@@ -86,14 +86,16 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
   }
   bool attempt_to_hide_ty = !d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true);
 
-  if (const auto* call = rhs.as<relax::CallNode>()) {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
-      attempt_to_hide_ty = true;
+  if (rhs.defined()) {
+    if (const auto* call = rhs.as<relax::CallNode>()) {
+      static const Op& call_tir_op = Op::Get("relax.call_tir");
+      static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+      if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
+        attempt_to_hide_ty = true;
+      }
     }
   }
-  if (attempt_to_hide_ty) {
+  if (attempt_to_hide_ty && rhs.defined()) {
     ffi::Optional<tvm::Type> inferred_ty = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
@@ -139,7 +141,7 @@ inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifie
   ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
-    auto vdev = Downcast<VDevice>(vdevices[i]);
+    auto vdev = vdevices[i].as_or_throw<VDevice>();
     if (vdev.same_as(vdevice)) {
       return kind_index;
     }

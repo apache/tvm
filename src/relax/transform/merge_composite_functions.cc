@@ -184,7 +184,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   ffi::Optional<ffi::String> GetCodegenName(Group* group) {
     if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
-      return Downcast<ffi::String>(opt_str.value());
+      return opt_str.value().as_or_throw<ffi::String>();
     }
     return std::nullopt;
   }
@@ -318,8 +318,8 @@ class CompositeInliner : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      auto gvar = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      auto gvar = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(gvar).as_or_throw<Function>();
       if (func->GetAttr<ffi::String>(attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
           auto new_func = CopyWithNewVars(func);
@@ -353,15 +353,15 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule update() {
     auto gvar = mod_->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod_->Lookup(gvar));
-    builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+    auto func = mod_->Lookup(gvar).as_or_throw<Function>();
+    builder_->UpdateFunction(gvar, VisitExpr(func).as_or_throw<Function>());
     return builder_->GetContextIRModule();
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      GlobalVar cur_var = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(cur_var));
+      GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
       if (auto codegen_name = func->GetAttr<ffi::String>(attr::kCodegen)) {
         GlobalVar new_var;
         if (var_map_.count(cur_var) > 0) {
@@ -376,7 +376,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
           // rename the function.
           ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run(Downcast<Function>(func));
+          Function new_func = inliner.Run(func.as_or_throw<Function>());
           new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
           new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
           // add a function with a new name.
@@ -402,7 +402,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
 IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
-  auto func = Downcast<Function>(mod->Lookup(gvar));
+  auto func = mod->Lookup(gvar).as_or_throw<Function>();
   support::Arena arena;
   auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map);

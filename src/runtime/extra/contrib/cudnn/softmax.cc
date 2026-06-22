@@ -21,6 +21,7 @@
  * \file src/runtime/contrib/cudnn/softmax.cc
  * \brief Use external cudnn softmax function
  */
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>

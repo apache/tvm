@@ -28,7 +28,7 @@ bool IsScalarTensor(const Type& ty) {
   if (!ty->IsInstance<TensorTypeNode>()) {
     return false;
   }
-  TensorType tensor_ty = Downcast<TensorType>(ty);
+  TensorType tensor_ty = ty.as_or_throw<TensorType>();
   if (!tensor_ty->shape.defined() || !tensor_ty->shape->IsInstance<ShapeExprNode>()) {
     return false;
   }
@@ -85,8 +85,8 @@ Function ComposeFunctions(Function func_a, Function func_b) {
                                func_a->is_pure && func_b->is_pure, func_a->attrs);
 
   new_function = CopyWithNewVars(new_function);
-  new_function = Downcast<Function>(CanonicalizeBindings(new_function));
-  new_function = Downcast<Function>(RemoveAllUnused(new_function));
+  new_function = CanonicalizeBindings(new_function).as_or_throw<Function>();
+  new_function = RemoveAllUnused(new_function).as_or_throw<Function>();
 
   return new_function;
 }

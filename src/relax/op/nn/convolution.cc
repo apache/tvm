@@ -188,10 +188,10 @@ InferLayoutOutput InferLayoutConv1d(
 
 Call InferMixedPrecisionConv1d(const Call& call, const DataType& out_dtype) {
   const auto* conv1d_attrs = call->attrs.as<Conv1DAttrs>();
-  return Downcast<Call>(conv1d(call->args[0], call->args[1], conv1d_attrs->strides,
-                               conv1d_attrs->padding, conv1d_attrs->dilation, conv1d_attrs->groups,
-                               conv1d_attrs->data_layout, conv1d_attrs->kernel_layout,
-                               conv1d_attrs->out_layout, out_dtype));
+  return conv1d(call->args[0], call->args[1], conv1d_attrs->strides, conv1d_attrs->padding,
+                conv1d_attrs->dilation, conv1d_attrs->groups, conv1d_attrs->data_layout,
+                conv1d_attrs->kernel_layout, conv1d_attrs->out_layout, out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv1d")
@@ -398,10 +398,10 @@ InferLayoutOutput InferLayoutConv2d(
 
 Call InferMixedPrecisionConv2d(const Call& call, const DataType& out_dtype) {
   const auto* conv2d_attrs = call->attrs.as<Conv2DAttrs>();
-  return Downcast<Call>(conv2d(call->args[0], call->args[1], conv2d_attrs->strides,
-                               conv2d_attrs->padding, conv2d_attrs->dilation, conv2d_attrs->groups,
-                               conv2d_attrs->data_layout, conv2d_attrs->kernel_layout,
-                               conv2d_attrs->out_layout, out_dtype));
+  return conv2d(call->args[0], call->args[1], conv2d_attrs->strides, conv2d_attrs->padding,
+                conv2d_attrs->dilation, conv2d_attrs->groups, conv2d_attrs->data_layout,
+                conv2d_attrs->kernel_layout, conv2d_attrs->out_layout, out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv2d")
@@ -583,10 +583,10 @@ InferLayoutOutput InferLayoutConv3d(
 
 Call InferMixedPrecisionConv3d(const Call& call, const DataType& out_dtype) {
   const auto* conv3d_attrs = call->attrs.as<Conv3DAttrs>();
-  return Downcast<Call>(conv3d(call->args[0], call->args[1], conv3d_attrs->strides,
-                               conv3d_attrs->padding, conv3d_attrs->dilation, conv3d_attrs->groups,
-                               conv3d_attrs->data_layout, conv3d_attrs->kernel_layout,
-                               conv3d_attrs->out_layout, out_dtype));
+  return conv3d(call->args[0], call->args[1], conv3d_attrs->strides, conv3d_attrs->padding,
+                conv3d_attrs->dilation, conv3d_attrs->groups, conv3d_attrs->data_layout,
+                conv3d_attrs->kernel_layout, conv3d_attrs->out_layout, out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv3d")
@@ -760,12 +760,13 @@ InferLayoutOutput InferLayoutConv1dTranspose(
 
 Call InferMixedPrecisionConv1dTranspose(const Call& call, const DataType& out_dtype) {
   const auto* conv1d_transpose_attrs = call->attrs.as<Conv1DTransposeAttrs>();
-  return Downcast<Call>(
-      conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
-                       conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
-                       conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
-                       conv1d_transpose_attrs->data_layout, conv1d_transpose_attrs->kernel_layout,
-                       conv1d_transpose_attrs->out_layout, out_dtype));
+  return conv1d_transpose(call->args[0], call->args[1], conv1d_transpose_attrs->strides,
+                          conv1d_transpose_attrs->padding, conv1d_transpose_attrs->output_padding,
+                          conv1d_transpose_attrs->dilation, conv1d_transpose_attrs->groups,
+                          conv1d_transpose_attrs->data_layout,
+                          conv1d_transpose_attrs->kernel_layout, conv1d_transpose_attrs->out_layout,
+                          out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv1d_transpose")
@@ -988,12 +989,13 @@ InferLayoutOutput InferLayoutConv2dTranspose(
 
 Call InferMixedPrecisionConv2dTranspose(const Call& call, const DataType& out_dtype) {
   const auto* conv2d_transpose_attrs = call->attrs.as<Conv2DTransposeAttrs>();
-  return Downcast<Call>(
-      conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
-                       conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
-                       conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
-                       conv2d_transpose_attrs->data_layout, conv2d_transpose_attrs->kernel_layout,
-                       conv2d_transpose_attrs->out_layout, out_dtype));
+  return conv2d_transpose(call->args[0], call->args[1], conv2d_transpose_attrs->strides,
+                          conv2d_transpose_attrs->padding, conv2d_transpose_attrs->output_padding,
+                          conv2d_transpose_attrs->dilation, conv2d_transpose_attrs->groups,
+                          conv2d_transpose_attrs->data_layout,
+                          conv2d_transpose_attrs->kernel_layout, conv2d_transpose_attrs->out_layout,
+                          out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv2d_transpose")
@@ -1227,12 +1229,13 @@ InferLayoutOutput InferLayoutConv3dTranspose(
 
 Call InferMixedPrecisionConv3dTranspose(const Call& call, const DataType& out_dtype) {
   const auto* conv3d_transpose_attrs = call->attrs.as<Conv3DTransposeAttrs>();
-  return Downcast<Call>(
-      conv3d_transpose(call->args[0], call->args[1], conv3d_transpose_attrs->strides,
-                       conv3d_transpose_attrs->padding, conv3d_transpose_attrs->output_padding,
-                       conv3d_transpose_attrs->dilation, conv3d_transpose_attrs->groups,
-                       conv3d_transpose_attrs->data_layout, conv3d_transpose_attrs->kernel_layout,
-                       conv3d_transpose_attrs->out_layout, out_dtype));
+  return conv3d_transpose(call->args[0], call->args[1], conv3d_transpose_attrs->strides,
+                          conv3d_transpose_attrs->padding, conv3d_transpose_attrs->output_padding,
+                          conv3d_transpose_attrs->dilation, conv3d_transpose_attrs->groups,
+                          conv3d_transpose_attrs->data_layout,
+                          conv3d_transpose_attrs->kernel_layout, conv3d_transpose_attrs->out_layout,
+                          out_dtype)
+      .as_or_throw<Call>();
 }
 
 TVM_REGISTER_OP("relax.nn.conv3d_transpose")

@@ -23,6 +23,7 @@
  */
 #include "rpc_endpoint.h"
 
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>

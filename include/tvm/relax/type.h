@@ -27,7 +27,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/type.h>

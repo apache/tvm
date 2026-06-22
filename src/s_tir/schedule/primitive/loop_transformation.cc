@@ -65,7 +65,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-    SBlockRealize realize = Downcast<SBlockRealize>(StmtMutator::VisitStmt_(op));
+    SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
     if (realize->block->iter_vars.empty()) {
       opaque_blocks_->Set(op->block, realize->block);
     }
@@ -95,8 +95,9 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
-                                                     preserve_unit_iters)(std::move(stmt)));
+    return IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
+                                       preserve_unit_iters)(std::move(stmt))
+        .as_or_throw<For>();
   }
 
  private:
@@ -111,7 +112,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     // skip opaque block and update mapping
     if (op->iter_values.empty()) {
       SBlock block = op->block;
-      SBlockRealize realize = Downcast<SBlockRealize>(StmtMutator::VisitStmt_(op));
+      SBlockRealize realize = StmtMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
       for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
@@ -541,7 +542,7 @@ class BlockMutator : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const SBlockNode* _op) final {
-    SBlock new_block = Downcast<SBlock>(StmtMutator::VisitStmt_(_op));
+    SBlock new_block = StmtMutator::VisitStmt_(_op).as_or_throw<SBlock>();
 
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
@@ -616,12 +617,12 @@ class BlockMutator : public StmtExprMutator {
         break;
       }
     }
-    SBlockRealize stmt = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(realize));
+    SBlockRealize stmt = StmtExprMutator::VisitStmt_(realize).as_or_throw<SBlockRealize>();
     return stmt;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    For res = Downcast<For>(StmtMutator::VisitStmt_(op));
+    For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
     Var new_var = Var(op->loop_var->name_hint, op->loop_var.dtype());
 
     if (!op->loop_var.same_as(new_var)) {
@@ -774,7 +775,7 @@ class LoopReconstructor : private StmtMutator {
   }
 
   Stmt VisitStmt_(const SeqStmtNode* seq_stmt) final {
-    auto ret = Downcast<SeqStmt>(StmtMutator::VisitSeqStmt_(seq_stmt, true));
+    auto ret = StmtMutator::VisitSeqStmt_(seq_stmt, true).as_or_throw<SeqStmt>();
     ffi::Array<Stmt> filtered;
     for (Stmt stmt : ret->seq) {
       if (!is_no_op(stmt)) {
@@ -867,7 +868,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
   LoopReconstructor reconstructor(scope_root, lca_nest_loops);
   reconstructor.MakeNewLoop();
-  SBlock new_scope_root = Downcast<SBlock>(reconstructor(scope_root));
+  SBlock new_scope_root = reconstructor(scope_root).as_or_throw<SBlock>();
   // Step 3. Do the actual replacement
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
   return self->stmt2ref.at(reconstructor.new_inner_loop_.get());
@@ -1172,7 +1173,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     self->Replace(parent_sref, std::move(new_stmt), {});
   } else {
     SBlock old_parent_block = ffi::GetRef<SBlock>(parent_sref->StmtAs<SBlockNode>());
-    SBlock new_parent_block = Downcast<SBlock>(new_stmt);
+    SBlock new_parent_block = new_stmt.as_or_throw<SBlock>();
     self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
   }
   return self->stmt2ref.at(creator.new_loop_.get());

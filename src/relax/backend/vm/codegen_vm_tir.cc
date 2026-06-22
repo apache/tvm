@@ -452,7 +452,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     auto* func = call_node->args[0].as<ExternFuncNode>();
     TVM_FFI_ICHECK(func) << "CallBuiltin comes with extern func";
 
-    auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
+    auto tuple_arg = call_node->args[1].as_or_throw<Tuple>();
 
     // Handle args of the call
     for (Expr arg : tuple_arg->fields) {

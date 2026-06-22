@@ -145,7 +145,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             GetWinogradProducerAndInlineConst(sch, inverse);
             // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
             int64_t tile_size =
-                Downcast<IntImm>(sch->Get(inverse)->writes[0]->buffer->shape[2])->value;
+                sch->Get(inverse)->writes[0]->buffer->shape[2].as_or_throw<IntImm>()->value;
             LoopRV outer{ffi::UnsafeInit()};
             {
               SBlockRV output = sch->GetConsumers(inverse)[0];

@@ -56,7 +56,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
           continue;
         }
-        relax::Function update_func = Downcast<Function>(VisitExpr(func));
+        relax::Function update_func = VisitExpr(func).as_or_throw<Function>();
         updates_->Add(gv, update_func);
       }
     }
@@ -67,7 +67,7 @@ class SpecializeTIRCallArgs : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     if (call->op == call_tir_op) {
       return SpecializeTirPrimFunc(call);
@@ -77,16 +77,16 @@ class SpecializeTIRCallArgs : ExprMutator {
 
  private:
   Expr SpecializeTirPrimFunc(Call call) {
-    auto gv = Downcast<GlobalVar>(call->args[0]);
-    auto pfunc = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
-    auto args = Downcast<Tuple>(call->args[1])->fields;
+    auto gv = call->args[0].as_or_throw<GlobalVar>();
+    auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    auto args = call->args[1].as_or_throw<Tuple>()->fields;
     ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
       TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
-      auto tensor_ty = Downcast<TensorType>(ty);
+      auto tensor_ty = ty.as_or_throw<TensorType>();
       TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
       if (tensor_ty->vdevice.defined()) {
@@ -94,7 +94,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       }
       ffi::String name;
       if (args[i]->IsInstance<relax::VarNode>()) {
-        name = Downcast<Var>(args[i])->name_hint();
+        name = args[i].as_or_throw<Var>()->name_hint();
       } else {
         name = std::string({static_cast<char>('A' + i)});
       }
@@ -106,7 +106,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     ffi::String scope = "global";
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
-      auto ty = Downcast<TensorType>(out_ty);
+      auto ty = out_ty.as_or_throw<TensorType>();
       if (ty->vdevice.defined()) {
         scope = ty->vdevice.value()->memory_scope;
       }
@@ -119,7 +119,7 @@ class SpecializeTIRCallArgs : ExprMutator {
              "TensorType, but got "
           << out_ty;
 
-      const auto& tuple_ty = Downcast<TupleType>(out_ty);
+      const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
       ffi::Array<Type> ty_fields;
       int index = 0;
       for (const auto& si : tuple_ty->fields) {
@@ -127,7 +127,7 @@ class SpecializeTIRCallArgs : ExprMutator {
             << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto ty = Downcast<TensorType>(si);
+        auto ty = si.as_or_throw<TensorType>();
         if (ty->vdevice.defined()) {
           scope = ty->vdevice.value()->memory_scope;
         }

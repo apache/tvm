@@ -90,7 +90,7 @@ class ModelParamBundler : public ExprMutator {
 
 Function BundleModelParams(const Function& func, ffi::Optional<ffi::String> param_tuple_name) {
   ModelParamBundler mutator(param_tuple_name);
-  return Downcast<Function>(mutator(func));
+  return mutator(func).as_or_throw<Function>();
 }
 
 namespace transform {
@@ -102,7 +102,7 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
 
     for (const auto& [gvar, func] : mod->functions) {
       if (auto opt = func.as<relax::Function>()) {
-        auto new_func = Downcast<relax::Function>(mutator(opt.value()));
+        auto new_func = mutator(opt.value()).as_or_throw<relax::Function>();
         if (!new_func.same_as(func)) {
           updates->Add(gvar, new_func);
         }

@@ -51,8 +51,8 @@ class ProducerToBufferTransformer : public StmtExprMutator {
       : tensor2buffers_(tensor2buffers) {}
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
-    auto visited_op = Downcast<ProducerLoad>(StmtExprMutator::VisitExpr_(op));
-    te::Tensor tensor = Downcast<te::Tensor>(visited_op->producer);
+    auto visited_op = StmtExprMutator::VisitExpr_(op).as_or_throw<ProducerLoad>();
+    te::Tensor tensor = visited_op->producer.as_or_throw<te::Tensor>();
     auto it = tensor2buffers_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const Buffer& buffer = it->second;
@@ -80,7 +80,7 @@ class BufferSubstituter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
       return BufferLoad(it->second, load->indices, load->predicate, load->span);
@@ -89,7 +89,7 @@ class BufferSubstituter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     auto it = buffer_map_.find(store->buffer.get());
     if (it != buffer_map_.end()) {
       return BufferStore(it->second, store->value, store->indices, store->predicate, store->span);
@@ -150,11 +150,11 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* _block) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(_block));
+    SBlock block = StmtMutator::VisitStmt_(_block).as_or_throw<SBlock>();
     SBlockNode* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
       ffi::Array<Buffer> new_buffers;
-      for (Buffer buffer : Downcast<ffi::Array<Buffer>>(opt_ann.value())) {
+      for (Buffer buffer : opt_ann.value().as_or_throw<ffi::Array<Buffer>>()) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
@@ -312,7 +312,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
     if (value.as<ffi::ArrayObj>()) {
-      const auto array_value = Downcast<ffi::Array<ffi::Any>>(value);
+      const auto array_value = value.as_or_throw<ffi::Array<ffi::Any>>();
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));

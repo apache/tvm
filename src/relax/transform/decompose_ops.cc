@@ -177,7 +177,7 @@ class TrainingOperatorMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
+    Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op == batch_norm_op_) {
       return MutateBatchNormForTraining(call);
     } else if (call->op == layer_norm_op_) {
@@ -199,7 +199,7 @@ class OpDecomposer : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
+    Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op == batch_norm_op_) {
       return DecomposeBatchNorm(call);
     } else if (call->op == tensor_to_shape_op_) {
@@ -299,7 +299,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
 Pass MutateOpsForTraining() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
     TrainingOperatorMutator mutator;
-    return Downcast<Function>(mutator(func));
+    return mutator(func).as_or_throw<Function>();
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
@@ -310,7 +310,7 @@ Pass MutateOpsForTraining() {
 Pass DecomposeOps() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
     OpDecomposer mutator;
-    return Downcast<Function>(mutator(func));
+    return mutator(func).as_or_throw<Function>();
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
