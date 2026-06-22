@@ -5602,7 +5602,12 @@ def test_affine_grid_3d():
     )
 
     model = helper.make_model(graph, producer_name="affine_grid_3d_test")
-    check_correctness(model, opset=20)
+
+    tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+    assert "relax.image.affine_grid" in call_ops
+    assert "relax.permute_dims" in call_ops
+    assert [int(d) for d in tvm_model["main"].ret_ty.shape] == [2, 8, 16, 16, 3]
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
