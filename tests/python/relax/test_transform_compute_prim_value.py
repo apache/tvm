@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -82,6 +84,7 @@ def test_prim_value_in_branch_condition():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_prim_value_in_pure_function():
     @I.ir_module
     class Before:

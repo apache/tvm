@@ -281,7 +281,7 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("ShapeType", **fields)
         elif isinstance(ty_node, relax.ObjectType):
             return self.build_ast_node("ObjectType")
-        elif isinstance(ty_node, relax.PrimType):
+        elif isinstance(ty_node, tvm.ir.PrimType):
             return self.build_ast_node("PrimType", dtype=ty_node.dtype)
         elif isinstance(ty_node, relax.TensorType):
             fields = {}

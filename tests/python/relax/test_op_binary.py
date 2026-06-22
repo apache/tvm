@@ -141,7 +141,7 @@ def test_infer_ty_binary_arith_prim_value_with_prim_value(binary_arith_op: Calla
     x = relax.Var("x", R.Prim("float32"))
     y = relax.Var("y", R.Prim("float32"))
 
-    _check_inference(bb, binary_arith_op(x, y), relax.PrimType("float32"))
+    _check_inference(bb, binary_arith_op(x, y), tvm.ir.PrimType("float32"))
 
 
 @pytest.mark.parametrize("binary_arith_op,tir_arith_op", binary_arith_ops)
@@ -157,8 +157,8 @@ def test_infer_ty_binary_arith_known_prim_value_with_prim_value(
     x = relax.Var("x", R.Prim(value=tir_x))
     y = relax.Var("y", R.Prim(value=tir_y))
 
-    _check_inference(bb, binary_arith_op(x, y), relax.PrimType(value=tir_x + tir_y))
-    _check_inference(bb, binary_arith_op(y, x), relax.PrimType(value=tir_y + tir_x))
+    _check_inference(bb, binary_arith_op(x, y), tvm.ir.PrimType("float32"))
+    _check_inference(bb, binary_arith_op(y, x), tvm.ir.PrimType("float32"))
 
 
 binary_cmp_ops = [
@@ -202,8 +202,8 @@ def test_infer_ty_binary_cmp_prim_value_to_prim_value(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Prim("float32"))
     y = relax.Var("y", R.Prim("float32"))
-    _check_inference(bb, binary_cmp_op(x, y), relax.PrimType("bool"))
-    _check_inference(bb, binary_cmp_op(y, x), relax.PrimType("bool"))
+    _check_inference(bb, binary_cmp_op(x, y), tvm.ir.PrimType("bool"))
+    _check_inference(bb, binary_cmp_op(y, x), tvm.ir.PrimType("bool"))
 
 
 @pytest.mark.parametrize("binary_cmp_op,tir_cmp_op", binary_cmp_ops)
@@ -217,8 +217,8 @@ def test_infer_ty_binary_cmp_known_prim_value_to_prim_value(binary_cmp_op: Calla
     x = relax.Var("x", R.Prim(value=tir_x))
     y = relax.Var("y", R.Prim(value=tir_y))
 
-    _check_inference(bb, binary_cmp_op(x, y), relax.PrimType(value=tir_cmp_op(tir_x, tir_y)))
-    _check_inference(bb, binary_cmp_op(y, x), relax.PrimType(value=tir_cmp_op(tir_y, tir_x)))
+    _check_inference(bb, binary_cmp_op(x, y), tvm.ir.PrimType("bool"))
+    _check_inference(bb, binary_cmp_op(y, x), tvm.ir.PrimType("bool"))
 
 
 @pytest.mark.parametrize("binary_arith_op", [row[0] for row in binary_arith_ops])

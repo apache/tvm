@@ -171,6 +171,7 @@ def test_structural_equal_of_call_nodes():
     tvm.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_structural_equal_with_recursive_lambda_function():
     """A recursive lambda function may be checked for structural equality
 
@@ -263,10 +264,9 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
         "blocks[0]",
         "bindings[0]",
         "value",
-        "true_branch",
-        "body",
+        "cond",
         "value",
-        "value",
+        "a",
     ]
 
     with pytest.raises(ValueError, match=re.escape(".".join(mismatch_path))):

@@ -32,7 +32,6 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ObjectTypeNode::RegisterReflection();
-  PrimTypeNode::RegisterReflection();
   ShapeTypeNode::RegisterReflection();
   TensorTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
@@ -47,32 +46,6 @@ ObjectType::ObjectType(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
-}
-
-// Prim
-PrimType::PrimType(PrimExpr value, Span span) {
-  ffi::ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
-  n->dtype = value->dtype;
-  n->value = std::move(value);
-  n->span = span;
-  data_ = std::move(n);
-}
-
-PrimType::PrimType(DataType dtype, Span span) {
-  ffi::ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
-  n->dtype = dtype;
-  n->value = std::nullopt;
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.PrimTypeFromDtype",
-           [](DataType dtype, Span span) { return PrimType(dtype, span); })
-      .def("relax.PrimTypeFromValue",
-           [](PrimExpr value, Span span) { return PrimType(value, span); });
 }
 
 // Shape

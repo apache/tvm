@@ -35,8 +35,8 @@ def test_get_static_type_basic():
     tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s0), rx.ObjectType())
 
     # prim
-    s1 = rx.PrimType("float32")
-    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s1), rx.PrimType("float32"))
+    s1 = tvm.ir.PrimType("float32")
+    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s1), tvm.ir.PrimType("float32"))
 
 
 def test_get_static_type_shape():
@@ -105,7 +105,7 @@ def test_erase_to_well_defined_basic():
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s0), s0)
 
     # prim
-    s1 = rx.PrimType("float32")
+    s1 = tvm.ir.PrimType("float32")
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s1), s1)
 
 
@@ -208,8 +208,8 @@ def test_base_check():
 
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectType()
-    prim0 = rx.PrimType("int32")
-    prim1 = rx.PrimType("float32")
+    prim0 = tvm.ir.PrimType("int32")
+    prim1 = tvm.ir.PrimType("float32")
 
     shape0 = rx.ShapeType(ndim=-1)
     shape1 = rx.ShapeType(ndim=2)
@@ -362,7 +362,7 @@ def _check_derive(ctx, finfo, args_ty, ret):
 
 def test_derive_call_ret_type():
     obj0 = rx.ObjectType()
-    prim0 = rx.PrimType("float32")
+    prim0 = tvm.ir.PrimType("float32")
 
     n, m = tirx.Var("n0", "int64"), tirx.Var("m0", "int64")
     bb = rx.BlockBuilder()
@@ -517,8 +517,8 @@ def _check_lca(lhs, rhs, target):
 def test_type_lca():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     obj0 = rx.ObjectType()
-    prim0 = rx.PrimType("int32")
-    prim1 = rx.PrimType("float32")
+    prim0 = tvm.ir.PrimType("int32")
+    prim1 = tvm.ir.PrimType("float32")
 
     vdevice0 = ir.VDevice("llvm")
     vdevice1 = ir.VDevice("cuda", 0)
@@ -764,7 +764,7 @@ def test_collect_symbolic_var_from_tensor_shape():
     assert free_vars == {n, p, q}
 
 
-param_type = tvm.testing.parameter("shape_expr", "prim_value")
+param_type = tvm.testing.parameter("shape_expr")
 param_order = tvm.testing.parameter("definition_first", "usage_first")
 
 
@@ -778,11 +778,6 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
     if param_type == "shape_expr":
         extra_params = [
             rx.Var("shape_expr", rx.ShapeType([tir_n, tir_m])),
-        ]
-    elif param_type == "prim_value":
-        extra_params = [
-            rx.Var("n", rx.PrimType(value=tir_n)),
-            rx.Var("m", rx.PrimType(value=tir_m)),
         ]
     else:
         raise ValueError(f"Unknown param_type: {param_type}")

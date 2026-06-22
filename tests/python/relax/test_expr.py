@@ -271,7 +271,7 @@ def test_prim_value_with_var():
     n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n)
     assert pv.value.same_as(n)
-    tvm.ir.assert_structural_equal(pv.ty, rx.PrimType(value=n))
+    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
     _check_equal(pv, rx.PrimValue(n))
     _check_json_roundtrip(pv)
 
@@ -279,7 +279,7 @@ def test_prim_value_with_var():
 def test_prim_value_with_expr():
     n = tirx.Var("n", "int64")
     pv = rx.PrimValue(n + 1)
-    tvm.ir.assert_structural_equal(pv.ty, rx.PrimType(value=n + 1))
+    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
     _check_equal(pv, rx.PrimValue(n + 1))
     _check_json_roundtrip(pv)
 
@@ -301,7 +301,7 @@ def test_datatype_imm():
 
 
 def test_call():
-    dtype = rx.PrimType("int32")
+    dtype = tvm.ir.PrimType("int32")
     func = rx.Var("func", rx.FuncType([dtype], dtype))
     arg = rx.Var("arg", dtype)
     call = rx.Call(func, [arg])
@@ -312,7 +312,7 @@ def test_call():
 
 def test_call_raises_error_for_invalid_function():
     """relax::Call requires the function to have FuncType"""
-    dtype = rx.PrimType("int32")
+    dtype = tvm.ir.PrimType("int32")
     func = rx.Var("func", dtype)
     arg = rx.Var("arg", dtype)
 

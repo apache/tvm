@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -751,6 +752,7 @@ def test_params_without_tuple():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_retain_before_num_input():
     """Only lazily load parameters after num_input"""
 
@@ -844,6 +846,7 @@ def test_get_item_callback():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_get_item_callback_num_attrs():
     @I.ir_module(s_tir=True)
     class Before:

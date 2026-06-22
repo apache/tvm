@@ -115,41 +115,6 @@ class ObjectType : public Type {
 };
 
 /*!
- * \brief Primitive value.
- */
-class PrimTypeNode : public TypeNode {
- public:
-  /*! \brief Underlying primitive value, if known */
-  ffi::Optional<PrimExpr> value;
-
-  /*! \brief Underlying data type of the primitive value */
-  DataType dtype;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimTypeNode>()
-        .def_ro("value", &PrimTypeNode::value)
-        .def_ro("dtype", &PrimTypeNode::dtype);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.PrimType", PrimTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to PrimTypeNode.
- * \sa PrimTypeNode
- */
-class PrimType : public Type {
- public:
-  /* Construct a PrimType with a known dtype, but unknown value */
-  TVM_DLL PrimType(DataType dtype, Span span = Span());
-
-  /* Construct a PrimType with a known value */
-  TVM_DLL PrimType(PrimExpr value, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimType, Type, PrimTypeNode);
-};
-
-/*!
  * \brief Type of shape value.
  */
 class ShapeTypeNode : public TypeNode {

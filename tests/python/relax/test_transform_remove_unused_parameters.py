@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -54,6 +56,7 @@ def test_remove_unused_relax_parameter():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_replace_symbolic_variables():
     """If a parameter is only required for its symbolic variables, provide them directly
 

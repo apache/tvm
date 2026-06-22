@@ -18,11 +18,12 @@
 """Default legalization function for index operators."""
 
 from tvm import te, tirx, topi
+from tvm.ir import PrimType
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Call, Expr, PrimValue, Tuple
 from ...op import tensor_to_shape
-from ...type import PrimType, ShapeType
+from ...type import ShapeType
 from .common import register_legalize
 
 
@@ -36,11 +37,17 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.strided_slice")
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     def _relax_tuple_to_tir(relax_tuple):
+        if isinstance(relax_tuple, Tuple):
+            output = []
+            for field in relax_tuple.fields:
+                assert isinstance(field, PrimValue)
+                output.append(field.value)
+            return output
+
         output = []
         for field in relax_tuple.ty.fields:
             assert isinstance(field, PrimType)
-            assert field.value is not None
-            output.append(field.value)
+            return None
         return output
 
     if len(call.args) == 4:

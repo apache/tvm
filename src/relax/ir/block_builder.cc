@@ -498,15 +498,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
     }
 
-    void VisitType_(const PrimTypeNode* op) final {
-      // Only collect single var defined shape. Ignore something like `R.Prim(value=m + 1)`
-      if (op->value.defined()) {
-        if (auto var = op->value.as<tirx::Var>()) {
-          shape_var_map_.Set(var.value(), op->value.value());
-        }
-      }
-    }
-
    private:
     ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
   };

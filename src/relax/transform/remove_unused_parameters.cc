@@ -100,7 +100,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   }
 
   for (const auto& tir_var : free_tir_vars) {
-    Var relax_var("param_" + tir_var->name_hint, PrimType(tir_var));
+    Var relax_var("param_" + tir_var->name_hint, PrimType(tir_var.dtype()));
     params.push_back(relax_var);
   }
 

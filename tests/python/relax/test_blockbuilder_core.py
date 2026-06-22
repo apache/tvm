@@ -643,8 +643,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
         n_sym = tirx.Var("n", "int64")
         m_sym = tirx.Var("m", "int64")
-        n = rx.Var("n", rx.PrimType(value=n_sym))
-        m = rx.Var("m", rx.PrimType(value=m_sym))
+        n = rx.Var("n", tvm.ir.PrimType("int64"))
+        m = rx.Var("m", tvm.ir.PrimType("int64"))
         x = rx.Var("x", rx.TensorType([n_sym, m_sym], "float32"))
         y = rx.Var("y", rx.TensorType([m_sym, n_sym], "float32"))
 

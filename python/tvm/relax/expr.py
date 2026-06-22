@@ -419,7 +419,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimType):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
             raise TypeError(
                 f"The index used to access {self.tensor}.shape "
                 f'must have type R.Prim("int64"), '
@@ -487,7 +487,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.relax.PrimValue(axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.relax.PrimType):
+        if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
             raise TypeError(
                 f"The index used to access {self.tensor}.strides "
                 f'must have type R.Prim("int64"), '

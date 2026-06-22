@@ -409,7 +409,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
       TVM_FFI_ICHECK(packed_tuple_ty);
       PrimType dummy_arg_ty = [&]() {
         if (packed_tuple_ty->values) {
-          return PrimType(packed_tuple_ty->values.value()[i]);
+          return PrimType(packed_tuple_ty->values.value()[i].dtype());
         } else {
           return PrimType(DataType::Int(64));
         }

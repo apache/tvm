@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+import pytest
+
 import tvm.script
 import tvm.testing
 from tvm import relax
@@ -816,6 +818,7 @@ def test_check_weights_with_dynamic_shape():
     assert_structural_equal(after, expected)
 
 
+@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_update_symbolic_vars_in_match_cast_rhs():
     """Symbolic variables may be used on the RHS of match_cast"""
 

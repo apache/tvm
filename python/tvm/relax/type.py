@@ -21,10 +21,7 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm
-from tvm.ir import EnvFunc, Span, TupleType, VDevice
-from tvm.runtime import DataType
-from tvm.tirx import PrimExpr
+from tvm.ir import EnvFunc, PrimExpr, Span, TupleType, VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type
@@ -37,72 +34,6 @@ class ObjectType(Type):
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.PrimType")
-class PrimType(Type):
-    """Type of a primitive POD value.
-
-    Parameters
-    ----------
-    dtype_or_expr : Union[str, DataType, PrimExpr]
-
-       The data type of the prim value, or a known expression for the prim
-       value.
-    """
-
-    value: PrimExpr | None
-    dtype: str
-
-    def __init__(
-        self,
-        dtype: str | DataType | None = None,
-        value: int | float | PrimExpr | None = None,
-        span: Span = None,
-    ) -> None:
-        # Guard against incorrect usage.  For backwards compatibility,
-        # the dtype and value are in the opposite order from most
-        # usages.  While PrimType could take a single positional
-        # argument and check the type, this would require an API
-        # difference from TVMScript's PrimProxy, which cannot.
-        # (PrimProxy uses string arguments for datatype, and also for
-        # inline variable definitions when used in a function
-        # signature, and requires separate arguments to distinguish
-        # the two cases.)
-        if isinstance(dtype, PrimExpr | int | float):
-            raise TypeError(
-                f"The first positional argument of PrimType must be the datatype, "
-                f", but received {type(dtype)}.  "
-                f"The value can be specified as a keyword argument "
-                f"without needing specifying the dtype: "
-                f"PrimType(value=arg)."
-            )
-
-        if dtype is None and value is None:
-            raise TypeError(
-                "PrimType.__init__ missing required argument.  "
-                "Must provide either 'dtype' or 'value'"
-            )
-
-        if dtype is not None:
-            if isinstance(value, PrimExpr):
-                assert value.dtype == dtype, (
-                    "When providing both 'value' and 'dtype' to PrimType.__init__, "
-                    "they must be consistent with each other.  "
-                    "However, the value {value} has dtype {value.dtype}, "
-                    "but the specified dtype was {dtype}."
-                )
-            elif isinstance(value, int | float):
-                value = tvm.tirx.const(value, dtype)
-
-        # Use relax's default integer type if not otherwise specified.
-        if isinstance(value, int):
-            value = tvm.tirx.IntImm("int64", value)
-
-        if value is None:
-            self.__init_handle_by_constructor__(_ffi_api.PrimTypeFromDtype, dtype, span)  # type: ignore
-        else:
-            self.__init_handle_by_constructor__(_ffi_api.PrimTypeFromValue, value, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.ShapeType")
@@ -261,5 +192,5 @@ class FuncType(Type):
         """
 
         if isinstance(derive_func, str):
-            derive_func = tvm.ir.EnvFunc.get("tvm.relax.type.infer_view_ty")
+            derive_func = EnvFunc.get("tvm.relax.type.infer_view_ty")
         return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, span)  # type: ignore

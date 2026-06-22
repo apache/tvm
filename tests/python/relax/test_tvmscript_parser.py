@@ -1337,7 +1337,7 @@ def test_computed_prim_value_as_branch_condition():
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.PrimValue)
     tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond.value)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim(value=N % 16 == 0))
+    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_branch_condition():
@@ -1409,7 +1409,7 @@ def test_computed_prim_value_as_assert_condition():
     condition = assert_op.args[0]
     assert isinstance(condition, relax.PrimValue)
     tvm.ir.assert_structural_equal(N % 16 == 0, condition.value)
-    tvm.ir.assert_structural_equal(condition.ty, R.Prim(value=N % 16 == 0))
+    tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_assert_condition():
@@ -1472,19 +1472,6 @@ def test_erase_to_well_defined_keeps_variants_exposed_by_shape_expr():
     _check(foo)
 
 
-def test_erase_to_well_defined_keeps_variants_exposed_by_prim_value():
-    @R.function
-    def foo(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")):
-        q = x
-        m, n = T.int64(), T.int64()
-        z = R.match_cast(q, R.Tensor((m, n)))
-        w = z
-        return w
-
-    assert foo.ret_ty.shape is not None
-    _check(foo)
-
-
 def test_erase_to_well_defined_infers_from_shape_expr():
     @I.ir_module(s_tir=True)
     class Module:
@@ -1504,33 +1491,6 @@ def test_erase_to_well_defined_infers_from_shape_expr():
         @R.function
         def main(x: R.Tensor, shape: R.Shape(["m", "n"])):
             output = Module.subroutine(x, shape)
-            return output
-
-    assert Module["main"].ret_ty.shape is not None
-    _check(Module)
-
-
-def test_erase_to_well_defined_infers_from_prim_value():
-    @I.ir_module(s_tir=True)
-    class Module:
-        # The subroutine's symbolic variables are only in-scope for the subroutine.
-        @R.function
-        def subroutine(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")) -> R.Tensor(
-            ["m", "n"]
-        ):
-            q = x
-            m, n = T.int64(), T.int64()
-            z = R.match_cast(q, R.Tensor((m, n)))
-            w = z
-            return w
-
-        # However, struct inference can make the symbolic variables in
-        # the main function to the symbolic variables in the
-        # subroutine.  Therefore, the shape of the tensor returned
-        # from main can have a well-defined shape.
-        @R.function
-        def main(x: R.Tensor, relax_m: R.Prim(value="m"), relax_n: R.Prim(value="n")):
-            output = Module.subroutine(x, relax_m, relax_n)
             return output
 
     assert Module["main"].ret_ty.shape is not None
@@ -1608,26 +1568,6 @@ def test_symbolic_vars_in_shape():
 
     m = tirx.Var("m", "int64")
     x = relax.Var("x", relax.ShapeType([m]))
-    y = relax.Var("y", relax.TensorType([m * 2], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("baz", (x, y)):
-        z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
-        bb.emit_func_output(z)
-
-    _check(baz, bb.get()["baz"])
-
-
-def test_symbolic_vars_in_prim_value():
-    """Symbolic variable may be defined in R.Prim"""
-
-    @R.function
-    def baz(x: R.Prim(value="m"), y: R.Tensor(("m * 2",), "float32")):
-        m = T.int64()
-        z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
-        return z
-
-    m = tirx.Var("m", "int64")
-    x = relax.Var("x", relax.PrimType(value=m))
     y = relax.Var("y", relax.TensorType([m * 2], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("baz", (x, y)):

@@ -29,6 +29,7 @@ import tvm_ffi
 from tvm_ffi import Array, Map
 
 import tvm
+from tvm.ir import PrimType
 
 from .. import tirx
 from ..ir import Attrs, Type, VDevice
@@ -38,7 +39,7 @@ from ..tirx import PrimExpr
 from . import _ffi_api
 from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm, te_tensor
 from .expr import Tuple as rx_Tuple
-from .type import PrimType, ShapeType, TensorType
+from .type import ShapeType, TensorType
 
 
 def metadata_partitioner(rx_txt: str) -> list[str]:
@@ -250,23 +251,23 @@ def gen_call_tir_inputs(
                     return [_convert_te_arg_helper(val) for val in arg.values]
 
                 if isinstance(arg.ty, PrimType):
-                    if arg.ty.value is None:
-                        n_args = len(create_primfunc_args)
-                        if isinstance(arg, tvm.relax.Var):
-                            name = arg.name_hint
-                        elif n_args < len(string.ascii_lowercase):
-                            name = string.ascii_lowercase[n_args]
-                        else:
-                            name = f"scalar_input_{n_args}"
+                    if isinstance(arg, PrimValue):
+                        return _convert_te_arg_helper(arg.value)
 
-                        tir_param = tirx.Var(name, arg.ty.dtype)
-
-                        call_tir_args.append(arg)
-                        create_primfunc_args.append(tir_param)
-
-                        return tir_param
+                    n_args = len(create_primfunc_args)
+                    if isinstance(arg, tvm.relax.Var):
+                        name = arg.name_hint
+                    elif n_args < len(string.ascii_lowercase):
+                        name = string.ascii_lowercase[n_args]
                     else:
-                        return _convert_te_arg_helper(arg.ty.value)
+                        name = f"scalar_input_{n_args}"
+
+                    tir_param = tirx.Var(name, arg.ty.dtype)
+
+                    call_tir_args.append(arg)
+                    create_primfunc_args.append(tir_param)
+
+                    return tir_param
 
             elif isinstance(arg, list | Array):
                 return [_convert_te_arg_helper(x) for x in arg]

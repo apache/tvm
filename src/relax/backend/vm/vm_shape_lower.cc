@@ -648,13 +648,6 @@ class VMShapeLowerMutator
                 {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
-    if (op->value.defined()) {
-      MatchShapeTodoItem item;
-      item.input = value;
-      item.pattern = {op->value.value()};
-      item.err_ctx = err_ctx;
-      match_todos->push_back(item);
-    }
   }
 
   void VisitType_(const ShapeTypeNode* op, Expr value, bool always_check, bool dynamic_only,

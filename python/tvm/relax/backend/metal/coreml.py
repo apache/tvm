@@ -24,6 +24,7 @@ import tvm_ffi
 
 import tvm
 from tvm.contrib import coreml_runtime
+from tvm.ir import PrimType
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
@@ -37,7 +38,7 @@ from tvm.relax.expr import (
     VarBinding,
 )
 from tvm.relax.transform import PatternCheckContext
-from tvm.relax.type import PrimType, TensorType
+from tvm.relax.type import TensorType
 from tvm.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor

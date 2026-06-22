@@ -62,22 +62,6 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PrimType>("", [](relax::PrimType n, AccessPath n_p, IRDocsifier d) -> Doc {
-      ffi::Array<ExprDoc, void> args;
-      ffi::Array<ffi::String> kwargs_keys;
-      ffi::Array<ExprDoc, void> kwargs_values;
-
-      if (n->value.defined()) {
-        kwargs_keys.push_back("value");
-        kwargs_values.push_back(PrintShapeVar(n->value.value(), n_p->Attr("value"), d));
-      } else {
-        args.push_back(LiteralDoc::DataType(n->dtype, n_p->Attr("dtype")));
-      }
-
-      return Relax(d, "Prim")->Call(args, kwargs_keys, kwargs_values);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeType>(
         "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (n->values.defined()) {
@@ -172,7 +156,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncTypeNode, ReprPrintRelax);

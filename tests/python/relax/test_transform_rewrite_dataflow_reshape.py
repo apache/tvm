@@ -705,7 +705,7 @@ def test_rewrite_dynamic_reshape():
     @I.ir_module(s_tir=True)
     class Before:
         @R.function
-        def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
+        def main(x: R.Tensor(["N", 16], dtype="float32")):
             N = T.int64()
             with R.dataflow():
                 y = R.reshape(x, [N * 4, T.int64(4)])
@@ -716,7 +716,7 @@ def test_rewrite_dynamic_reshape():
     @I.ir_module(s_tir=True)
     class Expected:
         @R.function
-        def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
+        def main(x: R.Tensor(["N", 16], dtype="float32")):
             N = T.int64()
             cls = Expected
 
