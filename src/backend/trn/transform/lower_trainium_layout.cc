@@ -190,7 +190,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     bool store_returns_bool = (op->value.dtype() == DataType::Bool());
     store = VisitBufferAccess(store);
 
@@ -206,7 +206,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     bool load_returns_bool = (op->dtype == DataType::Bool());
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     if (load_returns_bool) {
       TVM_FFI_ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
@@ -287,7 +287,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const tirx::CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
-      auto buffer_load = Downcast<BufferLoad>(call->args[0]);
+      auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
@@ -313,13 +313,13 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   using StmtExprMutator::VisitStmt_;
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     store = VisitBufferAccess(store);
     return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
   }

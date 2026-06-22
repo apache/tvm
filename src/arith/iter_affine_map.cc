@@ -681,7 +681,7 @@ class IterMapRewriter : public ExprMutator {
     // scale should be 1
     if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
       const IterSplitExpr split = opt.value()->args[0];
-      IterSumExpr structured_form = Downcast<IterSumExpr>(split->source->source);
+      IterSumExpr structured_form = split->source->source.as_or_throw<IterSumExpr>();
       // get the flattened form
       auto it = flattened_map_.find(structured_form);
       TVM_FFI_ICHECK(it != flattened_map_.end());
@@ -1662,13 +1662,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   }
 
   if (a->IsInstance<IterSumExprNode>()) {
-    IterSumExpr ret = Downcast<IterSumExpr>(std::move(a));
+    IterSumExpr ret = std::move(a).as_or_throw<IterSumExpr>();
     MulToLhs(ret.CopyOnWrite(), b);
     return ret;
 
   } else {
     TVM_FFI_ICHECK(a->IsInstance<IterSplitExprNode>());
-    IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
+    IterSplitExpr ret = std::move(a).as_or_throw<IterSplitExpr>();
     ret.CopyOnWrite()->scale *= b;
     return ret;
   }
@@ -1676,10 +1676,10 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 
 IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr original_dividend) {
   if (dividend->IsInstance<IterSplitExprNode>()) {
-    auto split = Downcast<IterSplitExpr>(dividend);
+    auto split = dividend.as_or_throw<IterSplitExpr>();
     return IterSumExpr({split}, IntImm(split.dtype(), 0));
   } else if (dividend->IsInstance<IterSumExprNode>()) {
-    auto sum = Downcast<IterSumExpr>(dividend);
+    auto sum = dividend.as_or_throw<IterSumExpr>();
     if (sum->args.empty()) {
       return IterSumExpr();
     } else if (sum->args.size() == 1) {
@@ -1970,7 +1970,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }
@@ -2054,7 +2054,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }
@@ -2337,8 +2337,8 @@ class SubspaceDivider {
     bool need_predicate = !analyzer_->CanProveEqual(extent, mark_extent);
     const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, IntImm(dtype, 0));
     const IterMark& inner_mark = MarkFromArgsAndBase(inner_args, expr->base);
-    IterSumExpr outer_source = Downcast<IterSumExpr>(outer_mark->source);
-    IterSumExpr inner_source = Downcast<IterSumExpr>(inner_mark->source);
+    IterSumExpr outer_source = outer_mark->source.as_or_throw<IterSumExpr>();
+    IterSumExpr inner_source = inner_mark->source.as_or_throw<IterSumExpr>();
     if (need_predicate) {
       // if we have a predicate on this sum expr, then we cannot divide it into Y*E+X
       // it should either be Y*1+0 or 0*E(X)+X
@@ -2424,8 +2424,10 @@ class SubspaceDivider {
       if (splits.size() == 1) {
         return mark_division;
       }
-      IterMark outer_mark(Downcast<IterSumExpr>(mark_division.outer), mark_division.outer_extent);
-      IterMark inner_mark(Downcast<IterSumExpr>(mark_division.inner), mark_division.inner_extent);
+      IterMark outer_mark(mark_division.outer.as_or_throw<IterSumExpr>(),
+                          mark_division.outer_extent);
+      IterMark inner_mark(mark_division.inner.as_or_throw<IterSumExpr>(),
+                          mark_division.inner_extent);
       bool encountered_boundary = mark_division.IsOuter();
       std::vector<bool> used(splits.size(), false);
       std::vector<IterSplitExpr> inner_iters, outer_iters;
@@ -2556,10 +2558,10 @@ class InverseAffineIterMapTransformer {
     // run back propagation
     for (const IterMapExprNode* node : post_dfs_order) {
       if (node->IsInstance<IterSumExprNode>()) {
-        Visit_(Downcast<IterSumExpr>(ffi::GetRef<IterMapExpr>(node)));
+        Visit_(ffi::GetRef<IterMapExpr>(node).as_or_throw<IterSumExpr>());
       } else {
         TVM_FFI_ICHECK(node->IsInstance<IterSplitExprNode>());
-        Visit_(Downcast<IterSplitExpr>(ffi::GetRef<IterMapExpr>(node)));
+        Visit_(ffi::GetRef<IterMapExpr>(node).as_or_throw<IterSplitExpr>());
       }
     }
     return std::move(inverse_);
@@ -2629,10 +2631,10 @@ class InverseAffineIterMapTransformer {
     PrimExpr input = backprop_.at(iter_map_expr) * iter_map_expr->lower_factor;
     const IterMark& source = iter_map_expr->source;
     if (source->source.as<IterSumExprNode>()) {
-      IterSumExpr source_expr = Downcast<IterSumExpr>(source->source);
+      IterSumExpr source_expr = source->source.as_or_throw<IterSumExpr>();
       backprop_.Set(source_expr, backprop_.at(source_expr) + input);
     } else {
-      Var source_var = Downcast<Var>(source->source);
+      Var source_var = source->source.as_or_throw<Var>();
       if (inverse_.count(source_var)) {
         inverse_.Set(source_var, inverse_.at(source_var) + input);
       } else {

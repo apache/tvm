@@ -78,7 +78,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
   CheckOrSetAttr(&target, "mtriple", "amdgcn-amd-amdhsa-hcc");
   std::string arch = "gfx900";
   if (target.count("mcpu")) {
-    ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
+    ffi::String mcpu = target.at("mcpu").as_or_throw<ffi::String>();
     arch = ExtractStringWithPrefix(mcpu, "gfx");
     TVM_FFI_CHECK(!arch.empty(), ValueError)
         << "ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
@@ -101,7 +101,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
   if (version < 305) {
     ffi::Array<ffi::String> mattr;
     if (target.count("mattr")) {
-      mattr = Downcast<ffi::Array<ffi::String>>(target.at("mattr"));
+      mattr = target.at("mattr").as_or_throw<ffi::Array<ffi::String>>();
     }
     mattr.push_back("-code-object-v3");
     target.Set("mattr", mattr);

@@ -69,7 +69,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
     PrimExpr padding_predicate = IntImm::Bool(false);
-    return {Downcast<IndexMap>(self->inverse_index_map.value()), padding_predicate};
+    return {self->inverse_index_map.value().as_or_throw<IndexMap>(), padding_predicate};
   }
 
   // Dummy variables to represent the inverse's inputs.
@@ -361,7 +361,7 @@ IndexMap IndexMap::RenameVariables(
           return;
         }
         visited.emplace(obj.get());
-        Var var = Downcast<Var>(obj);
+        Var var = obj.as_or_throw<Var>();
         if (ffi::Optional<ffi::String> opt_name = f_name_map(var); opt_name.has_value()) {
           ffi::String name = opt_name.value();
           TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
@@ -385,12 +385,13 @@ IndexMap IndexMap::RenameVariables(
   }
 
   auto new_initial_indices = n->initial_indices.Map(
-      [&](const Var& var) { return Downcast<Var>(Substitute(var, var_remap)); });
+      [&](const Var& var) { return Substitute(var, var_remap).as_or_throw<Var>(); });
   auto new_final_indices =
       n->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, var_remap); });
   ffi::Optional<IndexMap> new_inverse_index_map = std::nullopt;
   if (n->inverse_index_map.defined()) {
-    new_inverse_index_map = Downcast<IndexMap>(n->inverse_index_map).RenameVariables(f_name_map);
+    new_inverse_index_map =
+        n->inverse_index_map.as_or_throw<IndexMap>().RenameVariables(f_name_map);
   }
   return IndexMap(new_initial_indices, new_final_indices, new_inverse_index_map);
 }
@@ -434,7 +435,7 @@ ffi::String IndexMapNode::ToPythonString(
     return ffi::String(lambda_expr);
   }
   // Also convert the inverse index map.
-  IndexMap inverse = Downcast<IndexMap>(index_map->inverse_index_map.value());
+  IndexMap inverse = index_map->inverse_index_map.value().as_or_throw<IndexMap>();
   std::string inverse_lambda_expr =
       IndexMap2PythonLambdaExpr(inverse->initial_indices, inverse->final_indices);
   std::ostringstream oss;
@@ -449,7 +450,8 @@ IndexMap Substitute(const IndexMap& index_map,
       index_map->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, f_subst); });
   ffi::Optional<IndexMap> new_inverse_map = std::nullopt;
   if (index_map->inverse_index_map.defined()) {
-    new_inverse_map = Substitute(Downcast<IndexMap>(index_map->inverse_index_map.value()), f_subst);
+    new_inverse_map =
+        Substitute(index_map->inverse_index_map.value().as_or_throw<IndexMap>(), f_subst);
   }
   return IndexMap{index_map->initial_indices, new_output, new_inverse_map};
 }

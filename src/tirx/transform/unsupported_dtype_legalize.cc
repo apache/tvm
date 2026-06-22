@@ -414,7 +414,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      auto node = Downcast<AllocBuffer>(ret);
+      auto node = ret.as_or_throw<AllocBuffer>();
       node.CopyOnWrite()->buffer = new_buf;
       return node;
     }
@@ -545,7 +545,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      auto node = Downcast<AllocBuffer>(ffi::GetRef<Stmt>(op));
+      auto node = ffi::GetRef<AllocBuffer>(op);
       node.CopyOnWrite()->buffer = buf;
       return node;
     }

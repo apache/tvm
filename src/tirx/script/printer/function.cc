@@ -42,7 +42,7 @@ bool IsSimpleBuffer(const tirx::Buffer& buf, bool s_tir) {
   if (!tirx::UndefinedVars(buf->elem_offset).empty()) {
     return false;
   } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
-    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
+    IntImm elem_offset = buf->elem_offset.as_or_throw<IntImm>();
     if (elem_offset->value != 0) {
       return false;
     }
@@ -124,7 +124,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         // for global symbol, don't display it if it matches the func name
         std::unordered_set<ffi::String> keys_to_remove;
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<ffi::String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) ==
+            func->attrs->dict.at(tvm::attr::kGlobalSymbol).as_or_throw<ffi::String>() ==
                 func_name->name) {
           keys_to_remove.insert(tvm::attr::kGlobalSymbol);
         }

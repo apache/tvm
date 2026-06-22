@@ -1324,7 +1324,8 @@ void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
+    llvm::Intrinsic::ID id =
+        static_cast<llvm::Intrinsic::ID>(op->args[0].as_or_throw<IntImm>()->value);
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
     for (size_t i = 1; i < op->args.size(); ++i) {
@@ -1393,8 +1394,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return builder_->CreateInBoundsGEP(t_int8_, ptr, offset);
   } else if (op->op.same_as(builtin::large_uint_imm())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
-    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t low = static_cast<uint64_t>(op->args[0].as_or_throw<IntImm>()->value);
+    uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
     uint64_t val = (high << 32U) | low;
     return llvm::ConstantInt::get(DTypeToLLVMType(op->dtype), val);
   } else if (op->op.same_as(builtin::if_then_else())) {
@@ -1837,7 +1838,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
-      auto global_symbol = Downcast<StringImm>(op->args[0]);
+      auto global_symbol = op->args[0].as_or_throw<StringImm>();
       return this->CreateCallExtern(GetType(ffi::GetRef<PrimExpr>(op)), global_symbol->value,
                                     op->args, true);
     } else if (op_attr_global_symbol_.count(call_op)) {
@@ -2057,7 +2058,7 @@ void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
 void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = Downcast<IterVar>(op->node);
+    IterVar iv = op->node.as_or_throw<IterVar>();
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);

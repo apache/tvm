@@ -160,7 +160,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       return {false, stmt};
     }
 
-    LT lt = Downcast<LT>(condition);
+    LT lt = condition.as_or_throw<LT>();
 
     // Check the form of the vectorized condition, we're expecting
     // Ramp(...) < Broadcast(...)
@@ -168,11 +168,11 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       return {false, stmt};
     }
 
-    Ramp pred_ramp = Downcast<Ramp>(lt->a);
+    Ramp pred_ramp = lt->a.as_or_throw<Ramp>();
     base_ = pred_ramp->base;
     stride_ = pred_ramp->stride;
     lanes_ = pred_ramp->lanes;
-    limit_ = Downcast<Broadcast>(lt->b)->value;
+    limit_ = lt->b.as_or_throw<Broadcast>()->value;
 
     // Now we can try to predicate
     Stmt predicated_stmt = StmtExprMutator::operator()(std::move(stmt));
@@ -184,12 +184,12 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
 
  private:
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return TryPredicateBufferAccess(load);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     return TryPredicateBufferAccess(store);
   }
 
@@ -202,7 +202,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
       return node;
     }
-    Ramp ramp = Downcast<Ramp>(node->indices[0]);
+    Ramp ramp = node->indices[0].template as_or_throw<Ramp>();
 
     if (!ffi::StructuralEqual()(ramp->stride, stride_) ||
         !ffi::StructuralEqual()(ramp->lanes, lanes_)) {
@@ -267,12 +267,12 @@ class VecAllocAccess : public StmtExprMutator {
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return UpdateBufferAccess(load);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     return UpdateBufferAccess(store);
   }
 
@@ -446,8 +446,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const RampNode* base_ramp = base.as<RampNode>();
-      int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
-      int base_ramp_lanes = static_cast<int>(Downcast<IntImm>(base_ramp->lanes)->value);
+      int op_lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
+      int base_ramp_lanes = static_cast<int>(base_ramp->lanes.as_or_throw<IntImm>()->value);
       if (analyzer_->CanProve(base_ramp->stride ==
                               stride * MakeConst(stride.dtype(), base_ramp_lanes))) {
         return Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
@@ -715,16 +715,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return ffi::GetRef<PrimExpr>(op);
     }
 
-    int new_vec_length = Downcast<IntImm>(var_lanes_)->value / op->vectors[0].dtype().lanes();
+    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].dtype().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
       // Allowing Ramp(0, 1, var_lanes_)
       if (const auto* ramp = index.as<RampNode>()) {
-        if (ramp->base->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->base)->value == 0 &&
-            ramp->stride->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->stride)->value == 1 &&
+        if (ramp->base->IsInstance<IntImmNode>() && ramp->base.as_or_throw<IntImm>()->value == 0 &&
+            ramp->stride->IsInstance<IntImmNode>() &&
+            ramp->stride.as_or_throw<IntImm>()->value == 1 &&
             ramp->lanes->IsInstance<IntImmNode>() &&
-            Downcast<IntImm>(ramp->lanes)->value == Downcast<IntImm>(var_lanes_)->value) {
+            ramp->lanes.as_or_throw<IntImm>()->value == var_lanes_.as_or_throw<IntImm>()->value) {
           return true;
         }
       }
@@ -732,15 +733,18 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (const auto* floordiv = index.as<FloorModNode>()) {
         if (const auto* ramp = floordiv->a.as<RampNode>()) {
           if (const auto* broadcast = floordiv->b.as<BroadcastNode>()) {
-            if (ramp->base->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->base)->value == 0 &&
+            if (ramp->base->IsInstance<IntImmNode>() &&
+                ramp->base.as_or_throw<IntImm>()->value == 0 &&
                 ramp->stride->IsInstance<IntImmNode>() &&
-                Downcast<IntImm>(ramp->stride)->value == 1 &&
+                ramp->stride.as_or_throw<IntImm>()->value == 1 &&
                 ramp->lanes->IsInstance<IntImmNode>() &&
-                Downcast<IntImm>(ramp->lanes)->value == Downcast<IntImm>(var_lanes_)->value &&
+                ramp->lanes.as_or_throw<IntImm>()->value ==
+                    var_lanes_.as_or_throw<IntImm>()->value &&
                 broadcast->value->IsInstance<IntImmNode>() &&
-                Downcast<IntImm>(broadcast->value)->value == op->vectors[0]->dtype.lanes() &&
+                broadcast->value.as_or_throw<IntImm>()->value == op->vectors[0]->dtype.lanes() &&
                 broadcast->lanes->IsInstance<IntImmNode>() &&
-                Downcast<IntImm>(broadcast->lanes)->value == Downcast<IntImm>(var_lanes_)->value) {
+                broadcast->lanes.as_or_throw<IntImm>()->value ==
+                    var_lanes_.as_or_throw<IntImm>()->value) {
               return true;
             }
           }

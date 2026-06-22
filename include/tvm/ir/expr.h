@@ -27,7 +27,6 @@
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/runtime/data_type.h>
