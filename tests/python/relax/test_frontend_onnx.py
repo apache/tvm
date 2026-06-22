@@ -4254,6 +4254,32 @@ def test_maxunpool(kernel_shape, pads, strides):
     check_correctness(model, inputs={"I": indices})
 
 
+def test_dropout():
+    verify_unary("Dropout", [1, 3, 32, 32])
+    verify_unary("Dropout", [1, 3, 32, 32], opset=11, attrs={"ratio": 0.5})
+
+    # Opset 12+ passes ratio as an optional input; check it is captured into the relax op.
+    node = helper.make_node("Dropout", ["x", "ratio"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "dropout_ratio_input",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 3, 4, 4])],
+        initializer=[helper.make_tensor("ratio", TensorProto.FLOAT, [], [0.3])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 3, 4, 4])],
+    )
+    model = helper.make_model(graph, producer_name="dropout_ratio_input")
+    model.opset_import[0].version = 13
+    mod = from_onnx(model, opset=13)
+    rates = [
+        float(b.value.attrs.rate)
+        for f in mod.functions.values()
+        for block in getattr(f.body, "blocks", [])
+        for b in block.bindings
+        if getattr(getattr(b.value, "op", None), "name", "") == "relax.nn.dropout"
+    ]
+    assert rates == pytest.approx([0.3])
+
+
 def test_flatten():
     verify_unary("Flatten", [1, 3, 32, 32], attrs={"axis": 0})
     verify_unary("Flatten", [1, 3, 32, 32], attrs={"axis": -1})

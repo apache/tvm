@@ -3070,6 +3070,25 @@ class Identity(OnnxOpConverter):
         return inputs[0]
 
 
+class Dropout(OnnxOpConverter):
+    """Converts an onnx Dropout node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        ratio = float(attr.get("ratio", 0.5))
+        return relax.op.nn.dropout(inputs[0], ratio)
+
+    @classmethod
+    def _impl_v12(cls, bb, inputs, attr, params):
+        # Since opset 12 ratio is the optional second input rather than an attribute.
+        ratio = 0.5
+        if len(inputs) >= 2 and inputs[1] is not None:
+            const = get_constant(inputs[1], params)
+            if isinstance(const, relax.Constant):
+                ratio = float(const.data.numpy())
+        return relax.op.nn.dropout(inputs[0], ratio)
+
+
 def _onnx_resize_spatial_roi_vector(roi_full: relax.Expr, rank: int) -> relax.Expr:
     """Map ONNX ROI [starts..., ends...] to TOPI spatial ROI (drop N/C axes)."""
     return relax.op.concat(
@@ -5284,6 +5303,7 @@ def _get_convert_map():
         "ConvTranspose": ConvTranspose,
         "Flatten": Flatten,
         "Identity": Identity,
+        "Dropout": Dropout,
         "Resize": Resize,
         "Einsum": Einsum,
         "Range": Range,

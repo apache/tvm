@@ -697,8 +697,12 @@ def _nn_rms_norm(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.dropout")
 def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
-    logging.info("Dropout is handled by frontend translator at this moment and is not legalized.")
-    return call
+    # Dropout is a no-op at inference: pass the input through and return an all-ones mask.
+    return bb.call_te(
+        lambda x: [topi.identity(x), topi.full_like(x, 1.0)],
+        call.args[0],
+        primfunc_name_hint="dropout",
+    )
 
 
 def _te_attention(
