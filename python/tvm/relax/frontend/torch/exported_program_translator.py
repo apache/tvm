@@ -934,6 +934,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         weight_ih_t = self.block_builder.emit(relax.op.permute_dims(weight_ih, axes=[1, 0]))
         weight_hh_t = self.block_builder.emit(relax.op.permute_dims(weight_hh, axes=[1, 0]))
 
+        bias = None
+        if bias_ih is not None and bias_hh is not None:
+            bias = self.block_builder.emit(relax.op.add(bias_ih, bias_hh))
+
         outputs = []
         time_steps = range(seq_len - 1, -1, -1) if reverse else range(seq_len)
 
@@ -943,13 +947,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.take(input_reshaped, relax.const(t, "int64"), axis=0, mode="clip")
             )
 
-            # h_t = tanh(W_ih @ x_t + b_ih + W_hh @ h_{t-1} + b_hh)
+            # h_t = tanh(W_ih @ x_t + W_hh @ h_{t-1} + (b_ih + b_hh))
             ih = self.block_builder.emit(relax.op.linear_algebra.matmul(x_t, weight_ih_t))
             hh = self.block_builder.emit(relax.op.linear_algebra.matmul(h_prev, weight_hh_t))
-            if bias_ih is not None and bias_hh is not None:
-                ih = self.block_builder.emit(relax.op.add(ih, bias_ih))
-                hh = self.block_builder.emit(relax.op.add(hh, bias_hh))
-            h_t = self.block_builder.emit(relax.op.tanh(relax.op.add(ih, hh)))
+            ih_hh = self.block_builder.emit(relax.op.add(ih, hh))
+            if bias is not None:
+                ih_hh = self.block_builder.emit(relax.op.add(ih_hh, bias))
+            h_t = self.block_builder.emit(relax.op.tanh(ih_hh))
 
             outputs.append(h_t)
             h_prev = h_t
