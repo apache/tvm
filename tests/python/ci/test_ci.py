@@ -1238,6 +1238,7 @@ def test_open_docker_update_pr(
         "ci_cortexm",
         "ci_cpu",
         "ci_gpu",
+        "ci_lint",
         "ci_minimal",
         "ci_riscv",
         "ci_wasm",
@@ -1264,7 +1265,6 @@ def test_open_docker_update_pr(
         if line not in proc.stdout:
             raise RuntimeError(f"Missing line {line} in output:\n{proc.stdout}")
 
-    assert_in("Skipping retired image ci_lint", proc.stdout)
     assert_in(expected, proc.stdout)
 
 
