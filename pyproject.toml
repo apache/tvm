@@ -16,7 +16,7 @@
 # under the License.
 
 [build-system]
-# z3-static ships the PIC static libz3 + headers consumed by USE_Z3=ON.
+# z3-static ships the PIC static libz3 + headers for explicit USE_Z3=ON builds.
 requires = [
   "scikit-build-core>=0.11",
   "setuptools-scm>=8",
@@ -146,8 +146,8 @@ logging.level = "INFO"
 [tool.scikit-build.cmake.define]
 TVM_BUILD_PYTHON_MODULE = "ON"
 USE_CUDA = "OFF"
-# Statically link Z3 from the z3-static build dependency by default.
-USE_Z3 = "ON"
+# Keep Z3 disabled by default until CI's C++ toolchain can link z3-static reliably.
+USE_Z3 = "OFF"
 BUILD_TESTING = "OFF"
 
 [tool.setuptools_scm]
