@@ -290,8 +290,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     }
   }
 
-  auto arch = llvm::Triple(triple_).getArch();
-  if (!has_explicit_mattr && !has_explicit_mcpu &&
+  llvm::Triple target_triple(triple_);
+  auto arch = target_triple.getArch();
+  llvm::Triple host_triple(llvm::sys::getDefaultTargetTriple());
+  if (!has_explicit_mattr && !has_explicit_mcpu && arch == host_triple.getArch() &&
+      target_triple.getOS() == host_triple.getOS() &&
       (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64)) {
     std::vector<std::string> detected_attrs = DetectLocalRISCVAttrs();
     for (const std::string& attr : detected_attrs) {
