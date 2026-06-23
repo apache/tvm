@@ -411,8 +411,8 @@ def footer_html() -> str:
     )
 
     return f"""
-  <div class="footer-container" style="margin: 5px 0; font-size: 0.9em; color: #6c757d;">
-      <div class="footer-line1" style="display: flex; justify-content: center; align-items: center; gap: 0.9em; margin-bottom: 3px;">
+  <div class="footer-container" style="margin: 5px 0; font-size: 0.9em; color: #6c757d; text-align: right;">
+      <div class="footer-line1" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.9em; margin-bottom: 3px; flex-wrap: wrap;">
           <span class="footer-links">{nav_links}</span>
           <div class="footer-dropdown">
               <div class="dropdown">
@@ -425,7 +425,7 @@ def footer_html() -> str:
               </div>
           </div>
       </div>
-      <div class="footer-line2" style="font-size: 0.9em; color: #6c757d; text-align: center;">
+      <div class="footer-line2" style="font-size: 0.9em; color: #6c757d; text-align: right;">
           {footer_note}
       </div>
   </div>
