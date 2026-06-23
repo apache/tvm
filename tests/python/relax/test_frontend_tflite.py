@@ -8464,6 +8464,50 @@ def test_stablehlo_concatenate(dimension):
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def _build_stablehlo_reshape_model(input_shape, output_shape):
+    """STABLEHLO_RESHAPE with given input and output shapes."""
+    builder = flatbuffers.Builder(1024)
+
+    builtin_op = _get_stablehlo_builtin_operator("STABLEHLO_RESHAPE")
+    op_code = _build_operator_code(builder, builtin_op)
+
+    tensors = [
+        _build_tensor(builder, 0, input_shape),
+        _build_tensor(builder, 1, output_shape),
+    ]
+    op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0],
+        outputs=[1],
+    )
+    buffers = [_build_buffer(builder) for _ in range(2)]
+    return _finish_tflite_model(
+        builder, subgraph=subgraph, operator_codes=[op_code], buffers=buffers
+    )
+
+
+def test_stablehlo_reshape():
+    """TFLite StableHLO RESHAPE lowers to Relax reshape."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_reshape_model(input_shape=[2, 3], output_shape=[3, 2])
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2), dtype="float32") = R.reshape(x, (3, 2))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def _build_stablehlo_broadcast_in_dim_model(input_shape, broadcast_dims, output_shape):
     """STABLEHLO_BROADCAST_IN_DIM with given broadcast dimensions."""
     builder = flatbuffers.Builder(1024)

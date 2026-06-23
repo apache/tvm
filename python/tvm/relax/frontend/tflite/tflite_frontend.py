@@ -391,6 +391,7 @@ class OperatorConverter:
             "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
             "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
+            "STABLEHLO_RESHAPE": self._convert_stablehlo_reshape,
             "STABLEHLO_RNG_BIT_GENERATOR": self._convert_stablehlo_rng_bit_generator,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
@@ -3013,6 +3014,17 @@ class OperatorConverter:
 
         reshaped = self.bb.normalize(relax.op.reshape(in_expr, intermediate_shape))
         return self.bb.normalize(relax.op.broadcast_to(reshaped, output_shape))
+
+    def _convert_stablehlo_reshape(self, op):
+        """Convert STABLEHLO_RESHAPE to Relax."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        output_shape = [int(d) for d in self.get_tensor_shape(output_tensors[0])]
+        return self.bb.normalize(relax.op.reshape(in_expr, output_shape))
 
     def _convert_stablehlo_iota(self, op):
         """Convert STABLEHLO_IOTA to Relax (arange + broadcast)."""
