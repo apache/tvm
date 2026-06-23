@@ -52,8 +52,10 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -61,6 +63,12 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
+
+#if defined(__linux__) && defined(__riscv)
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 #if TVM_LLVM_VERSION < 180
 #if defined(__clang__)
@@ -128,6 +136,76 @@ std::string Join(std::string sep, llvm::ArrayRef<std::string> strings) {
     is_first = false;
   }
   return result;
+}
+
+std::vector<std::string> DetectLocalRISCVAttrs() {
+  std::vector<std::string> attrs;
+#if defined(__linux__) && defined(__riscv)
+#ifdef __NR_riscv_hwprobe
+  constexpr long kSysRiscvHwprobe = __NR_riscv_hwprobe;
+#else
+  constexpr long kSysRiscvHwprobe = 258;
+#endif
+  struct RISCVHwprobe {
+    int64_t key;
+    uint64_t value;
+  };
+
+  constexpr int64_t kKeyBaseBehavior = 3;
+  constexpr int64_t kKeyImaExt0 = 4;
+  constexpr uint64_t kBaseBehaviorIma = 1ULL << 0;
+  constexpr uint64_t kImaFD = 1ULL << 0;
+  constexpr uint64_t kImaC = 1ULL << 1;
+  constexpr uint64_t kImaV = 1ULL << 2;
+
+  RISCVHwprobe pairs[2] = {
+      {kKeyBaseBehavior, 0},
+      {kKeyImaExt0, 0},
+  };
+  long ret = syscall(kSysRiscvHwprobe, pairs, 2, 0, nullptr, 0);
+  if (ret != 0) {
+    return attrs;
+  }
+
+  auto add_attr = [&attrs](const char* attr) {
+    if (std::find(attrs.begin(), attrs.end(), attr) == attrs.end()) {
+      attrs.emplace_back(attr);
+    }
+  };
+  auto add_zvl_attr = [&add_attr](uint64_t vlen_bits) {
+    constexpr uint64_t kZvl[] = {65536, 32768, 16384, 8192, 4096, 2048,
+                                 1024,  512,   256,   128,  64,   32};
+    for (uint64_t bits : kZvl) {
+      if (vlen_bits >= bits) {
+        std::string attr = "+zvl" + std::to_string(bits) + "b";
+        add_attr(attr.c_str());
+        return;
+      }
+    }
+  };
+
+  uint64_t base = pairs[0].value;
+  uint64_t ext = pairs[1].value;
+  if (base & kBaseBehaviorIma) {
+    add_attr("+i");
+    add_attr("+m");
+    add_attr("+a");
+  }
+  if (ext & kImaFD) {
+    add_attr("+f");
+    add_attr("+d");
+  }
+  if (ext & kImaC) {
+    add_attr("+c");
+  }
+  if (ext & kImaV) {
+    add_attr("+v");
+    unsigned long vlenb = 0;
+    asm volatile("csrr %0, 0xC22" : "=r"(vlenb));
+    add_zvl_attr(static_cast<uint64_t>(vlenb) * 8);
+  }
+#endif
+  return attrs;
 }
 
 }  // namespace
@@ -199,15 +277,28 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
   }
+  bool has_explicit_mcpu = target.Get("mcpu").has_value();
   cpu_ = target.Get("mcpu").value_or(ffi::String(defaults::cpu)).as_or_throw<ffi::String>();
 
+  bool has_explicit_mattr = false;
   if (const auto& v = (target.Get("mattr"))
                           .value_or(nullptr)
                           .as_or_throw<ffi::Optional<ffi::Array<ffi::String>>>()) {
+    has_explicit_mattr = true;
     for (const ffi::String& s : v.value()) {
       attrs_.push_back(s);
     }
   }
+
+  auto arch = llvm::Triple(triple_).getArch();
+  if (!has_explicit_mattr && !has_explicit_mcpu &&
+      (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64)) {
+    std::vector<std::string> detected_attrs = DetectLocalRISCVAttrs();
+    for (const std::string& attr : detected_attrs) {
+      attrs_.push_back(attr);
+    }
+  }
+
   // llvm module target
   if (target.Get("kind").value().as_or_throw<ffi::String>() == "llvm") {
     // legalize -mcpu with the target -mtriple
@@ -284,7 +375,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   }
 
   // RISCV code model & vlen
-  auto arch = llvm::Triple(triple_).getArch();
   if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
     // code model
     code_model_ = llvm::CodeModel::Medium;
