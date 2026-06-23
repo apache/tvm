@@ -420,7 +420,7 @@ def footer_html() -> str:
                   aria-expanded="false" style="font-size: 0.9em; color: #6c757d; text-decoration: none; padding: 0; border: none; background: none;">
                       {footer_dropdown["name"]}
                   </button>
-                  <ul class="dropdown-menu" aria-labelledby="footerDropdown" style="font-size: 0.9em;">
+                  <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="footerDropdown" style="font-size: 0.9em;">
 {dropdown_items}                  </ul>
               </div>
           </div>
