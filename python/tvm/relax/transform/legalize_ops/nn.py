@@ -164,24 +164,23 @@ def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IOW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 1 or dilation[0] != 1:
-        logging.info(
-            "TOPI conv1d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv1d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(kernel, [1, 1, dilation[0]], name="kernel_dilate")
+        return topi.nn.group_conv1d_transpose_ncw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv1d_transpose_ncw,
-        call.args[0],
-        call.args[1],
-        stride=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.ty.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv1d_transpose",
+        te_conv1d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv1d_transpose"
     )
 
 
@@ -199,24 +198,23 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IOHW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 2 or any(d != 1 for d in dilation):
-        logging.info(
-            "TOPI conv2d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv2d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(kernel, [1, 1, dilation[0], dilation[1]], name="kernel_dilate")
+        return topi.nn.group_conv2d_transpose_nchw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv2d_transpose_nchw,
-        call.args[0],
-        call.args[1],
-        stride=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.ty.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv2d_transpose",
+        te_conv2d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv2d_transpose"
     )
 
 
@@ -236,24 +234,25 @@ def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IODHW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 3 or any(d != 1 for d in dilation):
-        logging.info(
-            "TOPI conv3d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv3d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(
+                kernel, [1, 1, dilation[0], dilation[1], dilation[2]], name="kernel_dilate"
+            )
+        return topi.nn.group_conv3d_transpose_ncdhw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv3d_transpose_ncdhw,
-        call.args[0],
-        call.args[1],
-        strides=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.ty.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv3d_transpose",
+        te_conv3d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv3d_transpose"
     )
 
 
