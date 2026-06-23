@@ -60,12 +60,11 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-06-16T13:42:33.958277
+// Generated at 2026-06-23T03:28:14.487314
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
 // image tags in that file
-ci_lint = ''
 ci_gpu = ''
 ci_cpu = ''
 ci_minimal = ''
@@ -82,7 +81,6 @@ properties([
     string(name: 'ci_arm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -92,7 +90,6 @@ properties([
   built_ci_arm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
-  built_ci_lint = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -347,7 +344,7 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_lint ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -366,11 +363,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_gpu",
             returnStdout: true,
           ).trim()
-          ci_lint = sh(
-            script: "cat .docker-image-names/ci_lint",
-            label: "Find docker image name for ci_lint",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -381,7 +373,6 @@ def prepare(node_type) {
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_lint = params.ci_lint_param ?: ci_lint
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
@@ -389,7 +380,6 @@ def prepare(node_type) {
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
-          echo " ci_lint = ${ci_lint}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -571,7 +561,6 @@ def deploy() {
                       update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
                       update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
                       update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
-                      update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
                       update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
                     } finally {
                       sh(
@@ -643,20 +632,6 @@ def deploy() {
                             label: 'Tag tlcpackstaging/ci_gpu image to tlcpack',
                           )
                         }
-                        if (ci_lint.contains("tlcpackstaging")) {
-                          // Push image to tlcpack
-                          def tag = ci_lint.split(":")[1]
-                          sh(
-                            script: """
-                              set -eux
-                              . ${jenkins_scripts_root}/retry.sh
-                              docker pull tlcpackstaging/ci_lint:${tag}
-                              docker tag tlcpackstaging/ci_lint:${tag} tlcpack/ci-lint:${tag}
-                              retry 5 docker push tlcpack/ci-lint:${tag}
-                            """,
-                            label: 'Tag tlcpackstaging/ci_lint image to tlcpack',
-                          )
-                        }
                         if (ci_wasm.contains("tlcpackstaging")) {
                           // Push image to tlcpack
                           def tag = ci_wasm.split(":")[1]
@@ -725,17 +700,6 @@ if (rebuild_docker_images) {
             // are not yet being uploaded to tlcpack
             // ci_gpu = build_image('ci_gpu')
             built_ci_gpu = build_image('ci_gpu');
-          }
-        }
-      },
-      'ci_lint': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_lint = build_image('ci_lint')
-            built_ci_lint = build_image('ci_lint');
           }
         }
       },

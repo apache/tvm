@@ -167,7 +167,6 @@ def docker(
 
     # As sccache is added to these images these can be uncommented
     sccache_images = {
-        # "ci_lint",
         "ci_gpu",
         "ci_cpu",
         # "ci_wasm",
@@ -333,25 +332,26 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False, docker_image: str | None = None) -> None:
+def lint(interactive: bool = False, docker_image: str | None = None) -> None:
     """
-    Run CI's Sanity Check step
+    Run lint checks locally.
 
     arguments:
-    interactive -- start a shell after running build / test scripts
-    fix -- where possible (currently black and clang-format) edit files in place with formatting fixes
-    docker-image -- manually specify the docker image to use
+    interactive -- start a shell after running build / test scripts when using --docker-image
+    docker-image -- manually specify a docker image to use
     """
-    env = {}
-    if fix:
-        env["IS_LOCAL"] = "true"
-        env["INPLACE_FORMAT"] = "true"
+    scripts = ["pre-commit run --all-files"]
+    if docker_image is None:
+        if interactive:
+            clean_exit("--interactive requires --docker-image")
+        cmd(scripts[0].split())
+        return
 
     docker(
-        name=gen_name("ci-lint"),
-        image="ci_lint" if docker_image is None else docker_image,
-        scripts=["pre-commit run --all-files"],
-        env=env,
+        name=gen_name("lint"),
+        image=docker_image,
+        scripts=scripts,
+        env={},
         interactive=interactive,
     )
 
