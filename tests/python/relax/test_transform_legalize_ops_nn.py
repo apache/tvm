@@ -4198,7 +4198,7 @@ def test_dropout():
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")):
             cls = Expected
-            gv = R.call_tir(cls.dropout, (x,), out_sinfo=[R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")])
+            gv = R.call_tir(cls.dropout, (x,), out_ty=[R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")])
             return gv
     # fmt: on
 
