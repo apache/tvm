@@ -1363,6 +1363,62 @@ def test_flip_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_reverse_sequence():
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class ReverseSequence:
+        @R.function
+        def main(x: R.Tensor((4, 2, 3), "float32"), seq_lengths: R.Tensor((2,), "int64")):
+            gv = R.reverse_sequence(x, seq_lengths, seq_axis=0, batch_axis=1)
+            return gv
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 2, 3), dtype="float32"),
+            seq_lengths: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((4, 2, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(
+                cls.reverse_sequence,
+                (x, seq_lengths),
+                out_ty=R.Tensor((4, 2, 3), dtype="float32"),
+            )
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def reverse_sequence(
+            rxplaceholder: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+            seq_lengths: T.Buffer((T.int64(2),), "int64"),
+            T_reverse_sequence: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2 in T.grid(T.int64(4), T.int64(2), T.int64(3)):
+                with T.sblock("T_reverse_sequence"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder[T.int64(0):T.int64(4), v_ax1, v_ax2], seq_lengths[v_ax1])
+                    T.writes(T_reverse_sequence[v_ax0, v_ax1, v_ax2])
+                    T_reverse_sequence[v_ax0, v_ax1, v_ax2] = rxplaceholder[
+                        T.if_then_else(
+                            seq_lengths[v_ax1] <= T.int64(1) or seq_lengths[v_ax1] <= v_ax0,
+                            v_ax0,
+                            T.if_then_else(
+                                T.int64(4) < seq_lengths[v_ax1],
+                                T.int64(3) - v_ax0,
+                                seq_lengths[v_ax1] - v_ax0 - T.int64(1),
+                            ),
+                        ),
+                        v_ax1,
+                        v_ax2,
+                    ]
+
+    # fmt: on
+
+    mod = LegalizeOps()(ReverseSequence)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_scatter_elements():
     # fmt: off
     @I.ir_module(s_tir=True)

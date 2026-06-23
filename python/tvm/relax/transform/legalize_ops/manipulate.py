@@ -170,6 +170,18 @@ def _flip(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.flip, call.args[0], int(call.attrs.axis))
 
 
+@register_legalize("relax.reverse_sequence")
+def _reverse_sequence(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.reverse_sequence,
+        call.args[0],
+        call.args[1],
+        int(call.attrs.seq_axis),
+        int(call.attrs.batch_axis),
+        primfunc_name_hint="reverse_sequence",
+    )
+
+
 @register_legalize("relax.gather_elements")
 def _gather_elements(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.gather, call.args[0], int(call.attrs.axis), call.args[1])

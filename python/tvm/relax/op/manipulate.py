@@ -460,6 +460,31 @@ def flip(data, axis):
     return _ffi_api.flip(data, axis)  # type: ignore
 
 
+def reverse_sequence(data: Expr, seq_lengths: Expr, seq_axis: int = 1, batch_axis: int = 0) -> Expr:
+    """Reverses variable length slices.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    seq_lengths : relax.Expr
+        A 1-D tensor containing sequence lengths for each batch.
+
+    seq_axis : int
+        The axis along which to reverse variable length slices.
+
+    batch_axis : int
+        The axis that indexes the batch.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.reverse_sequence(data, seq_lengths, seq_axis, batch_axis)  # type: ignore
+
+
 def gather_elements(data: Expr, indices: Expr, axis: int = 0) -> Expr:
     """Gather elements from data according to indices along the specified axis.
 

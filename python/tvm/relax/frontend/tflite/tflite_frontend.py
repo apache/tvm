@@ -5614,10 +5614,10 @@ class OperatorConverter:
         else:
             splitted = relax.op.split(in_expr, indices_or_sections=num_unpacks, axis=unpack_axis)
             squeezed = relax.Tuple(
-                relax.Tuple(
-                    [_op.squeeze(split_item, axis=squeeze_axis) for split_item in splitted]
-                ),
-                len(splitted),
+                [
+                    _op.squeeze(relax.TupleGetItem(splitted, i), axis=squeeze_axis)
+                    for i in range(num_unpacks)
+                ]
             )
 
         return squeezed

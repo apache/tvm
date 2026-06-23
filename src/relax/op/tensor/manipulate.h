@@ -182,6 +182,16 @@ Expr tile(Expr data, ffi::Array<int64_t> repeats);
 Expr flip(Expr data, int64_t axis);
 
 /*!
+ * \brief Reverses variable length slices along seq_axis.
+ * \param data The input tensor.
+ * \param seq_lengths A 1-D tensor containing sequence lengths for each batch.
+ * \param seq_axis The axis along which to reverse.
+ * \param batch_axis The axis that indexes the batch.
+ * \return The computed result.
+ */
+Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t batch_axis);
+
+/*!
  * \brief Gather elements from a tensor using indices.
  * \param data The input tensor.
  * \param indices The indices tensor, must have integer type.

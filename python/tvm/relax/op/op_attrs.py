@@ -206,6 +206,11 @@ class FlipAttrs(Attrs):
     """Attributes for flip operator"""
 
 
+@tvm_ffi.register_object("relax.attrs.ReverseSequenceAttrs")
+class ReverseSequenceAttrs(Attrs):
+    """Attributes for reverse_sequence operator"""
+
+
 @tvm_ffi.register_object("relax.attrs.PadAttrs")
 class PadAttrs(Attrs):
     """Attributes used in pad operator"""
