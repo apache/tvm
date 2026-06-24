@@ -44,9 +44,8 @@ env:
 
 jobs:
   # Build the CUDA runtime sidecar once per arch and upload it as an artifact that
-  # build_wheels bundles. The Linux legs build inside the official manylinux_2_28
-  # CUDA image (CUDA toolkit preinstalled, see pypa/manylinux) -- the same glibc
-  # baseline cibuildwheel targets for the wheel -- so the sidecar stays
+  # build_wheels bundles. The Linux legs build inside a manylinux_2_28 image -- the
+  # same glibc baseline cibuildwheel targets for the wheel -- so the sidecar stays
   # ABI-compatible with the wheel's libtvm_runtime.so regardless of the exact tag.
   build_cuda_runtime:
     name: ${{ matrix.name }}
@@ -58,13 +57,13 @@ jobs:
         include:
           - name: "CUDA runtime sidecar (Linux x86_64, manylinux_2_28)"
             os: ubuntu-latest
-            container: quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda13_1:latest
+            container: quay.io/pypa/manylinux_2_28_x86_64:latest
             arch: x86_64
             script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
             lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
           - name: "CUDA runtime sidecar (Linux aarch64, manylinux_2_28)"
             os: ubuntu-24.04-arm
-            container: quay.io/manylinux_cuda/manylinux_2_28_aarch64_cuda13_1:latest
+            container: quay.io/pypa/manylinux_2_28_aarch64:latest
             arch: aarch64
             script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
             lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
