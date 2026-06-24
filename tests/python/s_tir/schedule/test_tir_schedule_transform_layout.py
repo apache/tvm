@@ -1234,7 +1234,7 @@ def test_index_map_dtype_legalize_with_constant():
     # Triggering the error requires an IndexMap that introduces padding
     func = lambda i: [
         # And a constant to be one of the output indices.
-        tirx.const(0, i.dtype),
+        tirx.const(0, i.ty.dtype),
         (i + 1) // 8,
         (i + 1) % 8,
     ]
