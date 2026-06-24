@@ -116,10 +116,10 @@ Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int val
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op,
-                                         int value_index) {
-    return Tensor(shape, dtype, op, value_index);
-  });
+  refl::GlobalDef().def(
+      "te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
+        return Tensor(shape, dtype, op, value_index);
+      });
 }
 
 // Pattern A (RM): auto-default repr from reflection.

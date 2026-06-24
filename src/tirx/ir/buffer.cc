@@ -644,9 +644,9 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   data_ = std::move(n);
 }
 
-tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                       std::string name, int data_alignment, int offset_factor,
-                                       bool compact, std::string memory_scope) {
+tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype, std::string name,
+                                       int data_alignment, int offset_factor, bool compact,
+                                       std::string memory_scope) {
   PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
   auto data = tirx::Var(name, PointerType(storage_type, memory_scope));
   bool has_any = false;

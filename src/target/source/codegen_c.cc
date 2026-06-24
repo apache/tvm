@@ -289,8 +289,8 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const BufferNode* buffer, 
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetStructRef(const PrimType& t, const PrimExpr& buffer,
-                                   const PrimExpr& index, int kind) {
+std::string CodeGenC::GetStructRef(const PrimType& t, const PrimExpr& buffer, const PrimExpr& index,
+                                   int kind) {
   if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
@@ -435,8 +435,7 @@ void CodeGenC::PrintVecConstructor(const PrimType& t, std::ostream& os) {  // NO
   PrintType(t, os);
 }
 
-std::string CodeGenC::CastFromTo(std::string value, const PrimType& from,
-                                 const PrimType& target) {
+std::string CodeGenC::CastFromTo(std::string value, const PrimType& from, const PrimType& target) {
   if (from == target) return value;
   std::ostringstream os;
   os << "((";
@@ -731,8 +730,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           this->PrintExpr(load->indices[0], os);
           os << ")";
         } else {
-          os << "(&(" << GetBufferRef(load->ty(), load->buffer.get(), load->indices[0])
-             << "))";
+          os << "(&(" << GetBufferRef(load->ty(), load->buffer.get(), load->indices[0]) << "))";
         }
       } else {
         auto* var = op->args[0].as<tirx::VarNode>();
@@ -757,8 +755,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
-      os << GetStructRef(op->ty(), op->args[0], op->args[1],
-                         op->args[2].as<IntImmNode>()->value);
+      os << GetStructRef(op->ty(), op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
     } else if (op->op.same_as(builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";

@@ -30,11 +30,10 @@
 namespace tvm {
 namespace tirx {
 
-#define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                                                       \
-  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {                               \
-    const auto* prhs = rhs.as<OpNode>();                                                         \
-    return plhs->ty() == prhs->ty() && VisitExpr(plhs->a, prhs->a) &&                            \
-           VisitExpr(plhs->b, prhs->b);                                                          \
+#define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                                                         \
+  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {                                 \
+    const auto* prhs = rhs.as<OpNode>();                                                           \
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->a, prhs->a) && VisitExpr(plhs->b, prhs->b); \
   }
 
 #define DEFINE_DEEP_EQUAL_IMM_EXPR(OpNode)                         \

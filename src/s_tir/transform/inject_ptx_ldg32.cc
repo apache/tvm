@@ -116,8 +116,7 @@ class PTXRewriter : public StmtMutator {
     has_buffer_1 = true;
     // addr[0] -> global_addr /  addr[1] -> local_addr
     addr_buffer = decl_buffer({IntImm::Int32(2)}, PrimType::Int(32), "addr", "local");
-    predicate_buffer =
-        decl_buffer({IntImm::Int32(1)}, PrimType::Bool(), "predicate", "local");
+    predicate_buffer = decl_buffer({IntImm::Int32(1)}, PrimType::Bool(), "predicate", "local");
   }
 
   bool has_buffer_1 = false, has_buffer_2 = false;

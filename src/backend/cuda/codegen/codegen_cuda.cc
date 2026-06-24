@@ -58,10 +58,9 @@ bool IsOp(const tirx::CallNode* call, const Op& compat_op, const char* canonical
 
 TVM_FFI_INLINE bool IsFloat8(const PrimType& ty) {
   return ty.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
-                        DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
-                        DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
-                        DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
-                        DLDataTypeCode::kDLFloat8_e8m0fnu);
+                        DLDataTypeCode::kDLFloat8_e4m3b11fnuz, DLDataTypeCode::kDLFloat8_e4m3fn,
+                        DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                        DLDataTypeCode::kDLFloat8_e5m2fnuz, DLDataTypeCode::kDLFloat8_e8m0fnu);
 }
 
 TVM_FFI_INLINE bool IsFloat6(const PrimType& ty) {
@@ -319,8 +318,7 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
                                    ";\" : \"=r\"(ctaid) :);\n"
                                    "  return ctaid;\n"
                                    "}\n");
-    var_idmap_[iv->var.get()] =
-        CastFromTo(func_name + "()", PrimType::UInt(32), iv->var.ty());
+    var_idmap_[iv->var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), iv->var.ty());
   } else {
     var_idmap_[iv->var.get()] = CastFromTo(iv->thread_tag, PrimType::UInt(32), iv->var.ty());
   }
@@ -633,11 +631,9 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, const PrimType& t, in
   }
 
   static const char access[] = {'x', 'y', 'z', 'w'};
-  TVM_FFI_ICHECK(i >= 0 &&
-                 i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
+  TVM_FFI_ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
-    std::string type_name = t.MatchesCode(DLDataTypeCode::kDLInt) ? "signed char"
-                                                                  : "unsigned char";
+    std::string type_name = t.MatchesCode(DLDataTypeCode::kDLInt) ? "signed char" : "unsigned char";
     if (lanes == 2 || lanes == 3) {
       os << vec << "." << access[i % lanes];
     } else {
@@ -688,8 +684,7 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, const PrimType& t, i
   int lanes = t.lanes();
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
-  TVM_FFI_ICHECK(i >= 0 &&
-                 i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
+  TVM_FFI_ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
     if (lanes == 2 || lanes == 3) {
       stream << vec << '.' << access[i % lanes] << "="
@@ -800,8 +795,7 @@ std::string CodeGenCUDA::CastFromTo(std::string value, const PrimType& from,
   this->PrintType(target, os);
   os << ")";
   if (from.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
-      (target.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
-      target.bits() == 8) {
+      (target.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && target.bits() == 8) {
     os << "(";
     if (target.MatchesCode(DLDataTypeCode::kDLUInt)) {
       os << "u";
@@ -1458,15 +1452,14 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt))
         format_specifier = "%u";
       else
-        TVM_FFI_THROW(InternalError)
-            << "Unsupported data type for scalar print: " << dtype_ty;
+        TVM_FFI_THROW(InternalError) << "Unsupported data type for scalar print: " << dtype_ty;
 
       std::string print_arg = var_node ? ("*" + GetVarID(var_node)) : PrintExpr(arg);
       os << "// print_buffer starts (scalar)\n"
          << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n"
-         << "  printf(\"Scalar (dtype: " << dtype_ty
-         << "): " << format_specifier << "\\n\\n\", " << (is_float16 ? "static_cast<float>(" : "")
-         << print_arg << (is_float16 ? ")" : "") << ");\n"
+         << "  printf(\"Scalar (dtype: " << dtype_ty << "): " << format_specifier << "\\n\\n\", "
+         << (is_float16 ? "static_cast<float>(" : "") << print_arg << (is_float16 ? ")" : "")
+         << ");\n"
          << "}\n"
          << "// print_buffer ends\n";
       return;
@@ -1491,8 +1484,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
       format_specifier = "%u";
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Unsupported data type for print: " << dtype_ty;
+      TVM_FFI_THROW(InternalError) << "Unsupported data type for print: " << dtype_ty;
     }
 
     TVM_FFI_ICHECK(var_node) << "Formatted print is only supported for buffer variables.";
@@ -1638,12 +1630,12 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      bool supported_wmma_input_dtype =
-          dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
-          dtype == PrimType::UInt(8) || dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
-          dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
-          dtype == PrimType(DLDataType{kDLInt, 1, 1}) ||
-          dtype == PrimType(DLDataType{kDLBfloat, 16, 1});
+      bool supported_wmma_input_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
+                                        dtype == PrimType::UInt(8) ||
+                                        dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
+                                        dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
+                                        dtype == PrimType(DLDataType{kDLInt, 1, 1}) ||
+                                        dtype == PrimType(DLDataType{kDLBfloat, 16, 1});
       TVM_FFI_ICHECK(supported_wmma_input_dtype)
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
@@ -1982,8 +1974,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
       break;
     }
     default:
-      TVM_FFI_THROW(InternalError)
-          << "Bad bit-width for float: " << op_ty << "\n";
+      TVM_FFI_THROW(InternalError) << "Bad bit-width for float: " << op_ty << "\n";
   }
 }
 

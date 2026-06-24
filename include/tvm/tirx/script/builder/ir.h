@@ -524,10 +524,10 @@ inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType()))
                : (is_size_var ? tvm::tirx::SizeVar("", dtype) : tvm::tirx::Var("", dtype)); \
   }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                           \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, (PrimType(DLDataType{Code, 8, 1})));     \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, (PrimType(DLDataType{Code, 16, 1})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, (PrimType(DLDataType{Code, 32, 1})));   \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, (PrimType(DLDataType{Code, 8, 1})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, (PrimType(DLDataType{Code, 16, 1}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, (PrimType(DLDataType{Code, 32, 1}))); \
   TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, (PrimType(DLDataType{Code, 64, 1})));
 
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, kDLBfloat);
@@ -535,18 +535,13 @@ TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, kDLFloat);
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, kDLUInt);
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, Code, Size)                   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, (PrimType(DLDataType{Code, Size, 2}))) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4,                                      \
-                                      (PrimType(DLDataType{Code, Size, 4})));            \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8,                                      \
-                                      (PrimType(DLDataType{Code, Size, 8})));            \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16,                                     \
-                                      (PrimType(DLDataType{Code, Size, 16})));           \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32,                                     \
-                                      (PrimType(DLDataType{Code, Size, 32})));           \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64,                                     \
-                                      (PrimType(DLDataType{Code, Size, 64})));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, Code, Size)                       \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, (PrimType(DLDataType{Code, Size, 2})))    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, (PrimType(DLDataType{Code, Size, 4})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, (PrimType(DLDataType{Code, Size, 8})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, (PrimType(DLDataType{Code, Size, 16}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, (PrimType(DLDataType{Code, Size, 32}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, (PrimType(DLDataType{Code, Size, 64})));
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, Code) \
   TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, Code, 8);      \
@@ -559,13 +554,13 @@ TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, kDLFloat);
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, kDLUInt);
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, Code, Bits)               \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, (PrimType(DLDataType{Code, Bits, 1})));          \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, (PrimType(DLDataType{Code, Bits, 2})));      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, (PrimType(DLDataType{Code, Bits, 4})));      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, (PrimType(DLDataType{Code, Bits, 8})));      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, (PrimType(DLDataType{Code, Bits, 16})));    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, (PrimType(DLDataType{Code, Bits, 32})));    \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, Code, Bits)            \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, (PrimType(DLDataType{Code, Bits, 1})));       \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, (PrimType(DLDataType{Code, Bits, 2})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, (PrimType(DLDataType{Code, Bits, 4})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, (PrimType(DLDataType{Code, Bits, 8})));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, (PrimType(DLDataType{Code, Bits, 16}))); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, (PrimType(DLDataType{Code, Bits, 32}))); \
   TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, (PrimType(DLDataType{Code, Bits, 64})));
 
 TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, kDLFloat8_e3m4, 8);

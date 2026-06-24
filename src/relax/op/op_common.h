@@ -321,8 +321,7 @@ inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 
   if (lhs_dtype.IsVoid() || rhs_dtype.IsVoid()) {
     return PrimType::Void();
-  } else if (lhs_dtype != rhs_dtype &&
-             !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
+  } else if (lhs_dtype != rhs_dtype && !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
              !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "

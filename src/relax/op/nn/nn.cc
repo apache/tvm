@@ -1015,10 +1015,9 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   // infer dtype, vdevice
   PrimType output_dtype =
-      wgt_ty != nullptr
-          ? InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorType>(pred_ty),
-                                        ffi::GetRef<TensorType>(wgt_ty))
-          : pred_ty->dtype;
+      wgt_ty != nullptr ? InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorType>(pred_ty),
+                                                     ffi::GetRef<TensorType>(wgt_ty))
+                        : pred_ty->dtype;
   ffi::Optional<VDevice> vdevice =
       wgt_ty != nullptr ? InferBinaryArithOpOutVDevice(call, ctx, ffi::GetRef<TensorType>(pred_ty),
                                                        ffi::GetRef<TensorType>(wgt_ty))

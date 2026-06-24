@@ -68,8 +68,7 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
         << prob_ty->dtype;
   }
   // Only the element kind matters here; shape inference does not depend on vector lanes.
-  if (!uniform_sample_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat,
-                                            DLDataTypeCode::kDLBfloat)) {
+  if (!uniform_sample_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to have float "
            "dtype. However, the given uniform_sample dtype is "

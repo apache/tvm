@@ -33,8 +33,8 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<MatmulAttrs>();
   PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                            ? InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty)
-                            : PrimType(attrs->out_dtype);
+                           ? InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty)
+                           : PrimType(attrs->out_dtype);
 
   if (x1_ty->IsUnknownNdim() || x2_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
