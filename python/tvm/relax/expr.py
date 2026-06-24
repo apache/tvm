@@ -1146,6 +1146,9 @@ def const(
     # Needed for bf16 and fp8 support (does not come with numpy)
     import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
 
+    if isinstance(dtype, tvm.ir.PrimType):
+        dtype = dtype.dtype
+
     if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 

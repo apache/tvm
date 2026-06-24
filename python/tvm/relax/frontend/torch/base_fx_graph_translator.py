@@ -29,6 +29,7 @@ from functools import reduce
 import tvm_ffi
 
 from tvm import relax, tirx
+from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
 
 
@@ -70,6 +71,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if env is not None and input_type in env:
             input_type = env[input_type]
 
+        if isinstance(input_type, PrimType):
+            input_type = input_type.dtype
+        if hasattr(input_type, "type_code") and hasattr(input_type, "bits"):
+            input_type = str(input_type)
         input_type = input_type.lower() if isinstance(input_type, str) else input_type
         # Float types
         if input_type in ["float16", "torch.float16", torch.float16]:
@@ -128,6 +133,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
 
+        lhs_dtype = None if lhs_dtype is None else str(lhs_dtype)
+        rhs_dtype = None if rhs_dtype is None else str(rhs_dtype)
         if lhs_dtype is None or rhs_dtype is None or lhs_dtype == rhs_dtype:
             return None
 
@@ -493,12 +500,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Apply Softshrink transformation with masking
         shrink_pos = relax.op.multiply(
             relax.op.subtract(x, lambd),
-            relax.op.astype(relax.op.greater(x, lambd), x.ty.dtype),
+            relax.op.astype(relax.op.greater(x, lambd), x.ty.dtype.dtype),
         )
 
         shrink_neg = relax.op.multiply(
             relax.op.add(x, lambd),
-            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.ty.dtype),
+            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.ty.dtype.dtype),
         )
 
         # Combine the positive and negative shrink results
@@ -1715,7 +1722,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         else:
             # Match PyTorch type promotion: summing bool or integer tensors
             # accumulates in int64 unless an explicit dtype is given.
-            input_dtype = x.ty.dtype
+            input_dtype = x.ty.dtype.dtype
             if input_dtype == "bool" or (
                 (input_dtype.startswith("int") or input_dtype.startswith("uint"))
                 and input_dtype != "int64"
@@ -2385,7 +2392,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Match PyTorch semantics: cast to destination dtype and broadcast to destination shape.
         if src.ty.dtype != dest.ty.dtype:
-            src = self.block_builder.emit(relax.op.astype(src, dest.ty.dtype))
+            src = self.block_builder.emit(relax.op.astype(src, dest.ty.dtype.dtype))
 
         dest_shape = self.shape_of(dest)
         src_shape = self.shape_of(src)
@@ -2482,7 +2489,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         filled = self.block_builder.emit(relax.op.full(x.ty.shape, value, dtype))
         self.env[node.args[0]] = filled
@@ -2510,7 +2517,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = node.args[1]
         fill_value = relax.const(value)
 
-        x_dtype = x.ty.dtype
+        x_dtype = x.ty.dtype.dtype
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
@@ -2530,7 +2537,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = node.args[2]
         rx_value = relax.const(value)
 
-        x_dtype = x.ty.dtype
+        x_dtype = x.ty.dtype.dtype
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
@@ -2575,7 +2582,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = node.args[2]
         rx_value = relax.const(value)
 
-        x_dtype = x.ty.dtype
+        x_dtype = x.ty.dtype.dtype
         fill_dtype = None
         if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
@@ -2619,8 +2626,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(
             relax.op.full(
                 size,
-                relax.const(1, self_var.ty.dtype),
-                self_var.ty.dtype,
+                relax.const(1, self_var.ty.dtype.dtype),
+                self_var.ty.dtype.dtype,
             )
         )
 
@@ -2638,8 +2645,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(
             relax.op.full(
                 size,
-                relax.const(0, input_tensor.ty.dtype),
-                input_tensor.ty.dtype,
+                relax.const(0, input_tensor.ty.dtype.dtype),
+                input_tensor.ty.dtype.dtype,
             )
         )
 
@@ -2677,7 +2684,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _type_as(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         other = self.env[node.args[1]]
-        dtype = other.ty.dtype
+        dtype = other.ty.dtype.dtype
         return self.block_builder.emit(relax.op.astype(x, dtype))
 
     ########## Others ##########

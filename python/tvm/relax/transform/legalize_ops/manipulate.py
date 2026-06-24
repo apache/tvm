@@ -303,7 +303,7 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     if not (isinstance(on_value, relax.PrimValue) and isinstance(off_value, relax.PrimValue)):
         raise ValueError("on_value and off_value must be PrimValue")
     on_value, off_value = on_value.value, off_value.value
-    if on_value.dtype != off_value.dtype:
+    if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
     return bb.call_te(
         topi.one_hot,
@@ -312,7 +312,7 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
         off_value,
         call.attrs.depth,
         call.attrs.axis,
-        on_value.dtype,
+        on_value.ty,
     )
 
 

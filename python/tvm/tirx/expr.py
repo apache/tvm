@@ -1340,7 +1340,7 @@ class Call(PrimExprWithOp):
 
     def __init__(
         self,
-        dtype: str | ir.PrimType,
+        dtype: str | ir.PrimType | None,
         op: Op | str,
         args: list[PrimExpr],
         attrs: ir.Attrs | dict | None = None,
@@ -1359,7 +1359,9 @@ class Call(PrimExprWithOp):
             op = Op.get(op)
         if isinstance(attrs, dict):
             attrs = ir.make_node("ir.DictAttrs", **attrs)
-        if not isinstance(dtype, ir.PrimType):
+        if dtype is None:
+            dtype = ir.PrimType("void")
+        elif not isinstance(dtype, ir.PrimType):
             dtype = ir.PrimType(dtype)
         if attrs:
             self.__init_handle_by_constructor__(  # type: ignore

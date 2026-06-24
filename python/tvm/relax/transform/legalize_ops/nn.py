@@ -725,7 +725,7 @@ def _te_attention(
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
-        p = topi.divide(p, tirx.sqrt(tirx.Cast(p.dtype, head_dim)))
+        p = topi.divide(p, tirx.sqrt(tirx.Cast(p.ty, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)

@@ -343,7 +343,7 @@ class CategoricalCrossEntropyLoss(Loss):
         The relax function of CategoricalCrossEntropyLoss with the loss name as its global symbol.
         """
 
-        if "int" not in targets.dtype:
+        if "int" not in str(targets.dtype):
             raise TypeError(
                 f"Dtype of targets expected to be int/uint. \
                   However, the dtype of targets is {targets.dtype}"

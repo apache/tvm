@@ -103,10 +103,10 @@ def _parse_seed(seed: int | None) -> int:
 
 def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
-        return i.var.dtype
+        return str(i.var.ty)
     for buffer_region in list(block.reads) + list(block.writes):
         for dom in buffer_region.region:
-            return dom.min.dtype
+            return str(dom.min.ty)
     return "int64"
 
 

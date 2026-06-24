@@ -92,15 +92,15 @@ class GeneralReduction(GPUScheduleRule):
                         target_layout_iters.append(iters[num_matched])
                         num_matched += 1
                     else:
-                        target_layout_iters.append(tirx.const(0, iters[0].dtype))
+                        target_layout_iters.append(tirx.const(0, iters[0].ty))
 
                 # If all the iters of the last block can match, return the new layout.
                 if num_matched == len(iters):
                     return target_layout_iters
                 # Otherwise, fallback to appending zeros in the beginning.
-                return [tirx.const(0, iters[0].dtype)] * (
-                    len(dom_kind) - num_last_block_iter
-                ) + list(iters)
+                return [tirx.const(0, iters[0].ty)] * (len(dom_kind) - num_last_block_iter) + list(
+                    iters
+                )
 
             index_map = tirx.IndexMap.from_func(f_layout_mapping, ndim=num_last_block_iter)
             sch.transform_block_layout(block_infos[-1].block_rv, index_map)

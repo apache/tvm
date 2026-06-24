@@ -84,27 +84,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.ty.dtype))
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.ty.dtype.dtype))
         )
 
     def _log10(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
-            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.ty.dtype))
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.ty.dtype.dtype))
         )
 
     def _log1p(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        one = relax.const(1, x.ty.dtype)
+        one = relax.const(1, x.ty.dtype.dtype)
         return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
 
     def _reciprocal(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.ty.dtype), x))
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.ty.dtype.dtype), x))
 
     def _sqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
 
         # Check if input is integer type and convert to float32 if needed
         if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
@@ -114,7 +114,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _rsqrt(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
 
         # Check if input is integer type and convert to float32 if needed
         if dtype in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"):
@@ -134,7 +134,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
         scale = node.args[1] is not None
         center = node.args[2] is not None
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
@@ -192,7 +192,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
 
         output = self.block_builder.emit(bn_tuple[0])
         new_running_mean = self.block_builder.emit(bn_tuple[1])
@@ -210,7 +210,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         eps = node.args[5] if len(node.args) > 5 else node.kwargs.get("eps", 1e-05)
@@ -508,7 +508,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # o_t = sigmoid(W_io * x_t + b_io + W_ho * h_{t-1} + b_ho)
         # c_t = f_t * c_{t-1} + i_t * g_t
         # h_t = o_t * tanh(c_t)
-        dtype = input_tensor.ty.dtype
+        dtype = input_tensor.ty.dtype.dtype
         params_per_direction = 4 if has_biases else 2
 
         # Extract or create forward direction weights
@@ -807,7 +807,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # Fallback to a default hidden size
             hidden_size = 16
 
-        dtype = input_tensor.ty.dtype
+        dtype = input_tensor.ty.dtype.dtype
 
         # Extract forward direction weights
         if params and len(params) >= params_per_direction:
@@ -1047,7 +1047,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         x_ty = x.ty
         shape = [int(s) for s in x_ty.shape]
-        dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_ty.dtype, self.env)
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", None) or x_ty.dtype.dtype, self.env
+        )
         data = np.random.randn(*shape).astype(dtype)
         return self.block_builder.emit(relax.const(data, dtype))
 
@@ -1198,7 +1200,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
-        dtype = x.ty.dtype
+        dtype = x.ty.dtype.dtype
         gamma = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         beta = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         eps = node.args[4] if node.args[4] else 1e-05
@@ -1247,7 +1249,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         index = self.env[node.args[2]]
         value = node.args[3]
 
-        value_const = relax.const(value, x.ty.dtype)
+        value_const = relax.const(value, x.ty.dtype.dtype)
         src = self.block_builder.emit(relax.op.broadcast_to(value_const, self.shape_of(index)))
 
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
@@ -1422,9 +1424,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     # Create fresh SizeVars to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
-                            tvm.tirx.SizeVar(s.name, s.dtype)
-                            if isinstance(s, tvm.tirx.SizeVar)
-                            else s
+                            tvm.tirx.SizeVar(s.name, s.ty) if isinstance(s, tvm.tirx.SizeVar) else s
                             for s in orig_si.shape
                         ]
                         si = relax.TensorType(new_shape, orig_si.dtype)
@@ -1534,7 +1534,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "expm1.default": lambda node: self.block_builder.emit(
                 relax.op.subtract(
                     relax.op.exp(self.env[node.args[0]]),
-                    relax.const(1.0, self.env[node.args[0]].ty.dtype),
+                    relax.const(1.0, self.env[node.args[0]].ty.dtype.dtype),
                 )
             ),
             "floor.default": self._unary_op(relax.op.floor),

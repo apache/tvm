@@ -35,5 +35,5 @@ def masked_fill(x: Expr, mask: Expr, value: Expr):
     result : relax.Expr
         The filled tensor.
     """
-    values = _ffi_api.full_like(x, value, value.ty.dtype)  # type: ignore
+    values = _ffi_api.full_like(x, value, value.ty.dtype.dtype)  # type: ignore
     return _ffi_api.where(mask, values, x)  # type: ignore

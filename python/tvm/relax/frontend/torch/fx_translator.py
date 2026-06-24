@@ -688,7 +688,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         src = self.env[node.args[1]]
 
         if src.ty.dtype != dest.ty.dtype:
-            src = self.block_builder.emit(relax.op.astype(src, dest.ty.dtype))
+            src = self.block_builder.emit(relax.op.astype(src, dest.ty.dtype.dtype))
 
         dest_shape = self.shape_of(dest)
         src_shape = self.shape_of(src)
@@ -749,7 +749,9 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     def _is_floating_point(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return relax.const(x.ty.dtype in ["float16", "float32", "float64", "bfloat16"], "bool")
+        return relax.const(
+            x.ty.dtype.dtype in ["float16", "float32", "float64", "bfloat16"], "bool"
+        )
 
     def _type(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -761,7 +763,7 @@ class TorchFXImporter(BaseFXGraphImporter):
     def _getattr(self, node: fx.Node) -> relax.Var:
         if isinstance(self.env[node.args[0]], relax.Expr):
             if node.args[1] == "dtype":
-                return self.env[node.args[0]].ty.dtype
+                return self.env[node.args[0]].ty.dtype.dtype
             elif node.args[1] == "shape":
                 return self.shape_of(self.env[node.args[0]])
         return getattr(self.env[node.args[0]], node.args[1])

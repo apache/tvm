@@ -140,14 +140,14 @@ class Trainer:
     def zero_init_params(self):
         """Zero initialize all parameters. Requires all parameters have static shapes."""
         self._params = [
-            tvm.runtime.tensor(np.zeros(self._get_shape_list(p), p.ty.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(p), p.ty.dtype.dtype), self.device)
             for p in self._param_vars
         ]
 
     def zero_init_states(self):
         """Zero initialize all states. Requires all states have static shapes."""
         self._states = [
-            tvm.runtime.tensor(np.zeros(self._get_shape_list(s), s.ty.dtype), self.device)
+            tvm.runtime.tensor(np.zeros(self._get_shape_list(s), s.ty.dtype.dtype), self.device)
             for s in self._state_vars
         ]
 
