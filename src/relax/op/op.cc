@@ -1189,7 +1189,6 @@ TVM_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferType>("FInferType", ReturnShapeToTensorType)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
     .set_attr<bool>("FPurity", true);
 
 Expr MakeShapeToTensor(Expr expr) {

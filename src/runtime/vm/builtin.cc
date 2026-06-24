@@ -675,6 +675,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     }
                     *rv = arr;
                   })
+      .def("vm.builtin.shape_to_tensor",
+           [](ffi::Shape shape) -> Tensor {
+             int64_t size = static_cast<int64_t>(shape.size());
+             Tensor out_tensor = Tensor::Empty({size}, DataType::Int(64), {kDLCPU, 0});
+             int64_t* ptr = static_cast<int64_t*>(out_tensor->data);
+             for (int64_t i = 0; i < size; ++i) {
+               ptr[i] = shape[i];
+             }
+             return out_tensor;
+           })
       .def("vm.builtin.tensor_to_shape",
            [](Tensor data) {
              Tensor arr = data;
