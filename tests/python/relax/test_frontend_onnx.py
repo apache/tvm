@@ -3283,6 +3283,7 @@ def test_slice():
         steps=[-1, -3, -2],
         axes=[0, 1, 2],
     )
+    verify_slice([10], [0], starts=[0], ends=[5], axes=[0], steps=[-1])
     verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
     verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
 
