@@ -18,9 +18,9 @@
 #
 # Build libtvm_runtime_cuda.so inside a manylinux CUDA container, run by the
 # build_cuda_runtime CI job. The official quay.io/manylinux_cuda images ship
-# the CUDA toolkit preinstalled under /usr/local/cuda, so no toolkit install
-# is needed here. Builds the sidecar into build-wheel-cuda/lib/ for the wheel
-# build to bundle.
+# the CUDA toolkit preinstalled under /usr/local/cuda, but omit the libcuda
+# driver stub, so we install just cuda-driver-devel from the image's CUDA repo.
+# Builds the sidecar into build-wheel-cuda/lib/ for the wheel build to bundle.
 #
 # Usage: manylinux_build_libtvm_runtime_cuda.sh
 set -euxo pipefail
@@ -28,6 +28,10 @@ set -euxo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 build_dir="${repo_root}/build-wheel-cuda"
 parallel="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+
+# The image ships the toolkit but not the libcuda driver stub; install it from
+# the image's CUDA repo so the sidecar links libcuda.so.1 (sync version with tag).
+dnf -y install cuda-driver-devel-13-1
 
 # Build the CUDA runtime sidecar with CUDA on and LLVM off, so it does not need
 # the LLVM prefix; the main CPU wheel links LLVM statically. The manylinux CUDA
