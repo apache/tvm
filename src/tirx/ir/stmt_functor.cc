@@ -777,9 +777,8 @@ class IRSubstitute : public StmtExprMutator {
       // uses void variables for lambda parameters (since exact types are not known yet).
       if (!var.ty().IsVoid()) {
         PrimExpr ret_ex = ret.value().as_or_throw<PrimExpr>();
-        TVM_FFI_ICHECK(ret_ex.ty()->dtype == var.ty()->dtype)
-            << "substituting " << var << ":" << var.ty()->dtype << " -> " << ret_ex << ":"
-            << ret_ex.ty()->dtype;
+        TVM_FFI_ICHECK(ret_ex.ty() == var.ty()) << "substituting " << var << ":" << var.ty()->dtype
+                                                << " -> " << ret_ex << ":" << ret_ex.ty()->dtype;
       }
       return ret.value();
     }

@@ -902,7 +902,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
   TensorType label_ty = input_ty[1];
 
   // infer dtype
-  PrimType dtype(InferBinaryArithOpOutDtype(call, ctx, pred_ty, label_ty));
+  PrimType dtype = InferBinaryArithOpOutDtype(call, ctx, pred_ty, label_ty);
 
   // infer vdevice
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, pred_ty, label_ty);
@@ -1016,8 +1016,8 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
   // infer dtype, vdevice
   PrimType output_dtype =
       wgt_ty != nullptr
-          ? PrimType(InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorType>(pred_ty),
-                                                ffi::GetRef<TensorType>(wgt_ty)))
+          ? InferBinaryArithOpOutDtype(call, ctx, ffi::GetRef<TensorType>(pred_ty),
+                                        ffi::GetRef<TensorType>(wgt_ty))
           : pred_ty->dtype;
   ffi::Optional<VDevice> vdevice =
       wgt_ty != nullptr ? InferBinaryArithOpOutVDevice(call, ctx, ffi::GetRef<TensorType>(pred_ty),

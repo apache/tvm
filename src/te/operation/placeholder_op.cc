@@ -60,7 +60,7 @@ Tensor placeholder(ffi::Array<PrimExpr> shape, PrimType dtype, std::string name)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("te.Placeholder", [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> shape_arg,
-                                             DLDataType dtype, std::string name) {
+                                             PrimType dtype, std::string name) {
     auto shape = [&]() -> ffi::Array<PrimExpr> {
       if (auto arg_expr = shape_arg.as<PrimExpr>()) {
         return {arg_expr.value()};
@@ -70,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_THROW(InternalError) << "Variant did not contain either allowed type";
       }
     }();
-    return placeholder(shape, PrimType(dtype), name);
+    return placeholder(shape, dtype, name);
   });
 }
 

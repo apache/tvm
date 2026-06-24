@@ -1334,8 +1334,8 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
     // we only accept predicate of integers
     PrimType lhs_ty = lhs_expr.ty();
     PrimType rhs_ty = rhs_expr.ty();
-    if (!((lhs_ty.code() == DLDataTypeCode::kDLInt || lhs_ty.code() == DLDataTypeCode::kDLUInt) &&
-          (rhs_ty.code() == DLDataTypeCode::kDLInt || rhs_ty.code() == DLDataTypeCode::kDLUInt))) {
+    if (!(lhs_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+          rhs_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
       return false;
     }
     // determine iter and bound, if we can not distinguish them simply,

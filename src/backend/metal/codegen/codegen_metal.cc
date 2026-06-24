@@ -110,7 +110,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     // type annotation(via a normalizing rewriting).
     if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
-        RegisterHandleType(v.get(), prim->dtype);
+        RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }
     }
     this->stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
@@ -198,8 +198,8 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
       vname, DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_), 1}, iv->var.ty()->dtype);
 }
 
-void CodeGenMetal::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT(*)
-  PrimType t(raw_t);
+void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
   if (t.IsHandle()) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
@@ -294,12 +294,12 @@ void CodeGenMetal::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenMetal::PrintVecElemLoad(const std::string& vec, DLDataType t, int i,
+void CodeGenMetal::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                     std::ostream& os) {  // NOLINT(*)
   os << vec << "[" << i << "]";
 }
 
-void CodeGenMetal::PrintVecElemStore(const std::string& vec, DLDataType t, int i,
+void CodeGenMetal::PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                      const std::string& value) {
   this->PrintIndent();
   stream << vec << "[" << i << "]"
@@ -356,7 +356,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), dtype);
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }

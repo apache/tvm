@@ -254,8 +254,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
     return PrimType::Int(max_bits);
   }();
   output.MutateByApply([&](const Range& range) {
-    if (range->min.ty()->dtype != output_dtype->dtype ||
-        range->extent.ty()->dtype != output_dtype->dtype) {
+    if (range->min.ty() != output_dtype || range->extent.ty() != output_dtype) {
       return Range::FromMinExtent(cast(output_dtype, range->min),
                                   cast(output_dtype, range->extent));
     } else {

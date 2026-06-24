@@ -51,12 +51,11 @@ ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr>
   return array;
 }
 
-Buffer decl_buffer(ffi::Array<PrimExpr> shape, DLDataType dtype, ffi::String name,
+Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
                    ffi::String storage_scope, ffi::Optional<ffi::Array<IntImm>> axis_separators,
                    Span span) {
-  DLDataType storage_dtype =
-      (dtype == DLDataType{kDLBool, 8, 1} ? DLDataType{kDLInt, 8, 1} : dtype);
-  return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
+  PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
+  return Buffer(Var(name, PointerType(storage_type, storage_scope), span), dtype, shape,
                 ffi::Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
                 axis_separators.value_or(ffi::Array<IntImm>()), span, std::nullopt,
                 ffi::Array<PrimExpr>());
@@ -645,12 +644,11 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   data_ = std::move(n);
 }
 
-tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DLDataType dtype,
+tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                        std::string name, int data_alignment, int offset_factor,
                                        bool compact, std::string memory_scope) {
-  DLDataType storage_dtype =
-      (dtype == DLDataType{kDLBool, 8, 1} ? DLDataType{kDLInt, 8, 1} : dtype);
-  auto data = tirx::Var(name, PointerType(PrimType(storage_dtype), memory_scope));
+  PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
+  auto data = tirx::Var(name, PointerType(storage_type, memory_scope));
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -744,8 +742,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.BufferVStore", &Buffer::vstore)
       .def_method("tirx.BufferStorageScope", &Buffer::scope)
       .def_method("tirx.BufferWithAllocatedAddr", &Buffer::with_allocated_addr)
-      .def_method("tirx.BufferWithDtype",
-                  static_cast<Buffer (Buffer::*)(DLDataType) const>(&Buffer::with_dtype))
+      .def_method("tirx.BufferWithDtype", &Buffer::with_dtype)
       .def_method("tirx.BufferWithData", &Buffer::with_data)
       .def_method("tirx.BufferIsScalar", &Buffer::IsScalar);
 }

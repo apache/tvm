@@ -58,7 +58,8 @@ class CodeGenSourceBase {
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(DLDataType type, std::ostream& os);  // NOLINT(*)
+  virtual void PrintType(const PrimType& type, std::ostream& os);  // NOLINT(*)
+  void PrintType(DLDataType type, std::ostream& os) { PrintType(PrimType(type), os); }
   /*!
    * Print Type representation of type type.
    * \param type The type representation.
@@ -96,7 +97,7 @@ class CodeGenSourceBase {
    * \param src The source expression
    * \param t The type of the expression.
    */
-  std::string SSAGetID(std::string src, PrimType t);
+  std::string SSAGetID(std::string src, const PrimType& t);
   std::string SSAGetID(std::string src, DLDataType t) {
     return SSAGetID(std::move(src), PrimType(t));
   }
@@ -116,7 +117,8 @@ class CodeGenSourceBase {
    * \param src The source expression.
    * \param t The type of target.
    */
-  virtual void PrintSSAAssign(const std::string& target, const std::string& src, PrimType t) = 0;
+  virtual void PrintSSAAssign(const std::string& target, const std::string& src,
+                              const PrimType& t) = 0;
 
   /*! \brief the declaration stream */
   std::ostringstream decl_stream;

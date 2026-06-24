@@ -1414,7 +1414,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
     SumExpr divisible, extra;
     SeparateDivisibleParts(lhs, gcd, &divisible, &extra);
     PrimType dtype = divisible->ty();
-    TVM_FFI_ICHECK(extra->ty()->dtype == dtype->dtype);
+    TVM_FFI_ICHECK(extra->ty() == dtype);
     PrimExpr normal_extra = extra->Normalize();
     if (this->analyzer_->CanProve(normal_extra < MakeConst(dtype, gcd)) &&
         this->analyzer_->CanProve(normal_extra >= IntImm(dtype, 0))) {

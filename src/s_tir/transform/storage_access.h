@@ -61,7 +61,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     /*! \brief The buffer variable, if any */
     Var buffer = Var(ffi::ObjectPtr<VarNode>(nullptr));
     /*! \brief The access data type */
-    DLDataType dtype;
+    PrimType dtype = PrimType::Void();
     /*! \brief The touched access range
      *
      * Has one IntSet for each index in the buffer being accessed.

@@ -128,7 +128,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   for (const auto& param : func->params) {
     if (auto* ptr = param->type_annotation.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
-        RegisterHandleType(param.get(), prim->dtype);
+        RegisterHandleType(param.get(), ffi::GetRef<PrimType>(prim));
       }
     }
   }
@@ -205,7 +205,7 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   if (print_ssa_form_) {
     std::ostringstream temp;
     VisitExpr(n, temp);
-    os << SSAGetID(temp.str(), n.ty()->dtype);
+    os << SSAGetID(temp.str(), n.ty());
   } else {
     VisitExpr(n, os);
   }
@@ -213,8 +213,9 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
 
 static bool CheckOutermostBracketMatch(const std::string& s);
 
-void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src, PrimType t) {
-  PrintType(t->dtype, stream);
+void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src,
+                              const PrimType& t) {
+  PrintType(t, stream);
   stream << ' ' << target << " = ";
   if (CheckOutermostBracketMatch(src)) {
     stream << src.substr(1, src.length() - 2);
@@ -225,8 +226,7 @@ void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src,
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetBufferRef(DLDataType t, const BufferNode* buffer, PrimExpr index) {
-  PrimType t_ty(t);
+std::string CodeGenC::GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index) {
   const VarNode* buffer_var = buffer->data.get();
   std::ostringstream os;
   std::string vid = GetVarID(buffer_var);
@@ -236,7 +236,7 @@ std::string CodeGenC::GetBufferRef(DLDataType t, const BufferNode* buffer, PrimE
   }
   bool is_vol = IsVolatile(buffer_var);
 
-  auto ptr_cast = [this, is_vol, scope](DLDataType pointed_to) {
+  auto ptr_cast = [this, is_vol, scope](const PrimType& pointed_to) {
     std::ostringstream ptr_os;
     ptr_os << "(";
     if (is_vol) {
@@ -250,7 +250,7 @@ std::string CodeGenC::GetBufferRef(DLDataType t, const BufferNode* buffer, PrimE
     return ptr_os.str();
   };
 
-  DLDataType buffer_element_dtype = buffer->dtype->dtype;
+  const PrimType& buffer_element_dtype = buffer->dtype;
 
   std::string buffer_str = vid;
   if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
@@ -260,20 +260,20 @@ std::string CodeGenC::GetBufferRef(DLDataType t, const BufferNode* buffer, PrimE
   }
 
   std::string index_str = PrintExpr(index);
-  if ((t.bits == 4 && t_ty.code() != DLDataTypeCode::kDLFloat4_e2m1fn) ||
-      (t.bits == 1 && t_ty.MatchesCode(DLDataTypeCode::kDLInt))) {
+  if ((t.bits() == 4 && !t.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) ||
+      (t.bits() == 1 && t.MatchesCode(DLDataTypeCode::kDLInt))) {
     // This is a special case, because CodegenCUDA::PrintType()
     // returns "int" for bool and for 4-bit integers. In most cases,
     // we divide by the number of lanes to determine the index.
     // However, the backing type for scalar int4 and scalar bool is
     // int32.  Therefore, we need to divide by the ratio of their
     // sizes in that case.
-    int div_factor = (t_ty.lanes() == 1) ? (32 / t.bits) : t_ty.lanes();
+    int div_factor = (t.lanes() == 1) ? (32 / t.bits()) : t.lanes();
 
     os << "*("
        << "(" << ptr_cast(t) << vid << ")"
        << " + " << index_str << " / " << div_factor << ")";
-  } else if (t_ty.code() == DLDataTypeCode::kDLFloat4_e2m1fn && t_ty.lanes() == 1) {
+  } else if (t.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) && t.lanes() == 1) {
     // float4_e2m1fn: sizeof(__nv_fp4_e2m1) = 1 byte, but data is packed
     // 2 elements per byte.  Divide element index by 2 to get byte offset.
     // This returns an lvalue so it works for address_of() and stores.
@@ -289,9 +289,8 @@ std::string CodeGenC::GetBufferRef(DLDataType t, const BufferNode* buffer, PrimE
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetStructRef(DLDataType t, const PrimExpr& buffer, const PrimExpr& index,
-                                   int kind) {
-  PrimType t_ty(t);
+std::string CodeGenC::GetStructRef(const PrimType& t, const PrimExpr& buffer,
+                                   const PrimExpr& index, int kind) {
   if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
@@ -360,11 +359,11 @@ std::string CodeGenC::GetStructRef(DLDataType t, const PrimExpr& buffer, const P
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
-    if (t_ty.IsHandle()) {
+    if (t.IsHandle()) {
       os << "v_ptr";
-    } else if (t_ty.code() == DLDataTypeCode::kDLFloat) {
+    } else if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
       os << "v_float64";
-    } else if (t_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
+    } else if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
       os << "v_int64";
     } else {
       TVM_FFI_THROW(InternalError) << "Do not know how to handle type" << t;
@@ -385,16 +384,16 @@ std::string CodeGenC::GetStructRef(DLDataType t, const PrimExpr& buffer, const P
   }
 }
 
-bool CodeGenC::HandleTypeMatch(const VarNode* buf_var, DLDataType t) const {
+bool CodeGenC::HandleTypeMatch(const VarNode* buf_var, const PrimType& t) const {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) return false;
   return it->second == t;
 }
 
-void CodeGenC::RegisterHandleType(const VarNode* buf_var, DLDataType t) {
+void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) {
-    handle_data_type_[buf_var] = t;
+    handle_data_type_.emplace(buf_var, t);
   } else {
     TVM_FFI_ICHECK(it->second == t) << "conflicting buf var type";
   }
@@ -404,39 +403,40 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExp
   if (value == nullptr) return;
   auto* call = value->as<tirx::CallNode>();
   if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
-  std::optional<DLDataType> value_dtype = tirx::GetPointerType(GetType(*value));
+  std::optional<PrimType> value_dtype = tirx::GetPointerType(GetType(*value));
   if (!value_dtype.has_value()) return;
   RegisterHandleType(var.get(), value_dtype.value());
   pointer_offset_vars_.insert(var.get());
 }
 
-void CodeGenC::PrintVecElemLoad(const std::string& vec, DLDataType t, int i,
+void CodeGenC::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                 std::ostream& os) {  // NOLINT(*)
   os << vec << ".s" << std::hex << i << std::dec;
 }
 
-void CodeGenC::PrintVecElemStore(const std::string& vec, DLDataType t, int i,
+void CodeGenC::PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                  const std::string& value) {
   this->PrintIndent();
   stream << vec << ".s" << std::hex << i << " = " << value << ";\n" << std::dec;
 }
 
-std::string CodeGenC::GetVecLoad(DLDataType t, const BufferNode* buffer, PrimExpr base) {
+std::string CodeGenC::GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) {
   return GetBufferRef(t, buffer, base);
 }
 
-void CodeGenC::PrintVecStore(const BufferNode* buffer, DLDataType t, PrimExpr base,
+void CodeGenC::PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
   stream << ref << " = " << value << ";\n";
 }
 
-void CodeGenC::PrintVecConstructor(DLDataType t, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::PrintVecConstructor(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   PrintType(t, os);
 }
 
-std::string CodeGenC::CastFromTo(std::string value, DLDataType from, DLDataType target) {
+std::string CodeGenC::CastFromTo(std::string value, const PrimType& from,
+                                 const PrimType& target) {
   if (from == target) return value;
   std::ostringstream os;
   os << "((";
@@ -464,7 +464,7 @@ inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  /
     os << temp.str();
   } else {
     os << "(";
-    p->PrintType(op->ty()->dtype, os);
+    p->PrintType(op->ty(), os);
     os << ")" << op->value;
   }
 }
@@ -496,7 +496,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { 
     }
     case 16: {
       os << '(';
-      p->PrintType(op->ty()->dtype, os);
+      p->PrintType(op->ty(), os);
       os << ')' << std::scientific << op->value << 'f';
       break;
     }
@@ -535,7 +535,7 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
       os << ')';
     }
   } else {
-    p->PrintVecBinaryOp(opstr, op->ty()->dtype, op->a, op->b, os);
+    p->PrintVecBinaryOp(opstr, op->ty(), op->a, op->b, os);
   }
 }
 
@@ -550,13 +550,13 @@ inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
     p->PrintExpr(op->args[1], os);
     os << ')';
   } else {
-    p->PrintVecBinaryOp(opstr, op->ty()->dtype, op->args[0], op->args[1], os);
+    p->PrintVecBinaryOp(opstr, op->ty(), op->args[0], op->args[1], os);
   }
 }
 void CodeGenC::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
-  os << CastFromTo(value.str(), op->value.ty()->dtype, op->ty()->dtype);
+  os << CastFromTo(value.str(), op->value.ty(), op->ty());
 }
 void CodeGenC::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
@@ -578,7 +578,7 @@ void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     PrintBinaryExpr(op, "%", os, this);
   } else {
-    TVM_FFI_ICHECK(op_ty.code() == DLDataTypeCode::kDLFloat)
+    TVM_FFI_ICHECK(op_ty.MatchesCode(DLDataTypeCode::kDLFloat))
         << "Expected floating point or integer dtype in Mod, but got " << op->ty()->dtype;
     if (op_ty.bits() == 32) {
       PrintBinaryExpr(op, "fmodf", os, this);
@@ -695,7 +695,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       std::string result = name_supply_->FreshName("condval");
       std::string cond = PrintExpr(op->args[0]);
       this->PrintIndent();
-      PrintType(op->ty()->dtype, this->stream);
+      PrintType(op->ty(), this->stream);
       this->stream << " " << result << ";\n";
       this->PrintIndent();
       this->stream << "if (" << cond << ") {\n";
@@ -725,13 +725,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
             << "CodeGenC only supports flat memory allocations.";
         const VarNode* data = load->buffer->data.get();
-        if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype->dtype) &&
+        if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
           this->PrintExpr(load->indices[0], os);
           os << ")";
         } else {
-          os << "(&(" << GetBufferRef(load->ty()->dtype, load->buffer.get(), load->indices[0])
+          os << "(&(" << GetBufferRef(load->ty(), load->buffer.get(), load->indices[0])
              << "))";
         }
       } else {
@@ -757,7 +757,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
-      os << GetStructRef(op->ty()->dtype, op->args[0], op->args[1],
+      os << GetStructRef(op->ty(), op->args[0], op->args[1],
                          op->args[2].as<IntImmNode>()->value);
     } else if (op->op.same_as(builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
@@ -767,7 +767,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::ptr_byte_offset())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << "((";
-      PrintType(op->args[2].ty()->dtype, os);
+      PrintType(op->args[2].ty(), os);
       os << "*)(((char*)";
       this->PrintExpr(op->args[0], os);
       os << ") + ";
@@ -781,10 +781,10 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[1], os);
       os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
-      auto target_dtype = op->ty()->dtype;
-      auto source_dtype = op->args[0].ty()->dtype;
-      TVM_FFI_ICHECK_EQ(PrimType(target_dtype).lanes() * target_dtype.bits,
-                        PrimType(source_dtype).lanes() * source_dtype.bits)
+      PrimType target_dtype = op->ty();
+      PrimType source_dtype = op->args[0].ty();
+      TVM_FFI_ICHECK_EQ(target_dtype.lanes() * target_dtype.bits(),
+                        source_dtype.lanes() * source_dtype.bits())
           << "reinterpret expects source and target to have the same number of bits";
       int ssa_scope = BeginScope();
       std::string rhs = SSAGetID(PrintExpr(op->args[0]), source_dtype);
@@ -821,8 +821,8 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-void CodeGenC::PrintVecBinaryOp(const std::string& op, DLDataType t, PrimExpr lhs, PrimExpr rhs,
-                                std::ostream& os) {  // NOLINT(*)
+void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs,
+                                PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
   if (isalpha(op[0])) {
     os << op << "(";
     this->PrintExpr(lhs, os);
@@ -846,18 +846,16 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
   TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
 
-  DLDataType value_dtype = op->ty()->dtype;
-  PrimType value_ty(value_dtype);
+  PrimType value_ty = op->ty();
   PrimExpr index = op->indices[0];
   Var buffer_var = op->buffer->data;
-  DLDataType element_dtype = op->buffer->dtype->dtype;
-  PrimType element_ty(element_dtype);
+  const PrimType& element_ty = op->buffer->dtype;
 
   int lanes = value_ty.lanes();
   // delcare type.
   if (value_ty.lanes() == element_ty.lanes()) {
-    std::string ref = GetBufferRef(op->ty()->dtype, op->buffer.get(), index);
-    if (value_ty.code() == DLDataTypeCode::kDLFloat4_e2m1fn && value_ty.lanes() == 1) {
+    std::string ref = GetBufferRef(op->ty(), op->buffer.get(), index);
+    if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) && value_ty.lanes() == 1) {
       // GetBufferRef returns an lvalue: *(ptr + index/2), which reads the
       // full byte.  Extract the correct nibble (low for even, high for odd).
       std::string index_str = PrintExpr(index);
@@ -881,19 +879,19 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       }
     }
 
-    if (value_ty.code() == DLDataTypeCode::kDLFloat4_e2m1fn && lanes != 1) {
+    if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) && lanes != 1) {
       // A float4_e2m1fn element has 4 bits, which is an incomplete byte.
       // So we cannot vector load it.
       can_vector_load = false;
     }
     if (can_vector_load) {
-      std::string ref = GetVecLoad(op->ty()->dtype, op->buffer.get(), base.Eval());
+      std::string ref = GetVecLoad(op->ty(), op->buffer.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;
-      std::string sindex = SSAGetID(PrintExpr(index), index.ty()->dtype);
+      std::string sindex = SSAGetID(PrintExpr(index), index.ty());
       std::string vid = GetVarID(buffer_var.get());
-      DLDataType elem_type{value_dtype.code, value_dtype.bits, 1};
+      PrimType elem_type = value_ty.WithLanes(1);
       for (int i = 0; i < lanes; ++i) {
         std::ostringstream value_temp;
         if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
@@ -910,9 +908,9 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
           value_temp << vid;
         }
         value_temp << '[';
-        PrintVecElemLoad(sindex, index.ty()->dtype, i, value_temp);
+        PrintVecElemLoad(sindex, index.ty(), i, value_temp);
         value_temp << ']';
-        PrintVecElemLoadExpr(op->ty()->dtype, i, value_temp.str(), svalue_expr);
+        PrintVecElemLoadExpr(op->ty(), i, value_temp.str(), svalue_expr);
       }
       os << svalue_expr.str();
     }
@@ -923,16 +921,14 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
   TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
 
-  DLDataType value_dtype = op->value.ty()->dtype;
-  PrimType value_ty(value_dtype);
-  DLDataType element_dtype = op->buffer->dtype->dtype;
-  PrimType element_ty(element_dtype);
+  PrimType value_ty = op->value.ty();
+  const PrimType& element_ty = op->buffer->dtype;
   PrimExpr index_expr = op->indices[0];
   Var buffer_var = op->buffer->data;
 
   if (value_ty.lanes() == element_ty.lanes()) {
     std::string value = this->PrintExpr(op->value);
-    std::string ref = this->GetBufferRef(value_dtype, op->buffer.get(), index_expr);
+    std::string ref = this->GetBufferRef(value_ty, op->buffer.get(), index_expr);
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
@@ -941,19 +937,19 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
     if (arith::ramp(base, 1, value_ty.lanes()).Match(index_expr) &&
         value_ty.code() != DLDataTypeCode::kDLFloat4_e2m1fn) {
       std::string value = this->PrintExpr(op->value);
-      this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
+      this->PrintVecStore(op->buffer.get(), value_ty, base.Eval(), value);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
 
       // store elements separately
-      std::string index = SSAGetID(PrintExpr(index_expr), index_expr.ty()->dtype);
-      std::string value = SSAGetID(PrintExpr(op->value), op->value.ty()->dtype);
+      std::string index = SSAGetID(PrintExpr(index_expr), index_expr.ty());
+      std::string value = SSAGetID(PrintExpr(op->value), op->value.ty());
       std::string vid = GetVarID(buffer_var.get());
       for (int i = 0; i < value_ty.lanes(); ++i) {
         this->PrintIndent();
-        DLDataType elem_type{value_dtype.code, value_dtype.bits, 1};
+        PrimType elem_type = value_ty.WithLanes(1);
         if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           stream << "((";
           if (buffer_var.get()->ty().IsHandle()) {
@@ -968,9 +964,9 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
           stream << vid;
         }
         stream << '[';
-        PrintVecElemLoad(index, index_expr.ty()->dtype, i, stream);
+        PrintVecElemLoad(index, index_expr.ty(), i, stream);
         stream << "] = ";
-        PrintVecElemLoad(value, op->value.ty()->dtype, i, stream);
+        PrintVecElemLoad(value, op->value.ty(), i, stream);
         stream << ";\n";
       }
       EndScope(vec_scope);
@@ -999,7 +995,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "*)" << value << ";\n";
     } else {
-      PrintType(op->var.ty()->dtype, this->stream);
+      PrintType(op->var.ty(), this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
@@ -1014,7 +1010,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
-  PrintType(op->ty()->dtype, os);
+  PrintType(op->ty(), os);
   int lanes = op->ty().lanes();
   os << "(";
   for (int i = 0; i < lanes; i++) {
@@ -1063,7 +1059,7 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
       for (int i = 0; i < op->vectors[0].ty().lanes(); ++i) {
         // access i-th element of each vector
         std::ostringstream vec_elem_strm;
-        PrintVecElemLoad(vec_value, op->vectors[0].ty()->dtype, i, vec_elem_strm);
+        PrintVecElemLoad(vec_value, op->vectors[0].ty(), i, vec_elem_strm);
         concat_vec.push_back(vec_elem_strm.str());
       }
     }
@@ -1081,7 +1077,7 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   } else {
     // Print the shuffle as vector constructor
     // vec(e0, e1, e2, .. en)
-    PrintVecConstructor(op->ty()->dtype, os);
+    PrintVecConstructor(op->ty(), os);
     os << '(';
     for (size_t i = 0; i < op->indices.size(); ++i) {
       if (i != 0) os << ", ";
@@ -1124,7 +1120,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "*)" << value << ";\n";
     } else {
-      PrintType(op->var.ty()->dtype, this->stream);
+      PrintType(op->var.ty(), this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
@@ -1148,10 +1144,10 @@ void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   alloc_storage_scope_[op->buffer->data.get()] = scope;
   PrintStorageScope(scope, stream);
 
-  PrintType(op->buffer->dtype->dtype, stream);
+  PrintType(op->buffer->dtype, stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype->dtype);
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }
@@ -1257,7 +1253,7 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
   stream << "for (";
-  PrintType(op->loop_var.ty()->dtype, stream);
+  PrintType(op->loop_var.ty(), stream);
   stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
   if (step_str.empty()) {
     stream << "++" << vid;
@@ -1336,17 +1332,16 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      DLDataType store_dtype = call->args[3].ty()->dtype;
-      PrimType store_ty(store_dtype);
-      std::string ref = GetStructRef(store_dtype, call->args[0], call->args[1], kind);
+      PrimType store_ty = call->args[3].ty();
+      std::string ref = GetStructRef(store_ty, call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
 
-      if (kind == builtin::kTVMFFIAnyUnionValue && (store_dtype.bits < 64 || store_ty.IsHandle())) {
+      if (kind == builtin::kTVMFFIAnyUnionValue && (store_ty.bits() < 64 || store_ty.IsHandle())) {
         this->PrintIndent();
         // when we set any union value, we need to be careful to
         // clear off the union value to zero if the set size is less than 64 bits
-        this->stream << GetStructRef(DLDataType{kDLInt, 64, 1}, call->args[0], call->args[1], kind)
+        this->stream << GetStructRef(PrimType::Int(64), call->args[0], call->args[1], kind)
                      << " = 0;\n";
       }
 
@@ -1369,12 +1364,11 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenC::PrintVecElemLoadExpr(DLDataType t, int i, const std::string& value,
+void CodeGenC::PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                                     std::ostream& os) {
-  PrimType t_ty(t);
-  int lanes = t_ty.lanes();
+  int lanes = t.lanes();
   TVM_FFI_ICHECK_GT(lanes, 1);
-  if (t.bits == 8 && (t_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
+  if (t.bits() == 8 && t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     if (i != 0) {
       os << "|";
     }

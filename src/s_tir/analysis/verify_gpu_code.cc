@@ -88,7 +88,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       if (ElementBytes(dtype_ty) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << dtype_ty.lanes() << ") times number of bytes ("
-          << ((dtype_ty.bits() + 7) / 8) << ") for dtype " << dtype_ty
+          << dtype_ty.StorageBytes() << ") for dtype " << dtype_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
@@ -207,7 +207,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
             ElementBytes(ramp_ty) > max_vector_bytes_) {
           std::stringstream s;
           s << "Number of lanes (" << ramp_ty.lanes() << ") times number of bytes ("
-            << ((ramp_ty.bits() + 7) / 8) << ") for dtype " << ramp_ty
+            << ramp_ty.StorageBytes() << ") for dtype " << ramp_ty
             << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
           errors_.push_back(s.str());
         }
@@ -221,7 +221,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << op_ty.lanes() << ") times number of bytes ("
-          << ((op_ty.bits() + 7) / 8) << ") for dtype " << op_ty
+          << op_ty.StorageBytes() << ") for dtype " << op_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
@@ -235,7 +235,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << op_ty.lanes() << ") times number of bytes ("
-          << ((op_ty.bits() + 7) / 8) << ") for dtype " << op_ty
+          << op_ty.StorageBytes() << ") for dtype " << op_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
@@ -250,7 +250,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       if (ElementBytes(value_ty) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << value_ty.lanes() << ") times number of bytes ("
-          << ((value_ty.bits() + 7) / 8) << ") for dtype " << value_ty
+          << value_ty.StorageBytes() << ") for dtype " << value_ty
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }

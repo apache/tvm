@@ -46,15 +46,16 @@ class CodeGenOpenCL final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;                             // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
-  void PrintType(DLDataType t, std::ostream& os) final;                      // NOLINT(*)
+  using CodeGenC::PrintType;
+  void PrintType(const PrimType& t, std::ostream& os) final;                 // NOLINT(*)
   void PrintType(const Type& type, std::ostream& os) final;                  // NOLINT(*)
-  std::string GetVecLoad(DLDataType t, const BufferNode* buffer, PrimExpr base) final;
-  void PrintVecStore(const BufferNode* buffer, DLDataType t, PrimExpr base,
+  std::string GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) final;
+  void PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
-  void PrintVecElemLoadExpr(DLDataType t, int i, const std::string& value,
+  void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                             std::ostream& os) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const BufferNode* buffer, DLDataType t, PrimExpr base,
+  void PrintVecAddr(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                     std::ostream& os);                                            // NOLINT(*)
   void PrintRestrict(const Var& v, std::ostream& os) final;                       // NOLINT(*)
   std::string CastFromTo(std::string value, DLDataType from, DLDataType target);  // NOLINT(*)

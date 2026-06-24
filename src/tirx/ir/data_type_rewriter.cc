@@ -669,7 +669,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   PrimType dtype = op->ty();
   if (is_enabled_ && CanRewriteDType(dtype)) {
     PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
-    return value.ty()->dtype == target_data_type_->dtype ? value : Cast(target_data_type_, value);
+    return value.ty() == target_data_type_ ? value : Cast(target_data_type_, value);
   }
   return IndexDataTypeRewriter::VisitExpr_(op);
 }

@@ -120,7 +120,8 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
      << "TVM_DLL ";
 }
 
-void CodeGenCHost::PrintType(DLDataType t, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& t = type->dtype;
   int lanes = static_cast<int16_t>(t.lanes);
   if (t.code == kDLOpaqueHandle && !(t.bits == 0 && lanes == 0)) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "does not support vector types";

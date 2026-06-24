@@ -163,7 +163,7 @@ int TVMFFIABIBuilder::GetParamIndex(const ffi::reflection::AccessPath& path) con
 
 bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
                                   const ffi::reflection::AccessPath& path, bool with_lets) {
-  TVM_FFI_ICHECK(arg.ty()->dtype == value.ty()->dtype);
+  TVM_FFI_ICHECK(arg.ty() == value.ty());
   if (arg.as<VarNode>()) {
     Var v_arg = arg.as_or_throw<Var>();
     auto it = var_defs_.find(v_arg.get());
@@ -669,8 +669,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
     PrimExpr lanes_matches =
         TVMStructGet(PrimType::UInt(16), handle, 0, builtin::kDLTensorTypeLanes) ==
         IntImm(PrimType::UInt(16), buffer->dtype.lanes());
-    PrimExpr cond = cast(PrimType::Bool(), code_matches) && cast(PrimType::Bool(), bits_matches) &&
-                    cast(PrimType::Bool(), lanes_matches);
+    PrimExpr cond = code_matches && bits_matches && lanes_matches;
     if (!(buffer->dtype == PrimType::Int(1) || buffer->dtype == PrimType::Int(4) ||
           buffer->dtype == PrimType::UInt(4))) {
       std::ostringstream dtype_os;

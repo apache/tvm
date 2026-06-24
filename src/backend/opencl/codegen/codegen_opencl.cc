@@ -192,8 +192,8 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
   var_idmap_[iv->var.get()] = CastFromTo(os.str(), DLDataType{kDLUInt, 64, 1}, iv->var.ty()->dtype);
 }
 
-void CodeGenOpenCL::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT(*)
-  PrimType t(raw_t);
+void CodeGenOpenCL::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
   if (t.IsHandle()) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
@@ -273,7 +273,7 @@ void CodeGenOpenCL::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT(*
 
 void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
+    return PrintType(ffi::GetRef<PrimType>(ptr), os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     if (runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
       os << "image2d_array_t";
@@ -288,10 +288,10 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   }
 }
 
-void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, DLDataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
   const VarNode* buffer_var = buffer->data.get();
-  DLDataType elem_type{t.code, t.bits, 1};
+  PrimType elem_type = t.WithLanes(1);
   if (!HandleTypeMatch(buffer_var, elem_type)) {
     os << '(';
     auto it = alloc_storage_scope_.find(buffer_var);
@@ -304,28 +304,27 @@ void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, DLDataType t, PrimExp
   os << GetVarID(buffer_var) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(DLDataType t, const BufferNode* buffer, PrimExpr base) {
+std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) {
   std::ostringstream os;
-  os << "vload" << PrimType(t).lanes() << "(0, ";
+  os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
   os << ")";
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, DLDataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
-  stream << "vstore" << PrimType(t).lanes() << "(" << value << ", 0, ";
+  stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
   PrintVecAddr(buffer, t, base, stream);
   stream << ");\n";
 }
 
-void CodeGenOpenCL::PrintVecElemLoadExpr(DLDataType t, int i, const std::string& value,
+void CodeGenOpenCL::PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                                          std::ostream& os) {  // NOLINT(*)
-  PrimType t_ty(t);
-  int lanes = t_ty.lanes();
+  int lanes = t.lanes();
   TVM_FFI_ICHECK_GT(lanes, 1);
-  if (t.bits == 8 && (t_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
+  if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
     if (i != 0) {
       os << "|";
     }
@@ -587,16 +586,16 @@ template <typename T>
 inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, CodeGenOpenCL* p) {
   if (op->ty().lanes() == 1) {
     os << opstr << "((";
-    p->PrintType(op->a.ty()->dtype, os);
+    p->PrintType(op->a.ty(), os);
     os << ")";
     p->PrintExpr(op->a, os);
     os << ", (";
-    p->PrintType(op->b.ty()->dtype, os);
+    p->PrintType(op->b.ty(), os);
     os << ")";
     p->PrintExpr(op->b, os);
     os << ')';
   } else {
-    p->PrintVecBinaryOp(opstr, op->ty()->dtype, op->a, op->b, os);
+    p->PrintVecBinaryOp(opstr, op->ty(), op->a, op->b, os);
   }
 }
 
@@ -634,7 +633,7 @@ void CodeGenOpenCL::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT
       os << ')';
     }
   } else {
-    this->PrintVecBinaryOp(opstr.c_str(), op->ty()->dtype, op->a, op->b, os);
+    this->PrintVecBinaryOp(opstr.c_str(), op->ty(), op->a, op->b, os);
   }
 }
 

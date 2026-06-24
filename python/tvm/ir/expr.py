@@ -43,19 +43,6 @@ class PrimExpr(BaseExpr):
     optimizations and integer analysis.
     """
 
-    @property
-    def dtype(self):
-        """Compatibility alias for the runtime dtype of scalar PrimExpr.
-
-        New code should inspect ``expr.ty`` directly.  For scalar primitive
-        expressions, use ``expr.ty.dtype``.
-        """
-        if self.ty is None:
-            return None
-        if hasattr(self.ty, "dtype"):
-            return self.ty.dtype
-        return "handle"
-
 
 @tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):

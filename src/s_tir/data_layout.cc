@@ -502,7 +502,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
       }
       bind_map[orig_axis->var.get()] = IntImm(orig_axis->var.ty(), 0);
     } else {
-      bind_map[orig_axis->var.get()] = orig_axis->var.ty()->dtype == orig_shape.ty()->dtype
+      bind_map[orig_axis->var.get()] = orig_axis->var.ty() == orig_shape.ty()
                                            ? orig_shape
                                            : cast(orig_axis->var.ty(), orig_shape);
     }

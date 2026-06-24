@@ -52,15 +52,17 @@ class CodeGenWebGPU final : public CodeGenC {
   runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;       // NOLINT(*)
-  void PrintType(DLDataType t, std::ostream& os) final;  // NOLINT(*)
+  using CodeGenC::PrintType;
+  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void BindThreadIndex(const IterVar& iv) final;         // NOLINT(*)
 
   // assignment printing
-  void PrintSSAAssign(const std::string& target, const std::string& src, PrimType type) final;
+  void PrintSSAAssign(const std::string& target, const std::string& src,
+                      const PrimType& type) final;
 
   // overload printing vector element load/store
-  void PrintVecElemLoad(const std::string& vec, DLDataType t, int i, std::ostream& os) final;
-  void PrintVecElemStore(const std::string& vec, DLDataType t, int i,
+  void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i, std::ostream& os) final;
+  void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
 
   // overload visitor

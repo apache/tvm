@@ -92,9 +92,9 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
@@ -262,9 +262,9 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
@@ -476,9 +476,9 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
@@ -664,9 +664,9 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
@@ -856,9 +856,9 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
@@ -1088,9 +1088,9 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ShapeExpr> weight_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, weight_ty, weight_layout);
 
-  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
-                                    ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
-                                    : attrs->out_dtype);
+  PrimType out_dtype = attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                            ? InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty)
+                            : PrimType(attrs->out_dtype);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
   if (!data_shape.defined() || !weight_shape.defined()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);

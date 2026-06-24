@@ -76,9 +76,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
 
     auto src = BufferLoad(mem_copy->source->buffer, {src_min});
     auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
-    DLDataType src_dtype = src.ty()->dtype;
-    int src_bytes = (src_dtype.bits * static_cast<int16_t>(src_dtype.lanes) + 7) / 8;
-    PrimExpr dst_nbytes = dst_extent * src_bytes;
+    PrimExpr dst_nbytes = dst_extent * static_cast<int>(src.ty().StorageBytes());
     return Evaluate(
         Call(PrimType::Int(32), builtin::dma_copy(),
              ffi::Array<PrimExpr>{

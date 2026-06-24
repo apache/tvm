@@ -137,8 +137,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   this->EndScope(func_scope);
 }
 
-void CodeGenTrainium::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT(*)
-  PrimType t(raw_t);
+void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   TVM_FFI_ICHECK(lanes == 1) << "Trainium codegen does not support vector types";
   TVM_FFI_ICHECK(!t.IsHandle()) << "Trainium codegen does not support handle type";
@@ -147,7 +146,7 @@ void CodeGenTrainium::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT
     os << "np.bool";
     return;
   }
-  if (t.code() == DLDataTypeCode::kDLFloat) {
+  if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
     switch (t.bits()) {
       case 16:
         os << "np.float16";
@@ -189,11 +188,11 @@ void CodeGenTrainium::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT
     }
     return;
   }
-  if (t.code() == DLDataTypeCode::kDLBfloat && t.bits() == 16) {
+  if (t.MatchesCode(DLDataTypeCode::kDLBfloat) && t.bits() == 16) {
     os << "nl.bfloat16";
     return;
   }
-  LOG(FATAL) << "Cannot convert type " << raw_t << " to Trainium type";
+  LOG(FATAL) << "Cannot convert type " << t << " to Trainium type";
 }
 
 std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // NOLINT(*)
@@ -216,7 +215,7 @@ void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   this->PrintIndent();
   auto scope = GetPtrStorageScope(op->buffer->data);
   std::ostringstream dtype_os;
-  PrintType(op->buffer->dtype->dtype, dtype_os);
+  PrintType(op->buffer->dtype, dtype_os);
   std::string dtype_str = dtype_os.str();
   if (scope == "trn.psum") {
     stream << vid << " = nl.ndarray(shape=[";

@@ -126,7 +126,7 @@ Type InferTypeWhere(const Call& call, const BlockBuilder& ctx) {
            "the given condition dtype is "
         << cond_ty->dtype;
   }
-  PrimType output_dtype(InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty));
+  PrimType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
 
   int output_ndim;
   if (cond_ty->IsUnknownNdim() || x1_ty->IsUnknownNdim() || x2_ty->IsUnknownNdim()) {

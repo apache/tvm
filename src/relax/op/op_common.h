@@ -190,7 +190,7 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param f_compute_out_dtype The function to compute the output dtype, with
- * signature DLDataType or PrimType f_compute_out_dtype(const TensorType& input_ty).
+ * signature PrimType f_compute_out_dtype(const TensorType& input_ty).
  * \tparam require_float_dtype whether this op requires the input dtype to be float
  * \tparam Ftype the type of f_compute_out_dtype
  * \return The inferred type.
@@ -198,21 +198,17 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
 template <bool require_float_dtype, typename FType>
 inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
-  DLDataType input_dtype = input_ty->dtype->dtype;
+  PrimType input_dtype = input_ty->dtype;
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
-      (input_dtype.code != kDLFloat && input_dtype.code != kDLBfloat)) {
+      !input_dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_ty->dtype;
   }
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
-  auto computed_dtype = f_compute_out_dtype(input_ty);
-  if constexpr (std::is_same_v<std::decay_t<decltype(computed_dtype)>, PrimType>) {
-    output_ty->dtype = computed_dtype;
-  } else {
-    output_ty->dtype = PrimType(computed_dtype);
-  }
+  PrimType computed_dtype = f_compute_out_dtype(input_ty);
+  output_ty->dtype = computed_dtype;
   if (call->ty_args.size() > 0) {
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
     TVM_FFI_ICHECK(defined_ty);
@@ -301,8 +297,8 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorType don’t match
  */
-inline DLDataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
-                                             const Type& lhs_ty, const Type& rhs_ty) {
+inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
+                                           const Type& lhs_ty, const Type& rhs_ty) {
   auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -324,8 +320,8 @@ inline DLDataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilde
   auto rhs_dtype = opt_rhs_dtype.value();
 
   if (lhs_dtype.IsVoid() || rhs_dtype.IsVoid()) {
-    return DLDataType{kDLOpaqueHandle, 0, 0};
-  } else if (lhs_dtype->dtype != rhs_dtype->dtype &&
+    return PrimType::Void();
+  } else if (lhs_dtype != rhs_dtype &&
              !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
              !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -333,7 +329,7 @@ inline DLDataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilde
         << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (Type of "
         << lhs_ty << "), and datatype " << rhs_dtype << " on the RHS (Type of " << rhs_ty << ").";
   }
-  return lhs_dtype->dtype;
+  return lhs_dtype;
 }
 
 /*!

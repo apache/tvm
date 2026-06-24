@@ -195,20 +195,20 @@ bool DetectClipBound(const PrimExpr& cond,
   PrimExpr canonical;
   if (const LTNode* op = cond.as<LTNode>()) {
     PrimType a_ty = op->a.ty();
-    if (a_ty.code() != DLDataTypeCode::kDLInt) return false;
+    if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a - MakeConst(a_ty, 1);
   } else if (const LENode* op = cond.as<LENode>()) {
-    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
+    if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->b - op->a;
   } else if (const GTNode* op = cond.as<GTNode>()) {
     PrimType a_ty = op->a.ty();
-    if (a_ty.code() != DLDataTypeCode::kDLInt) return false;
+    if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b - MakeConst(a_ty, 1);
   } else if (const GENode* op = cond.as<GENode>()) {
-    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
+    if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
   } else if (const EQNode* op = cond.as<EQNode>()) {
-    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
+    if (!op->a.ty().MatchesCode(DLDataTypeCode::kDLInt)) return false;
     canonical = op->a - op->b;
     is_eq = true;
   } else {

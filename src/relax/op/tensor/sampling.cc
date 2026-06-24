@@ -61,23 +61,22 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
   const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
   // Only the element kind matters here; shape inference does not depend on vector lanes.
-  if (prob_ty->dtype.code() != DLDataTypeCode::kDLFloat &&
-      prob_ty->dtype.code() != DLDataTypeCode::kDLBfloat) {
+  if (!prob_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input prob to have float dtype. "
            "However, the given prob dtype is "
         << prob_ty->dtype;
   }
   // Only the element kind matters here; shape inference does not depend on vector lanes.
-  if (uniform_sample_ty->dtype.code() != DLDataTypeCode::kDLFloat &&
-      uniform_sample_ty->dtype.code() != DLDataTypeCode::kDLBfloat) {
+  if (!uniform_sample_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat,
+                                            DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to have float "
            "dtype. However, the given uniform_sample dtype is "
         << uniform_sample_ty->dtype;
   }
   // Only the element kind matters here; shape inference does not depend on vector lanes.
-  if (sample_indices_ty->dtype.code() != DLDataTypeCode::kDLInt) {
+  if (!sample_indices_ty->dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial from uniform op requires the input sample_indices to have int "
            "dtype. However, the given sample_indices dtype is "

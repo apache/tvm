@@ -390,7 +390,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
 
       // 7. Wrap with the merged-buffer AllocBuffer.
-      Buffer merged_buf(scope.merged_buf_var, DLDataType{kDLUInt, 8, 1}, {scope.merged_alloc_size},
+      Buffer merged_buf(scope.merged_buf_var, PrimType::UInt(8), {scope.merged_alloc_size},
                         {}, PrimExpr(), scope.merged_buf_var->name_hint, 0, 0,
                         BufferType::kDefault);
       ffi::Map<ffi::String, ffi::Any> annotations;

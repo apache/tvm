@@ -52,7 +52,7 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
       << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
 
   // Dtype
-  PrimType output_dtype(f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty));
+  PrimType output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
 
   if (lhs_ty.as<PrimTypeNode>() && rhs_ty.as<PrimTypeNode>()) {
     return output_dtype;
@@ -136,7 +136,7 @@ Type InferTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
 Type InferTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
   return InferTypeBroadcast(call, ctx,
                             [](const Call& call, const BlockBuilder& ctx, const Type& lhs_ty,
-                               const Type& rhs_ty) { return DLDataType{kDLBool, 8, 1}; });
+                               const Type& rhs_ty) { return PrimType::Bool(); });
 }
 
 InferLayoutOutput InferLayoutBinaryEwise(

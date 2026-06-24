@@ -77,7 +77,7 @@ class BufferNode : public ffi::Object {
    */
   Var data;
   /*! \brief dtype in the content of the tensor */
-  PrimType dtype{DLDataType{kDLOpaqueHandle, 0, 0}};
+  PrimType dtype = PrimType::Void();
   /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -193,14 +193,6 @@ class Buffer : public ffi::ObjectRef {
                  BufferType buffer_type, ffi::Array<IntImm> axis_separators = {},
                  Span span = Span(), ffi::Optional<Layout> layout = std::nullopt,
                  ffi::Array<PrimExpr> allocated_addr = {});
-  Buffer(Var data, DLDataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
-         PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
-         BufferType buffer_type, ffi::Array<IntImm> axis_separators = {}, Span span = Span(),
-         ffi::Optional<Layout> layout = std::nullopt, ffi::Array<PrimExpr> allocated_addr = {})
-      : Buffer(std::move(data), PrimType(dtype), std::move(shape), std::move(strides),
-               std::move(elem_offset), std::move(name), data_alignment, offset_factor, buffer_type,
-               std::move(axis_separators), std::move(span), std::move(layout),
-               std::move(allocated_addr)) {}
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -288,7 +280,6 @@ class Buffer : public ffi::ObjectRef {
    * \brief Return a new buffer with the dtype.
    */
   TVM_DLL Buffer with_dtype(PrimType dtype) const;
-  Buffer with_dtype(DLDataType dtype) const { return with_dtype(PrimType(dtype)); }
 
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
@@ -313,19 +304,10 @@ class Buffer : public ffi::ObjectRef {
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
-TVM_DLL Buffer decl_buffer(ffi::Array<PrimExpr> shape,
-                           DLDataType dtype = DLDataType{kDLFloat, 32, 1},
+TVM_DLL Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                            ffi::String name = "buffer", ffi::String storage_scope = "",
                            ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
                            Span span = Span());
-
-inline Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name = "buffer",
-                          ffi::String storage_scope = "",
-                          ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-                          Span span = Span()) {
-  return decl_buffer(std::move(shape), dtype->dtype, std::move(name), std::move(storage_scope),
-                     std::move(axis_separators), std::move(span));
-}
 
 /*!
  * \brief Base node for data producers.
@@ -383,18 +365,10 @@ class DataProducer : public PrimExprConvertible {
  * \param compact If the statement has already bound to a compact buffer.
  * \param memory_scope memory scope of the buffer
  */
-TVM_DLL tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DLDataType dtype,
+TVM_DLL tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                std::string name, int data_alignment,
                                                int offset_factor, bool compact,
                                                std::string memory_scope = "");
-
-inline tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                              std::string name, int data_alignment,
-                                              int offset_factor, bool compact,
-                                              std::string memory_scope = "") {
-  return BufferWithOffsetAlignment(std::move(shape), dtype->dtype, std::move(name), data_alignment,
-                                   offset_factor, compact, std::move(memory_scope));
-}
 }  // namespace tirx
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_

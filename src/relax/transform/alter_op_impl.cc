@@ -221,7 +221,7 @@ class AlterOpImplMutator : public ExprMutator {
     }
 
     // Input tensor of remove_pad op
-    te::Tensor placeholder_tensor = te::placeholder(dyn_padded_shape, dtype, "input");
+    te::Tensor placeholder_tensor = te::placeholder(dyn_padded_shape, PrimType(dtype), "input");
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,

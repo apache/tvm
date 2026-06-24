@@ -100,15 +100,13 @@ class FloatConfig {
    */
   static FloatConfig FromDataType(PrimType dtype) {
     DLDataTypeCode code = dtype.code();
-    TVM_FFI_ICHECK(
-        code == DLDataTypeCode::kDLFloat ||
-        (code == DLDataTypeCode::kDLBfloat && dtype.bits() == 16) ||
-        code == DLDataTypeCode::kDLFloat8_e3m4 || code == DLDataTypeCode::kDLFloat8_e4m3 ||
-        code == DLDataTypeCode::kDLFloat8_e4m3b11fnuz || code == DLDataTypeCode::kDLFloat8_e4m3fn ||
-        code == DLDataTypeCode::kDLFloat8_e4m3fnuz || code == DLDataTypeCode::kDLFloat8_e5m2 ||
-        code == DLDataTypeCode::kDLFloat8_e5m2fnuz || code == DLDataTypeCode::kDLFloat8_e8m0fnu ||
-        code == DLDataTypeCode::kDLFloat6_e2m3fn || code == DLDataTypeCode::kDLFloat6_e3m2fn ||
-        code == DLDataTypeCode::kDLFloat4_e2m1fn)
+    TVM_FFI_ICHECK(dtype.MatchesCode(
+        DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat, DLDataTypeCode::kDLFloat8_e3m4,
+        DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+        DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
+        DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
+        DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
+        DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn))
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
     if (code == DLDataTypeCode::kDLFloat) {
@@ -123,16 +121,15 @@ class FloatConfig {
           // float64
           return FloatConfig(11, 52, 1023, InftyStyle::kIEEE, NaNStyle::kIEEE);
       }
-    } else if (code == DLDataTypeCode::kDLBfloat && dtype.bits() == 16) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLBfloat)) {
       // bfloat16,
       return FloatConfig(8, 7, 127, InftyStyle::kIEEE, NaNStyle::kIEEE);
-    } else if (code == DLDataTypeCode::kDLFloat8_e3m4 || code == DLDataTypeCode::kDLFloat8_e4m3 ||
-               code == DLDataTypeCode::kDLFloat8_e4m3b11fnuz ||
-               code == DLDataTypeCode::kDLFloat8_e4m3fn ||
-               code == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
-               code == DLDataTypeCode::kDLFloat8_e5m2 ||
-               code == DLDataTypeCode::kDLFloat8_e5m2fnuz ||
-               code == DLDataTypeCode::kDLFloat8_e8m0fnu) {  // float8
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
+                                 DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+                                 DLDataTypeCode::kDLFloat8_e4m3fn,
+                                 DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                                 DLDataTypeCode::kDLFloat8_e5m2fnuz,
+                                 DLDataTypeCode::kDLFloat8_e8m0fnu)) {  // float8
       // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
       // Reference: https://arxiv.org/abs/2209.05433
       switch (code) {
@@ -163,8 +160,8 @@ class FloatConfig {
         default:
           TVM_FFI_THROW(InternalError) << "Unknown float8 variant: " << dtype;
       }
-    } else if (code == DLDataTypeCode::kDLFloat6_e2m3fn ||
-               code == DLDataTypeCode::kDLFloat6_e3m2fn) {  // float6
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn,
+                                 DLDataTypeCode::kDLFloat6_e3m2fn)) {  // float6
       switch (code) {
         case DLDataTypeCode::kDLFloat6_e2m3fn:
           // E2M3 format, not consistent with IEEE-754

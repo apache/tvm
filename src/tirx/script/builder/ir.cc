@@ -860,8 +860,8 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String stora
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tirx::Evaluate(value)); }
 
-PrimExpr Ptr(DLDataType dtype, ffi::String storage_scope = "global", bool is_size_var = false) {
-  PointerType type_annotation(PrimType(dtype), storage_scope);
+PrimExpr Ptr(PrimType dtype, ffi::String storage_scope = "global", bool is_size_var = false) {
+  PointerType type_annotation(dtype, storage_scope);
   return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
                      : tvm::tirx::Var("", type_annotation);
 }

@@ -38,10 +38,10 @@ using namespace tirx;
 
 // Add float suffix to the intrinsics
 struct FloatSuffix {
-  std::string operator()(PrimType t, std::string name) const {
-    if (t->dtype == DLDataType{kDLFloat, 32, 1}) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty->dtype == DLDataType{kDLFloat, 32, 1}) {
       return name + 'f';
-    } else if (t->dtype == DLDataType{kDLFloat, 64, 1}) {
+    } else if (ty->dtype == DLDataType{kDLFloat, 64, 1}) {
       return name;
     } else {
       return "";
@@ -51,7 +51,7 @@ struct FloatSuffix {
 
 // Return the intrinsic name
 struct Direct {
-  std::string operator()(PrimType t, std::string name) const { return name; }
+  std::string operator()(const PrimType& ty, std::string name) const { return name; }
 };
 
 /*!

@@ -43,8 +43,7 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
-    e.dtype = op->ty()->dtype;
-    e.dtype.lanes = 1;
+    e.dtype = op->ty().WithLanes(1);
     for (const auto& index : op->indices) {
       e.touched.push_back(arith::IntSet::Vector(index));
     }
@@ -67,8 +66,7 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
-    e.dtype = op->value.ty()->dtype;
-    e.dtype.lanes = 1;
+    e.dtype = op->value.ty().WithLanes(1);
     for (const auto& index : op->indices) {
       e.touched.push_back(arith::IntSet::Vector(index));
     }
@@ -242,7 +240,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     StmtExprVisitor::VisitExpr_(load);
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-    DLDataType dtype = op->args[0].ty()->dtype;
+    PrimType dtype = op->args[0].ty();
     const VarNode* buffer = op->args[1].as<VarNode>();
     if (buffer == nullptr) {
       // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some

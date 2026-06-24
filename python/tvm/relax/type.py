@@ -107,8 +107,6 @@ class TensorType(Type):
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
-        if dtype is not None and not isinstance(dtype, PrimType):
-            dtype = PrimType(dtype)
         self.__init_handle_by_constructor__(
             _ffi_api.TensorType,
             shape,

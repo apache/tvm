@@ -71,7 +71,7 @@ class BoundChecker : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     if (UpdateIsNeeded(op->buffer->data)) {
-      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype->dtype);
+      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -118,13 +118,13 @@ class BoundChecker : public StmtExprMutator {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, DLDataType dtype) {
+  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, PrimType dtype) {
     // Sanity check at first.
     if (!ShapeIsValid(new_shape)) {
       return;
     }
 
-    int16_t lanes = static_cast<int16_t>(dtype.lanes);
+    int lanes = dtype.lanes();
     TVM_FFI_ICHECK_GE(lanes, 0);
     new_shape.MutateByApply([&](const PrimExpr& dim) {
       // Cast to uint64 to avoid potential overflow.

@@ -29,7 +29,7 @@ TEST(Pattern, Basic) {
   tvm::tirx::Var x("x"), y("y"), z("z");
   PrimExpr scalable_lanes = Mul(Call(PrimType::Int(32), builtin::vscale(), {}), 4);
   arith::PVar<PrimExpr> px, py, pz;
-  arith::PVar<PrimType> pt;
+  arith::PVar<DLDataType> pt;
   arith::PVar<PrimExpr> planes;
   arith::PCallExpr<PVscaleOp> vscale;
 
@@ -100,10 +100,10 @@ TEST(Pattern, Basic) {
   }
   // cast pattern
   {
-    TVM_FFI_ICHECK(
-        !cast(PConst<PrimType>(PrimType::Int(32)), px).Match(tirx::Cast(PrimType::Float(64), x)));
+    TVM_FFI_ICHECK(!cast(PConst<DLDataType>(DLDataType{kDLInt, 32, 1}), px)
+                        .Match(tirx::Cast(PrimType::Float(64), x)));
     TVM_FFI_ICHECK(cast(pt, px).Match(tirx::Cast(PrimType::Float(64), x)));
-    TVM_FFI_ICHECK(pt.Eval() == PrimType::Float(64));
+    TVM_FFI_ICHECK((pt.Eval() == DLDataType{kDLFloat, 64, 1}));
     auto zz = cast(pt, px).Eval();
     TVM_FFI_ICHECK(
         (cast(pt, px) - cast(pt, py))
@@ -150,7 +150,7 @@ TEST(Pattern, IntImm) {
 TEST(Pattern, MatchWithType) {
   using namespace tvm;
   // match expr with specified dtype
-  arith::PVarWithDataType<PrimExpr, arith::PConst<PrimType>> pat(PrimType::Float(32));
+  arith::PVarWithDataType<PrimExpr, arith::PConst<DLDataType>> pat(DLDataType{kDLFloat, 32, 1});
   tirx::Var x("x", PrimType::Float(32));
   tirx::Var y("y", PrimType::Float(32));
   tirx::Var x_int("x", PrimType::Int(32));
@@ -159,7 +159,7 @@ TEST(Pattern, MatchWithType) {
   TVM_FFI_ICHECK(!pat.Match(x_int + y_int * 2));
 
   // match vectorized expr with specified element dtype
-  arith::PVecDataType vec_ty(PrimType::Float(32));
+  arith::PVecDataType vec_ty(DLDataType{kDLFloat, 32, 1});
   arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
   tirx::Var vx = tirx::Var("x", PrimType::Float(32, 8));
   tirx::Var vy("y", PrimType::Float(32, 8));

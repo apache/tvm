@@ -57,6 +57,11 @@ bool ContainsVscaleCall(const PrimExpr& expr) {
   return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
 }
 
+TVM_FFI_INLINE bool IsVectorExpr(const PrimExprNode* expr) {
+  PrimType ty = expr->ty();
+  return ty.IsScalableVector() || ty.IsFixedLengthVector();
+}
+
 // File-local helper: returns the vscale multiplier if `lanes` is of the form
 // `multiplier * vscale()` or `vscale() * multiplier`, nullopt otherwise.
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
@@ -425,7 +430,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes), ramp(b1 + b2, s1 + s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
@@ -575,7 +580,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - broadcast(x, lanes), ramp(b1 - x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) - ramp(b1, s1, lanes), ramp(x - b1, 0 - s1, lanes));
@@ -765,7 +770,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(matches_one_of(ramp(b1, s1, lanes) * broadcast(x, lanes),
                                    broadcast(x, lanes) * ramp(b1, s1, lanes)),
@@ -803,7 +808,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)), broadcast(div(x, y), lanes));
     // ramp / bcast
@@ -957,7 +962,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(truncmod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(truncmod(x, y), lanes));
 
@@ -1046,7 +1051,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
@@ -1198,7 +1203,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(floormod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floormod(x, y), lanes));
 
@@ -1314,7 +1319,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(min(broadcast(x, lanes), broadcast(y, lanes)), broadcast(min(x, y), lanes));
     TVM_TRY_REWRITE(min(min(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     min(x, broadcast(min(y, z), lanes)));
@@ -1498,7 +1503,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(max(broadcast(x, lanes), broadcast(y, lanes)), broadcast(max(x, y), lanes));
     TVM_TRY_REWRITE(max(max(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     max(x, broadcast(max(y, z), lanes)));
@@ -1718,7 +1723,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   PConst<PrimExpr> ctrue(MakeConst(ret->ty(), true));
 
   // vector rule
-  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(ret.get())) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
@@ -1857,7 +1862,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(ret.get())) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
@@ -2024,7 +2029,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<PrimExpr> lanes;
-  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(ret.get())) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -2100,7 +2105,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PVar<IntImm> c1, c2, c3;
   PVar<PrimExpr> lanes;
 
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
@@ -2248,7 +2253,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
-  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
+  if (IsVectorExpr(op)) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
@@ -2319,7 +2324,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   static const Op& ceil_op = Op::Get("tirx.ceil");
   static const Op& log2_op = Op::Get("tirx.log2");
   static const Op& clz_op = Op::Get("tirx.clz");
-  PrimType ret_ty = ffi::GetRef<PrimExpr>(op).ty();
+  PrimType ret_ty = op->ty();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0];
     if (auto arg_int = op->args[0].as<IntImmNode>()) {

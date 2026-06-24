@@ -814,7 +814,7 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& a
 /*! \brief Check whether an AttrStmt has node=IntImm(int32, 0) (the dict-attr pattern). */
 static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
   if (auto int_imm = stmt->node.as<IntImmNode>()) {
-    return int_imm->ty()->dtype == DLDataType{kDLInt, 32, 1} && int_imm->value == 0;
+    return int_imm->ty() == PrimType::Int(32) && int_imm->value == 0;
   }
   return false;
 }

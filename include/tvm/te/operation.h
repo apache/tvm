@@ -103,7 +103,7 @@ class PlaceholderOpNode : public OperationNode {
   /*! \brief The shape of the input */
   ffi::Array<PrimExpr> shape;
   /*! \brief The dtype of the input. */
-  PrimType dtype{DLDataType{kDLOpaqueHandle, 0, 0}};
+  PrimType dtype = PrimType::Void();
   // override behavior.
   int num_outputs() const final;
   PrimType output_dtype(size_t i) const final;
@@ -126,8 +126,6 @@ class PlaceholderOpNode : public OperationNode {
 class PlaceholderOp : public Operation {
  public:
   TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
-  PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DLDataType dtype)
-      : PlaceholderOp(std::move(name), std::move(shape), PrimType(dtype)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
@@ -334,11 +332,6 @@ using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<Var>& 
  */
 TVM_DLL Tensor placeholder(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                            std::string name = "placeholder");
-
-inline Tensor placeholder(ffi::Array<PrimExpr> shape, DLDataType dtype,
-                          std::string name = "placeholder") {
-  return placeholder(std::move(shape), PrimType(dtype), std::move(name));
-}
 
 /*!
  * \brief Construct a new tensor by computing over shape,

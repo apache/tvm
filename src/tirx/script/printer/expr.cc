@@ -394,8 +394,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       PrimType a_ty = node->a.ty();
       PrimType b_ty = node->b.ty();
-      if ((a_ty.code() == DLDataTypeCode::kDLInt || a_ty.code() == DLDataTypeCode::kDLUInt) &&
-          (b_ty.code() == DLDataTypeCode::kDLInt || b_ty.code() == DLDataTypeCode::kDLUInt)) {
+      if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+          b_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
         return TIR(d, "Div")->Call({a, b});
       }
       return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});

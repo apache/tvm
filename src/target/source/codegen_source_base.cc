@@ -34,7 +34,7 @@ void CodeGenSourceBase::ClearFuncState() {
   scope_mark_.clear();
 }
 
-std::string CodeGenSourceBase::SSAGetID(std::string src, PrimType t) {
+std::string CodeGenSourceBase::SSAGetID(std::string src, const PrimType& t) {
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
@@ -99,51 +99,51 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-void CodeGenSourceBase::PrintType(DLDataType type, std::ostream& os) {  // NOLINT(*)
-  int lanes = static_cast<int16_t>(type.lanes);
+void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
+  int lanes = type.lanes();
   TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-  if (type.code == kDLOpaqueHandle && !(type.bits == 0 && lanes == 0)) {
+  if (type.IsHandle()) {
     os << "void*";
     return;
   }
-  if (type.code == kDLOpaqueHandle && type.bits == 0 && lanes == 0) {
+  if (type.IsVoid()) {
     os << "void";
     return;
   }
   // default c may be have bool type, can be handled in subclass
-  if (type.code == kDLBool) {
+  if (type.MatchesCode(kDLBool)) {
     os << "int";
     return;
   }
-  if (type.code == kDLFloat) {
-    if (type.bits == 32) {
+  if (type.MatchesCode(kDLFloat)) {
+    if (type.bits() == 32) {
       os << "float";
       return;
     }
-    if (type.bits == 64) {
+    if (type.bits() == 64) {
       os << "double";
       return;
     }
-  } else if (type.code == kDLUInt) {
-    switch (type.bits) {
+  } else if (type.MatchesCode(kDLUInt)) {
+    switch (type.bits()) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "uint" << static_cast<int>(type.bits) << "_t";
+        os << "uint" << type.bits() << "_t";
         return;
       }
       case 1:
         os << "int";
         return;
     }
-  } else if (type.code == kDLInt) {
-    switch (type.bits) {
+  } else if (type.MatchesCode(kDLInt)) {
+    switch (type.bits()) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "int" << static_cast<int>(type.bits) << "_t";
+        os << "int" << type.bits() << "_t";
         return;
       }
     }
@@ -153,7 +153,7 @@ void CodeGenSourceBase::PrintType(DLDataType type, std::ostream& os) {  // NOLIN
 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
+    return PrintType(ffi::GetRef<PrimType>(ptr), os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';

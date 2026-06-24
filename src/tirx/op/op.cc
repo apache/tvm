@@ -60,27 +60,28 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   return prim_ty;
 }
 
-bool IsFloatType(const PrimType& ty) { return ty.code() == DLDataTypeCode::kDLFloat; }
-
-bool IsBFloat16Type(const PrimType& ty) {
-  return ty.code() == DLDataTypeCode::kDLBfloat && ty.bits() == 16;
+TVM_FFI_INLINE bool IsFloatType(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat);
 }
 
-bool IsFloat8Type(const PrimType& ty) {
-  DLDataTypeCode code = ty.code();
-  return code == DLDataTypeCode::kDLFloat8_e3m4 || code == DLDataTypeCode::kDLFloat8_e4m3 ||
-         code == DLDataTypeCode::kDLFloat8_e4m3b11fnuz ||
-         code == DLDataTypeCode::kDLFloat8_e4m3fn || code == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
-         code == DLDataTypeCode::kDLFloat8_e5m2 || code == DLDataTypeCode::kDLFloat8_e5m2fnuz ||
-         code == DLDataTypeCode::kDLFloat8_e8m0fnu;
+TVM_FFI_INLINE bool IsBFloat16Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLBfloat);
 }
 
-bool IsFloat6Type(const PrimType& ty) {
-  DLDataTypeCode code = ty.code();
-  return code == DLDataTypeCode::kDLFloat6_e2m3fn || code == DLDataTypeCode::kDLFloat6_e3m2fn;
+TVM_FFI_INLINE bool IsFloat8Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
+                        DLDataTypeCode::kDLFloat8_e4m3b11fnuz, DLDataTypeCode::kDLFloat8_e4m3fn,
+                        DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                        DLDataTypeCode::kDLFloat8_e5m2fnuz, DLDataTypeCode::kDLFloat8_e8m0fnu);
 }
 
-bool IsFloat4Type(const PrimType& ty) { return ty.code() == DLDataTypeCode::kDLFloat4_e2m1fn; }
+TVM_FFI_INLINE bool IsFloat6Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn, DLDataTypeCode::kDLFloat6_e3m2fn);
+}
+
+TVM_FFI_INLINE bool IsFloat4Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn);
+}
 }  // namespace
 
 // macro to register an unary op
@@ -474,7 +475,7 @@ bool is_const_power_of_two_integer(const PrimExpr& x, int* shift) {
 PrimExpr cast(PrimType t, PrimExpr value, Span span) {
   using tirx::FloatImmNode;
   PrimType dtype = t;
-  if (value.ty()->dtype == dtype->dtype) return value;
+  if (value.ty() == dtype) return value;
   // const fold IntImm as they are used in index computations
   if (dtype.IsScalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
@@ -488,7 +489,7 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
     PrimType elem_ty = dtype.WithLanes(1);
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
       // manually unroll cast
-      if (value.ty()->dtype != elem_ty->dtype) {
+      if (value.ty() != elem_ty) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
           value = MakeConst(elem_ty, op->value, op->span);
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
@@ -536,16 +537,14 @@ PrimExpr cast(DLDataType t, PrimExpr value, Span span) {
 PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
   PrimType target_dtype = t;
   PrimType value_dtype = value.ty();
-  if (value.ty()->dtype == t->dtype) return value;
+  if (value.ty() == t) return value;
   if (!target_dtype.IsScalableVector() && !value_dtype.IsScalableVector()) {
     int value_bits = value_dtype.bits() * value_dtype.lanes();
     int target_bits = target_dtype.bits() * target_dtype.lanes();
-    auto storage_bytes = [](PrimType dtype) { return (dtype.bits() + 7) / 8; };
     TVM_FFI_ICHECK(value_bits == target_bits ||
-                   ((value_dtype.code() == DLDataTypeCode::kDLFloat4_e2m1fn ||
-                     target_dtype.code() == DLDataTypeCode::kDLFloat4_e2m1fn) &&
-                    storage_bytes(value_dtype) * value_dtype.lanes() ==
-                        storage_bytes(target_dtype) * target_dtype.lanes()))
+                   ((value_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) ||
+                     target_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) &&
+                    value_dtype.StorageBytes() == target_dtype.StorageBytes()))
         << "Reinterpret requires size match " << target_dtype << " vs " << value_dtype;
   }
   return tirx::Call(std::move(t), tirx::builtin::reinterpret(), {value}, {}, span);

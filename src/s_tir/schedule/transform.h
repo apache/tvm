@@ -61,7 +61,7 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope);
  * \param scope The target data type.
  * \return The new buffer with target data type.
  */
-Buffer WithDType(const Buffer& buffer, DLDataType dtype);
+Buffer WithDType(const Buffer& buffer, PrimType dtype);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of regions

@@ -254,7 +254,7 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
     return false;
   }
 
-  *id = ids[offset + (op_ty.code() == DLDataTypeCode::kDLFloat)];
+  *id = ids[offset + op_ty.MatchesCode(DLDataTypeCode::kDLFloat)];
   return true;
 }
 
@@ -284,7 +284,7 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK(value_ty.bits() == 32) << "Only supports 32 bit atomic for now";
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
-    if (value_ty.code() == DLDataTypeCode::kDLFloat) {
+    if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
     }

@@ -188,7 +188,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
              "PointerType, "
           << "and must point to a PrimType";
-      PrimType value_storage_type(prim->dtype);
+      PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
       if (value_storage_type.MatchesCode(DLDataTypeCode::kDLBool)) {
         // We need a physically addressable buffer type to support boolean tensors.
         // The loaded byte is cast to bool inside the LoadNode visitor below.
@@ -209,7 +209,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
       // add extra access mode info to launch params
       this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
                         << "var<storage, " << access_mode << "> " << vid << " : array<";
-      this->PrintType(value_storage_type->dtype, this->decl_stream);
+      this->PrintType(value_storage_type, this->decl_stream);
       this->decl_stream << ">;\n";
     } else {
       pod_args.push_back(arg);
@@ -305,8 +305,8 @@ void CodeGenWebGPU::BindThreadIndex(const IterVar& iv) {
   }
 }
 
-void CodeGenWebGPU::PrintType(DLDataType raw_t, std::ostream& os) {  // NOLINT(*)
-  PrimType t(raw_t);
+void CodeGenWebGPU::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
   if (t.IsHandle()) {
     TVM_FFI_THROW(InternalError) << "Cannot print handle type in WebGPU";
@@ -367,18 +367,18 @@ void CodeGenWebGPU::PrintStorageSync(const CallNode* op) {
 }
 
 void CodeGenWebGPU::PrintSSAAssign(const std::string& target, const std::string& src,
-                                   PrimType type) {
+                                   const PrimType& type) {
   stream << "let " << target << " : ";
-  PrintType(type->dtype, stream);
+  PrintType(type, stream);
   stream << " = " << src << ";\n";
 }
 
-void CodeGenWebGPU::PrintVecElemLoad(const std::string& vec, DLDataType t, int i,
+void CodeGenWebGPU::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                      std::ostream& os) {  // NOLINT(*)
   os << vec << "[" << i << "]";
 }
 
-void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, DLDataType t, int i,
+void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                       const std::string& value) {
   this->PrintIndent();
   stream << vec << "[" << i << "] = " << value << ";\n";

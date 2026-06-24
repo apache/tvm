@@ -72,7 +72,7 @@ class TensorNode : public DataProducerNode {
   /*! \brief The shape of the tensor */
   ffi::Array<PrimExpr> shape;
   /*! \brief dtype in the content of the tensor */
-  PrimType dtype{DLDataType{kDLOpaqueHandle, 0, 0}};
+  PrimType dtype = PrimType::Void();
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -109,8 +109,6 @@ class Tensor : public DataProducer {
 
  public:
   TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
-  Tensor(ffi::Array<PrimExpr> shape, DLDataType dtype, Operation op, int value_index)
-      : Tensor(std::move(shape), PrimType(dtype), std::move(op), value_index) {}
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.

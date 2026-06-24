@@ -57,7 +57,7 @@ class CodeGenTrainium final : public CodeGenC {
   void InitFuncState(const PrimFunc& f) final;
   std::string GetStorageScopeStr(const std::string& scope);           // NOLINT(*)
   void VisitExpr_(const VarNode* op, std::ostream& os) final;         // NOLINT(*)
-  void PrintType(DLDataType t, std::ostream& os) final;               // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;          // NOLINT(*)
   void VisitStmt_(const AllocBufferNode* op) final;                   // NOLINT(*)
   void VisitStmt_(const AttrStmtNode* op) final;                      // NOLINT(*)
   void VisitStmt_(const ForNode* op) final;                           // NOLINT(*)

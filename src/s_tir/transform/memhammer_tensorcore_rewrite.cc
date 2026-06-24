@@ -106,7 +106,7 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
 Stmt RewriteWmmaLoad(Stmt stmt) {
   using arith::IntSet;
   const PrimType dtype_ty = PrimType::Float(16);
-  const DLDataType dtype = dtype_ty->dtype;
+  const PrimType& dtype = dtype_ty;
   const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
@@ -238,7 +238,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   Buffer tgt_buffer = buf_store->buffer;
 
   PrimType dtype_ty = src_buffer->dtype;
-  const DLDataType dtype = dtype_ty->dtype;
+  const PrimType& dtype = dtype_ty;
 
   Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
@@ -461,7 +461,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   Buffer src_buffer = buf_load->buffer;
   Buffer tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
-  const DLDataType dtype = dtype_ty->dtype;
+  const PrimType& dtype = dtype_ty;
   Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},

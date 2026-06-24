@@ -34,14 +34,6 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-
-int GetLanesOrVScaleFactor(const PrimType& ty) {
-  return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
-}
-
-}  // namespace
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
@@ -397,6 +389,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferStore
+TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
+  return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
+}
+
 BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                          ffi::Optional<PrimExpr> predicate, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
