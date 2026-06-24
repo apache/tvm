@@ -511,7 +511,7 @@ def _normalize_ty_proxy(annotation) -> TypeProxy:
     elif callable(annotation):
         annotation = annotation()
         if isinstance(annotation, PrimExpr):
-            return PrimProxy(annotation.dtype)
+            return PrimProxy(annotation.ty.dtype)
         return annotation
     elif isinstance(annotation, TypeProxy):
         return annotation

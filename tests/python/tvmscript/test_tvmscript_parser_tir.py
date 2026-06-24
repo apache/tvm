@@ -398,10 +398,10 @@ def test_thread_binding_dtype():
 
     loop_i = func.body
     loop_j = loop_i.body
-    assert loop_i.loop_var.dtype == "int64"
-    assert loop_i.thread_binding.var.dtype == "int64"
-    assert loop_j.loop_var.dtype == "int32"
-    assert loop_j.thread_binding.var.dtype == "int32"
+    assert loop_i.loop_var.ty.dtype == "int64"
+    assert loop_i.thread_binding.var.ty.dtype == "int64"
+    assert loop_j.loop_var.ty.dtype == "int32"
+    assert loop_j.thread_binding.var.ty.dtype == "int32"
 
 
 def test_inferred_ty_with_prim_args():
@@ -546,8 +546,8 @@ def test_launch_thread_i64():
         else:
             T.evaluate(T.int64(1))
 
-    assert func.body.node.dom.min.dtype == "int64"
-    assert func.body.node.dom.extent.dtype == "int64"
+    assert func.body.node.dom.min.ty.dtype == "int64"
+    assert func.body.node.dom.extent.ty.dtype == "int64"
 
 
 def test_deterministic_branch():

@@ -36,6 +36,10 @@ from tvm.relax.transform import PatternCheckContext
 from ..pattern_registry import register_patterns
 
 
+def _dtype_str(dtype):
+    return str(dtype.dtype) if isinstance(dtype, tvm.ir.PrimType) else str(dtype)
+
+
 @mutator
 class AppendReshapeToBNRewriter(PyExprMutator):
     """
@@ -137,13 +141,13 @@ def clml_pattern_table():
 
         if "data" in context.annotated_expr:
             input_expr = context.annotated_expr["data"]
-            input_dtype = input_expr.ty.dtype
+            input_dtype = _dtype_str(input_expr.ty.dtype)
             if input_dtype not in ["float32", "float16"]:
                 return False
 
         if "weight" in context.annotated_expr:
             weight_expr = context.annotated_expr["weight"]
-            weight_dtype = weight_expr.ty.dtype
+            weight_dtype = _dtype_str(weight_expr.ty.dtype)
             if weight_dtype not in ["float32", "float16"]:
                 return False
 
@@ -452,7 +456,7 @@ def clml_pattern_table():
         base_shape = None
         for param in params.values():
             shape = param.ty.shape
-            dtype = param.ty.dtype
+            dtype = _dtype_str(param.ty.dtype)
 
             if dtype not in {"float32"}:
                 return False
@@ -496,7 +500,7 @@ def clml_pattern_table():
 
     def _check_binary_op(context: PatternCheckContext) -> bool:
         def _check_arg(input_expr):
-            input_dtype = input_expr.ty.dtype
+            input_dtype = _dtype_str(input_expr.ty.dtype)
             input_shape = input_expr.ty.shape
             if len(input_shape) == 0:
                 return False
@@ -630,7 +634,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
     wdq = ctx.annotated_expr["w_decoded"]
     w_pack = ctx.annotated_expr["w_encoded"]
 
-    if ctx.annotated_expr["lhs"].ty.dtype != "float16":
+    if _dtype_str(ctx.annotated_expr["lhs"].ty.dtype) != "float16":
         return False
     if not isinstance(wdq, relax.Call):
         return False
@@ -641,7 +645,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
     if not (
         (len(root.ty.shape) == 3)
         and isinstance(root.ty.shape[0], tirx.IntImm)
-        and (root.ty.dtype == "float16")
+        and (_dtype_str(root.ty.dtype) == "float16")
         and (root.ty.shape[0] == 1)
     ):
         return False
