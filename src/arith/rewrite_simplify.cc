@@ -1187,6 +1187,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
                        ContainsVscaleCall(y.Eval()) && CanProveGreaterEqual(x.Eval(), 0) &&
                            CanProveGreaterEqual(y.Eval(), 0) && CanProve(x.Eval() < y.Eval()));
   }
+
+  // Unsigned (uint32/uint64): the signed IsIndexType block above is skipped for
+  // unsigned operands (see the note in the FloorMod handler). Only the
+  // OVERFLOW-FREE identities are valid here.
+  if (op->dtype.is_uint() && (op->dtype.bits() == 32 || op->dtype.bits() == 64)) {
+    TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));            // x / x -> 1  (x != 0)
+    TVM_TRY_REWRITE_IF(floordiv(x, c1), x, c1.Eval()->value == 1);  // x / 1 -> x
+  }
   return ret;
 }
 
@@ -1303,6 +1311,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         }
       }
     }
+  }
+
+  // Unsigned (uint32/uint64) index arithmetic. The signed IsIndexType rewrite
+  // block above is skipped for unsigned operands: signed-overflow-is-UB lets
+  // those rules assume no wraparound, which is UNSOUND for unsigned (e.g.
+  // floormod(x*y, y) -> 0 fails when x*y wraps mod 2^bits). Only the
+  // OVERFLOW-FREE identities are valid here.
+  if (op->dtype.is_uint() && (op->dtype.bits() == 32 || op->dtype.bits() == 64)) {
+    TVM_TRY_REWRITE(floormod(x, x), ZeroWithTypeLike(x));  // x % x -> 0  (x != 0)
+    TVM_TRY_REWRITE_IF(floormod(x, c1), ZeroWithTypeLike(x),
+                       c1.Eval()->value == 1);  // x % 1 -> 0
+    // Overflow-free: when c1 is a multiple of c2, x * c1 is too (in Z and mod 2^bits).
+    TVM_TRY_REWRITE_IF(floormod(x * c1, c2), ZeroWithTypeLike(x),
+                       c2.Eval()->value != 0 && c1.Eval()->value % c2.Eval()->value == 0);
   }
   return ret;
 }
