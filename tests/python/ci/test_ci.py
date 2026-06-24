@@ -1270,10 +1270,10 @@ def test_open_docker_update_pr(
 
 @parameterize_named(
     use_tlcpack=dict(
-        images=["ci_arm", "ci_lint"],
+        images=["ci_arm", "ci_cpu"],
         expected={
             "ci_arm": "tlcpack/ci-arm:abc-abc-123",
-            "ci_lint": "tlcpack/ci-lint:abc-abc-234",
+            "ci_cpu": "tlcpack/ci-cpu:abc-abc-234",
         },
     ),
     use_staging=dict(
@@ -1291,12 +1291,12 @@ def test_determine_docker_images(tmpdir_factory, images, expected):
 
     docker_data = {
         "repositories/tlcpack/ci-arm/tags/abc-abc-123": {},
-        "repositories/tlcpack/ci-lint/tags/abc-abc-234": {},
+        "repositories/tlcpack/ci-cpu/tags/abc-abc-234": {},
     }
 
     images_data = {
         "ci_arm": "tlcpack/ci-arm:abc-abc-123",
-        "ci_lint": "tlcpack/ci-lint:abc-abc-234",
+        "ci_cpu": "tlcpack/ci-cpu:abc-abc-234",
         "ci_arm2": "tlcpack/ci-arm2:abc-abc-123",
     }
 

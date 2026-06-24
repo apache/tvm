@@ -28,6 +28,11 @@ fi
 FILES_THAT_SHOULDNT_TRIGGER_REBUILDS=(
     "docker/bash.sh"
     "docker/with_the_same_user"
+    "docker/README.md"
+    "docker/Dockerfile.ci_lint"
+    "docker/install/ubuntu_install_clang_format.sh"
+    "docker/lint.sh"
+    "docker/clear-stale-images.sh"
     "README.md"
     "lint.sh"
     "clear-stale-images.sh"

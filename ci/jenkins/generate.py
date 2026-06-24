@@ -39,7 +39,6 @@ _IMAGE_PLATFORMS = {
     "ci_arm": "ARM",
     "ci_cpu": "CPU",
     "ci_gpu": "GPU",
-    "ci_lint": "CPU",
     "ci_wasm": "CPU",
 }
 

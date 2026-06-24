@@ -37,6 +37,7 @@ IMAGES_FILE = JENKINS_DIR / "docker-images.ini"
 GENERATE_SCRIPT = JENKINS_DIR / "generate.py"
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
+RETIRED_IMAGES = {"ci_lint"}
 
 
 def _testing_docker_api(data: dict[str, Any]) -> Callable[[str], dict[str, Any]]:
@@ -142,6 +143,9 @@ if __name__ == "__main__":
     replacements = {}
     for key in config.options("jenkins"):
         if key == "ci_tag":
+            continue
+        if key in RETIRED_IMAGES:
+            logging.info(f"Skipping retired image {key}")
             continue
         image_spec = config.get("jenkins", key)
         logging.info(f"Found {key} = {image_spec}")
