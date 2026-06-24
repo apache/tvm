@@ -236,7 +236,7 @@ def test_max(dtype):
     )
 
     assert len(loads) > 1
-    assert (len(compare) > 1 and len(select) == len(compare)) or len(max_instr) > 1
+    assert (len(compare) > 1 and len(select) == 3 * len(compare)) or len(max_instr) > 1
 
 
 @pytest.mark.skipif(
@@ -279,7 +279,7 @@ def test_min(dtype):
     )
 
     assert len(loads) > 1
-    assert (len(compare) > 1 and len(select) == len(compare)) or len(min_instr) > 1
+    assert (len(compare) > 1 and len(select) == 3 * len(compare)) or len(min_instr) > 1
 
 
 @pytest.mark.skipif(
